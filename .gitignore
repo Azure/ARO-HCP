@@ -1,4 +1,4 @@
-
+**/*.swp
 localsecrets
 secrets
 node_modules
