@@ -1,4 +1,5 @@
 **/*.swp
+aro-hcp-frontend
 localsecrets
 secrets
 node_modules
