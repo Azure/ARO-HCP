@@ -1,0 +1,15 @@
+ █████╗ ██████╗  ██████╗       ██╗  ██╗ ██████╗██████╗ 
+██╔══██╗██╔══██╗██╔═══██╗      ██║  ██║██╔════╝██╔══██╗
+███████║██████╔╝██║   ██║█████╗███████║██║     ██████╔╝
+██╔══██║██╔══██╗██║   ██║╚════╝██╔══██║██║     ██╔═══╝ 
+██║  ██║██║  ██║╚██████╔╝      ██║  ██║╚██████╗██║     
+╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝       ╚═╝  ╚═╝ ╚═════╝╚═╝     
+                                                       
+
+Welcome to the devcontainer! 
+
+To start working with azure-cli, you need to login to Azure account.
+$ az login --use-device-code
+
+To start working on typespec API, install the tsp extension
+$ tsp code install
