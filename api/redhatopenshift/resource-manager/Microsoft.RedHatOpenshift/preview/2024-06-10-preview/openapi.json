@@ -1,0 +1,1521 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Microsoft.RedHatOpenshift management service",
+    "version": "2024-06-10-preview",
+    "description": "Microsoft.RedHatOpenshift Resource Provider management API.",
+    "x-typespec-generated": [
+      {
+        "emitter": "@azure-tools/typespec-autorest"
+      }
+    ]
+  },
+  "schemes": [
+    "https"
+  ],
+  "host": "management.azure.com",
+  "produces": [
+    "application/json"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "security": [
+    {
+      "azure_auth": [
+        "user_impersonation"
+      ]
+    }
+  ],
+  "securityDefinitions": {
+    "azure_auth": {
+      "type": "oauth2",
+      "description": "Azure Active Directory OAuth2 Flow.",
+      "flow": "implicit",
+      "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/authorize",
+      "scopes": {
+        "user_impersonation": "impersonate your user account"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Operations"
+    },
+    {
+      "name": "HcpOpenShiftClusters"
+    },
+    {
+      "name": "HcpClusterVersionOperations"
+    }
+  ],
+  "paths": {
+    "/providers/Microsoft.RedHatOpenshift/operations": {
+      "get": {
+        "operationId": "Operations_List",
+        "tags": [
+          "Operations"
+        ],
+        "description": "List the operations for the provider",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ARM operation completed successfully.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/OperationListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        },
+        "x-ms-examples": {
+          "Operations_List_MaximumSet_Gen": {
+            "$ref": "./examples/Operations_List_MaximumSet_Gen.json"
+          },
+          "Operations_List_MinimumSet_Gen": {
+            "$ref": "./examples/Operations_List_MinimumSet_Gen.json"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftVersions": {
+      "get": {
+        "operationId": "HcpClusterVersionOperations_ListByLocation",
+        "tags": [
+          "HcpClusterVersionOperations"
+        ],
+        "description": "List HcpOpenShiftVersions resources by location",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/LocationParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ARM operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftVersionsListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        },
+        "x-ms-examples": {
+          "HcpClusterVersionOperations_ListByLocation_MaximumSet_Gen": {
+            "$ref": "./examples/HcpClusterVersionOperations_ListByLocation_MaximumSet_Gen.json"
+          },
+          "HcpClusterVersionOperations_ListByLocation_MinimumSet_Gen": {
+            "$ref": "./examples/HcpClusterVersionOperations_ListByLocation_MinimumSet_Gen.json"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters": {
+      "get": {
+        "operationId": "HcpOpenShiftClusters_ListBySubscription",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "List HcpOpenShiftClusterResource resources by subscription ID",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ARM operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterResourceListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        },
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen.json"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters": {
+      "get": {
+        "operationId": "HcpOpenShiftClusters_ListByResourceGroup",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "List HcpOpenShiftClusterResource resources by resource group",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ResourceGroupNameParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ARM operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterResourceListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        },
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen.json"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}": {
+      "get": {
+        "operationId": "HcpOpenShiftClusters_Get",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "Get a HcpOpenShiftClusterResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ARM operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_Get_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_Get_MaximumSet_Gen.json"
+          }
+        }
+      },
+      "put": {
+        "operationId": "HcpOpenShiftClusters_CreateOrUpdate",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "Create a HcpOpenShiftClusterResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          },
+          {
+            "name": "resource",
+            "in": "body",
+            "description": "Resource create parameters.",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resource 'HcpOpenShiftClusterResource' update operation succeeded",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+            }
+          },
+          "201": {
+            "description": "Resource 'HcpOpenShiftClusterResource' create operation succeeded",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+            },
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "azure-async-operation"
+        },
+        "x-ms-long-running-operation": true,
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen.json"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "HcpOpenShiftClusters_Update",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "Update a HcpOpenShiftClusterResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          },
+          {
+            "name": "properties",
+            "in": "body",
+            "description": "The resource properties to be updated.",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterResourceUpdate"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ARM operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+            }
+          },
+          "202": {
+            "description": "Resource update request accepted.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              },
+              "Location": {
+                "type": "string",
+                "description": "The Location header contains the URL where the status of the long running operation can be checked."
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "location"
+        },
+        "x-ms-long-running-operation": true,
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_Update_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_Update_MaximumSet_Gen.json"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "HcpOpenShiftClusters_Delete",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "Delete a HcpOpenShiftClusterResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Resource deletion accepted.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              },
+              "Location": {
+                "type": "string",
+                "description": "The Location header contains the URL where the status of the long running operation can be checked."
+              }
+            }
+          },
+          "204": {
+            "description": "Resource deleted successfully."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "location"
+        },
+        "x-ms-long-running-operation": true,
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_Delete_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_Delete_MaximumSet_Gen.json"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/adminCredentials": {
+      "post": {
+        "operationId": "HcpOpenShiftClusters_AdminCredentials",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "Returns the admin cluster credentials",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ARM operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterCredentials"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_AdminCredentials_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_AdminCredentials_MaximumSet_Gen.json"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/kubeConfig": {
+      "post": {
+        "operationId": "HcpOpenShiftClusters_KubeConfig",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "Return the kubeconfig for the cluster",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v3/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ARM operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterKubeconfig"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_KubeConfig_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_KubeConfig_MaximumSet_Gen.json"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ApiProfile": {
+      "type": "object",
+      "description": "Information about the API of a cluster.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "URL endpoint for the API server",
+          "readOnly": true
+        },
+        "ip": {
+          "type": "string",
+          "description": "ip address of the API server",
+          "readOnly": true
+        },
+        "visibility": {
+          "$ref": "#/definitions/Visibility",
+          "description": "should the API server be accessible from the internet",
+          "x-ms-mutability": [
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "url",
+        "ip",
+        "visibility"
+      ]
+    },
+    "Azure.ResourceManager.ResourceProvisioningState": {
+      "type": "string",
+      "description": "The provisioning state of a resource type.",
+      "enum": [
+        "Succeeded",
+        "Failed",
+        "Canceled"
+      ],
+      "x-ms-enum": {
+        "name": "ResourceProvisioningState",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Succeeded",
+            "value": "Succeeded",
+            "description": "Resource has been created."
+          },
+          {
+            "name": "Failed",
+            "value": "Failed",
+            "description": "Resource creation failed."
+          },
+          {
+            "name": "Canceled",
+            "value": "Canceled",
+            "description": "Resource creation was canceled."
+          }
+        ]
+      },
+      "readOnly": true
+    },
+    "ClaimProfile": {
+      "type": "object",
+      "description": "External auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim"
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix"
+        },
+        "prefixPolicy": {
+          "type": "string",
+          "description": "Prefix policy"
+        }
+      },
+      "required": [
+        "claim",
+        "prefix",
+        "prefixPolicy"
+      ]
+    },
+    "ClusterSpec": {
+      "type": "object",
+      "description": "The cluster resource specification",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/VersionProfile",
+          "description": "Version of the control plane components",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "dns": {
+          "$ref": "#/definitions/DnsProfile",
+          "description": "Cluster DNS configuration"
+        },
+        "network": {
+          "$ref": "#/definitions/NetworkProfile",
+          "description": "Cluster network configuration",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "console": {
+          "$ref": "#/definitions/ConsoleProfile",
+          "description": "Shows the cluster web console information",
+          "readOnly": true
+        },
+        "api": {
+          "$ref": "#/definitions/ApiProfile",
+          "description": "Shows the cluster API server profile",
+          "readOnly": true
+        },
+        "fips": {
+          "type": "boolean",
+          "description": "Enable FIPS mode for the cluster\nWhen set to true, `etcdEncryption` must be set to true",
+          "default": false,
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "etcdEncryption": {
+          "type": "boolean",
+          "description": "Enables customer ETCD encryption, set during creation\nWhen set to true, `platform.etcdEncryptionSetId` must be set",
+          "default": false,
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "disableUserWorkloadMonitoring": {
+          "type": "boolean",
+          "description": "Disable user workload monitoring",
+          "default": false,
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "proxy": {
+          "$ref": "#/definitions/ProxyProfile",
+          "description": "Openshift cluster proxy configuration",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "platform": {
+          "$ref": "#/definitions/PlatformProfile",
+          "description": "Azure platform configuration",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "issuerUrl": {
+          "type": "string",
+          "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
+          "readOnly": true
+        },
+        "externalAuth": {
+          "$ref": "#/definitions/ExternalAuthConfigProfile",
+          "description": "Configuration to override the openshift-oauth-apiserver inside cluster\nThis changes user login into the cluster to external provider",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "ingress": {
+          "type": "array",
+          "description": "Configures the cluster ingresses",
+          "items": {
+            "$ref": "#/definitions/IngressProfile"
+          },
+          "x-ms-identifiers": [],
+          "x-ms-mutability": [
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "console",
+        "api",
+        "platform",
+        "issuerUrl"
+      ]
+    },
+    "ClusterSpecUpdate": {
+      "type": "object",
+      "description": "The cluster resource specification",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/VersionProfileUpdate",
+          "description": "Version of the control plane components",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "dns": {
+          "$ref": "#/definitions/DnsProfileUpdate",
+          "description": "Cluster DNS configuration"
+        },
+        "disableUserWorkloadMonitoring": {
+          "type": "boolean",
+          "description": "Disable user workload monitoring",
+          "default": false,
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "proxy": {
+          "$ref": "#/definitions/ProxyProfile",
+          "description": "Openshift cluster proxy configuration",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "ConsoleProfile": {
+      "type": "object",
+      "description": "Configuration of the cluster web console",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "The cluster web console URL endpoint",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "DnsProfile": {
+      "type": "object",
+      "description": "DNS contains the DNS settings of the cluster",
+      "properties": {
+        "baseDomain": {
+          "type": "string",
+          "description": "BaseDomain is the base DNS domain of the cluster.",
+          "readOnly": true
+        },
+        "baseDomainPrefix": {
+          "type": "string",
+          "description": "BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.\nBaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources",
+          "x-ms-mutability": [
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "baseDomain",
+        "baseDomainPrefix"
+      ]
+    },
+    "DnsProfileUpdate": {
+      "type": "object",
+      "description": "DNS contains the DNS settings of the cluster"
+    },
+    "ExternalAuthClaimProfile": {
+      "type": "object",
+      "description": "External auth claim profile",
+      "properties": {
+        "mappings": {
+          "$ref": "#/definitions/TokenClaimMappingsProfile",
+          "description": "The claim mappings"
+        },
+        "validationRules": {
+          "type": "array",
+          "description": "The claim validation rules",
+          "items": {
+            "$ref": "#/definitions/TokenClaimValidationRuleProfile"
+          },
+          "x-ms-identifiers": []
+        }
+      },
+      "required": [
+        "mappings",
+        "validationRules"
+      ]
+    },
+    "ExternalAuthClientComponentProfile": {
+      "type": "object",
+      "description": "External auth component profile",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the external auth client"
+        },
+        "authClientNamespace": {
+          "type": "string",
+          "description": "The namespace of the external auth client"
+        }
+      },
+      "required": [
+        "name",
+        "authClientNamespace"
+      ]
+    },
+    "ExternalAuthClientProfile": {
+      "type": "object",
+      "description": "External auth client profile",
+      "properties": {
+        "component": {
+          "$ref": "#/definitions/ExternalAuthClientComponentProfile",
+          "description": "External auth client component"
+        },
+        "id": {
+          "type": "string",
+          "description": "external auth client id"
+        },
+        "secret": {
+          "type": "string",
+          "format": "password",
+          "description": "external auth client secret",
+          "x-ms-secret": true
+        },
+        "extraScopes": {
+          "type": "array",
+          "description": "external auth client scopes",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "component",
+        "id",
+        "secret",
+        "extraScopes"
+      ]
+    },
+    "ExternalAuthConfigProfile": {
+      "type": "object",
+      "description": "External authentication configuration profile",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster",
+          "default": false,
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "externalAuths": {
+          "type": "array",
+          "description": "This can only be set as a day-2 resource on a separate endpoint to provide a self-managed auth service",
+          "items": {
+            "$ref": "#/definitions/ExternalAuthProfile"
+          },
+          "readOnly": true,
+          "x-ms-identifiers": []
+        }
+      },
+      "required": [
+        "externalAuths"
+      ]
+    },
+    "ExternalAuthProfile": {
+      "type": "object",
+      "description": "External authentication profile",
+      "properties": {
+        "issuer": {
+          "$ref": "#/definitions/TokenIssuerProfile",
+          "description": "Token Issuer profile"
+        },
+        "clients": {
+          "type": "array",
+          "description": "External auth clients",
+          "items": {
+            "$ref": "#/definitions/ExternalAuthClientProfile"
+          }
+        },
+        "claim": {
+          "$ref": "#/definitions/ExternalAuthClaimProfile",
+          "description": "External auth claim"
+        }
+      },
+      "required": [
+        "issuer",
+        "clients",
+        "claim"
+      ]
+    },
+    "HcpOpenShiftClusterCredentials": {
+      "type": "object",
+      "description": "HCP cluster credentials",
+      "properties": {
+        "kubeadminUsername": {
+          "type": "string",
+          "description": "kubeadmin user name",
+          "readOnly": true
+        },
+        "kubeadminPassword": {
+          "type": "string",
+          "format": "password",
+          "description": "kube admin password",
+          "readOnly": true,
+          "x-ms-secret": true
+        }
+      },
+      "required": [
+        "kubeadminUsername",
+        "kubeadminPassword"
+      ]
+    },
+    "HcpOpenShiftClusterKubeconfig": {
+      "type": "object",
+      "description": "HCP cluster admin kubeconfig",
+      "properties": {
+        "kubeconfig": {
+          "type": "string",
+          "format": "password",
+          "description": "The kubeconfig file",
+          "readOnly": true,
+          "x-ms-secret": true
+        }
+      },
+      "required": [
+        "kubeconfig"
+      ]
+    },
+    "HcpOpenShiftClusterProperties": {
+      "type": "object",
+      "description": "HCP cluster properties",
+      "properties": {
+        "provisioningState": {
+          "$ref": "#/definitions/ProvisioningState",
+          "description": "The status of the last operation.",
+          "readOnly": true
+        },
+        "spec": {
+          "$ref": "#/definitions/ClusterSpec",
+          "description": "The cluster resouce specification.",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "spec"
+      ]
+    },
+    "HcpOpenShiftClusterResource": {
+      "type": "object",
+      "description": "HCP cluster resource",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/HcpOpenShiftClusterProperties",
+          "description": "The resource-specific properties for this resource.",
+          "x-ms-client-flatten": true,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "identity": {
+          "$ref": "../../../../../common-types/resource-management/v4/managedidentity.json#/definitions/ManagedServiceIdentity",
+          "description": "The managed service identities assigned to this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/TrackedResource"
+        }
+      ]
+    },
+    "HcpOpenShiftClusterResourceListResult": {
+      "type": "object",
+      "description": "The response of a HcpOpenShiftClusterResource list operation.",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The HcpOpenShiftClusterResource items on this page",
+          "items": {
+            "$ref": "#/definitions/HcpOpenShiftClusterResource"
+          }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "HcpOpenShiftClusterResourceUpdate": {
+      "type": "object",
+      "description": "The type used for update operations of the HcpOpenShiftClusterResource.",
+      "properties": {
+        "identity": {
+          "$ref": "../../../../../common-types/resource-management/v4/managedidentity.json#/definitions/ManagedServiceIdentity",
+          "description": "The managed service identities assigned to this resource."
+        },
+        "tags": {
+          "type": "object",
+          "description": "Resource tags.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "$ref": "#/definitions/HcpOpenShiftClusterResourceUpdateProperties",
+          "x-ms-client-flatten": true
+        }
+      }
+    },
+    "HcpOpenShiftClusterResourceUpdateProperties": {
+      "type": "object",
+      "description": "The updatable properties of the HcpOpenShiftClusterResource.",
+      "properties": {
+        "spec": {
+          "$ref": "#/definitions/ClusterSpecUpdate",
+          "description": "The cluster resouce specification.",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "HcpOpenShiftVersions": {
+      "type": "object",
+      "description": "HcpOpenShiftVersions represents a location based available HCP cluster versions",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/HcpOpenShiftVersionsProperties",
+          "description": "The resource-specific properties for this resource.",
+          "x-ms-client-flatten": true,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../common-types/resource-management/v3/types.json#/definitions/ProxyResource"
+        }
+      ]
+    },
+    "HcpOpenShiftVersionsListResult": {
+      "type": "object",
+      "description": "The response of a HcpOpenShiftVersions list operation.",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The HcpOpenShiftVersions items on this page",
+          "items": {
+            "$ref": "#/definitions/HcpOpenShiftVersions"
+          }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "HcpOpenShiftVersionsProperties": {
+      "type": "object",
+      "description": "HcpOpenShiftVersionsProperties is the installable cluster version",
+      "properties": {
+        "provisioningState": {
+          "$ref": "#/definitions/Azure.ResourceManager.ResourceProvisioningState",
+          "description": "The provisioning state of the resource."
+        },
+        "clusterVersion": {
+          "type": "string",
+          "description": "The cluster version",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "provisioningState",
+        "clusterVersion"
+      ]
+    },
+    "IngressProfile": {
+      "type": "object",
+      "description": "Configuration of the cluster ingress",
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "The IP for the ingress",
+          "readOnly": true
+        },
+        "url": {
+          "type": "string",
+          "description": "The ingress url",
+          "readOnly": true
+        },
+        "visibility": {
+          "$ref": "#/definitions/Visibility",
+          "description": "The visibility of the ingress\ndetermines if the ingress is visible from the internet",
+          "x-ms-mutability": [
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "ip",
+        "url",
+        "visibility"
+      ]
+    },
+    "NetworkProfile": {
+      "type": "object",
+      "description": "Network profile of the cluster",
+      "properties": {
+        "networkType": {
+          "$ref": "#/definitions/NetworkType",
+          "description": "The main controller responsible for rendering the core networking components",
+          "default": "OVNKubernetes",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "podCidr": {
+          "type": "string",
+          "description": "The CIDR of the pod IP addresses\nexample: 10.128.0.0/14",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "serviceCidr": {
+          "type": "string",
+          "description": "The CIDR block for assigned service IPs,\nexample: 172.30.0.0/16",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "machineCidr": {
+          "type": "string",
+          "description": "from which to assign machine IP addresses,\nexample: 10.0.0.0/16",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "hostPrefix": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Network host prefix which is defaulted to 23 if not specified.",
+          "default": 23,
+          "x-ms-mutability": [
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "podCidr",
+        "serviceCidr",
+        "machineCidr"
+      ]
+    },
+    "NetworkType": {
+      "type": "string",
+      "description": "The cluster network type",
+      "enum": [
+        "OVNKubernetes",
+        "Other"
+      ],
+      "x-ms-enum": {
+        "name": "NetworkType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "OVNKubernetes",
+            "value": "OVNKubernetes",
+            "description": "THE OVN network plugin for the OpenShift cluster"
+          },
+          {
+            "name": "Other",
+            "value": "Other",
+            "description": "Other network plugins"
+          }
+        ]
+      }
+    },
+    "OutboundType": {
+      "type": "string",
+      "description": "The outbound routing strategy used to provide your cluster egress to the internet.",
+      "enum": [
+        "loadBalancer"
+      ],
+      "x-ms-enum": {
+        "name": "OutboundType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "loadBalancer",
+            "value": "loadBalancer",
+            "description": "The loadbalancer configuration"
+          }
+        ]
+      }
+    },
+    "PlatformProfile": {
+      "type": "object",
+      "description": "Azure specific configuration",
+      "properties": {
+        "managedResourceGroup": {
+          "type": "string",
+          "description": "Resource group to put cluster resources"
+        },
+        "subnetId": {
+          "type": "string",
+          "description": "ResourceId for the subnet used by the control plane"
+        },
+        "outboundType": {
+          "$ref": "#/definitions/OutboundType",
+          "description": "The core outgoing configuration",
+          "default": "loadBalancer"
+        },
+        "preconfiguredNsgs": {
+          "type": "boolean",
+          "description": "Specifies whether subnets are pre-attached with an NSG"
+        },
+        "etcdEncryptionSetId": {
+          "type": "string",
+          "description": "The id of the disk encryption set to be used for etcd.\nConfigure this when `etcdEncryption` is set to true\nIs used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview"
+        }
+      },
+      "required": [
+        "managedResourceGroup",
+        "subnetId",
+        "preconfiguredNsgs"
+      ]
+    },
+    "ProvisioningState": {
+      "type": "string",
+      "description": "The resource provisioning state.",
+      "enum": [
+        "Succeeded",
+        "Failed",
+        "Canceled"
+      ],
+      "x-ms-enum": {
+        "name": "ProvisioningState",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Succeeded",
+            "value": "Succeeded",
+            "description": "Resource has been created."
+          },
+          {
+            "name": "Failed",
+            "value": "Failed",
+            "description": "Resource creation failed."
+          },
+          {
+            "name": "Canceled",
+            "value": "Canceled",
+            "description": "Resource creation was canceled."
+          }
+        ]
+      },
+      "readOnly": true
+    },
+    "ProxyProfile": {
+      "type": "object",
+      "description": "OpenShift cluster proxy configuration",
+      "properties": {
+        "httpProxy": {
+          "type": "string",
+          "description": "http proxy config"
+        },
+        "httpsProxy": {
+          "type": "string",
+          "description": "https proxy config"
+        },
+        "noProxy": {
+          "type": "string",
+          "description": "no proxy config"
+        },
+        "trustedCa": {
+          "type": "string",
+          "description": "The trusted CA for the proxy"
+        }
+      }
+    },
+    "TokenClaimMappingsProfile": {
+      "type": "object",
+      "description": "External auth claim mappings profile",
+      "properties": {
+        "username": {
+          "$ref": "#/definitions/ClaimProfile",
+          "description": "The claim mappings username"
+        },
+        "groups": {
+          "$ref": "#/definitions/ClaimProfile",
+          "description": "The claim mappings groups"
+        }
+      },
+      "required": [
+        "username",
+        "groups"
+      ]
+    },
+    "TokenClaimValidationRuleProfile": {
+      "type": "object",
+      "description": "External auth claim validation rule",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim"
+        },
+        "requiredValue": {
+          "type": "string",
+          "description": "Required value"
+        }
+      },
+      "required": [
+        "claim",
+        "requiredValue"
+      ]
+    },
+    "TokenIssuerProfile": {
+      "type": "object",
+      "description": "Token issuer profile",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "The URL of the token issuer"
+        },
+        "audiences": {
+          "type": "array",
+          "description": "The audience of the token issuer",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ca": {
+          "type": "string",
+          "description": "The issuer of the token"
+        }
+      },
+      "required": [
+        "url",
+        "audiences",
+        "ca"
+      ]
+    },
+    "VersionProfile": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the unique identifier of the version.",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "availableUpgrades": {
+          "type": "array",
+          "description": "AvailableUpgrades is a list of version names the current version can be upgraded to.",
+          "items": {
+            "type": "string"
+          },
+          "readOnly": true
+        }
+      },
+      "required": [
+        "id",
+        "channelGroup",
+        "availableUpgrades"
+      ]
+    },
+    "VersionProfileUpdate": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the unique identifier of the version.",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "Versions": {
+      "type": "string",
+      "description": "The available API versions.",
+      "enum": [
+        "2024-06-10-preview"
+      ],
+      "x-ms-enum": {
+        "name": "Versions",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "v2024_06_10_preview",
+            "value": "2024-06-10-preview",
+            "description": "2024-06-10-preview version"
+          }
+        ]
+      }
+    },
+    "Visibility": {
+      "type": "string",
+      "description": "The visibility of the API server",
+      "enum": [
+        "public",
+        "private"
+      ],
+      "x-ms-enum": {
+        "name": "Visibility",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "public",
+            "value": "public",
+            "description": "The API server is visible from the internet."
+          },
+          {
+            "name": "private",
+            "value": "private",
+            "description": "The API server is not visible from the internet."
+          }
+        ]
+      }
+    }
+  },
+  "parameters": {}
+}

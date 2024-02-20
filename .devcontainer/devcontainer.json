@@ -7,7 +7,7 @@
                 "editorconfig.editorconfig",
                 "ms-azuretools.vscode-bicep",
                 "ms-vscode.azurecli",
-                "arjun.swagger-viewer"
+                "arjun.swagger-viewer"      
             ],
 
             "settings": {
@@ -27,7 +27,7 @@
             "version": "latest",
             "installBicep": true,
             "extensions": "providerhub"
-        }
+        } 
     },
 
     "remoteUser": "vscode",
