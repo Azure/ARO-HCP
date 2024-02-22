@@ -1,0 +1,16 @@
+
+localsecrets
+secrets
+node_modules
+/.vscode
+/*.crt
+/*.key
+/*kubeconfig
+/*.pem
+.DS_Store
+env
+
+# no need to track, used only for typespec
+# version is pinned in devcontainer.json
+package.json
+package-lock.json
