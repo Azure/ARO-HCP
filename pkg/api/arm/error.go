@@ -12,7 +12,9 @@ import (
 // CloudError codes
 const (
 	CloudErrorCodeInternalServerError  = "InternalServerError"
+	CloudErrorCodeInvalidParameter     = "InvalidParameter"
 	CloudErrorCodeInvalidResource      = "InvalidResource"
+	CloudErrorCodeInvalidResourceType  = "InvalidResourceType"
 	CloudErrorCodeUnsupportedMediaType = "UnsupportedMediaType"
 	CloudErrorCodeNotFound             = "NotFound"
 )

@@ -59,8 +59,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 	mux.HandleFunc("GET /healthz/ready", f.HealthzReady)
 
 	// Authenticated routes
-	// FIXME List post-multiplexing middleware like auth validation here.
-	postMuxMiddleware := NewMiddleware()
+	postMuxMiddleware := NewMiddleware(MiddlewareValidateAPIVersion)
 	mux.Handle(
 		http.MethodGet+" "+ResourceTypePath,
 		postMuxMiddleware.HandlerFunc(f.ArmResourceListByParent))
