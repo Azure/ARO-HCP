@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync/atomic"
 
 	"github.com/Azure/ARO-HCP/pkg/api/arm"
 )
@@ -30,6 +31,7 @@ type Frontend struct {
 	logger   *slog.Logger
 	listener net.Listener
 	server   http.Server
+	ready    atomic.Value
 	done     chan struct{}
 }
 
@@ -54,6 +56,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
+	mux.HandleFunc("GET /healthz/ready", f.HealthzReady)
 
 	// Authenticated routes
 	// FIXME List post-multiplexing middleware like auth validation here.
@@ -85,11 +88,14 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	if stop != nil {
 		go func() {
 			<-stop
+			f.ready.Store(false)
 			f.server.Shutdown(ctx)
 		}()
 	}
 
 	f.logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
+
+	f.ready.Store(true)
 
 	err := f.server.Serve(f.listener)
 	if err != http.ErrServerClosed {
@@ -104,11 +110,23 @@ func (f *Frontend) Join() {
 	<-f.done
 }
 
+func (f *Frontend) CheckReady() bool {
+	return f.ready.Load().(bool)
+}
+
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 	arm.WriteError(
 		writer, http.StatusNotFound,
 		arm.CloudErrorCodeNotFound, "",
 		"The requested path could not be found.")
+}
+
+func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Request) {
+	if f.CheckReady() {
+		writer.WriteHeader(http.StatusOK)
+	} else {
+		writer.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func (f *Frontend) ArmResourceListByParent(writer http.ResponseWriter, request *http.Request) {
