@@ -14,6 +14,7 @@ const (
 	CloudErrorCodeInternalServerError  = "InternalServerError"
 	CloudErrorCodeInvalidResource      = "InvalidResource"
 	CloudErrorCodeUnsupportedMediaType = "UnsupportedMediaType"
+	CloudErrorCodeNotFound             = "NotFound"
 )
 
 // CloudError represents a complete resource provider error.

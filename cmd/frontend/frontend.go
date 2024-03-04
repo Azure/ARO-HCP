@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+
+	"github.com/Azure/ARO-HCP/pkg/api/arm"
 )
 
 const (
@@ -49,6 +51,11 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 		MiddlewareBody,
 		MiddlewareLowercase,
 		MiddlewareSystemData)
+
+	// Unauthenticated routes
+	mux.HandleFunc("/", f.NotFound)
+
+	// Authenticated routes
 	// FIXME List post-multiplexing middleware like auth validation here.
 	postMuxMiddleware := NewMiddleware()
 	mux.Handle(
@@ -95,6 +102,13 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 
 func (f *Frontend) Join() {
 	<-f.done
+}
+
+func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
+	arm.WriteError(
+		writer, http.StatusNotFound,
+		arm.CloudErrorCodeNotFound, "",
+		"The requested path could not be found.")
 }
 
 func (f *Frontend) ArmResourceListByParent(writer http.ResponseWriter, request *http.Request) {
