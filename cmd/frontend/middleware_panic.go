@@ -12,10 +12,7 @@ import (
 func MiddlewarePanic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	defer func() {
 		if e := recover(); e != nil {
-			arm.WriteError(
-				w, http.StatusInternalServerError,
-				arm.CloudErrorCodeInternalServerError, "",
-				"Internal server error.")
+			arm.WriteInternalServerError(w)
 		}
 	}()
 

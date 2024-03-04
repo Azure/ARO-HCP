@@ -93,3 +93,11 @@ func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 	encoder.SetIndent("", "    ")
 	_ = encoder.Encode(err)
 }
+
+// WriteInternalServerError writes an internal server error to the given ResponseWriter
+func WriteInternalServerError(w http.ResponseWriter) {
+	WriteError(
+		w, http.StatusInternalServerError,
+		CloudErrorCodeInternalServerError, "",
+		"Internal server error.")
+}
