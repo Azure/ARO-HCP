@@ -47,13 +47,6 @@ type ProxyProfile struct {
 	TrustedCA  string `json:"trustedCa,omitempty"`
 }
 
-type Visibility string
-
-const (
-	VisibilityPublic  Visibility = "public"
-	VisibilityPrivate Visibility = "private"
-)
-
 // APIProfile represents a cluster API server configuration.
 // Visibility for the entire struct is "read,create".
 type APIProfile struct {
@@ -74,13 +67,6 @@ type IngressProfile struct {
 	URL        json.URL   `json:"url,omitempty"        visibility:"read"`
 	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create"`
 }
-
-// OutboundType represents a routing strategy to provide egress to the Internet.
-type OutboundType string
-
-const (
-	OutboundTypeLoadBalancer OutboundType = "loadBalancer"
-)
 
 // NetworkProfile represents a cluster network configuration.
 // Visibility for the entire struct is "read,create".

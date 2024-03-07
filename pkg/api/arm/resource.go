@@ -4,6 +4,7 @@ package arm
 // Licensed under the Apache License 2.0.
 
 import (
+	"fmt"
 	"maps"
 	"time"
 )
@@ -42,14 +43,50 @@ func (src *TrackedResource) Copy(dst *TrackedResource) {
 }
 
 // CreatedByType is the type of identity that created (or modified) the resource
-type CreatedByType string
+type CreatedByType int
 
 const (
-	CreatedByTypeApplication     CreatedByType = "Application"
-	CreatedByTypeKey             CreatedByType = "Key"
-	CreatedByTypeManagedIdentity CreatedByType = "ManagedIdentity"
-	CreatedByTypeUser            CreatedByType = "User"
+	CreatedByTypeApplication CreatedByType = iota
+	CreatedByTypeKey
+	CreatedByTypeManagedIdentity
+	CreatedByTypeUser
+
+	createdByTypeLength // private, must be last
 )
+
+func (v CreatedByType) String() string {
+	switch v {
+	case CreatedByTypeApplication:
+		return "Application"
+	case CreatedByTypeKey:
+		return "Key"
+	case CreatedByTypeManagedIdentity:
+		return "ManagedIdentity"
+	case CreatedByTypeUser:
+		return "User"
+	default:
+		return ""
+	}
+}
+
+func (v CreatedByType) MarshalText() (text []byte, err error) {
+	text = []byte(v.String())
+	if len(text) == 0 {
+		err = fmt.Errorf("Cannot marshal value %d", v)
+	}
+	return
+}
+
+func (v *CreatedByType) UnmarshalText(text []byte) error {
+	for i := range createdByTypeLength {
+		if i.String() == string(text) {
+			*v = i
+			return nil
+		}
+	}
+
+	return fmt.Errorf("Cannot unmarshal '%s' to a %T enum value", string(text), *v)
+}
 
 // SystemData includes creation and modification metadata for resources
 // See https://eng.ms/docs/products/arm/api_contracts/resourcesystemdata
@@ -81,15 +118,61 @@ func (src *SystemData) Copy(dst *SystemData) {
 	}
 }
 
-// ProvisioningState represents the provisioning state of an ARM resource
-type ProvisioningState string
+// ProvisioningState represents the asynchronous provisioning state of an ARM resource
+// See https://github.com/Azure/azure-resource-manager-rpc/blob/master/v1.0/async-api-reference.md#provisioningstate-property
+type ProvisioningState int
 
 const (
-	ProvisioningStateAccepted     ProvisioningState = "Accepted"
-	ProvisioningStateCanceled     ProvisioningState = "Canceled"
-	ProvisioningStateDeleting     ProvisioningState = "Deleting"
-	ProvisioningStateFailed       ProvisioningState = "Failed"
-	ProvisioningStateProvisioning ProvisioningState = "Provisioning"
-	ProvisioningStateSucceeded    ProvisioningState = "Succeeded"
-	ProvisioningStateUpdating     ProvisioningState = "Updating"
+	// Terminal states, defined by ARM
+	ProvisioningStateSucceeded ProvisioningState = iota
+	ProvisioningStateFailed
+	ProvisioningStateCanceled
+
+	// Non-terminal states (TBD, these are from ARO-RP)
+	ProvisioningStateAccepted
+	ProvisioningStateDeleting
+	ProvisioningStateProvisioning
+	ProvisioningStateUpdating
+
+	provisioningStateLength // private, must be last
 )
+
+func (v ProvisioningState) String() string {
+	switch v {
+	case ProvisioningStateSucceeded:
+		return "Succeeded"
+	case ProvisioningStateFailed:
+		return "Failed"
+	case ProvisioningStateCanceled:
+		return "Canceled"
+	case ProvisioningStateAccepted:
+		return "Accepted"
+	case ProvisioningStateDeleting:
+		return "Deleting"
+	case ProvisioningStateProvisioning:
+		return "Provisioning"
+	case ProvisioningStateUpdating:
+		return "Updating"
+	default:
+		return ""
+	}
+}
+
+func (v ProvisioningState) MarshalText() (text []byte, err error) {
+	text = []byte(v.String())
+	if len(text) == 0 {
+		err = fmt.Errorf("Cannot marshal value %d", v)
+	}
+	return
+}
+
+func (v *ProvisioningState) UnmarshalText(text []byte) error {
+	for i := range provisioningStateLength {
+		if i.String() == string(text) {
+			*v = i
+			return nil
+		}
+	}
+
+	return fmt.Errorf("Cannot unmarshal '%s' to a %T enum value", string(text), *v)
+}
