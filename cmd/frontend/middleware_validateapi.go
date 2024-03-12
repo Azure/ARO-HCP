@@ -24,7 +24,7 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 			arm.CloudErrorCodeInvalidResourceType, "",
 			"The resource type '%s' could not be found in "+
 				"the namespace '%s' for API version '%s'.",
-			r.PathValue("resourceType"),
+			r.PathValue(PathSegmentResourceType),
 			"Microsoft.RedHatOpenShift",
 			apiVersion)
 	} else {

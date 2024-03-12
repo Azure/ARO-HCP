@@ -21,10 +21,10 @@ const (
 	// lowercase before multiplexing.
 	ResourceProviderNamespace = "microsoft.redhatopenshift"
 
-	SubscriptionPath  = "/subscriptions/{subscriptionId}"
-	ResourceGroupPath = SubscriptionPath + "/resourcegroups/{resourceGroupName}"
-	ResourceTypePath  = ResourceGroupPath + "/" + ResourceProviderNamespace + "/{resourceType}"
-	ResourceNamePath  = ResourceTypePath + "/{resourceName}"
+	SubscriptionPath  = "/subscriptions/{" + PathSegmentSubscriptionID + "}"
+	ResourceGroupPath = SubscriptionPath + "/resourcegroups/{" + PathSegmentResourceGroupName + "}"
+	ResourceTypePath  = ResourceGroupPath + "/" + ResourceProviderNamespace + "/{" + PathSegmentResourceType + "}"
+	ResourceNamePath  = ResourceTypePath + "/{" + PathSegmentResourceName + "}"
 )
 
 type Frontend struct {

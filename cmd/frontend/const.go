@@ -14,4 +14,10 @@ const (
 	ContextKeyBody
 	ContextKeyLogger
 	ContextKeySystemData
+
+	// Wildcard path segment names for request multiplexing
+	PathSegmentSubscriptionID    = "subscriptionId"
+	PathSegmentResourceGroupName = "resourceGroupName"
+	PathSegmentResourceType      = "resourceType"
+	PathSegmentResourceName      = "resourceName"
 )
