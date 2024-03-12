@@ -1,3 +1,5 @@
 * @ulrichschlueter @bennerv @zgalor @s-amann
 /dev-infrastructure/ @bennerv @petrkotas @s-amann @ulrichschlueter
 /api/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin
+/cmd/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin
+/pkg/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin
