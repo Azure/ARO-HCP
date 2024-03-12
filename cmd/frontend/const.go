@@ -13,6 +13,7 @@ const (
 	ContextKeyOriginalPath contextKey = iota
 	ContextKeyBody
 	ContextKeyLogger
+	ContextKeyCorrelationData
 	ContextKeySystemData
 
 	// Wildcard path segment names for request multiplexing

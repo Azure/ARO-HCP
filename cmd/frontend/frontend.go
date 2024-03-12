@@ -50,6 +50,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 
 	mux := NewMiddlewareMux(
 		MiddlewarePanic,
+		MiddlewareLogging,
 		MiddlewareBody,
 		MiddlewareLowercase,
 		MiddlewareSystemData)
@@ -59,7 +60,9 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 	mux.HandleFunc("GET /healthz/ready", f.HealthzReady)
 
 	// Authenticated routes
-	postMuxMiddleware := NewMiddleware(MiddlewareValidateAPIVersion)
+	postMuxMiddleware := NewMiddleware(
+		MiddlewareLoggingPostMux,
+		MiddlewareValidateAPIVersion)
 	mux.Handle(
 		http.MethodGet+" "+ResourceTypePath,
 		postMuxMiddleware.HandlerFunc(f.ArmResourceListByParent))

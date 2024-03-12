@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/pkg/api/arm"
@@ -20,7 +22,9 @@ func MiddlewareSystemData(w http.ResponseWriter, r *http.Request, next http.Hand
 		var systemData arm.SystemData
 		err := json.Unmarshal([]byte(data), &systemData)
 		if err != nil {
-			// FIXME Log the error.
+			if logger, ok := r.Context().Value(ContextKeyLogger).(*slog.Logger); ok {
+				logger.Warn(fmt.Sprintf("Failed to parse %s header: %w", systemDataHeaderName, err))
+			}
 		}
 		r = r.WithContext(context.WithValue(r.Context(), ContextKeySystemData, systemData))
 	}
