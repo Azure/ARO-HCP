@@ -90,7 +90,7 @@ func WriteError(w http.ResponseWriter, statusCode int, code, target, format stri
 // WriteCloudError writes a CloudError to the given ResponseWriter
 func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 	w.Header()["Content-Type"] = []string{"application/json"}
-	w.Header()["x-ms-error-code"] = []string{err.Code}
+	w.Header()[HeaderNameErrorCode] = []string{err.Code}
 	w.WriteHeader(err.StatusCode)
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "    ")

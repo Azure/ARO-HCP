@@ -76,10 +76,10 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 	correlationData := arm.NewCorrelationData(r)
 	ctx = context.WithValue(ctx, ContextKeyCorrelationData, correlationData)
 
-	w.Header().Set("X-Ms-Request-Id", correlationData.RequestID.String())
+	w.Header().Set(arm.HeaderNameRequestID, correlationData.RequestID.String())
 
-	if strings.EqualFold(r.Header.Get("X-Ms-Return-Client-Request-Id"), "true") {
-		w.Header().Set("X-Ms-Client-Request-Id", correlationData.ClientRequestID)
+	if strings.EqualFold(r.Header.Get(arm.HeaderNameClientRequestID), "true") {
+		w.Header().Set(arm.HeaderNameClientRequestID, correlationData.ClientRequestID)
 	}
 
 	attrs := []slog.Attr{

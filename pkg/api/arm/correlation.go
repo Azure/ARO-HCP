@@ -31,8 +31,8 @@ type CorrelationData struct {
 func NewCorrelationData(r *http.Request) *CorrelationData {
 	return &CorrelationData{
 		RequestID:            uuid.New(),
-		ClientRequestID:      r.Header.Get("X-Ms-Client-Request-Id"),
-		CorrelationRequestID: r.Header.Get("X-Ms-Correlation-Request-Id"),
+		ClientRequestID:      r.Header.Get(HeaderNameClientRequestID),
+		CorrelationRequestID: r.Header.Get(HeaderNameCorrelationRequestID),
 		RequestTime:          time.Now(),
 	}
 }
