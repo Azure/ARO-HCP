@@ -8,6 +8,7 @@ node_modules
 /*kubeconfig
 /*.pem
 .DS_Store
+.idea
 env
 
 # no need to track, used only for typespec
