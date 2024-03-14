@@ -1,0 +1,6 @@
+
+LOCATION=westeurope
+
+VPNRESOURCEGROUP=hcp-$(LOCATION)-shared-rg
+DEPLOYMENTNAME=hcp-$(USER)-aks-cluster
+
