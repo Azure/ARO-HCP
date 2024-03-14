@@ -8,8 +8,8 @@ else
 	VERSION = $(TAG)
 endif
 
-build-all:
-	go build ./...
-
 frontend:
-	go build -ldflags "-X github.com/Azure/ARO-HCP/pkg/util/version.Version=$(VERSION)" -o aro-hcp-frontend ./cmd/frontend
+	go build -ldflags "-X main.Version=$(VERSION)" -o aro-hcp-frontend .
+
+clean:
+	rm --force aro-hcp-frontend

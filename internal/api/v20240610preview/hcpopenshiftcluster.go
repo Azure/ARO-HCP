@@ -6,9 +6,9 @@ package v20240610preview
 import (
 	"net"
 
-	"github.com/Azure/ARO-HCP/pkg/api"
-	"github.com/Azure/ARO-HCP/pkg/api/arm"
-	"github.com/Azure/ARO-HCP/pkg/api/json"
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/json"
 )
 
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.

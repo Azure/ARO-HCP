@@ -6,7 +6,7 @@ package v20240610preview
 import (
 	"slices"
 
-	"github.com/Azure/ARO-HCP/pkg/api"
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 func (v *version) NewNodePoolProfile(from *api.NodePoolProfile) api.VersionedNodePoolProfile {

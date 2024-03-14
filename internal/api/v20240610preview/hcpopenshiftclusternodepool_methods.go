@@ -4,7 +4,7 @@ package v20240610preview
 // Licensed under the Apache License 2.0.
 
 import (
-	"github.com/Azure/ARO-HCP/pkg/api"
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 func (v *version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {

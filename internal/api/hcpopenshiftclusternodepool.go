@@ -4,7 +4,7 @@ package api
 // Licensed under the Apache License 2.0.
 
 import (
-	"github.com/Azure/ARO-HCP/pkg/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // HCPOpenShiftClusterNodePool represents a node pool resource for ARO HCP

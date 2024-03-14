@@ -6,7 +6,7 @@ package main
 import (
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/pkg/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func MiddlewarePanic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {

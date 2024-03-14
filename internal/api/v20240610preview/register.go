@@ -4,7 +4,7 @@ package v20240610preview
 // Licensed under the Apache License 2.0.
 
 import (
-	"github.com/Azure/ARO-HCP/pkg/api"
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 // APIVersion contains a version string as it will be used by clients

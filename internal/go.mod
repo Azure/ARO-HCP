@@ -1,4 +1,4 @@
-module github.com/Azure/ARO-HCP
+module github.com/Azure/ARO-HCP/internal
 
 go 1.22
 

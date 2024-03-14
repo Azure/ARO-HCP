@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/pkg/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func MiddlewareSystemData(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {

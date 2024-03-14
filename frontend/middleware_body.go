@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/pkg/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const megabyte int64 = (1 << 20)

@@ -11,18 +11,18 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/Azure/ARO-HCP/pkg/util/version"
 )
 
 const ProgramName = "ARO HCP Frontend"
+
+var Version = "unknown" // overridden by Makefile
 
 func main() {
 	// FIXME Centralize logging options?
 	handlerOptions := slog.HandlerOptions{}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &handlerOptions))
 
-	logger.Info(fmt.Sprintf("%s (%s) started", ProgramName, version.Version))
+	logger.Info(fmt.Sprintf("%s (%s) started", ProgramName, Version))
 
 	ctx := context.Background()
 	stop := make(chan struct{})
@@ -44,5 +44,5 @@ func main() {
 	close(stop)
 	frontend.Join()
 
-	logger.Info(fmt.Sprintf("%s (%s) stopped", ProgramName, version.Version))
+	logger.Info(fmt.Sprintf("%s (%s) stopped", ProgramName, Version))
 }

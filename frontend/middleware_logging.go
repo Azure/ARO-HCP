@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/ARO-HCP/pkg/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type LoggingReadCloser struct {
