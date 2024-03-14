@@ -31,7 +31,7 @@ At the moment the configuration files cover two scenarios:
 
    Run `az account list -o table`  and make sure the above subscription is listed
 
-* Clone this repo 
+* Clone this repo and navigate within the `dev-infrastructure` directory
 
 * Acquire the necessary shared secrets by running
 
