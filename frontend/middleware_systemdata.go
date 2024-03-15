@@ -21,7 +21,7 @@ func MiddlewareSystemData(w http.ResponseWriter, r *http.Request, next http.Hand
 		err := json.Unmarshal([]byte(data), &systemData)
 		if err != nil {
 			if logger, ok := r.Context().Value(ContextKeyLogger).(*slog.Logger); ok {
-				logger.Warn(fmt.Sprintf("Failed to parse %s header: %w", arm.HeaderNameARMResourceSystemData, err))
+				logger.Warn(fmt.Sprintf("Failed to parse %s header: %v", arm.HeaderNameARMResourceSystemData, err))
 			}
 		}
 		r = r.WithContext(context.WithValue(r.Context(), ContextKeySystemData, systemData))
