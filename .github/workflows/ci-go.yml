@@ -1,0 +1,28 @@
+name: 'ci-go'
+on:
+  pull_request:
+    branches:
+      - 'main'
+    paths:
+      - '**.go'
+      - '**/go.mod'
+      - '**/go.sum'
+      - 'go.work'
+jobs:
+  test:
+    permissions:
+      contents: 'read'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+        with:
+          fetch-depth: 1
+
+      - name: 'Set up Go'
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version-file: 'go.work'
+          check-latest: true
+
+      - name: 'Test'
+        run: make test
