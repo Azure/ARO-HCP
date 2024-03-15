@@ -91,7 +91,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 		go func() {
 			<-stop
 			f.ready.Store(false)
-			f.server.Shutdown(ctx)
+			_ = f.server.Shutdown(ctx)
 		}()
 	}
 

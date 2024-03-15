@@ -6,8 +6,8 @@ package v20240610preview
 // NodePoolAutoscaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read".
 type NodePoolAutoscaling struct {
-	MinReplicas int32 `json:minReplicas,omitempty"`
-	MaxReplicas int32 `json:maxReplicas,omitempty"`
+	MinReplicas int32 `json:"minReplicas,omitempty"`
+	MaxReplicas int32 `json:"maxReplicas,omitempty"`
 }
 
 // NodePoolProfile represents a worker node pool configuration.
