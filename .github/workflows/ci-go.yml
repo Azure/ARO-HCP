@@ -4,15 +4,22 @@ on:
     branches:
       - 'main'
     paths:
-      - '**.go'
+      - 'frontend/**'
+      - 'internal/**'
       - '**/go.mod'
       - '**/go.sum'
       - 'go.work'
+
+
 jobs:
   test:
+    name: test
     permissions:
       contents: 'read'
     runs-on: 'ubuntu-latest'
+    strategy:
+      matrix:
+        directory: [frontend, internal]
     steps:
       - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
         with:
@@ -23,12 +30,20 @@ jobs:
         with:
           go-version-file: 'go.work'
           check-latest: true
+          cache: false
 
       - name: 'Test'
-        run: make test
+        uses: robherley/go-test-action@v0.2.0
+        with:
+          moduleDirectory: ${{ matrix.directory }}
+
   lint:
+    name: lint
     permissions:
       contents: 'read'
+      pull-requests: read
+      # Allow to write comments to annotate code in the PR.
+      checks: write
     runs-on: 'ubuntu-latest'
     steps:
       - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
@@ -40,9 +55,13 @@ jobs:
         with:
           go-version-file: 'go.work'
           check-latest: true
+          cache: false
 
-      - name: 'Lint'
-        uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804 # v4.0.0
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
         with:
-          version: 'v1.56.2'
-          args: '-v $(go list -f ''{{.Dir}}/...'' -m | xargs)'
+          # NOTE: This needs to be kept in sync with the version in .devcontainer/postCreate.sh
+          version: v1.55.2
+          working-directory: ${{ matrix.directory }}
+          # Optional: show only new issues if it's a pull request. The default value is `false`.
+          only-new-issues: true
