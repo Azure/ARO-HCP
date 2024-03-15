@@ -60,7 +60,7 @@ func (body *CloudErrorBody) String() string {
 	if len(body.Details) > 0 {
 		details = " Details: "
 		for i, innerErr := range body.Details {
-			details := innerErr.String()
+			details += innerErr.String()
 			if i < len(body.Details)-1 {
 				details += ", "
 			}

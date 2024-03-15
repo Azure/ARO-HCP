@@ -18,5 +18,5 @@ type HCPOpenShiftClusterNodePool struct {
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
 	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
-	Profile           NodePoolProfile       `json:profile,omitempty" visibility:"read,create,update"`
+	Profile           NodePoolProfile       `json:"profile,omitempty" visibility:"read,create,update"`
 }
