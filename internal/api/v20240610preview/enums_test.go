@@ -10,6 +10,71 @@ import (
 	"testing"
 )
 
+func TestNetworkType(t *testing.T) {
+	// Ensure NetworkType implementes these interfaces
+	var i NetworkType
+	_ = fmt.Stringer(i)
+	_ = encoding.TextMarshaler(i)
+	_ = encoding.TextUnmarshaler(&i)
+
+	for _, tt := range []struct {
+		name          string
+		val           int
+		str           string
+		skipMarshal   bool
+		skipUnmarshal bool
+	}{
+		{
+			name: "NetworkTypeOpenShiftSDN",
+			val:  int(NetworkTypeOpenShiftSDN),
+			str:  fmt.Sprintf("%q", NetworkTypeOpenShiftSDN),
+		},
+		{
+			name: "NetworkTypeOVNKubernetes",
+			val:  int(NetworkTypeOVNKubernetes),
+			str:  fmt.Sprintf("%q", NetworkTypeOVNKubernetes),
+		},
+		{
+			name: "NetworkTypeOther",
+			val:  int(NetworkTypeOther),
+			str:  fmt.Sprintf("%q", NetworkTypeOther),
+		},
+		{
+			name:        "Unknown NetworkType string",
+			val:         int(NetworkTypeOther),
+			str:         "\"unknown\"",
+			skipMarshal: true,
+		},
+		{
+			name:          "Unknown NetworkType value",
+			val:           -1,
+			str:           fmt.Sprintf("%q", NetworkTypeOther),
+			skipUnmarshal: true,
+		},
+	} {
+		if !tt.skipMarshal {
+			t.Logf("Marshaling %d", tt.val)
+			data, err := json.Marshal(NetworkType(tt.val))
+			if err != nil {
+				t.Fatalf("Marshal: Unexpected error: %s", err)
+			} else if string(data) != tt.str {
+				t.Fatalf("Marshal: Expected %s, got %s", tt.str, string(data))
+			}
+		}
+
+		if !tt.skipUnmarshal {
+			var val NetworkType
+			t.Logf("Unmarshaling %s", tt.str)
+			err := json.Unmarshal([]byte(tt.str), &val)
+			if err != nil {
+				t.Fatalf("Unmarshal: Unexpected error: %s", err)
+			} else if int(val) != tt.val {
+				t.Fatalf("Unmarshal: Expected %d, got %d", tt.val, val)
+			}
+		}
+	}
+}
+
 func TestOutboundType(t *testing.T) {
 	// Ensure OutboundType implements these interfaces
 	var i OutboundType

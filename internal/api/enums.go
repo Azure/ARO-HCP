@@ -5,6 +5,46 @@ package api
 
 import "fmt"
 
+// NetworkType represents an OpenShift cluster network plugin.
+type NetworkType int
+
+const (
+	NetworkTypeOpenShiftSDN NetworkType = iota
+	NetworkTypeOVNKubernetes
+
+	NetworkTypeOther // catch-all, must be last
+)
+
+func (v NetworkType) String() string {
+	switch v {
+	case NetworkTypeOpenShiftSDN:
+		return "OpenShiftSDN"
+	case NetworkTypeOVNKubernetes:
+		return "OVNKubernetes"
+	default:
+		return "Other"
+	}
+}
+
+func (v NetworkType) MarshalText() (text []byte, err error) {
+	// NetworkTypeOther is a catch-all value.
+	text = []byte(v.String())
+	return
+}
+
+func (v *NetworkType) UnmarshalText(text []byte) error {
+	for i := range NetworkTypeOther {
+		if i.String() == string(text) {
+			*v = i
+			return nil
+		}
+	}
+
+	// NetworkTypeOther is a catch-all value.
+	*v = NetworkTypeOther
+	return nil
+}
+
 // OutboundType represents a routing strategy to provide egress to the Internet.
 type OutboundType int
 
