@@ -18,7 +18,7 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 			arm.CloudErrorCodeInvalidParameter, "",
 			"The request is missing required parameter '%s'.",
 			APIVersionKey)
-	} else if _, ok := api.APIs[apiVersion]; !ok {
+	} else if _, ok := api.Lookup(apiVersion); !ok {
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidResourceType, "",

@@ -7,7 +7,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-func (v *version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
+func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	out := &HCPOpenShiftClusterNodePool{
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			ProvisioningState: from.Properties.ProvisioningState,

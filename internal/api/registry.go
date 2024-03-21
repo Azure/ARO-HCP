@@ -3,6 +3,10 @@ package api
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
 
+import (
+	"fmt"
+)
+
 type VersionedHCPOpenShiftCluster interface {
 	Normalize(*HCPOpenShiftCluster)
 	ValidateStatic() error
@@ -19,6 +23,8 @@ type VersionedNodePoolProfile interface {
 }
 
 type Version interface {
+	fmt.Stringer
+
 	// Resource Types
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
@@ -27,5 +33,14 @@ type Version interface {
 	NewNodePoolProfile(*NodePoolProfile) VersionedNodePoolProfile
 }
 
-// APIs is the map of registered API versions
-var APIs = map[string]Version{}
+// apiRegistry is the map of registered API versions
+var apiRegistry = map[string]Version{}
+
+func Register(version Version) {
+	apiRegistry[version.String()] = version
+}
+
+func Lookup(key string) (version Version, ok bool) {
+	version, ok = apiRegistry[key]
+	return
+}
