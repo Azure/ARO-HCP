@@ -4,6 +4,7 @@ package main
 // Licensed under the Apache License 2.0.
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -18,7 +19,7 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 			arm.CloudErrorCodeInvalidParameter, "",
 			"The request is missing required parameter '%s'.",
 			APIVersionKey)
-	} else if _, ok := api.Lookup(apiVersion); !ok {
+	} else if version, ok := api.Lookup(apiVersion); !ok {
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidResourceType, "",
@@ -28,6 +29,7 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 			"Microsoft.RedHatOpenShift",
 			apiVersion)
 	} else {
+		r = r.WithContext(context.WithValue(r.Context(), ContextKeyVersion, version))
 		next(w, r)
 	}
 }

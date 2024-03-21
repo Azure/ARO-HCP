@@ -13,6 +13,7 @@ const (
 	ContextKeyOriginalPath contextKey = iota
 	ContextKeyBody
 	ContextKeyLogger
+	ContextKeyVersion
 	ContextKeyCorrelationData
 	ContextKeySystemData
 

@@ -12,6 +12,7 @@ import (
 	"os"
 	"sync/atomic"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -132,31 +133,49 @@ func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Reques
 }
 
 func (f *Frontend) ArmResourceListByParent(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceListByParent")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceListByParent", versionedInterface))
 }
 
 func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceRead")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
 }
 
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceCreateOrUpdate")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 }
 
 func (f *Frontend) ArmResourcePatch(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourcePatch")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourcePatch", versionedInterface))
 }
 
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceDelete")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
 }
 
 func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceAction")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
 }
