@@ -57,7 +57,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
-	mux.HandleFunc("GET /healthz/ready", f.HealthzReady)
+	mux.HandleFunc(http.MethodGet+" /healthz/ready", f.HealthzReady)
 
 	// Authenticated routes
 	postMuxMiddleware := NewMiddleware(
