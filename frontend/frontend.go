@@ -19,15 +19,10 @@ import (
 )
 
 const (
-	// Literal path segments must be lowercase because
-	// MiddlewareLowercase converts the request URL to
-	// lowercase before multiplexing.
-	ResourceProviderNamespace = "microsoft.redhatopenshift"
-
-	SubscriptionPath  = "/subscriptions/{" + PathSegmentSubscriptionID + "}"
-	ResourceGroupPath = SubscriptionPath + "/resourcegroups/{" + PathSegmentResourceGroupName + "}"
-	ResourceTypePath  = ResourceGroupPath + "/" + ResourceProviderNamespace + "/{" + PathSegmentResourceType + "}"
-	ResourceNamePath  = ResourceTypePath + "/{" + PathSegmentResourceName + "}"
+	PatternSubscriptions  = "subscriptions/{" + PathSegmentSubscriptionID + "}"
+	PatternProviders      = "providers/" + api.ProviderNamespace + "/" + api.ResourceType
+	PatternResourceGroups = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
+	PatternResourceName   = "{" + PathSegmentResourceName + "}"
 )
 
 type Frontend struct {
@@ -74,22 +69,22 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion)
 	mux.Handle(
-		MuxPattern(http.MethodGet, ResourceTypePath),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceListByParent))
 	mux.Handle(
-		MuxPattern(http.MethodGet, ResourceNamePath),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
-		MuxPattern(http.MethodPut, ResourceNamePath),
+		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
-		MuxPattern(http.MethodPatch, ResourceNamePath),
+		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourcePatch))
 	mux.Handle(
-		MuxPattern(http.MethodDelete, ResourceNamePath),
+		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		MuxPattern(http.MethodPost, ResourceNamePath),
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	f.server.Handler = mux
 

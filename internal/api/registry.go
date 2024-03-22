@@ -7,6 +7,13 @@ import (
 	"fmt"
 )
 
+const (
+	ProviderNamespace        = "Microsoft.RedHatOpenShift"
+	ProviderNamespaceDisplay = "Azure Red Hat OpenShift"
+	ResourceType             = "hcpOpenShiftClusters"
+	ResourceTypeDisplay      = "Hosted Control Plane (HCP) OpenShift Clusters"
+)
+
 type VersionedHCPOpenShiftCluster interface {
 	Normalize(*HCPOpenShiftCluster)
 	ValidateStatic() error
