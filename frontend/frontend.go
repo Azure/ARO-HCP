@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
+	"strings"
 	"sync/atomic"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -36,6 +38,13 @@ type Frontend struct {
 	done     chan struct{}
 }
 
+// MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
+// Literal path segments must be lowercase because MiddlewareLowercase
+// converts the request URL to lowercase before multiplexing.
+func MuxPattern(method string, segments ...string) string {
+	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
+}
+
 func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 	f := &Frontend{
 		logger:   logger,
@@ -58,29 +67,29 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
-	mux.HandleFunc(http.MethodGet+" /healthz/ready", f.HealthzReady)
+	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz", "ready"), f.HealthzReady)
 
 	// Authenticated routes
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion)
 	mux.Handle(
-		http.MethodGet+" "+ResourceTypePath,
+		MuxPattern(http.MethodGet, ResourceTypePath),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceListByParent))
 	mux.Handle(
-		http.MethodGet+" "+ResourceNamePath,
+		MuxPattern(http.MethodGet, ResourceNamePath),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
-		http.MethodPut+" "+ResourceNamePath,
+		MuxPattern(http.MethodPut, ResourceNamePath),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
-		http.MethodPatch+" "+ResourceNamePath,
+		MuxPattern(http.MethodPatch, ResourceNamePath),
 		postMuxMiddleware.HandlerFunc(f.ArmResourcePatch))
 	mux.Handle(
-		http.MethodDelete+" "+ResourceNamePath,
+		MuxPattern(http.MethodDelete, ResourceNamePath),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		http.MethodPost+" "+ResourceNamePath,
+		MuxPattern(http.MethodPost, ResourceNamePath),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	f.server.Handler = mux
 
