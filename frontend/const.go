@@ -18,7 +18,9 @@ const (
 	ContextKeySystemData
 
 	// Wildcard path segment names for request multiplexing
+	PageSegmentLocation          = "location"
 	PathSegmentSubscriptionID    = "subscriptionId"
 	PathSegmentResourceGroupName = "resourceGroupName"
 	PathSegmentResourceName      = "resourceName"
+	PathSegmentActionName        = "actionName"
 )

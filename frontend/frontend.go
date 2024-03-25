@@ -20,9 +20,11 @@ import (
 
 const (
 	PatternSubscriptions  = "subscriptions/{" + PathSegmentSubscriptionID + "}"
+	PatternLocations      = "locations/{" + PageSegmentLocation + "}"
 	PatternProviders      = "providers/" + api.ProviderNamespace + "/" + api.ResourceType
 	PatternResourceGroups = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
 	PatternResourceName   = "{" + PathSegmentResourceName + "}"
+	PatternActionName     = "{" + PathSegmentActionName + "}"
 )
 
 type Frontend struct {
@@ -69,8 +71,14 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion)
 	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListBySubscription))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListByLocation))
+	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceListByParent))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListByResourceGroup))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
@@ -84,7 +92,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	f.server.Handler = mux
 
@@ -136,12 +144,34 @@ func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Reques
 	}
 }
 
-func (f *Frontend) ArmResourceListByParent(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
 	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
-	logger.Info(fmt.Sprintf("%s: ArmResourceListByParent", versionedInterface))
+	logger.Info(fmt.Sprintf("%s: ArmResourceListBySubscription", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (f *Frontend) ArmResourceListByLocation(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceListByLocation", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceListByResourceGroup", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
@@ -150,6 +180,8 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
 	logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
@@ -158,6 +190,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
 	logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
+
+	writer.WriteHeader(http.StatusCreated)
 }
 
 func (f *Frontend) ArmResourcePatch(writer http.ResponseWriter, request *http.Request) {
@@ -166,6 +200,8 @@ func (f *Frontend) ArmResourcePatch(writer http.ResponseWriter, request *http.Re
 	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
 	logger.Info(fmt.Sprintf("%s: ArmResourcePatch", versionedInterface))
+
+	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
@@ -174,6 +210,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
 	logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
+
+	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
@@ -182,4 +220,6 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
 	logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
 }
