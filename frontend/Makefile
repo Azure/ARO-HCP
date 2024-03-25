@@ -9,13 +9,13 @@ else
 	VERSION = $(TAG)
 endif
 
-ARO_HCP_FRONTEND_IMAGE ?= $(FRONTEND_IMAGE_BASE):$(VERSION)
+ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_FRONTEND_IMAGE_BASE):$(VERSION)
 
 frontend:
 	go build -ldflags "-X main.Version=$(VERSION)" -o aro-hcp-frontend .
 
 image-frontend-multistage:
-	docker build --platform=linux/amd64 --network=host --no-cache -f Dockerfile.aro-multistage -t $(ARO_HCP_FRONTEND_IMAGE) --build-arg REGISTRY=$(REGISTRY) .
+	docker build --platform=linux/amd64 --network=host --no-cache -f Dockerfile.frontend -t $(ARO_HCP_FRONTEND_IMAGE) --build-arg REGISTRY=$(REGISTRY) .
 
 clean:
 	rm --force aro-hcp-frontend
