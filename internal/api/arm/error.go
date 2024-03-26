@@ -55,19 +55,23 @@ type CloudErrorBody struct {
 }
 
 func (body *CloudErrorBody) String() string {
-	var details string
+	out := fmt.Sprintf("%s: ", body.Code)
+	if len(body.Target) > 0 {
+		out += fmt.Sprintf("%s: ", body.Target)
+	}
+	out += body.Message
 
 	if len(body.Details) > 0 {
-		details = " Details: "
+		out += " Details: "
 		for i, innerErr := range body.Details {
-			details += innerErr.String()
+			out += innerErr.String()
 			if i < len(body.Details)-1 {
-				details += ", "
+				out += ", "
 			}
 		}
 	}
 
-	return fmt.Sprintf("%s: %s: %s%s", body.Code, body.Target, body.Message, details)
+	return out
 }
 
 // NewCloudError returns a new CloudError

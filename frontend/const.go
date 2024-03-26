@@ -13,12 +13,14 @@ const (
 	ContextKeyOriginalPath contextKey = iota
 	ContextKeyBody
 	ContextKeyLogger
+	ContextKeyVersion
 	ContextKeyCorrelationData
 	ContextKeySystemData
 
 	// Wildcard path segment names for request multiplexing
+	PageSegmentLocation          = "location"
 	PathSegmentSubscriptionID    = "subscriptionId"
 	PathSegmentResourceGroupName = "resourceGroupName"
-	PathSegmentResourceType      = "resourceType"
 	PathSegmentResourceName      = "resourceName"
+	PathSegmentActionName        = "actionName"
 )

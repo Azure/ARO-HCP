@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -101,8 +102,8 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 		resource_id := fmt.Sprintf("/subscriptions/%s/resourcegroups/%s/providers/%s/%s/%s",
 			r.PathValue(PathSegmentSubscriptionID),
 			r.PathValue(PathSegmentResourceGroupName),
-			ResourceProviderNamespace,
-			r.PathValue(PathSegmentResourceType),
+			api.ProviderNamespace,
+			api.ResourceType,
 			pathValue)
 		attrs = append(attrs, slog.String("resource_id", resource_id))
 	}

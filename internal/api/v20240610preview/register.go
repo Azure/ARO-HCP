@@ -7,11 +7,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-// APIVersion contains a version string as it will be used by clients
-const APIVersion = "2024-06-10-preview"
-
 type version struct{}
 
+// String returns the api-version parameter value for this API.
+func (v version) String() string {
+	return "2024-06-10-preview"
+}
+
 func init() {
-	api.APIs[APIVersion] = &version{}
+	api.Register(version{})
 }

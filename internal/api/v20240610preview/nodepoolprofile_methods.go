@@ -9,7 +9,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-func (v *version) NewNodePoolProfile(from *api.NodePoolProfile) api.VersionedNodePoolProfile {
+func (v version) NewNodePoolProfile(from *api.NodePoolProfile) api.VersionedNodePoolProfile {
 	return &NodePoolProfile{
 		Name:                   from.Name,
 		Version:                from.Version,

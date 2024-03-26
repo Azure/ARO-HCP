@@ -10,21 +10,21 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
+	"strings"
 	"sync/atomic"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
-	// Literal path segments must be lowercase because
-	// MiddlewareLowercase converts the request URL to
-	// lowercase before multiplexing.
-	ResourceProviderNamespace = "microsoft.redhatopenshift"
-
-	SubscriptionPath  = "/subscriptions/{" + PathSegmentSubscriptionID + "}"
-	ResourceGroupPath = SubscriptionPath + "/resourcegroups/{" + PathSegmentResourceGroupName + "}"
-	ResourceTypePath  = ResourceGroupPath + "/" + ResourceProviderNamespace + "/{" + PathSegmentResourceType + "}"
-	ResourceNamePath  = ResourceTypePath + "/{" + PathSegmentResourceName + "}"
+	PatternSubscriptions  = "subscriptions/{" + PathSegmentSubscriptionID + "}"
+	PatternLocations      = "locations/{" + PageSegmentLocation + "}"
+	PatternProviders      = "providers/" + api.ProviderNamespace + "/" + api.ResourceType
+	PatternResourceGroups = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
+	PatternResourceName   = "{" + PathSegmentResourceName + "}"
+	PatternActionName     = "{" + PathSegmentActionName + "}"
 )
 
 type Frontend struct {
@@ -33,6 +33,13 @@ type Frontend struct {
 	server   http.Server
 	ready    atomic.Value
 	done     chan struct{}
+}
+
+// MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
+// Literal path segments must be lowercase because MiddlewareLowercase
+// converts the request URL to lowercase before multiplexing.
+func MuxPattern(method string, segments ...string) string {
+	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
 func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
@@ -57,29 +64,35 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
-	mux.HandleFunc("GET /healthz/ready", f.HealthzReady)
+	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz", "ready"), f.HealthzReady)
 
 	// Authenticated routes
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion)
 	mux.Handle(
-		http.MethodGet+" "+ResourceTypePath,
-		postMuxMiddleware.HandlerFunc(f.ArmResourceListByParent))
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListBySubscription))
 	mux.Handle(
-		http.MethodGet+" "+ResourceNamePath,
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListByLocation))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListByResourceGroup))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
-		http.MethodPut+" "+ResourceNamePath,
+		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
-		http.MethodPatch+" "+ResourceNamePath,
+		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourcePatch))
 	mux.Handle(
-		http.MethodDelete+" "+ResourceNamePath,
+		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		http.MethodPost+" "+ResourceNamePath,
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	f.server.Handler = mux
 
@@ -131,32 +144,82 @@ func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Reques
 	}
 }
 
-func (f *Frontend) ArmResourceListByParent(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceListByParent")
+func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceListBySubscription", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (f *Frontend) ArmResourceListByLocation(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceListByLocation", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceListByResourceGroup", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceRead")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceCreateOrUpdate")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
+
+	writer.WriteHeader(http.StatusCreated)
 }
 
 func (f *Frontend) ArmResourcePatch(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourcePatch")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourcePatch", versionedInterface))
+
+	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceDelete")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
+
+	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
-	logger := request.Context().Value(ContextKeyLogger).(*slog.Logger)
-	logger.Info("ArmResourceAction")
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+
+	logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
+
+	writer.WriteHeader(http.StatusOK)
 }
