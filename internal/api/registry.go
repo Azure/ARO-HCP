@@ -24,20 +24,12 @@ type VersionedHCPOpenShiftClusterNodePool interface {
 	ValidateStatic() error
 }
 
-type VersionedNodePoolProfile interface {
-	Normalize(*NodePoolProfile)
-	ValidateStatic() error
-}
-
 type Version interface {
 	fmt.Stringer
 
 	// Resource Types
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
-
-	// Component Types
-	NewNodePoolProfile(*NodePoolProfile) VersionedNodePoolProfile
 }
 
 // apiRegistry is the map of registered API versions
