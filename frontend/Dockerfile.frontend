@@ -14,5 +14,5 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal
 RUN microdnf update && microdnf clean all
 COPY --from=builder /app/aro /usr/local/bin/
 ENTRYPOINT ["aro"]
-## EXPOSE {}/tcp --> tbd
+EXPOSE 8080/tcp
 USER 1000
