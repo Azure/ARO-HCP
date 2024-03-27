@@ -25,6 +25,9 @@ npm install \
 	@azure-tools/typespec-autorest@0.37.2 \
 	@azure-tools/typespec-azure-resource-manager@0.37.1
 
+# Install azure/oav for validation of openapi and swagger example generation
+# https://github.com/Azure/oav
+npm install -g oav@latest
 
 # Install the golang-lint
 # binary will be $(go env GOPATH)/bin/golangci-lint
