@@ -1,0 +1,7 @@
+# yaml-language-server: $schema: https://golangci-lint.run/jsonschema/golangci.jsonschema.json
+run:
+  timeout: "5m"
+  issues-exit-code: 1
+  # include tests
+  tests: true
+  go: "1.22"

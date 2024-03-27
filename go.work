@@ -1,5 +1,7 @@
 go 1.22
 
+// When adding a new package to the list, keep the
+// .github/workflows/ci-go.yml file in sync.
 use (
 	./frontend
 	./internal
