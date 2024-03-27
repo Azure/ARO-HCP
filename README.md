@@ -29,7 +29,19 @@ To enable the typespec extensions, which is not yet part of official extensions,
 tsp code install
 ```
 
+If you are developing on MacOS you will need to install both docker cli (NOT docker desktop) and colima. There have been issues with devcontainer working with vscode using podman desktop.
 
+```bash
+brew install docker
+brew install colima
+```
+
+Before running your devcontainer, make sure colima is started.
+```bash
+colima start
+```
+
+Then, rebuild and connect to the dev container: `cmd + shift + P` => `dev containers: rebuild container`
 
 **Most importantly**, the container is set up to use the same user as the host machine, so you can use the same git config and ssh keys.
 It is implemented as host mount in the `.devcontainer/devcontainer.json` file.
