@@ -1,0 +1,18 @@
+# Uses a multi-stage container build to build the frontend.
+#
+FROM registry.access.redhat.com/ubi8/go-toolset:1.20.10 AS builder
+
+USER root
+ENV GOPATH=/root/go
+RUN mkdir -p /app
+WORKDIR /app
+
+COPY . /app
+RUN make frontend
+
+FROM registry.access.redhat.com/ubi8/ubi-minimal
+RUN microdnf update && microdnf clean all
+COPY --from=builder /app/aro /usr/local/bin/
+ENTRYPOINT ["aro"]
+EXPOSE 8080/tcp
+USER 1000
