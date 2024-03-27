@@ -1,5 +1,5 @@
 * @ulrichschlueter @bennerv @zgalor @s-amann @jharrington22 @mjlshen
 /dev-infrastructure/ @bennerv @petrkotas @s-amann @ulrichschlueter
-/api/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin
-/frontend/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin
-/internal/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin
+/api/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin @bennerv
+/frontend/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin @bennerv
+/internal/ @petrkotas @s-amann @mbarnes @AldoFusterTurpin @bennerv
