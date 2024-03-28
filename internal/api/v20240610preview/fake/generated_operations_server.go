@@ -10,7 +10,7 @@ package fake
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/ARO-HCP/internal/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"

@@ -5,6 +5,6 @@ go:
   output-folder: $(project-folder)/api/v20240610preview
   file-prefix: generated
   module-version: "0.0.1"
-  containing-module: "github.com/Azure/ARO-HCP/internal"
+  containing-module: "github.com/Azure/ARO-HCP/internal/api"
   azure-arm: true
   generate-fakes: true
