@@ -27,7 +27,8 @@
             "version": "latest",
             "installBicep": true,
             "extensions": "providerhub"
-        } 
+        },
+        "ghcr.io/devcontainers/features/dotnet:2": {}
     },
 
     "remoteUser": "vscode",
