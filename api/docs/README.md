@@ -78,3 +78,13 @@ To generate the example requests and responses, you can use the following comman
 oav generate-examples <path-to-spec>
 ```
 
+## Generating the api client
+
+The API client can be generated using the [autorest](https://github.com/Azure/autorest).
+the devcontainer comes with the autorest installed. The usage is straightforward:
+
+```bash
+autorest api/autorest-config.yaml
+```
+
+The generated clients are stored in `api/generated`.

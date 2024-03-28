@@ -29,6 +29,10 @@ npm install \
 # https://github.com/Azure/oav
 npm install -g oav@latest
 
+# Install the autorest used to generate golang and python clients
+# it uses the dotnet, which is installed via feature in devcontainer.json
+npm install -g autorest
+
 # Install the golang-lint
 # binary will be $(go env GOPATH)/bin/golangci-lint
 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
