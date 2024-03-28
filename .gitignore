@@ -16,3 +16,5 @@ env
 # version is pinned in devcontainer.json
 package.json
 package-lock.json
+
+__pycache__/
