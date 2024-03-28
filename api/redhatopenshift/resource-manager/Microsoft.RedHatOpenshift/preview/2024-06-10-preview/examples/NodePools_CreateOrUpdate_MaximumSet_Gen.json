@@ -3,7 +3,7 @@
   "operationId": "NodePools_CreateOrUpdate",
   "parameters": {
     "api-version": "2024-06-10-preview",
-    "subscriptionId": "F64FF5E2-2AD0-4E4D-A9D5-6E88511247A7",
+    "subscriptionId": "7832CF19-A991-44D3-AC0C-991FD11C4F00",
     "resourceGroupName": "rgopenapi",
     "hcpOpenShiftClusterName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
     "nodePoolName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
@@ -11,40 +11,40 @@
       "properties": {
         "spec": {
           "version": {
-            "id": "tbg",
-            "channelGroup": "rhhchgarryftdwzbadtwrzcbighms"
+            "id": "noyrhe",
+            "channelGroup": "iyjevatvdbgbsa"
           },
           "platform": {
-            "subnetId": "afapulyhvjjg",
-            "vmSize": "hfdapwwtchingr",
-            "diskSizeGB": 12,
-            "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
-            "availabilityZone": "mssxcjzxagdxoeuqydthwc",
+            "subnetId": "eb",
+            "vmSize": "ds",
+            "diskSizeGB": 30,
+            "diskStorageAccountType": "idwoawnxuqbk",
+            "availabilityZone": "pvesjzeivvrnozlyfbwd",
             "encryptionAtHost": true,
-            "discEncryptionSetId": "rjasgujgzleldjwp",
+            "discEncryptionSetId": "uneslgdovxvurupjwncehqlutuwpif",
             "ephemeralOsDisk": true
           },
-          "replicas": 18,
+          "replicas": 16,
           "autoRepair": true,
           "autoScaling": {
-            "min": 6,
-            "max": 29
+            "min": 27,
+            "max": 15
           },
           "labels": [
-            "ufrvhxdwltr"
+            "kh"
           ],
           "taints": [
-            "yzmuazkxmfhksrjm"
+            "ol"
           ],
           "tuningConfigs": [
-            "m"
+            "wneded"
           ]
         }
       },
       "tags": {
-        "key7212": "uufkzlwqnoxdfihpqz"
+        "key4865": "h"
       },
-      "location": "mqewzbuvnyxnwbmir"
+      "location": "tizpgniwqelquqgnzlhugx"
     }
   },
   "responses": {
@@ -55,42 +55,42 @@
           "spec": {
             "version": {
               "availableUpgrades": [
-                "jlufyoivqzyxnqzwijozipxmgux"
+                "fradcbrhzzaneuftlyonrqoofu"
               ]
             },
             "platform": {
-              "subnetId": "afapulyhvjjg",
-              "vmSize": "hfdapwwtchingr",
-              "diskSizeGB": 12,
-              "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
-              "availabilityZone": "mssxcjzxagdxoeuqydthwc",
+              "subnetId": "eb",
+              "vmSize": "ds",
+              "diskSizeGB": 30,
+              "diskStorageAccountType": "idwoawnxuqbk",
+              "availabilityZone": "pvesjzeivvrnozlyfbwd",
               "encryptionAtHost": true,
-              "discEncryptionSetId": "rjasgujgzleldjwp",
+              "discEncryptionSetId": "uneslgdovxvurupjwncehqlutuwpif",
               "ephemeralOsDisk": true
             },
             "autoScaling": {
-              "min": 6,
-              "max": 29
+              "min": 27,
+              "max": 15
             },
             "tuningConfigs": [
-              "m"
+              "wneded"
             ]
           }
         },
         "tags": {
-          "key7212": "uufkzlwqnoxdfihpqz"
+          "key4865": "h"
         },
-        "location": "mqewzbuvnyxnwbmir",
-        "id": "ogtjdgogxemijejkai",
-        "name": "riywfucwvfwoepzliopnphdfjw",
-        "type": "znmdhkzcopsephiyom",
+        "location": "tizpgniwqelquqgnzlhugx",
+        "id": "gjsyvwgz",
+        "name": "tvbdqkaqlxcj",
+        "type": "srwzrpr",
         "systemData": {
-          "createdBy": "iiqgrciyremxtwbrkjqtvcjkn",
+          "createdBy": "cfriivusshykeljus",
           "createdByType": "User",
-          "createdAt": "2024-03-25T11:14:17.555Z",
-          "lastModifiedBy": "ylhwjaq",
+          "createdAt": "2024-03-28T11:00:21.485Z",
+          "lastModifiedBy": "rbuvjbcbezqs",
           "lastModifiedByType": "User",
-          "lastModifiedAt": "2024-03-25T11:14:17.555Z"
+          "lastModifiedAt": "2024-03-28T11:00:21.485Z"
         }
       }
     },
@@ -104,42 +104,42 @@
           "spec": {
             "version": {
               "availableUpgrades": [
-                "jlufyoivqzyxnqzwijozipxmgux"
+                "fradcbrhzzaneuftlyonrqoofu"
               ]
             },
             "platform": {
-              "subnetId": "afapulyhvjjg",
-              "vmSize": "hfdapwwtchingr",
-              "diskSizeGB": 12,
-              "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
-              "availabilityZone": "mssxcjzxagdxoeuqydthwc",
+              "subnetId": "eb",
+              "vmSize": "ds",
+              "diskSizeGB": 30,
+              "diskStorageAccountType": "idwoawnxuqbk",
+              "availabilityZone": "pvesjzeivvrnozlyfbwd",
               "encryptionAtHost": true,
-              "discEncryptionSetId": "rjasgujgzleldjwp",
+              "discEncryptionSetId": "uneslgdovxvurupjwncehqlutuwpif",
               "ephemeralOsDisk": true
             },
             "autoScaling": {
-              "min": 6,
-              "max": 29
+              "min": 27,
+              "max": 15
             },
             "tuningConfigs": [
-              "m"
+              "wneded"
             ]
           }
         },
         "tags": {
-          "key7212": "uufkzlwqnoxdfihpqz"
+          "key4865": "h"
         },
-        "location": "mqewzbuvnyxnwbmir",
-        "id": "ogtjdgogxemijejkai",
-        "name": "riywfucwvfwoepzliopnphdfjw",
-        "type": "znmdhkzcopsephiyom",
+        "location": "tizpgniwqelquqgnzlhugx",
+        "id": "gjsyvwgz",
+        "name": "tvbdqkaqlxcj",
+        "type": "srwzrpr",
         "systemData": {
-          "createdBy": "iiqgrciyremxtwbrkjqtvcjkn",
+          "createdBy": "cfriivusshykeljus",
           "createdByType": "User",
-          "createdAt": "2024-03-25T11:14:17.555Z",
-          "lastModifiedBy": "ylhwjaq",
+          "createdAt": "2024-03-28T11:00:21.485Z",
+          "lastModifiedBy": "rbuvjbcbezqs",
           "lastModifiedByType": "User",
-          "lastModifiedAt": "2024-03-25T11:14:17.555Z"
+          "lastModifiedAt": "2024-03-28T11:00:21.485Z"
         }
       }
     }

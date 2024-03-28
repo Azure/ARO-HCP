@@ -3,8 +3,8 @@
   "operationId": "HcpClusterVersionOperations_ListByLocation",
   "parameters": {
     "api-version": "2024-06-10-preview",
-    "subscriptionId": "FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D",
-    "location": "pdtzymgwqsbxy"
+    "subscriptionId": "7832CF19-A991-44D3-AC0C-991FD11C4F00",
+    "location": "xftromdftakbullyruethdpsytzkwd"
   },
   "responses": {
     "200": {
@@ -13,18 +13,18 @@
           {
             "properties": {
               "provisioningState": "Succeeded",
-              "clusterVersion": "xkfddeiqkiqqkqzgnby"
+              "clusterVersion": "dwslchqevuraadtmbdwisrdwdbvu"
             },
-            "id": "pvhxaztlblmgvoyoeqczqf",
-            "name": "mvugweyhywfyadmkhkzrlhoiscgfl",
-            "type": "by",
+            "id": "tdmvefhvmgd",
+            "name": "yncyivdvtmg",
+            "type": "gdtowtawqmddzdlqbakfhkdxqd",
             "systemData": {
-              "createdBy": "lsrkqcuijqfp",
+              "createdBy": "cfriivusshykeljus",
               "createdByType": "User",
-              "createdAt": "2024-03-27T14:57:32.578Z",
-              "lastModifiedBy": "tgpmwu",
+              "createdAt": "2024-03-28T11:00:21.485Z",
+              "lastModifiedBy": "rbuvjbcbezqs",
               "lastModifiedByType": "User",
-              "lastModifiedAt": "2024-03-27T14:57:32.578Z"
+              "lastModifiedAt": "2024-03-28T11:00:21.485Z"
             }
           }
         ],

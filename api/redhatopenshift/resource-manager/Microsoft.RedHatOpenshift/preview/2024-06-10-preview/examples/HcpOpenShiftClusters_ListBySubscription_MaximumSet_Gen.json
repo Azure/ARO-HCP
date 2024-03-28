@@ -3,7 +3,7 @@
   "operationId": "HcpOpenShiftClusters_ListBySubscription",
   "parameters": {
     "api-version": "2024-06-10-preview",
-    "subscriptionId": "FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D"
+    "subscriptionId": "7832CF19-A991-44D3-AC0C-991FD11C4F00"
   },
   "responses": {
     "200": {
@@ -15,76 +15,76 @@
               "spec": {
                 "version": {
                   "availableUpgrades": [
-                    "fpjxf"
+                    "fradcbrhzzaneuftlyonrqoofu"
                   ]
                 },
                 "dns": {
-                  "baseDomain": "yubrqcgqdhgqfkobjqm"
+                  "baseDomain": "kayyth"
                 },
                 "network": {
                   "networkType": "OVNKubernetes"
                 },
                 "console": {
-                  "url": "ejgtgwbbvjtmzfqvldg"
+                  "url": "gywzmsqinwaxmavuylvp"
                 },
                 "api": {
-                  "url": "dkjmzzhkvyoqx",
-                  "ip": "jznqwislumdsvpgnenm",
+                  "url": "pgzpxyeqqjruictcswtscushrxlirl",
+                  "ip": "xofzxfunqpeaozhjjzxuqdsxvo",
                   "visibility": "public"
                 },
                 "proxy": {
-                  "httpProxy": "sjjbjvkimlvtwdnwjodcajidcoompt",
-                  "httpsProxy": "xwjukendejiksp",
-                  "noProxy": "mlsbdpjpyzpydpkeqvt",
-                  "trustedCa": "uxebp"
+                  "httpProxy": "ziwyvoxngrmkvn",
+                  "httpsProxy": "rblvdznwlmalce",
+                  "noProxy": "swzstcleejsxsozcccgwtlaauv",
+                  "trustedCa": "z"
                 },
                 "platform": {
-                  "managedResourceGroup": "nhyhywrxupo",
-                  "subnetId": "kqujobzvoswldorx",
+                  "managedResourceGroup": "uvq",
+                  "subnetId": "lseaxysnmeok",
                   "outboundType": "loadBalancer",
                   "preconfiguredNsgs": true,
-                  "etcdEncryptionSetId": "mrhumnvbsnnzduuhw"
+                  "etcdEncryptionSetId": "bssbmqvudtytmx"
                 },
-                "issuerUrl": "pqfgpubcuaaovvpeqal",
+                "issuerUrl": "uxrnghq",
                 "externalAuth": {
                   "externalAuths": [
                     {
                       "issuer": {
-                        "url": "nk",
+                        "url": "clqamwresdyzovpmfgqwrdtyiovqs",
                         "audiences": [
-                          "immp"
+                          "hhzoiqogcjsajpizwke"
                         ],
-                        "ca": "gzxrofthcontqdtcgswmwdczi"
+                        "ca": "maqhykimkybqc"
                       },
                       "clients": [
                         {
                           "component": {
-                            "name": "cevgylsawjnfo",
-                            "authClientNamespace": "kyidcudqzzlmaxrlbfcmrlztqac"
+                            "name": "aasrfb",
+                            "authClientNamespace": "oojixrtmrkpkutdulyccrc"
                           },
-                          "id": "rmrhpgkasiwypmms",
+                          "id": "eai",
                           "extraScopes": [
-                            "fjybfdutrjskatixr"
+                            "mkaqbmnhpaoqitebsemhrbpfm"
                           ]
                         }
                       ],
                       "claim": {
                         "mappings": {
                           "username": {
-                            "claim": "wgzo",
-                            "prefix": "ibfqhkqusvix",
-                            "prefixPolicy": "yx"
+                            "claim": "fxwwbuxsohvizjaw",
+                            "prefix": "psdvuhgudbz",
+                            "prefixPolicy": "yhlrkiabmsdelgeppxsw"
                           },
                           "groups": {
-                            "claim": "wgzo",
-                            "prefix": "ibfqhkqusvix",
-                            "prefixPolicy": "yx"
+                            "claim": "fxwwbuxsohvizjaw",
+                            "prefix": "psdvuhgudbz",
+                            "prefixPolicy": "yhlrkiabmsdelgeppxsw"
                           }
                         },
                         "validationRules": [
                           {
-                            "claim": "ulzzzszw",
-                            "requiredValue": "pjfwtae"
+                            "claim": "rfqvfh",
+                            "requiredValue": "ojvrextniirgrpctmuydnyytflzv"
                           }
                         ]
                       }
@@ -94,30 +94,30 @@
               }
             },
             "identity": {
-              "principalId": "xlswu",
-              "tenantId": "xfqisd",
+              "principalId": "wjl",
+              "tenantId": "lgezjb",
               "type": "None",
               "userAssignedIdentities": {
-                "key4794": {
-                  "principalId": "uctdckatfraombzrbkdltewc",
-                  "clientId": "auud"
+                "key8996": {
+                  "principalId": "ykggzlpmwfdfatpxzujiqutb",
+                  "clientId": "lsgvomatprygzx"
                 }
               }
             },
             "tags": {
-              "key4181": "leaswtidajsjtgmqawhdl"
+              "key691": "ovhepdiaji"
             },
-            "location": "ayecbdqonsqfowbq",
-            "id": "xioeiro",
-            "name": "vuwzuwooutjavgdhoatz",
-            "type": "utiyj",
+            "location": "ncui",
+            "id": "abdtuqlecqhqunqajf",
+            "name": "picbfltf",
+            "type": "ixbmldoscgjnp",
             "systemData": {
-              "createdBy": "lsrkqcuijqfp",
+              "createdBy": "cfriivusshykeljus",
               "createdByType": "User",
-              "createdAt": "2024-03-27T14:57:32.578Z",
-              "lastModifiedBy": "tgpmwu",
+              "createdAt": "2024-03-28T11:00:21.485Z",
+              "lastModifiedBy": "rbuvjbcbezqs",
               "lastModifiedByType": "User",
-              "lastModifiedAt": "2024-03-27T14:57:32.578Z"
+              "lastModifiedAt": "2024-03-28T11:00:21.485Z"
             }
           }
         ],
