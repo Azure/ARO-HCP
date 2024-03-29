@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -31,6 +32,7 @@ type Frontend struct {
 	logger   *slog.Logger
 	listener net.Listener
 	server   http.Server
+	cache    cache
 	ready    atomic.Value
 	done     chan struct{}
 }
@@ -52,7 +54,8 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 				return context.WithValue(context.Background(), ContextKeyLogger, logger)
 			},
 		},
-		done: make(chan struct{}),
+		cache: *NewCache(),
+		done:  make(chan struct{}),
 	}
 
 	mux := NewMiddlewareMux(
@@ -177,20 +180,52 @@ func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, re
 func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
-
+	versionedInterface, _ := ctx.Value(ContextKeyVersion).(api.Version)
 	logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
 
+	resourceID := strings.ToLower(request.URL.Path)
+	cluster, found := f.cache.GetCluster(resourceID)
+	if !found {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	resp, err := json.Marshal(cluster)
+	if err != nil {
+		f.logger.Error(err.Error())
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
 	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+	versionedInterface, _ := ctx.Value(ContextKeyVersion).(api.Version)
 
 	logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
+	resourceID := strings.ToLower(request.URL.Path)
+	cluster, err := clusterFromRequest(ctx.Value(ContextKeyBody).([]byte))
+	if err != nil {
+		f.logger.Error(err.Error())
+		writer.WriteHeader(http.StatusBadRequest)
+	}
+	f.cache.SetCluster(resourceID, cluster)
 
+	resp, err := json.Marshal(cluster)
+	if err != nil {
+		f.logger.Error(err.Error())
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
 	writer.WriteHeader(http.StatusCreated)
 }
 
@@ -207,9 +242,16 @@ func (f *Frontend) ArmResourcePatch(writer http.ResponseWriter, request *http.Re
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
-
+	versionedInterface, _ := ctx.Value(ContextKeyVersion).(api.Version)
 	logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
+
+	resourceID := strings.ToLower(request.URL.Path)
+	_, found := f.cache.GetCluster(resourceID)
+	if !found {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+	f.cache.DeleteCluster(resourceID)
 
 	writer.WriteHeader(http.StatusAccepted)
 }
@@ -222,4 +264,13 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 	logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
 
 	writer.WriteHeader(http.StatusOK)
+}
+
+func clusterFromRequest(body []byte) (api.HCPOpenShiftCluster, error) {
+	var cluster api.HCPOpenShiftCluster
+	err := json.Unmarshal(body, &cluster)
+	if err != nil {
+		return api.HCPOpenShiftCluster{}, err
+	}
+	return cluster, nil
 }
