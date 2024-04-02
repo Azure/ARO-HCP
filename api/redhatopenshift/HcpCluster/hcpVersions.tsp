@@ -14,6 +14,7 @@ namespace Microsoft.RedHatOpenshift;
 @locationResource
 model HcpOpenShiftVersions is ProxyResource<HcpOpenShiftVersionsProperties> {
     /** The name of the resource */
+    @pattern("^[a-zA-Z0-9-]{3,24}$")
     @segment("hcpOpenShiftVersions")
     @key("hcpOpenShiftVersions")
     @visibility("read")

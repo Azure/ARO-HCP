@@ -46,6 +46,9 @@
       "name": "HcpOpenShiftClusters"
     },
     {
+      "name": "NodePools"
+    },
+    {
       "name": "HcpClusterVersionOperations"
     }
   ],
@@ -74,14 +77,6 @@
             "schema": {
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
-          }
-        },
-        "x-ms-examples": {
-          "Operations_List_Maximum": {
-            "$ref": "./examples/Operations_List_MaximumSet_Gen.json"
-          },
-          "Operations_List_Minimum": {
-            "$ref": "./examples/Operations_List_MinimumSet_Gen.json"
           }
         },
         "x-ms-pageable": {
@@ -121,14 +116,6 @@
             }
           }
         },
-        "x-ms-examples": {
-          "HcpClusterVersionOperations_ListByLocation_Maximum": {
-            "$ref": "./examples/HcpClusterVersionOperations_ListByLocation_MaximumSet_Gen.json"
-          },
-          "HcpClusterVersionOperations_ListByLocation_Minimum": {
-            "$ref": "./examples/HcpClusterVersionOperations_ListByLocation_MinimumSet_Gen.json"
-          }
-        },
         "x-ms-pageable": {
           "nextLinkName": "nextLink"
         }
@@ -161,11 +148,6 @@
             "schema": {
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
-          }
-        },
-        "x-ms-examples": {
-          "HcpOpenShiftClusters_ListBySubscription": {
-            "$ref": "./examples/HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen.json"
           }
         },
         "x-ms-pageable": {
@@ -203,11 +185,6 @@
             "schema": {
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
-          }
-        },
-        "x-ms-examples": {
-          "HcpOpenShiftClusters_ListByResourceGroup": {
-            "$ref": "./examples/HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen.json"
           }
         },
         "x-ms-pageable": {
@@ -255,11 +232,6 @@
             "schema": {
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
-          }
-        },
-        "x-ms-examples": {
-          "HcpOpenShiftClusters_Get": {
-            "$ref": "./examples/HcpOpenShiftClusters_Get_MaximumSet_Gen.json"
           }
         }
       },
@@ -324,11 +296,6 @@
             "schema": {
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
-          }
-        },
-        "x-ms-examples": {
-          "HcpOpenShiftClusters_CreateOrUpdate": {
-            "$ref": "./examples/HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -400,11 +367,6 @@
             }
           }
         },
-        "x-ms-examples": {
-          "HcpOpenShiftClusters_Update": {
-            "$ref": "./examples/HcpOpenShiftClusters_Update_MaximumSet_Gen.json"
-          }
-        },
         "x-ms-long-running-operation-options": {
           "final-state-via": "location"
         },
@@ -462,11 +424,6 @@
             }
           }
         },
-        "x-ms-examples": {
-          "HcpOpenShiftClusters_Delete": {
-            "$ref": "./examples/HcpOpenShiftClusters_Delete_MaximumSet_Gen.json"
-          }
-        },
         "x-ms-long-running-operation-options": {
           "final-state-via": "location"
         },
@@ -514,11 +471,6 @@
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
           }
-        },
-        "x-ms-examples": {
-          "HcpOpenShiftClusters_AdminCredentials": {
-            "$ref": "./examples/HcpOpenShiftClusters_AdminCredentials_MaximumSet_Gen.json"
-          }
         }
       }
     },
@@ -563,12 +515,332 @@
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
           }
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools": {
+      "get": {
+        "operationId": "NodePools_ListByHcpOpenShiftClusterResource",
+        "tags": [
+          "NodePools"
+        ],
+        "description": "List HcpOpenShiftClusterNodePoolResource resources by HcpOpenShiftClusterResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResourceListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
+            }
+          }
         },
-        "x-ms-examples": {
-          "HcpOpenShiftClusters_KubeConfig": {
-            "$ref": "./examples/HcpOpenShiftClusters_KubeConfig_MaximumSet_Gen.json"
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}": {
+      "get": {
+        "operationId": "NodePools_Get",
+        "tags": [
+          "NodePools"
+        ],
+        "description": "Get a HcpOpenShiftClusterNodePoolResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          },
+          {
+            "name": "nodePoolName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
+            }
           }
         }
+      },
+      "put": {
+        "operationId": "NodePools_CreateOrUpdate",
+        "tags": [
+          "NodePools"
+        ],
+        "description": "Create a HcpOpenShiftClusterNodePoolResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          },
+          {
+            "name": "nodePoolName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          },
+          {
+            "name": "resource",
+            "in": "body",
+            "description": "Resource create parameters.",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resource 'HcpOpenShiftClusterNodePoolResource' update operation succeeded",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+            }
+          },
+          "201": {
+            "description": "Resource 'HcpOpenShiftClusterNodePoolResource' create operation succeeded",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+            },
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "azure-async-operation"
+        },
+        "x-ms-long-running-operation": true
+      },
+      "patch": {
+        "operationId": "NodePools_Update",
+        "tags": [
+          "NodePools"
+        ],
+        "description": "Update a HcpOpenShiftClusterNodePoolResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          },
+          {
+            "name": "nodePoolName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          },
+          {
+            "name": "properties",
+            "in": "body",
+            "description": "The resource properties to be updated.",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResourceUpdate"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+            }
+          },
+          "202": {
+            "description": "Resource update request accepted.",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "description": "The Location header contains the URL where the status of the long running operation can be checked."
+              },
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "location"
+        },
+        "x-ms-long-running-operation": true
+      },
+      "delete": {
+        "operationId": "NodePools_Delete",
+        "tags": [
+          "NodePools"
+        ],
+        "description": "Delete a HcpOpenShiftClusterNodePoolResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../common-types/resource-management/v5/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          },
+          {
+            "name": "nodePoolName",
+            "in": "path",
+            "description": "Name of HCP cluster",
+            "required": true,
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 24,
+            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Resource deletion accepted.",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "description": "The Location header contains the URL where the status of the long running operation can be checked."
+              },
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "204": {
+            "description": "Resource does not exist."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "location"
+        },
+        "x-ms-long-running-operation": true
       }
     }
   },
@@ -998,6 +1270,120 @@
         "kubeconfig"
       ]
     },
+    "HcpOpenShiftClusterNodePoolResource": {
+      "type": "object",
+      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/NodePoolProperties",
+          "description": "The resource-specific properties for this resource.",
+          "x-ms-client-flatten": true,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
+        }
+      ]
+    },
+    "HcpOpenShiftClusterNodePoolResourceListResult": {
+      "type": "object",
+      "description": "The response of a HcpOpenShiftClusterNodePoolResource list operation.",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The HcpOpenShiftClusterNodePoolResource items on this page",
+          "items": {
+            "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+          }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "HcpOpenShiftClusterNodePoolResourceUpdate": {
+      "type": "object",
+      "description": "The type used for update operations of the HcpOpenShiftClusterNodePoolResource.",
+      "properties": {
+        "tags": {
+          "type": "object",
+          "description": "Resource tags.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResourceUpdateProperties",
+          "x-ms-client-flatten": true
+        }
+      }
+    },
+    "HcpOpenShiftClusterNodePoolResourceUpdateProperties": {
+      "type": "object",
+      "description": "The updatable properties of the HcpOpenShiftClusterNodePoolResource.",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/VersionProfileUpdate",
+          "description": "OpenShift version for the nodepool",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "replicas": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "autoScaling": {
+          "$ref": "#/definitions/NodePoolAutoScalingUpdate",
+          "description": "Representation of a autoscaling in a node pool."
+        },
+        "labels": {
+          "type": "array",
+          "description": "Labels for the nodes",
+          "items": {
+            "type": "string"
+          },
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "taints": {
+          "type": "array",
+          "description": "Taints for the nodes",
+          "items": {
+            "type": "string"
+          },
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "tuningConfigs": {
+          "type": "array",
+          "description": "Tuning configs, TODO provide meaningful explanation\nTuningConfig is a list of references to ConfigMaps containing serialized\nTuned resources to define the tuning configuration to be applied to\nnodes in the NodePool.\nEach ConfigMap must have a single key named \"tuned\" whose value is the\nJSON or YAML of a serialized Tuned or PerformanceProfile.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "HcpOpenShiftClusterProperties": {
       "type": "object",
       "description": "HCP cluster properties",
@@ -1280,6 +1666,182 @@
           }
         ]
       }
+    },
+    "NodePoolAutoScaling": {
+      "type": "object",
+      "description": "Node pool autoscaling",
+      "properties": {
+        "min": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The minimum number of nodes in the node pool",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum number of nodes in the node pool",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ]
+    },
+    "NodePoolAutoScalingUpdate": {
+      "type": "object",
+      "description": "Node pool autoscaling",
+      "properties": {
+        "min": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The minimum number of nodes in the node pool",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum number of nodes in the node pool",
+          "minimum": 0
+        }
+      }
+    },
+    "NodePoolPlatformProfile": {
+      "type": "object",
+      "description": "Azure node pool platform configuration",
+      "properties": {
+        "subnetId": {
+          "type": "string",
+          "description": "The resourceId for the subnet used by the workers"
+        },
+        "vmSize": {
+          "type": "string",
+          "description": "The VM size according to the documentation:\n- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes"
+        },
+        "diskSizeGB": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The OS disk size in GB"
+        },
+        "diskStorageAccountType": {
+          "type": "string",
+          "description": "The type of the disc storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types"
+        },
+        "availabilityZone": {
+          "type": "string",
+          "description": "The availability zone for the node pool.\nPlease read the documentation to see which regions support availability zones\n- https://learn.microsoft.com/en-us/azure/availability-zones/az-overview"
+        },
+        "encryptionAtHost": {
+          "type": "boolean",
+          "description": "Whether the worker machines should be encrypted at host"
+        },
+        "discEncryptionSetId": {
+          "type": "string",
+          "description": "Disk Encryption Set ID that will be used for ecnryption the Nodes disks\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption"
+        },
+        "ephemeralOsDisk": {
+          "type": "boolean",
+          "description": "Is the disk ephemeral"
+        }
+      },
+      "required": [
+        "subnetId",
+        "vmSize"
+      ]
+    },
+    "NodePoolProperties": {
+      "type": "object",
+      "description": "Represents the node pool properties",
+      "properties": {
+        "provisioningState": {
+          "$ref": "#/definitions/Azure.ResourceManager.ResourceProvisioningState",
+          "description": "Provisioning state",
+          "readOnly": true
+        },
+        "spec": {
+          "$ref": "#/definitions/NodePoolSpec",
+          "description": "The node pool resource specification"
+        }
+      },
+      "required": [
+        "spec"
+      ]
+    },
+    "NodePoolSpec": {
+      "type": "object",
+      "description": "Worker node pool profile",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/VersionProfile",
+          "description": "OpenShift version for the nodepool",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "platform": {
+          "$ref": "#/definitions/NodePoolPlatformProfile",
+          "description": "Azure node pool platform configuration",
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "replicas": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "autoRepair": {
+          "type": "boolean",
+          "description": "Autorepair",
+          "default": false,
+          "x-ms-mutability": [
+            "create"
+          ]
+        },
+        "autoScaling": {
+          "$ref": "#/definitions/NodePoolAutoScaling",
+          "description": "Representation of a autoscaling in a node pool."
+        },
+        "labels": {
+          "type": "array",
+          "description": "Labels for the nodes",
+          "items": {
+            "type": "string"
+          },
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "taints": {
+          "type": "array",
+          "description": "Taints for the nodes",
+          "items": {
+            "type": "string"
+          },
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "tuningConfigs": {
+          "type": "array",
+          "description": "Tuning configs, TODO provide meaningful explanation\nTuningConfig is a list of references to ConfigMaps containing serialized\nTuned resources to define the tuning configuration to be applied to\nnodes in the NodePool.\nEach ConfigMap must have a single key named \"tuned\" whose value is the\nJSON or YAML of a serialized Tuned or PerformanceProfile.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "platform"
+      ]
     },
     "OutboundType": {
       "type": "string",
