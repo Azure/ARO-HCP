@@ -4,6 +4,8 @@ package v20240610preview
 // Licensed under the Apache License 2.0.
 
 import (
+	"encoding/json"
+
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -197,6 +199,18 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	}
 
 	return out
+}
+
+func (v version) UnmarshalHCPOpenShiftCluster(data []byte, updating bool, out *api.HCPOpenShiftCluster) error {
+	var resource HcpOpenShiftClusterResource
+
+	err := json.Unmarshal(data, &resource)
+	if err != nil {
+		return err
+	}
+
+	// FIXME Pass updating flag and possibly other flags.
+	return resource.Normalize(out)
 }
 
 func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) error {
