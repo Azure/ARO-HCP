@@ -183,13 +183,15 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	versionedInterface, _ := ctx.Value(ContextKeyVersion).(api.Version)
 	logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
 
-	resourceID := strings.ToLower(request.URL.Path)
+	// URL path is already lowercased by middleware.
+	resourceID := request.URL.Path
 	cluster, found := f.cache.GetCluster(resourceID)
 	if !found {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
-	resp, err := json.Marshal(cluster)
+	versionedResource := versionedInterface.NewHCPOpenShiftCluster(cluster)
+	resp, err := json.Marshal(versionedResource)
 	if err != nil {
 		f.logger.Error(err.Error())
 		writer.WriteHeader(http.StatusInternalServerError)
@@ -208,15 +210,23 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedInterface, _ := ctx.Value(ContextKeyVersion).(api.Version)
 
 	logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
-	resourceID := strings.ToLower(request.URL.Path)
-	cluster, err := clusterFromRequest(ctx.Value(ContextKeyBody).([]byte))
+
+	// URL path is already lowercased by middleware.
+	resourceID := request.URL.Path
+	cluster, updating := f.cache.GetCluster(resourceID)
+	if !updating {
+		cluster = api.NewDefaultHCPOpenShiftCluster()
+	}
+	body := ctx.Value(ContextKeyBody).([]byte)
+	err := versionedInterface.UnmarshalHCPOpenShiftCluster(body, updating, cluster)
 	if err != nil {
 		f.logger.Error(err.Error())
 		writer.WriteHeader(http.StatusBadRequest)
 	}
 	f.cache.SetCluster(resourceID, cluster)
 
-	resp, err := json.Marshal(cluster)
+	versionedResource := versionedInterface.NewHCPOpenShiftCluster(cluster)
+	resp, err := json.Marshal(versionedResource)
 	if err != nil {
 		f.logger.Error(err.Error())
 		writer.WriteHeader(http.StatusInternalServerError)
@@ -245,7 +255,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	versionedInterface, _ := ctx.Value(ContextKeyVersion).(api.Version)
 	logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
 
-	resourceID := strings.ToLower(request.URL.Path)
+	// URL path is already lowercased by middleware.
+	resourceID := request.URL.Path
 	_, found := f.cache.GetCluster(resourceID)
 	if !found {
 		writer.WriteHeader(http.StatusNotFound)
