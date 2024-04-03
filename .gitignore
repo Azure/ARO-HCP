@@ -11,8 +11,3 @@ node_modules
 .DS_Store
 .idea
 env
-
-# no need to track, used only for typespec
-# version is pinned in devcontainer.json
-package.json
-package-lock.json

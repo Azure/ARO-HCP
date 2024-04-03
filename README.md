@@ -23,7 +23,7 @@ During the container setup, it also install golangci-lint, which is defacto stan
 On top of that, is sets up the Bicep CLI and the Azure CLI with Bicep extension
 to simplify development of infra code.
 
-Finally, the container also contains the nodejs and sets up the typespec which is needed for the ARM contract development, as it is now mandatory to have the typespec in the ARM templates. When the container is created, there will be `package.json` and `package-lock.json` files in the root of the project, which are articaft of the typespec installation. They are ignored for the git, as all version pinning happens in the `devcontainer.json` file.
+Finally, the container also contains the nodejs and sets up the typespec which is needed for the ARM contract development, as it is now mandatory to have the typespec in the ARM templates.
 To enable the typespec extensions, which is not yet part of official extensions, once the vscode opens and the devcontainer is ready, you need to run the following command
 ```bash
 tsp code install
