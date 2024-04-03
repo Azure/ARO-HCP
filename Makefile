@@ -2,7 +2,7 @@ SHELL = /bin/bash
 TAG ?= $(shell git describe --exact-match 2>/dev/null)
 COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
 # There is currently no ACR for ARO HCP components. Variable will be defined later
-ARO_HCP_BASE_IMAGE = ${ARO_HCP_IMAGE_ACR}.azurecr.io/aro
+ARO_HCP_BASE_IMAGE = ${ARO_HCP_IMAGE_ACR}.azurecr.io
 
 ifeq ($(TAG),)
 	VERSION = $(COMMIT)
