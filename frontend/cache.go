@@ -6,22 +6,22 @@ package main
 import "github.com/Azure/ARO-HCP/internal/api"
 
 type cache struct {
-	cluster map[string]api.HCPOpenShiftCluster
+	cluster map[string]*api.HCPOpenShiftCluster
 }
 
 // NewCache returns a new cache.
 func NewCache() *cache {
 	return &cache{
-		cluster: make(map[string]api.HCPOpenShiftCluster),
+		cluster: make(map[string]*api.HCPOpenShiftCluster),
 	}
 }
 
-func (c *cache) GetCluster(id string) (api.HCPOpenShiftCluster, bool) {
+func (c *cache) GetCluster(id string) (*api.HCPOpenShiftCluster, bool) {
 	cluster, found := c.cluster[id]
 	return cluster, found
 }
 
-func (c *cache) SetCluster(id string, cluster api.HCPOpenShiftCluster) {
+func (c *cache) SetCluster(id string, cluster *api.HCPOpenShiftCluster) {
 	c.cluster[id] = cluster
 }
 
