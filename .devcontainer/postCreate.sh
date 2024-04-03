@@ -12,26 +12,19 @@ git config --global core.editor "code --wait"
 source /usr/share/bash-completion/completions/git
 echo "source /usr/share/bash-completion/completions/git" >> ~/.bashrc
 
-# Install the typespec
+npm ci
+
+# Install the tsp cli
 # pinned to the last working version combination
 npm install -g @typespec/compiler@0.51.0
-npm install \
-	@typespec/http@0.51.0 \
-	@typespec/rest@0.51.0 \
-	@typespec/versioning@0.51.0 \
-	@typespec/openapi@0.51.0 \
-	@typespec/openapi3@0.51.0 \
-	@azure-tools/typespec-azure-core@0.37.2 \
-	@azure-tools/typespec-autorest@0.37.2 \
-	@azure-tools/typespec-azure-resource-manager@0.37.1
 
 # Install azure/oav for validation of openapi and swagger example generation
 # https://github.com/Azure/oav
-npm install -g oav@latest
+npm install -g oav@0.4.34
 
 # Install the autorest used to generate golang and python clients
 # it uses the dotnet, which is installed via feature in devcontainer.json
-npm install -g autorest
+npm install -g autorest@3.7.1
 
 # Install the golang-lint
 # binary will be $(go env GOPATH)/bin/golangci-lint
