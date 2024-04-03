@@ -1,4 +1,16 @@
 SHELL = /bin/bash
+TAG ?= $(shell git describe --exact-match 2>/dev/null)
+COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
+# There is currently no ACR for ARO HCP components. Variable will be defined later
+ARO_HCP_BASE_IMAGE = ${ARO_HCP_IMAGE_ACR}.azurecr.io
+
+ifeq ($(TAG),)
+	VERSION = $(COMMIT)
+else
+	VERSION = $(TAG)
+endif
+
+ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(VERSION)
 
 all: test lint
 
@@ -12,3 +24,13 @@ test:
 MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint:
 	golangci-lint run -v $(MODULES)
+
+.PHONY: frontend
+frontend:
+	go build -ldflags "-X main.Version=$(VERSION)" -o aro-hcp-frontend ./frontend
+
+frontend-multistage:
+	docker build --platform=linux/amd64 -f Dockerfile.frontend -t ${ARO_HCP_FRONTEND_IMAGE} --build-arg VERSION=$(VERSION) .
+
+clean:
+	rm aro-hcp-frontend
