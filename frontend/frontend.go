@@ -276,12 +276,3 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 
 	writer.WriteHeader(http.StatusOK)
 }
-
-func clusterFromRequest(body []byte) (*api.HCPOpenShiftCluster, error) {
-	var cluster api.HCPOpenShiftCluster
-	err := json.Unmarshal(body, &cluster)
-	if err != nil {
-		return nil, err
-	}
-	return &cluster, nil
-}
