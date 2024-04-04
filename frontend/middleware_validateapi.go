@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -20,9 +19,6 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 			arm.CloudErrorCodeInvalidParameter, "",
 			"The request is missing required parameter '%s'.",
 			APIVersionKey)
-	} else if strings.EqualFold(apiVersion, "cache") {
-		r = r.WithContext(context.WithValue(r.Context(), ContextKeyVersion, "cache"))
-		next(w, r)
 	} else if version, ok := api.Lookup(apiVersion); !ok {
 		arm.WriteError(
 			w, http.StatusBadRequest,

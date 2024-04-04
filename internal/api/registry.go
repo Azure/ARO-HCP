@@ -15,17 +15,12 @@ const (
 )
 
 type VersionedHCPOpenShiftCluster interface {
-	Normalize(*HCPOpenShiftCluster)
+	Normalize(*HCPOpenShiftCluster) error
 	ValidateStatic() error
 }
 
 type VersionedHCPOpenShiftClusterNodePool interface {
-	Normalize(*HCPOpenShiftClusterNodePool)
-	ValidateStatic() error
-}
-
-type VersionedNodePoolProfile interface {
-	Normalize(*NodePoolProfile)
+	Normalize(*HCPOpenShiftClusterNodePool) error
 	ValidateStatic() error
 }
 
@@ -34,10 +29,10 @@ type Version interface {
 
 	// Resource Types
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
-	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
+	// FIXME Disable until we have generated structs for node pools.
+	//NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
 
-	// Component Types
-	NewNodePoolProfile(*NodePoolProfile) VersionedNodePoolProfile
+	UnmarshalHCPOpenShiftCluster([]byte, bool, *HCPOpenShiftCluster) error
 }
 
 // apiRegistry is the map of registered API versions
