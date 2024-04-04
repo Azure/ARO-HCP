@@ -5,6 +5,10 @@ package api
 
 import (
 	"fmt"
+	"reflect"
+	"strings"
+
+	validator "github.com/go-playground/validator/v10"
 )
 
 const (
@@ -45,4 +49,21 @@ func Register(version Version) {
 func Lookup(key string) (version Version, ok bool) {
 	version, ok = apiRegistry[key]
 	return
+}
+
+func NewValidator() *validator.Validate {
+	validate := validator.New(validator.WithRequiredStructEnabled())
+
+	// Use "json" struct tags for alternate field names.
+	// Alternate field names will be used in validation errors.
+	validate.RegisterTagNameFunc(func(field reflect.StructField) string {
+		name := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
+		// skip if tag key says it should be ignored
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
+
+	return validate
 }

@@ -14,6 +14,8 @@ func (v version) String() string {
 	return "2024-06-10-preview"
 }
 
+var validate = api.NewValidator()
+
 func init() {
 	api.Register(version{})
 }
