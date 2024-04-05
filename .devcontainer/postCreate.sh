@@ -20,7 +20,7 @@ npm install -g @typespec/compiler@0.55.0
 
 # Install azure/oav for validation of openapi and swagger example generation
 # https://github.com/Azure/oav
-npm install -g oav@0.4.34
+npm install -g oav@3.3.4
 
 # Install the autorest used to generate golang and python clients
 # it uses the dotnet, which is installed via feature in devcontainer.json
