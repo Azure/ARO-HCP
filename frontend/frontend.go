@@ -221,7 +221,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	err := versionedInterface.UnmarshalHCPOpenShiftCluster(body, updating, cluster)
 	if err != nil {
 		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusBadRequest)
+		arm.WriteUnmarshalError(err, writer)
+		return
 	}
 	f.cache.SetCluster(resourceID, cluster)
 
