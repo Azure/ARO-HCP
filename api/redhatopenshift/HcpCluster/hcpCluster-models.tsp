@@ -30,6 +30,23 @@ model HcpOpenShiftClusterResource is TrackedResource<HcpOpenShiftClusterProperti
   ...ManagedServiceIdentity;
 }
 
+// The NodePool needs to be TrackedResource for the following reasons:
+// - allow tags to be in place, which allows billing to use tags, important for workers
+// - allow nodepool to be tracked in the portal
+// - deleted when resource group is deleted
+// - allow cascade delete
+// more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
+@parentResource(HcpOpenShiftClusterResource)
+model HcpOpenShiftClusterNodePoolResource is TrackedResource<NodePoolProperties> {
+  /** Name of HCP cluster */
+  @pattern("^[a-zA-Z0-9-]{3,24}$")
+  @minLength(3)
+  @maxLength(24)
+  @key("nodePoolName")
+  @path
+  @segment("nodePools")
+  name: string;
+}
 
 /** HCP cluster properties */
 model HcpOpenShiftClusterProperties {
@@ -392,6 +409,121 @@ model IngressProfile {
 * =======================================
 */
 
+/*
+* =======================================
+*  NodePool resources
+* =======================================
+*/
+
+/** Represents the node pool properties */
+model NodePoolProperties {
+  /** Provisioning state */
+  @visibility("read")
+  provisioningState?: ResourceProvisioningState;
+
+  /** The node pool resource specification */
+  spec: NodePoolSpec;
+}
+
+/** Worker node pool profile */
+model NodePoolSpec {
+  /** OpenShift version for the nodepool */
+  @visibility("create", "update")
+  version: VersionProfile;
+
+  /** Azure node pool platform configuration */
+  @visibility("create")
+  platform: NodePoolPlatformProfile;
+
+  /** The number of worker nodes, it cannot be used together with autoscaling */
+  @visibility("create", "update")
+  replicas?: int32;
+
+  /** Autorepair */
+  @visibility("create")
+  autoRepair?: boolean = false;
+
+  /** Representation of a autoscaling in a node pool. */
+  autoScaling?: NodePoolAutoScaling;
+
+  /** Labels for the nodes */
+  @visibility("create", "update")
+  labels?: string[];
+
+  /** Taints for the nodes */
+  @visibility("create", "update")
+  taints?: string[];
+
+  /*
+   * The Tuned API is defined here:
+   * - https://github.com/openshift/cluster-node-tuning-operator/blob/2c76314fb3cc8f12aef4a0dcd67ddc3677d5b54f/pkg/apis/tuned/v1/tuned_types.go
+   *
+   * The PerformanceProfile API is defined here:
+   * - https://github.com/openshift/cluster-node-tuning-operator/tree/b41042d42d4ba5bb2e99960248cf1d6ae4935018/pkg/apis/performanceprofile/v2
+   */
+  /** Tuning configs, TODO provide meaningful explanation
+   * TuningConfig is a list of references to ConfigMaps containing serialized
+   * Tuned resources to define the tuning configuration to be applied to
+   * nodes in the NodePool.
+   * Each ConfigMap must have a single key named "tuned" whose value is the
+   * JSON or YAML of a serialized Tuned or PerformanceProfile.
+  */
+  tuningConfigs?: string[];
+}
+
+/** Azure node pool platform configuration */
+model NodePoolPlatformProfile {
+  /** The resourceId for the subnet used by the workers */
+  subnetId: string;
+
+  /** The VM size according to the documentation:
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
+  vmSize: string;
+
+  #suppress "@azure-tools/typespec-azure-core/casing-style" "The field needs to be indicate size in GB not in Gb"
+  /** The OS disk size in GB */
+  diskSizeGB?: int32;
+
+  /** The type of the disc storage account
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+  */
+  diskStorageAccountType?: string;
+
+  /** The availability zone for the node pool.
+   * Please read the documentation to see which regions support availability zones
+   * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
+  */
+  availabilityZone?: string;
+
+  /** Whether the worker machines should be encrypted at host */
+  encryptionAtHost?: boolean;
+
+  /** Disk Encryption Set ID that will be used for ecnryption the Nodes disks
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
+   */
+  discEncryptionSetId?: string;
+
+  /** Is the disk ephemeral */
+  ephemeralOsDisk?: boolean;
+}
+
+/** Node pool autoscaling */
+model NodePoolAutoScaling {
+  /** The minimum number of nodes in the node pool */
+  @minValue(0)
+  min: int32;
+
+  /** The maximum number of nodes in the node pool */
+  @minValue(0)
+  max: int32;
+}
+
+/*
+* =======================================
+* End NodePool resources
+* =======================================
+*/
 
 /*
 * =======================================

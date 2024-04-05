@@ -33,3 +33,13 @@ interface HcpOpenShiftClusters {
     /** Returns the admin cluster credentials */
     adminCredentials is ArmResourceActionSync<HcpOpenShiftClusterResource, void, HcpOpenShiftClusterCredentials>;
 }
+
+/** HCP cluster node pools */
+@armResourceOperations(HcpOpenShiftClusterNodePoolResource)
+interface NodePools {
+    get is ArmResourceRead<HcpOpenShiftClusterNodePoolResource>;
+    createOrUpdate is ArmResourceCreateOrReplaceAsync<HcpOpenShiftClusterNodePoolResource>;
+    update is ArmResourcePatchAsync<HcpOpenShiftClusterNodePoolResource, NodePoolSpec>;
+    delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftClusterNodePoolResource>;
+    listByParent is ArmResourceListByParent<HcpOpenShiftClusterNodePoolResource>;
+}
