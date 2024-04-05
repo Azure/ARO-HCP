@@ -118,6 +118,7 @@ model ClusterSpec {
 
   /** Configures the cluster ingresses */
   @visibility("create")
+  @OpenAPI.extension("x-ms-identifiers", ["ip", "url", "visibility"])
   ingress?: IngressProfile[];
 }
 
@@ -292,6 +293,7 @@ model ExternalAuthConfigProfile {
 
   /** This can only be set as a day-2 resource on a separate endpoint to provide a self-managed auth service */
   @visibility("read")
+  @OpenAPI.extension("x-ms-identifiers", ["issuer", "clients", "claim"])
   externalAuths: ExternalAuthProfile[];
 }
 
@@ -345,6 +347,7 @@ model ExternalAuthClaimProfile {
   mappings: TokenClaimMappingsProfile;
 
   /** The claim validation rules */
+  @OpenAPI.extension("x-ms-identifiers", ["claim", "requiredValue"])
   validationRules: TokenClaimValidationRuleProfile[];
 }
 

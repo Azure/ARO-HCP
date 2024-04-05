@@ -1,0 +1,88 @@
+{
+  "title": "NodePools_Update",
+  "operationId": "NodePools_Update",
+  "parameters": {
+    "api-version": "2024-06-10-preview",
+    "subscriptionId": "F64FF5E2-2AD0-4E4D-A9D5-6E88511247A7",
+    "resourceGroupName": "rgopenapi",
+    "hcpOpenShiftClusterName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
+    "nodePoolName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
+    "properties": {
+      "tags": {
+        "key3313": "aciaohrpspozhrvwvbdtpqliezchbn"
+      },
+      "properties": {
+        "version": {
+          "id": "chh"
+        },
+        "replicas": 7,
+        "autoScaling": {
+          "min": 29,
+          "max": 2
+        },
+        "labels": [
+          "qptpzhtgcqsofgvlahww"
+        ],
+        "taints": [
+          "fzmckrigt"
+        ],
+        "tuningConfigs": [
+          "dvoeaysltfusyb"
+        ]
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "body": {
+        "properties": {
+          "provisioningState": "Succeeded",
+          "spec": {
+            "version": {
+              "availableUpgrades": [
+                "jlufyoivqzyxnqzwijozipxmgux"
+              ]
+            },
+            "platform": {
+              "subnetId": "afapulyhvjjg",
+              "vmSize": "hfdapwwtchingr",
+              "diskSizeGB": 12,
+              "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
+              "availabilityZone": "mssxcjzxagdxoeuqydthwc",
+              "encryptionAtHost": true,
+              "discEncryptionSetId": "rjasgujgzleldjwp",
+              "ephemeralOsDisk": true
+            },
+            "autoScaling": {
+              "min": 6,
+              "max": 29
+            },
+            "tuningConfigs": [
+              "m"
+            ]
+          }
+        },
+        "tags": {
+          "key7212": "uufkzlwqnoxdfihpqz"
+        },
+        "location": "mqewzbuvnyxnwbmir",
+        "id": "ogtjdgogxemijejkai",
+        "name": "riywfucwvfwoepzliopnphdfjw",
+        "type": "znmdhkzcopsephiyom",
+        "systemData": {
+          "createdBy": "iiqgrciyremxtwbrkjqtvcjkn",
+          "createdByType": "User",
+          "createdAt": "2024-03-25T11:14:17.555Z",
+          "lastModifiedBy": "ylhwjaq",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2024-03-25T11:14:17.555Z"
+        }
+      }
+    },
+    "202": {
+      "headers": {
+        "location": "https://contoso.com/operationstatus"
+      }
+    }
+  }
+}

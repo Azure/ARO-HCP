@@ -1,0 +1,147 @@
+{
+  "title": "NodePools_CreateOrUpdate",
+  "operationId": "NodePools_CreateOrUpdate",
+  "parameters": {
+    "api-version": "2024-06-10-preview",
+    "subscriptionId": "F64FF5E2-2AD0-4E4D-A9D5-6E88511247A7",
+    "resourceGroupName": "rgopenapi",
+    "hcpOpenShiftClusterName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
+    "nodePoolName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
+    "resource": {
+      "properties": {
+        "spec": {
+          "version": {
+            "id": "tbg",
+            "channelGroup": "rhhchgarryftdwzbadtwrzcbighms"
+          },
+          "platform": {
+            "subnetId": "afapulyhvjjg",
+            "vmSize": "hfdapwwtchingr",
+            "diskSizeGB": 12,
+            "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
+            "availabilityZone": "mssxcjzxagdxoeuqydthwc",
+            "encryptionAtHost": true,
+            "discEncryptionSetId": "rjasgujgzleldjwp",
+            "ephemeralOsDisk": true
+          },
+          "replicas": 18,
+          "autoRepair": true,
+          "autoScaling": {
+            "min": 6,
+            "max": 29
+          },
+          "labels": [
+            "ufrvhxdwltr"
+          ],
+          "taints": [
+            "yzmuazkxmfhksrjm"
+          ],
+          "tuningConfigs": [
+            "m"
+          ]
+        }
+      },
+      "tags": {
+        "key7212": "uufkzlwqnoxdfihpqz"
+      },
+      "location": "mqewzbuvnyxnwbmir"
+    }
+  },
+  "responses": {
+    "200": {
+      "body": {
+        "properties": {
+          "provisioningState": "Succeeded",
+          "spec": {
+            "version": {
+              "availableUpgrades": [
+                "jlufyoivqzyxnqzwijozipxmgux"
+              ]
+            },
+            "platform": {
+              "subnetId": "afapulyhvjjg",
+              "vmSize": "hfdapwwtchingr",
+              "diskSizeGB": 12,
+              "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
+              "availabilityZone": "mssxcjzxagdxoeuqydthwc",
+              "encryptionAtHost": true,
+              "discEncryptionSetId": "rjasgujgzleldjwp",
+              "ephemeralOsDisk": true
+            },
+            "autoScaling": {
+              "min": 6,
+              "max": 29
+            },
+            "tuningConfigs": [
+              "m"
+            ]
+          }
+        },
+        "tags": {
+          "key7212": "uufkzlwqnoxdfihpqz"
+        },
+        "location": "mqewzbuvnyxnwbmir",
+        "id": "ogtjdgogxemijejkai",
+        "name": "riywfucwvfwoepzliopnphdfjw",
+        "type": "znmdhkzcopsephiyom",
+        "systemData": {
+          "createdBy": "iiqgrciyremxtwbrkjqtvcjkn",
+          "createdByType": "User",
+          "createdAt": "2024-03-25T11:14:17.555Z",
+          "lastModifiedBy": "ylhwjaq",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2024-03-25T11:14:17.555Z"
+        }
+      }
+    },
+    "201": {
+      "headers": {
+        "Azure-AsyncOperation": "https://contoso.com/operationstatus"
+      },
+      "body": {
+        "properties": {
+          "provisioningState": "Succeeded",
+          "spec": {
+            "version": {
+              "availableUpgrades": [
+                "jlufyoivqzyxnqzwijozipxmgux"
+              ]
+            },
+            "platform": {
+              "subnetId": "afapulyhvjjg",
+              "vmSize": "hfdapwwtchingr",
+              "diskSizeGB": 12,
+              "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
+              "availabilityZone": "mssxcjzxagdxoeuqydthwc",
+              "encryptionAtHost": true,
+              "discEncryptionSetId": "rjasgujgzleldjwp",
+              "ephemeralOsDisk": true
+            },
+            "autoScaling": {
+              "min": 6,
+              "max": 29
+            },
+            "tuningConfigs": [
+              "m"
+            ]
+          }
+        },
+        "tags": {
+          "key7212": "uufkzlwqnoxdfihpqz"
+        },
+        "location": "mqewzbuvnyxnwbmir",
+        "id": "ogtjdgogxemijejkai",
+        "name": "riywfucwvfwoepzliopnphdfjw",
+        "type": "znmdhkzcopsephiyom",
+        "systemData": {
+          "createdBy": "iiqgrciyremxtwbrkjqtvcjkn",
+          "createdByType": "User",
+          "createdAt": "2024-03-25T11:14:17.555Z",
+          "lastModifiedBy": "ylhwjaq",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2024-03-25T11:14:17.555Z"
+        }
+      }
+    }
+  }
+}
