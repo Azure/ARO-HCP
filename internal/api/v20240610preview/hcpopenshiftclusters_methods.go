@@ -29,25 +29,25 @@ func newDNSProfile(from *api.DNSProfile) *DNSProfile {
 
 func newNetworkProfile(from *api.NetworkProfile) *NetworkProfile {
 	return &NetworkProfile{
-		NetworkType: api.Ptr(NetworkType(from.NetworkType.String())),
-		PodCidr:     api.Ptr(from.PodCIDR.String()),
-		ServiceCidr: api.Ptr(from.ServiceCIDR.String()),
-		MachineCidr: api.Ptr(from.MachineCIDR.String()),
+		NetworkType: api.Ptr(NetworkType(from.NetworkType)),
+		PodCidr:     api.Ptr(from.PodCIDR),
+		ServiceCidr: api.Ptr(from.ServiceCIDR),
+		MachineCidr: api.Ptr(from.MachineCIDR),
 		HostPrefix:  api.Ptr(from.HostPrefix),
 	}
 }
 
 func newConsoleProfile(from *api.ConsoleProfile) *ConsoleProfile {
 	return &ConsoleProfile{
-		URL: api.Ptr(from.URL.String()),
+		URL: api.Ptr(from.URL),
 	}
 }
 
 func newAPIProfile(from *api.APIProfile) *APIProfile {
 	return &APIProfile{
-		URL:        api.Ptr(from.URL.String()),
-		IP:         api.Ptr(from.IP.String()),
-		Visibility: api.Ptr(Visibility(from.Visibility.String())),
+		URL:        api.Ptr(from.URL),
+		IP:         api.Ptr(from.IP),
+		Visibility: api.Ptr(Visibility(from.Visibility)),
 	}
 }
 
@@ -64,7 +64,7 @@ func newPlatformProfile(from *api.PlatformProfile) *PlatformProfile {
 	return &PlatformProfile{
 		ManagedResourceGroup: api.Ptr(from.ManagedResourceGroup),
 		SubnetID:             api.Ptr(from.SubnetID),
-		OutboundType:         api.Ptr(OutboundType(from.OutboundType.String())),
+		OutboundType:         api.Ptr(OutboundType(from.OutboundType)),
 		PreconfiguredNsgs:    api.Ptr(from.PreconfiguredNSGs),
 		EtcdEncryptionSetID:  api.Ptr(from.EtcdEncryptionSetID),
 	}
@@ -72,9 +72,9 @@ func newPlatformProfile(from *api.PlatformProfile) *PlatformProfile {
 
 func newIngressProfile(from *api.IngressProfile) *IngressProfile {
 	return &IngressProfile{
-		IP:         api.Ptr(from.IP.String()),
-		URL:        api.Ptr(from.URL.String()),
-		Visibility: api.Ptr(Visibility(from.Visibility.String())),
+		IP:         api.Ptr(from.IP),
+		URL:        api.Ptr(from.URL),
+		Visibility: api.Ptr(Visibility(from.Visibility)),
 	}
 }
 
@@ -153,7 +153,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 		Tags:     map[string]*string{},
 		// FIXME Skipping ManagedServiceIdentity
 		Properties: &HcpOpenShiftClusterProperties{
-			ProvisioningState: api.Ptr(ProvisioningState(from.Properties.ProvisioningState.String())),
+			ProvisioningState: api.Ptr(ProvisioningState(from.Properties.ProvisioningState)),
 			Spec: &ClusterSpec{
 				Version:                       newVersionProfile(&from.Properties.Spec.Version),
 				DNS:                           newDNSProfile(&from.Properties.Spec.DNS),
@@ -165,7 +165,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.Spec.DisableUserWorkloadMonitoring),
 				Proxy:                         newProxyProfile(&from.Properties.Spec.Proxy),
 				Platform:                      newPlatformProfile(&from.Properties.Spec.Platform),
-				IssuerURL:                     api.Ptr(from.Properties.Spec.IssuerURL.String()),
+				IssuerURL:                     api.Ptr(from.Properties.Spec.IssuerURL),
 				ExternalAuth: &ExternalAuthConfigProfile{
 					Enabled:       api.Ptr(from.Properties.Spec.ExternalAuth.Enabled),
 					ExternalAuths: make([]*ExternalAuthProfile, len(from.Properties.Spec.ExternalAuth.ExternalAuths)),
@@ -178,10 +178,10 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	if from.Resource.SystemData != nil {
 		out.SystemData = &SystemData{
 			CreatedBy:          api.Ptr(from.Resource.SystemData.CreatedBy),
-			CreatedByType:      api.Ptr(CreatedByType(from.Resource.SystemData.CreatedByType.String())),
+			CreatedByType:      api.Ptr(CreatedByType(from.Resource.SystemData.CreatedByType)),
 			CreatedAt:          from.Resource.SystemData.CreatedAt,
 			LastModifiedBy:     api.Ptr(from.Resource.SystemData.LastModifiedBy),
-			LastModifiedByType: api.Ptr(CreatedByType(from.Resource.SystemData.LastModifiedByType.String())),
+			LastModifiedByType: api.Ptr(CreatedByType(from.Resource.SystemData.LastModifiedByType)),
 			LastModifiedAt:     from.Resource.SystemData.LastModifiedAt,
 		}
 	}
@@ -209,11 +209,14 @@ func (v version) UnmarshalHCPOpenShiftCluster(data []byte, updating bool, out *a
 		return err
 	}
 
-	// FIXME Pass updating flag and possibly other flags.
-	return resource.Normalize(out)
+	// FIXME Handle updating flag and possibly other flags.
+
+	resource.Normalize(out)
+
+	return validate.Struct(out)
 }
 
-func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) error {
+func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 	if c.ID != nil {
 		out.Resource.ID = *c.ID
 	}
@@ -232,21 +235,13 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) er
 			out.Resource.SystemData.CreatedBy = *c.SystemData.CreatedBy
 		}
 		if c.SystemData.CreatedByType != nil {
-			text := []byte(*c.SystemData.CreatedByType)
-			err := out.Resource.SystemData.CreatedByType.UnmarshalText(text)
-			if err != nil {
-				return err
-			}
+			out.Resource.SystemData.CreatedByType = arm.CreatedByType(*c.SystemData.CreatedByType)
 		}
 		if c.SystemData.LastModifiedBy != nil {
 			out.Resource.SystemData.LastModifiedBy = *c.SystemData.LastModifiedBy
 		}
 		if c.SystemData.LastModifiedByType != nil {
-			text := []byte(*c.SystemData.LastModifiedByType)
-			err := out.Resource.SystemData.LastModifiedByType.UnmarshalText(text)
-			if err != nil {
-				return err
-			}
+			out.Resource.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
 		}
 	}
 	// FIXME Skipping ManagedServiceIdentity
@@ -261,42 +256,23 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) er
 	}
 	if c.Properties != nil {
 		if c.Properties.ProvisioningState != nil {
-			text := []byte(*c.Properties.ProvisioningState)
-			err := out.Properties.ProvisioningState.UnmarshalText(text)
-			if err != nil {
-				return err
-			}
+			out.Properties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
 		}
 		if c.Properties.Spec != nil {
 			if c.Properties.Spec.Version != nil {
-				err := c.Properties.Spec.Version.Normalize(&out.Properties.Spec.Version)
-				if err != nil {
-					return err
-				}
+				c.Properties.Spec.Version.Normalize(&out.Properties.Spec.Version)
 			}
 			if c.Properties.Spec.DNS != nil {
-				err := c.Properties.Spec.DNS.Normalize(&out.Properties.Spec.DNS)
-				if err != nil {
-					return err
-				}
+				c.Properties.Spec.DNS.Normalize(&out.Properties.Spec.DNS)
 			}
 			if c.Properties.Spec.Network != nil {
-				err := c.Properties.Spec.Network.Normalize(&out.Properties.Spec.Network)
-				if err != nil {
-					return err
-				}
+				c.Properties.Spec.Network.Normalize(&out.Properties.Spec.Network)
 			}
 			if c.Properties.Spec.Console != nil {
-				err := c.Properties.Spec.Console.Normalize(&out.Properties.Spec.Console)
-				if err != nil {
-					return err
-				}
+				c.Properties.Spec.Console.Normalize(&out.Properties.Spec.Console)
 			}
 			if c.Properties.Spec.API != nil {
-				err := c.Properties.Spec.API.Normalize(&out.Properties.Spec.API)
-				if err != nil {
-					return err
-				}
+				c.Properties.Spec.API.Normalize(&out.Properties.Spec.API)
 			}
 			if c.Properties.Spec.Fips != nil {
 				out.Properties.Spec.FIPS = *c.Properties.Spec.Fips
@@ -308,50 +284,32 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) er
 				out.Properties.Spec.DisableUserWorkloadMonitoring = *c.Properties.Spec.DisableUserWorkloadMonitoring
 			}
 			if c.Properties.Spec.Proxy != nil {
-				err := c.Properties.Spec.Proxy.Normalize(&out.Properties.Spec.Proxy)
-				if err != nil {
-					return err
-				}
+				c.Properties.Spec.Proxy.Normalize(&out.Properties.Spec.Proxy)
 			}
 			if c.Properties.Spec.Platform != nil {
-				err := c.Properties.Spec.Platform.Normalize(&out.Properties.Spec.Platform)
-				if err != nil {
-					return err
-				}
+				c.Properties.Spec.Platform.Normalize(&out.Properties.Spec.Platform)
 			}
 			if c.Properties.Spec.IssuerURL != nil {
-				text := []byte(*c.Properties.Spec.IssuerURL)
-				err := out.Properties.Spec.IssuerURL.UnmarshalBinary(text)
-				if err != nil {
-					return err
-				}
+				out.Properties.Spec.IssuerURL = *c.Properties.Spec.IssuerURL
 			}
 			if c.Properties.Spec.ExternalAuth != nil {
-				err := c.Properties.Spec.ExternalAuth.Normalize(&out.Properties.Spec.ExternalAuth)
-				if err != nil {
-					return err
-				}
+				c.Properties.Spec.ExternalAuth.Normalize(&out.Properties.Spec.ExternalAuth)
 			}
 			ingressSequence := api.DeleteNilsFromPtrSlice(c.Properties.Spec.Ingress)
 			out.Properties.Spec.Ingress = make([]*api.IngressProfile, len(ingressSequence))
 			for index, item := range ingressSequence {
 				out.Properties.Spec.Ingress[index] = &api.IngressProfile{}
-				err := item.Normalize(out.Properties.Spec.Ingress[index])
-				if err != nil {
-					return err
-				}
+				item.Normalize(out.Properties.Spec.Ingress[index])
 			}
 		}
 	}
-
-	return nil
 }
 
 func (c *HcpOpenShiftClusterResource) ValidateStatic() error {
 	return nil
 }
 
-func (p *VersionProfile) Normalize(out *api.VersionProfile) error {
+func (p *VersionProfile) Normalize(out *api.VersionProfile) {
 	if p.ID != nil {
 		out.ID = *p.ID
 	}
@@ -359,96 +317,54 @@ func (p *VersionProfile) Normalize(out *api.VersionProfile) error {
 		out.ChannelGroup = *p.ChannelGroup
 	}
 	out.AvailableUpgrades = api.StringPtrSliceToStringSlice(p.AvailableUpgrades)
-
-	return nil
 }
 
-func (p *DNSProfile) Normalize(out *api.DNSProfile) error {
+func (p *DNSProfile) Normalize(out *api.DNSProfile) {
 	if p.BaseDomain != nil {
 		out.BaseDomain = *p.BaseDomain
 	}
 	if p.BaseDomainPrefix != nil {
 		out.BaseDomainPrefix = *p.BaseDomainPrefix
 	}
-
-	return nil
 }
 
-func (p *NetworkProfile) Normalize(out *api.NetworkProfile) error {
+func (p *NetworkProfile) Normalize(out *api.NetworkProfile) {
 	if p.NetworkType != nil {
-		text := []byte(*p.NetworkType)
-		err := out.NetworkType.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.NetworkType = api.NetworkType(*p.NetworkType)
 	}
 	if p.PodCidr != nil {
-		text := []byte(*p.PodCidr)
-		err := out.PodCIDR.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.PodCIDR = *p.PodCidr
 	}
 	if p.ServiceCidr != nil {
-		text := []byte(*p.ServiceCidr)
-		err := out.ServiceCIDR.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.ServiceCIDR = *p.ServiceCidr
 	}
 	if p.MachineCidr != nil {
-		text := []byte(*p.MachineCidr)
-		err := out.MachineCIDR.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.MachineCIDR = *p.MachineCidr
 	}
 	if p.HostPrefix != nil {
 		out.HostPrefix = *p.HostPrefix
 	}
-
-	return nil
 }
 
-func (p *ConsoleProfile) Normalize(out *api.ConsoleProfile) error {
+func (p *ConsoleProfile) Normalize(out *api.ConsoleProfile) {
 	if p.URL != nil {
-		text := []byte(*p.URL)
-		err := out.URL.UnmarshalBinary(text)
-		if err != nil {
-			return err
-		}
+		out.URL = *p.URL
 	}
-
-	return nil
 }
 
-func (p *APIProfile) Normalize(out *api.APIProfile) error {
+func (p *APIProfile) Normalize(out *api.APIProfile) {
 	if p.URL != nil {
-		text := []byte(*p.URL)
-		err := out.URL.UnmarshalBinary(text)
-		if err != nil {
-			return err
-		}
+		out.URL = *p.URL
 	}
 	if p.IP != nil {
-		text := []byte(*p.IP)
-		err := out.IP.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.IP = *p.IP
 	}
 	if p.Visibility != nil {
-		text := []byte(*p.Visibility)
-		err := out.Visibility.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.Visibility = api.Visibility(*p.Visibility)
 	}
-
-	return nil
 }
 
-func (p *ProxyProfile) Normalize(out *api.ProxyProfile) error {
+func (p *ProxyProfile) Normalize(out *api.ProxyProfile) {
 	if p.HTTPProxy != nil {
 		out.HTTPProxy = *p.HTTPProxy
 	}
@@ -461,11 +377,9 @@ func (p *ProxyProfile) Normalize(out *api.ProxyProfile) error {
 	if p.TrustedCa != nil {
 		out.TrustedCA = *p.TrustedCa
 	}
-
-	return nil
 }
 
-func (p *PlatformProfile) Normalize(out *api.PlatformProfile) error {
+func (p *PlatformProfile) Normalize(out *api.PlatformProfile) {
 	if p.ManagedResourceGroup != nil {
 		out.ManagedResourceGroup = *p.ManagedResourceGroup
 	}
@@ -473,11 +387,7 @@ func (p *PlatformProfile) Normalize(out *api.PlatformProfile) error {
 		out.SubnetID = *p.SubnetID
 	}
 	if p.OutboundType != nil {
-		text := []byte(*p.OutboundType)
-		err := out.OutboundType.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.OutboundType = api.OutboundType(*p.OutboundType)
 	}
 	if p.PreconfiguredNsgs != nil {
 		out.PreconfiguredNSGs = *p.PreconfiguredNsgs
@@ -485,11 +395,9 @@ func (p *PlatformProfile) Normalize(out *api.PlatformProfile) error {
 	if p.EtcdEncryptionSetID != nil {
 		out.EtcdEncryptionSetID = *p.EtcdEncryptionSetID
 	}
-
-	return nil
 }
 
-func (p *ExternalAuthConfigProfile) Normalize(out *api.ExternalAuthConfigProfile) error {
+func (p *ExternalAuthConfigProfile) Normalize(out *api.ExternalAuthConfigProfile) {
 	if p.Enabled != nil {
 		out.Enabled = *p.Enabled
 	}
@@ -579,32 +487,16 @@ func (p *ExternalAuthConfigProfile) Normalize(out *api.ExternalAuthConfigProfile
 
 		out.ExternalAuths = append(out.ExternalAuths, provider)
 	}
-
-	return nil
 }
 
-func (p *IngressProfile) Normalize(out *api.IngressProfile) error {
+func (p *IngressProfile) Normalize(out *api.IngressProfile) {
 	if p.IP != nil {
-		text := []byte(*p.IP)
-		err := out.IP.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.IP = *p.IP
 	}
 	if p.URL != nil {
-		text := []byte(*p.URL)
-		err := out.URL.UnmarshalBinary(text)
-		if err != nil {
-			return err
-		}
+		out.URL = *p.URL
 	}
 	if p.Visibility != nil {
-		text := []byte(*p.Visibility)
-		err := out.Visibility.UnmarshalText(text)
-		if err != nil {
-			return err
-		}
+		out.Visibility = api.Visibility(*p.Visibility)
 	}
-
-	return nil
 }

@@ -194,7 +194,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	resp, err := json.Marshal(versionedResource)
 	if err != nil {
 		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusInternalServerError)
+		arm.WriteInternalServerError(writer)
 		return
 	}
 	_, err = writer.Write(resp)
@@ -221,7 +221,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	err := versionedInterface.UnmarshalHCPOpenShiftCluster(body, updating, cluster)
 	if err != nil {
 		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusBadRequest)
+		arm.WriteUnmarshalError(err, writer)
+		return
 	}
 	f.cache.SetCluster(resourceID, cluster)
 
@@ -229,7 +230,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	resp, err := json.Marshal(versionedResource)
 	if err != nil {
 		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusInternalServerError)
+		arm.WriteInternalServerError(writer)
 		return
 	}
 	_, err = writer.Write(resp)

@@ -4,13 +4,9 @@ package api
 // Licensed under the Apache License 2.0.
 
 import (
-	"net"
-	"net/url"
-
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/json"
 )
 
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
@@ -21,7 +17,7 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"               validate:"omitempty,enum_provisioningstate"`
 	Spec              ClusterSpec           `json:"spec,omitempty"              visibility:"read,create,update"`
 }
 
@@ -37,7 +33,7 @@ type ClusterSpec struct {
 	DisableUserWorkloadMonitoring bool                      `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read,create,update"`
 	Proxy                         ProxyProfile              `json:"proxy,omitempty"                         visibility:"read,create,update"`
 	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read,create"`
-	IssuerURL                     url.URL                   `json:"issuerUrl,omitempty"                     visibility:"read"`
+	IssuerURL                     string                    `json:"issuerUrl,omitempty"                     visibility:"read"               validate:"omitempty,url"`
 	ExternalAuth                  ExternalAuthConfigProfile `json:"externalAuth,omitempty"                  visibility:"read,create"`
 	Ingress                       []*IngressProfile         `json:"ingressProfile,omitempty"                visibility:"read,create"`
 }
@@ -59,23 +55,23 @@ type DNSProfile struct {
 // Visibility for the entire struct is "read,create".
 type NetworkProfile struct {
 	NetworkType NetworkType `json:"networkType,omitempty"`
-	PodCIDR     json.IPNet  `json:"podCidr,omitempty"`
-	ServiceCIDR json.IPNet  `json:"serviceCidr,omitempty"`
-	MachineCIDR json.IPNet  `json:"machineCidr,omitempty"`
+	PodCIDR     string      `json:"podCidr,omitempty"     validate:"omitempty,cidrv4"`
+	ServiceCIDR string      `json:"serviceCidr,omitempty" validate:"omitempty,cidrv4"`
+	MachineCIDR string      `json:"machineCidr,omitempty" validate:"omitempty,cidrv4"`
 	HostPrefix  int32       `json:"hostPrefix,omitempty"`
 }
 
 // ConsoleProfile represents a cluster web console configuration.
 // Visibility for the entire struct is "read".
 type ConsoleProfile struct {
-	URL url.URL `json:"url,omitempty"`
+	URL string `json:"url,omitempty" validate:"omitempty,url"`
 }
 
 // APIProfile represents a cluster API server configuration.
 type APIProfile struct {
-	URL        url.URL    `json:"url,omitempty"        visibility:"read"`
-	IP         net.IP     `json:"ip,omitempty"         visibility:"read"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create"`
+	URL        string     `json:"url,omitempty"        visibility:"read"        validate:"omitempty,url"`
+	IP         string     `json:"ip,omitempty"         visibility:"read"        validate:"omitempty,ipv4"`
+	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create" validate:"omitempty,enum_visibility"`
 }
 
 // ProxyProfile represents the cluster proxy configuration.
@@ -92,7 +88,7 @@ type ProxyProfile struct {
 type PlatformProfile struct {
 	ManagedResourceGroup string       `json:"managedResourceGroup,omitempty"`
 	SubnetID             string       `json:"subnetId,omitempty"`
-	OutboundType         OutboundType `json:"outboundType,omitempty"`
+	OutboundType         OutboundType `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
 	PreconfiguredNSGs    bool         `json:"preconfiguredNsgs,omitempty"`
 	EtcdEncryptionSetID  string       `json:"etcdEncryptionSetId,omitempty"`
 }
@@ -105,9 +101,9 @@ type ExternalAuthConfigProfile struct {
 
 // IngressProfile represents a cluster ingress configuration.
 type IngressProfile struct {
-	IP         net.IP     `json:"ip,omitempty"         visibility:"read"`
-	URL        url.URL    `json:"url,omitempty"        visibility:"read"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create"`
+	IP         string     `json:"ip,omitempty"         visibility:"read"        validate:"omitempty,ipv4"`
+	URL        string     `json:"url,omitempty"        visibility:"read"        validate:"omitempty,url"`
+	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create" validate:"omitempty,enum_visibility"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
