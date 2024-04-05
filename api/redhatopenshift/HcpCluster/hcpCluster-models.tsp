@@ -106,8 +106,9 @@ model ClusterSpec {
 
 /** The resource provisioning state. */
 @lroStatus
-enum ProvisioningState {
-  ...ResourceProvisioningState,
+union ProvisioningState {
+  string,
+  ResourceProvisioningState,
 }
 
 /** Versions represents an OpenShift version. */
@@ -168,7 +169,9 @@ model NetworkProfile {
 }
 
 /** The cluster network type */
-enum NetworkType {
+union NetworkType {
+  string,
+
   /** THE OVN network plugin for the OpenShift cluster */
   OVNKubernetes: "OVNKubernetes",
   /** Other network plugins */
@@ -198,7 +201,9 @@ model ApiProfile {
 }
 
 /** The visibility of the API server */
-enum Visibility {
+union Visibility {
+  string,
+
   /** The API server is visible from the internet. */
   public: "public",
 
@@ -243,7 +248,9 @@ model PlatformProfile {
 }
 
 /** The outbound routing strategy used to provide your cluster egress to the internet. */
-enum OutboundType {
+union OutboundType {
+  string,
+
   /** The loadbalancer configuration */
   loadBalancer: "loadBalancer",
 }
