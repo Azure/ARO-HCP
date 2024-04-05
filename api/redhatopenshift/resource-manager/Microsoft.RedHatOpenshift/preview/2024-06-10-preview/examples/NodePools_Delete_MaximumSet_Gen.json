@@ -1,0 +1,19 @@
+{
+  "title": "NodePools_Delete",
+  "operationId": "NodePools_Delete",
+  "parameters": {
+    "api-version": "2024-06-10-preview",
+    "subscriptionId": "F64FF5E2-2AD0-4E4D-A9D5-6E88511247A7",
+    "resourceGroupName": "rgopenapi",
+    "hcpOpenShiftClusterName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
+    "nodePoolName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$"
+  },
+  "responses": {
+    "202": {
+      "headers": {
+        "location": "https://contoso.com/operationstatus"
+      }
+    },
+    "204": {}
+  }
+}
