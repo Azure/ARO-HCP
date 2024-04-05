@@ -19,12 +19,12 @@ const (
 )
 
 type VersionedHCPOpenShiftCluster interface {
-	Normalize(*HCPOpenShiftCluster) error
+	Normalize(*HCPOpenShiftCluster)
 	ValidateStatic() error
 }
 
 type VersionedHCPOpenShiftClusterNodePool interface {
-	Normalize(*HCPOpenShiftClusterNodePool) error
+	Normalize(*HCPOpenShiftClusterNodePool)
 	ValidateStatic() error
 }
 

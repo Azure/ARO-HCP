@@ -17,7 +17,7 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"               validate:"omitempty,enum_provisioningstate"`
 	Spec              ClusterSpec           `json:"spec,omitempty"              visibility:"read,create,update"`
 }
 
@@ -71,7 +71,7 @@ type ConsoleProfile struct {
 type APIProfile struct {
 	URL        string     `json:"url,omitempty"        visibility:"read"        validate:"omitempty,url"`
 	IP         string     `json:"ip,omitempty"         visibility:"read"        validate:"omitempty,ipv4"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create"`
+	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create" validate:"omitempty,enum_visibility"`
 }
 
 // ProxyProfile represents the cluster proxy configuration.
@@ -88,7 +88,7 @@ type ProxyProfile struct {
 type PlatformProfile struct {
 	ManagedResourceGroup string       `json:"managedResourceGroup,omitempty"`
 	SubnetID             string       `json:"subnetId,omitempty"`
-	OutboundType         OutboundType `json:"outboundType,omitempty"`
+	OutboundType         OutboundType `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
 	PreconfiguredNSGs    bool         `json:"preconfiguredNsgs,omitempty"`
 	EtcdEncryptionSetID  string       `json:"etcdEncryptionSetId,omitempty"`
 }
@@ -103,7 +103,7 @@ type ExternalAuthConfigProfile struct {
 type IngressProfile struct {
 	IP         string     `json:"ip,omitempty"         visibility:"read"        validate:"omitempty,ipv4"`
 	URL        string     `json:"url,omitempty"        visibility:"read"        validate:"omitempty,url"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create"`
+	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create" validate:"omitempty,enum_visibility"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
