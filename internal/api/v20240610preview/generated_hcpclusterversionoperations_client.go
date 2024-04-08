@@ -27,7 +27,7 @@ type HcpClusterVersionOperationsClient struct {
 }
 
 // NewHcpClusterVersionOperationsClient creates a new instance of HcpClusterVersionOperationsClient with the specified values.
-//   - subscriptionID - The ID of the target subscription.
+//   - subscriptionID - The ID of the target subscription. The value must be an UUID.
 //   - credential - used to authorize requests. Usually a credential from azidentity.
 //   - options - pass nil to accept the default values.
 func NewHcpClusterVersionOperationsClient(subscriptionID string, credential azcore.TokenCredential, options *arm.ClientOptions) (*HcpClusterVersionOperationsClient, error) {
@@ -45,7 +45,7 @@ func NewHcpClusterVersionOperationsClient(subscriptionID string, credential azco
 // NewListByLocationPager - List HcpOpenShiftVersions resources by location
 //
 // Generated from API version 2024-06-10-preview
-//   - location - The name of Azure region.
+//   - location - The name of the Azure region.
 //   - options - HcpClusterVersionOperationsClientListByLocationOptions contains the optional parameters for the HcpClusterVersionOperationsClient.NewListByLocationPager
 //     method.
 func (client *HcpClusterVersionOperationsClient) NewListByLocationPager(location string, options *HcpClusterVersionOperationsClientListByLocationOptions) (*runtime.Pager[HcpClusterVersionOperationsClientListByLocationResponse]) {

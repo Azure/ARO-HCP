@@ -85,6 +85,9 @@
           },
           "Operations_List_Minimum": {
             "$ref": "./examples/Operations_List_MinimumSet_Gen.json"
+          },
+          "Operations_List_MaximumSet_Gen": {
+            "$ref": "./examples/Operations_List_MaximumSet_Gen.json"
           }
         },
         "x-ms-pageable": {
@@ -130,6 +133,9 @@
           },
           "HcpClusterVersionOperations_ListByLocation_Minimum": {
             "$ref": "./examples/HcpClusterVersionOperations_ListByLocation_MinimumSet_Gen.json"
+          },
+          "HcpClusterVersionOperations_ListByLocation_MaximumSet_Gen": {
+            "$ref": "./examples/HcpClusterVersionOperations_ListByLocation_MaximumSet_Gen.json"
           }
         },
         "x-ms-pageable": {
@@ -168,6 +174,9 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_ListBySubscription": {
+            "$ref": "./examples/HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen.json"
+          },
+          "HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen.json"
           }
         },
@@ -210,6 +219,9 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_ListByResourceGroup": {
+            "$ref": "./examples/HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen.json"
+          },
+          "HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen.json"
           }
         },
@@ -262,6 +274,9 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_Get": {
+            "$ref": "./examples/HcpOpenShiftClusters_Get_MaximumSet_Gen.json"
+          },
+          "HcpOpenShiftClusters_Get_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_Get_MaximumSet_Gen.json"
           }
         }
@@ -331,6 +346,9 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_CreateOrUpdate": {
+            "$ref": "./examples/HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen.json"
+          },
+          "HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen.json"
           }
         },
@@ -406,6 +424,9 @@
         "x-ms-examples": {
           "HcpOpenShiftClusters_Update": {
             "$ref": "./examples/HcpOpenShiftClusters_Update_MaximumSet_Gen.json"
+          },
+          "HcpOpenShiftClusters_Update_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_Update_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -468,6 +489,9 @@
         "x-ms-examples": {
           "HcpOpenShiftClusters_Delete": {
             "$ref": "./examples/HcpOpenShiftClusters_Delete_MaximumSet_Gen.json"
+          },
+          "HcpOpenShiftClusters_Delete_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_Delete_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -521,6 +545,9 @@
         "x-ms-examples": {
           "HcpOpenShiftClusters_AdminCredentials": {
             "$ref": "./examples/HcpOpenShiftClusters_AdminCredentials_MaximumSet_Gen.json"
+          },
+          "HcpOpenShiftClusters_AdminCredentials_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_AdminCredentials_MaximumSet_Gen.json"
           }
         }
       }
@@ -570,6 +597,9 @@
         "x-ms-examples": {
           "HcpOpenShiftClusters_KubeConfig": {
             "$ref": "./examples/HcpOpenShiftClusters_KubeConfig_MaximumSet_Gen.json"
+          },
+          "HcpOpenShiftClusters_KubeConfig_MaximumSet_Gen": {
+            "$ref": "./examples/HcpOpenShiftClusters_KubeConfig_MaximumSet_Gen.json"
           }
         }
       }
@@ -618,6 +648,9 @@
         },
         "x-ms-examples": {
           "NodePools_ListByHcpOpenShiftClusterResource": {
+            "$ref": "./examples/NodePools_ListByHcpOpenShiftClusterResource_MaximumSet_Gen.json"
+          },
+          "NodePools_ListByHcpOpenShiftClusterResource_MaximumSet_Gen": {
             "$ref": "./examples/NodePools_ListByHcpOpenShiftClusterResource_MaximumSet_Gen.json"
           }
         },
@@ -680,6 +713,9 @@
         },
         "x-ms-examples": {
           "NodePools_Get": {
+            "$ref": "./examples/NodePools_Get_MaximumSet_Gen.json"
+          },
+          "NodePools_Get_MaximumSet_Gen": {
             "$ref": "./examples/NodePools_Get_MaximumSet_Gen.json"
           }
         }
@@ -759,6 +795,9 @@
         },
         "x-ms-examples": {
           "NodePools_CreateOrUpdate": {
+            "$ref": "./examples/NodePools_CreateOrUpdate_MaximumSet_Gen.json"
+          },
+          "NodePools_CreateOrUpdate_MaximumSet_Gen": {
             "$ref": "./examples/NodePools_CreateOrUpdate_MaximumSet_Gen.json"
           }
         },
@@ -844,6 +883,9 @@
         "x-ms-examples": {
           "NodePools_Update": {
             "$ref": "./examples/NodePools_Update_MaximumSet_Gen.json"
+          },
+          "NodePools_Update_MaximumSet_Gen": {
+            "$ref": "./examples/NodePools_Update_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -915,6 +957,9 @@
         },
         "x-ms-examples": {
           "NodePools_Delete": {
+            "$ref": "./examples/NodePools_Delete_MaximumSet_Gen.json"
+          },
+          "NodePools_Delete_MaximumSet_Gen": {
             "$ref": "./examples/NodePools_Delete_MaximumSet_Gen.json"
           }
         },

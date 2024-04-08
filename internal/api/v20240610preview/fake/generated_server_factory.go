@@ -20,6 +20,7 @@ import (
 type ServerFactory struct {
 	HcpClusterVersionOperationsServer HcpClusterVersionOperationsServer
 	HcpOpenShiftClustersServer HcpOpenShiftClustersServer
+	NodePoolsServer NodePoolsServer
 	OperationsServer OperationsServer
 }
 
@@ -39,6 +40,7 @@ type ServerFactoryTransport struct {
 	trMu sync.Mutex
 	trHcpClusterVersionOperationsServer *HcpClusterVersionOperationsServerTransport
 	trHcpOpenShiftClustersServer *HcpOpenShiftClustersServerTransport
+	trNodePoolsServer *NodePoolsServerTransport
 	trOperationsServer *OperationsServerTransport
 }
 
@@ -61,6 +63,9 @@ func (s *ServerFactoryTransport) Do(req *http.Request) (*http.Response, error) {
 	case "HcpOpenShiftClustersClient":
 		initServer(s, &s.trHcpOpenShiftClustersServer, func() *HcpOpenShiftClustersServerTransport { return NewHcpOpenShiftClustersServerTransport(&s.srv.HcpOpenShiftClustersServer) })
 		resp, err = s.trHcpOpenShiftClustersServer.Do(req)
+	case "NodePoolsClient":
+		initServer(s, &s.trNodePoolsServer, func() *NodePoolsServerTransport { return NewNodePoolsServerTransport(&s.srv.NodePoolsServer) })
+		resp, err = s.trNodePoolsServer.Do(req)
 	case "OperationsClient":
 		initServer(s, &s.trOperationsServer, func() *OperationsServerTransport { return NewOperationsServerTransport(&s.srv.OperationsServer) })
 		resp, err = s.trOperationsServer.Do(req)

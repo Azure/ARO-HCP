@@ -210,6 +210,73 @@ type HcpOpenShiftClusterKubeconfig struct {
 	Kubeconfig *string
 }
 
+// HcpOpenShiftClusterNodePoolResource - Concrete tracked resource types can be created by aliasing this type using a specific
+// property type.
+type HcpOpenShiftClusterNodePoolResource struct {
+	// REQUIRED; The geo-location where the resource lives
+	Location *string
+
+	// The resource-specific properties for this resource.
+	Properties *NodePoolProperties
+
+	// Resource tags.
+	Tags map[string]*string
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
+// HcpOpenShiftClusterNodePoolResourceListResult - The response of a HcpOpenShiftClusterNodePoolResource list operation.
+type HcpOpenShiftClusterNodePoolResourceListResult struct {
+	// REQUIRED; The HcpOpenShiftClusterNodePoolResource items on this page
+	Value []*HcpOpenShiftClusterNodePoolResource
+
+	// The link to the next page of items
+	NextLink *string
+}
+
+// HcpOpenShiftClusterNodePoolResourceUpdate - The type used for update operations of the HcpOpenShiftClusterNodePoolResource.
+type HcpOpenShiftClusterNodePoolResourceUpdate struct {
+	// The updatable properties of the HcpOpenShiftClusterNodePoolResource.
+	Properties *HcpOpenShiftClusterNodePoolResourceUpdateProperties
+
+	// Resource tags.
+	Tags map[string]*string
+}
+
+// HcpOpenShiftClusterNodePoolResourceUpdateProperties - The updatable properties of the HcpOpenShiftClusterNodePoolResource.
+type HcpOpenShiftClusterNodePoolResourceUpdateProperties struct {
+	// Representation of a autoscaling in a node pool.
+	AutoScaling *NodePoolAutoScalingUpdate
+
+	// Labels for the nodes
+	Labels []*string
+
+	// The number of worker nodes, it cannot be used together with autoscaling
+	Replicas *int32
+
+	// Taints for the nodes
+	Taints []*string
+
+	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
+// Tuned resources to define the tuning configuration to be applied to nodes
+// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
+// or PerformanceProfile.
+	TuningConfigs []*string
+
+	// OpenShift version for the nodepool
+	Version *VersionProfileUpdate
+}
+
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; The cluster resouce specification.
@@ -233,7 +300,7 @@ type HcpOpenShiftClusterResource struct {
 	// Resource tags.
 	Tags map[string]*string
 
-	// READ-ONLY; Fully qualified resource ID for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
 	ID *string
 
 	// READ-ONLY; The name of the resource
@@ -278,7 +345,7 @@ type HcpOpenShiftVersions struct {
 	// The resource-specific properties for this resource.
 	Properties *HcpOpenShiftVersionsProperties
 
-	// READ-ONLY; Fully qualified resource ID for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
 	ID *string
 
 	// READ-ONLY; The name of the resource
@@ -357,6 +424,95 @@ type NetworkProfile struct {
 
 	// The main controller responsible for rendering the core networking components
 	NetworkType *NetworkType
+}
+
+// NodePoolAutoScaling - Node pool autoscaling
+type NodePoolAutoScaling struct {
+	// REQUIRED; The maximum number of nodes in the node pool
+	Max *int32
+
+	// REQUIRED; The minimum number of nodes in the node pool
+	Min *int32
+}
+
+// NodePoolAutoScalingUpdate - Node pool autoscaling
+type NodePoolAutoScalingUpdate struct {
+	// The maximum number of nodes in the node pool
+	Max *int32
+
+	// The minimum number of nodes in the node pool
+	Min *int32
+}
+
+// NodePoolPlatformProfile - Azure node pool platform configuration
+type NodePoolPlatformProfile struct {
+	// REQUIRED; The resourceId for the subnet used by the workers
+	SubnetID *string
+
+	// REQUIRED; The VM size according to the documentation:
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
+	VMSize *string
+
+	// The availability zone for the node pool. Please read the documentation to see which regions support availability zones
+// * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
+	AvailabilityZone *string
+
+	// Disk Encryption Set ID that will be used for ecnryption the Nodes disks
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
+	DiscEncryptionSetID *string
+
+	// The OS disk size in GB
+	DiskSizeGB *int32
+
+	// The type of the disc storage account
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+	DiskStorageAccountType *string
+
+	// Whether the worker machines should be encrypted at host
+	EncryptionAtHost *bool
+
+	// Is the disk ephemeral
+	EphemeralOsDisk *bool
+}
+
+// NodePoolProperties - Represents the node pool properties
+type NodePoolProperties struct {
+	// REQUIRED; The node pool resource specification
+	Spec *NodePoolSpec
+
+	// READ-ONLY; Provisioning state
+	ProvisioningState *ResourceProvisioningState
+}
+
+// NodePoolSpec - Worker node pool profile
+type NodePoolSpec struct {
+	// REQUIRED; Azure node pool platform configuration
+	Platform *NodePoolPlatformProfile
+
+	// REQUIRED; OpenShift version for the nodepool
+	Version *VersionProfile
+
+	// Autorepair
+	AutoRepair *bool
+
+	// Representation of a autoscaling in a node pool.
+	AutoScaling *NodePoolAutoScaling
+
+	// Labels for the nodes
+	Labels []*string
+
+	// The number of worker nodes, it cannot be used together with autoscaling
+	Replicas *int32
+
+	// Taints for the nodes
+	Taints []*string
+
+	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
+// Tuned resources to define the tuning configuration to be applied to nodes
+// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
+// or PerformanceProfile.
+	TuningConfigs []*string
 }
 
 // Operation - Details of a REST API operation, returned from the Resource Provider Operations API
@@ -445,7 +601,7 @@ type ProxyProfile struct {
 // ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
 // location
 type ProxyResource struct {
-	// READ-ONLY; Fully qualified resource ID for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
 	ID *string
 
 	// READ-ONLY; The name of the resource
@@ -460,7 +616,7 @@ type ProxyResource struct {
 
 // Resource - Common fields that are returned in the response for all Azure Resource Manager resources
 type Resource struct {
-	// READ-ONLY; Fully qualified resource ID for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
 	ID *string
 
 	// READ-ONLY; The name of the resource
@@ -533,7 +689,7 @@ type TrackedResource struct {
 	// Resource tags.
 	Tags map[string]*string
 
-	// READ-ONLY; Fully qualified resource ID for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
 	ID *string
 
 	// READ-ONLY; The name of the resource

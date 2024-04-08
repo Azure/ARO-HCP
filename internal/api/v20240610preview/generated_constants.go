@@ -52,7 +52,7 @@ type ManagedServiceIdentityType string
 const (
 	ManagedServiceIdentityTypeNone ManagedServiceIdentityType = "None"
 	ManagedServiceIdentityTypeSystemAssigned ManagedServiceIdentityType = "SystemAssigned"
-	ManagedServiceIdentityTypeSystemAssignedUserAssigned ManagedServiceIdentityType = "SystemAssigned, UserAssigned"
+	ManagedServiceIdentityTypeSystemAssignedUserAssigned ManagedServiceIdentityType = "SystemAssigned,UserAssigned"
 	ManagedServiceIdentityTypeUserAssigned ManagedServiceIdentityType = "UserAssigned"
 )
 
@@ -66,7 +66,7 @@ func PossibleManagedServiceIdentityTypeValues() []ManagedServiceIdentityType {
 	}
 }
 
-// NetworkType - The cluster network type
+// NetworkType - The main controller responsible for rendering the core networking components
 type NetworkType string
 
 const (

@@ -63,6 +63,36 @@ type HcpOpenShiftClustersClientListBySubscriptionOptions struct {
 	// placeholder for future optional parameters
 }
 
+// NodePoolsClientBeginCreateOrUpdateOptions contains the optional parameters for the NodePoolsClient.BeginCreateOrUpdate
+// method.
+type NodePoolsClientBeginCreateOrUpdateOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// NodePoolsClientBeginDeleteOptions contains the optional parameters for the NodePoolsClient.BeginDelete method.
+type NodePoolsClientBeginDeleteOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// NodePoolsClientBeginUpdateOptions contains the optional parameters for the NodePoolsClient.BeginUpdate method.
+type NodePoolsClientBeginUpdateOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// NodePoolsClientGetOptions contains the optional parameters for the NodePoolsClient.Get method.
+type NodePoolsClientGetOptions struct {
+	// placeholder for future optional parameters
+}
+
+// NodePoolsClientListByHcpOpenShiftClusterResourceOptions contains the optional parameters for the NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager
+// method.
+type NodePoolsClientListByHcpOpenShiftClusterResourceOptions struct {
+	// placeholder for future optional parameters
+}
+
 // OperationsClientListOptions contains the optional parameters for the OperationsClient.NewListPager method.
 type OperationsClientListOptions struct {
 	// placeholder for future optional parameters
