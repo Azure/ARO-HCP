@@ -2,7 +2,7 @@
 # Base and builder image will need to be replaced by Fips compliant one
 FROM registry.access.redhat.com/ubi8/ubi:8.9-1160 AS builder
 RUN yum update -y && yum install -y tar make && yum clean all
-RUN curl -L https://go.dev/dl/go1.22.1.linux-amd64.tar.gz -o go.tar.gz \
+RUN curl -L https://go.dev/dl/go1.22.2.linux-amd64.tar.gz -o go.tar.gz \
     && tar -C /usr/local -xzf go.tar.gz \
     && rm go.tar.gz
 ENV PATH="/usr/local/go/bin:${PATH}"
