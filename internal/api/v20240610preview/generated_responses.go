@@ -60,6 +60,35 @@ type HcpOpenShiftClustersClientUpdateResponse struct {
 	HcpOpenShiftClusterResource
 }
 
+// NodePoolsClientCreateOrUpdateResponse contains the response from method NodePoolsClient.BeginCreateOrUpdate.
+type NodePoolsClientCreateOrUpdateResponse struct {
+	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	HcpOpenShiftClusterNodePoolResource
+}
+
+// NodePoolsClientDeleteResponse contains the response from method NodePoolsClient.BeginDelete.
+type NodePoolsClientDeleteResponse struct {
+	// placeholder for future response values
+}
+
+// NodePoolsClientGetResponse contains the response from method NodePoolsClient.Get.
+type NodePoolsClientGetResponse struct {
+	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	HcpOpenShiftClusterNodePoolResource
+}
+
+// NodePoolsClientListByHcpOpenShiftClusterResourceResponse contains the response from method NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager.
+type NodePoolsClientListByHcpOpenShiftClusterResourceResponse struct {
+	// The response of a HcpOpenShiftClusterNodePoolResource list operation.
+	HcpOpenShiftClusterNodePoolResourceListResult
+}
+
+// NodePoolsClientUpdateResponse contains the response from method NodePoolsClient.BeginUpdate.
+type NodePoolsClientUpdateResponse struct {
+	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	HcpOpenShiftClusterNodePoolResource
+}
+
 // OperationsClientListResponse contains the response from method OperationsClient.NewListPager.
 type OperationsClientListResponse struct {
 	// A list of REST API operations supported by an Azure Resource Provider. It contains an URL link to get the next set of results.
