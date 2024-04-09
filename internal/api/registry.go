@@ -36,7 +36,7 @@ type Version interface {
 	// FIXME Disable until we have generated structs for node pools.
 	//NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
 
-	UnmarshalHCPOpenShiftCluster([]byte, bool, *HCPOpenShiftCluster) error
+	UnmarshalHCPOpenShiftCluster([]byte, *HCPOpenShiftCluster, string, bool) error
 }
 
 // apiRegistry is the map of registered API versions

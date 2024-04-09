@@ -218,7 +218,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		cluster = api.NewDefaultHCPOpenShiftCluster()
 	}
 	body := ctx.Value(ContextKeyBody).([]byte)
-	err := versionedInterface.UnmarshalHCPOpenShiftCluster(body, updating, cluster)
+	err := versionedInterface.UnmarshalHCPOpenShiftCluster(body, cluster, request.Method, updating)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteUnmarshalError(err, writer)

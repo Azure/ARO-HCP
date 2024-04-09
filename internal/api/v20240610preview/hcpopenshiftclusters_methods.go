@@ -201,7 +201,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	return out
 }
 
-func (v version) UnmarshalHCPOpenShiftCluster(data []byte, updating bool, out *api.HCPOpenShiftCluster) error {
+func (v version) UnmarshalHCPOpenShiftCluster(data []byte, out *api.HCPOpenShiftCluster, method string, updating bool) error {
 	var resource HcpOpenShiftClusterResource
 
 	err := json.Unmarshal(data, &resource)
