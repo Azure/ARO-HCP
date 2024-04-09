@@ -213,7 +213,7 @@ func (v version) UnmarshalHCPOpenShiftCluster(data []byte, out *api.HCPOpenShift
 
 	resource.Normalize(out)
 
-	return validate.Struct(out)
+	return api.ValidateRequest(validate, method, updating, out)
 }
 
 func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {

@@ -137,6 +137,8 @@ func WriteUnmarshalError(err error, w http.ResponseWriter) {
 				message += fmt.Sprintf(" (must be one of: %s)", fieldErr.Param())
 			} else {
 				switch tag {
+				case "required_for_put": // custom tag
+					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
 				case "cidrv4":
 					message += " (must be a v4 CIDR address)"
 				case "ipv4":
