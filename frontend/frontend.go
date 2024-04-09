@@ -17,6 +17,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/subscription"
 )
 
 const (
@@ -97,6 +98,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
+	mux.Handle(MuxPattern(http.MethodPut, PatternSubscriptions), postMuxMiddleware.HandlerFunc(f.ArmSubscriptionAction))
 	f.server.Handler = mux
 
 	return f
@@ -276,4 +278,34 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 	logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
 
 	writer.WriteHeader(http.StatusOK)
+}
+
+func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
+	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
+	logger.Info(fmt.Sprintf("%s: ArmSubscriptionAction", versionedInterface))
+
+	body := ctx.Value(ContextKeyBody).([]byte)
+	var subscription subscription.Subscription
+	err := json.Unmarshal(body, &subscription)
+	if err != nil {
+		f.logger.Error(err.Error())
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	subId := request.PathValue(strings.ToLower(PathSegmentSubscriptionID))
+	f.cache.SetSubscription(subId, &subscription)
+
+	resp, err := json.Marshal(subscription)
+	if err != nil {
+		f.logger.Error(err.Error())
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
 }
