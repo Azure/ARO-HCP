@@ -132,15 +132,18 @@ func WriteUnmarshalError(err error, w http.ResponseWriter) {
 		for index, fieldErr := range err {
 			message := fmt.Sprintf("Invalid value '%s' for field '%s'", fieldErr.Value(), fieldErr.Field())
 			// Try to add a corrective suggestion to the message.
-			switch fieldErr.ActualTag() {
-			case "cidrv4":
-				message += " (must be a v4 CIDR address)"
-			case "ipv4":
-				message += " (must be an IPv4 address)"
-			case "oneof":
+			tag := fieldErr.Tag()
+			if strings.HasPrefix(tag, "enum_") {
 				message += fmt.Sprintf(" (must be one of: %s)", fieldErr.Param())
-			case "url":
-				message += " (must be a URL)"
+			} else {
+				switch tag {
+				case "cidrv4":
+					message += " (must be a v4 CIDR address)"
+				case "ipv4":
+					message += " (must be an IPv4 address)"
+				case "url":
+					message += " (must be a URL)"
+				}
 			}
 			_, target, _ := strings.Cut(fieldErr.Namespace(), ".")
 			cloudError.Details[index] = CloudErrorBody{
