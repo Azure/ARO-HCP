@@ -15,7 +15,7 @@ func (v version) NewHCPOpenShiftCluster(*api.HCPOpenShiftCluster) api.VersionedH
 }
 
 // UnmarshalHCPOpenShiftCluster implements api.Version.
-func (v version) UnmarshalHCPOpenShiftCluster([]byte, bool, *api.HCPOpenShiftCluster) error {
+func (v version) UnmarshalHCPOpenShiftCluster([]byte, *api.HCPOpenShiftCluster, string, bool) error {
 	panic("'System Version 2.0' is not supported for HCP Cluster objects")
 }
 
