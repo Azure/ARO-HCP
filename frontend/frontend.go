@@ -215,20 +215,19 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
-	cluster, updating := f.cache.GetCluster(resourceID)
-	if !updating {
-		cluster = api.NewDefaultHCPOpenShiftCluster()
-	}
+	_, updating := f.cache.GetCluster(resourceID)
+	newCluster := api.NewDefaultHCPOpenShiftCluster()
 	body := ctx.Value(ContextKeyBody).([]byte)
-	err := versionedInterface.UnmarshalHCPOpenShiftCluster(body, updating, cluster)
+	err := versionedInterface.UnmarshalHCPOpenShiftCluster(body, newCluster, request.Method, updating)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteUnmarshalError(err, writer)
 		return
 	}
-	f.cache.SetCluster(resourceID, cluster)
+	// FIXME Enforce visibility tags on newCluster.
+	f.cache.SetCluster(resourceID, newCluster)
 
-	versionedResource := versionedInterface.NewHCPOpenShiftCluster(cluster)
+	versionedResource := versionedInterface.NewHCPOpenShiftCluster(newCluster)
 	resp, err := json.Marshal(versionedResource)
 	if err != nil {
 		f.logger.Error(err.Error())
