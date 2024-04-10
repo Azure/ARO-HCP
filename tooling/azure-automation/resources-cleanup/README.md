@@ -2,7 +2,7 @@
 The resources_cleanup.py Python script is inteded to be used in [Azure Automation](https://learn.microsoft.com/en-us/azure/automation/overview) in order to automatically clean up resource groups of the [ARO Hosted Control Planes (EA Subscription 1)](https://portal.azure.com/#@redhat0.onmicrosoft.com/resource/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/overview) to keep just the minimum resources needed.
 
 ## What does the script do?
-The flowchart folder contains a flowchart with details about what the script does. It basically iterates over all the resource groups of the subscription and deletes those that satisify some conditions.
+The flowchart folder contains a flowchart with details about what the script does. It basically iterates over all the resource groups of the subscription and deletes those that satisify some conditions, skipping the resource groups that have a deny assignment rule.
 
 ## Azure Automation
 We use the Azure Automation service which includes a range of tools to integrate different aspects of automation of tasks in Azure.
