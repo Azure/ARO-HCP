@@ -5,6 +5,7 @@ from typing import List
 import datetime
 
 from azure.identity import DefaultAzureCredential
+from azure.core.exceptions import HttpResponseError
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource.resources.v2022_09_01.models._models_py3 import GenericResourceExpanded, ResourceGroup
 
@@ -76,25 +77,23 @@ def resource_group_has_persist_tag_as_true(resource_group: ResourceGroup):
     return resource_group.tags[persist_tag].lower() == "true"
 
 
-def process_resource_groups_of_subscription(resource_client: ResourceManagementClient, subscription_id: str):
+def process_resource_groups_of_subscription(subscription_id: str, resource_client: ResourceManagementClient):
     resource_groups_list = list(resource_client.resource_groups.list())
-
     n_resource_groups = len(resource_groups_list)
     print(f"subscription {subscription_id} has {n_resource_groups} resource groups:\n")
 
     for resource_group in resource_groups_list:
-        process_resource_group(resource_client, resource_group)
+        process_resource_group(resource_group, resource_client)
         print("_"*80)
         print()
 
 
-def process_resource_group(resource_client: ResourceManagementClient, resource_group: ResourceGroup):
+def process_resource_group(resource_group: ResourceGroup, resource_client: ResourceManagementClient):
     resource_group_name = resource_group.name
-        
     resource_list = list(
         resource_client.resources.list_by_resource_group(resource_group_name, expand = "createdTime,changedTime")
     )
-
+    
     print(f"Resource group '{resource_group_name}':")
     print(f"Tags: {resource_group.tags}\n")
     print(f"This resource group has {len(resource_list)} resources \n")
@@ -109,16 +108,25 @@ def process_resource_group(resource_client: ResourceManagementClient, resource_g
     now = datetime.datetime.now(datetime.timezone.utc)
     resource_group_creation_time = get_creation_time_of_resource_group(resource_group)
     if not time_delta_greater_than_two_days(now, resource_group_creation_time):
-        print(f"This resource group should NOT be deleted, skipping.")
+        print(f"This resource group should NOT be deleted, it is not older than two days, skipping.")
         return
     
     print("This resource group should be deleted.\n")
-    if not DRY_RUN:
+    if DRY_RUN:
+        return
+    
+    try:
         print("\nBeginning deletion of this resource group ...")
         result_poller = resource_client.resource_groups.begin_delete(resource_group_name)
         print(f"result_poller of resource group deletion: {result_poller}")
-
-
+    except HttpResponseError as err:
+        target_error_code = "DenyAssignmentAuthorizationFailed"
+        if err.error.code == target_error_code:
+            print("skipping deletion of resource group due to deny assignment in the resource group")
+        else: 
+            raise err
+            
+    
 def get_creation_time_of_resource_group(resource_group):
     resource_group_creation_time = None
     created_at_tag = "createdAt"
@@ -140,14 +148,14 @@ def main():
         subscription_id=subscription_id,
         api_version=DEFAULT_API_VERSION
     )
-    
+
     runbook_name = 'Deletion Runbook'    
     print(f"'{runbook_name} started'\n")
     
     print(f"DRY_RUN flag is {DRY_RUN}\n")
     print(f"VERBOSE flag is {VERBOSE}\n")
     
-    process_resource_groups_of_subscription(resource_client, subscription_id)
+    process_resource_groups_of_subscription(subscription_id, resource_client)
     print(f"\n'{runbook_name}' finished")
 
 
