@@ -17,10 +17,10 @@ const (
 	ContextKeyCorrelationData
 	ContextKeySystemData
 
-	// Wildcard path segment names for request multiplexing
+	// Wildcard path segment names for request multiplexing, must be lowercase as we lowercase the request URL pattern when registering handlers
 	PageSegmentLocation          = "location"
-	PathSegmentSubscriptionID    = "subscriptionId"
-	PathSegmentResourceGroupName = "resourceGroupName"
-	PathSegmentResourceName      = "resourceName"
-	PathSegmentActionName        = "actionName"
+	PathSegmentSubscriptionID    = "subscriptionid"
+	PathSegmentResourceGroupName = "resourcegroupname"
+	PathSegmentResourceName      = "resourcename"
+	PathSegmentActionName        = "actionname"
 )
