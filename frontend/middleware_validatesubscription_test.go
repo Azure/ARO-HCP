@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -176,7 +175,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				request = r // capture modified request
 			}
 			if tt.requestPath == defaultRequestPath {
-				request.SetPathValue(strings.ToLower(PathSegmentSubscriptionID), subscriptionId)
+				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 			}
 
 			middleware.MiddlewareValidateSubscriptionState(writer, request, next)

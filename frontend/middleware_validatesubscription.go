@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/subscription"
@@ -31,7 +30,7 @@ func NewSubscriptionStateMuxValidator(c *Cache) *SubscriptionStateMuxValidator {
 // MiddlewareValidateSubscriptionState validates the state of the subscription as outlined by
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/subscription-lifecycle-api-reference.md
 func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	subscriptionId := r.PathValue(strings.ToLower(PathSegmentSubscriptionID))
+	subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 	if subscriptionId == "" {
 		arm.WriteError(
 			w, http.StatusBadRequest,
