@@ -17,7 +17,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/subscription"
 )
@@ -63,7 +62,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				StatusCode: http.StatusBadRequest,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(UnregisteredSubscriptionStateMessage, subscriptionId, api.ProviderNamespace),
+					Message: fmt.Sprintf(UnregisteredSubscriptionStateMessage, subscriptionId),
 				},
 			},
 			httpMethod:  http.MethodGet,
@@ -76,7 +75,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				StatusCode: http.StatusBadRequest,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(DeletedSubscriptionMessage, subscriptionId, api.ProviderNamespace),
+					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, subscription.Deleted),
 				},
 			},
 			httpMethod:  http.MethodGet,
@@ -89,7 +88,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				StatusCode: http.StatusBadRequest,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(UnregisteredSubscriptionStateMessage, subscriptionId, api.ProviderNamespace),
+					Message: fmt.Sprintf(UnregisteredSubscriptionStateMessage, subscriptionId),
 				},
 			},
 			httpMethod:  http.MethodGet,
@@ -124,7 +123,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, subscriptionId, subscription.Warned, api.ProviderNamespace),
+					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, subscription.Warned),
 				},
 			},
 			requestPath: defaultRequestPath,
@@ -137,7 +136,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, subscriptionId, subscription.Suspended, api.ProviderNamespace),
+					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, subscription.Suspended),
 				},
 			},
 			requestPath: defaultRequestPath,
@@ -150,7 +149,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, subscriptionId, subscription.Suspended, api.ProviderNamespace),
+					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, subscription.Suspended),
 				},
 			},
 			requestPath: defaultRequestPath,

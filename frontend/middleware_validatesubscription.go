@@ -8,16 +8,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/subscription"
 )
 
 const (
-	UnregisteredSubscriptionStateMessage = "The subscription %s is not registered for this provider %s. Please re-register the subscription."
+	UnregisteredSubscriptionStateMessage = "Request is not allowed in unregistered subscription '%s'."
+	InvalidSubscriptionStateMessage      = "Request is not allowed in subscription in state '%s'."
 	SubscriptionMissingMessage           = "The request is missing required parameter '%s'."
-	InvalidSubscriptionStateMessage      = "The subscription %s is in %s state, please ensure subscription is eligible to use the provider %s."
-	DeletedSubscriptionMessage           = "The subscription %s is deleted and cannot be used to interact with %s."
 )
 
 type SubscriptionStateMuxValidator struct {
@@ -34,7 +32,6 @@ func NewSubscriptionStateMuxValidator(c *Cache) *SubscriptionStateMuxValidator {
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/subscription-lifecycle-api-reference.md
 func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	subscriptionId := r.PathValue(strings.ToLower(PathSegmentSubscriptionID))
-	sub, exists := s.cache.GetSubscription(subscriptionId)
 	if subscriptionId == "" {
 		arm.WriteError(
 			w, http.StatusBadRequest,
@@ -44,12 +41,14 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 		return
 	}
 
+	sub, exists := s.cache.GetSubscription(subscriptionId)
+
 	if !exists {
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
-			subscriptionId, api.ProviderNamespace)
+			subscriptionId)
 		return
 	}
 
@@ -63,21 +62,23 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
-			subscriptionId, api.ProviderNamespace)
+			subscriptionId)
 	case subscription.Warned:
 		fallthrough // Warned has the same behaviour as Suspended
 	case subscription.Suspended:
-		if r.Method == http.MethodGet || r.Method == http.MethodDelete {
-			next(w, r)
-		} else if r.Method == http.MethodPut || r.Method == http.MethodPatch || r.Method == http.MethodPost {
+		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 			arm.WriteError(w, http.StatusConflict,
-				arm.CloudErrorInvalidSubscriptionState, "", InvalidSubscriptionStateMessage, subscriptionId, sub.State, api.ProviderNamespace)
+				arm.CloudErrorInvalidSubscriptionState, "",
+				InvalidSubscriptionStateMessage,
+				sub.State)
+			return
 		}
+		next(w, r)
 	case subscription.Deleted:
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",
-			DeletedSubscriptionMessage,
-			subscriptionId, api.ProviderNamespace)
+			InvalidSubscriptionStateMessage,
+			sub.State)
 	}
 }
