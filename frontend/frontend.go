@@ -294,7 +294,7 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 		return
 	}
 
-	subId := request.PathValue(strings.ToLower(PathSegmentSubscriptionID))
+	subId := request.PathValue(PathSegmentSubscriptionID)
 	f.cache.SetSubscription(subId, &subscription)
 
 	resp, err := json.Marshal(subscription)
