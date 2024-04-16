@@ -304,7 +304,10 @@ func (c *HcpOpenShiftClusterResource) ValidateStatic(current api.VersionedHCPOpe
 		"Content validation failed on multiple fields")
 	cloudError.Details = make([]arm.CloudErrorBody, 0)
 
-	// FIXME Validate visibility tags by comparing the new cluster (c) to current.
+	errorDetails = api.ValidateVisibility(c, current, clusterStructTagMap, updating)
+	if errorDetails != nil {
+		cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
 
 	c.Normalize(&normalized)
 

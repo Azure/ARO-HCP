@@ -17,7 +17,10 @@ func (v version) String() string {
 	return "2024-06-10-preview"
 }
 
-var validate = api.NewValidator()
+var (
+	validate            = api.NewValidator()
+	clusterStructTagMap = api.NewStructTagMap[api.HCPOpenShiftCluster]()
+)
 
 func EnumValidateTag[S ~string](values ...S) string {
 	s := make([]string, len(values))
