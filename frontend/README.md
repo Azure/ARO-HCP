@@ -39,3 +39,8 @@ Delete a HcpOpenShiftClusterResource
 ```bash
 curl -X DELETE "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
 ```
+
+Update a subscription state
+```bash
+curl -X PUT localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID?api-version=2.0 -H 'content-type: application/json' -d '{"state":"Registered"}'
+```
