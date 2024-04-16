@@ -64,6 +64,14 @@ func TestMiddlewareBody(t *testing.T) {
 			},
 			body: []byte("body"),
 		},
+		{
+			name:    "upper-case valid media type allowed with non-empty body",
+			methods: []string{http.MethodPatch, http.MethodPost, http.MethodPut},
+			header: http.Header{
+				"Content-Type": []string{"APPLICATION/JSON"},
+			},
+			body: []byte("body"),
+		},
 	}
 
 	for _, tt := range tests {
