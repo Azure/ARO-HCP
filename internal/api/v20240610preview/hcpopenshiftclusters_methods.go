@@ -145,6 +145,10 @@ func newExternalAuthClientProfile(from configv1.OIDCClientConfig) *ExternalAuthC
 }
 
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
+	if from == nil {
+		from = api.NewDefaultHCPOpenShiftCluster()
+	}
+
 	out := &HcpOpenShiftClusterResource{
 		ID:       api.Ptr(from.Resource.ID),
 		Name:     api.Ptr(from.Resource.Name),

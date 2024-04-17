@@ -33,6 +33,7 @@ type Version interface {
 	fmt.Stringer
 
 	// Resource Types
+	// Passing a nil pointer creates a resource with default values.
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	// FIXME Disable until we have generated structs for node pools.
 	//NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
