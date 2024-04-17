@@ -76,42 +76,14 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 }
 
 func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	var pathValue string
-
 	ctx := r.Context()
 
 	correlationData := arm.NewCorrelationData(r)
 	ctx = ContextWithCorrelationData(ctx, correlationData)
 
-	w.Header().Set(arm.HeaderNameRequestID, correlationData.RequestID.String())
+	setHeaders(w, r, correlationData)
 
-	if strings.EqualFold(r.Header.Get(arm.HeaderNameReturnClientRequestID), "true") {
-		w.Header().Set(arm.HeaderNameClientRequestID, correlationData.ClientRequestID)
-	}
-
-	attrs := []slog.Attr{
-		slog.String("request_id", correlationData.RequestID.String()),
-		slog.String("client_request_id", correlationData.ClientRequestID),
-		slog.String("correlation_request_id", correlationData.CorrelationRequestID),
-	}
-
-	if pathValue = r.PathValue(PathSegmentSubscriptionID); pathValue != "" {
-		attrs = append(attrs, slog.String("subscription_id", pathValue))
-	}
-
-	if pathValue = r.PathValue(PathSegmentResourceGroupName); pathValue != "" {
-		attrs = append(attrs, slog.String("resource_group", pathValue))
-	}
-
-	if pathValue = r.PathValue(PathSegmentResourceName); pathValue != "" {
-		attrs = append(attrs, slog.String("resource_name", pathValue))
-		resource_id := fmt.Sprintf("/subscriptions/%s/resourcegroups/%s/providers/%s/%s",
-			r.PathValue(PathSegmentSubscriptionID),
-			r.PathValue(PathSegmentResourceGroupName),
-			api.ResourceType,
-			pathValue)
-		attrs = append(attrs, slog.String("resource_id", resource_id))
-	}
+	attrs := getLogAttrs(correlationData, r)
 
 	logger, err := LoggerFromContext(ctx)
 	if err != nil {
@@ -121,7 +93,58 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 	}
 
 	handler := logger.Handler()
-	ctx = ContextWithLogger(ctx, slog.New(handler.WithAttrs(attrs)))
+	loggerWithAttrs := slog.New(handler.WithAttrs(attrs))
+	ctx = ContextWithLogger(ctx, loggerWithAttrs)
 
-	next(w, r.WithContext(ctx))
+	reqWithContext := r.WithContext(ctx)
+
+	next(w, reqWithContext)
+}
+
+// setHeaders writes the appropriate headers in the response writer
+// based on the request and the correlation data.
+func setHeaders(w http.ResponseWriter, r *http.Request, correlationData *arm.CorrelationData) {
+	if correlationData == nil {
+		return
+	}
+
+	w.Header().Set(arm.HeaderNameRequestID, correlationData.RequestID.String())
+
+	returnClientRequestId := r.Header.Get(arm.HeaderNameReturnClientRequestID)
+	if strings.EqualFold(returnClientRequestId, "true") {
+		w.Header().Set(arm.HeaderNameClientRequestID, correlationData.ClientRequestID)
+	}
+}
+
+// getLogAttrs returns the appropiate Logging Attributes based on correlationData and a request.
+func getLogAttrs(correlationData *arm.CorrelationData, r *http.Request) []slog.Attr {
+	attrs := []slog.Attr{
+		slog.String("request_id", correlationData.RequestID.String()),
+		slog.String("client_request_id", correlationData.ClientRequestID),
+		slog.String("correlation_request_id", correlationData.CorrelationRequestID),
+	}
+
+	subscriptionID := r.PathValue(PathSegmentSubscriptionID)
+	if subscriptionID != "" {
+		attrs = append(attrs, slog.String("subscription_id", subscriptionID))
+	}
+
+	resourceGroup := r.PathValue(PathSegmentResourceGroupName)
+	if resourceGroup != "" {
+		attrs = append(attrs, slog.String("resource_group", resourceGroup))
+	}
+
+	resourceName := r.PathValue(PathSegmentResourceName)
+	if resourceName != "" {
+		attrs = append(attrs, slog.String("resource_name", resourceName))
+	}
+
+	wholePath := subscriptionID != "" && resourceGroup != "" && resourceName != ""
+	if wholePath {
+		format := "/subscriptions/%s/resourcegroups/%s/providers/%s/%s"
+		resource_id := fmt.Sprintf(format, subscriptionID, resourceGroup, api.ResourceType, resourceName)
+		attrs = append(attrs, slog.String("resource_id", resource_id))
+	}
+
+	return attrs
 }
