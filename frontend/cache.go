@@ -5,19 +5,19 @@ package main
 
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/subscription"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type Cache struct {
 	cluster      map[string]*api.HCPOpenShiftCluster
-	subscription map[string]*subscription.Subscription
+	subscription map[string]*arm.Subscription
 }
 
 // NewCache returns a new cache.
 func NewCache() *Cache {
 	return &Cache{
 		cluster:      make(map[string]*api.HCPOpenShiftCluster),
-		subscription: make(map[string]*subscription.Subscription),
+		subscription: make(map[string]*arm.Subscription),
 	}
 }
 
@@ -34,12 +34,12 @@ func (c *Cache) DeleteCluster(id string) {
 	delete(c.cluster, id)
 }
 
-func (c *Cache) GetSubscription(id string) (*subscription.Subscription, bool) {
+func (c *Cache) GetSubscription(id string) (*arm.Subscription, bool) {
 	subscription, found := c.subscription[id]
 	return subscription, found
 }
 
-func (c *Cache) SetSubscription(id string, subscription *subscription.Subscription) {
+func (c *Cache) SetSubscription(id string, subscription *arm.Subscription) {
 	c.subscription[id] = subscription
 }
 

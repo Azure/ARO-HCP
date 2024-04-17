@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/subscription"
 )
 
 const (
@@ -54,17 +53,17 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 	// the subscription exists, store its current state as context
 	r = r.WithContext(context.WithValue(r.Context(), ContextKeySubscriptionState, sub.State))
 	switch sub.State {
-	case subscription.Registered:
+	case arm.Registered:
 		next(w, r)
-	case subscription.Unregistered:
+	case arm.Unregistered:
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
 			subscriptionId)
-	case subscription.Warned:
+	case arm.Warned:
 		fallthrough // Warned has the same behaviour as Suspended
-	case subscription.Suspended:
+	case arm.Suspended:
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorInvalidSubscriptionState, "",
@@ -73,7 +72,7 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 			return
 		}
 		next(w, r)
-	case subscription.Deleted:
+	case arm.Deleted:
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",

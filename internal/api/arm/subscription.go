@@ -1,4 +1,4 @@
-package subscription
+package arm
 
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
@@ -16,7 +16,7 @@ type Properties struct {
 	RegisteredFeatures   *[]Feature           `json:"registeredFeatures,omitempty"`
 	AvailabilityZones    *AvailabilityZone    `json:"availabilityZones,omitempty"`
 	SpendingLimit        *string              `json:"spendingLimit,omitempty"`
-	AccountOwner         *map[string]string   `json:"accountOwner,omitempty"`
+	AccountOwner         *AccountOwner        `json:"accountOwner,omitempty"`
 	ManagedByTenants     *[]map[string]string `json:"managedByTenants,omitempty"`
 	AdditionalProperties *map[string]string   `json:"additionalProperties,omitempty"`
 }
@@ -35,6 +35,12 @@ type ZoneMapping struct {
 	LogicalZone  *string `json:"logicalZone,omitempty"`
 	PhysicalZone *string `json:"physicalZone,omitempty"`
 }
+
+type AccountOwner struct {
+	Puid  *string `json:"puid,omitempty"`
+	Email *string `json:"-,omitempty"` // we don't need to nor want to serialize this field
+}
+
 type RegistrationState string
 
 const (

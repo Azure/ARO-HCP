@@ -17,7 +17,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/subscription"
 )
 
 const (
@@ -287,7 +286,7 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 	ctx := request.Context()
 
 	body := ctx.Value(ContextKeyBody).([]byte)
-	var subscription subscription.Subscription
+	var subscription arm.Subscription
 	err := json.Unmarshal(body, &subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
