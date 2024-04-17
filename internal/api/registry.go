@@ -52,18 +52,25 @@ func Lookup(key string) (version Version, ok bool) {
 	return
 }
 
+// GetJSONTagName extracts the JSON field name from the "json" key in
+// a struct tag. Returns an empty string if no "json" key is present,
+// or if the value is "-".
+func GetJSONTagName(tag reflect.StructTag) string {
+	tagValue := tag.Get("json")
+	if tagValue == "-" {
+		return ""
+	}
+	fieldName, _, _ := strings.Cut(tagValue, ",")
+	return fieldName
+}
+
 func NewValidator() *validator.Validate {
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	// Use "json" struct tags for alternate field names.
 	// Alternate field names will be used in validation errors.
 	validate.RegisterTagNameFunc(func(field reflect.StructField) string {
-		name := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
-		// skip if tag key says it should be ignored
-		if name == "-" {
-			return ""
-		}
-		return name
+		return GetJSONTagName(field.Tag)
 	})
 
 	// Use this for fields required in PUT requests. Do not apply to read-only fields.
