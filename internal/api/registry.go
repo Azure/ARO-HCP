@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	validator "github.com/go-playground/validator/v10"
 )
 
@@ -21,12 +22,12 @@ const (
 
 type VersionedHCPOpenShiftCluster interface {
 	Normalize(*HCPOpenShiftCluster)
-	ValidateStatic() error
+	ValidateStatic(current VersionedHCPOpenShiftCluster, updating bool, method string) *arm.CloudError
 }
 
 type VersionedHCPOpenShiftClusterNodePool interface {
 	Normalize(*HCPOpenShiftClusterNodePool)
-	ValidateStatic() error
+	ValidateStatic() *arm.CloudError
 }
 
 type Version interface {
@@ -37,8 +38,6 @@ type Version interface {
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	// FIXME Disable until we have generated structs for node pools.
 	//NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
-
-	UnmarshalHCPOpenShiftCluster([]byte, *HCPOpenShiftCluster, string, bool) error
 }
 
 // apiRegistry is the map of registered API versions
@@ -110,10 +109,52 @@ func NewValidator() *validator.Validate {
 type validateContext struct {
 	// Fields must be exported so valdator can access.
 	Method   string
-	Updating bool
 	Resource any
 }
 
-func ValidateRequest(validate *validator.Validate, method string, updating bool, resource any) error {
-	return validate.Struct(validateContext{Method: method, Updating: updating, Resource: resource})
+func ValidateRequest(validate *validator.Validate, method string, resource any) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	err := validate.Struct(validateContext{Method: method, Resource: resource})
+
+	if err == nil {
+		return nil
+	}
+
+	// Convert validation errors to cloud error details.
+	switch err := err.(type) {
+	case validator.ValidationErrors:
+		for _, fieldErr := range err {
+			message := fmt.Sprintf("Invalid value '%s' for field '%s'", fieldErr.Value(), fieldErr.Field())
+			// Try to add a corrective suggestion to the message.
+			tag := fieldErr.Tag()
+			if strings.HasPrefix(tag, "enum_") {
+				message += fmt.Sprintf(" (must be one of: %s)", fieldErr.Param())
+			} else {
+				switch tag {
+				case "required_for_put": // custom tag
+					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
+				case "cidrv4":
+					message += " (must be a v4 CIDR address)"
+				case "ipv4":
+					message += " (must be an IPv4 address)"
+				case "url":
+					message += " (must be a URL)"
+				}
+			}
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code:    arm.CloudErrorCodeInvalidRequestContent,
+				Message: message,
+				// Split "validateContext.Resource.{REMAINING_FIELDS}"
+				Target: strings.SplitN(fieldErr.Namespace(), ".", 3)[2],
+			})
+		}
+	default:
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInvalidRequestContent,
+			Message: err.Error(),
+		})
+	}
+
+	return errorDetails
 }

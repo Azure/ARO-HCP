@@ -251,6 +251,8 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 }
 
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
+	var err error
+
 	ctx := request.Context()
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -264,26 +266,35 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
-	_, updating := f.cache.GetCluster(resourceID)
-	newCluster := api.NewDefaultHCPOpenShiftCluster()
+	cluster, updating := f.cache.GetCluster(resourceID)
+
+	versionedRequestCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
+	versionedCurrentCluster := versionedInterface.NewHCPOpenShiftCluster(cluster)
+
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	err = versionedInterface.UnmarshalHCPOpenShiftCluster(body, newCluster, request.Method, updating)
-	if err != nil {
+	if err = json.Unmarshal(body, versionedRequestCluster); err != nil {
 		f.logger.Error(err.Error())
-		arm.WriteUnmarshalError(err, writer)
+		arm.WriteCloudError(writer, arm.NewUnmarshalCloudError(err))
 		return
 	}
-	// FIXME Enforce visibility tags on newCluster.
-	f.cache.SetCluster(resourceID, newCluster)
 
-	versionedResource := versionedInterface.NewHCPOpenShiftCluster(newCluster)
-	resp, err := json.Marshal(versionedResource)
+	if cloudError := versionedRequestCluster.ValidateStatic(versionedCurrentCluster, updating, request.Method); cloudError != nil {
+		f.logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	cluster = api.NewDefaultHCPOpenShiftCluster()
+	versionedRequestCluster.Normalize(cluster)
+
+	f.cache.SetCluster(resourceID, cluster)
+
+	resp, err := json.Marshal(versionedRequestCluster)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
