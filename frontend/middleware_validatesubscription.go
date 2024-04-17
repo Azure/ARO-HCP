@@ -61,9 +61,7 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 			arm.CloudErrorInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
 			subscriptionId)
-	case arm.Warned:
-		fallthrough // Warned has the same behaviour as Suspended
-	case arm.Suspended:
+	case arm.Warned, arm.Suspended:
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorInvalidSubscriptionState, "",
