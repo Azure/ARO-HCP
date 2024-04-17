@@ -79,7 +79,7 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 
 	w.Header().Set(arm.HeaderNameRequestID, correlationData.RequestID.String())
 
-	if strings.EqualFold(r.Header.Get(arm.HeaderNameClientRequestID), "true") {
+	if strings.EqualFold(r.Header.Get(arm.HeaderNameReturnClientRequestID), "true") {
 		w.Header().Set(arm.HeaderNameClientRequestID, correlationData.ClientRequestID)
 	}
 
