@@ -40,3 +40,9 @@ deploy-frontend:
 
 undeploy-frontend:
 	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} | oc delete -f -
+
+.PHONY: api
+api: 
+	tsp compile api/redhatopenshift/HcpCluster/
+	autorest api/autorest-config.yaml 
+
