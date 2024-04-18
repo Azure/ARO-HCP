@@ -29,7 +29,7 @@ type ClusterSpec struct {
 	Console                       ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
 	API                           APIProfile                `json:"api,omitempty"                           visibility:"read,create"        validate:"required_for_put"`
 	FIPS                          bool                      `json:"fips,omitempty"                          visibility:"read,create"`
-	EtcdEncryption                bool                      `json:"etcdEncryption,omitempty"                visibility:"read,create"`
+	EtcdEncryption                EtcdEncryptionProfile     `json:"etcdEncryptionProfile,omitempty"         visibility:"read,create,update"`
 	DisableUserWorkloadMonitoring bool                      `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read,create,update"`
 	Proxy                         ProxyProfile              `json:"proxy,omitempty"                         visibility:"read,create,update"`
 	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read,create"        validate:"required_for_put"`
@@ -74,6 +74,13 @@ type APIProfile struct {
 	Visibility Visibility `json:"visibility,omitempty" visibility:"read,create" validate:"required_for_put,enum_visibility"`
 }
 
+// EtcdEncryptionProfile represents etcd encryption with customer-managed keys
+type EtcdEncryptionProfile struct {
+	KeyvaultName string `json:"keyvaultName,omitempty" visibility:"read,create,update"`
+	KeyName      string `json:"keyName,omitempty"      visibility:"read,create,update"`
+	KeyVersion   string `json:"keyVersion,omitempty"   visibility:"read,create,update"`
+}
+
 // ProxyProfile represents the cluster proxy configuration.
 // Visibility for the entire struct is "read,create,update".
 type ProxyProfile struct {
@@ -89,8 +96,7 @@ type PlatformProfile struct {
 	ManagedResourceGroup string       `json:"managedResourceGroup,omitempty" validate:"required_for_put"`
 	SubnetID             string       `json:"subnetId,omitempty"             validate:"required_for_put"`
 	OutboundType         OutboundType `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
-	PreconfiguredNSGs    bool         `json:"preconfiguredNsgs,omitempty"    validate:"required_for_put"`
-	EtcdEncryptionSetID  string       `json:"etcdEncryptionSetId,omitempty"`
+	PreconfiguredNSG     bool         `json:"preconfiguredNsg,omitempty"    validate:"required_for_put"`
 }
 
 // ExternalAuthConfigProfile represents the external authentication configuration.

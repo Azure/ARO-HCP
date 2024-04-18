@@ -51,6 +51,14 @@ func newAPIProfile(from *api.APIProfile) *APIProfile {
 	}
 }
 
+func newEtcdEncryptionProfile(from *api.EtcdEncryptionProfile) *EtcdEncryptionProfile {
+	return &EtcdEncryptionProfile{
+		KeyName:      api.Ptr(from.KeyName),
+		KeyVersion:   api.Ptr(from.KeyVersion),
+		KeyvaultName: api.Ptr(from.KeyvaultName),
+	}
+}
+
 func newProxyProfile(from *api.ProxyProfile) *ProxyProfile {
 	return &ProxyProfile{
 		HTTPProxy:  api.Ptr(from.HTTPProxy),
@@ -65,8 +73,7 @@ func newPlatformProfile(from *api.PlatformProfile) *PlatformProfile {
 		ManagedResourceGroup: api.Ptr(from.ManagedResourceGroup),
 		SubnetID:             api.Ptr(from.SubnetID),
 		OutboundType:         api.Ptr(OutboundType(from.OutboundType)),
-		PreconfiguredNsgs:    api.Ptr(from.PreconfiguredNSGs),
-		EtcdEncryptionSetID:  api.Ptr(from.EtcdEncryptionSetID),
+		PreconfiguredNsg:     api.Ptr(from.PreconfiguredNSG),
 	}
 }
 
@@ -161,7 +168,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Console:                       newConsoleProfile(&from.Properties.Spec.Console),
 				API:                           newAPIProfile(&from.Properties.Spec.API),
 				Fips:                          api.Ptr(from.Properties.Spec.FIPS),
-				EtcdEncryption:                api.Ptr(from.Properties.Spec.EtcdEncryption),
+				EtcdEncryption:                newEtcdEncryptionProfile(&from.Properties.Spec.EtcdEncryption),
 				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.Spec.DisableUserWorkloadMonitoring),
 				Proxy:                         newProxyProfile(&from.Properties.Spec.Proxy),
 				Platform:                      newPlatformProfile(&from.Properties.Spec.Platform),
@@ -278,7 +285,7 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 				out.Properties.Spec.FIPS = *c.Properties.Spec.Fips
 			}
 			if c.Properties.Spec.EtcdEncryption != nil {
-				out.Properties.Spec.EtcdEncryption = *c.Properties.Spec.EtcdEncryption
+				c.Properties.Spec.EtcdEncryption.Normalize(&out.Properties.Spec.EtcdEncryption)
 			}
 			if c.Properties.Spec.DisableUserWorkloadMonitoring != nil {
 				out.Properties.Spec.DisableUserWorkloadMonitoring = *c.Properties.Spec.DisableUserWorkloadMonitoring
@@ -364,6 +371,18 @@ func (p *APIProfile) Normalize(out *api.APIProfile) {
 	}
 }
 
+func (e *EtcdEncryptionProfile) Normalize(out *api.EtcdEncryptionProfile) {
+	if e.KeyvaultName != nil {
+		out.KeyvaultName = *e.KeyvaultName
+	}
+	if e.KeyName != nil {
+		out.KeyName = *e.KeyName
+	}
+	if e.KeyVersion != nil {
+		out.KeyVersion = *e.KeyVersion
+	}
+}
+
 func (p *ProxyProfile) Normalize(out *api.ProxyProfile) {
 	if p.HTTPProxy != nil {
 		out.HTTPProxy = *p.HTTPProxy
@@ -389,11 +408,8 @@ func (p *PlatformProfile) Normalize(out *api.PlatformProfile) {
 	if p.OutboundType != nil {
 		out.OutboundType = api.OutboundType(*p.OutboundType)
 	}
-	if p.PreconfiguredNsgs != nil {
-		out.PreconfiguredNSGs = *p.PreconfiguredNsgs
-	}
-	if p.EtcdEncryptionSetID != nil {
-		out.EtcdEncryptionSetID = *p.EtcdEncryptionSetID
+	if p.PreconfiguredNsg != nil {
+		out.PreconfiguredNSG = *p.PreconfiguredNsg
 	}
 }
 

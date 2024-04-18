@@ -164,6 +164,7 @@ func (c ClusterSpecUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populateAny(objectMap, "dns", c.DNS)
 	populate(objectMap, "disableUserWorkloadMonitoring", c.DisableUserWorkloadMonitoring)
+	populate(objectMap, "etcdEncryption", c.EtcdEncryption)
 	populate(objectMap, "proxy", c.Proxy)
 	populate(objectMap, "version", c.Version)
 	return json.Marshal(objectMap)
@@ -183,6 +184,9 @@ func (c *ClusterSpecUpdate) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "disableUserWorkloadMonitoring":
 				err = unpopulate(val, "DisableUserWorkloadMonitoring", &c.DisableUserWorkloadMonitoring)
+			delete(rawMsg, key)
+		case "etcdEncryption":
+				err = unpopulate(val, "EtcdEncryption", &c.EtcdEncryption)
 			delete(rawMsg, key)
 		case "proxy":
 				err = unpopulate(val, "Proxy", &c.Proxy)
@@ -348,6 +352,76 @@ func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "error":
 				err = unpopulate(val, "Error", &e.Error)
+			delete(rawMsg, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", e, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type EtcdEncryptionProfile.
+func (e EtcdEncryptionProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "keyName", e.KeyName)
+	populate(objectMap, "keyVersion", e.KeyVersion)
+	populate(objectMap, "keyvaultName", e.KeyvaultName)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type EtcdEncryptionProfile.
+func (e *EtcdEncryptionProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", e, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "keyName":
+				err = unpopulate(val, "KeyName", &e.KeyName)
+			delete(rawMsg, key)
+		case "keyVersion":
+				err = unpopulate(val, "KeyVersion", &e.KeyVersion)
+			delete(rawMsg, key)
+		case "keyvaultName":
+				err = unpopulate(val, "KeyvaultName", &e.KeyvaultName)
+			delete(rawMsg, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", e, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type EtcdEncryptionProfileUpdate.
+func (e EtcdEncryptionProfileUpdate) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "keyName", e.KeyName)
+	populate(objectMap, "keyVersion", e.KeyVersion)
+	populate(objectMap, "keyvaultName", e.KeyvaultName)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type EtcdEncryptionProfileUpdate.
+func (e *EtcdEncryptionProfileUpdate) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", e, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "keyName":
+				err = unpopulate(val, "KeyName", &e.KeyName)
+			delete(rawMsg, key)
+		case "keyVersion":
+				err = unpopulate(val, "KeyVersion", &e.KeyVersion)
+			delete(rawMsg, key)
+		case "keyvaultName":
+				err = unpopulate(val, "KeyvaultName", &e.KeyvaultName)
 			delete(rawMsg, key)
 		}
 		if err != nil {
@@ -1462,10 +1536,9 @@ func (o *OperationListResult) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type PlatformProfile.
 func (p PlatformProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "etcdEncryptionSetId", p.EtcdEncryptionSetID)
 	populate(objectMap, "managedResourceGroup", p.ManagedResourceGroup)
 	populate(objectMap, "outboundType", p.OutboundType)
-	populate(objectMap, "preconfiguredNsgs", p.PreconfiguredNsgs)
+	populate(objectMap, "preconfiguredNsg", p.PreconfiguredNsg)
 	populate(objectMap, "subnetId", p.SubnetID)
 	return json.Marshal(objectMap)
 }
@@ -1479,17 +1552,14 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "etcdEncryptionSetId":
-				err = unpopulate(val, "EtcdEncryptionSetID", &p.EtcdEncryptionSetID)
-			delete(rawMsg, key)
 		case "managedResourceGroup":
 				err = unpopulate(val, "ManagedResourceGroup", &p.ManagedResourceGroup)
 			delete(rawMsg, key)
 		case "outboundType":
 				err = unpopulate(val, "OutboundType", &p.OutboundType)
 			delete(rawMsg, key)
-		case "preconfiguredNsgs":
-				err = unpopulate(val, "PreconfiguredNsgs", &p.PreconfiguredNsgs)
+		case "preconfiguredNsg":
+				err = unpopulate(val, "PreconfiguredNsg", &p.PreconfiguredNsg)
 			delete(rawMsg, key)
 		case "subnetId":
 				err = unpopulate(val, "SubnetID", &p.SubnetID)

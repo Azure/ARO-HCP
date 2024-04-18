@@ -80,17 +80,13 @@ model ClusterSpec {
   @visibility("read")
   api: ApiProfile;
 
-  /** Enable FIPS mode for the cluster
-   * When set to true, `etcdEncryption` must be set to true
-  */
+  /** Enable FIPS mode for the cluster */
   @visibility("create")
   fips?: boolean = false;
 
-  /** Enables customer ETCD encryption, set during creation
-   * When set to true, `platform.etcdEncryptionSetId` must be set
-  */
-  @visibility("create")
-  etcdEncryption?: boolean = false;
+  /** Enables customer ETCD encryption, set during creation */
+  @visibility("create", "update")
+  etcdEncryption?: EtcdEncryptionProfile;
 
   /** Disable user workload monitoring */
   @visibility("create", "update")
@@ -190,7 +186,7 @@ model NetworkProfile {
 union NetworkType {
   string,
 
-  /** THE OVN network plugin for the OpenShift cluster */
+  /** The OVN network plugin for the OpenShift cluster */
   OVNKubernetes: "OVNKubernetes",
   /** Other network plugins */
   Other:         "Other",
@@ -216,6 +212,21 @@ model ApiProfile {
   /** should the API server be accessible from the internet */
   @visibility("create")
   visibility: Visibility;
+}
+
+/** Information about how Etcd is Encrypted. */
+model EtcdEncryptionProfile {
+  /** The name of the keyvault used for etcd encryption */
+  @visibility("create", "update")
+  keyvaultName: string;
+
+  /** The key within the keyvault used for etcd encryption */
+  @visibility("create", "update")
+  keyName: string;
+
+  /** The version of the key used for etcd encryption */
+  @visibility("create", "update")
+  keyVersion: string;
 }
 
 /** The visibility of the API server */
@@ -256,13 +267,7 @@ model PlatformProfile {
   outboundType?: OutboundType = OutboundType.loadBalancer;
 
   /** Specifies whether subnets are pre-attached with an NSG */
-  preconfiguredNsgs: boolean;
-
-  /** The id of the disk encryption set to be used for etcd.
-   * Configure this when `etcdEncryption` is set to true
-   * Is used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
-  */
-  etcdEncryptionSetId?: string;
+  preconfiguredNsg: boolean;
 }
 
 /** The outbound routing strategy used to provide your cluster egress to the internet. */
@@ -501,7 +506,7 @@ model NodePoolPlatformProfile {
   /** Whether the worker machines should be encrypted at host */
   encryptionAtHost?: boolean;
 
-  /** Disk Encryption Set ID that will be used for ecnryption the Nodes disks
+  /** Disk Encryption Set ID that will be used for encryption the Nodes disks
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
    */

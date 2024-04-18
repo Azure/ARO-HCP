@@ -50,14 +50,14 @@ type ClusterSpec struct {
 	// Disable user workload monitoring
 	DisableUserWorkloadMonitoring *bool
 
-	// Enables customer ETCD encryption, set during creation When set to true, platform.etcdEncryptionSetId must be set
-	EtcdEncryption *bool
+	// Enables customer ETCD encryption, set during creation
+	EtcdEncryption *EtcdEncryptionProfile
 
 	// Configuration to override the openshift-oauth-apiserver inside cluster This changes user login into the cluster to external
 // provider
 	ExternalAuth *ExternalAuthConfigProfile
 
-	// Enable FIPS mode for the cluster When set to true, etcdEncryption must be set to true
+	// Enable FIPS mode for the cluster
 	Fips *bool
 
 	// Configures the cluster ingresses
@@ -83,6 +83,9 @@ type ClusterSpecUpdate struct {
 
 	// Disable user workload monitoring
 	DisableUserWorkloadMonitoring *bool
+
+	// Enables customer ETCD encryption, set during creation
+	EtcdEncryption *EtcdEncryptionProfileUpdate
 
 	// Openshift cluster proxy configuration
 	Proxy *ProxyProfile
@@ -139,6 +142,30 @@ type ErrorDetail struct {
 type ErrorResponse struct {
 	// The error object.
 	Error *ErrorDetail
+}
+
+// EtcdEncryptionProfile - Information about how Etcd is Encrypted.
+type EtcdEncryptionProfile struct {
+	// REQUIRED; The key within the keyvault used for etcd encryption
+	KeyName *string
+
+	// REQUIRED; The version of the key used for etcd encryption
+	KeyVersion *string
+
+	// REQUIRED; The name of the keyvault used for etcd encryption
+	KeyvaultName *string
+}
+
+// EtcdEncryptionProfileUpdate - Information about how Etcd is Encrypted.
+type EtcdEncryptionProfileUpdate struct {
+	// The key within the keyvault used for etcd encryption
+	KeyName *string
+
+	// The version of the key used for etcd encryption
+	KeyVersion *string
+
+	// The name of the keyvault used for etcd encryption
+	KeyvaultName *string
 }
 
 // ExternalAuthClaimProfile - External auth claim profile
@@ -457,7 +484,7 @@ type NodePoolPlatformProfile struct {
 // * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
 	AvailabilityZone *string
 
-	// Disk Encryption Set ID that will be used for ecnryption the Nodes disks
+	// Disk Encryption Set ID that will be used for encryption the Nodes disks
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
 	DiscEncryptionSetID *string
@@ -570,14 +597,10 @@ type PlatformProfile struct {
 	ManagedResourceGroup *string
 
 	// REQUIRED; Specifies whether subnets are pre-attached with an NSG
-	PreconfiguredNsgs *bool
+	PreconfiguredNsg *bool
 
 	// REQUIRED; ResourceId for the subnet used by the control plane
 	SubnetID *string
-
-	// The id of the disk encryption set to be used for etcd. Configure this when etcdEncryption is set to true Is used the
-// https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
-	EtcdEncryptionSetID *string
 
 	// The core outgoing configuration
 	OutboundType *OutboundType

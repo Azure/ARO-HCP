@@ -1043,17 +1043,17 @@
         },
         "fips": {
           "type": "boolean",
-          "description": "Enable FIPS mode for the cluster\nWhen set to true, `etcdEncryption` must be set to true",
+          "description": "Enable FIPS mode for the cluster",
           "default": false,
           "x-ms-mutability": [
             "create"
           ]
         },
         "etcdEncryption": {
-          "type": "boolean",
-          "description": "Enables customer ETCD encryption, set during creation\nWhen set to true, `platform.etcdEncryptionSetId` must be set",
-          "default": false,
+          "$ref": "#/definitions/EtcdEncryptionProfile",
+          "description": "Enables customer ETCD encryption, set during creation",
           "x-ms-mutability": [
+            "update",
             "create"
           ]
         },
@@ -1133,6 +1133,14 @@
           "$ref": "#/definitions/DnsProfileUpdate",
           "description": "Cluster DNS configuration"
         },
+        "etcdEncryption": {
+          "$ref": "#/definitions/EtcdEncryptionProfileUpdate",
+          "description": "Enables customer ETCD encryption, set during creation",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
         "disableUserWorkloadMonitoring": {
           "type": "boolean",
           "description": "Disable user workload monitoring",
@@ -1191,6 +1199,71 @@
     "DnsProfileUpdate": {
       "type": "object",
       "description": "DNS contains the DNS settings of the cluster"
+    },
+    "EtcdEncryptionProfile": {
+      "type": "object",
+      "description": "Information about how Etcd is Encrypted.",
+      "properties": {
+        "keyvaultName": {
+          "type": "string",
+          "description": "The name of the keyvault used for etcd encryption",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "keyName": {
+          "type": "string",
+          "description": "The key within the keyvault used for etcd encryption",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "keyVersion": {
+          "type": "string",
+          "description": "The version of the key used for etcd encryption",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "keyvaultName",
+        "keyName",
+        "keyVersion"
+      ]
+    },
+    "EtcdEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "Information about how Etcd is Encrypted.",
+      "properties": {
+        "keyvaultName": {
+          "type": "string",
+          "description": "The name of the keyvault used for etcd encryption",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "keyName": {
+          "type": "string",
+          "description": "The key within the keyvault used for etcd encryption",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "keyVersion": {
+          "type": "string",
+          "description": "The version of the key used for etcd encryption",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        }
+      }
     },
     "ExternalAuthClaimProfile": {
       "type": "object",
@@ -1685,7 +1758,7 @@
               {
                 "name": "OVNKubernetes",
                 "value": "OVNKubernetes",
-                "description": "THE OVN network plugin for the OpenShift cluster"
+                "description": "The OVN network plugin for the OpenShift cluster"
               },
               {
                 "name": "Other",
@@ -1749,7 +1822,7 @@
           {
             "name": "OVNKubernetes",
             "value": "OVNKubernetes",
-            "description": "THE OVN network plugin for the OpenShift cluster"
+            "description": "The OVN network plugin for the OpenShift cluster"
           },
           {
             "name": "Other",
@@ -1830,7 +1903,7 @@
         },
         "discEncryptionSetId": {
           "type": "string",
-          "description": "Disk Encryption Set ID that will be used for ecnryption the Nodes disks\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption"
+          "description": "Disk Encryption Set ID that will be used for encryption the Nodes disks\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption"
         },
         "ephemeralOsDisk": {
           "type": "boolean",
@@ -1984,19 +2057,15 @@
             ]
           }
         },
-        "preconfiguredNsgs": {
+        "preconfiguredNsg": {
           "type": "boolean",
           "description": "Specifies whether subnets are pre-attached with an NSG"
-        },
-        "etcdEncryptionSetId": {
-          "type": "string",
-          "description": "The id of the disk encryption set to be used for etcd.\nConfigure this when `etcdEncryption` is set to true\nIs used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview"
         }
       },
       "required": [
         "managedResourceGroup",
         "subnetId",
-        "preconfiguredNsgs"
+        "preconfiguredNsg"
       ]
     },
     "ProvisioningState": {
