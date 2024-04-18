@@ -1,0 +1,63 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: frontend-template
+
+parameters:
+- name: NAMESPACE
+  required: true
+  value: aro-hcp
+- name: REPLICAS 
+  required: true
+  value: "1"
+- name: ARO_HCP_FRONTEND_IMAGE
+  required: true
+
+objects:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    labels:
+      app: aro-hcp-frontend
+    name: aro-hcp-frontend
+    namespace: ${NAMESPACE}
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: ${{REPLICAS}}
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: aro-hcp-frontend
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app: aro-hcp-frontend
+      spec:
+        containers:
+        - name: aro-hcp-frontend
+          image: ${ARO_HCP_FRONTEND_IMAGE}
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 8443
+            protocol: TCP
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 500Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault          
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30

@@ -8,6 +8,16 @@ make frontend
 
 To create a cluster, follow the instructions in [development-setup.md][../dev-infrastructure/docs/development-setup.md]
 
+## Deploy/Undeploy frontend in a cluster
+
+```bash
+# Deploy
+make deploy-frontend
+
+# Undeploy
+make undeploy-frontend
+```
+
 ## Available endpoints
 
 List the Operations for the Provider
