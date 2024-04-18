@@ -7,9 +7,15 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - 'api/**'
+      - 'package-lock.json'
+      - 'package.json'
 
 jobs:
   typescript_api_spec_validation:
+    permissions:
+      contents: 'read'
     runs-on: ubuntu-latest
 
     steps:
@@ -25,6 +31,9 @@ jobs:
     
     - name: Install tsp
       run: npm install -g @typespec/compiler@0.55.0
+    
+    - name: Install oav
+      run: npm install -g oav@3.3.4
 
     - name: Install dependencies
       run: npm ci 
@@ -32,14 +41,9 @@ jobs:
     - name: Install autorest 
       run: npm install -g autorest@3.7.1
         
-    - name: Compile tsp
-      run: tsp compile ./api/redhatopenshift/HcpCluster --warn-as-error
-
-    - name: Generate OpenAPI
-      run: autorest api/autorest-config.yaml
-     
+    - name: Generate files
+      run: make generate
+    
     - name: Check for Uncommitted Changes
       run: |
         git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)
-
-

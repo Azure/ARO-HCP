@@ -25,6 +25,12 @@ MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint:
 	golangci-lint run -v $(MODULES)
 
+.PHONY: generate
+generate:
+	tsp compile ./api/redhatopenshift/HcpCluster --warn-as-error
+	oav generate-examples ./api/redhatopenshift/resource-manager/Microsoft.RedHatOpenshift/preview/2024-06-10-preview/openapi.json --logLevel warn
+	autorest api/autorest-config.yaml
+
 .PHONY: frontend
 frontend:
 	go build -ldflags "-X main.Version=$(VERSION)" -o aro-hcp-frontend ./frontend
