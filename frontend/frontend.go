@@ -55,7 +55,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 		server: http.Server{
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
-				return context.WithValue(context.Background(), ContextKeyLogger, logger)
+				return ContextWithLogger(context.Background(), logger)
 			},
 		},
 		cache: *NewCache(),
@@ -174,39 +174,60 @@ func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Reques
 
 func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
-	logger.Info(fmt.Sprintf("%s: ArmResourceListBySubscription", versionedInterface))
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceListBySubscription", versionedInterface))
 
 	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceListByLocation(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
-	logger.Info(fmt.Sprintf("%s: ArmResourceListByLocation", versionedInterface))
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceListByLocation", versionedInterface))
 
 	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
-	logger.Info(fmt.Sprintf("%s: ArmResourceListByResourceGroup", versionedInterface))
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceListByResourceGroup", versionedInterface))
 
 	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
-	logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
@@ -231,17 +252,28 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
-	logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
 	_, updating := f.cache.GetCluster(resourceID)
 	newCluster := api.NewDefaultHCPOpenShiftCluster()
-	body := ctx.Value(ContextKeyBody).([]byte)
-	err := versionedInterface.UnmarshalHCPOpenShiftCluster(body, newCluster, request.Method, updating)
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = versionedInterface.UnmarshalHCPOpenShiftCluster(body, newCluster, request.Method, updating)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteUnmarshalError(err, writer)
@@ -266,19 +298,30 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 func (f *Frontend) ArmResourcePatch(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
-	logger.Info(fmt.Sprintf("%s: ArmResourcePatch", versionedInterface))
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: ArmResourcePatch", versionedInterface))
 
 	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
-	logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
@@ -294,10 +337,15 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
 
-	logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
 
 	writer.WriteHeader(http.StatusOK)
 }
@@ -305,9 +353,15 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
-	body := ctx.Value(ContextKeyBody).([]byte)
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	var subscription arm.Subscription
-	err := json.Unmarshal(body, &subscription)
+	err = json.Unmarshal(body, &subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
 		writer.WriteHeader(http.StatusBadRequest)

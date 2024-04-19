@@ -4,7 +4,6 @@ package main
 // Licensed under the Apache License 2.0.
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -39,7 +38,8 @@ func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 			return
 		}
 
-		r = r.WithContext(context.WithValue(r.Context(), ContextKeyBody, body))
+		ctx := ContextWithBody(r.Context(), body)
+		r = r.WithContext(ctx)
 	}
 
 	next(w, r)

@@ -27,7 +27,10 @@ func TestMiddlewareLowercase(t *testing.T) {
 		t.Error(request.URL.Path)
 	}
 
-	originalPath := request.Context().Value(ContextKeyOriginalPath).(string)
+	originalPath, err := OriginalPathFromContext(request.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if originalPath != "/TEST" {
 		t.Error(originalPath)
 	}

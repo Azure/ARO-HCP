@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -18,9 +17,7 @@ const ProgramName = "ARO HCP Frontend"
 var Version = "unknown" // overridden by Makefile
 
 func main() {
-	// FIXME Centralize logging options?
-	handlerOptions := slog.HandlerOptions{}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &handlerOptions))
+	logger := DefaultLogger()
 
 	logger.Info(fmt.Sprintf("%s (%s) started", ProgramName, Version))
 

@@ -4,10 +4,8 @@ package main
 // Licensed under the Apache License 2.0.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -20,8 +18,16 @@ func MiddlewareSystemData(w http.ResponseWriter, r *http.Request, next http.Hand
 		var systemData arm.SystemData
 		err := json.Unmarshal([]byte(data), &systemData)
 		if err == nil {
-			r = r.WithContext(context.WithValue(r.Context(), ContextKeySystemData, &systemData))
-		} else if logger, ok := r.Context().Value(ContextKeyLogger).(*slog.Logger); ok {
+			ctx := ContextWithSystemData(r.Context(), &systemData)
+			r = r.WithContext(ctx)
+		} else {
+			logger, err := LoggerFromContext(r.Context())
+			if err != nil {
+				DefaultLogger().Error(err.Error())
+				arm.WriteInternalServerError(w)
+				return
+			}
+
 			logger.Warn(fmt.Sprintf("Failed to parse %s header: %v", arm.HeaderNameARMResourceSystemData, err))
 		}
 	}

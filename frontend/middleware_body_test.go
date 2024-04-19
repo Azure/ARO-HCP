@@ -102,7 +102,10 @@ func TestMiddlewareBody(t *testing.T) {
 					}
 
 					if method != http.MethodGet {
-						body := request.Context().Value(ContextKeyBody).([]byte)
+						body, err := BodyFromContext(request.Context())
+						if err != nil {
+							t.Fatal(err)
+						}
 						if !bytes.Equal(body, tt.body) {
 							t.Error(string(body))
 						}

@@ -4,7 +4,6 @@ package main
 // Licensed under the Apache License 2.0.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -169,7 +168,8 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			}
 
 			// Add a logger to the context so parsing errors will be logged.
-			request = request.WithContext(context.WithValue(request.Context(), ContextKeyLogger, slog.Default()))
+			ctx := ContextWithLogger(request.Context(), slog.Default())
+			request = request.WithContext(ctx)
 			next := func(w http.ResponseWriter, r *http.Request) {
 				request = r // capture modified request
 			}
@@ -182,13 +182,12 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			// clear the cache for the next test
 			cache.DeleteSubscription(subscriptionId)
 
-			result, ok := request.Context().Value(ContextKeySubscriptionState).(arm.RegistrationState)
-			if ok {
+			result, err := SubscriptionStateFromContext(request.Context())
+			if err == nil {
 				if !reflect.DeepEqual(result, tt.expectedState) {
 					t.Error(cmp.Diff(result, tt.expectedState))
 				}
-			}
-			if tt.expectedState != "" && !ok {
+			} else if tt.expectedState != "" {
 				t.Errorf("Expected RegistrationState %s in request context", tt.expectedState)
 			}
 			if tt.expectedError != nil {
