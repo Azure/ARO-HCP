@@ -2,13 +2,12 @@
 
 This README file provides documentation for the HCP RP API outline, the technologies used to build it, and the steps required to get started with the API.
 
-
 ## Overview
 
 The API is designed using [typespec](https://typespec.io/) that is used to generate the swagger definition.
 It also utilizes the [Microsoft typespec libraries](https://azure.github.io/typespec-azure/).
 
-The goal is to create the HCP RP API definition in a microsoft compliant way.
+The goal is to create the HCP RP API definition in a Microsoft compliant way.
 
 
 ## Setup
@@ -16,13 +15,10 @@ The goal is to create the HCP RP API definition in a microsoft compliant way.
 When used from within this project with [VSCode remote extensions](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.vscode-remote-extensionpack),
 there is no need to setup anything. The whole environment is already bootstrapped in a container.
 
-The container is based in Go 1.21 to allow development of the RP as well as it has the
-nodejs, which is required for typespec. The container also has the typespec with all required libraries
-installed. The definition can be found in `.devcontainer/postCreate.sh`, where the libraries are pinned to the latest
-working versions. Please not, when upgrading version of one, the other might need to be upgraded as well because they tend to break.
+The container includes Go 1.22 to allow development of the RP as well as
+nodejs, which is required for typespec. The container also has typespec with all required libraries installed. The definition can be found in `.devcontainer/postCreate.sh`, where the libraries are pinned to the latest working versions. Please note, when upgrading version of one, the other might need to be upgraded as well because they tend to break.
 
-If you have fresh container, you need to run `tsp code install` to enable the VSCode typespec extension. This will give you
-autocomplete and linting.
+If you have a fresh container, you need to run `tsp code install` to enable the VSCode typespec extension. This will give you autocomplete and linting.
 
 
 ## Typespec and azure libraries basics
@@ -36,7 +32,7 @@ Additional information on the use with Azure libraries in in the [Microsoft type
 Samples of the typespec usage can be found in the [Azure/typespec-azure](https://github.com/Azure/typespec-azure/tree/main/packages/samples/specs/resource-manager).
 
 
-## Azure repository for submiting the API definition
+## Azure repository for Submitting the API definition
 
 There are two repositories where the API spec is going to be published:
 
@@ -53,19 +49,20 @@ repository structure for typespecs projects is explained here https://github.com
 
 Going with the guide, the typespec service is stored in the `redhatopenshift/HcpCluster` folder. The `redhatopenshift` is the folder
 that holds the current Openshift cluster API and both definitions will need to coexist in the same folder. According to the guide,
-the generation is placed in created `resource-manager` folder. Finally to allow the proper swagger inspection, the `common-types` are copyied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
+the generation is placed in created `resource-manager` folder. Finally to allow the proper swagger inspection, the `common-types` are copied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
 
 
-## How to use the typespec
+## How to use typespec
 
 The typespec configuration is stored in the `tspconfig.yaml` file. The swagger API definition needs to be generated.
 To do so, open terminal, switch to api directory and call the following command in a API directory with the `main.tsp`:
 
 ```bash
-tsp compile .
+cd 
+tsp compile ./api/redhatopenshift/HcpCluster/
 ```
 
-Or you can use the submited build task, that does exactly the same. The default shortcut is `Ctrl+Shift+B` or `Cmd+Shift+B`.
+Or you can use the submitted build task, that does exactly the same. The default shortcut is `Ctrl+Shift+B` or `Cmd+Shift+B`.
 
 ## Swagger example generation
 
@@ -75,7 +72,9 @@ validate the swagger and generate the example requests and responses.
 To generate the example requests and responses, you can use the following command:
 
 ```bash
-oav generate-examples <path-to-spec>
+export API_VERSION=2024-06-10-preview
+cd api/redhatopenshift/HcpCluster/examples/$API_VERSION
+oav generate-examples ../../../resource-manager/Microsoft.RedHatOpenshift/preview/$API_VERSION/openapi.json
 ```
 
 ## Generating the api client
@@ -89,5 +88,5 @@ autorest api/autorest-config.yaml
 
 The generated clients are stored in `api/generated`.
 
-**IMPORTANT**: When the new examples are generated, all files are changed. Please make sure to review the changes before commiting them
+**IMPORTANT**: When the new examples are generated, all files are changed. Please make sure to review the changes before comitting them
 and commit only the changed parts. Otherwise it will result is a lot of unnecessary changes in the PR.
