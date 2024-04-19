@@ -7,7 +7,8 @@
                 "editorconfig.editorconfig",
                 "ms-azuretools.vscode-bicep",
                 "ms-vscode.azurecli",
-                "arjun.swagger-viewer"      
+                "arjun.swagger-viewer",
+                "typespec.typespec-vscode"
             ],
 
             "settings": {
