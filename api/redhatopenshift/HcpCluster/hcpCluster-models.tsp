@@ -11,13 +11,14 @@ using Azure.ResourceManager;
 namespace Microsoft.RedHatOpenshift;
 
 /*
-* ===================================
-*   HCP cluster core resources
-* ===================================
-*/
+ * ===================================
+ *   HCP cluster core resources
+ * ===================================
+ */
 
 /** HCP cluster resource */
-model HcpOpenShiftClusterResource is TrackedResource<HcpOpenShiftClusterProperties> {
+model HcpOpenShiftClusterResource
+  is TrackedResource<HcpOpenShiftClusterProperties> {
   /** Name of HCP cluster */
   @pattern("^[a-zA-Z0-9-]{3,24}$")
   @minLength(3)
@@ -37,7 +38,8 @@ model HcpOpenShiftClusterResource is TrackedResource<HcpOpenShiftClusterProperti
 // - allow cascade delete
 // more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
 @parentResource(HcpOpenShiftClusterResource)
-model HcpOpenShiftClusterNodePoolResource is TrackedResource<NodePoolProperties> {
+model HcpOpenShiftClusterNodePoolResource
+  is TrackedResource<NodePoolProperties> {
   /** Name of HCP cluster */
   @pattern("^[a-zA-Z0-9-]{3,24}$")
   @minLength(3)
@@ -82,13 +84,13 @@ model ClusterSpec {
 
   /** Enable FIPS mode for the cluster
    * When set to true, `etcdEncryption` must be set to true
-  */
+   */
   @visibility("create")
   fips?: boolean = false;
 
   /** Enables customer ETCD encryption, set during creation
    * When set to true, `platform.etcdEncryptionSetId` must be set
-  */
+   */
   @visibility("create")
   etcdEncryption?: boolean = false;
 
@@ -112,7 +114,7 @@ model ClusterSpec {
 
   /** Configuration to override the openshift-oauth-apiserver inside cluster
    *  This changes user login into the cluster to external provider
-  */
+   */
   @visibility("create")
   externalAuth?: ExternalAuthConfigProfile;
 
@@ -151,8 +153,8 @@ model DnsProfile {
   baseDomain: string;
 
   /**  BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.
-  * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
-  * */
+   * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
+   * */
   @visibility("create")
   baseDomainPrefix: string;
 }
@@ -192,8 +194,9 @@ union NetworkType {
 
   /** THE OVN network plugin for the OpenShift cluster */
   OVNKubernetes: "OVNKubernetes",
+
   /** Other network plugins */
-  Other:         "Other",
+  Other: "Other",
 }
 
 /** Configuration of the cluster web console */
@@ -261,7 +264,7 @@ model PlatformProfile {
   /** The id of the disk encryption set to be used for etcd.
    * Configure this when `etcdEncryption` is set to true
    * Is used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
-  */
+   */
   etcdEncryptionSetId?: string;
 }
 
@@ -274,16 +277,16 @@ union OutboundType {
 }
 
 /*
-* =======================================
-*   End HCP cluster core resources
-* =======================================
-*/
+ * =======================================
+ *   End HCP cluster core resources
+ * =======================================
+ */
 
 /*
-* =======================================
-*  ExternalAuth resources
-* =======================================
-*/
+ * =======================================
+ *  ExternalAuth resources
+ * =======================================
+ */
 
 /** External authentication configuration profile */
 model ExternalAuthConfigProfile {
@@ -301,8 +304,10 @@ model ExternalAuthConfigProfile {
 model ExternalAuthProfile {
   /** Token Issuer profile */
   issuer: TokenIssuerProfile;
+
   /** External auth clients */
   clients: ExternalAuthClientProfile[];
+
   /** External auth claim */
   claim: ExternalAuthClaimProfile;
 }
@@ -311,8 +316,10 @@ model ExternalAuthProfile {
 model TokenIssuerProfile {
   /** The URL of the token issuer */
   url: string;
+
   /** The audience of the token issuer */
   audiences: string[];
+
   /** The issuer of the token */
   ca: string;
 }
@@ -337,6 +344,7 @@ model ExternalAuthClientProfile {
 model ExternalAuthClientComponentProfile {
   /** The name of the external auth client */
   name: string;
+
   /** The namespace of the external auth client */
   authClientNamespace: string;
 }
@@ -353,8 +361,9 @@ model ExternalAuthClaimProfile {
 
 /** External auth claim mappings profile */
 model TokenClaimMappingsProfile {
-  /** The claim mappings username*/
+  /** The claim mappings username */
   username: ClaimProfile;
+
   /** The claim mappings groups */
   groups: ClaimProfile;
 }
@@ -363,8 +372,10 @@ model TokenClaimMappingsProfile {
 model ClaimProfile {
   /** Claim */
   claim: string;
+
   /** Prefix */
   prefix: string;
+
   /** Prefix policy */
   prefixPolicy: string;
 }
@@ -373,21 +384,22 @@ model ClaimProfile {
 model TokenClaimValidationRuleProfile {
   /** Claim */
   claim: string;
+
   /** Required value */
   requiredValue: string;
 }
 
 /*
-* =======================================
-*  End ExternalAuth resources
-* =======================================
-*/
+ * =======================================
+ *  End ExternalAuth resources
+ * =======================================
+ */
 
 /*
-* =======================================
-*  Ingress resources
-* =======================================
-*/
+ * =======================================
+ *  Ingress resources
+ * =======================================
+ */
 
 /** Configuration of the cluster ingress */
 model IngressProfile {
@@ -401,22 +413,22 @@ model IngressProfile {
 
   /** The visibility of the ingress
    * determines if the ingress is visible from the internet
-  */
+   */
   @visibility("create")
   visibility: Visibility;
 }
 
 /*
-* =======================================
-*  End Ingress resources
-* =======================================
-*/
+ * =======================================
+ *  End Ingress resources
+ * =======================================
+ */
 
 /*
-* =======================================
-*  NodePool resources
-* =======================================
-*/
+ * =======================================
+ *  NodePool resources
+ * =======================================
+ */
 
 /** Represents the node pool properties */
 model NodePoolProperties {
@@ -470,7 +482,7 @@ model NodePoolSpec {
    * nodes in the NodePool.
    * Each ConfigMap must have a single key named "tuned" whose value is the
    * JSON or YAML of a serialized Tuned or PerformanceProfile.
-  */
+   */
   tuningConfigs?: string[];
 }
 
@@ -483,19 +495,19 @@ model NodePoolPlatformProfile {
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
   vmSize: string;
 
-  #suppress "@azure-tools/typespec-azure-core/casing-style" "The field needs to be indicate size in GB not in Gb"
   /** The OS disk size in GB */
+  #suppress "@azure-tools/typespec-azure-core/casing-style" "The field needs to be indicate size in GB not in Gb"
   diskSizeGB?: int32;
 
   /** The type of the disc storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
-  */
+   */
   diskStorageAccountType?: string;
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
-  */
+   */
   availabilityZone?: string;
 
   /** Whether the worker machines should be encrypted at host */
@@ -523,16 +535,16 @@ model NodePoolAutoScaling {
 }
 
 /*
-* =======================================
-* End NodePool resources
-* =======================================
-*/
+ * =======================================
+ * End NodePool resources
+ * =======================================
+ */
 
 /*
-* =======================================
-*   HCP cluster credentials
-* =======================================
-*/
+ * =======================================
+ *   HCP cluster credentials
+ * =======================================
+ */
 
 /** HCP cluster credentials */
 model HcpOpenShiftClusterCredentials {
@@ -555,7 +567,7 @@ model HcpOpenShiftClusterKubeconfig {
 }
 
 /*
-* =======================================
-*   End HCP cluster credentials
-* =======================================
-*/
+ * =======================================
+ *   End HCP cluster credentials
+ * =======================================
+ */
