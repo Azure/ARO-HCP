@@ -1,5 +1,11 @@
 # ARO-HCP-FRONTEND
 
+## Build the frontend container
+docker build -f Dockerfile.frontend -t aro-hcp-frontend .
+
+## Run the frontend container
+docker run -p 8443:8443 aro-hcp-frontend
+
 ## Run the frontend
 
 ```bash
