@@ -1192,6 +1192,36 @@
       "type": "object",
       "description": "DNS contains the DNS settings of the cluster"
     },
+    "Effect": {
+      "type": "string",
+      "description": "The taint effect the same as in K8s",
+      "enum": [
+        "NoSchedule",
+        "PreferNoSchedule",
+        "NoExecute"
+      ],
+      "x-ms-enum": {
+        "name": "Effect",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "NoSchedule",
+            "value": "NoSchedule",
+            "description": "NoSchedule taint effect"
+          },
+          {
+            "name": "PreferNoSchedule",
+            "value": "PreferNoSchedule",
+            "description": "PreferNoSchedule taint effect"
+          },
+          {
+            "name": "NoExecute",
+            "value": "NoExecute",
+            "description": "NoExecute taint effect"
+          }
+        ]
+      }
+    },
     "ExternalAuthClaimProfile": {
       "type": "object",
       "description": "External auth claim profile",
@@ -1446,10 +1476,10 @@
           "description": "Representation of a autoscaling in a node pool."
         },
         "labels": {
-          "type": "array",
-          "description": "Labels for the nodes",
-          "items": {
-            "type": "string"
+          "type": "object",
+          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "additionalProperties": {
+            "$ref": "#/definitions/labelValue"
           },
           "x-ms-mutability": [
             "update",
@@ -1460,8 +1490,13 @@
           "type": "array",
           "description": "Taints for the nodes",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/Taint"
           },
+          "x-ms-identifiers": [
+            "key",
+            "value",
+            "effect"
+          ],
           "x-ms-mutability": [
             "update",
             "create"
@@ -1901,10 +1936,10 @@
           "description": "Representation of a autoscaling in a node pool."
         },
         "labels": {
-          "type": "array",
-          "description": "Labels for the nodes",
-          "items": {
-            "type": "string"
+          "type": "object",
+          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "additionalProperties": {
+            "$ref": "#/definitions/labelValue"
           },
           "x-ms-mutability": [
             "update",
@@ -1915,8 +1950,13 @@
           "type": "array",
           "description": "Taints for the nodes",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/Taint"
           },
+          "x-ms-identifiers": [
+            "key",
+            "value",
+            "effect"
+          ],
           "x-ms-mutability": [
             "update",
             "create"
@@ -2052,6 +2092,28 @@
         }
       }
     },
+    "Taint": {
+      "type": "object",
+      "description": "Taint is controlling the node taint and its effects",
+      "properties": {
+        "key": {
+          "$ref": "#/definitions/taintKey",
+          "description": "The key of the taint\nThe good example of the taint key is `node-role.kubernetes.io/master`"
+        },
+        "value": {
+          "$ref": "#/definitions/taintValue",
+          "description": "The value of the taint\nThe good example of the taint value is `NoSchedule`"
+        },
+        "effect": {
+          "$ref": "#/definitions/Effect",
+          "description": "The effect of the taint\nThe good example of the taint effect is `NoSchedule`"
+        }
+      },
+      "required": [
+        "key",
+        "effect"
+      ]
+    },
     "TokenClaimMappingsProfile": {
       "type": "object",
       "description": "External auth claim mappings profile",
@@ -2185,6 +2247,24 @@
           }
         ]
       }
+    },
+    "labelValue": {
+      "type": "string",
+      "description": "labelValue is the k8s valid value of the label on the nodepool nodes\nThe good example of the label value is `master`",
+      "minLength": 1,
+      "maxLength": 63
+    },
+    "taintKey": {
+      "type": "string",
+      "description": "taintKey is the k8s valid key of the taint type on the nodepool nodes\nThe good example of the taint key is `node-role.kubernetes.io/master`",
+      "minLength": 1,
+      "maxLength": 316
+    },
+    "taintValue": {
+      "type": "string",
+      "description": "taintValue is the k8s valid value of the taint type on the nodepool nodes\nThe good example of the taint value is `NoSchedule`",
+      "minLength": 1,
+      "maxLength": 63
     }
   },
   "parameters": {}

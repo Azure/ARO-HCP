@@ -1666,6 +1666,41 @@ func (s *SystemData) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type Taint.
+func (t Taint) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "effect", t.Effect)
+	populate(objectMap, "key", t.Key)
+	populate(objectMap, "value", t.Value)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type Taint.
+func (t *Taint) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", t, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "effect":
+				err = unpopulate(val, "Effect", &t.Effect)
+			delete(rawMsg, key)
+		case "key":
+				err = unpopulate(val, "Key", &t.Key)
+			delete(rawMsg, key)
+		case "value":
+				err = unpopulate(val, "Value", &t.Value)
+			delete(rawMsg, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", t, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type TokenClaimMappingsProfile.
 func (t TokenClaimMappingsProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)

@@ -55,4 +55,5 @@ func init() {
 	validate.RegisterAlias("enum_provisioningstate", EnumValidateTag(generated.PossibleProvisioningStateValues()...))
 	validate.RegisterAlias("enum_resourceprovisioningstate", EnumValidateTag(generated.PossibleResourceProvisioningStateValues()...))
 	validate.RegisterAlias("enum_visibility", EnumValidateTag(generated.PossibleVisibilityValues()...))
+	validate.RegisterAlias("enum_effect", EnumValidateTag(generated.PossibleEffectValues()...))
 }

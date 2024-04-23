@@ -46,6 +46,27 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
+// Effect - The taint effect the same as in K8s
+type Effect string
+
+const (
+	// EffectNoExecute - NoExecute taint effect
+	EffectNoExecute Effect = "NoExecute"
+	// EffectNoSchedule - NoSchedule taint effect
+	EffectNoSchedule Effect = "NoSchedule"
+	// EffectPreferNoSchedule - PreferNoSchedule taint effect
+	EffectPreferNoSchedule Effect = "PreferNoSchedule"
+)
+
+// PossibleEffectValues returns the possible values for the Effect const type.
+func PossibleEffectValues() []Effect {
+	return []Effect{	
+		EffectNoExecute,
+		EffectNoSchedule,
+		EffectPreferNoSchedule,
+	}
+}
+
 // ManagedServiceIdentityType - Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
 type ManagedServiceIdentityType string
 

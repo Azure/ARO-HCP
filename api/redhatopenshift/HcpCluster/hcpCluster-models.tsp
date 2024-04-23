@@ -440,6 +440,41 @@ model NodePoolProperties {
   spec: NodePoolSpec;
 }
 
+/** taintKey is the k8s valid key of the taint type on the nodepool nodes
+ * The good example of the taint key is `node-role.kubernetes.io/master`
+ */
+@minLength(1)
+@maxLength(316)
+scalar taintKey extends string;
+
+/** taintValue is the k8s valid value of the taint type on the nodepool nodes
+ * The good example of the taint value is `NoSchedule`
+ */
+@minLength(1)
+@maxLength(63)
+scalar taintValue extends string;
+
+/** labelValue is the k8s valid value of the label on the nodepool nodes
+ * The good example of the label value is `master`
+ */
+@minLength(1)
+@maxLength(63)
+scalar labelValue extends string;
+
+/** The taint effect the same as in K8s */
+union Effect {
+  string,
+
+  /** NoSchedule taint effect */
+  NoSchedule: "NoSchedule",
+
+  /** PreferNoSchedule taint effect */
+  PreferNoSchedule: "PreferNoSchedule",
+
+  /** NoExecute taint effect */
+  NoExecute: "NoExecute",
+}
+
 /** Worker node pool profile */
 model NodePoolSpec {
   /** OpenShift version for the nodepool */
@@ -461,13 +496,19 @@ model NodePoolSpec {
   /** Representation of a autoscaling in a node pool. */
   autoScaling?: NodePoolAutoScaling;
 
-  /** Labels for the nodes */
+  // This warning means to ensure good customer experience, to not create
+  // poorly defined types. However here the type literarly is the map<string, value>
+  /** K8s labels to propagate to the NodePool Nodes
+   * The good example of the label is `node-role.kubernetes.io/master: ""`
+   */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" ""
   @visibility("create", "update")
-  labels?: string[];
+  labels?: Record<labelValue>;
 
   /** Taints for the nodes */
   @visibility("create", "update")
-  taints?: string[];
+  @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
+  taints?: Taint[];
 
   /*
    * The Tuned API is defined here:
@@ -484,6 +525,24 @@ model NodePoolSpec {
    * JSON or YAML of a serialized Tuned or PerformanceProfile.
    */
   tuningConfigs?: string[];
+}
+
+/** Taint is controlling the node taint and its effects */
+model Taint {
+  /** The key of the taint
+   * The good example of the taint key is `node-role.kubernetes.io/master`
+   */
+  key: taintKey;
+
+  /** The value of the taint
+   * The good example of the taint value is `NoSchedule`
+   */
+  value?: taintValue;
+
+  /** The effect of the taint
+   * The good example of the taint effect is `NoSchedule`
+   */
+  effect: Effect;
 }
 
 /** Azure node pool platform configuration */
