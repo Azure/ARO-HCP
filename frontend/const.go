@@ -16,6 +16,7 @@ const (
 	ContextKeyVersion
 	ContextKeyCorrelationData
 	ContextKeySystemData
+	ContextKeySubscriptionState
 
 	// Wildcard path segment names for request multiplexing, must be lowercase as we lowercase the request URL pattern when registering handlers
 	PageSegmentLocation          = "location"

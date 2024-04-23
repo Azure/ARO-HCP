@@ -17,7 +17,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/subscription"
 )
 
 const (
@@ -33,7 +32,7 @@ type Frontend struct {
 	logger   *slog.Logger
 	listener net.Listener
 	server   http.Server
-	cache    cache
+	cache    Cache
 	ready    atomic.Value
 	done     chan struct{}
 }
@@ -59,6 +58,8 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 		done:  make(chan struct{}),
 	}
 
+	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache)
+
 	mux := NewMiddlewareMux(
 		MiddlewarePanic,
 		MiddlewareLogging,
@@ -69,11 +70,14 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz", "ready"), f.HealthzReady)
+	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
+	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionAction)
 
 	// Authenticated routes
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
-		MiddlewareValidateAPIVersion)
+		MiddlewareValidateAPIVersion,
+		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceListBySubscription))
@@ -98,7 +102,6 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
-	mux.Handle(MuxPattern(http.MethodPut, PatternSubscriptions), postMuxMiddleware.HandlerFunc(f.ArmSubscriptionAction))
 	f.server.Handler = mux
 
 	return f
@@ -281,12 +284,9 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 
 func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	logger := ctx.Value(ContextKeyLogger).(*slog.Logger)
-	versionedInterface := ctx.Value(ContextKeyVersion).(api.Version)
-	logger.Info(fmt.Sprintf("%s: ArmSubscriptionAction", versionedInterface))
 
 	body := ctx.Value(ContextKeyBody).([]byte)
-	var subscription subscription.Subscription
+	var subscription arm.Subscription
 	err := json.Unmarshal(body, &subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
