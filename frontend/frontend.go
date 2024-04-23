@@ -17,6 +17,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/metrics"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -35,6 +37,7 @@ type Frontend struct {
 	cache    Cache
 	ready    atomic.Value
 	done     chan struct{}
+	metrics  metrics.Emitter
 }
 
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
@@ -44,10 +47,11 @@ func MuxPattern(method string, segments ...string) string {
 	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emitter) *Frontend {
 	f := &Frontend{
 		logger:   logger,
 		listener: listener,
+		metrics:  emitter,
 		server: http.Server{
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
@@ -60,18 +64,26 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 
 	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache)
 
+	// Setup metrics middleware
+	metricsMiddleware := MetricsMiddleware{Emitter: emitter}
+
 	mux := NewMiddlewareMux(
 		MiddlewarePanic,
 		MiddlewareLogging,
 		MiddlewareBody,
 		MiddlewareLowercase,
-		MiddlewareSystemData)
+		MiddlewareSystemData,
+		metricsMiddleware.Metrics(),
+	)
 
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz", "ready"), f.HealthzReady)
 	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
 	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionAction)
+
+	// Expose Prometheus metrics endpoint
+	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
 
 	// Authenticated routes
 	postMuxMiddleware := NewMiddleware(
@@ -102,6 +114,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener) *Frontend {
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
+
 	f.server.Handler = mux
 
 	return f
@@ -145,11 +158,18 @@ func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Request) {
+	var healthStatus float64
 	if f.CheckReady() {
 		writer.WriteHeader(http.StatusOK)
+		healthStatus = 1.0
 	} else {
 		writer.WriteHeader(http.StatusInternalServerError)
+		healthStatus = 0.0
 	}
+
+	f.metrics.EmitGauge("frontend_health", healthStatus, map[string]string{
+		"endpoint": "/healthz/ready",
+	})
 }
 
 func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, request *http.Request) {

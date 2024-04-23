@@ -36,7 +36,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	frontend := NewFrontend(logger, listener)
+	// Init prometheus emitter
+	prometheusEmitter := NewPrometheusEmitter()
+	frontend := NewFrontend(logger, listener, prometheusEmitter)
 	go frontend.Run(ctx, stop)
 
 	sig := <-signalChannel
