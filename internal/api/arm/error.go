@@ -14,14 +14,15 @@ import (
 
 // CloudError codes
 const (
-	CloudErrorCodeInternalServerError   = "InternalServerError"
-	CloudErrorCodeInvalidParameter      = "InvalidParameter"
-	CloudErrorCodeInvalidRequestContent = "InvalidRequestContent"
-	CloudErrorCodeInvalidResource       = "InvalidResource"
-	CloudErrorCodeInvalidResourceType   = "InvalidResourceType"
-	CloudErrorCodeUnsupportedMediaType  = "UnsupportedMediaType"
-	CloudErrorCodeNotFound              = "NotFound"
-	CloudErrorInvalidSubscriptionState  = "InvalidSubscriptionState"
+	CloudErrorCodeInternalServerError    = "InternalServerError"
+	CloudErrorCodeInvalidParameter       = "InvalidParameter"
+	CloudErrorCodeInvalidRequestContent  = "InvalidRequestContent"
+	CloudErrorCodeInvalidResource        = "InvalidResource"
+	CloudErrorCodeInvalidResourceType    = "InvalidResourceType"
+	CloudErrorCodeMultipleErrorsOccurred = "MultipleErrorsOccurred"
+	CloudErrorCodeUnsupportedMediaType   = "UnsupportedMediaType"
+	CloudErrorCodeNotFound               = "NotFound"
+	CloudErrorInvalidSubscriptionState   = "InvalidSubscriptionState"
 )
 
 // CloudError represents a complete resource provider error.
@@ -127,7 +128,7 @@ func WriteUnmarshalError(err error, w http.ResponseWriter) {
 	case validator.ValidationErrors:
 		cloudError := NewCloudError(
 			http.StatusBadRequest,
-			CloudErrorCodeInvalidRequestContent, "",
+			CloudErrorCodeMultipleErrorsOccurred, "",
 			"Content validation failed on one or more fields")
 		cloudError.CloudErrorBody.Details = make([]CloudErrorBody, len(err))
 		for index, fieldErr := range err {
