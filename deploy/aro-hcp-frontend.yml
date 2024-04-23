@@ -58,6 +58,19 @@ objects:
               - ALL
             runAsNonRoot: true
             seccompProfile:
-              type: RuntimeDefault          
+              type: RuntimeDefault
+          livenessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8443
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 10
         restartPolicy: Always
         terminationGracePeriodSeconds: 30

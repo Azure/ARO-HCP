@@ -36,7 +36,7 @@ clean:
 	rm aro-hcp-frontend
 
 deploy-frontend:
-	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} | oc replace -f -
+	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} | oc apply -f -
 
 undeploy-frontend:
 	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} | oc delete -f -
