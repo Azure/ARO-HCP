@@ -13,25 +13,25 @@ namespace Microsoft.RedHatOpenshift;
 /** HcpOpenShiftVersions represents a location based available HCP cluster versions */
 @locationResource
 model HcpOpenShiftVersions is ProxyResource<HcpOpenShiftVersionsProperties> {
-    /** The name of the resource */
-    @pattern("^[a-zA-Z0-9-]{3,24}$")
-    @segment("hcpOpenShiftVersions")
-    @key("hcpOpenShiftVersions")
-    @visibility("read")
-    @path
-    name: string;
+  /** The name of the resource */
+  @pattern("^[a-zA-Z0-9-]{3,24}$")
+  @segment("hcpOpenShiftVersions")
+  @key("hcpOpenShiftVersions")
+  @visibility("read")
+  @path
+  name: string;
 }
 
 /** HcpOpenShiftVersionsProperties is the installable cluster version */
 model HcpOpenShiftVersionsProperties {
-    ...DefaultProvisioningStateProperty;
+  ...DefaultProvisioningStateProperty;
 
-    /** The cluster version */
-    @visibility("read")
-    clusterVersion: string;
+  /** The cluster version */
+  @visibility("read")
+  clusterVersion: string;
 }
 
 @armResourceOperations(HcpOpenShiftVersions)
 interface HcpClusterVersionOperations {
-    list is ArmResourceListByParent<HcpOpenShiftVersions>;
+  list is ArmResourceListByParent<HcpOpenShiftVersions>;
 }

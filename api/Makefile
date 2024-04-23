@@ -2,5 +2,10 @@ SHELL = /bin/bash
 
 .PHONY: generate
 generate: 
+	tsp format --check "**/*.tsp"
 	tsp compile redhatopenshift/HcpCluster --warn-as-error
 	autorest autorest-config.yaml 
+
+.PHONY: fmt
+fmt:
+	tsp format "**/*.tsp"
