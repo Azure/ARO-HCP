@@ -61,3 +61,8 @@ Update a subscription state
 ```bash
 curl -X PUT localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID?api-version=2.0 --json '{"state":"Registered"}'
 ```
+
+Execute deployment preflight checks
+```bash
+curl -X POST "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/deployments/YOUR_DEPLOYMENT_NAME/preflight?api-version=2020-06-01" --json preflight.json
+```

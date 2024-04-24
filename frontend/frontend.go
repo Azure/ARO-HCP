@@ -25,6 +25,7 @@ const (
 	PatternSubscriptions  = "subscriptions/{" + PathSegmentSubscriptionID + "}"
 	PatternLocations      = "locations/{" + PageSegmentLocation + "}"
 	PatternProviders      = "providers/" + api.ResourceType
+	PatternDeployments    = "deployments/{" + PathSegmentDeploymentName + "}"
 	PatternResourceGroups = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
 	PatternResourceName   = "{" + PathSegmentResourceName + "}"
 	PatternActionName     = "{" + PathSegmentActionName + "}"
@@ -114,6 +115,14 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
+
+	// Exclude ARO-HCP API version validation for endpoints defined by ARM.
+	postMuxMiddleware = NewMiddleware(
+		MiddlewareLoggingPostMux,
+		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
+	mux.Handle(
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
+		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))
 
 	f.server.Handler = mux
 
@@ -392,4 +401,116 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
+}
+
+func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *http.Request) {
+	var subscriptionID string = request.PathValue(PathSegmentSubscriptionID)
+	var resourceGroup string = request.PathValue(PathSegmentResourceGroupName)
+	var apiVersion string = request.URL.Query().Get("api-version")
+
+	ctx := request.Context()
+
+	f.logger.Info(fmt.Sprintf("%s: ArmDeploymentPreflight", apiVersion))
+
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	deploymentPreflight, cloudError := arm.UnmarshalDeploymentPreflight(body)
+	if cloudError != nil {
+		f.logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	validate := api.NewValidator()
+	preflightErrors := []arm.CloudErrorBody{}
+
+	for index, raw := range deploymentPreflight.Resources {
+		resource := &arm.DeploymentPreflightResource{}
+		err = json.Unmarshal(raw, resource)
+		if err != nil {
+			cloudError = arm.NewUnmarshalCloudError(err)
+			// Preflight is best-effort: a malformed resource is not a validation failure.
+			f.logger.Warn(cloudError.Message)
+		}
+
+		// This is just "preliminary" validation to ensure all the base resource
+		// fields are present and the API version is valid.
+		resourceErrors := api.ValidateRequest(validate, request.Method, resource)
+		if len(resourceErrors) > 0 {
+			// Preflight is best-effort: a malformed resource is not a validation failure.
+			f.logger.Warn(
+				fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
+				"details", resourceErrors)
+			continue
+		}
+
+		// API version is already validated by this point.
+		versionedInterface, _ := api.Lookup(resource.APIVersion)
+		versionedCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
+
+		err = json.Unmarshal(raw, versionedCluster)
+		if err != nil {
+			// Preflight is best effort: failure to parse a resource is not a validation failure.
+			f.logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", resource.Type, resource.Name, err))
+			continue
+		}
+
+		// Perform static validation as if for a cluster creation request.
+		cloudError := versionedCluster.ValidateStatic(versionedCluster, false, http.MethodPut)
+		if cloudError != nil {
+			var details []arm.CloudErrorBody
+
+			// This avoids double-nesting details when there's multiple errors.
+			//
+			// To illustrate, instead of:
+			//
+			// {
+			//   "code": "MultipleErrorsOccurred"
+			//   "message": "Content validation failed for {{RESOURCE_NAME}}"
+			//   "target": "{{RESOURCE_ID}}"
+			//   "details": [
+			//     {
+			//       "code": "MultipleErrorsOccurred"
+			//       "message": "Content validation failed on multiple fields"
+			//       "details": [
+			//         ...field-specific validation errors...
+			//       ]
+			//     }
+			//   ]
+			// }
+			//
+			// we want:
+			//
+			// {
+			//   "code": "MultipleErrorsOccurred"
+			//   "message": "Content validation failed for {{RESOURCE_NAME}}"
+			//   "target": "{{RESOURCE_ID}}"
+			//   "details": [
+			//     ...field-specific validation errors...
+			//   ]
+			// }
+			//
+			if len(cloudError.CloudErrorBody.Details) > 0 {
+				details = cloudError.CloudErrorBody.Details
+			} else {
+				details = []arm.CloudErrorBody{*cloudError.CloudErrorBody}
+			}
+			preflightErrors = append(preflightErrors, arm.CloudErrorBody{
+				Code:    cloudError.Code,
+				Message: fmt.Sprintf("Content validation failed for '%s'", resource.Name),
+				Target:  resource.ResourceID(subscriptionID, resourceGroup),
+				Details: details,
+			})
+			continue
+		}
+
+		// FIXME Further preflight steps go here.
+	}
+
+	arm.WriteDeploymentPreflightResponse(writer, preflightErrors)
 }
