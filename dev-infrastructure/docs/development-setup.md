@@ -231,7 +231,7 @@ Make sure you have `jq` installed on the system running the script. It is used t
 
 ```bash
 cd dev-infrastructure/scripts
-sh dev-application create
+sh dev-application.sh create
 ```
 A unique prefix for all resources created by the script is a 20 character combination of the values $USER and $LOCATION.
 To change which region the resources are deployed in, update $LOCATION in the script.
@@ -248,14 +248,14 @@ You may need to manually interact with resources as the service principal, howev
 
 ```bash
 cd dev-infrastructure/scripts
-sh dev-application login
+sh dev-application.sh login
 ```
 
 ### Step 99 - Delete the application
 
 ```bash
 cd dev-infrastructure/scripts
-sh dev-application delete
+sh dev-application.sh delete
 ```
 
 This will delete:
