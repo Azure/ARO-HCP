@@ -149,7 +149,7 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 				switch tag {
 				case "api_version": // custom tag
 					message = fmt.Sprintf("Unrecognized API version '%s'", fieldErr.Value())
-				case "required_for_put": // custom tag
+				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
 				case "cidrv4":
 					message += " (must be a v4 CIDR address)"
