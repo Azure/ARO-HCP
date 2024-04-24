@@ -76,7 +76,7 @@ createMockFirstPartyApp() {
         
         echo "creating role definition: $ROLE_DEFINITION_NAME \n $roleDef\n"
         az role definition create --role-definition "$roleDef"
-        while [ -n "$roleExists" ]; do
+        while [ -z "$roleExists" ]; do
             roleExists=$(az role definition list --name "$ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
             echo "waiting for role definition to be created"
             sleep 5
@@ -121,6 +121,27 @@ deleteMockFirstPartyApp() {
     az group delete --name "$RESOURCE_GROUP" --yes
 }
 
+loginWithMockServicePrincipal() {
+    az keyvault secret download \
+    --name "$APP_CERT_NAME" \
+    --vault-name "$APP_KEY_VAULT_NAME" \
+    --encoding base64 \
+    --file app.pfx
+    
+    openssl pkcs12 \
+    -in app.pfx \
+    -passin pass: \
+    -out app.pem \
+    -nodes
+    
+    appId=$(az ad app list --display-name "$APP_REGISTRATION_NAME" --query "[0].appId" -o tsv)
+    tenantId=$(az account show --query tenantId -o tsv)
+    
+    az login --service-principal -u "$appId" -p app.pem --tenant "$tenantId"
+
+    rm app.pfx app.pem
+}
+
 case "$1" in
     "create")
         createMockFirstPartyApp
@@ -128,8 +149,11 @@ case "$1" in
     "delete")
         deleteMockFirstPartyApp
     ;;
+    "login")
+        loginWithMockServicePrincipal
+    ;;
     *)
-        echo "Usage: $0 {create|delete}"
+        echo "Usage: $0 {create|delete|login}"
         exit 1
     ;;
 esac
