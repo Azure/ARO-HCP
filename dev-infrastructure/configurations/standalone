@@ -1,6 +1,6 @@
-#Stand alone setup, both VPN and AKS cluster go in the same RG
 LOCATION=eastus
-AKSVERSION=1.27.7
+
+AKSVERSION=1.29.2
 
 #######
 PREFIX=10.132
@@ -10,5 +10,4 @@ PODSUBNETCIDR=$(PREFIX).64.0/18
 AKSVNETNAME=aks-$(PREFIX)-net
 
 #For a stand alone setup Both ENV variable must have the same value
-RESOURCEGROUP=hcp-standalone-$(USER)
-VPNRESOURCEGROUP=$(RESOURCEGROUP)
+RESOURCEGROUP=aro-hcp-$(USER)
