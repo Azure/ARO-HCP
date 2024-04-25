@@ -24,7 +24,7 @@ import (
 const (
 	PatternSubscriptions  = "subscriptions/{" + PathSegmentSubscriptionID + "}"
 	PatternLocations      = "locations/{" + PageSegmentLocation + "}"
-	PatternProviders      = "providers/" + api.ProviderNamespace + "/" + api.ResourceType
+	PatternProviders      = "providers/" + api.ResourceType
 	PatternResourceGroups = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
 	PatternResourceName   = "{" + PathSegmentResourceName + "}"
 	PatternActionName     = "{" + PathSegmentActionName + "}"

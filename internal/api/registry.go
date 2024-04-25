@@ -16,7 +16,7 @@ import (
 const (
 	ProviderNamespace        = "Microsoft.RedHatOpenShift"
 	ProviderNamespaceDisplay = "Azure Red Hat OpenShift"
-	ResourceType             = "hcpOpenShiftClusters"
+	ResourceType             = ProviderNamespace + "/" + "hcpOpenShiftClusters"
 	ResourceTypeDisplay      = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 

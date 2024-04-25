@@ -22,10 +22,8 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidResourceType, "",
-			"The resource type '%s' could not be found in "+
-				"the namespace '%s' for API version '%s'.",
+			"The resource type '%s' could not be found API version '%s'.",
 			api.ResourceType,
-			api.ProviderNamespace,
 			apiVersion)
 	} else {
 		ctx := ContextWithVersion(r.Context(), version)
