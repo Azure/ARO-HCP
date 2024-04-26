@@ -4,7 +4,6 @@ package main
 // Licensed under the Apache License 2.0.
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -51,7 +50,14 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 
 	startTime := time.Now()
 
-	logger := r.Context().Value(ContextKeyLogger).(*slog.Logger).With(
+	logger, err := LoggerFromContext(r.Context())
+	if err != nil {
+		DefaultLogger().Error(err.Error())
+		arm.WriteInternalServerError(w)
+		return
+	}
+
+	logger = logger.With(
 		"request_method", r.Method,
 		"request_path", r.URL.Path,
 		"request_proto", r.Proto,
@@ -75,7 +81,7 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 	ctx := r.Context()
 
 	correlationData := arm.NewCorrelationData(r)
-	ctx = context.WithValue(ctx, ContextKeyCorrelationData, correlationData)
+	ctx = ContextWithCorrelationData(ctx, correlationData)
 
 	w.Header().Set(arm.HeaderNameRequestID, correlationData.RequestID.String())
 
@@ -108,8 +114,15 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 		attrs = append(attrs, slog.String("resource_id", resource_id))
 	}
 
-	handler := ctx.Value(ContextKeyLogger).(*slog.Logger).Handler()
-	ctx = context.WithValue(ctx, ContextKeyLogger, slog.New(handler.WithAttrs(attrs)))
+	logger, err := LoggerFromContext(ctx)
+	if err != nil {
+		DefaultLogger().Error(err.Error())
+		arm.WriteInternalServerError(w)
+		return
+	}
+
+	handler := logger.Handler()
+	ctx = ContextWithLogger(ctx, slog.New(handler.WithAttrs(attrs)))
 
 	next(w, r.WithContext(ctx))
 }

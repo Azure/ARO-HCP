@@ -4,7 +4,6 @@ package main
 // Licensed under the Apache License 2.0.
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -29,7 +28,8 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 			api.ProviderNamespace,
 			apiVersion)
 	} else {
-		r = r.WithContext(context.WithValue(r.Context(), ContextKeyVersion, version))
+		ctx := ContextWithVersion(r.Context(), version)
+		r = r.WithContext(ctx)
 		next(w, r)
 	}
 }

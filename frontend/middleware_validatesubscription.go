@@ -4,7 +4,6 @@ package main
 // Licensed under the Apache License 2.0.
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -51,7 +50,8 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 	}
 
 	// the subscription exists, store its current state as context
-	r = r.WithContext(context.WithValue(r.Context(), ContextKeySubscriptionState, sub.State))
+	ctx := ContextWithSubscriptionState(r.Context(), sub.State)
+	r = r.WithContext(ctx)
 	switch sub.State {
 	case arm.Registered:
 		next(w, r)

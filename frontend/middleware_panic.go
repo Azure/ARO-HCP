@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"runtime/debug"
 
@@ -15,9 +14,13 @@ import (
 func MiddlewarePanic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	defer func() {
 		if e := recover(); e != nil {
-			if logger, ok := r.Context().Value(ContextKeyLogger).(*slog.Logger); ok {
-				logger.Error(fmt.Sprintf("panic: %#v\n%s\n", e, string(debug.Stack())))
+			logger, err := LoggerFromContext(r.Context())
+			if err != nil {
+				logger = DefaultLogger()
 			}
+
+			logger.Error(fmt.Sprintf("panic: %#v\n%s\n", e, string(debug.Stack())))
+
 			arm.WriteInternalServerError(w)
 		}
 	}()
