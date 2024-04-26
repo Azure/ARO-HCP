@@ -5,15 +5,12 @@ HCPDEVSUBSCRIPTION="ARO Hosted Control Planes (EA Subscription 1)"
 HCPDEVSUBSCRIPTIONID=1d3378d3-5a3f-4712-85a1-2485495dfc4b
 
 AKSTEMPLATE=templates/aks-development.bicep
-VPNTEMPLATE=templates/vpn-development.bicep
-VPNCA=$(shell base64 -w0 < secrets/vpn-ca.crt)
 CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
-DEPLOYMENTNAME=hcp-$(USER)-aks-cluster
-PRIVATE_AKS?=true
+DEPLOYMENTNAME=hcp-$(USER)
+LOCATION?=eastus
+RESOURCEGROUP=aro-hcp-${AKSCONFIG}-$(USER)
 
-ifdef AKSCONFIG
-include ./configurations/$(AKSCONFIG)
-else
+ifndef AKSCONFIG
 $(error "Must set AKSCONFIG")
 endif
 
@@ -40,26 +37,19 @@ rg: setsubscription
   		--location $(LOCATION) \
 		--tags "CreatedByConfig=${AKSCONFIG}"
 
-aks.linked: setsubscription rg
+dev.infrastructure: setsubscription rg
 	az deployment group create \
-		--name "$(DEPLOYMENTNAME)-aks" \
+		--name "$(DEPLOYMENTNAME)-dev-infra" \
 		--resource-group $(RESOURCEGROUP) \
 		--template-file $(AKSTEMPLATE) \
 		--confirm-with-what-if \
 		--parameters \
-			kubernetesVersion=$(AKSVERSION) \
-			vnetAddressPrefix=$(VNETCIDR) \
-			subnetPrefix=$(NODESUBNETCIDR) \
-			podSubnetPrefix=$(PODSUBNETCIDR) \
-			currentUserId=$(CURRENTUSER) \
-			enablePrivateCluster=$(PRIVATE_AKS) \
-			createdByConfigTag=${AKSCONFIG}
-
-
-aks.standalone: setsubscription rg aks.linked
+			configurations/${AKSCONFIG}.bicepparam \
+		--parameters \
+			currentUserId=$(CURRENTUSER)
 
 aks.kubeconfig:
-	az aks get-credentials -n aro-hcp-cluster-001 -g $(RESOURCEGROUP) --public-fqdn -a -f aks.kubeconfig
+	az aks get-credentials -n aro-hcp-cluster-001 -g $(RESOURCEGROUP) -a -f aks.kubeconfig
 
 secrets-download: setsubscription
 	@[ "${SECRET_SA_ACCOUNT_NAME}" ] || ( echo ">> SECRET_SA_ACCOUNT_NAME is not set"; exit 1 )

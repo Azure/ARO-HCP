@@ -2,13 +2,12 @@
 
 ## Background
 
-The idea of this repo is to provide means to create a development environment that resemble the (future) production setup in a repeatable way. In order to do so, the creation of all infrastructure resources is based on bicep templates that are fed with named configurations through a Makefile.
+The idea of this repo is to provide means to create a development environment that resemble the (future) production setup in a repeatable way. In order to do so, the creation of all infrastructure resources is based on bicep templates and parameter files.
 
 ## Prerequisites
 
 * `az`, `jq`, `make`
 * `az login` with your Red Hat email
-
 
 ## Procedure
 
@@ -16,10 +15,10 @@ The idea of this repo is to provide means to create a development environment th
 
    ```bash
    # Private AKS Cluster
-   AKSCONFIG=standalone make aks.standalone
+   AKSCONFIG=private make dev.infrastructure
 
    # Public AKS Cluster
-   AKSCONFIG=standalone PRIVATE_AKS=false make aks.standalone
+   AKSCONFIG=public make dev.infrastructure
    ```
 
 1. Access private AKS clusters with:
@@ -62,7 +61,7 @@ This will create:
 1. A service principal/application using the created cert as its authentication, and given access based on the custom role definition
 
 ### Step 3 (optional) - log in as the mock application
-You may need to manually interact with resources as the service principal, however this shouldn't be required. If you do need to, the 'login' command will download the cert and login with it. Don't forget to logout of the service principal in order to log back in via your personal account. 
+You may need to manually interact with resources as the service principal, however this shouldn't be required. If you do need to, the 'login' command will download the cert and login with it. Don't forget to logout of the service principal in order to log back in via your personal account.
 
 ```bash
 cd dev-infrastructure/scripts
@@ -88,8 +87,8 @@ This will delete:
 
 > Please note that all resource groups not tagged with `persist=true` will be deleted by our cleanup pipeline after 48 hours
 
-1. This will cleanup all resources created in Azure
+1. Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azure
 
    ```bash
-   AKSCONFIG=standalone make clean
+   AKSCONFIG=private make clean
    ```
