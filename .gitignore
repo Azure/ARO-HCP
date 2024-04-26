@@ -6,7 +6,7 @@ node_modules
 /.vscode
 /*.crt
 /*.key
-/*kubeconfig
+*kubeconfig
 /*.pem
 .DS_Store
 .idea
