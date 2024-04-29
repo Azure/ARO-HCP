@@ -1,6 +1,11 @@
 @description('The name of the AKS Managed Cluster resource.')
 param aksClusterName string = 'aro-hcp-cluster-001'
 
+// TODO: When the work around workload identity for the RP is finalized,
+// change this to true
+@description('disableLocalAuth for the ARO HCP RP CosmosDB')
+param disableLocalAuth bool = false
+
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
 param dnsPrefix string = aksClusterName
 
@@ -283,5 +288,20 @@ resource currentUserAksRbacClusterAdmin 'Microsoft.Authorization/roleAssignments
       roleDefinitionId: aksClusterRbacClusterAdminRoleId
       principalId: currentUserId
       principalType: 'User'
+    }
+  }
+
+@description('Deploy ARO HCP RP Azure Cosmos DB if true')
+param deployFrontendCosmos bool = true
+
+module nestedPeeringTemplate './rp-cosmos.bicep' =
+  if (deployFrontendCosmos) {
+    name: 'nestedTemplate1'
+    scope: resourceGroup()
+    params: {
+      location: location
+      aksNodeSubnetId: aksNodeSubnet.id
+      vnetId: vnet.id
+      disableLocalAuth: disableLocalAuth
     }
   }
