@@ -54,6 +54,10 @@ func TestGetJSONTagName(t *testing.T) {
 	}
 }
 
+type TestAPIVersion struct {
+	APIVersion string `validate:"api_version"`
+}
+
 type TestRequiredForPut struct {
 	StructField any `json:"field" validate:"required_for_put"`
 }
@@ -63,11 +67,33 @@ func TestNewValidator(t *testing.T) {
 	var nilMap map[int]int
 	var nilPointer *int
 
+	// Register an API version without implementing the interface.
+	apiRegistry["valid-api-version"] = nil
+
 	tests := []struct {
 		name        string
 		context     validateContext
 		expectError bool
 	}{
+		{
+			name: "Validation passes on known API version",
+			context: validateContext{
+				Method: http.MethodPost, // not relevant
+				Resource: TestAPIVersion{
+					APIVersion: "valid-api-version",
+				},
+			},
+		},
+		{
+			name: "Validation fails on unknown API version",
+			context: validateContext{
+				Method: http.MethodPost, // not relevant
+				Resource: TestAPIVersion{
+					APIVersion: "bogus-api-version",
+				},
+			},
+			expectError: true,
+		},
 		{
 			name: "Zero value is ok when not required",
 			context: validateContext{
@@ -178,14 +204,19 @@ func TestNewValidator(t *testing.T) {
 				t.Errorf("Unexpected error: %v", err)
 			} else {
 				for _, fieldError := range err.(validator.ValidationErrors) {
-					if fieldError.Tag() != "required_for_put" {
-						t.Errorf("Unexpected tag '%s' in FieldError, expected 'required_for_put'", fieldError.Tag())
-					}
-					if fieldError.Field() != "field" {
-						t.Errorf("Unexpected JSON field name '%s' in FieldError, expected 'field'", fieldError.Field())
-					}
-					if fieldError.StructField() != "StructField" {
-						t.Errorf("Unexpected struct field name '%s' in FieldError, expected 'StructField'", fieldError.StructField())
+					switch fieldError.Tag() {
+					case "api_version":
+						// Valid tag, nothing more to check.
+					case "required_for_put":
+						// Verify the validate instance is using GetJSONTagName.
+						if fieldError.Field() != "field" {
+							t.Errorf("Unexpected JSON field name '%s' in FieldError, expected 'field'", fieldError.Field())
+						}
+						if fieldError.StructField() != "StructField" {
+							t.Errorf("Unexpected struct field name '%s' in FieldError, expected 'StructField'", fieldError.StructField())
+						}
+					default:
+						t.Errorf("Unexpected validation tag: %s", fieldError.Tag())
 					}
 				}
 			}
