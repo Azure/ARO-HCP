@@ -1,6 +1,5 @@
 SHELL = /bin/bash
 COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
-# There is currently no ACR for ARO HCP components. Variable will be defined later
 ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
@@ -17,18 +16,13 @@ MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint:
 	golangci-lint run -v $(MODULES)
 
-.PHONY: frontend
-frontend:
-	go build -o aro-hcp-frontend ./frontend
+frontend-build-container:
+	docker build --platform="linux/amd64" -f "frontend/Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
 
-frontend-multistage:
-	docker build --platform=linux/amd64 -f Dockerfile.frontend -t ${ARO_HCP_FRONTEND_IMAGE} .
-
-clean:
-	rm aro-hcp-frontend
-
-deploy-frontend:
+frontend-deploy:
 	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} | oc apply -f -
 
-undeploy-frontend:
+frontend-undeploy:
 	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} | oc delete -f -
+
+.PHONY: frontend-build frontend-build-container frontend-deploy frontend-undeploy test lint clean

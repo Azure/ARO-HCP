@@ -19,9 +19,9 @@ func main() {
 	version := "unknown"
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
-			fmt.Println(setting.Key, setting.Value)
 			if setting.Key == "vcs.revision" {
 				version = setting.Value
+				break
 			}
 		}
 	}
