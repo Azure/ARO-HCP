@@ -7,21 +7,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
-
-	validator "github.com/go-playground/validator/v10"
 )
 
 // CloudError codes
 const (
-	CloudErrorCodeInternalServerError   = "InternalServerError"
-	CloudErrorCodeInvalidParameter      = "InvalidParameter"
-	CloudErrorCodeInvalidRequestContent = "InvalidRequestContent"
-	CloudErrorCodeInvalidResource       = "InvalidResource"
-	CloudErrorCodeInvalidResourceType   = "InvalidResourceType"
-	CloudErrorCodeUnsupportedMediaType  = "UnsupportedMediaType"
-	CloudErrorCodeNotFound              = "NotFound"
-	CloudErrorInvalidSubscriptionState  = "InvalidSubscriptionState"
+	CloudErrorCodeInternalServerError    = "InternalServerError"
+	CloudErrorCodeInvalidParameter       = "InvalidParameter"
+	CloudErrorCodeInvalidRequestContent  = "InvalidRequestContent"
+	CloudErrorCodeInvalidResource        = "InvalidResource"
+	CloudErrorCodeInvalidResourceType    = "InvalidResourceType"
+	CloudErrorCodeMultipleErrorsOccurred = "MultipleErrorsOccurred"
+	CloudErrorCodeUnsupportedMediaType   = "UnsupportedMediaType"
+	CloudErrorCodeNotFound               = "NotFound"
+	CloudErrorInvalidSubscriptionState   = "InvalidSubscriptionState"
 )
 
 // CloudError represents a complete resource provider error.
@@ -114,51 +112,22 @@ func WriteInternalServerError(w http.ResponseWriter) {
 		"Internal server error.")
 }
 
-// WriteUnmarshalError writes an appropriate CloudError for JSON unmarshaling or
-// static validation errors to the given ResponseWriter
-func WriteUnmarshalError(err error, w http.ResponseWriter) {
+// NewUnmarshalCloudError creates an appropriate CloudError for JSON unmarshaling errors
+func NewUnmarshalCloudError(err error) *CloudError {
 	switch err := err.(type) {
+	case *CloudError:
+		return err
 	case *json.UnmarshalTypeError:
-		WriteError(
-			w, http.StatusBadRequest,
+		// FIXME Make the error message less implementation-specific.
+		//       It reveals both type names and programming language.
+		return NewCloudError(
+			http.StatusBadRequest,
 			CloudErrorCodeInvalidRequestContent,
 			err.Field,
 			err.Error())
-	case validator.ValidationErrors:
-		cloudError := NewCloudError(
-			http.StatusBadRequest,
-			CloudErrorCodeInvalidRequestContent, "",
-			"Content validation failed on one or more fields")
-		cloudError.CloudErrorBody.Details = make([]CloudErrorBody, len(err))
-		for index, fieldErr := range err {
-			message := fmt.Sprintf("Invalid value '%s' for field '%s'", fieldErr.Value(), fieldErr.Field())
-			// Try to add a corrective suggestion to the message.
-			tag := fieldErr.Tag()
-			if strings.HasPrefix(tag, "enum_") {
-				message += fmt.Sprintf(" (must be one of: %s)", fieldErr.Param())
-			} else {
-				switch tag {
-				case "required_for_put": // custom tag
-					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
-				case "cidrv4":
-					message += " (must be a v4 CIDR address)"
-				case "ipv4":
-					message += " (must be an IPv4 address)"
-				case "url":
-					message += " (must be a URL)"
-				}
-			}
-			_, target, _ := strings.Cut(fieldErr.Namespace(), ".")
-			cloudError.Details[index] = CloudErrorBody{
-				Code:    CloudErrorCodeInvalidRequestContent,
-				Message: message,
-				Target:  target,
-			}
-		}
-		WriteCloudError(w, cloudError)
 	default:
-		WriteError(
-			w, http.StatusBadRequest,
+		return NewCloudError(
+			http.StatusBadRequest,
 			CloudErrorCodeInvalidRequestContent,
 			"", err.Error())
 	}

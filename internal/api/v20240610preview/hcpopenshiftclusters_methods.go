@@ -4,7 +4,7 @@ package v20240610preview
 // Licensed under the Apache License 2.0.
 
 import (
-	"encoding/json"
+	"net/http"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -145,6 +145,10 @@ func newExternalAuthClientProfile(from configv1.OIDCClientConfig) *ExternalAuthC
 }
 
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
+	if from == nil {
+		from = api.NewDefaultHCPOpenShiftCluster()
+	}
+
 	out := &HcpOpenShiftClusterResource{
 		ID:       api.Ptr(from.Resource.ID),
 		Name:     api.Ptr(from.Resource.Name),
@@ -199,21 +203,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	}
 
 	return out
-}
-
-func (v version) UnmarshalHCPOpenShiftCluster(data []byte, out *api.HCPOpenShiftCluster, method string, updating bool) error {
-	var resource HcpOpenShiftClusterResource
-
-	err := json.Unmarshal(data, &resource)
-	if err != nil {
-		return err
-	}
-
-	// FIXME Handle updating flag and possibly other flags.
-
-	resource.Normalize(out)
-
-	return api.ValidateRequest(validate, method, updating, out)
 }
 
 func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
@@ -305,8 +294,34 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 	}
 }
 
-func (c *HcpOpenShiftClusterResource) ValidateStatic() error {
-	return nil
+func (c *HcpOpenShiftClusterResource) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, method string) *arm.CloudError {
+	var normalized api.HCPOpenShiftCluster
+	var errorDetails []arm.CloudErrorBody
+
+	cloudError := arm.NewCloudError(
+		http.StatusBadRequest,
+		arm.CloudErrorCodeMultipleErrorsOccurred, "",
+		"Content validation failed on multiple fields")
+	cloudError.Details = make([]arm.CloudErrorBody, 0)
+
+	// FIXME Validate visibility tags by comparing the new cluster (c) to current.
+
+	c.Normalize(&normalized)
+
+	errorDetails = api.ValidateRequest(validate, method, &normalized)
+	if errorDetails != nil {
+		cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
+
+	switch len(cloudError.Details) {
+	case 0:
+		cloudError = nil
+	case 1:
+		// Promote a single validation error out of details.
+		cloudError.CloudErrorBody = &cloudError.Details[0]
+	}
+
+	return cloudError
 }
 
 func (p *VersionProfile) Normalize(out *api.VersionProfile) {

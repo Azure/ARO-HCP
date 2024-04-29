@@ -105,10 +105,9 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 
 	if pathValue = r.PathValue(PathSegmentResourceName); pathValue != "" {
 		attrs = append(attrs, slog.String("resource_name", pathValue))
-		resource_id := fmt.Sprintf("/subscriptions/%s/resourcegroups/%s/providers/%s/%s/%s",
+		resource_id := fmt.Sprintf("/subscriptions/%s/resourcegroups/%s/providers/%s/%s",
 			r.PathValue(PathSegmentSubscriptionID),
 			r.PathValue(PathSegmentResourceGroupName),
-			api.ProviderNamespace,
 			api.ResourceType,
 			pathValue)
 		attrs = append(attrs, slog.String("resource_id", resource_id))
