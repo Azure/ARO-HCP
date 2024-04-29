@@ -9,17 +9,25 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 )
 
 const ProgramName = "ARO HCP Frontend"
 
-var Version = "unknown" // overridden by Makefile
-
 func main() {
+	version := "unknown"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			fmt.Println(setting.Key, setting.Value)
+			if setting.Key == "vcs.revision" {
+				version = setting.Value
+			}
+		}
+	}
 	logger := DefaultLogger()
 
-	logger.Info(fmt.Sprintf("%s (%s) started", ProgramName, Version))
+	logger.Info(fmt.Sprintf("%s (%s) started", ProgramName, version))
 
 	ctx := context.Background()
 	stop := make(chan struct{})
@@ -43,5 +51,5 @@ func main() {
 	close(stop)
 	frontend.Join()
 
-	logger.Info(fmt.Sprintf("%s (%s) stopped", ProgramName, Version))
+	logger.Info(fmt.Sprintf("%s (%s) stopped", ProgramName, version))
 }
