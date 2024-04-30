@@ -12,5 +12,6 @@ const (
 	PathSegmentSubscriptionID    = "subscriptionid"
 	PathSegmentResourceGroupName = "resourcegroupname"
 	PathSegmentResourceName      = "resourcename"
+	PathSegmentDeploymentName    = "deploymentname"
 	PathSegmentActionName        = "actionname"
 )

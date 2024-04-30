@@ -65,6 +65,8 @@ func GetJSONTagName(tag reflect.StructTag) string {
 }
 
 func NewValidator() *validator.Validate {
+	var err error
+
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
 	// Use "json" struct tags for alternate field names.
@@ -73,8 +75,21 @@ func NewValidator() *validator.Validate {
 		return GetJSONTagName(field.Tag)
 	})
 
+	// Use this for string fields specifying an ARO-HCP API version.
+	err = validate.RegisterValidation("api_version", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			panic("String type required for api_version")
+		}
+		_, ok := Lookup(field.String())
+		return ok
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	// Use this for fields required in PUT requests. Do not apply to read-only fields.
-	err := validate.RegisterValidation("required_for_put", func(fl validator.FieldLevel) bool {
+	err = validate.RegisterValidation("required_for_put", func(fl validator.FieldLevel) bool {
 		val := fl.Top().FieldByName("Method")
 		if val.IsZero() {
 			panic("Method field not found for required_for_put")
@@ -132,7 +147,9 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 				message += fmt.Sprintf(" (must be one of: %s)", fieldErr.Param())
 			} else {
 				switch tag {
-				case "required_for_put": // custom tag
+				case "api_version": // custom tag
+					message = fmt.Sprintf("Unrecognized API version '%s'", fieldErr.Value())
+				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
 				case "cidrv4":
 					message += " (must be a v4 CIDR address)"

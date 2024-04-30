@@ -114,21 +114,20 @@ func WriteInternalServerError(w http.ResponseWriter) {
 
 // NewUnmarshalCloudError creates an appropriate CloudError for JSON unmarshaling errors
 func NewUnmarshalCloudError(err error) *CloudError {
+	const message = "The request content was invalid and could not be deserialized: %q"
+
 	switch err := err.(type) {
 	case *CloudError:
 		return err
 	case *json.UnmarshalTypeError:
-		// FIXME Make the error message less implementation-specific.
-		//       It reveals both type names and programming language.
 		return NewCloudError(
 			http.StatusBadRequest,
 			CloudErrorCodeInvalidRequestContent,
-			err.Field,
-			err.Error())
+			err.Field, message, err)
 	default:
 		return NewCloudError(
 			http.StatusBadRequest,
 			CloudErrorCodeInvalidRequestContent,
-			"", err.Error())
+			"", message, err)
 	}
 }
