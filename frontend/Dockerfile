@@ -14,6 +14,10 @@ RUN cd frontend && make frontend
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.9-1161
 
+ENV USER_UID=1001 \
+    USER_NAME=frontend
+
 COPY --from=builder /app/frontend/aro-hcp-frontend /usr/local/bin/
 ENTRYPOINT ["aro-hcp-frontend"]
+USER ${USER_UID}
 EXPOSE 8443/tcp
