@@ -12,12 +12,22 @@ parameters:
   value: "1"
 - name: ARO_HCP_FRONTEND_IMAGE
   required: true
+- name: FRONTEND_MI_CLIENT_ID
+  required: true
+  description: "Client ID of Frontend Managed Identity"
 
 objects:
 - apiVersion: v1
   kind: Namespace
   metadata:
     name: ${NAMESPACE}
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    annotations:
+      azure.workload.identity/client-id: ${FRONTEND_MI_CLIENT_ID}
+    name: frontend
+    namespace: ${NAMESPACE}
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
@@ -41,7 +51,9 @@ objects:
       metadata:
         labels:
           app: aro-hcp-frontend
+          azure.workload.identity/use: "true"
       spec:
+        serviceAccountName: frontend
         containers:
         - name: aro-hcp-frontend
           image: ${ARO_HCP_FRONTEND_IMAGE}
