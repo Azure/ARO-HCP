@@ -35,6 +35,15 @@ param deployFrontendCosmos bool
 @description('List of workload identities to create and their required values')
 param workloadIdentities array
 
+@description('Deploy ARO HCP Maestro Infrastructure if true')
+param deployMaestroInfra bool
+
+@description('The namespace where the maestro resources will be deployed.')
+param maestroNamespace string
+
+@description('The OneCertV2 domain to use to use for the maestro certificate.')
+param maestroCertDomain string?
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -68,3 +77,49 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
 }
 
 output frontend_mi_client_id string = frontendMI.uamiClientID
+
+//
+//   M A E S T R O
+//
+
+module maestroConfig '../modules/maestro/maestro-config.bicep' = {
+  name: 'maestro-config'
+  params: {
+    location: location
+    resourceGroupName: resourceGroup().name
+    certificateDomain: maestroCertDomain
+  }
+}
+
+module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestroInfra) {
+  name: 'maestro-infra'
+  params: {
+    eventGridNamespaceName: maestroConfig.outputs.maestroEventGridNamespaceName
+    location: location
+    currentUserId: currentUserId
+    maestroKeyVaultName: maestroConfig.outputs.maestroKeyVaultName
+    kvCertOfficerManagedIdentityName: maestroConfig.outputs.kvCertOfficerManagedIdentityName
+  }
+}
+
+module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaestroInfra) {
+  name: 'maestro-server'
+  params: {
+    aksClusterName: svcCluster.outputs.aksClusterName
+    maestroServerManagedIdentityPrincipalId: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'maestro-server'
+    )[0].uamiPrincipalID
+    maestroServerManagedIdentityClientId: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'maestro-server'
+    )[0].uamiClientID
+    namespace: maestroNamespace
+    maestroInfraResourceGroup: resourceGroup().name
+    maestroEventGridNamespaceName: maestroConfig.outputs.maestroEventGridNamespaceName
+    maestroKeyVaultName: maestroConfig.outputs.maestroKeyVaultName
+    maestroKeyVaultOfficerManagedIdentityName: maestroConfig.outputs.kvCertOfficerManagedIdentityName
+    maestroKeyVaultCertificateDomain: maestroConfig.outputs.maestroCertificateDomain
+    location: location
+  }
+}
