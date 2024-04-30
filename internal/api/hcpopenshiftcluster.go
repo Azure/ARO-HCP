@@ -89,7 +89,7 @@ type PlatformProfile struct {
 	ManagedResourceGroup string       `json:"managedResourceGroup,omitempty" validate:"required_for_put"`
 	SubnetID             string       `json:"subnetId,omitempty"             validate:"required_for_put"`
 	OutboundType         OutboundType `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
-	PreconfiguredNSGs    bool         `json:"preconfiguredNsgs,omitempty"    validate:"required_for_put"`
+	PreconfiguredNSGs    bool         `json:"preconfiguredNsgs,omitempty"`
 	EtcdEncryptionSetID  string       `json:"etcdEncryptionSetId,omitempty"`
 }
 
