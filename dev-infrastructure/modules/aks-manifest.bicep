@@ -1,6 +1,5 @@
-param name string
 param aksClusterName string
-param location string
+param location string = resourceGroup().location
 param aksManagedIdentityId string
 param manifests array
 param forceUpdateTag string = guid(string(manifests))
@@ -31,7 +30,7 @@ var mainfestList = {
 }
 
 resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: name
+  name: deployment().name
   location: location
   kind: 'AzureCLI'
   identity: {

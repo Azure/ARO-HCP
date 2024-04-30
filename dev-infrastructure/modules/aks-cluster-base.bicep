@@ -253,7 +253,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         enabled: true
         config: {
           enableSecretRotation: 'true'
-          rotationPollInterval: '24h'
+          rotationPollInterval: '5m'
           syncSecret: 'true'
         }
       }
@@ -388,7 +388,6 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
 module serviceAccounts './aks-manifest.bicep' = {
   name: '${aksClusterName}-service-accounts'
   params: {
-    name: '${aksClusterName}-service-accounts'
     aksClusterName: aksClusterName
     manifests: [
       for i in range(0, length(workloadIdentities)): {
@@ -423,3 +422,4 @@ output userAssignedIdentities array = [
 output aksVnetId string = vnet.id
 output aksNodeSubnetId string = aksNodeSubnet.id
 output aksOidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
+output aksClusterName string = aksClusterName
