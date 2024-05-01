@@ -96,9 +96,21 @@ var networkContributorRoleId = subscriptionResourceId(
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
 )
 
-resource aro_rp_mi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource frontend_mi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   location: location
-  name: 'aro-rp-${location}'
+  name: 'frontend-${location}'
+}
+
+resource frontend_mi_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+  name: 'frontend-${location}-fedcred'
+  parent: frontend_mi
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:aro-hcp:frontend'
+  }
 }
 
 resource aks_nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
@@ -264,6 +276,14 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
     autoUpgradeProfile: {
       upgradeChannel: 'node-image'
     }
+    oidcIssuerProfile: {
+      enabled: true
+    }
+    securityProfile: {
+      workloadIdentity: {
+        enabled: true
+      }  
+    }  
   }
 }
 
@@ -303,5 +323,9 @@ module nestedPeeringTemplate './rp-cosmos.bicep' =
       aksNodeSubnetId: aksNodeSubnet.id
       vnetId: vnet.id
       disableLocalAuth: disableLocalAuth
+      userAssignedMI: frontend_mi.id
+      uamiPrincipalId: frontend_mi.properties.principalId
     }
   }
+
+output frontend_mi_client_id string = frontend_mi.properties.clientId

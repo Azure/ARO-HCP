@@ -25,19 +25,47 @@ frontend-build-container:
 	docker build --platform="linux/amd64" -f "frontend/Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
 
 frontend-deploy:
-	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} --local | oc apply -f -
-
+	@test "${RESOURCE_GROUP}" != "" || (echo "RESOURCE_GROUP must be defined" && exit 1)
+	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
+			-g ${RESOURCE_GROUP} \
+			-n "hcp-${USER}-dev-infra" \
+			--query properties.outputs.frontend_mi_client_id.value);\
+	oc process -f ./deploy/aro-hcp-frontend.yml --local \
+		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
+		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" | oc apply -f -
+	 
 frontend-undeploy:
-	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} --local | oc delete -f -
+	@test "${RESOURCE_GROUP}" != "" || (echo "RESOURCE_GROUP must be defined" && exit 1)
+	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
+			-g ${RESOURCE_GROUP} \
+			-n "hcp-${USER}-dev-infra" \
+			--query properties.outputs.frontend_mi_client_id.value);\
+	oc process -f ./deploy/aro-hcp-frontend.yml --local \
+		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
+		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" | oc delete -f -
 
 frontend-deploy-private:
 	@test "${RESOURCE_GROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCE_GROUP and CLUSTER_NAME must be defined" && exit 1)
-	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} --local > /tmp/deploy.yml
-	az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl create -f deploy.yml" --file /tmp/deploy.yml
+	TMP_DEPLOY=$(shell mktemp);\
+	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
+			-g ${RESOURCE_GROUP} \
+			-n "hcp-${USER}-dev-infra" \
+			--query properties.outputs.frontend_mi_client_id.value);\
+	oc process -f ./deploy/aro-hcp-frontend.yml --local \
+		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
+		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" > "$${TMP_DEPLOY}";\
+	az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl create -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 frontend-undeploy-private:
 	@test "${RESOURCE_GROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCE_GROUP and CLUSTER_NAME must be defined" && exit 1)
-	oc process -f ./deploy/aro-hcp-frontend.yml -p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} --local > /tmp/deploy.yml
-	az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f deploy.yml" --file /tmp/deploy.yml	
+	TMP_DEPLOY=$(shell mktemp);\
+	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
+			-g ${RESOURCE_GROUP} \
+			-n "hcp-${USER}-dev-infra" \
+			--query properties.outputs.frontend_mi_client_id.value);\
+	oc process -f ./deploy/aro-hcp-frontend.yml --local \
+		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
+		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" > "$${TMP_DEPLOY}";\
+	az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 .PHONY: frontend-build frontend-build-container frontend-deploy frontend-undeploy test lint clean

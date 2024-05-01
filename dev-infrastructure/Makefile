@@ -6,7 +6,7 @@ HCPDEVSUBSCRIPTIONID=1d3378d3-5a3f-4712-85a1-2485495dfc4b
 
 AKSTEMPLATE=templates/aks-development.bicep
 CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
-DEPLOYMENTNAME=hcp-$(USER)
+DEPLOYMENTNAME=hcp-$(USER)-dev-infra
 LOCATION?=eastus
 RESOURCEGROUP=aro-hcp-${AKSCONFIG}-$(USER)
 
@@ -39,7 +39,7 @@ rg: setsubscription
 
 dev.infrastructure: setsubscription rg
 	az deployment group create \
-		--name "$(DEPLOYMENTNAME)-dev-infra" \
+		--name "$(DEPLOYMENTNAME)" \
 		--resource-group $(RESOURCEGROUP) \
 		--template-file $(AKSTEMPLATE) \
 		--confirm-with-what-if \

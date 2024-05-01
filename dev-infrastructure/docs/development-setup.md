@@ -42,7 +42,7 @@ In order for a resource provider to interact with a customers tenant, we create 
 ### Step 1 - Log into the dev account
 Follow the "Preparation" steps
 
-### Step 2 - Create the Application and its dependancies
+### Step 2 - Create the Application and its dependencies
 
 Make sure you have `jq` installed on the system running the script. It is used to modify the role definition json file.
 
