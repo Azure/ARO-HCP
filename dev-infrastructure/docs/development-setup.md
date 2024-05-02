@@ -11,14 +11,22 @@ The idea of this repo is to provide means to create a development environment th
 
 ## Procedure
 
-1. Provision a Public/Private AKS cluster
+There are a few variants to chose from when creating an AKS cluster:
+* Dev: Basic public AKS cluster, no extra services deployed
+* Service Cluster: Private AKS cluster, includes all Azure resources to run a Service cluster
+* Management Cluster: Private AKS cluster, includes all Azure resources to run a Management cluster
+
+1. Provision an AKS Cluster for each Variant 
 
    ```bash
-   # Private AKS Cluster
-   AKSCONFIG=private make dev.infrastructure
+   # Dev Cluster
+   AKSCONFIG=dev make dev.infrastructure
 
-   # Public AKS Cluster
-   AKSCONFIG=public make dev.infrastructure
+   # Service Cluster
+   AKSCONFIG=svc-cluster make dev.infrastructure
+
+   # Management Cluster
+   AKSCONFIG=mc-cluster make dev.infrastructure
    ```
 
 1. Access private AKS clusters with:

@@ -1,11 +1,15 @@
+// Constants
 param name string = '${resourceGroup().name}-rp-cosmos'
 param disableLocalAuth bool = true
+
+// Passed Params and Overrides
 param location string
 param aksNodeSubnetId string
 param vnetId string
 param userAssignedMI string
 param uamiPrincipalId string
 
+// Local Params
 var containerNames = [
   'Subscriptions'
   'AsyncOperations'
@@ -16,6 +20,7 @@ var containerNames = [
 param roleDefinitionId string = '00000000-0000-0000-0000-000000000002'
 var roleAssignmentId = guid(roleDefinitionId, uamiPrincipalId, cosmosDbAccount.id)
 
+// Main
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
   kind: 'GlobalDocumentDB'
   identity: {
