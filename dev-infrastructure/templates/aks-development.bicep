@@ -12,9 +12,6 @@ param dnsPrefix string = aksClusterName
 @description('(Optional) boolean flag to configure public/private AKS Cluster')
 param enablePrivateCluster bool = true
 
-@description('The number of agent nodes for the cluster.')
-param agentCount int = 2
-
 @description('The min number of agent nodes.')
 param agentMinCount int = 2
 
@@ -29,11 +26,8 @@ param agentVMSize string = 'Standard_D2s_v3'
 @maxValue(1023)
 param osDiskSizeGB int = 32
 
-@description('Maximum number of pods that can run on a node.')
-param maxPods int = 100
-
 @description('The version of Kubernetes.')
-param kubernetesVersion string = '1.29.2'
+param kubernetesVersion string
 
 @description('VNET address prefix')
 param vnetAddressPrefix string = '10.128.0.0/14'
@@ -49,33 +43,6 @@ param serviceCidr string = '10.130.0.0/16'
 
 @description('Containers DNS server IP address.')
 param dnsServiceIP string = '10.130.0.10'
-
-@description('boolean flag to turn on and off nodepool autoscaling')
-param nodePoolEnableAutoScaling bool = true
-
-@description('Specifies the scan interval of the auto-scaler of the AKS cluster.')
-param autoScalerProfileScanInterval string = '10s'
-
-@description('Specifies the scale down delay after add of the auto-scaler of the AKS cluster.')
-param autoScalerProfileScaleDownDelayAfterAdd string = '10m'
-
-@description('Specifies the scale down delay after delete of the auto-scaler of the AKS cluster.')
-param autoScalerProfileScaleDownDelayAfterDelete string = '20s'
-
-@description('Specifies scale down delay after failure of the auto-scaler of the AKS cluster.')
-param autoScalerProfileScaleDownDelayAfterFailure string = '3m'
-
-@description('Specifies the scale down unneeded time of the auto-scaler of the AKS cluster.')
-param autoScalerProfileScaleDownUnneededTime string = '10m'
-
-@description('Specifies the scale down unready time of the auto-scaler of the AKS cluster.')
-param autoScalerProfileScaleDownUnreadyTime string = '20m'
-
-@description('Specifies the utilization threshold of the auto-scaler of the AKS cluster.')
-param autoScalerProfileUtilizationThreshold string = '0.5'
-
-@description('Specifies the max graceful termination time interval in seconds for the auto-scaler of the AKS cluster.')
-param autoScalerProfileMaxGracefulTerminationSec string = '600'
 
 @description('Current user id')
 param currentUserId string
@@ -121,6 +88,66 @@ resource aks_nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
 resource aks_pod_nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
   name: 'aks-pod-nsg'
   location: location
+}
+
+resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  location: location
+  name: take('aks-kv-${uniqueString(currentUserId)}', 24)
+  tags: {
+    resourceGroup: resourceGroup().name 
+  }
+  properties: {
+    enableRbacAuthorization: true
+    enabledForDeployment: false
+    enabledForDiskEncryption: false
+    enabledForTemplateDeployment: false
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Deny'
+      ipRules: [
+        {
+          // TODO: restrict in higher environments
+          value: '0.0.0.0/0'
+        }
+      ]
+    }
+    // TODO: disabled in higher environments
+    publicNetworkAccess: 'Enabled'
+    sku: {
+      name: 'standard'
+      family: 'A'
+    }
+    tenantId: subscription().tenantId
+  }
+}
+
+resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
+  parent: aks_keyvault
+  name: 'aks-etcd-encryption'
+  properties: {
+    kty: 'RSA'
+    keyOps: [
+      'encrypt'
+      'decrypt'
+    ]
+    keySize: 2048
+  }
+}
+
+@description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
+var keyVaultCryptoUserId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '12338af0-0e69-4776-bea7-57ae8d297424'
+)
+
+resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aksClusterUserDefinedManagedIdentity.id, keyVaultCryptoUserId, aks_keyvault.id)
+  scope: aks_keyvault
+  properties: {
+    roleDefinitionId: keyVaultCryptoUserId
+    principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
@@ -217,6 +244,10 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
     }
   }
   properties: {
+    aadProfile: {
+      managed: true
+      enableAzureRBAC: true
+    }
     nodeResourceGroup: '${resourceGroup().name}-aks1'
     apiServerAccessProfile: {
       enablePrivateCluster: enablePrivateCluster
@@ -224,6 +255,11 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
     addonProfiles: {
       azureKeyvaultSecretsProvider: {
         enabled: true
+        config: {
+          enableSecretRotation: 'true'
+          rotationPollInterval: '24h'
+          syncSecret: 'true'
+        }
       }
     }
     kubernetesVersion: kubernetesVersion
@@ -231,22 +267,23 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
     dnsPrefix: dnsPrefix
     agentPoolProfiles: [
       {
-        name: 'systempool'
+        name: 'system'
         osType: 'Linux'
+        osSKU: 'AzureLinux'
         mode: 'System'
         orchestratorVersion: kubernetesVersion
-        enableAutoScaling: nodePoolEnableAutoScaling
+        enableAutoScaling: true
         enableEncryptionAtHost: true
         enableFIPS: true
         osDiskType: 'Ephemeral'
         osDiskSizeGB: osDiskSizeGB
-        count: agentCount
+        count: agentMinCount
         minCount: agentMinCount
         maxCount: agentMaxCount
         vmSize: agentVMSize
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
-        maxPods: maxPods
+        maxPods: 250
       }
     ]
     networkProfile: {
@@ -256,34 +293,53 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
       serviceCidr: serviceCidr
       dnsServiceIP: dnsServiceIP
     }
-    aadProfile: {
-      managed: true
-      enableAzureRBAC: true
-    }
     autoScalerProfile: {
       'balance-similar-node-groups': 'false'
-      'scan-interval': autoScalerProfileScanInterval
-      'scale-down-delay-after-add': autoScalerProfileScaleDownDelayAfterAdd
-      'scale-down-delay-after-delete': autoScalerProfileScaleDownDelayAfterDelete
-      'scale-down-delay-after-failure': autoScalerProfileScaleDownDelayAfterFailure
-      'scale-down-unneeded-time': autoScalerProfileScaleDownUnneededTime
-      'scale-down-unready-time': autoScalerProfileScaleDownUnreadyTime
-      'scale-down-utilization-threshold': autoScalerProfileUtilizationThreshold
+      'scan-interval': '10s'
+      'scale-down-delay-after-add': '10m'
+      'scale-down-delay-after-delete': '20s'
+      'scale-down-delay-after-failure': '3m'
+      'scale-down-unneeded-time': '10m'
+      'scale-down-unready-time': '20m'
+      'scale-down-utilization-threshold': '0.5'
       'skip-nodes-with-local-storage': 'false'
-      'max-graceful-termination-sec': autoScalerProfileMaxGracefulTerminationSec
+      'max-graceful-termination-sec': '600'
       'max-node-provision-time': '15m'
     }
     autoUpgradeProfile: {
+      nodeOSUpgradeChannel: 'NodeImage'
       upgradeChannel: 'node-image'
     }
     oidcIssuerProfile: {
       enabled: true
     }
     securityProfile: {
+      azureKeyVaultKms: {
+        enabled: true
+        keyId: aks_etcd_kms.properties.keyUriWithVersion
+        keyVaultNetworkAccess: 'Public'
+      }
+      imageCleaner: {
+        enabled: true
+        intervalHours: 24
+      }
       workloadIdentity: {
         enabled: true
-      }  
-    }  
+      }
+    }
+    serviceMeshProfile: {
+      mode: 'Istio'
+      istio: {
+        components: {
+          ingressGateways: [
+            {
+              enabled: true
+              mode: 'External'
+            }
+          ]
+        }
+      }
+    }
   }
 }
 

@@ -66,5 +66,6 @@ secrets-yes-i-want-to-update-the-shared-secrets: setsubscription
 
 clean: setsubscription
 	az group delete -g $(RESOURCEGROUP)
+	az keyvault purge --name "$$(az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')"
 
 .PHONY: aks.kubeconfig
