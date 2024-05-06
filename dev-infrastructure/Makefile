@@ -4,7 +4,6 @@ SHELL = /bin/bash
 HCPDEVSUBSCRIPTION="ARO Hosted Control Planes (EA Subscription 1)"
 HCPDEVSUBSCRIPTIONID=1d3378d3-5a3f-4712-85a1-2485495dfc4b
 
-AKSTEMPLATE=templates/aks-development.bicep
 CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
 DEPLOYMENTNAME=hcp-$(USER)-dev-infra
 LOCATION?=eastus
@@ -37,16 +36,27 @@ rg: setsubscription
   		--location $(LOCATION) \
 		--tags "CreatedByConfig=${AKSCONFIG}"
 
-dev.infrastructure: setsubscription rg
+dev.svc-cluster: setsubscription rg
 	az deployment group create \
 		--name "$(DEPLOYMENTNAME)" \
 		--resource-group $(RESOURCEGROUP) \
-		--template-file $(AKSTEMPLATE) \
+		--template-file templates/svc-cluster.bicep \
 		--confirm-with-what-if \
 		--parameters \
 			configurations/${AKSCONFIG}.bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER)
+
+dev.mc-cluster: setsubscription rg
+	az deployment group create \
+		--name "$(DEPLOYMENTNAME)" \
+		--resource-group $(RESOURCEGROUP) \
+		--template-file templates/mc-cluster.bicep \
+		--confirm-with-what-if \
+		--parameters \
+			configurations/${AKSCONFIG}.bicepparam \
+		--parameters \
+			currentUserId=$(CURRENTUSER)			
 
 aks.kubeconfig:
 	az aks get-credentials -n aro-hcp-cluster-001 -g $(RESOURCEGROUP) -a -f aks.kubeconfig
