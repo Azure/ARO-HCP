@@ -1,3 +1,4 @@
+---
 name: 'ci-go'
 on:
   pull_request:
