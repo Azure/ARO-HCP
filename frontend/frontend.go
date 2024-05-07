@@ -15,10 +15,11 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/metrics"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (

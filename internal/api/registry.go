@@ -9,8 +9,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	validator "github.com/go-playground/validator/v10"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
