@@ -3,19 +3,19 @@
 # This script can be used to spin up a standalone dev application which will be used as a 'mock first party application'.
 # This is required due to the lack of the ability to have a first party app be used in the dev tenant
 
-LOCATION="eastus"
-UNIQUE_PREFIX="HCP-$USER-$LOCATION"
+LOCATION=${LOCATION:-"eastus"}
+UNIQUE_PREFIX=${UNIQUE_PREFIX:-"HCP-$USER-$LOCATION"}
 if [ ${#UNIQUE_PREFIX} -gt 20 ]; then
-    echo "UNIQUE_PREFIX=$UNIQUE_PREFIX is too long"
+    echo "UNIQUE_PREFIX=$UNIQUE_PREFIX is too long" > /dev/stderr
     UNIQUE_PREFIX=${UNIQUE_PREFIX:0:20}
-    echo "trimmed UNIQUE_PREFIX=$UNIQUE_PREFIX to 20 characters"
+    echo "trimmed UNIQUE_PREFIX=$UNIQUE_PREFIX to 20 characters" > /dev/stderr
 fi
-APP_KEY_VAULT_NAME="$UNIQUE_PREFIX-vlt"
-APP_CERT_NAME="$UNIQUE_PREFIX-svc"
-APP_REGISTRATION_NAME="$UNIQUE_PREFIX-app"
-RESOURCE_GROUP="$UNIQUE_PREFIX-RG"
-ROLE_DEFINITION_NAME="$UNIQUE_PREFIX-role"
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+APP_KEY_VAULT_NAME=${APP_KEY_VAULT_NAME:-"$UNIQUE_PREFIX-vlt"}
+APP_CERT_NAME=${APP_CERT_NAME:-"$UNIQUE_PREFIX-svc"}
+APP_REGISTRATION_NAME=${APP_REGISTRATION_NAME:-"$UNIQUE_PREFIX-app"}
+RESOURCE_GROUP=${RESOURCE_GROUP:-"$UNIQUE_PREFIX-RG"}
+ROLE_DEFINITION_NAME=${ROLE_DEFINITION_NAME:-"$UNIQUE_PREFIX-role"}
+SUBSCRIPTION_ID=${SUBSCRIPTION_ID:-$(az account show --query id -o tsv)}
 
 printEnv() {
     echo "LOCATION: $LOCATION"
@@ -24,6 +24,16 @@ printEnv() {
     echo "APP_REGISTRATION_NAME: $APP_REGISTRATION_NAME"
     echo "RESOURCE_GROUP: $RESOURCE_GROUP"
     echo "SUBSCRIPTION_ID: $SUBSCRIPTION_ID"
+}
+
+shellEnv() {
+    # Calling shell can "eval" this output.
+    echo "LOCATION=\"$LOCATION\"; export LOCATION"
+    echo "APP_KEY_VAULT_NAME=\"$APP_KEY_VAULT_NAME\"; export APP_KEY_VAULT_NAME"
+    echo "APP_CERT_NAME=\"$APP_CERT_NAME\"; export APP_CERT_NAME"
+    echo "APP_REGISTRATION_NAME=\"$APP_REGISTRATION_NAME\"; export APP_REGISTRATION_NAME"
+    echo "RESOURCE_GROUP=\"$RESOURCE_GROUP\"; export RESOURCE_GROUP"
+    echo "SUBSCRIPTION_ID=\"$SUBSCRIPTION_ID\"; export SUBSCRIPTION_ID"
 }
 
 createMockFirstPartyApp() {
@@ -152,8 +162,11 @@ case "$1" in
     "login")
         loginWithMockServicePrincipal
     ;;
+    "shell")
+        shellEnv
+    ;;
     *)
-        echo "Usage: $0 {create|delete|login}"
+        echo "Usage: $0 {create|delete|login|shell}"
         exit 1
     ;;
 esac
