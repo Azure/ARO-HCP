@@ -88,5 +88,5 @@ autorest api/autorest-config.yaml
 
 The generated clients are stored in `api/generated`.
 
-**IMPORTANT**: When the new examples are generated, all files are changed. Please make sure to review the changes before comitting them
+**IMPORTANT**: When the new examples are generated, all files are changed. Please make sure to review the changes before committing them
 and commit only the changed parts. Otherwise it will result is a lot of unnecessary changes in the PR.

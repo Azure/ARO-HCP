@@ -1,8 +1,8 @@
 ## About
-The resources_cleanup.py Python script is inteded to be used in [Azure Automation](https://learn.microsoft.com/en-us/azure/automation/overview) in order to automatically clean up resource groups of the [ARO Hosted Control Planes (EA Subscription 1)](https://portal.azure.com/#@redhat0.onmicrosoft.com/resource/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/overview) to keep just the minimum resources needed.
+The resources_cleanup.py Python script is intended to be used in [Azure Automation](https://learn.microsoft.com/en-us/azure/automation/overview) in order to automatically clean up resource groups of the [ARO Hosted Control Planes (EA Subscription 1)](https://portal.azure.com/#@redhat0.onmicrosoft.com/resource/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/overview) to keep just the minimum resources needed.
 
 ## What does the script do?
-The flowchart folder contains a flowchart with details about what the script does. It basically iterates over all the resource groups of the subscription and deletes those that satisify some conditions, skipping the resource groups that have a deny assignment rule.
+The flowchart folder contains a flowchart with details about what the script does. It basically iterates over all the resource groups of the subscription and deletes those that satisfy some conditions, skipping the resource groups that have a deny assignment rule.
 
 ## Azure Automation
 We use the Azure Automation service which includes a range of tools to integrate different aspects of automation of tasks in Azure.
@@ -23,7 +23,7 @@ The Python script in this folder is what will be run in the Azure Automation acc
 An executable script is called _Runbook_ in Azure Automation. In order to modify the contents of the Runbook that exists in Azure, we need to go to Azure > Specific Azure Automation Account > Runbooks (Process Automation section) > Click on the Runbook name or Create a new Runbook > Edit > Edit in Portal > Paste the contents of the script in the editor. To execute (test) it: Test Pane > Start > The result of the script will be shown on screen after some seconds. This does not count as a Job as we are testing the Runbook. A Job is an instance of an execution of the Runbook after it is Published (explained below).
 
 #### Job
-Once we decide the script is doing what we expect, we need to get out of this _Test pane_ View and go back to _Edit Runbook_ (we can use the top breadcrum bar) and Click _Publish_. A pop up will ask if we really want to override the previously published version with the new content, we click _Yes_. Once the Runbook is published, we can directly press the _Start_ button, a pop up will apear on the side where we can introduce parameters, if any. We then press _OK_ to execute the Runbook, creating a new _Job_. The view of the current Job will open with the details of that execution. We can go to the _Output_ tab and press the _Refresh_ button (on top of the screen) to see the logs of the Job (after some seconds).
+Once we decide the script is doing what we expect, we need to get out of this _Test pane_ View and go back to _Edit Runbook_ (we can use the top breadcrumb bar) and Click _Publish_. A pop up will ask if we really want to override the previously published version with the new content, we click _Yes_. Once the Runbook is published, we can directly press the _Start_ button, a pop up will appear on the side where we can introduce parameters, if any. We then press _OK_ to execute the Runbook, creating a new _Job_. The view of the current Job will open with the details of that execution. We can go to the _Output_ tab and press the _Refresh_ button (on top of the screen) to see the logs of the Job (after some seconds).
 
 #### Alert rules
 Alert rules allow users to define different kind of rules (based on Metrics -number of Job runs-, Logs, etc) that trigger the creation of an alert. Alerts can be viewed and configured in Azure Automation Account > Alerts (Monitoring Section). For this resources_cleanup Runbook, we want to create an alert when a Job fails, so we need to create a [_Log search alert rule_](https://learn.microsoft.com/en-gb/azure/azure-monitor/alerts/alerts-create-log-alert-rule) that basically will run a Query on the Logs of the Jobs and trigger an alert when it detects that a Job has failed.
@@ -39,7 +39,7 @@ AzureDiagnostics
 | project TimeGenerated, RunbookName_s, ResultType, _ResourceId, JobId_g
 ```
 
-In the current alert rule configuration, this query is run every day and we check the agreggation of the past day: each day, that query will be run for the logs of the last 24h and if there is any Job failure in the automation account, it will generate an alert. 
+In the current alert rule configuration, this query is run every day and we check the aggregation of the past day: each day, that query will be run for the logs of the last 24h and if there is any Job failure in the automation account, it will generate an alert. 
 
 ##### Diagnostic settings for the clean-up resources
 Inside the Azure Automation Account, in the _Monitoring_ section, we have the _Diagnostic settings_, that are used to configure streaming export of platform logs and metrics for a resource. In our case, we have configured a new Diagnostic setting named _hcp-cleanup-diagnostic_ with a configuration to export the logs from the Jobs to be able to query those logs using the custom query (explained above). It basically defines that the _JobLogs_ should be _Send to Log Analytics workspace_, to the development subscription ARO-HCP, to a Default Workspace.
@@ -77,12 +77,12 @@ These are the [packages](https://portal.azure.com/#@redhat0.onmicrosoft.com/reso
 - msal 1.26.0
 - typing_extensions 4.9.0
 
-Appart from that list, we also have the file _requirements.txt_ containing all the dependencies of the script in order to work, including some development dependencies like Pytest.
+Apart from that list, we also have the file _requirements.txt_ containing all the dependencies of the script in order to work, including some development dependencies like Pytest.
 
-In other words, if we were considering the script a regular Python program, we could use directly _requirements.txt_, but if we need to deploy the script in Azure automation as a Runbook, we should manually install the packages from the previous list using the _Python Packages_ section (don't need to install manually everything in _requireements.txt_ as it contains also indirect and development dependencies).
+In other words, if we were considering the script a regular Python program, we could use directly _requirements.txt_, but if we need to deploy the script in Azure automation as a Runbook, we should manually install the packages from the previous list using the _Python Packages_ section (don't need to install manually everything in _requirements.txt_ as it contains also indirect and development dependencies).
 
 ## Development dependencies
-The instructions below are intended to be used when modifying the script locally for development purposes and when runing the unit test. If we want to install the required dependencies in Azure automation (when "deploying" the script), we should go to the _Python packages_ section and this section does not apply.
+The instructions below are intended to be used when modifying the script locally for development purposes and when running the unit test. If we want to install the required dependencies in Azure automation (when "deploying" the script), we should go to the _Python packages_ section and this section does not apply.
 
 For development purposes, we need:
 - [Python 3.8](https://www.python.org/downloads/release/python-380/)
@@ -141,7 +141,7 @@ env (created from /Users/afustert/.pyenv/versions/3.8.18)
 ```
 
 ## Custom tags
-When possible, the different resources related to this Automation script (the Runbook, the alert rule, etc) contain a Tag in Azuer with key _app_ and value _resources_cleanup_.
+When possible, the different resources related to this Automation script (the Runbook, the alert rule, etc) contain a Tag in Azure with key _app_ and value _resources_cleanup_.
 
 ## Existing policy
 We have an ARO-CreatedAt Tag [Policy](https://portal.azure.com/#view/Microsoft_Azure_Policy/PolicyDetailBlade/definitionId/%2Fsubscriptions%2F1d3378d3-5a3f-4712-85a1-2485495dfc4b%2Fproviders%2FMicrosoft.Authorization%2FpolicyDefinitions%2F9d2b25a6-fadb-47d8-bd68-eaf115bc5411) that adds a createdAt tag with the time "now" in UTC format when a resource group is created (as this information is not present by default for resource groups). That tag is used in the script to check if the resource group should be deleted or not.
