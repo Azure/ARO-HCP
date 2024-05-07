@@ -29,8 +29,11 @@ param disableLocalAuth bool
 @description('Deploy ARO HCP RP Azure Cosmos DB if true')
 param deployFrontendCosmos bool
 
+@description('List of workload identities to create and their required values')
+param workloadIdentities array
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
-  name: 'aks_base_cluster'
+  name: 'svc-cluster'
   scope: resourceGroup()
   params: {
     location: location
@@ -42,38 +45,23 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc'
+    workloadIdentities: workloadIdentities
+  }
+}
+var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]
+
+module rpCosmosDb '../modules/rp-cosmos.bicep' = 
+if (deployFrontendCosmos) {
+  name: 'rp_cosmos_db'
+  scope: resourceGroup()  
+  params: {
+    location: location
+    aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
+    vnetId: svcCluster.outputs.aksVnetId
+    disableLocalAuth: disableLocalAuth
+    userAssignedMI: frontendMI.uamiID
+    uamiPrincipalId: frontendMI.uamiPrincipalID
   }
 }
 
-module rpCosmosDb '../modules/rp-cosmos.bicep' =
-  if (deployFrontendCosmos) {
-    name: 'rp_cosmos_db'
-    scope: resourceGroup()
-    params: {
-      location: location
-      aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
-      vnetId: svcCluster.outputs.aksVnetId
-      disableLocalAuth: disableLocalAuth
-      userAssignedMI: frontend_mi.id
-      uamiPrincipalId: frontend_mi.properties.principalId
-    }
-  }
-
-resource frontend_mi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  location: location
-  name: 'frontend-${location}'
-}
-
-resource frontend_mi_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
-  name: 'frontend-${location}-fedcred'
-  parent: frontend_mi
-  properties: {
-    audiences: [
-      'api://AzureADTokenExchange'
-    ]
-    issuer: svcCluster.outputs.aksOidcIssuerUrl
-    subject: 'system:serviceaccount:aro-hcp:frontend'
-  }
-}
-
-output frontend_mi_client_id string = frontend_mi.properties.clientId
+output frontend_mi_client_id string = frontendMI.uamiClientID

@@ -19,6 +19,8 @@ param vnetAddressPrefix string
 param subnetPrefix string
 param podSubnetPrefix string
 param clusterType string
+param workloadIdentities array
+
 
 // Local Params
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
@@ -338,7 +340,34 @@ resource currentUserAksRbacClusterAdmin 'Microsoft.Authorization/roleAssignments
     }
   }
 
+resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
+for wi in workloadIdentities: {
+  location: location
+  name: '${wi.value.uamiName}-${location}'
+}]
+
+resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
+for i in range(0, length(workloadIdentities)): {
+  parent: uami[i]
+  name: '${workloadIdentities[i].value.uamiName}-${location}-fedcred'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:${workloadIdentities[i].value.namespace}:${workloadIdentities[i].value.serviceAccountName}'
+  }
+}]
+
 // Outputs
+output userAssignedIdentities array = [
+  for i in range(0, length(workloadIdentities)): {
+    uamiID: uami[i].id
+    uamiName: workloadIdentities[i].value.uamiName
+    uamiClientID: uami[i].properties.clientId
+    uamiPrincipalID: uami[i].properties.principalId
+  }
+]
 output aksVnetId string = vnet.id
 output aksNodeSubnetId string = aksNodeSubnet.id
 output aksOidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL

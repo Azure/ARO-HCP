@@ -8,6 +8,13 @@ param enablePrivateCluster = false
 param persist = false
 param disableLocalAuth = false
 param deployFrontendCosmos = false
+param workloadIdentities = items({
+  frontend_wi: {
+      uamiName: 'frontend'
+      namespace: 'aro-hcp'
+      serviceAccountName: 'frontend'
+  }
+})
 
 // This parameter is always overriden in the Makefile
 param currentUserId = ''

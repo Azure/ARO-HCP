@@ -6,6 +6,7 @@ param subnetPrefix = enablePrivateCluster ? '10.132.8.0/21' : '10.128.8.0/21'
 param podSubnetPrefix = enablePrivateCluster ? '10.132.64.0/18' : '10.128.64.0/18'
 param enablePrivateCluster = false
 param persist = false
+param workloadIdentities = []
 
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
