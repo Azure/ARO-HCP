@@ -75,6 +75,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 		MiddlewareBody,
 		MiddlewareLowercase,
 		MiddlewareSystemData,
+		MiddlewareValidateStatic,
 		metricsMiddleware.Metrics(),
 	)
 
