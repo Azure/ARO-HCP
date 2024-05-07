@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 
 	"github.com/Azure/ARO-HCP/internal/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 type PrometheusEmitter struct {

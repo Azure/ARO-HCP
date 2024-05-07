@@ -13,9 +13,13 @@ linters:
   disable-all: true
   enable:
     - errcheck
+    - goimports
     - gosimple
     - govet
     - ineffassign
     - staticcheck
     - typecheck
     - unused
+linters-settings:
+  goimports:
+    local-prefixes: github.com/Azure/ARO-HCP
