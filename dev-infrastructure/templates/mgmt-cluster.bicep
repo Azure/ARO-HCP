@@ -22,6 +22,9 @@ param enablePrivateCluster bool
 @description('Kuberentes version to use with AKS')
 param kubernetesVersion string
 
+@description('List of workload identities to create and their required values')
+param workloadIdentities array
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
   scope: resourceGroup()
@@ -35,5 +38,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'mgmt'
+    workloadIdentities: workloadIdentities
   }
 }
