@@ -97,10 +97,10 @@ func join(ns, name string) string {
 
 type StructTagMap map[string]reflect.StructTag
 
-func buildStructTagMap(m StructTagMap, t reflect.Type, path string) {
+func buildStructTagMap(structTagMap StructTagMap, t reflect.Type, path string) {
 	switch t.Kind() {
 	case reflect.Pointer, reflect.Slice:
-		buildStructTagMap(m, t.Elem(), path)
+		buildStructTagMap(structTagMap, t.Elem(), path)
 
 	case reflect.Struct:
 		for i := 0; i < t.NumField(); i++ {
@@ -108,10 +108,10 @@ func buildStructTagMap(m StructTagMap, t reflect.Type, path string) {
 			subpath := join(path, field.Name)
 
 			if len(field.Tag) > 0 {
-				m[subpath] = field.Tag
+				structTagMap[subpath] = field.Tag
 			}
 
-			buildStructTagMap(m, field.Type, subpath)
+			buildStructTagMap(structTagMap, field.Type, subpath)
 		}
 	}
 }
@@ -124,85 +124,99 @@ func buildStructTagMap(m StructTagMap, t reflect.Type, path string) {
 // identical where visibility is explicitly specified. If some divergence
 // emerges, one workaround could be to pass a field name override map.
 func NewStructTagMap[T any]() StructTagMap {
-	m := StructTagMap{}
-	buildStructTagMap(m, reflect.TypeFor[T](), "")
-	return m
+	structTagMap := StructTagMap{}
+	buildStructTagMap(structTagMap, reflect.TypeFor[T](), "")
+	return structTagMap
 }
 
 type validateVisibility struct {
-	m        StructTagMap
-	updating bool
-	errs     []arm.CloudErrorBody
+	structTagMap StructTagMap
+	updating     bool
+	errs         []arm.CloudErrorBody
 }
 
-func ValidateVisibility(v, w interface{}, m StructTagMap, updating bool) []arm.CloudErrorBody {
+// ValidateVisibility compares the new value (newVal) to the current value
+// (curVal) and returns any violations of visibility restrictions as defined
+// by structTagMap.
+func ValidateVisibility(newVal, curVal interface{}, structTagMap StructTagMap, updating bool) []arm.CloudErrorBody {
 	vv := validateVisibility{
-		m:        m,
-		updating: updating,
+		structTagMap: structTagMap,
+		updating:     updating,
 	}
-	vv.recurse(reflect.ValueOf(v), reflect.ValueOf(w), "", "", "", VisibilityDefault)
+	vv.recurse(reflect.ValueOf(newVal), reflect.ValueOf(curVal), "", "", "", VisibilityDefault)
 	return vv.errs
 }
 
-func (vv *validateVisibility) recurse(v, w reflect.Value, mKey, namespace, fieldname string, implicitVisibility VisibilityFlags) {
-	flags, ok := GetVisibilityFlags(vv.m[mKey])
+// mapKey is a lookup key for the StructTagMap.  It DOES NOT include subscripts
+// for arrays, maps or slices since all elements are the same type.
+//
+// namespace is the struct field path up to but not including the field being
+// evaluated, analogous to path.Dir.  It DOES include subscripts for arrays,
+// maps and slices since its purpose is for error reporting.
+//
+// fieldname is the current field being evaluated, analgous to path.Base.  It
+// also includes subscripts for arrays, maps and slices when evaluating their
+// immediate elements.
+func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, namespace, fieldname string, implicitVisibility VisibilityFlags) {
+	flags, ok := GetVisibilityFlags(vv.structTagMap[mapKey])
 	if !ok {
 		flags = implicitVisibility
 	}
 
-	if v.Type() != w.Type() {
-		panic(fmt.Sprintf("%s: value types differ (%s vs %s)", join(namespace, fieldname), v.Type().Name(), w.Type().Name()))
+	if newVal.Type() != curVal.Type() {
+		panic(fmt.Sprintf("%s: value types differ (%s vs %s)", join(namespace, fieldname), newVal.Type().Name(), curVal.Type().Name()))
 	}
 
-	// Generated API structs are all pointer fields. A nil value in
-	// the incoming request (v) means the value is absent, which is
-	// always acceptable for visibility validation.
-	switch v.Kind() {
+	// Generated API structs are all pointer fields. A nil pointer in
+	// the incoming request (newVal) means the value is absent, which
+	// is always acceptable for visibility validation.
+	switch newVal.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		if v.IsNil() {
+		if newVal.IsNil() {
 			return
 		}
 	}
 
-	switch v.Kind() {
+	switch newVal.Kind() {
 	case reflect.Bool:
-		if v.Bool() != w.Bool() {
+		if newVal.Bool() != curVal.Bool() {
 			vv.checkFlags(flags, namespace, fieldname)
 		}
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if v.Int() != w.Int() {
+		if newVal.Int() != curVal.Int() {
 			vv.checkFlags(flags, namespace, fieldname)
 		}
 
 	case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if v.Uint() != w.Uint() {
+		if newVal.Uint() != curVal.Uint() {
 			vv.checkFlags(flags, namespace, fieldname)
 		}
 
 	case reflect.Float32, reflect.Float64:
-		if v.Float() != w.Float() {
+		if newVal.Float() != curVal.Float() {
 			vv.checkFlags(flags, namespace, fieldname)
 		}
 
 	case reflect.Complex64, reflect.Complex128:
-		if v.Complex() != w.Complex() {
+		if newVal.Complex() != curVal.Complex() {
 			vv.checkFlags(flags, namespace, fieldname)
 		}
 
 	case reflect.String:
 		if flags.CaseInsensitive() {
-			if !strings.EqualFold(v.String(), w.String()) {
+			if !strings.EqualFold(newVal.String(), curVal.String()) {
 				vv.checkFlags(flags, namespace, fieldname)
 			}
 		} else {
-			if v.String() != w.String() {
+			if newVal.String() != curVal.String() {
 				vv.checkFlags(flags, namespace, fieldname)
 			}
 		}
 
 	case reflect.Slice:
-		if w.IsNil() {
+		// We already know that newVal is not nil.
+		if curVal.IsNil() {
 			vv.checkFlags(flags, namespace, fieldname)
 			return
 		}
@@ -210,33 +224,35 @@ func (vv *validateVisibility) recurse(v, w reflect.Value, mKey, namespace, field
 		fallthrough
 
 	case reflect.Array:
-		if v.Len() != w.Len() {
+		if newVal.Len() != curVal.Len() {
 			vv.checkFlags(flags, namespace, fieldname)
 		} else {
-			for i := 0; i < min(v.Len(), w.Len()); i++ {
+			for i := 0; i < min(newVal.Len(), curVal.Len()); i++ {
 				subscript := fmt.Sprintf("[%d]", i)
-				vv.recurse(v.Index(i), w.Index(i), mKey, namespace, fieldname+subscript, flags)
+				vv.recurse(newVal.Index(i), curVal.Index(i), mapKey, namespace, fieldname+subscript, flags)
 			}
 		}
 
 	case reflect.Interface, reflect.Pointer:
-		if w.IsNil() {
+		// We already know that newVal is not nil.
+		if curVal.IsNil() {
 			vv.checkFlags(flags, namespace, fieldname)
 		} else {
-			vv.recurse(v.Elem(), w.Elem(), mKey, namespace, fieldname, flags)
+			vv.recurse(newVal.Elem(), curVal.Elem(), mapKey, namespace, fieldname, flags)
 		}
 
 	case reflect.Map:
-		if w.IsNil() || v.Len() != w.Len() {
+		// We already know that newVal is not nil.
+		if curVal.IsNil() || newVal.Len() != curVal.Len() {
 			vv.checkFlags(flags, namespace, fieldname)
 		} else {
-			iter := v.MapRange()
+			iter := newVal.MapRange()
 			for iter.Next() {
 				k := iter.Key()
 
 				subscript := fmt.Sprintf("[%q]", k.Interface())
-				if w.MapIndex(k).IsValid() {
-					vv.recurse(v.MapIndex(k), w.MapIndex(k), mKey, namespace, fieldname+subscript, flags)
+				if curVal.MapIndex(k).IsValid() {
+					vv.recurse(newVal.MapIndex(k), curVal.MapIndex(k), mapKey, namespace, fieldname+subscript, flags)
 				} else {
 					vv.checkFlags(flags, namespace, fieldname+subscript)
 				}
@@ -244,15 +260,15 @@ func (vv *validateVisibility) recurse(v, w reflect.Value, mKey, namespace, field
 		}
 
 	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			structField := v.Type().Field(i)
-			mKeyNext := join(mKey, structField.Name)
+		for i := 0; i < newVal.NumField(); i++ {
+			structField := newVal.Type().Field(i)
+			mapKeyNext := join(mapKey, structField.Name)
 			namespaceNext := join(namespace, fieldname)
-			fieldnameNext := GetJSONTagName(vv.m[mKeyNext])
+			fieldnameNext := GetJSONTagName(vv.structTagMap[mapKeyNext])
 			if fieldnameNext == "" {
 				fieldnameNext = structField.Name
 			}
-			vv.recurse(v.Field(i), w.Field(i), mKeyNext, namespaceNext, fieldnameNext, flags)
+			vv.recurse(newVal.Field(i), curVal.Field(i), mapKeyNext, namespaceNext, fieldnameNext, flags)
 		}
 	}
 }
