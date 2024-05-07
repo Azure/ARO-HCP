@@ -1,6 +1,5 @@
 run:
   timeout: 10m
-  skip-dirs-use-default: true
   modules-download-mode: readonly
 
 issues:
