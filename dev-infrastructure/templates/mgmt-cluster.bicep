@@ -1,8 +1,8 @@
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('Captures the bicep template that created it')
-param createdByConfigTag string
+@description('Set to true to prevent resources from being pruned after 48 hours')
+param persist bool = false
 
 @description('Captures logged in users UID')
 param currentUserId string
@@ -22,20 +22,18 @@ param enablePrivateCluster bool
 @description('Kuberentes version to use with AKS')
 param kubernetesVersion string
 
-
-module aksBaseCluster '../modules/aks-cluster-base.bicep' = {
+module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
-  scope: resourceGroup()  
+  scope: resourceGroup()
   params: {
     location: location
-    createdByConfigTag: createdByConfigTag
+    persist: persist
     currentUserId: currentUserId
     enablePrivateCluster: enablePrivateCluster
     kubernetesVersion: kubernetesVersion
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
-    clusterType: 'mc'
+    clusterType: 'mgmt'
   }
 }
-

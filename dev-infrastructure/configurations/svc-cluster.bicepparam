@@ -5,7 +5,7 @@ param vnetAddressPrefix = enablePrivateCluster ? '10.132.0.0/14' : '10.128.0.0/1
 param subnetPrefix = enablePrivateCluster ? '10.132.8.0/21' : '10.128.8.0/21'
 param podSubnetPrefix = enablePrivateCluster ? '10.132.64.0/18' : '10.128.64.0/18'
 param enablePrivateCluster = false
-param createdByConfigTag = 'svc-cluster'
+param persist = false
 param disableLocalAuth = false
 param deployFrontendCosmos = false
 
