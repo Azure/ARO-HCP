@@ -42,7 +42,7 @@ jobs:
           check-latest: true
 
       - name: 'Lint'
-        uses: golangci/golangci-lint-action@38e1018663fa5173f3968ea0777460d3de38f256 # v5.3.0
+        uses: golangci/golangci-lint-action@23faadfdeb23a6f9e511beaba149bb123b5b145a # v6.0.0
         with:
           version: 'v1.56.2'
           args: '-v $(go list -f ''{{.Dir}}/...'' -m | xargs)'
