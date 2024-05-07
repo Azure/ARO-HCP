@@ -33,7 +33,7 @@ frontend-deploy:
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" | oc apply -f -
-	 
+
 frontend-undeploy:
 	@test "${RESOURCE_GROUP}" != "" || (echo "RESOURCE_GROUP must be defined" && exit 1)
 	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
@@ -68,4 +68,4 @@ frontend-undeploy-private:
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" > "$${TMP_DEPLOY}";\
 	az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
-.PHONY: frontend-build frontend-build-container frontend-deploy frontend-undeploy test lint clean
+.PHONY: all clean frontend-build frontend-build-container frontend-deploy frontend-undeploy lint test
