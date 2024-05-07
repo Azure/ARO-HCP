@@ -1,3 +1,4 @@
+---
 name: Validate API Spec
 
 on:
@@ -19,30 +20,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b # v4.1.5
-      with:
-        fetch-depth: 1
+      - name: Checkout code
+        uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b # v4.1.5
+        with:
+          fetch-depth: 1
 
-    - name: Setup Node.js
-      uses: actions/setup-node@c2ac33f2c62f978d6c944d9648125a294e56dc0b # v4.0.2
-      with:
-        node-version: 'v20.12.0'
+      - name: Setup Node.js
+        uses: actions/setup-node@c2ac33f2c62f978d6c944d9648125a294e56dc0b # v4.0.2
+        with:
+          node-version: 'v20.12.0'
 
-    - name: Install tsp
-      run: npm install -g @typespec/compiler@0.55.0
+      - name: Install tsp
+        run: npm install -g @typespec/compiler@0.55.0
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Install autorest
-      run: npm install -g autorest@3.7.1
+      - name: Install autorest
+        run: npm install -g autorest@3.7.1
 
-    - name: make generate
-      run: make generate
-      working-directory: './api'
+      - name: make generate
+        run: make generate
+        working-directory: './api'
 
-    - name: Check for Uncommitted Changes
-      run: |
-        git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)
-
+      - name: Check for Uncommitted Changes
+        run: |
+          git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)
