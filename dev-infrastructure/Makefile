@@ -13,7 +13,6 @@ ifndef AKSCONFIG
 $(error "Must set AKSCONFIG")
 endif
 
-
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 
@@ -33,10 +32,9 @@ setsubscription:
 rg: setsubscription
 	az group create \
   		--name $(RESOURCEGROUP)  \
-  		--location $(LOCATION) \
-		--tags "CreatedByConfig=${AKSCONFIG}"
+  		--location $(LOCATION)
 
-dev.svc-cluster: setsubscription rg
+svc-cluster: setsubscription rg
 	az deployment group create \
 		--name "$(DEPLOYMENTNAME)" \
 		--resource-group $(RESOURCEGROUP) \
@@ -47,11 +45,11 @@ dev.svc-cluster: setsubscription rg
 		--parameters \
 			currentUserId=$(CURRENTUSER)
 
-dev.mc-cluster: setsubscription rg
+mgmt-cluster: setsubscription rg
 	az deployment group create \
 		--name "$(DEPLOYMENTNAME)" \
 		--resource-group $(RESOURCEGROUP) \
-		--template-file templates/mc-cluster.bicep \
+		--template-file templates/mgmt-cluster.bicep \
 		--confirm-with-what-if \
 		--parameters \
 			configurations/${AKSCONFIG}.bicepparam \

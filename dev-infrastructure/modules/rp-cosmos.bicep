@@ -26,7 +26,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-    '${userAssignedMI}': {}
+      '${userAssignedMI}': {}
     }
   }
   name: name

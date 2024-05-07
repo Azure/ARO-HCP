@@ -15,14 +15,18 @@ There are a few variants to chose from when creating an AKS cluster:
 * Service Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Service cluster
 * Management Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Management cluster (coming soon)
 
-1. Provision an AKS Cluster for each Variant 
+1. Decide on the variant and update the corresponding configuration file as desired
+
+  For example, you can toggle `deployFrontendCosmos` in configurations/svc-cluster.bicepparam to control whether or not to deploy a CosmosDB for frontend development.
+
+1. Provision an AKS Cluster for each Variant
 
    ```bash
    # Service Cluster
-   AKSCONFIG=svc-cluster make dev.svc-cluster
+   AKSCONFIG=svc-cluster make svc-cluster
 
    # Management Cluster
-   AKSCONFIG=mc-cluster make dev.mc-cluster
+   AKSCONFIG=mgmt-cluster make mgmt-cluster
    ```
 
 1. Access private AKS clusters with:
@@ -36,7 +40,7 @@ There are a few variants to chose from when creating an AKS cluster:
 1. Access public AKS clusters with:
 
    ```bash
-   make aks.kubeconfig
+   AKSCONFIG=svc-cluster make aks.kubeconfig
    KUBECONFIG=aks.kubeconfig kubectl get ns
    ```
 
@@ -94,5 +98,5 @@ This will delete:
 1. Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azure
 
    ```bash
-   AKSCONFIG=private make clean
+   AKSCONFIG=svc-cluster make clean
    ```

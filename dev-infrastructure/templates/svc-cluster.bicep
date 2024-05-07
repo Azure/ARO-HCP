@@ -1,8 +1,8 @@
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('Captures the bicep template that created it')
-param createdByConfigTag string
+@description('Set to true to prevent resources from being pruned after 48 hours')
+param persist bool = false
 
 @description('Captures logged in users UID')
 param currentUserId string
@@ -29,12 +29,12 @@ param disableLocalAuth bool
 @description('Deploy ARO HCP RP Azure Cosmos DB if true')
 param deployFrontendCosmos bool
 
-module aksBaseCluster '../modules/aks-cluster-base.bicep' = {
+module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
-  scope: resourceGroup()  
+  scope: resourceGroup()
   params: {
     location: location
-    createdByConfigTag: createdByConfigTag
+    persist: persist
     currentUserId: currentUserId
     enablePrivateCluster: enablePrivateCluster
     kubernetesVersion: kubernetesVersion
@@ -45,19 +45,19 @@ module aksBaseCluster '../modules/aks-cluster-base.bicep' = {
   }
 }
 
-module rpCosmosDb '../modules/rp-cosmos.bicep' = 
-if (deployFrontendCosmos) {
-  name: 'rp_cosmos_db'
-  scope: resourceGroup()  
-  params: {
-    location: location
-    aksNodeSubnetId: aksBaseCluster.outputs.aksNodeSubnetId
-    vnetId: aksBaseCluster.outputs.aksVnetId
-    disableLocalAuth: disableLocalAuth
-    userAssignedMI: frontend_mi.id
-    uamiPrincipalId: frontend_mi.properties.principalId
+module rpCosmosDb '../modules/rp-cosmos.bicep' =
+  if (deployFrontendCosmos) {
+    name: 'rp_cosmos_db'
+    scope: resourceGroup()
+    params: {
+      location: location
+      aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
+      vnetId: svcCluster.outputs.aksVnetId
+      disableLocalAuth: disableLocalAuth
+      userAssignedMI: frontend_mi.id
+      uamiPrincipalId: frontend_mi.properties.principalId
+    }
   }
-}
 
 resource frontend_mi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   location: location
@@ -71,7 +71,7 @@ resource frontend_mi_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/f
     audiences: [
       'api://AzureADTokenExchange'
     ]
-    issuer: aksBaseCluster.outputs.aksOidcIssuerUrl
+    issuer: svcCluster.outputs.aksOidcIssuerUrl
     subject: 'system:serviceaccount:aro-hcp:frontend'
   }
 }

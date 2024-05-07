@@ -8,7 +8,10 @@ param dnsServiceIP string = '10.130.0.10'
 
 // Passed Params and Overrides
 param location string
-param createdByConfigTag string
+
+@description('Set to true to prevent resources from being pruned after 48 hours')
+param persist bool = false
+
 param currentUserId string
 param enablePrivateCluster bool = true
 param kubernetesVersion string
@@ -46,6 +49,17 @@ var networkContributorRoleId = subscriptionResourceId(
 )
 
 // Main
+// Tags the subscription
+resource subscriptionTags 'Microsoft.Resources/tags@2023-07-01' = {
+  name: 'default'
+  properties: {
+    tags: {
+      persist: toLower(string(persist))
+      deployedBy: currentUserId
+    }
+  }
+}
+
 resource aks_nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
   name: 'aks-nsg'
   location: location
@@ -60,7 +74,7 @@ resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   location: location
   name: take('aks-kv-${clusterType}-${uniqueString(currentUserId)}', 24)
   tags: {
-    resourceGroup: resourceGroup().name 
+    resourceGroup: resourceGroup().name
   }
   properties: {
     enableRbacAuthorization: true
@@ -113,9 +127,6 @@ resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-
 resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
   location: location
   name: 'aks-net'
-  tags: {
-    sharedhcp: 'true'
-  }
   properties: {
     addressSpace: {
       addressPrefixes: [
@@ -195,7 +206,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
   location: location
   name: aksClusterName
   tags: {
-    CreatedByConfig: createdByConfigTag
+    persist: toLower(string(persist))
   }
   identity: {
     type: 'UserAssigned'
