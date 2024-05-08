@@ -22,6 +22,9 @@ param enablePrivateCluster bool
 @description('Kuberentes version to use with AKS')
 param kubernetesVersion string
 
+@description('Istio control plane version to use with AKS')
+param istioVersion string
+
 @description('List of workload identities to create and their required values')
 param workloadIdentities array
 
@@ -33,11 +36,12 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     persist: persist
     currentUserId: currentUserId
     enablePrivateCluster: enablePrivateCluster
+    istioVersion: istioVersion
     kubernetesVersion: kubernetesVersion
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
-    clusterType: 'mgmt'
+    clusterType: 'mgmt-cluster'
     workloadIdentities: workloadIdentities
   }
 }

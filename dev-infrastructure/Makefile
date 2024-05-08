@@ -4,9 +4,9 @@ HCPDEVSUBSCRIPTION="ARO Hosted Control Planes (EA Subscription 1)"
 HCPDEVSUBSCRIPTIONID=1d3378d3-5a3f-4712-85a1-2485495dfc4b
 
 CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
-DEPLOYMENTNAME=hcp-$(USER)-dev-infra
 LOCATION?=eastus
 RESOURCEGROUP=aro-hcp-${AKSCONFIG}-$(USER)
+DEPLOYMENTNAME=$(RESOURCEGROUP)
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -26,15 +26,6 @@ lint:
 	echo "az bicep lint --file $${file}"; \
 	az bicep lint --file $$file; \
 	done
-
-show:
-	@echo "Resource group      : $(RESOURCEGROUP)"
-	@echo "VPN resource group  : $(VPNRESOURCEGROUP)"
-	@echo "AddressSpace prefix : $(PREFIX)"
-	@echo "AKS version         : $(AKSVERSION)"
-	@echo "Location            : $(LOCATION)"
-	@echo "AKS VNet Name       : $(AKSVNETNAME)"
-	@echo "DNSZone/deployment  : $(DEPLOYMENTNAME)"
 
 setsubscription:
 ifndef AKSCONFIG
@@ -71,7 +62,8 @@ mgmt-cluster: setsubscription rg
 			currentUserId=$(CURRENTUSER)
 
 aks.kubeconfig: setsubscription
-	az aks get-credentials -n aro-hcp-cluster-001 -g $(RESOURCEGROUP) -a -f aks.kubeconfig
+	AKS_NAME="$$(az aks list --query "[?tags.clusterType == '$(AKSCONFIG)'].name" -ojson | jq -r '.[0]')"; \
+	az aks get-credentials -n "$${AKS_NAME}" -g $(RESOURCEGROUP) -a -f "$(AKSCONFIG).kubeconfig"
 
 secrets-download: setsubscription
 	@[ "${SECRET_SA_ACCOUNT_NAME}" ] || ( echo ">> SECRET_SA_ACCOUNT_NAME is not set"; exit 1 )
