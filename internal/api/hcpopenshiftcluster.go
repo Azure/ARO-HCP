@@ -89,8 +89,9 @@ type PlatformProfile struct {
 	ManagedResourceGroup string       `json:"managedResourceGroup,omitempty" validate:"required_for_put"`
 	SubnetID             string       `json:"subnetId,omitempty"             validate:"required_for_put"`
 	OutboundType         OutboundType `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
-	PreconfiguredNSGs    bool         `json:"preconfiguredNsgs,omitempty"`
-	EtcdEncryptionSetID  string       `json:"etcdEncryptionSetId,omitempty"`
+	//TODO: Is nsg required for PUT, or will we create if not specified?
+	NetworkSecurityGroupID string `json:"networkSecurityGroupId,omitempty" validate:"required_for_put"`
+	EtcdEncryptionSetID    string `json:"etcdEncryptionSetId,omitempty"`
 }
 
 // ExternalAuthConfigProfile represents the external authentication configuration.

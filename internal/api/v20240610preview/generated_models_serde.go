@@ -1464,8 +1464,8 @@ func (p PlatformProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "etcdEncryptionSetId", p.EtcdEncryptionSetID)
 	populate(objectMap, "managedResourceGroup", p.ManagedResourceGroup)
+	populate(objectMap, "networkSecurityGroupId", p.NetworkSecurityGroupID)
 	populate(objectMap, "outboundType", p.OutboundType)
-	populate(objectMap, "preconfiguredNsgs", p.PreconfiguredNsgs)
 	populate(objectMap, "subnetId", p.SubnetID)
 	return json.Marshal(objectMap)
 }
@@ -1485,11 +1485,11 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 		case "managedResourceGroup":
 				err = unpopulate(val, "ManagedResourceGroup", &p.ManagedResourceGroup)
 			delete(rawMsg, key)
+		case "networkSecurityGroupId":
+				err = unpopulate(val, "NetworkSecurityGroupID", &p.NetworkSecurityGroupID)
+			delete(rawMsg, key)
 		case "outboundType":
 				err = unpopulate(val, "OutboundType", &p.OutboundType)
-			delete(rawMsg, key)
-		case "preconfiguredNsgs":
-				err = unpopulate(val, "PreconfiguredNsgs", &p.PreconfiguredNsgs)
 			delete(rawMsg, key)
 		case "subnetId":
 				err = unpopulate(val, "SubnetID", &p.SubnetID)

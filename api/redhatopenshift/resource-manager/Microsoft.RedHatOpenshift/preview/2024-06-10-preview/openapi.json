@@ -1984,9 +1984,9 @@
             ]
           }
         },
-        "preconfiguredNsgs": {
-          "type": "boolean",
-          "description": "Specifies whether subnets are pre-attached with an NSG"
+        "networkSecurityGroupId": {
+          "type": "string",
+          "description": "ResourceId for the network security group attached to the cluster subnet"
         },
         "etcdEncryptionSetId": {
           "type": "string",
@@ -1996,7 +1996,7 @@
       "required": [
         "managedResourceGroup",
         "subnetId",
-        "preconfiguredNsgs"
+        "networkSecurityGroupId"
       ]
     },
     "ProvisioningState": {

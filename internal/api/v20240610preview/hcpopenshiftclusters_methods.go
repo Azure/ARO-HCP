@@ -62,11 +62,11 @@ func newProxyProfile(from *api.ProxyProfile) *ProxyProfile {
 
 func newPlatformProfile(from *api.PlatformProfile) *PlatformProfile {
 	return &PlatformProfile{
-		ManagedResourceGroup: api.Ptr(from.ManagedResourceGroup),
-		SubnetID:             api.Ptr(from.SubnetID),
-		OutboundType:         api.Ptr(OutboundType(from.OutboundType)),
-		PreconfiguredNsgs:    api.Ptr(from.PreconfiguredNSGs),
-		EtcdEncryptionSetID:  api.Ptr(from.EtcdEncryptionSetID),
+		ManagedResourceGroup:   api.Ptr(from.ManagedResourceGroup),
+		SubnetID:               api.Ptr(from.SubnetID),
+		OutboundType:           api.Ptr(OutboundType(from.OutboundType)),
+		NetworkSecurityGroupID: api.Ptr(from.NetworkSecurityGroupID),
+		EtcdEncryptionSetID:    api.Ptr(from.EtcdEncryptionSetID),
 	}
 }
 
@@ -407,8 +407,8 @@ func (p *PlatformProfile) Normalize(out *api.PlatformProfile) {
 	if p.OutboundType != nil {
 		out.OutboundType = api.OutboundType(*p.OutboundType)
 	}
-	if p.PreconfiguredNsgs != nil {
-		out.PreconfiguredNSGs = *p.PreconfiguredNsgs
+	if p.NetworkSecurityGroupID != nil {
+		out.NetworkSecurityGroupID = *p.NetworkSecurityGroupID
 	}
 	if p.EtcdEncryptionSetID != nil {
 		out.EtcdEncryptionSetID = *p.EtcdEncryptionSetID
