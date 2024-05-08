@@ -1,5 +1,5 @@
 // Constants
-param aksClusterName string = 'aro-hcp-cluster-001'
+param aksClusterName string = take('aro-hcp-${clusterType}-${uniqueString(clusterType)}', 63)
 param agentMinCount int = 2
 param agentMaxCount int = 3
 param agentVMSize string = 'Standard_D2s_v3'
@@ -15,6 +15,7 @@ param persist bool = false
 param currentUserId string
 param enablePrivateCluster bool = true
 param kubernetesVersion string
+param istioVersion string
 param vnetAddressPrefix string
 param subnetPrefix string
 param podSubnetPrefix string
@@ -51,7 +52,7 @@ var networkContributorRoleId = subscriptionResourceId(
 
 // Main
 // Tags the subscription
-resource subscriptionTags 'Microsoft.Resources/tags@2023-07-01' = {
+resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
   properties: {
     tags: {
@@ -61,12 +62,12 @@ resource subscriptionTags 'Microsoft.Resources/tags@2023-07-01' = {
   }
 }
 
-resource aks_nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
+resource aks_nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   name: 'aks-nsg'
   location: location
 }
 
-resource aks_pod_nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
+resource aks_pod_nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   name: 'aks-pod-nsg'
   location: location
 }
@@ -112,6 +113,18 @@ resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
       'decrypt'
     ]
     keySize: 2048
+    rotationPolicy: {
+      lifetimeActions: [
+        {
+          action: {
+            type: 'notify'
+          }
+          trigger: {
+            timeBeforeExpiry: 'P30D'
+          }
+        }
+      ]
+    }
   }
 }
 
@@ -125,7 +138,7 @@ resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
+resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
   location: location
   name: 'aks-net'
   properties: {
@@ -137,7 +150,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
   }
 }
 
-resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
+resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
   parent: vnet
   name: 'ClusterSubnet-001'
   properties: {
@@ -163,7 +176,7 @@ resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = 
   }
 }
 
-resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
+resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
   parent: vnet
   name: 'PodSubnet-001'
   properties: {
@@ -208,6 +221,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
   name: aksClusterName
   tags: {
     persist: toLower(string(persist))
+    clusterType: clusterType
   }
   identity: {
     type: 'UserAssigned'
@@ -310,6 +324,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
             }
           ]
         }
+        revisions: [
+          istioVersion
+        ]
       }
     }
   }

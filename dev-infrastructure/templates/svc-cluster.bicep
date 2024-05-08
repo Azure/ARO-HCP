@@ -22,6 +22,9 @@ param enablePrivateCluster bool
 @description('Kuberentes version to use with AKS')
 param kubernetesVersion string
 
+@description('Istio control plane version to use with AKS')
+param istioVersion string
+
 // TODO: When the work around workload identity for the RP is finalized, change this to true
 @description('disableLocalAuth for the ARO HCP RP CosmosDB')
 param disableLocalAuth bool
@@ -41,10 +44,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     currentUserId: currentUserId
     enablePrivateCluster: enablePrivateCluster
     kubernetesVersion: kubernetesVersion
+    istioVersion: istioVersion
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
-    clusterType: 'svc'
+    clusterType: 'svc-cluster'
     workloadIdentities: workloadIdentities
   }
 }
