@@ -50,18 +50,17 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 }
 var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]
 
-module rpCosmosDb '../modules/rp-cosmos.bicep' =
-  if (deployFrontendCosmos) {
-    name: 'rp_cosmos_db'
-    scope: resourceGroup()
-    params: {
-      location: location
-      aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
-      vnetId: svcCluster.outputs.aksVnetId
-      disableLocalAuth: disableLocalAuth
-      userAssignedMI: frontendMI.uamiID
-      uamiPrincipalId: frontendMI.uamiPrincipalID
-    }
+module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
+  name: 'rp_cosmos_db'
+  scope: resourceGroup()
+  params: {
+    location: location
+    aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
+    vnetId: svcCluster.outputs.aksVnetId
+    disableLocalAuth: disableLocalAuth
+    userAssignedMI: frontendMI.uamiID
+    uamiPrincipalId: frontendMI.uamiPrincipalID
   }
+}
 
 output frontend_mi_client_id string = frontendMI.uamiClientID

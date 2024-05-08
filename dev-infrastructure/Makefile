@@ -27,19 +27,11 @@ lint:
 	az bicep lint --file $$file; \
 	done
 
-show:
-	@echo "Resource group      : $(RESOURCEGROUP)"
-	@echo "VPN resource group  : $(VPNRESOURCEGROUP)"
-	@echo "AddressSpace prefix : $(PREFIX)"
-	@echo "AKS version         : $(AKSVERSION)"
-	@echo "Location            : $(LOCATION)"
-	@echo "AKS VNet Name       : $(AKSVNETNAME)"
-	@echo "DNSZone/deployment  : $(DEPLOYMENTNAME)"
-
 setsubscription:
-	ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-	endif
+	if [[ -z $$AKSCONFIG ]]; then \
+		echo "Must set AKSCONFIG"; \
+		exit 1; \
+	fi
 	az account set --subscription $(HCPDEVSUBSCRIPTION)
 	az account show
 

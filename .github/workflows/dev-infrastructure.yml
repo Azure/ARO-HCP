@@ -9,12 +9,12 @@ on:
     branches:
       - main
     paths:
-      - 'dev-infrastructure/**'
+      - "dev-infrastructure/**"
 
 jobs:
   validate_bicep:
     permissions:
-      contents: 'read'
+      contents: "read"
     runs-on: ubuntu-latest
 
     steps:
@@ -24,13 +24,14 @@ jobs:
           fetch-depth: 1
           sparse-checkout: dev-infrastructure
 
-      - name: 'az bicep format and lint'
-        working-directory: './dev-infrastructure'
+      - name: "az bicep format and lint"
+        working-directory: "./dev-infrastructure"
         run: |
+          az bicep upgrade
           make fmt
           make lint
 
       - name: Check for uncommitted changes
-        working-directory: './dev-infrastructure'
+        working-directory: "./dev-infrastructure"
         run: |
           git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)
