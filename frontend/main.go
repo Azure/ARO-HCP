@@ -35,6 +35,15 @@ func main() {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
 
+	// Verify the Async DB is available and accessible
+	logger.Info("Testing DB Access")
+	result, err := DBConnectionTest()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Database test failed to fetch properties: %v", err))
+	} else {
+		logger.Info(fmt.Sprintf("Database check completed - %s", result))
+	}
+
 	listener, err := net.Listen("tcp4", ":8443")
 	if err != nil {
 		logger.Error(err.Error())
