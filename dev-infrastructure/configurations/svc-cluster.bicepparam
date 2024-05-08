@@ -10,9 +10,9 @@ param disableLocalAuth = false
 param deployFrontendCosmos = false
 param workloadIdentities = items({
   frontend_wi: {
-      uamiName: 'frontend'
-      namespace: 'aro-hcp'
-      serviceAccountName: 'frontend'
+    uamiName: 'frontend'
+    namespace: 'aro-hcp'
+    serviceAccountName: 'frontend'
   }
 })
 

@@ -1,4 +1,3 @@
-
 SHELL = /bin/bash
 
 HCPDEVSUBSCRIPTION="ARO Hosted Control Planes (EA Subscription 1)"
@@ -9,12 +8,24 @@ DEPLOYMENTNAME=hcp-$(USER)-dev-infra
 LOCATION?=eastus
 RESOURCEGROUP=aro-hcp-${AKSCONFIG}-$(USER)
 
-ifndef AKSCONFIG
-$(error "Must set AKSCONFIG")
-endif
-
 list:
 	@grep '^[^#[:space:]].*:' Makefile
+
+fmt:
+	set -e; \
+	FILES="$$(find . -type f -name "*.bicep*")"; \
+	for file in $$FILES; do \
+	echo "az bicep format --file $${file}"; \
+	az bicep format --file $$file; \
+	done
+
+lint:
+	set -e; \
+	FILES="$$(find . -type f -name "*.bicep*")"; \
+	for file in $$FILES; do \
+	echo "az bicep lint --file $${file}"; \
+	az bicep lint --file $$file; \
+	done
 
 show:
 	@echo "Resource group      : $(RESOURCEGROUP)"
@@ -26,6 +37,9 @@ show:
 	@echo "DNSZone/deployment  : $(DEPLOYMENTNAME)"
 
 setsubscription:
+	ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+	endif
 	az account set --subscription $(HCPDEVSUBSCRIPTION)
 	az account show
 
@@ -54,9 +68,9 @@ mgmt-cluster: setsubscription rg
 		--parameters \
 			configurations/${AKSCONFIG}.bicepparam \
 		--parameters \
-			currentUserId=$(CURRENTUSER)			
+			currentUserId=$(CURRENTUSER)
 
-aks.kubeconfig:
+aks.kubeconfig: setsubscription
 	az aks get-credentials -n aro-hcp-cluster-001 -g $(RESOURCEGROUP) -a -f aks.kubeconfig
 
 secrets-download: setsubscription
