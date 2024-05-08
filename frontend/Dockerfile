@@ -9,7 +9,7 @@ ENV GOPATH="/go"
 ENV PATH="${GOPATH}/bin:${PATH}"
 
 WORKDIR /app
-COPY . .
+ADD archive.tar.gz .
 RUN cd frontend && make frontend
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.9-1161
