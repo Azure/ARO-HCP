@@ -37,9 +37,9 @@ show:
 	@echo "DNSZone/deployment  : $(DEPLOYMENTNAME)"
 
 setsubscription:
-	ifndef AKSCONFIG
+ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
-	endif
+endif
 	az account set --subscription $(HCPDEVSUBSCRIPTION)
 	az account show
 
