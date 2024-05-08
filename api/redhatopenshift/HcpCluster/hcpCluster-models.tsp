@@ -83,16 +83,13 @@ model ClusterSpec {
   api: ApiProfile;
 
   /** Enable FIPS mode for the cluster
-   * When set to true, `etcdEncryption` must be set to true
+   * When set to true, `etcdProfile.encryptionProfile.kms` must be set
    */
   @visibility("create")
   fips?: boolean = false;
 
-  /** Enables customer ETCD encryption, set during creation
-   * When set to true, `platform.etcdEncryptionSetId` must be set
-   */
-  @visibility("create")
-  etcdEncryption?: boolean = false;
+  /** Cluster etcd configuration */
+  etcd?: EtcdProfile;
 
   /** Disable user workload monitoring */
   @visibility("create", "update")
@@ -260,12 +257,43 @@ model PlatformProfile {
 
   /** Specifies whether subnets are pre-attached with an NSG */
   preconfiguredNsgs: boolean;
+}
 
-  /** The id of the disk encryption set to be used for etcd.
-   * Configure this when `etcdEncryption` is set to true
-   * Is used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
-   */
-  etcdEncryptionSetId?: string;
+/** etcd specific configuration */
+model EtcdProfile {
+  encryption?: EtcdEncryptionProfile;
+}
+
+/** etcd encryption specific configuration */
+model EtcdEncryptionProfile {
+  dataEncryption?: EtcdDataEncryption;
+}
+
+/** etcd data-level encryption specific configuration.
+ * At least one of its attributes is required. At most
+ * one attribute can be specified.
+ */
+model EtcdDataEncryption {
+  kms?: EtcdDataEncryptionKms;
+}
+
+/** etcd KMS-based data-level encryption specific configuration */
+model EtcdDataEncryptionKms {
+	/** The name of the Azure Key Vault vault containing encryption
+	 * keys used to perform etcd data-level encryption.
+	 */
+  keyVaultName: string;
+
+	/** The name of the Azure Key Vault key containing the encryption
+	 * keys used to perform etcd data-level encryptiion. The key
+	 * has to exist in the Azure Key Vault keyVaultName.
+	 */
+  keyVaultKeyName: string;
+
+	/** The key version of the Azure Key Vault key keyVaultKeyName
+	 * used to perform etcd data-level encryption.
+	 */
+  keyVaultKeyVersion: string;
 }
 
 /** The outbound routing strategy used to provide your cluster egress to the internet. */
