@@ -258,8 +258,8 @@ model PlatformProfile {
   /** The core outgoing configuration */
   outboundType?: OutboundType = OutboundType.loadBalancer;
 
-  /** Specifies whether subnets are pre-attached with an NSG */
-  preconfiguredNsgs: boolean;
+  /** ResourceId for the network security group attached to the cluster subnet */
+  networkSecurityGroupId: string;
 
   /** The id of the disk encryption set to be used for etcd.
    * Configure this when `etcdEncryption` is set to true

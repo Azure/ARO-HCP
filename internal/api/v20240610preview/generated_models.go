@@ -569,8 +569,8 @@ type PlatformProfile struct {
 	// REQUIRED; Resource group to put cluster resources
 	ManagedResourceGroup *string
 
-	// REQUIRED; Specifies whether subnets are pre-attached with an NSG
-	PreconfiguredNsgs *bool
+	// REQUIRED; ResourceId for the network security group attached to the cluster subnet
+	NetworkSecurityGroupID *string
 
 	// REQUIRED; ResourceId for the subnet used by the control plane
 	SubnetID *string
