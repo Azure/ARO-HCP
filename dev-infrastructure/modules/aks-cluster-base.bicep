@@ -333,28 +333,26 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
 }
 
 // az aks command invoke --resource-group hcp-standalone-mshen --name aro-hcp-cluster-001 --command "kubectl get ns"
-resource currentUserAksClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' =
-  if (length(currentUserId) > 0) {
-    scope: aksCluster
-    name: guid(location, aksClusterName, aksClusterAdminRoleId, currentUserId)
-    properties: {
-      roleDefinitionId: aksClusterAdminRoleId
-      principalId: currentUserId
-      principalType: 'User'
-    }
+resource currentUserAksClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (length(currentUserId) > 0) {
+  scope: aksCluster
+  name: guid(location, aksClusterName, aksClusterAdminRoleId, currentUserId)
+  properties: {
+    roleDefinitionId: aksClusterAdminRoleId
+    principalId: currentUserId
+    principalType: 'User'
   }
+}
 
 // az aks command invoke --resource-group hcp-standalone-mshen --name aro-hcp-cluster-001 --command "kubectl get ns"
-resource currentUserAksRbacClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' =
-  if (length(currentUserId) > 0) {
-    scope: aksCluster
-    name: guid(location, aksClusterName, aksClusterRbacClusterAdminRoleId, currentUserId)
-    properties: {
-      roleDefinitionId: aksClusterRbacClusterAdminRoleId
-      principalId: currentUserId
-      principalType: 'User'
-    }
+resource currentUserAksRbacClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (length(currentUserId) > 0) {
+  scope: aksCluster
+  name: guid(location, aksClusterName, aksClusterRbacClusterAdminRoleId, currentUserId)
+  properties: {
+    roleDefinitionId: aksClusterRbacClusterAdminRoleId
+    principalId: currentUserId
+    principalType: 'User'
   }
+}
 
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
   for wi in workloadIdentities: {
