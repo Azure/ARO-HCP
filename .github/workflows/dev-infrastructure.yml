@@ -27,10 +27,11 @@ jobs:
       - name: 'az bicep format and lint'
         working-directory: './dev-infrastructure'
         run: |
+          az bicep version
           make fmt
           make lint
 
       - name: Check for uncommitted changes
         working-directory: './dev-infrastructure'
         run: |
-          git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)
+          git diff --exit-code || (echo "::error::Uncommitted changes detected in bicep templates" && exit 1)
