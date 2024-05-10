@@ -16,6 +16,9 @@ parameters:
   - name: FRONTEND_MI_CLIENT_ID
     required: true
     description: "Client ID of Frontend Managed Identity"
+  - name: DB_NAME
+    description: Name of the Cosmos DB object in Azure
+    value: "none"
 
 objects:
   - apiVersion: v1
@@ -59,6 +62,11 @@ objects:
             - name: aro-hcp-frontend
               image: ${ARO_HCP_FRONTEND_IMAGE}
               imagePullPolicy: IfNotPresent
+              env:
+              - name: DB_NAME
+                value: ${DB_NAME}
+              - name: DB_URL
+                value: "https://${DB_NAME}.documents.azure.com:443/"
               ports:
                 - containerPort: 8443
                   protocol: TCP
