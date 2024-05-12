@@ -216,6 +216,16 @@ resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssign
   }
 }
 
+resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aksCluster
+  name: guid(aksClusterUserDefinedManagedIdentity.id, aksClusterAdminRoleId, aksCluster.id)
+  properties: {
+    roleDefinitionId: aksClusterAdminRoleId
+    principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
   location: location
   name: aksClusterName
@@ -374,6 +384,32 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
     }
   }
 ]
+
+module serviceAccounts './aks-manifest.bicep' = {
+  name: '${aksClusterName}-service-accounts'
+  params: {
+    name: '${aksClusterName}-service-accounts'
+    aksClusterName: aksClusterName
+    manifests: [
+      for i in range(0, length(workloadIdentities)): {
+        apiVersion: 'v1'
+        kind: 'ServiceAccount'
+        metadata: {
+          name: workloadIdentities[i].value.uamiName
+          namespace: workloadIdentities[i].value.namespace
+          annotations: {
+            'azure.workload.identity/client-id': uami[i].properties.clientId
+          }
+        }
+      }
+    ]
+    aksManagedIdentityId: aksClusterUserDefinedManagedIdentity.id
+    location: location
+  }
+  dependsOn: [
+    aksClusterAdminRoleAssignment
+  ]
+}
 
 // Outputs
 output userAssignedIdentities array = [
