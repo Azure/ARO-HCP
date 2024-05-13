@@ -20,6 +20,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/metrics"
+	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/google/uuid"
 )
 
 const (
@@ -37,6 +39,7 @@ type Frontend struct {
 	listener net.Listener
 	server   http.Server
 	cache    Cache
+	dbClient DBClient
 	ready    atomic.Value
 	done     chan struct{}
 	metrics  metrics.Emitter
@@ -60,8 +63,9 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 				return ContextWithLogger(context.Background(), logger)
 			},
 		},
-		cache: *NewCache(),
-		done:  make(chan struct{}),
+		cache:    *NewCache(),
+		dbClient: *NewDatabaseClient(),
+		done:     make(chan struct{}),
 	}
 
 	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache)
@@ -276,6 +280,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
+
 	cluster, updating := f.cache.GetCluster(resourceID)
 
 	versionedRequestCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
@@ -301,6 +306,28 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	cluster = api.NewDefaultHCPOpenShiftCluster()
 	versionedRequestCluster.Normalize(cluster)
+
+	parsed, _ := azure.ParseResourceID(resourceID)
+	// var doc *HCPOpenShiftClusterDocument
+	// doc, found, err := f.dbClient.GetClusterDoc(parsed.SubscriptionID)
+	// if err != nil {
+	// 	f.logger.Error(err.Error())
+	// 	arm.WriteInternalServerError(writer)
+	// 	return
+	// }
+	// if !found {
+	// }
+	doc := &HCPOpenShiftClusterDocument{
+		ID:           uuid.New().String(),
+		Key:          resourceID,
+		ClusterID:    NewUID(),
+		PartitionKey: parsed.SubscriptionID,
+	}
+
+	err = f.dbClient.SetClusterDoc(doc)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
 
 	f.cache.SetCluster(resourceID, cluster)
 
@@ -352,6 +379,14 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 	f.cache.DeleteCluster(resourceID)
+
+	parsed, _ := azure.ParseResourceID(resourceID)
+	err = f.dbClient.DeleteClusterDoc(parsed.SubscriptionID)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	writer.WriteHeader(http.StatusAccepted)
 }

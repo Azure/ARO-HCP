@@ -8,7 +8,7 @@ param podSubnetPrefix = '10.128.64.0/18'
 param enablePrivateCluster = false
 param persist = false
 param disableLocalAuth = false
-param deployFrontendCosmos = false
+param deployFrontendCosmos = true
 param workloadIdentities = items({
   frontend_wi: {
     uamiName: 'frontend'
