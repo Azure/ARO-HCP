@@ -395,7 +395,7 @@ module serviceAccounts './aks-manifest.bicep' = {
         apiVersion: 'v1'
         kind: 'ServiceAccount'
         metadata: {
-          name: workloadIdentities[i].value.uamiName
+          name: workloadIdentities[i].value.serviceAccountName
           namespace: workloadIdentities[i].value.namespace
           annotations: {
             'azure.workload.identity/client-id': uami[i].properties.clientId
