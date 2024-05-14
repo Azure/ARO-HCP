@@ -3,15 +3,18 @@ param aksClusterName string
 param location string
 param aksManagedIdentityId string
 param manifests array
+param forceUpdateTag string = guid(string(manifests))
 
-var namespaces = [for manifest in manifests: manifest.metadata.namespace]
+var namespaces = [
+  for manifest in filter(manifests, m => contains(m.metadata, 'namespace')): manifest.metadata.namespace
+]
 var uniqueNamespaces = union(namespaces, [])
 var namespaceManifests = [
-  for i in range(0, length(uniqueNamespaces)): {
+  for ns in uniqueNamespaces: {
     apiVersion: 'v1'
     kind: 'Namespace'
     metadata: {
-      name: uniqueNamespaces[i]
+      name: ns
     }
   }
 ]
@@ -54,6 +57,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     // * avoid the need for a network path to the cluster
     //
     // right now az aks command invoke fails with `MissingAADClusterToken` when run within a deploymentscript
+    forceUpdateTag: forceUpdateTag
     environmentVariables: [
       {
         name: 'AKS_CLUSTER_RG'
