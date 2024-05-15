@@ -11,8 +11,6 @@ updates:
       typespec:
         patterns:
           - '@typespec/*'
-      azure-tools:
-        patterns:
           - '@azure-tools/*'
     schedule:
       interval: 'weekly'
