@@ -28,7 +28,7 @@ model HcpOpenShiftClusterResource
   @segment("hcpOpenShiftClusters")
   name: string;
 
-  ...ManagedServiceIdentityProperty;
+  ...ManagedServiceIdentity;
 }
 
 // The NodePool needs to be TrackedResource for the following reasons:
