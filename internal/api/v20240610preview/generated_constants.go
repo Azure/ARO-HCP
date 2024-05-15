@@ -160,6 +160,21 @@ func PossibleResourceProvisioningStateValues() []ResourceProvisioningState {
 	}
 }
 
+// Versions - The available API versions.
+type Versions string
+
+const (
+	// VersionsV20240610Preview - 2024-06-10-preview version
+	VersionsV20240610Preview Versions = "2024-06-10-preview"
+)
+
+// PossibleVersionsValues returns the possible values for the Versions const type.
+func PossibleVersionsValues() []Versions {
+	return []Versions{	
+		VersionsV20240610Preview,
+	}
+}
+
 // Visibility - The visibility of the API server
 type Visibility string
 
