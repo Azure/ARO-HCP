@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 type version struct{}
@@ -45,14 +46,13 @@ func init() {
 	api.Register(version{})
 
 	// Register enum type validations
-	validate.RegisterAlias("enum_actiontype", EnumValidateTag(PossibleActionTypeValues()...))
-	validate.RegisterAlias("enum_createdbytype", EnumValidateTag(PossibleCreatedByTypeValues()...))
-	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(PossibleManagedServiceIdentityTypeValues()...))
-	validate.RegisterAlias("enum_networktype", EnumValidateTag(PossibleNetworkTypeValues()...))
-	validate.RegisterAlias("enum_origin", EnumValidateTag(PossibleOriginValues()...))
-	validate.RegisterAlias("enum_outboundtype", EnumValidateTag(PossibleOutboundTypeValues()...))
-	validate.RegisterAlias("enum_provisioningstate", EnumValidateTag(PossibleProvisioningStateValues()...))
-	validate.RegisterAlias("enum_resourceprovisioningstate", EnumValidateTag(PossibleResourceProvisioningStateValues()...))
-	validate.RegisterAlias("enum_versions", EnumValidateTag(PossibleVersionsValues()...))
-	validate.RegisterAlias("enum_visibility", EnumValidateTag(PossibleVisibilityValues()...))
+	validate.RegisterAlias("enum_actiontype", EnumValidateTag(generated.PossibleActionTypeValues()...))
+	validate.RegisterAlias("enum_createdbytype", EnumValidateTag(generated.PossibleCreatedByTypeValues()...))
+	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(generated.PossibleManagedServiceIdentityTypeValues()...))
+	validate.RegisterAlias("enum_networktype", EnumValidateTag(generated.PossibleNetworkTypeValues()...))
+	validate.RegisterAlias("enum_origin", EnumValidateTag(generated.PossibleOriginValues()...))
+	validate.RegisterAlias("enum_outboundtype", EnumValidateTag(generated.PossibleOutboundTypeValues()...))
+	validate.RegisterAlias("enum_provisioningstate", EnumValidateTag(generated.PossibleProvisioningStateValues()...))
+	validate.RegisterAlias("enum_resourceprovisioningstate", EnumValidateTag(generated.PossibleResourceProvisioningStateValues()...))
+	validate.RegisterAlias("enum_visibility", EnumValidateTag(generated.PossibleVisibilityValues()...))
 }

@@ -10,7 +10,7 @@ package fake
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -18,29 +18,29 @@ import (
 	"net/http"
 )
 
-// OperationsServer is a fake server for instances of the v20240610preview.OperationsClient type.
+// OperationsServer is a fake server for instances of the generated.OperationsClient type.
 type OperationsServer struct{
 	// NewListPager is the fake for method OperationsClient.NewListPager
 	// HTTP status codes to indicate success: http.StatusOK
-	NewListPager func(options *v20240610preview.OperationsClientListOptions) (resp azfake.PagerResponder[v20240610preview.OperationsClientListResponse])
+	NewListPager func(options *generated.OperationsClientListOptions) (resp azfake.PagerResponder[generated.OperationsClientListResponse])
 
 }
 
 // NewOperationsServerTransport creates a new instance of OperationsServerTransport with the provided implementation.
-// The returned OperationsServerTransport instance is connected to an instance of v20240610preview.OperationsClient via the
+// The returned OperationsServerTransport instance is connected to an instance of generated.OperationsClient via the
 // azcore.ClientOptions.Transporter field in the client's constructor parameters.
 func NewOperationsServerTransport(srv *OperationsServer) *OperationsServerTransport {
 	return &OperationsServerTransport{
 		srv: srv,
-		newListPager: newTracker[azfake.PagerResponder[v20240610preview.OperationsClientListResponse]](),
+		newListPager: newTracker[azfake.PagerResponder[generated.OperationsClientListResponse]](),
 	}
 }
 
-// OperationsServerTransport connects instances of v20240610preview.OperationsClient to instances of OperationsServer.
+// OperationsServerTransport connects instances of generated.OperationsClient to instances of OperationsServer.
 // Don't use this type directly, use NewOperationsServerTransport instead.
 type OperationsServerTransport struct {
 	srv *OperationsServer
-	newListPager *tracker[azfake.PagerResponder[v20240610preview.OperationsClientListResponse]]
+	newListPager *tracker[azfake.PagerResponder[generated.OperationsClientListResponse]]
 }
 
 // Do implements the policy.Transporter interface for OperationsServerTransport.
@@ -77,7 +77,7 @@ func (o *OperationsServerTransport) dispatchNewListPager(req *http.Request) (*ht
 resp := o.srv.NewListPager(nil)
 		newListPager = &resp
 		o.newListPager.add(req, newListPager)
-		server.PagerResponderInjectNextLinks(newListPager, req, func(page *v20240610preview.OperationsClientListResponse, createLink func() string) {
+		server.PagerResponderInjectNextLinks(newListPager, req, func(page *generated.OperationsClientListResponse, createLink func() string) {
 			page.NextLink = to.Ptr(createLink())
 		})
 	}

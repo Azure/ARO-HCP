@@ -10,26 +10,67 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
-func newVersionProfile(from *api.VersionProfile) *VersionProfile {
-	return &VersionProfile{
+type HcpOpenShiftClusterResource struct {
+	generated.HcpOpenShiftClusterResource
+}
+
+type VersionProfile struct {
+	generated.VersionProfile
+}
+
+type DNSProfile struct {
+	generated.DNSProfile
+}
+
+type NetworkProfile struct {
+	generated.NetworkProfile
+}
+
+type ConsoleProfile struct {
+	generated.ConsoleProfile
+}
+
+type APIProfile struct {
+	generated.APIProfile
+}
+
+type ProxyProfile struct {
+	generated.ProxyProfile
+}
+
+type PlatformProfile struct {
+	generated.PlatformProfile
+}
+
+type ExternalAuthConfigProfile struct {
+	generated.ExternalAuthConfigProfile
+}
+
+type IngressProfile struct {
+	generated.IngressProfile
+}
+
+func newVersionProfile(from *api.VersionProfile) *generated.VersionProfile {
+	return &generated.VersionProfile{
 		ID:                api.Ptr(from.ID),
 		ChannelGroup:      api.Ptr(from.ChannelGroup),
 		AvailableUpgrades: api.StringSliceToStringPtrSlice(from.AvailableUpgrades),
 	}
 }
 
-func newDNSProfile(from *api.DNSProfile) *DNSProfile {
-	return &DNSProfile{
+func newDNSProfile(from *api.DNSProfile) *generated.DNSProfile {
+	return &generated.DNSProfile{
 		BaseDomain:       api.Ptr(from.BaseDomain),
 		BaseDomainPrefix: api.Ptr(from.BaseDomainPrefix),
 	}
 }
 
-func newNetworkProfile(from *api.NetworkProfile) *NetworkProfile {
-	return &NetworkProfile{
-		NetworkType: api.Ptr(NetworkType(from.NetworkType)),
+func newNetworkProfile(from *api.NetworkProfile) *generated.NetworkProfile {
+	return &generated.NetworkProfile{
+		NetworkType: api.Ptr(generated.NetworkType(from.NetworkType)),
 		PodCidr:     api.Ptr(from.PodCIDR),
 		ServiceCidr: api.Ptr(from.ServiceCIDR),
 		MachineCidr: api.Ptr(from.MachineCIDR),
@@ -37,22 +78,22 @@ func newNetworkProfile(from *api.NetworkProfile) *NetworkProfile {
 	}
 }
 
-func newConsoleProfile(from *api.ConsoleProfile) *ConsoleProfile {
-	return &ConsoleProfile{
+func newConsoleProfile(from *api.ConsoleProfile) *generated.ConsoleProfile {
+	return &generated.ConsoleProfile{
 		URL: api.Ptr(from.URL),
 	}
 }
 
-func newAPIProfile(from *api.APIProfile) *APIProfile {
-	return &APIProfile{
+func newAPIProfile(from *api.APIProfile) *generated.APIProfile {
+	return &generated.APIProfile{
 		URL:        api.Ptr(from.URL),
 		IP:         api.Ptr(from.IP),
-		Visibility: api.Ptr(Visibility(from.Visibility)),
+		Visibility: api.Ptr(generated.Visibility(from.Visibility)),
 	}
 }
 
-func newProxyProfile(from *api.ProxyProfile) *ProxyProfile {
-	return &ProxyProfile{
+func newProxyProfile(from *api.ProxyProfile) *generated.ProxyProfile {
+	return &generated.ProxyProfile{
 		HTTPProxy:  api.Ptr(from.HTTPProxy),
 		HTTPSProxy: api.Ptr(from.HTTPSProxy),
 		NoProxy:    api.Ptr(from.NoProxy),
@@ -60,44 +101,44 @@ func newProxyProfile(from *api.ProxyProfile) *ProxyProfile {
 	}
 }
 
-func newPlatformProfile(from *api.PlatformProfile) *PlatformProfile {
-	return &PlatformProfile{
+func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
+	return &generated.PlatformProfile{
 		ManagedResourceGroup:   api.Ptr(from.ManagedResourceGroup),
 		SubnetID:               api.Ptr(from.SubnetID),
-		OutboundType:           api.Ptr(OutboundType(from.OutboundType)),
+		OutboundType:           api.Ptr(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID: api.Ptr(from.NetworkSecurityGroupID),
 		EtcdEncryptionSetID:    api.Ptr(from.EtcdEncryptionSetID),
 	}
 }
 
-func newIngressProfile(from *api.IngressProfile) *IngressProfile {
-	return &IngressProfile{
+func newIngressProfile(from *api.IngressProfile) *generated.IngressProfile {
+	return &generated.IngressProfile{
 		IP:         api.Ptr(from.IP),
 		URL:        api.Ptr(from.URL),
-		Visibility: api.Ptr(Visibility(from.Visibility)),
+		Visibility: api.Ptr(generated.Visibility(from.Visibility)),
 	}
 }
 
-func newExternalAuthProfile(from *configv1.OIDCProvider) *ExternalAuthProfile {
-	out := &ExternalAuthProfile{
-		Issuer: &TokenIssuerProfile{
+func newExternalAuthProfile(from *configv1.OIDCProvider) *generated.ExternalAuthProfile {
+	out := &generated.ExternalAuthProfile{
+		Issuer: &generated.TokenIssuerProfile{
 			URL:       api.Ptr(from.Issuer.URL),
 			Audiences: make([]*string, len(from.Issuer.Audiences)),
 			Ca:        api.Ptr(from.Issuer.CertificateAuthority.Name),
 		},
-		Clients: make([]*ExternalAuthClientProfile, len(from.OIDCClients)),
-		Claim: &ExternalAuthClaimProfile{
-			Mappings: &TokenClaimMappingsProfile{
-				Username: &ClaimProfile{
+		Clients: make([]*generated.ExternalAuthClientProfile, len(from.OIDCClients)),
+		Claim: &generated.ExternalAuthClaimProfile{
+			Mappings: &generated.TokenClaimMappingsProfile{
+				Username: &generated.ClaimProfile{
 					Claim:        api.Ptr(from.ClaimMappings.Username.Claim),
 					PrefixPolicy: api.Ptr(string(from.ClaimMappings.Username.PrefixPolicy)),
 				},
-				Groups: &ClaimProfile{
+				Groups: &generated.ClaimProfile{
 					Claim:  api.Ptr(from.ClaimMappings.Groups.Claim),
 					Prefix: api.Ptr(from.ClaimMappings.Groups.Prefix),
 				},
 			},
-			ValidationRules: make([]*TokenClaimValidationRuleProfile, len(from.ClaimValidationRules)),
+			ValidationRules: make([]*generated.TokenClaimValidationRuleProfile, len(from.ClaimValidationRules)),
 		},
 	}
 
@@ -120,21 +161,21 @@ func newExternalAuthProfile(from *configv1.OIDCProvider) *ExternalAuthProfile {
 	return out
 }
 
-func newTokenClaimValidationRuleProfile(from configv1.TokenClaimValidationRule) *TokenClaimValidationRuleProfile {
+func newTokenClaimValidationRuleProfile(from configv1.TokenClaimValidationRule) *generated.TokenClaimValidationRuleProfile {
 	if from.RequiredClaim == nil {
 		// Should never happen since we create these rules.
 		panic("TokenClaimValidationRule has no RequiredClaim")
 	}
 
-	return &TokenClaimValidationRuleProfile{
+	return &generated.TokenClaimValidationRuleProfile{
 		Claim:         api.Ptr(from.RequiredClaim.Claim),
 		RequiredValue: api.Ptr(from.RequiredClaim.RequiredValue),
 	}
 }
 
-func newExternalAuthClientProfile(from configv1.OIDCClientConfig) *ExternalAuthClientProfile {
-	return &ExternalAuthClientProfile{
-		Component: &ExternalAuthClientComponentProfile{
+func newExternalAuthClientProfile(from configv1.OIDCClientConfig) *generated.ExternalAuthClientProfile {
+	return &generated.ExternalAuthClientProfile{
+		Component: &generated.ExternalAuthClientComponentProfile{
 			Name:                api.Ptr(from.ComponentName),
 			AuthClientNamespace: api.Ptr(from.ComponentNamespace),
 		},
@@ -150,42 +191,44 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	}
 
 	out := &HcpOpenShiftClusterResource{
-		ID:       api.Ptr(from.Resource.ID),
-		Name:     api.Ptr(from.Resource.Name),
-		Type:     api.Ptr(from.Resource.Type),
-		Location: api.Ptr(from.TrackedResource.Location),
-		Tags:     map[string]*string{},
-		// FIXME Skipping ManagedServiceIdentity
-		Properties: &HcpOpenShiftClusterProperties{
-			ProvisioningState: api.Ptr(ProvisioningState(from.Properties.ProvisioningState)),
-			Spec: &ClusterSpec{
-				Version:                       newVersionProfile(&from.Properties.Spec.Version),
-				DNS:                           newDNSProfile(&from.Properties.Spec.DNS),
-				Network:                       newNetworkProfile(&from.Properties.Spec.Network),
-				Console:                       newConsoleProfile(&from.Properties.Spec.Console),
-				API:                           newAPIProfile(&from.Properties.Spec.API),
-				Fips:                          api.Ptr(from.Properties.Spec.FIPS),
-				EtcdEncryption:                api.Ptr(from.Properties.Spec.EtcdEncryption),
-				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.Spec.DisableUserWorkloadMonitoring),
-				Proxy:                         newProxyProfile(&from.Properties.Spec.Proxy),
-				Platform:                      newPlatformProfile(&from.Properties.Spec.Platform),
-				IssuerURL:                     api.Ptr(from.Properties.Spec.IssuerURL),
-				ExternalAuth: &ExternalAuthConfigProfile{
-					Enabled:       api.Ptr(from.Properties.Spec.ExternalAuth.Enabled),
-					ExternalAuths: make([]*ExternalAuthProfile, len(from.Properties.Spec.ExternalAuth.ExternalAuths)),
+		generated.HcpOpenShiftClusterResource{
+			ID:       api.Ptr(from.Resource.ID),
+			Name:     api.Ptr(from.Resource.Name),
+			Type:     api.Ptr(from.Resource.Type),
+			Location: api.Ptr(from.TrackedResource.Location),
+			Tags:     map[string]*string{},
+			// FIXME Skipping ManagedServiceIdentity
+			Properties: &generated.HcpOpenShiftClusterProperties{
+				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				Spec: &generated.ClusterSpec{
+					Version:                       newVersionProfile(&from.Properties.Spec.Version),
+					DNS:                           newDNSProfile(&from.Properties.Spec.DNS),
+					Network:                       newNetworkProfile(&from.Properties.Spec.Network),
+					Console:                       newConsoleProfile(&from.Properties.Spec.Console),
+					API:                           newAPIProfile(&from.Properties.Spec.API),
+					Fips:                          api.Ptr(from.Properties.Spec.FIPS),
+					EtcdEncryption:                api.Ptr(from.Properties.Spec.EtcdEncryption),
+					DisableUserWorkloadMonitoring: api.Ptr(from.Properties.Spec.DisableUserWorkloadMonitoring),
+					Proxy:                         newProxyProfile(&from.Properties.Spec.Proxy),
+					Platform:                      newPlatformProfile(&from.Properties.Spec.Platform),
+					IssuerURL:                     api.Ptr(from.Properties.Spec.IssuerURL),
+					ExternalAuth: &generated.ExternalAuthConfigProfile{
+						Enabled:       api.Ptr(from.Properties.Spec.ExternalAuth.Enabled),
+						ExternalAuths: make([]*generated.ExternalAuthProfile, len(from.Properties.Spec.ExternalAuth.ExternalAuths)),
+					},
+					Ingress: make([]*generated.IngressProfile, len(from.Properties.Spec.Ingress)),
 				},
-				Ingress: make([]*IngressProfile, len(from.Properties.Spec.Ingress)),
 			},
 		},
 	}
 
 	if from.Resource.SystemData != nil {
-		out.SystemData = &SystemData{
+		out.SystemData = &generated.SystemData{
 			CreatedBy:          api.Ptr(from.Resource.SystemData.CreatedBy),
-			CreatedByType:      api.Ptr(CreatedByType(from.Resource.SystemData.CreatedByType)),
+			CreatedByType:      api.Ptr(generated.CreatedByType(from.Resource.SystemData.CreatedByType)),
 			CreatedAt:          from.Resource.SystemData.CreatedAt,
 			LastModifiedBy:     api.Ptr(from.Resource.SystemData.LastModifiedBy),
-			LastModifiedByType: api.Ptr(CreatedByType(from.Resource.SystemData.LastModifiedByType)),
+			LastModifiedByType: api.Ptr(generated.CreatedByType(from.Resource.SystemData.LastModifiedByType)),
 			LastModifiedAt:     from.Resource.SystemData.LastModifiedAt,
 		}
 	}
@@ -249,19 +292,19 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 		}
 		if c.Properties.Spec != nil {
 			if c.Properties.Spec.Version != nil {
-				c.Properties.Spec.Version.Normalize(&out.Properties.Spec.Version)
+				normalizeVersion(c.Properties.Spec.Version, &out.Properties.Spec.Version)
 			}
 			if c.Properties.Spec.DNS != nil {
-				c.Properties.Spec.DNS.Normalize(&out.Properties.Spec.DNS)
+				normailzeDNS(c.Properties.Spec.DNS, &out.Properties.Spec.DNS)
 			}
 			if c.Properties.Spec.Network != nil {
-				c.Properties.Spec.Network.Normalize(&out.Properties.Spec.Network)
+				normalizeNetwork(c.Properties.Spec.Network, &out.Properties.Spec.Network)
 			}
 			if c.Properties.Spec.Console != nil {
-				c.Properties.Spec.Console.Normalize(&out.Properties.Spec.Console)
+				normalizeConsole(c.Properties.Spec.Console, &out.Properties.Spec.Console)
 			}
 			if c.Properties.Spec.API != nil {
-				c.Properties.Spec.API.Normalize(&out.Properties.Spec.API)
+				normalizeAPI(c.Properties.Spec.API, &out.Properties.Spec.API)
 			}
 			if c.Properties.Spec.Fips != nil {
 				out.Properties.Spec.FIPS = *c.Properties.Spec.Fips
@@ -273,22 +316,22 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 				out.Properties.Spec.DisableUserWorkloadMonitoring = *c.Properties.Spec.DisableUserWorkloadMonitoring
 			}
 			if c.Properties.Spec.Proxy != nil {
-				c.Properties.Spec.Proxy.Normalize(&out.Properties.Spec.Proxy)
+				normalizeProxy(c.Properties.Spec.Proxy, &out.Properties.Spec.Proxy)
 			}
 			if c.Properties.Spec.Platform != nil {
-				c.Properties.Spec.Platform.Normalize(&out.Properties.Spec.Platform)
+				normalizePlatform(c.Properties.Spec.Platform, &out.Properties.Spec.Platform)
 			}
 			if c.Properties.Spec.IssuerURL != nil {
 				out.Properties.Spec.IssuerURL = *c.Properties.Spec.IssuerURL
 			}
 			if c.Properties.Spec.ExternalAuth != nil {
-				c.Properties.Spec.ExternalAuth.Normalize(&out.Properties.Spec.ExternalAuth)
+				normalizeExternalAuthConfig(c.Properties.Spec.ExternalAuth, &out.Properties.Spec.ExternalAuth)
 			}
 			ingressSequence := api.DeleteNilsFromPtrSlice(c.Properties.Spec.Ingress)
 			out.Properties.Spec.Ingress = make([]*api.IngressProfile, len(ingressSequence))
 			for index, item := range ingressSequence {
 				out.Properties.Spec.Ingress[index] = &api.IngressProfile{}
-				item.Normalize(out.Properties.Spec.Ingress[index])
+				normalizeIngress(item, out.Properties.Spec.Ingress[index])
 			}
 		}
 	}
@@ -328,6 +371,10 @@ func (c *HcpOpenShiftClusterResource) ValidateStatic(current api.VersionedHCPOpe
 }
 
 func (p *VersionProfile) Normalize(out *api.VersionProfile) {
+	normalizeVersion(&p.VersionProfile, out)
+}
+
+func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
 	if p.ID != nil {
 		out.ID = *p.ID
 	}
@@ -338,6 +385,10 @@ func (p *VersionProfile) Normalize(out *api.VersionProfile) {
 }
 
 func (p *DNSProfile) Normalize(out *api.DNSProfile) {
+	normailzeDNS(&p.DNSProfile, out)
+}
+
+func normailzeDNS(p *generated.DNSProfile, out *api.DNSProfile) {
 	if p.BaseDomain != nil {
 		out.BaseDomain = *p.BaseDomain
 	}
@@ -347,6 +398,10 @@ func (p *DNSProfile) Normalize(out *api.DNSProfile) {
 }
 
 func (p *NetworkProfile) Normalize(out *api.NetworkProfile) {
+	normalizeNetwork(&p.NetworkProfile, out)
+}
+
+func normalizeNetwork(p *generated.NetworkProfile, out *api.NetworkProfile) {
 	if p.NetworkType != nil {
 		out.NetworkType = api.NetworkType(*p.NetworkType)
 	}
@@ -365,12 +420,20 @@ func (p *NetworkProfile) Normalize(out *api.NetworkProfile) {
 }
 
 func (p *ConsoleProfile) Normalize(out *api.ConsoleProfile) {
+	normalizeConsole(&p.ConsoleProfile, out)
+}
+
+func normalizeConsole(p *generated.ConsoleProfile, out *api.ConsoleProfile) {
 	if p.URL != nil {
 		out.URL = *p.URL
 	}
 }
 
 func (p *APIProfile) Normalize(out *api.APIProfile) {
+	normalizeAPI(&p.APIProfile, out)
+}
+
+func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
 	if p.URL != nil {
 		out.URL = *p.URL
 	}
@@ -383,6 +446,10 @@ func (p *APIProfile) Normalize(out *api.APIProfile) {
 }
 
 func (p *ProxyProfile) Normalize(out *api.ProxyProfile) {
+	normalizeProxy(&p.ProxyProfile, out)
+}
+
+func normalizeProxy(p *generated.ProxyProfile, out *api.ProxyProfile) {
 	if p.HTTPProxy != nil {
 		out.HTTPProxy = *p.HTTPProxy
 	}
@@ -398,6 +465,10 @@ func (p *ProxyProfile) Normalize(out *api.ProxyProfile) {
 }
 
 func (p *PlatformProfile) Normalize(out *api.PlatformProfile) {
+	normalizePlatform(&p.PlatformProfile, out)
+}
+
+func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
 	if p.ManagedResourceGroup != nil {
 		out.ManagedResourceGroup = *p.ManagedResourceGroup
 	}
@@ -416,6 +487,10 @@ func (p *PlatformProfile) Normalize(out *api.PlatformProfile) {
 }
 
 func (p *ExternalAuthConfigProfile) Normalize(out *api.ExternalAuthConfigProfile) {
+	normalizeExternalAuthConfig(&p.ExternalAuthConfigProfile, out)
+}
+
+func normalizeExternalAuthConfig(p *generated.ExternalAuthConfigProfile, out *api.ExternalAuthConfigProfile) {
 	if p.Enabled != nil {
 		out.Enabled = *p.Enabled
 	}
@@ -508,6 +583,10 @@ func (p *ExternalAuthConfigProfile) Normalize(out *api.ExternalAuthConfigProfile
 }
 
 func (p *IngressProfile) Normalize(out *api.IngressProfile) {
+	normalizeIngress(&p.IngressProfile, out)
+}
+
+func normalizeIngress(p *generated.IngressProfile, out *api.IngressProfile) {
 	if p.IP != nil {
 		out.IP = *p.IP
 	}

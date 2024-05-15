@@ -16,7 +16,7 @@ import (
 	"sync"
 )
 
-// ServerFactory is a fake server for instances of the v20240610preview.ClientFactory type.
+// ServerFactory is a fake server for instances of the generated.ClientFactory type.
 type ServerFactory struct {
 	HcpClusterVersionOperationsServer HcpClusterVersionOperationsServer
 	HcpOpenShiftClustersServer HcpOpenShiftClustersServer
@@ -25,7 +25,7 @@ type ServerFactory struct {
 }
 
 // NewServerFactoryTransport creates a new instance of ServerFactoryTransport with the provided implementation.
-// The returned ServerFactoryTransport instance is connected to an instance of v20240610preview.ClientFactory via the
+// The returned ServerFactoryTransport instance is connected to an instance of generated.ClientFactory via the
 // azcore.ClientOptions.Transporter field in the client's constructor parameters.
 func NewServerFactoryTransport(srv *ServerFactory) *ServerFactoryTransport {
 	return &ServerFactoryTransport{
@@ -33,7 +33,7 @@ func NewServerFactoryTransport(srv *ServerFactory) *ServerFactoryTransport {
 	}
 }
 
-// ServerFactoryTransport connects instances of v20240610preview.ClientFactory to instances of ServerFactory.
+// ServerFactoryTransport connects instances of generated.ClientFactory to instances of ServerFactory.
 // Don't use this type directly, use NewServerFactoryTransport instead.
 type ServerFactoryTransport struct {
 	srv *ServerFactory

@@ -10,7 +10,7 @@ package fake
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -20,29 +20,29 @@ import (
 	"regexp"
 )
 
-// HcpClusterVersionOperationsServer is a fake server for instances of the v20240610preview.HcpClusterVersionOperationsClient type.
+// HcpClusterVersionOperationsServer is a fake server for instances of the generated.HcpClusterVersionOperationsClient type.
 type HcpClusterVersionOperationsServer struct{
 	// NewListByLocationPager is the fake for method HcpClusterVersionOperationsClient.NewListByLocationPager
 	// HTTP status codes to indicate success: http.StatusOK
-	NewListByLocationPager func(location string, options *v20240610preview.HcpClusterVersionOperationsClientListByLocationOptions) (resp azfake.PagerResponder[v20240610preview.HcpClusterVersionOperationsClientListByLocationResponse])
+	NewListByLocationPager func(location string, options *generated.HcpClusterVersionOperationsClientListByLocationOptions) (resp azfake.PagerResponder[generated.HcpClusterVersionOperationsClientListByLocationResponse])
 
 }
 
 // NewHcpClusterVersionOperationsServerTransport creates a new instance of HcpClusterVersionOperationsServerTransport with the provided implementation.
-// The returned HcpClusterVersionOperationsServerTransport instance is connected to an instance of v20240610preview.HcpClusterVersionOperationsClient via the
+// The returned HcpClusterVersionOperationsServerTransport instance is connected to an instance of generated.HcpClusterVersionOperationsClient via the
 // azcore.ClientOptions.Transporter field in the client's constructor parameters.
 func NewHcpClusterVersionOperationsServerTransport(srv *HcpClusterVersionOperationsServer) *HcpClusterVersionOperationsServerTransport {
 	return &HcpClusterVersionOperationsServerTransport{
 		srv: srv,
-		newListByLocationPager: newTracker[azfake.PagerResponder[v20240610preview.HcpClusterVersionOperationsClientListByLocationResponse]](),
+		newListByLocationPager: newTracker[azfake.PagerResponder[generated.HcpClusterVersionOperationsClientListByLocationResponse]](),
 	}
 }
 
-// HcpClusterVersionOperationsServerTransport connects instances of v20240610preview.HcpClusterVersionOperationsClient to instances of HcpClusterVersionOperationsServer.
+// HcpClusterVersionOperationsServerTransport connects instances of generated.HcpClusterVersionOperationsClient to instances of HcpClusterVersionOperationsServer.
 // Don't use this type directly, use NewHcpClusterVersionOperationsServerTransport instead.
 type HcpClusterVersionOperationsServerTransport struct {
 	srv *HcpClusterVersionOperationsServer
-	newListByLocationPager *tracker[azfake.PagerResponder[v20240610preview.HcpClusterVersionOperationsClientListByLocationResponse]]
+	newListByLocationPager *tracker[azfake.PagerResponder[generated.HcpClusterVersionOperationsClientListByLocationResponse]]
 }
 
 // Do implements the policy.Transporter interface for HcpClusterVersionOperationsServerTransport.
@@ -89,7 +89,7 @@ func (h *HcpClusterVersionOperationsServerTransport) dispatchNewListByLocationPa
 resp := h.srv.NewListByLocationPager(locationParam, nil)
 		newListByLocationPager = &resp
 		h.newListByLocationPager.add(req, newListByLocationPager)
-		server.PagerResponderInjectNextLinks(newListByLocationPager, req, func(page *v20240610preview.HcpClusterVersionOperationsClientListByLocationResponse, createLink func() string) {
+		server.PagerResponderInjectNextLinks(newListByLocationPager, req, func(page *generated.HcpClusterVersionOperationsClientListByLocationResponse, createLink func() string) {
 			page.NextLink = to.Ptr(createLink())
 		})
 	}
