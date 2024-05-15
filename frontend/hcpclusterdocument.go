@@ -12,5 +12,5 @@ type HCPOpenShiftClusterDocument struct {
 	Self        string `json:"_self,omitempty"`
 	ETag        string `json:"_etag,omitempty"`
 	Attachments string `json:"_attachments,omitempty"`
-	Timestamp   string `json:"_ts,omitempty"`
+	Timestamp   int    `json:"_ts,omitempty"`
 }

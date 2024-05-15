@@ -17,11 +17,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/google/uuid"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/metrics"
-	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/google/uuid"
 )
 
 const (
@@ -308,26 +309,27 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedRequestCluster.Normalize(cluster)
 
 	parsed, _ := azure.ParseResourceID(resourceID)
-	// var doc *HCPOpenShiftClusterDocument
-	// doc, found, err := f.dbClient.GetClusterDoc(parsed.SubscriptionID)
-	// if err != nil {
-	// 	f.logger.Error(err.Error())
-	// 	arm.WriteInternalServerError(writer)
-	// 	return
-	// }
-	// if !found {
-	// }
-	doc := &HCPOpenShiftClusterDocument{
-		ID:           uuid.New().String(),
-		Key:          resourceID,
-		ClusterID:    NewUID(),
-		PartitionKey: parsed.SubscriptionID,
-	}
-
-	err = f.dbClient.SetClusterDoc(doc)
+	var doc *HCPOpenShiftClusterDocument
+	doc, found, err := f.dbClient.GetClusterDoc(ctx, resourceID, parsed.SubscriptionID)
 	if err != nil {
-		f.logger.Error(err.Error())
+		f.logger.Error("failed to fetch document for %s: %v", resourceID, err)
+		arm.WriteInternalServerError(writer)
+		return
 	}
+	if !found {
+		f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
+		doc = &HCPOpenShiftClusterDocument{
+			ID:           uuid.New().String(),
+			Key:          resourceID,
+			ClusterID:    NewUID(),
+			PartitionKey: parsed.SubscriptionID,
+		}
+	}
+	err = f.dbClient.SetClusterDoc(ctx, doc)
+	if err != nil {
+		f.logger.Error("failed to create document for resource %s: %v", resourceID, err)
+	}
+	f.logger.Info(fmt.Sprintf("document created for %s", resourceID))
 
 	f.cache.SetCluster(resourceID, cluster)
 
@@ -337,6 +339,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		arm.WriteInternalServerError(writer)
 		return
 	}
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -381,12 +384,13 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	f.cache.DeleteCluster(resourceID)
 
 	parsed, _ := azure.ParseResourceID(resourceID)
-	err = f.dbClient.DeleteClusterDoc(parsed.SubscriptionID)
+	err = f.dbClient.DeleteClusterDoc(ctx, resourceID, parsed.SubscriptionID)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
+	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
 	writer.WriteHeader(http.StatusAccepted)
 }

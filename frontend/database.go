@@ -35,7 +35,7 @@ func NewDatabaseClient() *DBClient {
 }
 
 // DBConnectionTest checks the async database is accessible on startup
-func (d *DBClient) DBConnectionTest() (string, error) {
+func (d *DBClient) DBConnectionTest(ctx context.Context) (string, error) {
 	if d.DBName == "none" || d.DBName == "" {
 		return "No database configured, skipping", nil
 	}
@@ -44,7 +44,7 @@ func (d *DBClient) DBConnectionTest() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	result, err := database.Read(context.TODO(), nil)
+	result, err := database.Read(ctx, nil)
 	if err != nil {
 		return "", err
 	}
@@ -52,16 +52,16 @@ func (d *DBClient) DBConnectionTest() (string, error) {
 }
 
 // GetCluster retreives a cluster document from async DB using resource ID
-func (d *DBClient) GetClusterDoc(partitionKey string) (*HCPOpenShiftClusterDocument, bool, error) {
+func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, bool, error) {
 	container, err := d.client.NewContainer(d.DBName, clustersContainer)
 	if err != nil {
 		return nil, false, err
 	}
 
-	query := fmt.Sprintf("SELECT * FROM %s c WHERE c.partitionKey = @key", clustersContainer)
+	query := "SELECT * FROM c WHERE c.key = @key"
 	opt := azcosmos.QueryOptions{
 		PageSizeHint:    1,
-		QueryParameters: []azcosmos.QueryParameter{{Name: "@key", Value: partitionKey}},
+		QueryParameters: []azcosmos.QueryParameter{{Name: "@key", Value: resourceID}},
 	}
 
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
@@ -69,7 +69,7 @@ func (d *DBClient) GetClusterDoc(partitionKey string) (*HCPOpenShiftClusterDocum
 
 	var doc *HCPOpenShiftClusterDocument
 	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(context.TODO())
+		queryResponse, err := queryPager.NextPage(ctx)
 		if err != nil {
 			return nil, false, err
 		}
@@ -81,12 +81,15 @@ func (d *DBClient) GetClusterDoc(partitionKey string) (*HCPOpenShiftClusterDocum
 			}
 		}
 	}
-	return doc, true, nil
+	if doc != nil {
+		return doc, true, nil
+	}
+	return nil, false, nil
 
 }
 
 // SetCluster creates/updates a cluster document in the async DB during cluster creation/patching
-func (d *DBClient) SetClusterDoc(doc *HCPOpenShiftClusterDocument) error {
+func (d *DBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error {
 	data, err := json.Marshal(doc)
 	if err != nil {
 		return err
@@ -97,7 +100,7 @@ func (d *DBClient) SetClusterDoc(doc *HCPOpenShiftClusterDocument) error {
 		return err
 	}
 
-	_, err = container.UpsertItem(context.TODO(), azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
+	_, err = container.UpsertItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
 	if err != nil {
 		return err
 	}
@@ -106,8 +109,8 @@ func (d *DBClient) SetClusterDoc(doc *HCPOpenShiftClusterDocument) error {
 }
 
 // DeleteCluster removes a cluter document from the async DB using resource ID
-func (d *DBClient) DeleteClusterDoc(partitionKey string) error {
-	doc, found, err := d.GetClusterDoc(partitionKey)
+func (d *DBClient) DeleteClusterDoc(ctx context.Context, resourceID string, partitionKey string) error {
+	doc, found, err := d.GetClusterDoc(ctx, resourceID, partitionKey)
 	if !found {
 		return fmt.Errorf("document with key %s not found", partitionKey)
 	}
@@ -120,7 +123,7 @@ func (d *DBClient) DeleteClusterDoc(partitionKey string) error {
 		return err
 	}
 
-	_, err = container.DeleteItem(context.TODO(), azcosmos.NewPartitionKeyString(partitionKey), doc.ID, nil)
+	_, err = container.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), doc.ID, nil)
 	if err != nil {
 		return err
 	}

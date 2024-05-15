@@ -1,30 +1,45 @@
 # ARO-HCP-FRONTEND
 
 ## Build the frontend container
-docker build -f Dockerfile.frontend -t aro-hcp-frontend .
+```bash
+# Note: until the ACR location is defined, you must set the image base
+export ARO_HCP_BASE_IMAGE="quay.io/QUAY_USERNAME"
+make image
+```
 
 ## Run the frontend container
-docker run -p 8443:8443 aro-hcp-frontend
 
-## Run the frontend
-
+**Locally**:
 ```bash
-make frontend
+docker run -p 8443:8443 aro-hcp-frontend
 ```
 
-To create a cluster, follow the instructions in [development-setup.md][../dev-infrastructure/docs/development-setup.md]
-
-## Deploy/Undeploy frontend in a cluster
-
+**In Cluster:**
 ```bash
 # Deploy
-make deploy-frontend
+make deploy
 
 # Undeploy
-make undeploy-frontend
+make undeploy
+
+# If using a private cluster
+make deploy-private
+
+make undeploy-private
 ```
 
+> To create a cluster, follow the instructions in [development-setup.md](../dev-infrastructure/docs/development-setup.md)
+
 ## Available endpoints
+
+> Note: If you need a test cluster.json file for some of the below API calls, you can generate one using [utils/create.go](./utils/create.go)
+>
+> `go run utils/create.go`
+
+Update a subscription state (Must be **Registered** for other calls to function)
+```bash
+curl -X PUT localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID?api-version=2.0 --json '{"state":"Registered"}'
+```
 
 List the Operations for the Provider
 ```bash
@@ -32,6 +47,7 @@ curl -X GET "https://localhost:8443/providers/Microsoft.RedHatOpenshift/operatio
 ```
 
 List HcpOpenShiftVersions Resources by Location
+
 ```bash
 curl -X GET "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/locations/YOUR_LOCATION/providers/Microsoft.RedHatOpenshift/hcpOpenShiftVersions?api-version=2024-06-10-preview"
 ```
@@ -48,18 +64,12 @@ curl -X GET "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceG
 
 Create or Update a HcpOpenShiftClusterResource
 ```bash
-curl -X PUT "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview" --json @mycluster.json
+curl -X PUT "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview" --json @cluster.json
 ```
 
 Delete a HcpOpenShiftClusterResource
 ```bash
 curl -X DELETE "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
-```
-
-
-Update a subscription state
-```bash
-curl -X PUT localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID?api-version=2.0 --json '{"state":"Registered"}'
 ```
 
 Execute deployment preflight checks

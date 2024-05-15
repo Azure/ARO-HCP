@@ -15,6 +15,7 @@ func main() {
 	}
 }
 
+// CreateJSONFile creates a base cluster JSON file for use with testing frontend to create clusters
 func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{

@@ -47,7 +47,7 @@ func main() {
 	// Verify the Async DB is available and accessible
 
 	logger.Info("Testing DB Access")
-	result, err := frontend.dbClient.DBConnectionTest()
+	result, err := frontend.dbClient.DBConnectionTest(ctx)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Database test failed to fetch properties: %v", err))
 	} else {
