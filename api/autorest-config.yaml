@@ -6,9 +6,8 @@ use:
 go:
   namespace: redhatopenshift
   project-folder: ../internal
-  output-folder: $(project-folder)/api/v20240610preview
-  file-prefix: generated
+  output-folder: $(project-folder)/api/v20240610preview/generated
   module-version: "0.0.1"
-  containing-module: "github.com/Azure/ARO-HCP/internal/api"
+  containing-module: "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
   azure-arm: true
   generate-fakes: true

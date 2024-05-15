@@ -2162,24 +2162,6 @@
         }
       }
     },
-    "Versions": {
-      "type": "string",
-      "description": "The available API versions.",
-      "enum": [
-        "2024-06-10-preview"
-      ],
-      "x-ms-enum": {
-        "name": "Versions",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "v2024_06_10_preview",
-            "value": "2024-06-10-preview",
-            "description": "2024-06-10-preview version"
-          }
-        ]
-      }
-    },
     "Visibility": {
       "type": "string",
       "description": "The visibility of the API server",

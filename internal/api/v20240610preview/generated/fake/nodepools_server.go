@@ -11,7 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -21,51 +21,51 @@ import (
 	"regexp"
 )
 
-// NodePoolsServer is a fake server for instances of the v20240610preview.NodePoolsClient type.
+// NodePoolsServer is a fake server for instances of the generated.NodePoolsClient type.
 type NodePoolsServer struct{
 	// BeginCreateOrUpdate is the fake for method NodePoolsClient.BeginCreateOrUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusCreated
-	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, resource v20240610preview.HcpOpenShiftClusterNodePoolResource, options *v20240610preview.NodePoolsClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[v20240610preview.NodePoolsClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
+	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, resource generated.HcpOpenShiftClusterNodePoolResource, options *generated.NodePoolsClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[generated.NodePoolsClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
 
 	// BeginDelete is the fake for method NodePoolsClient.BeginDelete
 	// HTTP status codes to indicate success: http.StatusAccepted, http.StatusNoContent
-	BeginDelete func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *v20240610preview.NodePoolsClientBeginDeleteOptions) (resp azfake.PollerResponder[v20240610preview.NodePoolsClientDeleteResponse], errResp azfake.ErrorResponder)
+	BeginDelete func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *generated.NodePoolsClientBeginDeleteOptions) (resp azfake.PollerResponder[generated.NodePoolsClientDeleteResponse], errResp azfake.ErrorResponder)
 
 	// Get is the fake for method NodePoolsClient.Get
 	// HTTP status codes to indicate success: http.StatusOK
-	Get func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *v20240610preview.NodePoolsClientGetOptions) (resp azfake.Responder[v20240610preview.NodePoolsClientGetResponse], errResp azfake.ErrorResponder)
+	Get func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *generated.NodePoolsClientGetOptions) (resp azfake.Responder[generated.NodePoolsClientGetResponse], errResp azfake.ErrorResponder)
 
 	// NewListByHcpOpenShiftClusterResourcePager is the fake for method NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager
 	// HTTP status codes to indicate success: http.StatusOK
-	NewListByHcpOpenShiftClusterResourcePager func(resourceGroupName string, hcpOpenShiftClusterName string, options *v20240610preview.NodePoolsClientListByHcpOpenShiftClusterResourceOptions) (resp azfake.PagerResponder[v20240610preview.NodePoolsClientListByHcpOpenShiftClusterResourceResponse])
+	NewListByHcpOpenShiftClusterResourcePager func(resourceGroupName string, hcpOpenShiftClusterName string, options *generated.NodePoolsClientListByHcpOpenShiftClusterResourceOptions) (resp azfake.PagerResponder[generated.NodePoolsClientListByHcpOpenShiftClusterResourceResponse])
 
 	// BeginUpdate is the fake for method NodePoolsClient.BeginUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusAccepted
-	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties v20240610preview.HcpOpenShiftClusterNodePoolResourceUpdate, options *v20240610preview.NodePoolsClientBeginUpdateOptions) (resp azfake.PollerResponder[v20240610preview.NodePoolsClientUpdateResponse], errResp azfake.ErrorResponder)
+	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties generated.HcpOpenShiftClusterNodePoolResourceUpdate, options *generated.NodePoolsClientBeginUpdateOptions) (resp azfake.PollerResponder[generated.NodePoolsClientUpdateResponse], errResp azfake.ErrorResponder)
 
 }
 
 // NewNodePoolsServerTransport creates a new instance of NodePoolsServerTransport with the provided implementation.
-// The returned NodePoolsServerTransport instance is connected to an instance of v20240610preview.NodePoolsClient via the
+// The returned NodePoolsServerTransport instance is connected to an instance of generated.NodePoolsClient via the
 // azcore.ClientOptions.Transporter field in the client's constructor parameters.
 func NewNodePoolsServerTransport(srv *NodePoolsServer) *NodePoolsServerTransport {
 	return &NodePoolsServerTransport{
 		srv: srv,
-		beginCreateOrUpdate: newTracker[azfake.PollerResponder[v20240610preview.NodePoolsClientCreateOrUpdateResponse]](),
-		beginDelete: newTracker[azfake.PollerResponder[v20240610preview.NodePoolsClientDeleteResponse]](),
-		newListByHcpOpenShiftClusterResourcePager: newTracker[azfake.PagerResponder[v20240610preview.NodePoolsClientListByHcpOpenShiftClusterResourceResponse]](),
-		beginUpdate: newTracker[azfake.PollerResponder[v20240610preview.NodePoolsClientUpdateResponse]](),
+		beginCreateOrUpdate: newTracker[azfake.PollerResponder[generated.NodePoolsClientCreateOrUpdateResponse]](),
+		beginDelete: newTracker[azfake.PollerResponder[generated.NodePoolsClientDeleteResponse]](),
+		newListByHcpOpenShiftClusterResourcePager: newTracker[azfake.PagerResponder[generated.NodePoolsClientListByHcpOpenShiftClusterResourceResponse]](),
+		beginUpdate: newTracker[azfake.PollerResponder[generated.NodePoolsClientUpdateResponse]](),
 	}
 }
 
-// NodePoolsServerTransport connects instances of v20240610preview.NodePoolsClient to instances of NodePoolsServer.
+// NodePoolsServerTransport connects instances of generated.NodePoolsClient to instances of NodePoolsServer.
 // Don't use this type directly, use NewNodePoolsServerTransport instead.
 type NodePoolsServerTransport struct {
 	srv *NodePoolsServer
-	beginCreateOrUpdate *tracker[azfake.PollerResponder[v20240610preview.NodePoolsClientCreateOrUpdateResponse]]
-	beginDelete *tracker[azfake.PollerResponder[v20240610preview.NodePoolsClientDeleteResponse]]
-	newListByHcpOpenShiftClusterResourcePager *tracker[azfake.PagerResponder[v20240610preview.NodePoolsClientListByHcpOpenShiftClusterResourceResponse]]
-	beginUpdate *tracker[azfake.PollerResponder[v20240610preview.NodePoolsClientUpdateResponse]]
+	beginCreateOrUpdate *tracker[azfake.PollerResponder[generated.NodePoolsClientCreateOrUpdateResponse]]
+	beginDelete *tracker[azfake.PollerResponder[generated.NodePoolsClientDeleteResponse]]
+	newListByHcpOpenShiftClusterResourcePager *tracker[azfake.PagerResponder[generated.NodePoolsClientListByHcpOpenShiftClusterResourceResponse]]
+	beginUpdate *tracker[azfake.PollerResponder[generated.NodePoolsClientUpdateResponse]]
 }
 
 // Do implements the policy.Transporter interface for NodePoolsServerTransport.
@@ -113,7 +113,7 @@ func (n *NodePoolsServerTransport) dispatchBeginCreateOrUpdate(req *http.Request
 	if matches == nil || len(matches) < 4 {
 		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
 	}
-	body, err := server.UnmarshalRequestAsJSON[v20240610preview.HcpOpenShiftClusterNodePoolResource](req)
+	body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterNodePoolResource](req)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +261,7 @@ func (n *NodePoolsServerTransport) dispatchNewListByHcpOpenShiftClusterResourceP
 resp := n.srv.NewListByHcpOpenShiftClusterResourcePager(resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
 		newListByHcpOpenShiftClusterResourcePager = &resp
 		n.newListByHcpOpenShiftClusterResourcePager.add(req, newListByHcpOpenShiftClusterResourcePager)
-		server.PagerResponderInjectNextLinks(newListByHcpOpenShiftClusterResourcePager, req, func(page *v20240610preview.NodePoolsClientListByHcpOpenShiftClusterResourceResponse, createLink func() string) {
+		server.PagerResponderInjectNextLinks(newListByHcpOpenShiftClusterResourcePager, req, func(page *generated.NodePoolsClientListByHcpOpenShiftClusterResourceResponse, createLink func() string) {
 			page.NextLink = to.Ptr(createLink())
 		})
 	}
@@ -291,7 +291,7 @@ func (n *NodePoolsServerTransport) dispatchBeginUpdate(req *http.Request) (*http
 	if matches == nil || len(matches) < 4 {
 		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
 	}
-	body, err := server.UnmarshalRequestAsJSON[v20240610preview.HcpOpenShiftClusterNodePoolResourceUpdate](req)
+	body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterNodePoolResourceUpdate](req)
 	if err != nil {
 		return nil, err
 	}
