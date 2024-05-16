@@ -100,3 +100,17 @@ This will delete:
    ```bash
    AKSCONFIG=svc-cluster make clean
    ```
+
+## Maestro Infrastructure
+
+Maestro infrastructure is provisioned as part of the svc-cluster. To deploy the Maestro infrastructure and deploy the Maestro server onto the service cluster set the `deployMaestroInfra` toggle to `true` and run
+
+```sh
+cd dev-infrastructure
+AKSCONFIG=svc-cluster make svc-cluster
+AKSCONFIG=svc-cluster make aks.kubeconfig
+KUBECONFIG=svc-cluster.kubeconfig scripts/maestro-server.sh
+
+kubectl get svc -n maestro
+curl http://${LB_IP}:$port
+```
