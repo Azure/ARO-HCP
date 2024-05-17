@@ -13,30 +13,60 @@ if [ ${#UNIQUE_PREFIX} -gt 21 ]; then
     UNIQUE_PREFIX=${UNIQUE_PREFIX:0:21}
     echo "trimmed UNIQUE_PREFIX=$UNIQUE_PREFIX to 21 characters" > /dev/stderr
 fi
-APP_KEY_VAULT_NAME=${APP_KEY_VAULT_NAME:-"$UNIQUE_PREFIX-kv"}
-APP_CERT_NAME=${APP_CERT_NAME:-"$UNIQUE_PREFIX-fp-cert"}
-APP_REGISTRATION_NAME=${APP_REGISTRATION_NAME:-"$UNIQUE_PREFIX-fp-app"}
+
 RESOURCE_GROUP=${RESOURCE_GROUP:-"$UNIQUE_PREFIX-RG"}
-ROLE_DEFINITION_NAME=${ROLE_DEFINITION_NAME:-"$UNIQUE_PREFIX-fp-role"}
 SUBSCRIPTION_ID=${SUBSCRIPTION_ID:-$(az account show --query id -o tsv)}
+
+KEY_VAULT_NAME=${ARO_HCP_DEV_KEY_VAULT_NAME:-"$UNIQUE_PREFIX-kv"}
+
+# Mock first-party application (limited permissions)
+FP_APPLICATION_NAME=${ARO_HCP_DEV_FP_APPLICATION_NAME:-"$UNIQUE_PREFIX-fp-app"}
+FP_CERTIFICATE_NAME=${ARO_HCP_DEV_FP_CERTIFICATE_NAME:-"$UNIQUE_PREFIX-fp-cert"}
+FP_ROLE_DEFINITION_NAME=${ARO_HCP_DEV_FP_ROLE_DEFINITION_NAME:-"$UNIQUE_PREFIX-fp-role"}
 
 printEnv() {
     echo "LOCATION: $LOCATION"
-    echo "APP_KEY_VAULT_NAME: $APP_KEY_VAULT_NAME"
-    echo "APP_CERT_NAME: $APP_CERT_NAME"
-    echo "APP_REGISTRATION_NAME: $APP_REGISTRATION_NAME"
     echo "RESOURCE_GROUP: $RESOURCE_GROUP"
     echo "SUBSCRIPTION_ID: $SUBSCRIPTION_ID"
+    echo "KEY_VAULT_NAME: $KEY_VAULT_NAME"
+    echo "FP_APPLICATION_NAME: $FP_APPLICATION_NAME"
+    echo "FP_CERTIFICATE_NAME: $FP_CERTIFICATE_NAME"
 }
 
 shellEnv() {
     # Calling shell can "eval" this output.
     echo "LOCATION=\"$LOCATION\"; export LOCATION"
-    echo "APP_KEY_VAULT_NAME=\"$APP_KEY_VAULT_NAME\"; export APP_KEY_VAULT_NAME"
-    echo "APP_CERT_NAME=\"$APP_CERT_NAME\"; export APP_CERT_NAME"
-    echo "APP_REGISTRATION_NAME=\"$APP_REGISTRATION_NAME\"; export APP_REGISTRATION_NAME"
     echo "RESOURCE_GROUP=\"$RESOURCE_GROUP\"; export RESOURCE_GROUP"
     echo "SUBSCRIPTION_ID=\"$SUBSCRIPTION_ID\"; export SUBSCRIPTION_ID"
+    echo "ARO_HCP_DEV_KEY_VAULT_NAME=\"$KEY_VAULT_NAME\"; export ARO_HCP_DEV_KEY_VAULT_NAME"
+    echo "ARO_HCP_DEV_FP_APPLICATION_NAME=\"$FP_APPLICATION_NAME\"; export ARO_HCP_DEV_FP_APPLICATION_NAME"
+    echo "ARO_HCP_DEV_FP_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_FP_CERTIFICATE_NAME"
+}
+
+createServicePrincipal() {
+    APPLICATION_NAME=$1
+    CERTIFICATE_NAME=$2
+    ROLE_DEFINITION_NAME=$3
+
+    certExists=$(az keyvault certificate list --vault-name $KEY_VAULT_NAME --query "[?name=='$CERTIFICATE_NAME'].name" -o tsv)
+    if [ -n "$certExists" ]; then
+        echo "Certificate $CERTIFICATE_NAME already exists"
+        exit 1
+    else
+        echo "Creating certificate $CERTIFICATE_NAME"
+        az keyvault certificate create \
+        --vault-name "$KEY_VAULT_NAME" \
+        --name "$CERTIFICATE_NAME" \
+        --policy "$(az keyvault certificate get-default-policy)"
+    fi
+
+    echo "Creating service principal for $APPLICATION_NAME"
+    az ad sp create-for-rbac \
+    --display-name "$APPLICATION_NAME" \
+    --keyvault "$KEY_VAULT_NAME" \
+    --cert "$CERTIFICATE_NAME" \
+    --role "$ROLE_DEFINITION_NAME" \
+    --scopes "/subscriptions/$SUBSCRIPTION_ID"
 }
 
 createMockFirstPartyApp() {
@@ -46,110 +76,99 @@ createMockFirstPartyApp() {
         echo "jq is required to run this script"
         exit 1
     fi
-    
-    echo "Creating resource group: $RESOURCE_GROUP"
+
+    echo "Creating resource group $RESOURCE_GROUP"
     az group create \
     --name "$RESOURCE_GROUP" \
     --location "$LOCATION"
-    
-    echo "Creating keyvault: $APP_KEY_VAULT_NAME"
+
+    echo "Creating keyvault $KEY_VAULT_NAME"
     az keyvault create \
     --location "$LOCATION" \
-    --name "$APP_KEY_VAULT_NAME" \
+    --name "$KEY_VAULT_NAME" \
     --resource-group "$RESOURCE_GROUP" \
     --enable-rbac-authorization false
-    
-    echo "checking if certificate: $APP_CERT_NAME exists"
-    certExists=$(az keyvault certificate list --vault-name $APP_KEY_VAULT_NAME --query "[?name=='$APP_CERT_NAME'].name" -o tsv)
-    if [ -n "$certExists" ]; then
-        echo "Certificate already exists"
-        exit 1
-    else
-        echo "Certificate does not exist"
-        echo "Creating certificate: $APP_CERT_NAME"
-        az keyvault certificate create \
-        --vault-name "$APP_KEY_VAULT_NAME" \
-        --name "$APP_CERT_NAME" \
-        --policy "$(az keyvault certificate get-default-policy)"
-    fi
-    
+
     # Create a custom role defintion if it doesn't exist already
-    echo "checking if role definition: $ROLE_DEFINITION_NAME exists"
-    roleExists=$(az role definition list --name "$ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
-    
+    echo "Checking if role definition $FP_ROLE_DEFINITION_NAME exists"
+    roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
+
     if [ -n "$roleExists" ]; then
-        echo "Role definition already exists"
+        echo "Role definition $FP_ROLE_DEFINITION_NAME already exists"
     else
-        echo "Role definition does not exist"
         # add assignable scope to the custom role with the current subscription
         roleDef=$(jq ".AssignableScopes = [\"/subscriptions/$SUBSCRIPTION_ID\"]" mock-dev-role-definition.json)
         echo $roleDef >> temp.json
-        roleDef=$(jq ".Name = \"$ROLE_DEFINITION_NAME\"" temp.json)
+        roleDef=$(jq ".Name = \"$FP_ROLE_DEFINITION_NAME\"" temp.json)
         rm temp.json
-        
-        echo "creating role definition: $ROLE_DEFINITION_NAME \n $roleDef\n"
+
+        echo "Creating role definition $FP_ROLE_DEFINITION_NAME"
+        echo "$roleDef"
         az role definition create --role-definition "$roleDef"
         while [ -z "$roleExists" ]; do
-            roleExists=$(az role definition list --name "$ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
-            echo "waiting for role definition to be created"
+            roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
+            echo "Waiting for role definition to be created..."
             sleep 5
         done
     fi
-    
-    
-    echo "creating app registration: $APP_REGISTRATION_NAME"
-    az ad sp create-for-rbac \
-    --display-name "$APP_REGISTRATION_NAME" \
-    --keyvault "$APP_KEY_VAULT_NAME" \
-    --cert "$APP_CERT_NAME" \
-    --role "$ROLE_DEFINITION_NAME" \
-    --scopes "/subscriptions/$SUBSCRIPTION_ID"
+
+    createServicePrincipal $FP_APPLICATION_NAME $FP_CERTIFICATE_NAME $FP_ROLE_DEFINITION_NAME
+}
+
+deleteServicePrincipalAndApp() {
+    APPLICATION_NAME=$1
+
+    spId=$(az ad sp list --display-name "$APPLICATION_NAME" --query "[0].id" -o tsv)
+    if [ -n "$spId" ]; then
+        echo "Deleting service principal for $APPLICATION_NAME"
+        az ad sp delete --id "$spId"
+    fi
+
+    appId=$(az ad app list --display-name "$APPLICATION_NAME" --query "[0].appId" -o tsv)
+    if [ -n "$appId" ]; then
+        echo "Deleting application $APPLICATION_NAME"
+        az ad app delete --id $(az ad app list --display-name "$APPLICATION_NAME" --query "[0].appId" -o tsv)
+    fi
 }
 
 deleteMockFirstPartyApp() {
     echo "Deleting the standalone dev application with the following ENV:"
     printEnv
-    
-    echo "deleting all role assignments with role: $ROLE_DEFINITION_NAME"
-    az role assignment list --role "$ROLE_DEFINITION_NAME" --query "[].id" -o tsv | xargs -I {} az role assignment delete --ids {}
-    
-    spId="$(az ad sp list --display-name "$APP_REGISTRATION_NAME" --query "[0].id" -o tsv)"
-    echo "deleting sp with id: $spId"
-    az ad sp delete --id "$spId"
-    
-    appId="$(az ad app list --display-name "$APP_REGISTRATION_NAME" --query "[0].appId" -o tsv)"
-    echo "deleting app with id: $appId"
-    az ad app delete --id "$appId"
-    
-    echo "deleting role definition: $ROLE_DEFINITION_NAME"
-    az role definition delete --name "$ROLE_DEFINITION_NAME"
-    
-    echo "deleting keyvault: $APP_KEY_VAULT_NAME in resource group: $RESOURCE_GROUP"
-    az keyvault delete --name "$APP_KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP"
-    
-    echo "purging keyvault: $APP_KEY_VAULT_NAME"
-    az keyvault purge --name "$APP_KEY_VAULT_NAME"
-    
-    echo "delete resource group: $RESOURCE_GROUP"
+
+    echo "Deleting all role assignments with role $FP_ROLE_DEFINITION_NAME"
+    az role assignment list --role "$FP_ROLE_DEFINITION_NAME" --query "[].id" -o tsv | xargs -I {} az role assignment delete --ids {}
+
+    deleteServicePrincipalAndApp $FP_APPLICATION_NAME
+
+    echo "Deleting role definition $FP_ROLE_DEFINITION_NAME"
+    az role definition delete --name "$FP_ROLE_DEFINITION_NAME"
+
+    echo "Deleting keyvault $KEY_VAULT_NAME in resource group $RESOURCE_GROUP"
+    az keyvault delete --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP"
+
+    echo "Purging keyvault $KEY_VAULT_NAME"
+    az keyvault purge --name "$KEY_VAULT_NAME"
+
+    echo "Deleting resource group $RESOURCE_GROUP"
     az group delete --name "$RESOURCE_GROUP" --yes
 }
 
 loginWithMockServicePrincipal() {
     az keyvault secret download \
-    --name "$APP_CERT_NAME" \
-    --vault-name "$APP_KEY_VAULT_NAME" \
+    --name "$FP_CERTIFICATE_NAME" \
+    --vault-name "$KEY_VAULT_NAME" \
     --encoding base64 \
     --file app.pfx
-    
+
     openssl pkcs12 \
     -in app.pfx \
     -passin pass: \
     -out app.pem \
     -nodes
-    
-    appId=$(az ad app list --display-name "$APP_REGISTRATION_NAME" --query "[0].appId" -o tsv)
+
+    appId=$(az ad app list --display-name "$FP_APPLICATION_NAME" --query "[0].appId" -o tsv)
     tenantId=$(az account show --query tenantId -o tsv)
-    
+
     az login --service-principal -u "$appId" -p app.pem --tenant "$tenantId"
 
     rm app.pfx app.pem
