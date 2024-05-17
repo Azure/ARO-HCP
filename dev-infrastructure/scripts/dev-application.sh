@@ -24,6 +24,13 @@ FP_APPLICATION_NAME=${ARO_HCP_DEV_FP_APPLICATION_NAME:-"$UNIQUE_PREFIX-fp-app"}
 FP_CERTIFICATE_NAME=${ARO_HCP_DEV_FP_CERTIFICATE_NAME:-"$UNIQUE_PREFIX-fp-cert"}
 FP_ROLE_DEFINITION_NAME=${ARO_HCP_DEV_FP_ROLE_DEFINITION_NAME:-"$UNIQUE_PREFIX-fp-role"}
 
+# ARM helper application (subscription owner, simulates ARM)
+AH_APPLICATION_NAME=${ARO_HCP_DEV_AH_APPLICATION_NAME:-"$UNIQUE_PREFIX-ah-app"}
+AH_CERTIFICATE_NAME=${ARO_HCP_DEV_AH_CERTIFICATE_NAME:-"$UNIQUE_PREFIX-ah-cert"}
+
+# See https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
+AZURE_BUILTIN_ROLE_OWNER="8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+
 printEnv() {
     echo "LOCATION: $LOCATION"
     echo "RESOURCE_GROUP: $RESOURCE_GROUP"
@@ -31,6 +38,8 @@ printEnv() {
     echo "KEY_VAULT_NAME: $KEY_VAULT_NAME"
     echo "FP_APPLICATION_NAME: $FP_APPLICATION_NAME"
     echo "FP_CERTIFICATE_NAME: $FP_CERTIFICATE_NAME"
+    echo "AH_APPLICATION_NAME: $AH_APPLICATION_NAME"
+    echo "AH_CERTIFICATE_NAME: $AH_CERTIFICATE_NAME"
 }
 
 shellEnv() {
@@ -41,6 +50,8 @@ shellEnv() {
     echo "ARO_HCP_DEV_KEY_VAULT_NAME=\"$KEY_VAULT_NAME\"; export ARO_HCP_DEV_KEY_VAULT_NAME"
     echo "ARO_HCP_DEV_FP_APPLICATION_NAME=\"$FP_APPLICATION_NAME\"; export ARO_HCP_DEV_FP_APPLICATION_NAME"
     echo "ARO_HCP_DEV_FP_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_FP_CERTIFICATE_NAME"
+    echo "ARO_HCP_DEV_AH_APPLICATION_NAME=\"$AH_APPLICATION_NAME\"; export ARO_HCP_DEV_AH_APPLICATION_NAME"
+    echo "ARO_HCP_DEV_AH_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_AH_CERTIFICATE_NAME"
 }
 
 createServicePrincipal() {
@@ -69,8 +80,8 @@ createServicePrincipal() {
     --scopes "/subscriptions/$SUBSCRIPTION_ID"
 }
 
-createMockFirstPartyApp() {
-    echo "Creating a standalone dev application with the following ENV:"
+createApps() {
+    echo "Creating standalone dev applications with the following ENV:"
     printEnv
     if ! [ -x "$(command -v jq)" ]; then
         echo "jq is required to run this script"
@@ -113,6 +124,7 @@ createMockFirstPartyApp() {
     fi
 
     createServicePrincipal $FP_APPLICATION_NAME $FP_CERTIFICATE_NAME $FP_ROLE_DEFINITION_NAME
+    createServicePrincipal $AH_APPLICATION_NAME $AH_CERTIFICATE_NAME $AZURE_BUILTIN_ROLE_OWNER
 }
 
 deleteServicePrincipalAndApp() {
@@ -131,14 +143,15 @@ deleteServicePrincipalAndApp() {
     fi
 }
 
-deleteMockFirstPartyApp() {
-    echo "Deleting the standalone dev application with the following ENV:"
+deleteApps() {
+    echo "Deleting standalone dev applications with the following ENV:"
     printEnv
 
     echo "Deleting all role assignments with role $FP_ROLE_DEFINITION_NAME"
     az role assignment list --role "$FP_ROLE_DEFINITION_NAME" --query "[].id" -o tsv | xargs -I {} az role assignment delete --ids {}
 
     deleteServicePrincipalAndApp $FP_APPLICATION_NAME
+    deleteServicePrincipalAndApp $AH_APPLICATION_NAME
 
     echo "Deleting role definition $FP_ROLE_DEFINITION_NAME"
     az role definition delete --name "$FP_ROLE_DEFINITION_NAME"
@@ -176,10 +189,10 @@ loginWithMockServicePrincipal() {
 
 case "$1" in
     "create")
-        createMockFirstPartyApp
+        createApps
     ;;
     "delete")
-        deleteMockFirstPartyApp
+        deleteApps
     ;;
     "login")
         loginWithMockServicePrincipal
