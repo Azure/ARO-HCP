@@ -5,12 +5,15 @@
 
 LOCATION=${LOCATION:-"eastus"}
 UNIQUE_PREFIX=${UNIQUE_PREFIX:-"HCP-$USER-$LOCATION"}
-if [ ${#UNIQUE_PREFIX} -gt 20 ]; then
+# Microsoft.KeyVault has the shortest name length limit of 24 characters.
+# We restrict the prefix to 21 characters to allow room for the "-kv" suffix.
+# See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules
+if [ ${#UNIQUE_PREFIX} -gt 21 ]; then
     echo "UNIQUE_PREFIX=$UNIQUE_PREFIX is too long" > /dev/stderr
-    UNIQUE_PREFIX=${UNIQUE_PREFIX:0:20}
-    echo "trimmed UNIQUE_PREFIX=$UNIQUE_PREFIX to 20 characters" > /dev/stderr
+    UNIQUE_PREFIX=${UNIQUE_PREFIX:0:21}
+    echo "trimmed UNIQUE_PREFIX=$UNIQUE_PREFIX to 21 characters" > /dev/stderr
 fi
-APP_KEY_VAULT_NAME=${APP_KEY_VAULT_NAME:-"$UNIQUE_PREFIX-vlt"}
+APP_KEY_VAULT_NAME=${APP_KEY_VAULT_NAME:-"$UNIQUE_PREFIX-kv"}
 APP_CERT_NAME=${APP_CERT_NAME:-"$UNIQUE_PREFIX-svc"}
 APP_REGISTRATION_NAME=${APP_REGISTRATION_NAME:-"$UNIQUE_PREFIX-app"}
 RESOURCE_GROUP=${RESOURCE_GROUP:-"$UNIQUE_PREFIX-RG"}
