@@ -97,7 +97,7 @@ func (client *NodePoolsClient) createOrUpdate(ctx context.Context, resourceGroup
 
 // createOrUpdateCreateRequest creates the CreateOrUpdate request.
 func (client *NodePoolsClient) createOrUpdateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, resource HcpOpenShiftClusterNodePoolResource, options *NodePoolsClientBeginCreateOrUpdateOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -181,7 +181,7 @@ func (client *NodePoolsClient) deleteOperation(ctx context.Context, resourceGrou
 
 // deleteCreateRequest creates the Delete request.
 func (client *NodePoolsClient) deleteCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientBeginDeleteOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -241,7 +241,7 @@ func (client *NodePoolsClient) Get(ctx context.Context, resourceGroupName string
 
 // getCreateRequest creates the Get request.
 func (client *NodePoolsClient) getCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientGetOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -278,39 +278,39 @@ func (client *NodePoolsClient) getHandleResponse(resp *http.Response) (NodePools
 	return result, nil
 }
 
-// NewListByParentPager - List HcpOpenShiftClusterNodePoolResource resources by HcpOpenShiftClusterResource
+// NewListByHcpOpenShiftClusterResourcePager - List HcpOpenShiftClusterNodePoolResource resources by HcpOpenShiftClusterResource
 //
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - Name of HCP cluster
-//   - options - NodePoolsClientListByParentOptions contains the optional parameters for the NodePoolsClient.NewListByParentPager
+//   - options - NodePoolsClientListByHcpOpenShiftClusterResourceOptions contains the optional parameters for the NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager
 //     method.
-func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) (*runtime.Pager[NodePoolsClientListByParentResponse]) {
-	return runtime.NewPager(runtime.PagingHandler[NodePoolsClientListByParentResponse]{
-		More: func(page NodePoolsClientListByParentResponse) bool {
+func (client *NodePoolsClient) NewListByHcpOpenShiftClusterResourcePager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByHcpOpenShiftClusterResourceOptions) (*runtime.Pager[NodePoolsClientListByHcpOpenShiftClusterResourceResponse]) {
+	return runtime.NewPager(runtime.PagingHandler[NodePoolsClientListByHcpOpenShiftClusterResourceResponse]{
+		More: func(page NodePoolsClientListByHcpOpenShiftClusterResourceResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
-		Fetcher: func(ctx context.Context, page *NodePoolsClientListByParentResponse) (NodePoolsClientListByParentResponse, error) {
-		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "NodePoolsClient.NewListByParentPager")
+		Fetcher: func(ctx context.Context, page *NodePoolsClientListByHcpOpenShiftClusterResourceResponse) (NodePoolsClientListByHcpOpenShiftClusterResourceResponse, error) {
+		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager")
 			nextLink := ""
 			if page != nil {
 				nextLink = *page.NextLink
 			}
 			resp, err := runtime.FetcherForNextLink(ctx, client.internal.Pipeline(), nextLink, func(ctx context.Context) (*policy.Request, error) {
-				return client.listByParentCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, options)
+				return client.listByHcpOpenShiftClusterResourceCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, options)
 			}, nil)
 			if err != nil {
-				return NodePoolsClientListByParentResponse{}, err
+				return NodePoolsClientListByHcpOpenShiftClusterResourceResponse{}, err
 			}
-			return client.listByParentHandleResponse(resp)
+			return client.listByHcpOpenShiftClusterResourceHandleResponse(resp)
 			},
 		Tracer: client.internal.Tracer(),
 	})
 }
 
-// listByParentCreateRequest creates the ListByParent request.
-func (client *NodePoolsClient) listByParentCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools"
+// listByHcpOpenShiftClusterResourceCreateRequest creates the ListByHcpOpenShiftClusterResource request.
+func (client *NodePoolsClient) listByHcpOpenShiftClusterResourceCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByHcpOpenShiftClusterResourceOptions) (*policy.Request, error) {
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -334,11 +334,11 @@ func (client *NodePoolsClient) listByParentCreateRequest(ctx context.Context, re
 	return req, nil
 }
 
-// listByParentHandleResponse handles the ListByParent response.
-func (client *NodePoolsClient) listByParentHandleResponse(resp *http.Response) (NodePoolsClientListByParentResponse, error) {
-	result := NodePoolsClientListByParentResponse{}
+// listByHcpOpenShiftClusterResourceHandleResponse handles the ListByHcpOpenShiftClusterResource response.
+func (client *NodePoolsClient) listByHcpOpenShiftClusterResourceHandleResponse(resp *http.Response) (NodePoolsClientListByHcpOpenShiftClusterResourceResponse, error) {
+	result := NodePoolsClientListByHcpOpenShiftClusterResourceResponse{}
 	if err := runtime.UnmarshalAsJSON(resp, &result.HcpOpenShiftClusterNodePoolResourceListResult); err != nil {
-		return NodePoolsClientListByParentResponse{}, err
+		return NodePoolsClientListByHcpOpenShiftClusterResourceResponse{}, err
 	}
 	return result, nil
 }
@@ -352,7 +352,7 @@ func (client *NodePoolsClient) listByParentHandleResponse(resp *http.Response) (
 //   - nodePoolName - Name of HCP cluster
 //   - properties - The resource properties to be updated.
 //   - options - NodePoolsClientBeginUpdateOptions contains the optional parameters for the NodePoolsClient.BeginUpdate method.
-func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolResourceUpdate, options *NodePoolsClientBeginUpdateOptions) (*runtime.Poller[NodePoolsClientUpdateResponse], error) {
+func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolPatch, options *NodePoolsClientBeginUpdateOptions) (*runtime.Poller[NodePoolsClientUpdateResponse], error) {
 	if options == nil || options.ResumeToken == "" {
 		resp, err := client.update(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, properties, options)
 		if err != nil {
@@ -374,7 +374,7 @@ func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupNam
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
-func (client *NodePoolsClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolResourceUpdate, options *NodePoolsClientBeginUpdateOptions) (*http.Response, error) {
+func (client *NodePoolsClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolPatch, options *NodePoolsClientBeginUpdateOptions) (*http.Response, error) {
 	var err error
 	const operationName = "NodePoolsClient.BeginUpdate"
 	ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, operationName)
@@ -396,8 +396,8 @@ func (client *NodePoolsClient) update(ctx context.Context, resourceGroupName str
 }
 
 // updateCreateRequest creates the Update request.
-func (client *NodePoolsClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolResourceUpdate, options *NodePoolsClientBeginUpdateOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
+func (client *NodePoolsClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolPatch, options *NodePoolsClientBeginUpdateOptions) (*policy.Request, error) {
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}

@@ -7,9 +7,9 @@
 
 package generated
 
-// HcpClusterVersionOperationsClientListOptions contains the optional parameters for the HcpClusterVersionOperationsClient.NewListPager
+// HcpClusterVersionsClientListByLocationOptions contains the optional parameters for the HcpClusterVersionsClient.NewListByLocationPager
 // method.
-type HcpClusterVersionOperationsClientListOptions struct {
+type HcpClusterVersionsClientListByLocationOptions struct {
 	// placeholder for future optional parameters
 }
 
@@ -87,8 +87,9 @@ type NodePoolsClientGetOptions struct {
 	// placeholder for future optional parameters
 }
 
-// NodePoolsClientListByParentOptions contains the optional parameters for the NodePoolsClient.NewListByParentPager method.
-type NodePoolsClientListByParentOptions struct {
+// NodePoolsClientListByHcpOpenShiftClusterResourceOptions contains the optional parameters for the NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager
+// method.
+type NodePoolsClientListByHcpOpenShiftClusterResourceOptions struct {
 	// placeholder for future optional parameters
 }
 
