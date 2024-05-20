@@ -28,6 +28,18 @@ param istioVersion string
 @description('List of workload identities to create and their required values')
 param workloadIdentities array
 
+@description('Deploys a Maestro Consumer to the management cluster if set to true.')
+param deployMaestroConsumer bool
+
+@description('Namespace to deploy the Maestro Consumer to.')
+param maestroNamespace string
+
+@description('The OneCertV2 domain to use to use for the Maestro certificate.')
+param maestroCertDomain string?
+
+@description('The resourcegroups where the Maestro infrastructure is deployed.')
+param maestroInfraResourceGroup string
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
   scope: resourceGroup()
@@ -43,5 +55,42 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'mgmt-cluster'
     workloadIdentities: workloadIdentities
+  }
+}
+
+//
+//   M A E S T R O
+//
+
+module maestroConfig '../modules/maestro/maestro-config.bicep' = {
+  name: 'maestro-config'
+  params: {
+    location: location
+    resourceGroupName: maestroInfraResourceGroup
+    certificateDomain: maestroCertDomain
+  }
+}
+
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer && maestroInfraResourceGroup != '') {
+  name: 'maestro-consumer'
+  scope: resourceGroup()
+  params: {
+    aksClusterName: mgmtCluster.outputs.aksClusterName
+    maestroServerManagedIdentityPrincipalId: filter(
+      mgmtCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'maestro-consumer'
+    )[0].uamiPrincipalID
+    maestroServerManagedIdentityClientId: filter(
+      mgmtCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'maestro-consumer'
+    )[0].uamiClientID
+    namespace: maestroNamespace
+    maestroInfraResourceGroup: maestroInfraResourceGroup
+    maestroConsumerName: mgmtCluster.outputs.aksClusterName
+    maestroEventGridNamespaceName: maestroConfig.outputs.maestroEventGridNamespaceName
+    maestroKeyVaultName: maestroConfig.outputs.maestroKeyVaultName
+    maestroKeyVaultOfficerManagedIdentityName: maestroConfig.outputs.kvCertOfficerManagedIdentityName
+    maestroKeyVaultCertificateDomain: maestroConfig.outputs.maestroCertificateDomain
+    location: location
   }
 }

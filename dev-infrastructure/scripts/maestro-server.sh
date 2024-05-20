@@ -1,3 +1,5 @@
+#!/bin/bash
+
 oc process --local -f https://raw.githubusercontent.com/openshift-online/maestro/main/templates/db-template.yml \
     DATABASE_SERVICE_NAME=maestro-db \
     DATABASE_NAME=maestro \
@@ -11,5 +13,6 @@ oc process --local -f https://raw.githubusercontent.com/openshift-online/maestro
     ENABLE_HTTPS=false \
     DB_SECRET_NAME=maestro-db \
     ENABLE_OCM_MOCK=true \
-    ENABLE_JWT=false \
-    MAESTRO_SERVER_EXPOSURE=LoadBalancer | oc apply -f - -n maestro
+    ENABLE_JWT=false  | oc apply -f - -n maestro
+
+kubectl port-forward svc/maestro 8000 -n maestro

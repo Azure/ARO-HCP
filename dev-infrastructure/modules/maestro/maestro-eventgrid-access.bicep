@@ -85,6 +85,7 @@ resource mqttClient 'Microsoft.EventGrid/namespaces/clients@2023-12-15-preview' 
     authenticationName: clientAuthenticationName
     attributes: {
       role: clientRole
+      consumer_name: clientName
     }
     clientCertificateAuthentication: {
       allowedThumbprints: [
