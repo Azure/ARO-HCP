@@ -53,7 +53,7 @@ func MuxPattern(method string, segments ...string) string {
 	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emitter) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emitter, dbClient *DBClient) *Frontend {
 	f := &Frontend{
 		logger:   logger,
 		listener: listener,
@@ -65,7 +65,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 			},
 		},
 		cache:    *NewCache(),
-		dbClient: *NewDatabaseClient(),
+		dbClient: *dbClient,
 		done:     make(chan struct{}),
 	}
 

@@ -43,9 +43,18 @@ func main() {
 
 	// Init prometheus emitter
 	prometheusEmitter := NewPrometheusEmitter()
-	frontend := NewFrontend(logger, listener, prometheusEmitter)
-	// Verify the Async DB is available and accessible
 
+	// Configure database configuration and client
+	dbConfig := NewDatabaseConfig()
+
+	dbClient, err := NewDatabaseClient(dbConfig)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Creating the database client failed: %v", err))
+	}
+
+	frontend := NewFrontend(logger, listener, prometheusEmitter, dbClient)
+
+	// Verify the Async DB is available and accessible
 	logger.Info("Testing DB Access")
 	result, err := frontend.dbClient.DBConnectionTest(ctx)
 	if err != nil {
