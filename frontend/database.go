@@ -17,30 +17,54 @@ const (
 // DBClient defines the needed values to perform CRUD operations against the async DB
 type DBClient struct {
 	client *azcosmos.Client
-	DBName string
-	DBUrl  string
+	config *DBConfig
+}
+
+// DBConfig stores database and client configuration data
+type DBConfig struct {
+	DBName        string
+	DBUrl         string
+	ClientOptions *azidentity.DefaultAzureCredentialOptions
+}
+
+// NewDatabaseConfig configures database configuration values for access
+func NewDatabaseConfig() *DBConfig {
+	opt := &azidentity.DefaultAzureCredentialOptions{}
+	c := &DBConfig{
+		DBName:        os.Getenv("DB_NAME"),
+		DBUrl:         os.Getenv("DB_URL"),
+		ClientOptions: opt,
+	}
+	return c
 }
 
 // NewDatabaseClient instanstiates a Cosmos DatabaseClient targeting Frontends async DB
-func NewDatabaseClient() *DBClient {
-	cred, _ := azidentity.NewDefaultAzureCredential(nil)
-	d := &DBClient{
-		DBName: os.Getenv("DB_NAME"),
-		DBUrl:  os.Getenv("DB_URL"),
+func NewDatabaseClient(config *DBConfig) (*DBClient, error) {
+	cred, err := azidentity.NewDefaultAzureCredential(config.ClientOptions)
+	if err != nil {
+		return nil, err
 	}
-	client, _ := azcosmos.NewClient(d.DBUrl, cred, nil)
-	d.client = client
 
-	return d
+	d := &DBClient{
+		config: config,
+	}
+
+	client, err := azcosmos.NewClient(d.config.DBUrl, cred, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	d.client = client
+	return d, nil
 }
 
 // DBConnectionTest checks the async database is accessible on startup
 func (d *DBClient) DBConnectionTest(ctx context.Context) (string, error) {
-	if d.DBName == "none" || d.DBName == "" {
+	if d.config.DBName == "none" || d.config.DBName == "" {
 		return "No database configured, skipping", nil
 	}
 
-	database, err := d.client.NewDatabase(d.DBName)
+	database, err := d.client.NewDatabase(d.config.DBName)
 	if err != nil {
 		return "", err
 	}
@@ -53,7 +77,7 @@ func (d *DBClient) DBConnectionTest(ctx context.Context) (string, error) {
 
 // GetCluster retreives a cluster document from async DB using resource ID
 func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, bool, error) {
-	container, err := d.client.NewContainer(d.DBName, clustersContainer)
+	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
 	if err != nil {
 		return nil, false, err
 	}
@@ -95,7 +119,7 @@ func (d *DBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDo
 		return err
 	}
 
-	container, err := d.client.NewContainer(d.DBName, clustersContainer)
+	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
 	if err != nil {
 		return err
 	}
@@ -118,7 +142,7 @@ func (d *DBClient) DeleteClusterDoc(ctx context.Context, resourceID string, part
 		return err
 	}
 
-	container, err := d.client.NewContainer(d.DBName, clustersContainer)
+	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
 	if err != nil {
 		return err
 	}
