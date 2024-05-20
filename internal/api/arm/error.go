@@ -20,6 +20,11 @@ const (
 	CloudErrorCodeUnsupportedMediaType   = "UnsupportedMediaType"
 	CloudErrorCodeNotFound               = "NotFound"
 	CloudErrorInvalidSubscriptionState   = "InvalidSubscriptionState"
+	CloudErrorCodeResourceNotFound       = "ResourceNotFound"
+	CloudErrorCodeResourceGroupNotFound  = "ResourceGroupNotFound"
+	CloudErrorCodeInvalidSubscriptionID  = "InvalidSubscriptionID"
+	CloudErrorInvalidResourceName        = "InvalidResourceName"
+	CloudErrorInvalidResourceGroupName   = "InvalidResourceGroupName"
 )
 
 // CloudError represents a complete resource provider error.
