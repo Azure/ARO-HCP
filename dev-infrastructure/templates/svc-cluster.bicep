@@ -122,4 +122,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
     maestroKeyVaultCertificateDomain: maestroConfig.outputs.maestroCertificateDomain
     location: location
   }
+  dependsOn: [
+    maestroInfra
+  ]
 }
