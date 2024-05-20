@@ -17,6 +17,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/google/uuid"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/metrics"
@@ -37,6 +40,7 @@ type Frontend struct {
 	listener net.Listener
 	server   http.Server
 	cache    Cache
+	dbClient DBClient
 	ready    atomic.Value
 	done     chan struct{}
 	metrics  metrics.Emitter
@@ -60,8 +64,9 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 				return ContextWithLogger(context.Background(), logger)
 			},
 		},
-		cache: *NewCache(),
-		done:  make(chan struct{}),
+		cache:    *NewCache(),
+		dbClient: *NewDatabaseClient(),
+		done:     make(chan struct{}),
 	}
 
 	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache)
@@ -276,6 +281,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
+
 	cluster, updating := f.cache.GetCluster(resourceID)
 
 	versionedRequestCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
@@ -302,6 +308,29 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	cluster = api.NewDefaultHCPOpenShiftCluster()
 	versionedRequestCluster.Normalize(cluster)
 
+	parsed, _ := azure.ParseResourceID(resourceID)
+	var doc *HCPOpenShiftClusterDocument
+	doc, found, err := f.dbClient.GetClusterDoc(ctx, resourceID, parsed.SubscriptionID)
+	if err != nil {
+		f.logger.Error("failed to fetch document for %s: %v", resourceID, err)
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	if !found {
+		f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
+		doc = &HCPOpenShiftClusterDocument{
+			ID:           uuid.New().String(),
+			Key:          resourceID,
+			ClusterID:    NewUID(),
+			PartitionKey: parsed.SubscriptionID,
+		}
+	}
+	err = f.dbClient.SetClusterDoc(ctx, doc)
+	if err != nil {
+		f.logger.Error("failed to create document for resource %s: %v", resourceID, err)
+	}
+	f.logger.Info(fmt.Sprintf("document created for %s", resourceID))
+
 	f.cache.SetCluster(resourceID, cluster)
 
 	resp, err := json.Marshal(versionedRequestCluster)
@@ -310,6 +339,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		arm.WriteInternalServerError(writer)
 		return
 	}
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -352,6 +382,15 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 	f.cache.DeleteCluster(resourceID)
+
+	parsed, _ := azure.ParseResourceID(resourceID)
+	err = f.dbClient.DeleteClusterDoc(ctx, resourceID, parsed.SubscriptionID)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
 	writer.WriteHeader(http.StatusAccepted)
 }
