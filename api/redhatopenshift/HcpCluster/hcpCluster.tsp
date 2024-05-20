@@ -10,18 +10,16 @@ using TypeSpec.Http;
 using Azure.Core;
 using Azure.ResourceManager;
 
-namespace Microsoft.RedHatOpenshift;
-
-interface Operations extends Azure.ResourceManager.Operations {}
+namespace Microsoft.RedHatOpenShift;
 
 /** HCP cluster operations */
 @armResourceOperations(HcpOpenShiftClusterResource)
 interface HcpOpenShiftClusters {
   get is ArmResourceRead<HcpOpenShiftClusterResource>;
   createOrUpdate is ArmResourceCreateOrReplaceAsync<HcpOpenShiftClusterResource>;
-  update is ArmResourcePatchAsync<
+  update is ArmCustomPatchAsync<
     HcpOpenShiftClusterResource,
-    HcpOpenShiftClusterProperties
+    HcpOpenShiftClusterPatch
   >;
   delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftClusterResource>;
   listByResourceGroup is ArmResourceListByParent<HcpOpenShiftClusterResource>;
@@ -49,9 +47,9 @@ interface HcpOpenShiftClusters {
 interface NodePools {
   get is ArmResourceRead<HcpOpenShiftClusterNodePoolResource>;
   createOrUpdate is ArmResourceCreateOrReplaceAsync<HcpOpenShiftClusterNodePoolResource>;
-  update is ArmResourcePatchAsync<
+  update is ArmCustomPatchAsync<
     HcpOpenShiftClusterNodePoolResource,
-    NodePoolSpec
+    HcpOpenShiftClusterNodePoolPatch
   >;
   delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftClusterNodePoolResource>;
   listByParent is ArmResourceListByParent<HcpOpenShiftClusterNodePoolResource>;

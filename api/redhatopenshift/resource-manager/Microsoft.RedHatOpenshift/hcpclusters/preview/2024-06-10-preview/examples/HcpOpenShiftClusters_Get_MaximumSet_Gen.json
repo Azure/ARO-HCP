@@ -1,37 +1,11 @@
 {
-  "title": "HcpOpenShiftClusters_Update",
-  "operationId": "HcpOpenShiftClusters_Update",
+  "title": "HcpOpenShiftClusters_Get",
+  "operationId": "HcpOpenShiftClusters_Get",
   "parameters": {
     "api-version": "2024-06-10-preview",
     "subscriptionId": "FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D",
     "resourceGroupName": "rgopenapi",
-    "hcpOpenShiftClusterName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
-    "properties": {
-      "identity": {
-        "type": "None",
-        "userAssignedIdentities": {
-          "key4794": {}
-        }
-      },
-      "tags": {
-        "key4965": "gadonynrfuc"
-      },
-      "properties": {
-        "spec": {
-          "version": {
-            "id": "nsj"
-          },
-          "dns": {},
-          "disableUserWorkloadMonitoring": true,
-          "proxy": {
-            "httpProxy": "sjjbjvkimlvtwdnwjodcajidcoompt",
-            "httpsProxy": "xwjukendejiksp",
-            "noProxy": "mlsbdpjpyzpydpkeqvt",
-            "trustedCa": "uxebp"
-          }
-        }
-      }
-    }
+    "hcpOpenShiftClusterName": "hcpCluster-name"
   },
   "responses": {
     "200": {
@@ -40,6 +14,7 @@
           "provisioningState": "Succeeded",
           "spec": {
             "version": {
+              "channelGroup": "stable",
               "availableUpgrades": [
                 "fpjxf"
               ]
@@ -48,7 +23,10 @@
               "baseDomain": "yubrqcgqdhgqfkobjqm"
             },
             "network": {
-              "networkType": "OVNKubernetes"
+              "networkType": "OVNKubernetes",
+              "podCidr": "10.128.0.0/14",
+              "serviceCidr": "172.30.0.0/16",
+              "machineCidr": "10.0.0.0/16"
             },
             "console": {
               "url": "ejgtgwbbvjtmzfqvldg"
@@ -68,7 +46,7 @@
               "managedResourceGroup": "nhyhywrxupo",
               "subnetId": "kqujobzvoswldorx",
               "outboundType": "loadBalancer",
-              "preconfiguredNsgs": true,
+              "networkSecurityGroupId": "groupid",
               "etcdEncryptionSetId": "mrhumnvbsnnzduuhw"
             },
             "issuerUrl": "pqfgpubcuaaovvpeqal",
@@ -120,13 +98,13 @@
           }
         },
         "identity": {
-          "principalId": "xlswu",
-          "tenantId": "xfqisd",
+          "principalId": "00000000-0000-0000-0000-000000000000",
+          "tenantId": "00000000-0000-0000-0000-000000000000",
           "type": "None",
           "userAssignedIdentities": {
             "key4794": {
-              "principalId": "uctdckatfraombzrbkdltewc",
-              "clientId": "auud"
+              "principalId": "00000000-0000-0000-0000-000000000000",
+              "clientId": "00000000-0000-0000-0000-000000000000"
             }
           }
         },
@@ -134,7 +112,7 @@
           "key4181": "leaswtidajsjtgmqawhdl"
         },
         "location": "ayecbdqonsqfowbq",
-        "id": "xioeiro",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",
         "name": "vuwzuwooutjavgdhoatz",
         "type": "utiyj",
         "systemData": {
@@ -145,11 +123,6 @@
           "lastModifiedByType": "User",
           "lastModifiedAt": "2024-03-27T14:57:32.578Z"
         }
-      }
-    },
-    "202": {
-      "headers": {
-        "location": "https://contoso.com/operationstatus"
       }
     }
   }

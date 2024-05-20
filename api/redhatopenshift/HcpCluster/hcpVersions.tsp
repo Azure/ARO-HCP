@@ -8,11 +8,12 @@ using TypeSpec.Http;
 using Azure.Core;
 using Azure.ResourceManager;
 
-namespace Microsoft.RedHatOpenshift;
+namespace Microsoft.RedHatOpenShift;
 
 /** HcpOpenShiftVersions represents a location based available HCP cluster versions */
 @locationResource
-model HcpOpenShiftVersions is ProxyResource<HcpOpenShiftVersionsProperties> {
+model HcpOpenShiftVersionResource
+  is ProxyResource<HcpOpenShiftVersionsProperties> {
   /** The name of the resource */
   @pattern("^[a-zA-Z0-9-]{3,24}$")
   @segment("hcpOpenShiftVersions")
@@ -31,7 +32,7 @@ model HcpOpenShiftVersionsProperties {
   clusterVersion: string;
 }
 
-@armResourceOperations(HcpOpenShiftVersions)
-interface HcpClusterVersionOperations {
-  list is ArmResourceListByParent<HcpOpenShiftVersions>;
+@armResourceOperations(HcpOpenShiftVersionResource)
+interface HcpClusterVersions {
+  list is ArmResourceListByParent<HcpOpenShiftVersionResource>;
 }

@@ -124,7 +124,7 @@ func PossibleOriginValues() []Origin {
 	}
 }
 
-// OutboundType - The outbound routing strategy used to provide your cluster egress to the internet.
+// OutboundType - The core outgoing configuration
 type OutboundType string
 
 const (

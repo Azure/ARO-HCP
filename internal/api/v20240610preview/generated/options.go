@@ -7,9 +7,9 @@
 
 package generated
 
-// HcpClusterVersionOperationsClientListByLocationOptions contains the optional parameters for the HcpClusterVersionOperationsClient.NewListByLocationPager
+// HcpClusterVersionsClientListByLocationOptions contains the optional parameters for the HcpClusterVersionsClient.NewListByLocationPager
 // method.
-type HcpClusterVersionOperationsClientListByLocationOptions struct {
+type HcpClusterVersionsClientListByLocationOptions struct {
 	// placeholder for future optional parameters
 }
 
