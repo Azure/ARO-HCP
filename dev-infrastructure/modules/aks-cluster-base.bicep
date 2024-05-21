@@ -199,6 +199,9 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
       }
     ]
   }
+  dependsOn: [
+    aksNodeSubnet
+  ]
 }
 
 resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
