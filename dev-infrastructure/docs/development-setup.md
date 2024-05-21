@@ -110,6 +110,8 @@ cd dev-infrastructure
 AKSCONFIG=svc-cluster make cluster
 AKSCONFIG=svc-cluster make aks.kubeconfig
 KUBECONFIG=svc-cluster.kubeconfig scripts/maestro-server.sh
+
+KUBECONFIG=svc-cluster.kubeconfig kubectl port-forward svc/maestro 8000 -n maestro
 ```
 
 At this point `localhost:8000` forwards traffic to the Maestro server running on the SC.

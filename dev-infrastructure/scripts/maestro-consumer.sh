@@ -3,7 +3,7 @@
 oc process --local -f https://raw.githubusercontent.com/openshift-online/maestro/main/templates/agent-template-aro-hcp.yml \
     IMAGE_REGISTRY=quay.io \
     IMAGE_REPOSITORY=redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro \
-    IMAGE_TAG=8ad292b980c2c8aa8a1a73dd698859f6e324f5a1 \
+    IMAGE_TAG=0ba050b00ef480cf2da6bd937a0ca3711c51644d \
     AGENT_SA=maestro \
     AGENT_NAMESPACE=maestro | oc apply -f - -n maestro
 
