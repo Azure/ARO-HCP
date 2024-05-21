@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	clustersContainer = "Clusters"
+	clustersContainer      = "Clusters"
+	subscriptionsContainer = "Subscriptions"
 )
 
 // DBClient defines the needed values to perform CRUD operations against the async DB
@@ -75,9 +76,8 @@ func (d *DBClient) DBConnectionTest(ctx context.Context) (string, error) {
 	return result.DatabaseProperties.ID, nil
 }
 
-// GetCluster retreives a cluster document from async DB using resource ID
-func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, bool, error) {
-	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
+func (d *DBClient) GetDocument(ctx context.Context, resourceID string, partitionKey string, containerName string) ([]byte, bool, error) {
+	container, err := d.client.NewContainer(d.config.DBName, containerName)
 	if err != nil {
 		return nil, false, err
 	}
@@ -91,25 +91,53 @@ func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partiti
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	queryPager := container.NewQueryItemsPager(query, pk, &opt)
 
-	var doc *HCPOpenShiftClusterDocument
-	for queryPager.More() {
+	if queryPager.More() {
 		queryResponse, err := queryPager.NextPage(ctx)
 		if err != nil {
 			return nil, false, err
 		}
-
-		for _, item := range queryResponse.Items {
-			err = json.Unmarshal(item, &doc)
-			if err != nil {
-				return nil, false, err
-			}
+		if len(queryResponse.Items) > 0 {
+			return queryResponse.Items[0], true, nil
 		}
 	}
-	if doc != nil {
-		return doc, true, nil
-	}
 	return nil, false, nil
+}
 
+// GetCluster retreives a cluster document from async DB using resource ID
+func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, bool, error) {
+	doc, found, err := d.GetDocument(ctx, resourceID, partitionKey, clustersContainer)
+	if err != nil {
+		return nil, false, err
+	}
+	if !found {
+		return nil, false, nil
+	}
+
+	var clusterDoc *HCPOpenShiftClusterDocument
+	err = json.Unmarshal(doc, &clusterDoc)
+	if err != nil {
+		return nil, false, err
+	}
+	return clusterDoc, true, nil
+
+}
+
+// GetCluster retreives a cluster document from async DB using resource ID
+func (d *DBClient) GetSubscriptionDoc(ctx context.Context, resourceID string, partitionKey string) (*SubscriptionDocument, bool, error) {
+	doc, found, err := d.GetDocument(ctx, resourceID, partitionKey, subscriptionsContainer)
+	if err != nil {
+		return nil, false, err
+	}
+	if !found {
+		return nil, false, nil
+	}
+
+	var subDoc *SubscriptionDocument
+	err = json.Unmarshal(doc, &subDoc)
+	if err != nil {
+		return nil, false, err
+	}
+	return subDoc, true, nil
 }
 
 // SetCluster creates/updates a cluster document in the async DB during cluster creation/patching
@@ -120,6 +148,26 @@ func (d *DBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDo
 	}
 
 	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
+	if err != nil {
+		return err
+	}
+
+	_, err = container.UpsertItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SetCluster creates/updates a cluster document in the async DB during cluster creation/patching
+func (d *DBClient) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+
+	container, err := d.client.NewContainer(d.config.DBName, subscriptionsContainer)
 	if err != nil {
 		return err
 	}

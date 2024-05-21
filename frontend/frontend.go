@@ -429,6 +429,9 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 		return
 	}
 
+	/*
+		HERE
+	*/
 	subId := request.PathValue(PathSegmentSubscriptionID)
 	f.cache.SetSubscription(subId, &subscription)
 
