@@ -23,10 +23,10 @@ There are a few variants to chose from when creating an AKS cluster:
 
    ```bash
    # Service Cluster
-   AKSCONFIG=svc-cluster make svc-cluster
+   AKSCONFIG=svc-cluster make cluster
 
    # Management Cluster
-   AKSCONFIG=mgmt-cluster make mgmt-cluster
+   AKSCONFIG=mgmt-cluster make cluster
    ```
 
 1. Access private AKS clusters with:
@@ -107,7 +107,7 @@ Maestro infrastructure is provisioned as part of the svc-cluster. To deploy the 
 
 ```sh
 cd dev-infrastructure
-AKSCONFIG=svc-cluster make svc-cluster
+AKSCONFIG=svc-cluster make cluster
 AKSCONFIG=svc-cluster make aks.kubeconfig
 KUBECONFIG=svc-cluster.kubeconfig scripts/maestro-server.sh
 

@@ -2,7 +2,7 @@ SHELL = /bin/bash
 
 CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
 LOCATION?=eastus
-RESOURCEGROUP=aro-hcp-${AKSCONFIG}-$(USER)
+RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
 DEPLOYMENTNAME=$(RESOURCEGROUP)
 
 list:
@@ -24,19 +24,22 @@ lint:
 	az bicep lint --file $$file; \
 	done
 
-rg: 
+rg:
 	az group create \
   		--name $(RESOURCEGROUP)  \
   		--location $(LOCATION)
 
-svc-cluster: rg
+cluster: rg
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
 	az deployment group create \
 		--name "$(DEPLOYMENTNAME)" \
 		--resource-group $(RESOURCEGROUP) \
-		--template-file templates/svc-cluster.bicep \
+		--template-file templates/$(AKSCONFIG).bicep \
 		--confirm-with-what-if \
 		--parameters \
-			configurations/${AKSCONFIG}.bicepparam \
+			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER)
 
@@ -51,7 +54,10 @@ mgmt-cluster: rg
 		--parameters \
 			currentUserId=$(CURRENTUSER)
 
-aks.kubeconfig: 
+aks.kubeconfig:
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
 	AKS_NAME="$$(az aks list --query "[?tags.clusterType == '$(AKSCONFIG)'].name" -ojson | jq -r '.[0]')"; \
 	az aks get-credentials -n "$${AKS_NAME}" -g $(RESOURCEGROUP) -a -f "$(AKSCONFIG).kubeconfig"
 
@@ -62,7 +68,7 @@ secrets-download:
 	tar -xzf secrets.tar.gz
 	rm secrets.tar.gz
 
-secrets-yes-i-want-to-update-the-shared-secrets: 
+secrets-yes-i-want-to-update-the-shared-secrets:
 	@[ "${SECRET_SA_ACCOUNT_NAME}" ] || ( echo ">> SECRET_SA_ACCOUNT_NAME is not set"; exit 1 )
 	tar -czf secrets.tar.gz secrets
 	az storage blob upload -n secrets.tar.gz -c secrets -f secrets.tar.gz --overwrite --auth-mode login --account-name ${SECRET_SA_ACCOUNT_NAME} >/dev/null
