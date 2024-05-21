@@ -43,14 +43,16 @@ endif
 		--parameters \
 			currentUserId=$(CURRENTUSER)
 
-mgmt-cluster: rg
-	az deployment group create \
+cluster-what-if: rg
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	az deployment group what-if \
 		--name "$(DEPLOYMENTNAME)" \
 		--resource-group $(RESOURCEGROUP) \
-		--template-file templates/mgmt-cluster.bicep \
-		--confirm-with-what-if \
+		--template-file templates/$(AKSCONFIG).bicep \
 		--parameters \
-			configurations/${AKSCONFIG}.bicepparam \
+			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER)
 
