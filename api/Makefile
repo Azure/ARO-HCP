@@ -4,7 +4,7 @@ SHELL = /bin/bash
 generate: 
 	tsp format --check "**/*.tsp"
 	tsp compile redhatopenshift/HcpCluster --warn-as-error
-	autorest autorest-config.yaml 
+	autorest --verbose autorest-config.yaml 
 
 .PHONY: fmt
 fmt:

@@ -258,14 +258,14 @@ type HcpOpenShiftClusterNodePoolResourceUpdateProperties struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScalingUpdate
 
-	// Labels for the nodes
-	Labels []*string
+	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	Labels map[string]*string
 
 	// The number of worker nodes, it cannot be used together with autoscaling
 	Replicas *int32
 
 	// Taints for the nodes
-	Taints []*string
+	Taints []*Taint
 
 	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
 // Tuned resources to define the tuning configuration to be applied to nodes
@@ -499,14 +499,14 @@ type NodePoolSpec struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Labels for the nodes
-	Labels []*string
+	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	Labels map[string]*string
 
 	// The number of worker nodes, it cannot be used together with autoscaling
 	Replicas *int32
 
 	// Taints for the nodes
-	Taints []*string
+	Taints []*Taint
 
 	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
 // Tuned resources to define the tuning configuration to be applied to nodes
@@ -648,6 +648,18 @@ type SystemData struct {
 
 	// The type of identity that last modified the resource.
 	LastModifiedByType *CreatedByType
+}
+
+// Taint is controlling the node taint and its effects
+type Taint struct {
+	// REQUIRED; The effect of the taint The good example of the taint effect is NoSchedule
+	Effect *Effect
+
+	// REQUIRED; The key of the taint The good example of the taint key is node-role.kubernetes.io/master
+	Key *string
+
+	// The value of the taint The good example of the taint value is NoSchedule
+	Value *string
 }
 
 // TokenClaimMappingsProfile - External auth claim mappings profile
