@@ -90,7 +90,8 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 	mux.HandleFunc("/", f.NotFound)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz", "ready"), f.HealthzReady)
 	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
-	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionAction)
+	mux.HandleFunc(MuxPattern(http.MethodGet, PatternSubscriptions), f.ArmSubscriptionGet)
+	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionPut)
 
 	// Expose Prometheus metrics endpoint
 	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
@@ -413,7 +414,33 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 	writer.WriteHeader(http.StatusOK)
 }
 
-func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	subId := request.PathValue(PathSegmentSubscriptionID)
+
+	doc, found, err := f.dbClient.GetSubscriptionDoc(ctx, subId)
+	if err != nil {
+		f.logger.Error("failed to get document for subscription %s: %v", subId, err)
+	}
+	if !found {
+		f.logger.Error(fmt.Sprintf("document not found for subscription %s", subId))
+	}
+
+	resp, err := json.Marshal(&doc)
+	if err != nil {
+		f.logger.Error(err.Error())
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
 	body, err := BodyFromContext(ctx)
@@ -441,6 +468,28 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 		"state":          string(subscription.State),
 	})
 
+	var doc *SubscriptionDocument
+	doc, found, err := f.dbClient.GetSubscriptionDoc(ctx, subId)
+	if err != nil {
+		f.logger.Error("failed to fetch document for %s: %v", subId, err)
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	if !found {
+		f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subId))
+		doc = &SubscriptionDocument{
+			ID:           uuid.New().String(),
+			PartitionKey: subId,
+			Subscription: &subscription,
+		}
+	} else {
+		doc.Subscription = &subscription
+	}
+	err = f.dbClient.SetSubscriptionDoc(ctx, doc)
+	if err != nil {
+		f.logger.Error("failed to create document for subscription %s: %v", subId, err)
+	}
+
 	resp, err := json.Marshal(subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -451,6 +500,8 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
+
+	writer.WriteHeader(http.StatusCreated)
 }
 
 func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *http.Request) {
