@@ -5,6 +5,12 @@
 # Note: until the ACR location is defined, you must set the image base
 export ARO_HCP_BASE_IMAGE="quay.io/QUAY_USERNAME"
 make image
+
+# Push the image to a container registry
+make push
+
+# all in one option
+make build-push
 ```
 
 ## Run the frontend container
