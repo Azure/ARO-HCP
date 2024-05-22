@@ -16,10 +16,15 @@ frontend:
 clean:
 	rm -f aro-hcp-frontend
 
+build-push: image push	
+
 image:
 	pushd .. && git archive --output frontend/archive.tar.gz HEAD && popd
 	docker build --platform="linux/amd64" -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
 	rm -f archive.tar.gz
+
+push:
+	docker push ${ARO_HCP_FRONTEND_IMAGE}	
 
 deploy:
 	@test "${RESOURCE_GROUP}" != "" || (echo "RESOURCE_GROUP must be defined" && exit 1)
