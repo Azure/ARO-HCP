@@ -118,7 +118,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
 		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourcePatch))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
@@ -272,6 +272,9 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
+	// This handles both PUT and PATCH requests. The only notable
+	// difference is PATCH requests will not create a new cluster.
+
 	ctx := request.Context()
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -288,9 +291,24 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	cluster, updating := f.cache.GetCluster(resourceID)
-
-	versionedRequestCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
 	versionedCurrentCluster := versionedInterface.NewHCPOpenShiftCluster(cluster)
+
+	var versionedRequestCluster api.VersionedHCPOpenShiftCluster
+	switch request.Method {
+	case http.MethodPut:
+		versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
+	case http.MethodPatch:
+		if cluster == nil {
+			// PATCH request will not create a new cluster.
+			originalPath, _ := OriginalPathFromContext(ctx)
+			f.logger.Error("Resource not found")
+			arm.WriteError(
+				writer, http.StatusNotFound, arm.CloudErrorCodeNotFound,
+				originalPath, "Resource not found")
+			return
+		}
+		versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(cluster)
+	}
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
@@ -345,27 +363,17 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		arm.WriteInternalServerError(writer)
 		return
 	}
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
-	writer.WriteHeader(http.StatusCreated)
-}
 
-func (f *Frontend) ArmResourcePatch(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+	switch request.Method {
+	case http.MethodPut:
+		writer.WriteHeader(http.StatusCreated)
+	case http.MethodPatch:
+		writer.WriteHeader(http.StatusAccepted)
 	}
-
-	f.logger.Info(fmt.Sprintf("%s: ArmResourcePatch", versionedInterface))
-
-	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
