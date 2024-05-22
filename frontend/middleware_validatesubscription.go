@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/metrics"
 )
 
 const (
@@ -16,12 +17,16 @@ const (
 )
 
 type SubscriptionStateMuxValidator struct {
-	cache *Cache
+	cache   *Cache
+	metrics metrics.Emitter
+	region  string
 }
 
-func NewSubscriptionStateMuxValidator(c *Cache) *SubscriptionStateMuxValidator {
+func NewSubscriptionStateMuxValidator(c *Cache, emitter metrics.Emitter, region string) *SubscriptionStateMuxValidator {
 	return &SubscriptionStateMuxValidator{
-		cache: c,
+		cache:   c,
+		metrics: emitter,
+		region:  region,
 	}
 }
 
@@ -48,6 +53,13 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 			subscriptionId)
 		return
 	}
+
+	// Emit the subscription state metric
+	s.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
+		"region":         s.region,
+		"subscriptionid": subscriptionId,
+		"state":          string(sub.State),
+	})
 
 	// the subscription exists, store its current state as context
 	ctx := ContextWithSubscriptionState(r.Context(), sub.State)

@@ -53,7 +53,7 @@ func MuxPattern(method string, segments ...string) string {
 	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emitter, dbClient *DBClient) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emitter, dbClient *DBClient, region string) *Frontend {
 	f := &Frontend{
 		logger:   logger,
 		listener: listener,
@@ -69,7 +69,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 		done:     make(chan struct{}),
 	}
 
-	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache)
+	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache, emitter, region)
 
 	// Setup metrics middleware
 	metricsMiddleware := MetricsMiddleware{Emitter: emitter}

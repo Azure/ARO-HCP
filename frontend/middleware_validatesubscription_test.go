@@ -16,13 +16,29 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/metrics"
 )
 
+type MockEmitter struct{}
+
+func (m *MockEmitter) EmitGauge(metric string, value float64, labels map[string]string) {
+	// No-op for testing
+}
+
+func (m *MockEmitter) EmitCounter(metric string, value float64, labels map[string]string) {
+	// No-op for testing
+}
+
+func NewMockEmitter() metrics.Emitter {
+	return &MockEmitter{}
+}
 func TestMiddlewareValidateSubscription(t *testing.T) {
 	subscriptionId := "1234-5678"
+	region := "eastus"
 	defaultRequestPath := fmt.Sprintf("subscriptions/%s/resourceGroups/xyz", subscriptionId)
 	cache := NewCache()
-	middleware := NewSubscriptionStateMuxValidator(cache)
+	mockEmitter := NewMockEmitter()
+	middleware := NewSubscriptionStateMuxValidator(cache, mockEmitter, region)
 
 	tests := []struct {
 		name           string
