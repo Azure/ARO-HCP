@@ -2,14 +2,12 @@
 name: Bicep What If
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
     paths:
       - 'dev-infrastructure/**/*.bicep'
+      - '.github/workflows/bicep-what-if.yml'
 
 permissions:
       id-token: write
@@ -39,6 +37,8 @@ jobs:
           inlineScript: |
             RESOURCEGROUP=$GITHUB_RUN_ID
             cd dev-infrastructure/
+
+            az group create $RESOURCEGROUP -l eastus
 
             # service cluster
             az deployment group what-if \
