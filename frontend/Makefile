@@ -5,9 +5,9 @@ ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
 # for deploying frontend into private aks cluster via invoke command
 # these values must be set
-RESOURCE_GROUP ?=
+RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
 CLUSTER_NAME ?=
-DEPLOYMENTNAME=$(RESOURCE_GROUP)
+DEPLOYMENTNAME=$(RESOURCEGROUP)
 
 
 frontend:
@@ -16,54 +16,56 @@ frontend:
 clean:
 	rm -f aro-hcp-frontend
 
-build-push: image push	
+build-push: image push
 
 image:
+ifeq ($(shell docker images --filter reference=${ARO_HCP_FRONTEND_IMAGE} --quiet),)
 	pushd .. && git archive --output frontend/archive.tar.gz HEAD && popd
 	docker build --platform="linux/amd64" -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
 	rm -f archive.tar.gz
+endif
 
-push:
-	docker push ${ARO_HCP_FRONTEND_IMAGE}	
+push: image
+	docker push ${ARO_HCP_FRONTEND_IMAGE}
 
 deploy:
-	@test "${RESOURCE_GROUP}" != "" || (echo "RESOURCE_GROUP must be defined" && exit 1)
+	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
 	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
-			-g ${RESOURCE_GROUP} \
+			-g ${RESOURCEGROUP} \
 			-n ${DEPLOYMENTNAME} \
 			--query properties.outputs.frontend_mi_client_id.value);\
-	DB_NAME=$(shell az cosmosdb list -g ${RESOURCE_GROUP} | jq -r '.[].name') DB_NAME=$${DB_NAME:-"none"};\
+	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name') DB_NAME=$${DB_NAME:-"none"};\
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
 		-p DB_NAME="$${DB_NAME}"| oc apply -f -
 
 undeploy:
-	@test "${RESOURCE_GROUP}" != "" || (echo "RESOURCE_GROUP must be defined" && exit 1)
+	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="null" | oc delete -f -
 
 deploy-private:
-	@test "${RESOURCE_GROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCE_GROUP and CLUSTER_NAME must be defined" && exit 1)
+	@test "${RESOURCEGROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCEGROUP and CLUSTER_NAME must be defined" && exit 1)
 	TMP_DEPLOY=$(shell mktemp);\
 	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
-			-g ${RESOURCE_GROUP} \
+			-g ${RESOURCEGROUP} \
 			-n ${DEPLOYMENTNAME} \
 			--query properties.outputs.frontend_mi_client_id.value);\
-	DB_NAME=$(shell az cosmosdb list -g ${RESOURCE_GROUP} | jq -r '.[].name' || echo "none");\			
+	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name' || echo "none");\			
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
 		-p DB_NAME="$${DB_NAME}" > "$${TMP_DEPLOY}";\
-	az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl create -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
+	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl create -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 undeploy-private:
-	@test "${RESOURCE_GROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCE_GROUP and CLUSTER_NAME must be defined" && exit 1)
+	@test "${RESOURCEGROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCEGROUP and CLUSTER_NAME must be defined" && exit 1)
 	TMP_DEPLOY=$(shell mktemp);\
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="null" > "$${TMP_DEPLOY}";\
-	az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
+	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 .PHONY: frontend clean image deploy undeploy deploy-private undeploy-private
