@@ -25,3 +25,4 @@ param workloadIdentities = items({
 })
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
+param maestroInfraResourceGroup = ''

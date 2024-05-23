@@ -3,7 +3,7 @@ SHELL = /bin/bash
 CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
 LOCATION?=eastus
 RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
-MAESTRO_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
+MAESTRO_INFRA_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
 DEPLOYMENTNAME=$(RESOURCEGROUP)
 
 list:
@@ -43,7 +43,7 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_RESOURCEGROUP)
+			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 
 cluster-what-if: rg
 ifndef AKSCONFIG
@@ -57,7 +57,7 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_RESOURCEGROUP)
+			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 
 aks.kubeconfig:
 ifndef AKSCONFIG
