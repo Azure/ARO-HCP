@@ -44,6 +44,7 @@ type Frontend struct {
 	ready    atomic.Value
 	done     chan struct{}
 	metrics  metrics.Emitter
+	region   string
 }
 
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
@@ -67,9 +68,10 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 		cache:    *NewCache(),
 		dbClient: *dbClient,
 		done:     make(chan struct{}),
+		region:   region,
 	}
 
-	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache, emitter, region)
+	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache)
 
 	// Setup metrics middleware
 	metricsMiddleware := MetricsMiddleware{Emitter: emitter}
@@ -431,6 +433,13 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 
 	subId := request.PathValue(PathSegmentSubscriptionID)
 	f.cache.SetSubscription(subId, &subscription)
+
+	// Emit the subscription state metric
+	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
+		"region":         f.region,
+		"subscriptionid": subId,
+		"state":          string(subscription.State),
+	})
 
 	resp, err := json.Marshal(subscription)
 	if err != nil {

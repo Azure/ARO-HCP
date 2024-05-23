@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/metrics"
 )
 
@@ -50,6 +51,7 @@ func (pe *PrometheusEmitter) EmitCounter(name string, value float64, labels map[
 
 type MetricsMiddleware struct {
 	metrics.Emitter
+	cache *Cache
 }
 
 type logResponseWriter struct {
@@ -76,12 +78,34 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 		routePattern := r.URL.Path
 		duration := time.Since(startTime).Milliseconds()
 
+		subscriptionId := r.PathValue(PathSegmentSubscriptionID)
+		if subscriptionId == "" {
+			arm.WriteError(
+				w, http.StatusBadRequest,
+				arm.CloudErrorCodeInvalidParameter, "",
+				SubscriptionMissingMessage,
+				PathSegmentSubscriptionID)
+			return
+		}
+
+		sub, exists := mm.cache.GetSubscription(subscriptionId)
+
+		if !exists {
+			arm.WriteError(
+				w, http.StatusBadRequest,
+				arm.CloudErrorInvalidSubscriptionState, "",
+				UnregisteredSubscriptionStateMessage,
+				subscriptionId)
+			return
+		}
+
 		// Emit metrics
 		mm.Emitter.EmitCounter("frontend_count", 1.0, map[string]string{
 			"verb":        r.Method,
 			"api_version": r.URL.Query().Get(APIVersionKey),
 			"code":        strconv.Itoa(lrw.statusCode),
 			"route":       routePattern,
+			"state":       string(sub.State),
 		})
 
 		mm.Emitter.EmitGauge("frontend_duration", float64(duration), map[string]string{
