@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -314,21 +315,23 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	parsed, _ := azure.ParseResourceID(resourceID)
 	var doc *HCPOpenShiftClusterDocument
-	doc, found, err := f.dbClient.GetClusterDoc(ctx, resourceID, parsed.SubscriptionID)
+	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID, parsed.SubscriptionID)
 	if err != nil {
-		f.logger.Error("failed to fetch document for %s: %v", resourceID, err)
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if !found {
-		f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
-		doc = &HCPOpenShiftClusterDocument{
-			ID:           uuid.New().String(),
-			Key:          resourceID,
-			ClusterID:    NewUID(),
-			PartitionKey: parsed.SubscriptionID,
+		if errors.Is(err, ErrNotFound) {
+			f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
+			doc = &HCPOpenShiftClusterDocument{
+				ID:           uuid.New().String(),
+				Key:          resourceID,
+				ClusterID:    NewUID(),
+				PartitionKey: parsed.SubscriptionID,
+			}
+		} else {
+			f.logger.Error("failed to fetch document for %s: %v", resourceID, err)
+			arm.WriteInternalServerError(writer)
+			return
 		}
 	}
+
 	err = f.dbClient.SetClusterDoc(ctx, doc)
 	if err != nil {
 		f.logger.Error("failed to create document for resource %s: %v", resourceID, err)
@@ -390,9 +393,15 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	parsed, _ := azure.ParseResourceID(resourceID)
 	err = f.dbClient.DeleteClusterDoc(ctx, resourceID, parsed.SubscriptionID)
 	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		if errors.Is(err, ErrNotFound) {
+			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		} else {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
 	}
 	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
@@ -418,12 +427,17 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	ctx := request.Context()
 	subId := request.PathValue(PathSegmentSubscriptionID)
 
-	doc, found, err := f.dbClient.GetSubscriptionDoc(ctx, subId)
+	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subId)
 	if err != nil {
-		f.logger.Error("failed to get document for subscription %s: %v", subId, err)
-	}
-	if !found {
-		f.logger.Error(fmt.Sprintf("document not found for subscription %s", subId))
+		if errors.Is(err, ErrNotFound) {
+			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subId))
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		} else {
+			f.logger.Error(err.Error())
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	resp, err := json.Marshal(&doc)
@@ -469,22 +483,25 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	})
 
 	var doc *SubscriptionDocument
-	doc, found, err := f.dbClient.GetSubscriptionDoc(ctx, subId)
+	doc, err = f.dbClient.GetSubscriptionDoc(ctx, subId)
 	if err != nil {
-		f.logger.Error("failed to fetch document for %s: %v", subId, err)
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if !found {
-		f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subId))
-		doc = &SubscriptionDocument{
-			ID:           uuid.New().String(),
-			PartitionKey: subId,
-			Subscription: &subscription,
+		if errors.Is(err, ErrNotFound) {
+			f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subId))
+			doc = &SubscriptionDocument{
+				ID:           uuid.New().String(),
+				PartitionKey: subId,
+				Subscription: &subscription,
+			}
+		} else {
+			f.logger.Error("failed to fetch document for %s: %v", subId, err)
+			arm.WriteInternalServerError(writer)
+			return
 		}
 	} else {
+		f.logger.Info(fmt.Sprintf("existing document found for subscription - will update document for subscription %s", subId))
 		doc.Subscription = &subscription
 	}
+
 	err = f.dbClient.SetSubscriptionDoc(ctx, doc)
 	if err != nil {
 		f.logger.Error("failed to create document for subscription %s: %v", subId, err)
