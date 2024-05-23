@@ -16,15 +16,17 @@ frontend:
 clean:
 	rm -f aro-hcp-frontend
 
-build-push: image push	
+build-push: image push
 
 image:
+ifeq ($(shell docker images --filter reference=${ARO_HCP_FRONTEND_IMAGE} --quiet),)
 	pushd .. && git archive --output frontend/archive.tar.gz HEAD && popd
 	docker build --platform="linux/amd64" -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
 	rm -f archive.tar.gz
+endif
 
-push:
-	docker push ${ARO_HCP_FRONTEND_IMAGE}	
+push: image
+	docker push ${ARO_HCP_FRONTEND_IMAGE}
 
 deploy:
 	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
