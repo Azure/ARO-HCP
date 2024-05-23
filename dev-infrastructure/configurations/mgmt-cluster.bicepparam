@@ -7,7 +7,16 @@ param subnetPrefix = '10.132.8.0/21'
 param podSubnetPrefix = '10.132.64.0/18'
 param enablePrivateCluster = false
 param persist = false
-param workloadIdentities = []
+param deployMaestroConsumer = false
+param maestroNamespace = 'maestro'
+param workloadIdentities = items({
+  maestro_wi: {
+    uamiName: 'maestro-consumer'
+    namespace: maestroNamespace
+    serviceAccountName: 'maestro'
+  }
+})
 
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
+param maestroInfraResourceGroup = ''

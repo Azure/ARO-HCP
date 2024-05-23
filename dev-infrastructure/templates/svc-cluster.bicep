@@ -44,6 +44,9 @@ param maestroNamespace string
 @description('The OneCertV2 domain to use to use for the maestro certificate.')
 param maestroCertDomain string?
 
+@description('The resourcegroups where the Maestro infrastructure will be deployed.')
+param maestroInfraResourceGroup string
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -86,13 +89,14 @@ module maestroConfig '../modules/maestro/maestro-config.bicep' = {
   name: 'maestro-config'
   params: {
     location: location
-    resourceGroupName: resourceGroup().name
+    resourceGroupName: maestroInfraResourceGroup
     certificateDomain: maestroCertDomain
   }
 }
 
 module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestroInfra) {
   name: 'maestro-infra'
+  scope: resourceGroup(maestroInfraResourceGroup)
   params: {
     eventGridNamespaceName: maestroConfig.outputs.maestroEventGridNamespaceName
     location: location
@@ -115,11 +119,14 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
       id => id.uamiName == 'maestro-server'
     )[0].uamiClientID
     namespace: maestroNamespace
-    maestroInfraResourceGroup: resourceGroup().name
+    maestroInfraResourceGroup: maestroInfraResourceGroup
     maestroEventGridNamespaceName: maestroConfig.outputs.maestroEventGridNamespaceName
     maestroKeyVaultName: maestroConfig.outputs.maestroKeyVaultName
     maestroKeyVaultOfficerManagedIdentityName: maestroConfig.outputs.kvCertOfficerManagedIdentityName
     maestroKeyVaultCertificateDomain: maestroConfig.outputs.maestroCertificateDomain
     location: location
   }
+  dependsOn: [
+    maestroInfra
+  ]
 }

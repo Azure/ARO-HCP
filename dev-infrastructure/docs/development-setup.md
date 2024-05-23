@@ -111,6 +111,80 @@ AKSCONFIG=svc-cluster make cluster
 AKSCONFIG=svc-cluster make aks.kubeconfig
 KUBECONFIG=svc-cluster.kubeconfig scripts/maestro-server.sh
 
-kubectl get svc -n maestro
-curl http://${LB_IP}:$port
+KUBECONFIG=svc-cluster.kubeconfig kubectl port-forward svc/maestro 8000 -n maestro
 ```
+
+At this point `localhost:8000` forwards traffic to the Maestro server running on the SC.
+
+## Maestro consumer
+
+Before setting up a Maestro consumer, make sure that
+
+* the Maestro infrastructure has been deployed
+* the Maestro server has been installed on the SC
+* the port forwarding is active to reach the Maestro server
+
+> Currently, the AKS cluster name is used as a consumer name for Maestro. That is subject to change.
+
+To setup broker access for a maestro consumer on a mgmt-cluster, set the `deployMaestroConsumer` toggle to `true` and run
+
+```sh
+cd dev-infrastructure
+AKSCONFIG=mgmt-cluster make mgmt-cluster
+AKSCONFIG=mgmt-cluster make aks.kubeconfig
+KUBECONFIG=mgmt-cluster.kubeconfig scripts/maestro-consumer.sh
+```
+
+This will also register the Maestro consumer with the Maestro server. You can verify that the consumer is present in Maestros consumer inventory by running
+
+```sh
+curl -s http://localhost:8000/api/maestro/v1/consumers | jq .items
+[
+  {
+    "created_at": "2024-05-20T15:09:51.451048Z",
+    "href": "/api/maestro/v1/consumers/913c07f8-de91-4d2b-9610-8edb4e4820b2",
+    "id": "913c07f8-de91-4d2b-9610-8edb4e4820b2",
+    "kind": "Consumer",
+    "name": "aro-hcp-mgmt-cluster-gvfxqtnhh7hi6",
+    "updated_at": "2024-05-20T15:09:51.451048Z"
+  }
+]
+```
+
+To post a manifest (e.g. a `Namespace`) to the MC via Maestro, run
+
+```sh
+cd dev-infrastructure
+kubectl create namespace my-test --dry-run=client -o json | scripts/maestro-send.sh
+```
+
+Then verify, that the namespaces has been created on the cluster and also check the result via Maestro.
+
+```sh
+kubectl get ns
+curl -s http://localhost:8000/api/maestro/v1/resources | jq .items
+[
+  {
+    "consumer_name": "aro-hcp-mgmt-cluster-gvfxqtnhh7hi6",
+    "created_at": "2024-05-20T15:20:06.155763Z",
+    "href": "/api/maestro/v1/resources/d8b6c827-ac32-4736-a913-a45ad2a86171",
+    "id": "d8b6c827-ac32-4736-a913-a45ad2a86171",
+    "kind": "Resource",
+    "manifest": {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "my-test"
+      }
+    },
+    "name": "d8b6c827-ac32-4736-a913-a45ad2a86171",
+    "status": {
+      "ContentStatus": {
+        "phase": "Active"
+      }
+      ...
+    }
+    "updated_at": "2024-05-20T15:20:06.821849Z",
+    "version": 1
+  }
+]
