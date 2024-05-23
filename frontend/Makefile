@@ -5,7 +5,7 @@ ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
 # for deploying frontend into private aks cluster via invoke command
 # these values must be set
-RESOURCEGROUP ?=
+RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
 CLUSTER_NAME ?=
 DEPLOYMENTNAME=$(RESOURCEGROUP)
 
