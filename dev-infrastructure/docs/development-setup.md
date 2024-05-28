@@ -188,3 +188,162 @@ curl -s http://localhost:8000/api/maestro/v1/resources | jq .items
     "version": 1
   }
 ]
+```
+
+## CS Local Development Setup
+
+Should your development needs require a running instance of CS to test with, here is how to spin up a locally running Clusters Service with containerized database suitable enough for testing.
+
+To complete the below steps you will need:
+1) `podman`, `ocm` cli (latest), and [`yq`](https://github.com/mikefarah/yq) cli (version 4+)
+2) The [Clusters Service repo](https://gitlab.cee.redhat.com/service/uhc-clusters-service) cloned down (can also use a fork if you have one)
+
+> If you don't have or want to install `yq`, any steps below using `yq` can be done manually
+
+From the root of the CS repo on our system:
+
+1) Setup required config files
+
+```bash
+# Setup the development.yml
+cp ./configs/development.yml .
+
+# Update any required empty strings to 'none'
+yq -i '(.aws-access-key-id, .aws-secret-access-key, .route53-access-key-id, .route53-secret-access-key, .oidc-access-key-id, .oidc-secret-access-key, .network-verifier-access-key-id, .network-verifier-secret-access-key, .client-id, .client-secret) = "none"' development.yml
+
+# Update provision shards config with new shard
+cat <<EOF > ./provision_shards.config
+provision_shards:
+- id: 1
+  hypershift_config: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - name: default
+      cluster:
+        server: https://api.hs-sc-81qmsevf0.dksu.i1.devshift.org:6443
+    users:
+    - name: default
+      user:
+        token: ${HYPERSHIFT_INTEGRATION_TOKEN}
+    contexts:
+    - name: default
+      context:
+        cluster: default
+        user: default
+    current-context: default
+  status: active
+  region: eastus
+  cloud_provider: azure
+  topology: dedicated
+EOF
+
+# Enable the eastus region in cloud region constraints config
+yq -i '.cloud_regions |= map(select(.id == "eastus").enabled = true)' configs/cloud-resource-constraints/cloud-region-constraints.yaml
+
+# you can verify the region change with the below
+yq '.cloud_regions[] | select(.id == "eastus")' configs/cloud-resource-constraints/cloud-region-constraints.yaml
+
+# Update region_constraints.config with new cloud provider
+cat <<EOF > ./region_constraints.config
+cloud_providers:
+- name: azure
+  regions:
+    - name: eastus
+      version_constraints:
+        min_version: 4.11.0
+      product_constraints:
+        - product: hcp
+          version_constraints:
+            min_version: 4.12.23
+EOF
+```
+
+2) Follow CS dev setup process:
+
+```bash
+# Build CS
+make cmds
+
+# Setup local DB
+make db/setup
+
+# Initialize the DB
+./clusters-service init --config-file ./development.yml
+
+# Update DB to set avaialble versions
+# NOTE: required until https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/merge_requests/7895 is merged
+# login to db
+make db/login
+
+INSERT INTO versions (id, raw_id, enabled, dflt, channel_group, hypershift_enabled, hypershift_default, release_image, rosa_enabled)
+VALUES ('openshift-v4.15.11', '4.15.11', 'true', 'true', 'stable', 'true', 'true', '', 'true');
+
+# logout
+\q
+```
+
+3) Start CS:
+
+```bash
+./clusters-service serve --config-file development.yml --demo-mode
+```
+
+You now have a running, functioning local CS deployment
+
+To interact with CS:
+1) Login to your local CS deployment
+
+```bash
+ocm login --url=http://localhost:8000 --use-auth-code
+```
+
+2) Create a test cluster - note that `version.id` must match the version inserted into the database earlier.
+```bash
+NAME="<INSERT-NAME-HERE>"
+cat <<EOF > cluster-test.json
+{
+  "name": "$YOURNAME-aro-hcp",
+  "product": {
+    "id": "aro"
+  },
+  "ccs": {
+    "enabled": true
+  },
+  "region": {
+    "id": "eastus"
+  },
+  "hypershift": {
+    "enabled": true
+  },
+  "multi_az": true,
+  "azure": {
+    "resource_name": "$YOURNAME-test-name",
+    "subscription_id": "00000000-0000-0000-0000-000000000000",
+    "resource_group_name": "$YOURNAME-test-rg",
+    "tenant_id": "$YOURNAME-test-tenant",
+    "managed_resource_group_name": "$YOURNAME-test-mrg",
+    "subnet_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/$YOURNAME-test-rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/mySubnet",
+    "network_security_group_resource_id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/$YOURNAME-test-rg/providers/Microsoft.Network/networkSecurityGroups/myNSG"
+  },
+  "properties": {
+    "provision_shard_id": "1"
+  },
+  "version": {
+    "id": "openshift-v4.15.11"
+  }
+}
+EOF
+
+cat cluster-test.json | ocm post /api/clusters_mgmt/v1/clusters
+```
+
+You should now have a cluster in OCM. You can verify using `ocm list clusters` or `ocm get cluster CLUSTERID`
+
+## CS Dev Cleanup
+
+To tear down your CS setup:
+1) Kill the running clusters-service process
+2) Clean up the database `make db/teardown`
+
+
