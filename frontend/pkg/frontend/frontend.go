@@ -484,13 +484,6 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 	f.cache.SetSubscription(subscriptionID, &subscription)
 
-	// Emit the subscription state metric
-	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
-		"region":         f.region,
-		"subscriptionid": subscriptionID,
-		"state":          string(subscription.State),
-	})
-
 	var doc *database.SubscriptionDocument
 	doc, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
@@ -509,12 +502,23 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	} else {
 		f.logger.Info(fmt.Sprintf("existing document found for subscription - will update document for subscription %s", subscriptionID))
 		doc.Subscription = &subscription
+
+		messages := getSubscriptionDifferences(doc.Subscription, &subscription)
+		for _, message := range messages {
+			f.logger.Info(message)
+		}
 	}
 
 	err = f.dbClient.SetSubscriptionDoc(ctx, doc)
 	if err != nil {
 		f.logger.Error("failed to create document for subscription %s: %v", subscriptionID, err)
 	}
+
+	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
+		"region":         f.region,
+		"subscriptionid": subscriptionID,
+		"state":          string(subscription.State),
+	})
 
 	resp, err := json.Marshal(subscription)
 	if err != nil {
@@ -640,4 +644,53 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	}
 
 	arm.WriteDeploymentPreflightResponse(writer, preflightErrors)
+}
+
+func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
+	var messages []string
+
+	if oldSub.State != newSub.State {
+		messages = append(messages, fmt.Sprintf("Subscription state changed from %s to %s", oldSub.State, newSub.State))
+	}
+
+	if oldSub.Properties != nil && newSub.Properties != nil {
+		if oldSub.Properties.TenantId != nil && newSub.Properties.TenantId != nil &&
+			*oldSub.Properties.TenantId != *newSub.Properties.TenantId {
+			messages = append(messages, fmt.Sprintf("Subscription tenantId changed from %s to %s", *oldSub.Properties.TenantId, *newSub.Properties.TenantId))
+		}
+
+		if oldSub.Properties.RegisteredFeatures != nil && newSub.Properties.RegisteredFeatures != nil {
+			oldFeatures := featuresMap(oldSub.Properties.RegisteredFeatures)
+			newFeatures := featuresMap(newSub.Properties.RegisteredFeatures)
+
+			for featureName, oldState := range oldFeatures {
+				newState, exists := newFeatures[featureName]
+				if !exists {
+					messages = append(messages, fmt.Sprintf("Feature %s removed", featureName))
+				} else if oldState != newState {
+					messages = append(messages, fmt.Sprintf("Feature %s state changed from %s to %s", featureName, oldState, newState))
+				}
+			}
+			for featureName, newState := range newFeatures {
+				if _, exists := oldFeatures[featureName]; !exists {
+					messages = append(messages, fmt.Sprintf("Feature %s added with state %s", featureName, newState))
+				}
+			}
+		}
+	}
+
+	return messages
+}
+
+func featuresMap(features *[]arm.Feature) map[string]string {
+	if features == nil {
+		return nil
+	}
+	featureMap := make(map[string]string, len(*features))
+	for _, feature := range *features {
+		if feature.Name != nil && feature.State != nil {
+			featureMap[*feature.Name] = *feature.State
+		}
+	}
+	return featureMap
 }
