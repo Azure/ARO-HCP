@@ -18,23 +18,36 @@ const (
 
 var ErrNotFound = errors.New("DocumentNotFound")
 
-// DBClient defines the needed values to perform CRUD operations against the async DB
-type DBClient struct {
-	client *azcosmos.Client
-	config *DBConfig
+type DBClient interface {
+	DBConnectionTest(ctx context.Context) (string, error)
+
+	GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, error)
+	SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error
+	DeleteClusterDoc(ctx context.Context, resourceID string, partitionKey string) error
+
+	GetSubscriptionDoc(ctx context.Context, partitionKey string) (*SubscriptionDocument, error)
+	SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error
 }
 
-// DBConfig stores database and client configuration data
-type DBConfig struct {
+var _ DBClient = &CosmosDBClient{}
+
+// CosmosDBClient defines the needed values to perform CRUD operations against the async DB
+type CosmosDBClient struct {
+	client *azcosmos.Client
+	config *CosmosDBConfig
+}
+
+// CosmosDBConfig stores database and client configuration data
+type CosmosDBConfig struct {
 	DBName        string
 	DBUrl         string
 	ClientOptions *azidentity.DefaultAzureCredentialOptions
 }
 
-// NewDatabaseConfig configures database configuration values for access
-func NewDatabaseConfig(dbName, dbURL string) *DBConfig {
+// NewCosmosDBConfig configures database configuration values for access
+func NewCosmosDBConfig(dbName, dbURL string) *CosmosDBConfig {
 	opt := &azidentity.DefaultAzureCredentialOptions{}
-	c := &DBConfig{
+	c := &CosmosDBConfig{
 		DBName:        dbName,
 		DBUrl:         dbURL,
 		ClientOptions: opt,
@@ -42,14 +55,14 @@ func NewDatabaseConfig(dbName, dbURL string) *DBConfig {
 	return c
 }
 
-// NewDatabaseClient instantiates a Cosmos DatabaseClient targeting Frontends async DB
-func NewDatabaseClient(config *DBConfig) (*DBClient, error) {
+// NewCosmosDBClient instantiates a Cosmos DatabaseClient targeting Frontends async DB
+func NewCosmosDBClient(config *CosmosDBConfig) (DBClient, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(config.ClientOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	d := &DBClient{
+	d := &CosmosDBClient{
 		config: config,
 	}
 
@@ -63,7 +76,7 @@ func NewDatabaseClient(config *DBConfig) (*DBClient, error) {
 }
 
 // DBConnectionTest checks the async database is accessible on startup
-func (d *DBClient) DBConnectionTest(ctx context.Context) (string, error) {
+func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) (string, error) {
 	if d.config.DBName == "none" || d.config.DBName == "" {
 		return "No database configured, skipping", nil
 	}
@@ -80,7 +93,7 @@ func (d *DBClient) DBConnectionTest(ctx context.Context) (string, error) {
 }
 
 // GetClusterDoc retreives a cluster document from async DB using resource ID
-func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, error) {
+func (d *CosmosDBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, error) {
 	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
 	if err != nil {
 		return nil, err
@@ -116,7 +129,7 @@ func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partiti
 }
 
 // SetClusterDoc creates/updates a cluster document in the async DB during cluster creation/patching
-func (d *DBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error {
+func (d *CosmosDBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error {
 	data, err := json.Marshal(doc)
 	if err != nil {
 		return err
@@ -136,7 +149,7 @@ func (d *DBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDo
 }
 
 // DeleteClusterDoc removes a cluter document from the async DB using resource ID
-func (d *DBClient) DeleteClusterDoc(ctx context.Context, resourceID string, partitionKey string) error {
+func (d *CosmosDBClient) DeleteClusterDoc(ctx context.Context, resourceID string, partitionKey string) error {
 	doc, err := d.GetClusterDoc(ctx, resourceID, partitionKey)
 	if err != nil {
 		return err
@@ -155,7 +168,7 @@ func (d *DBClient) DeleteClusterDoc(ctx context.Context, resourceID string, part
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
-func (d *DBClient) GetSubscriptionDoc(ctx context.Context, partitionKey string) (*SubscriptionDocument, error) {
+func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, partitionKey string) (*SubscriptionDocument, error) {
 	container, err := d.client.NewContainer(d.config.DBName, subsContainer)
 	if err != nil {
 		return nil, err
@@ -191,7 +204,7 @@ func (d *DBClient) GetSubscriptionDoc(ctx context.Context, partitionKey string) 
 }
 
 // SetClusterDoc creates/updates a subscription document in the async DB during cluster creation/patching
-func (d *DBClient) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
+func (d *CosmosDBClient) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
 	data, err := json.Marshal(doc)
 	if err != nil {
 		return err
