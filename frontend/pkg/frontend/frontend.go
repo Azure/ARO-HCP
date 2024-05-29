@@ -40,7 +40,7 @@ type Frontend struct {
 	logger   *slog.Logger
 	listener net.Listener
 	server   http.Server
-	cache    Cache
+	cache    Cache // TODO: Delete
 	dbClient database.DBClient
 	ready    atomic.Value
 	done     chan struct{}
@@ -55,7 +55,7 @@ func MuxPattern(method string, segments ...string) string {
 	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient *database.DBClient, region string, conn *sdk.Connection) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, region string, conn *sdk.Connection) *Frontend {
 	f := &Frontend{
 		conn:     conn,
 		logger:   logger,
@@ -68,7 +68,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 			},
 		},
 		cache:    *NewCache(),
-		dbClient: *dbClient,
+		dbClient: dbClient,
 		done:     make(chan struct{}),
 		region:   region,
 	}
