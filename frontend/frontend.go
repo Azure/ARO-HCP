@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -90,7 +91,8 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 	mux.HandleFunc("/", f.NotFound)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz", "ready"), f.HealthzReady)
 	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
-	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionAction)
+	mux.HandleFunc(MuxPattern(http.MethodGet, PatternSubscriptions), f.ArmSubscriptionGet)
+	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionPut)
 
 	// Expose Prometheus metrics endpoint
 	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
@@ -313,21 +315,23 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	parsed, _ := azure.ParseResourceID(resourceID)
 	var doc *HCPOpenShiftClusterDocument
-	doc, found, err := f.dbClient.GetClusterDoc(ctx, resourceID, parsed.SubscriptionID)
+	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID, parsed.SubscriptionID)
 	if err != nil {
-		f.logger.Error("failed to fetch document for %s: %v", resourceID, err)
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if !found {
-		f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
-		doc = &HCPOpenShiftClusterDocument{
-			ID:           uuid.New().String(),
-			Key:          resourceID,
-			ClusterID:    NewUID(),
-			PartitionKey: parsed.SubscriptionID,
+		if errors.Is(err, ErrNotFound) {
+			f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
+			doc = &HCPOpenShiftClusterDocument{
+				ID:           uuid.New().String(),
+				Key:          resourceID,
+				ClusterID:    NewUID(),
+				PartitionKey: parsed.SubscriptionID,
+			}
+		} else {
+			f.logger.Error("failed to fetch document for %s: %v", resourceID, err)
+			arm.WriteInternalServerError(writer)
+			return
 		}
 	}
+
 	err = f.dbClient.SetClusterDoc(ctx, doc)
 	if err != nil {
 		f.logger.Error("failed to create document for resource %s: %v", resourceID, err)
@@ -389,9 +393,15 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	parsed, _ := azure.ParseResourceID(resourceID)
 	err = f.dbClient.DeleteClusterDoc(ctx, resourceID, parsed.SubscriptionID)
 	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		if errors.Is(err, ErrNotFound) {
+			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		} else {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
 	}
 	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
@@ -413,7 +423,38 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 	writer.WriteHeader(http.StatusOK)
 }
 
-func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	subId := request.PathValue(PathSegmentSubscriptionID)
+
+	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subId)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subId))
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		} else {
+			f.logger.Error(err.Error())
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	resp, err := json.Marshal(&doc)
+	if err != nil {
+		f.logger.Error(err.Error())
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
 	body, err := BodyFromContext(ctx)
@@ -441,6 +482,31 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 		"state":          string(subscription.State),
 	})
 
+	var doc *SubscriptionDocument
+	doc, err = f.dbClient.GetSubscriptionDoc(ctx, subId)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subId))
+			doc = &SubscriptionDocument{
+				ID:           uuid.New().String(),
+				PartitionKey: subId,
+				Subscription: &subscription,
+			}
+		} else {
+			f.logger.Error("failed to fetch document for %s: %v", subId, err)
+			arm.WriteInternalServerError(writer)
+			return
+		}
+	} else {
+		f.logger.Info(fmt.Sprintf("existing document found for subscription - will update document for subscription %s", subId))
+		doc.Subscription = &subscription
+	}
+
+	err = f.dbClient.SetSubscriptionDoc(ctx, doc)
+	if err != nil {
+		f.logger.Error("failed to create document for subscription %s: %v", subId, err)
+	}
+
 	resp, err := json.Marshal(subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -451,6 +517,8 @@ func (f *Frontend) ArmSubscriptionAction(writer http.ResponseWriter, request *ht
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
+
+	writer.WriteHeader(http.StatusCreated)
 }
 
 func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *http.Request) {

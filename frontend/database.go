@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -12,7 +12,12 @@ import (
 
 const (
 	clustersContainer = "Clusters"
+	subsContainer     = "Subscriptions"
+	billingContainer  = "Billing"
+	asyncContainer    = "AsyncOperations"
 )
+
+var ErrNotFound = errors.New("DocumentNotFound")
 
 // DBClient defines the needed values to perform CRUD operations against the async DB
 type DBClient struct {
@@ -75,11 +80,11 @@ func (d *DBClient) DBConnectionTest(ctx context.Context) (string, error) {
 	return result.DatabaseProperties.ID, nil
 }
 
-// GetCluster retreives a cluster document from async DB using resource ID
-func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, bool, error) {
+// GetClusterDoc retreives a cluster document from async DB using resource ID
+func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, error) {
 	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	query := "SELECT * FROM c WHERE c.key = @key"
@@ -95,24 +100,23 @@ func (d *DBClient) GetClusterDoc(ctx context.Context, resourceID string, partiti
 	for queryPager.More() {
 		queryResponse, err := queryPager.NextPage(ctx)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 
 		for _, item := range queryResponse.Items {
 			err = json.Unmarshal(item, &doc)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 		}
 	}
 	if doc != nil {
-		return doc, true, nil
+		return doc, nil
 	}
-	return nil, false, nil
-
+	return nil, ErrNotFound
 }
 
-// SetCluster creates/updates a cluster document in the async DB during cluster creation/patching
+// SetClusterDoc creates/updates a cluster document in the async DB during cluster creation/patching
 func (d *DBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error {
 	data, err := json.Marshal(doc)
 	if err != nil {
@@ -132,12 +136,9 @@ func (d *DBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDo
 	return nil
 }
 
-// DeleteCluster removes a cluter document from the async DB using resource ID
+// DeleteClusterDoc removes a cluter document from the async DB using resource ID
 func (d *DBClient) DeleteClusterDoc(ctx context.Context, resourceID string, partitionKey string) error {
-	doc, found, err := d.GetClusterDoc(ctx, resourceID, partitionKey)
-	if !found {
-		return fmt.Errorf("document with key %s not found", partitionKey)
-	}
+	doc, err := d.GetClusterDoc(ctx, resourceID, partitionKey)
 	if err != nil {
 		return err
 	}
@@ -148,6 +149,61 @@ func (d *DBClient) DeleteClusterDoc(ctx context.Context, resourceID string, part
 	}
 
 	_, err = container.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), doc.ID, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
+func (d *DBClient) GetSubscriptionDoc(ctx context.Context, partitionKey string) (*SubscriptionDocument, error) {
+	container, err := d.client.NewContainer(d.config.DBName, subsContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	query := "SELECT * FROM c WHERE c.partitionKey = @partitionKey"
+	opt := azcosmos.QueryOptions{
+		PageSizeHint:    1,
+		QueryParameters: []azcosmos.QueryParameter{{Name: "@partitionKey", Value: partitionKey}},
+	}
+
+	pk := azcosmos.NewPartitionKeyString(partitionKey)
+	queryPager := container.NewQueryItemsPager(query, pk, &opt)
+
+	var doc *SubscriptionDocument
+	for queryPager.More() {
+		queryResponse, err := queryPager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, item := range queryResponse.Items {
+			err = json.Unmarshal(item, &doc)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if doc != nil {
+		return doc, nil
+	}
+	return nil, ErrNotFound
+}
+
+// SetClusterDoc creates/updates a subscription document in the async DB during cluster creation/patching
+func (d *DBClient) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+
+	container, err := d.client.NewContainer(d.config.DBName, subsContainer)
+	if err != nil {
+		return err
+	}
+
+	_, err = container.UpsertItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
 	if err != nil {
 		return err
 	}
