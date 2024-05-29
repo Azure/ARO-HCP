@@ -18,7 +18,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -119,7 +118,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
 		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourcePatch))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
@@ -273,6 +272,9 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
+	// This handles both PUT and PATCH requests. The only notable
+	// difference is PATCH requests will not create a new cluster.
+
 	ctx := request.Context()
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -286,11 +288,27 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	cluster, updating := f.cache.GetCluster(resourceID)
-
-	versionedRequestCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
 	versionedCurrentCluster := versionedInterface.NewHCPOpenShiftCluster(cluster)
+
+	var versionedRequestCluster api.VersionedHCPOpenShiftCluster
+	switch request.Method {
+	case http.MethodPut:
+		versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
+	case http.MethodPatch:
+		if cluster == nil {
+			// PATCH request will not create a new cluster.
+			originalPath, _ := OriginalPathFromContext(ctx)
+			f.logger.Error("Resource not found")
+			arm.WriteError(
+				writer, http.StatusNotFound, arm.CloudErrorCodeNotFound,
+				originalPath, "Resource not found")
+			return
+		}
+		versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(cluster)
+	}
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
@@ -313,9 +331,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	cluster = api.NewDefaultHCPOpenShiftCluster()
 	versionedRequestCluster.Normalize(cluster)
 
-	parsed, _ := azure.ParseResourceID(resourceID)
 	var doc *HCPOpenShiftClusterDocument
-	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID, parsed.SubscriptionID)
+	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID, subscriptionID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
@@ -323,10 +340,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 				ID:           uuid.New().String(),
 				Key:          resourceID,
 				ClusterID:    NewUID(),
-				PartitionKey: parsed.SubscriptionID,
+				PartitionKey: subscriptionID,
 			}
 		} else {
-			f.logger.Error("failed to fetch document for %s: %v", resourceID, err)
+			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -334,7 +351,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	err = f.dbClient.SetClusterDoc(ctx, doc)
 	if err != nil {
-		f.logger.Error("failed to create document for resource %s: %v", resourceID, err)
+		f.logger.Error(fmt.Sprintf("failed to create document for resource %s: %v", resourceID, err))
 	}
 	f.logger.Info(fmt.Sprintf("document created for %s", resourceID))
 
@@ -346,27 +363,17 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		arm.WriteInternalServerError(writer)
 		return
 	}
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
-	writer.WriteHeader(http.StatusCreated)
-}
 
-func (f *Frontend) ArmResourcePatch(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+	switch request.Method {
+	case http.MethodPut:
+		writer.WriteHeader(http.StatusCreated)
+	case http.MethodPatch:
+		writer.WriteHeader(http.StatusAccepted)
 	}
-
-	f.logger.Info(fmt.Sprintf("%s: ArmResourcePatch", versionedInterface))
-
-	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
@@ -383,6 +390,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+
 	_, found := f.cache.GetCluster(resourceID)
 	if !found {
 		writer.WriteHeader(http.StatusNotFound)
@@ -390,8 +399,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	}
 	f.cache.DeleteCluster(resourceID)
 
-	parsed, _ := azure.ParseResourceID(resourceID)
-	err = f.dbClient.DeleteClusterDoc(ctx, resourceID, parsed.SubscriptionID)
+	err = f.dbClient.DeleteClusterDoc(ctx, resourceID, subscriptionID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
@@ -425,12 +433,12 @@ func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.R
 
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	subId := request.PathValue(PathSegmentSubscriptionID)
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subId)
+	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subId))
+			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subscriptionID))
 			writer.WriteHeader(http.StatusNotFound)
 			return
 		} else {
@@ -472,39 +480,39 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	subId := request.PathValue(PathSegmentSubscriptionID)
-	f.cache.SetSubscription(subId, &subscription)
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	f.cache.SetSubscription(subscriptionID, &subscription)
 
 	// Emit the subscription state metric
 	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
 		"region":         f.region,
-		"subscriptionid": subId,
+		"subscriptionid": subscriptionID,
 		"state":          string(subscription.State),
 	})
 
 	var doc *SubscriptionDocument
-	doc, err = f.dbClient.GetSubscriptionDoc(ctx, subId)
+	doc, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subId))
+			f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subscriptionID))
 			doc = &SubscriptionDocument{
 				ID:           uuid.New().String(),
-				PartitionKey: subId,
+				PartitionKey: subscriptionID,
 				Subscription: &subscription,
 			}
 		} else {
-			f.logger.Error("failed to fetch document for %s: %v", subId, err)
+			f.logger.Error("failed to fetch document for %s: %v", subscriptionID, err)
 			arm.WriteInternalServerError(writer)
 			return
 		}
 	} else {
-		f.logger.Info(fmt.Sprintf("existing document found for subscription - will update document for subscription %s", subId))
+		f.logger.Info(fmt.Sprintf("existing document found for subscription - will update document for subscription %s", subscriptionID))
 		doc.Subscription = &subscription
 	}
 
 	err = f.dbClient.SetSubscriptionDoc(ctx, doc)
 	if err != nil {
-		f.logger.Error("failed to create document for subscription %s: %v", subId, err)
+		f.logger.Error("failed to create document for subscription %s: %v", subscriptionID, err)
 	}
 
 	resp, err := json.Marshal(subscription)

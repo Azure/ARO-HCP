@@ -347,7 +347,12 @@ func (c *HcpOpenShiftClusterResource) ValidateStatic(current api.VersionedHCPOpe
 		"Content validation failed on multiple fields")
 	cloudError.Details = make([]arm.CloudErrorBody, 0)
 
-	errorDetails = api.ValidateVisibility(c, current, clusterStructTagMap, updating)
+	// Pass the embedded HcpOpenShiftClusterResource so the
+	// struct field names match the clusterStructTagMap keys.
+	errorDetails = api.ValidateVisibility(
+		c.HcpOpenShiftClusterResource,
+		current.(*HcpOpenShiftClusterResource).HcpOpenShiftClusterResource,
+		clusterStructTagMap, updating)
 	if errorDetails != nil {
 		cloudError.Details = append(cloudError.Details, errorDetails...)
 	}
