@@ -41,6 +41,8 @@ func (a *APIProfile) UnmarshalJSON(data []byte) error {
 		case "visibility":
 				err = unpopulate(val, "Visibility", &a.Visibility)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", a, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", a, err)
@@ -76,6 +78,8 @@ func (c *ClaimProfile) UnmarshalJSON(data []byte) error {
 		case "prefixPolicy":
 				err = unpopulate(val, "PrefixPolicy", &c.PrefixPolicy)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", c, err)
@@ -151,6 +155,8 @@ func (c *ClusterSpec) UnmarshalJSON(data []byte) error {
 		case "version":
 				err = unpopulate(val, "Version", &c.Version)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", c, err)
@@ -190,6 +196,8 @@ func (c *ClusterSpecUpdate) UnmarshalJSON(data []byte) error {
 		case "version":
 				err = unpopulate(val, "Version", &c.Version)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", c, err)
@@ -217,6 +225,8 @@ func (c *ConsoleProfile) UnmarshalJSON(data []byte) error {
 		case "url":
 				err = unpopulate(val, "URL", &c.URL)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", c, err)
@@ -248,6 +258,8 @@ func (d *DNSProfile) UnmarshalJSON(data []byte) error {
 		case "baseDomainPrefix":
 				err = unpopulate(val, "BaseDomainPrefix", &d.BaseDomainPrefix)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", d, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", d, err)
@@ -279,6 +291,8 @@ func (e *ErrorAdditionalInfo) UnmarshalJSON(data []byte) error {
 		case "type":
 				err = unpopulate(val, "Type", &e.Type)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
@@ -322,6 +336,8 @@ func (e *ErrorDetail) UnmarshalJSON(data []byte) error {
 		case "target":
 				err = unpopulate(val, "Target", &e.Target)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
@@ -349,6 +365,8 @@ func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
 		case "error":
 				err = unpopulate(val, "Error", &e.Error)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
@@ -380,6 +398,8 @@ func (e *ExternalAuthClaimProfile) UnmarshalJSON(data []byte) error {
 		case "validationRules":
 				err = unpopulate(val, "ValidationRules", &e.ValidationRules)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
@@ -411,6 +431,8 @@ func (e *ExternalAuthClientComponentProfile) UnmarshalJSON(data []byte) error {
 		case "name":
 				err = unpopulate(val, "Name", &e.Name)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
@@ -450,6 +472,8 @@ func (e *ExternalAuthClientProfile) UnmarshalJSON(data []byte) error {
 		case "secret":
 				err = unpopulate(val, "Secret", &e.Secret)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
@@ -481,6 +505,8 @@ func (e *ExternalAuthConfigProfile) UnmarshalJSON(data []byte) error {
 		case "externalAuths":
 				err = unpopulate(val, "ExternalAuths", &e.ExternalAuths)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
@@ -516,6 +542,8 @@ func (e *ExternalAuthProfile) UnmarshalJSON(data []byte) error {
 		case "issuer":
 				err = unpopulate(val, "Issuer", &e.Issuer)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
@@ -547,6 +575,8 @@ func (h *HcpOpenShiftClusterCredentials) UnmarshalJSON(data []byte) error {
 		case "kubeadminUsername":
 				err = unpopulate(val, "KubeadminUsername", &h.KubeadminUsername)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -574,6 +604,8 @@ func (h *HcpOpenShiftClusterKubeconfig) UnmarshalJSON(data []byte) error {
 		case "kubeconfig":
 				err = unpopulate(val, "Kubeconfig", &h.Kubeconfig)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -625,6 +657,8 @@ func (h *HcpOpenShiftClusterNodePoolResource) UnmarshalJSON(data []byte) error {
 		case "type":
 				err = unpopulate(val, "Type", &h.Type)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -656,6 +690,8 @@ func (h *HcpOpenShiftClusterNodePoolResourceListResult) UnmarshalJSON(data []byt
 		case "value":
 				err = unpopulate(val, "Value", &h.Value)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -687,6 +723,8 @@ func (h *HcpOpenShiftClusterNodePoolResourceUpdate) UnmarshalJSON(data []byte) e
 		case "tags":
 				err = unpopulate(val, "Tags", &h.Tags)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -734,6 +772,8 @@ func (h *HcpOpenShiftClusterNodePoolResourceUpdateProperties) UnmarshalJSON(data
 		case "version":
 				err = unpopulate(val, "Version", &h.Version)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -765,6 +805,8 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		case "spec":
 				err = unpopulate(val, "Spec", &h.Spec)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -820,6 +862,8 @@ func (h *HcpOpenShiftClusterResource) UnmarshalJSON(data []byte) error {
 		case "type":
 				err = unpopulate(val, "Type", &h.Type)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -851,6 +895,8 @@ func (h *HcpOpenShiftClusterResourceListResult) UnmarshalJSON(data []byte) error
 		case "value":
 				err = unpopulate(val, "Value", &h.Value)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -886,6 +932,8 @@ func (h *HcpOpenShiftClusterResourceUpdate) UnmarshalJSON(data []byte) error {
 		case "tags":
 				err = unpopulate(val, "Tags", &h.Tags)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -913,6 +961,8 @@ func (h *HcpOpenShiftClusterResourceUpdateProperties) UnmarshalJSON(data []byte)
 		case "spec":
 				err = unpopulate(val, "Spec", &h.Spec)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -956,6 +1006,8 @@ func (h *HcpOpenShiftVersions) UnmarshalJSON(data []byte) error {
 		case "type":
 				err = unpopulate(val, "Type", &h.Type)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -987,6 +1039,8 @@ func (h *HcpOpenShiftVersionsListResult) UnmarshalJSON(data []byte) error {
 		case "value":
 				err = unpopulate(val, "Value", &h.Value)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -1018,6 +1072,8 @@ func (h *HcpOpenShiftVersionsProperties) UnmarshalJSON(data []byte) error {
 		case "provisioningState":
 				err = unpopulate(val, "ProvisioningState", &h.ProvisioningState)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
@@ -1053,6 +1109,8 @@ func (i *IngressProfile) UnmarshalJSON(data []byte) error {
 		case "visibility":
 				err = unpopulate(val, "Visibility", &i.Visibility)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", i, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", i, err)
@@ -1092,6 +1150,8 @@ func (m *ManagedServiceIdentity) UnmarshalJSON(data []byte) error {
 		case "userAssignedIdentities":
 				err = unpopulate(val, "UserAssignedIdentities", &m.UserAssignedIdentities)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", m, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", m, err)
@@ -1135,6 +1195,8 @@ func (n *NetworkProfile) UnmarshalJSON(data []byte) error {
 		case "serviceCidr":
 				err = unpopulate(val, "ServiceCidr", &n.ServiceCidr)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", n, err)
@@ -1166,6 +1228,8 @@ func (n *NodePoolAutoScaling) UnmarshalJSON(data []byte) error {
 		case "min":
 				err = unpopulate(val, "Min", &n.Min)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", n, err)
@@ -1197,6 +1261,8 @@ func (n *NodePoolAutoScalingUpdate) UnmarshalJSON(data []byte) error {
 		case "min":
 				err = unpopulate(val, "Min", &n.Min)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", n, err)
@@ -1252,6 +1318,8 @@ func (n *NodePoolPlatformProfile) UnmarshalJSON(data []byte) error {
 		case "vmSize":
 				err = unpopulate(val, "VMSize", &n.VMSize)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", n, err)
@@ -1283,6 +1351,8 @@ func (n *NodePoolProperties) UnmarshalJSON(data []byte) error {
 		case "spec":
 				err = unpopulate(val, "Spec", &n.Spec)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", n, err)
@@ -1338,6 +1408,8 @@ func (n *NodePoolSpec) UnmarshalJSON(data []byte) error {
 		case "version":
 				err = unpopulate(val, "Version", &n.Version)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", n, err)
@@ -1381,6 +1453,8 @@ func (o *Operation) UnmarshalJSON(data []byte) error {
 		case "origin":
 				err = unpopulate(val, "Origin", &o.Origin)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", o, err)
@@ -1420,6 +1494,8 @@ func (o *OperationDisplay) UnmarshalJSON(data []byte) error {
 		case "resource":
 				err = unpopulate(val, "Resource", &o.Resource)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", o, err)
@@ -1451,6 +1527,8 @@ func (o *OperationListResult) UnmarshalJSON(data []byte) error {
 		case "value":
 				err = unpopulate(val, "Value", &o.Value)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", o, err)
@@ -1494,6 +1572,8 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 		case "subnetId":
 				err = unpopulate(val, "SubnetID", &p.SubnetID)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", p, err)
@@ -1533,6 +1613,8 @@ func (p *ProxyProfile) UnmarshalJSON(data []byte) error {
 		case "trustedCa":
 				err = unpopulate(val, "TrustedCa", &p.TrustedCa)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", p, err)
@@ -1572,6 +1654,8 @@ func (p *ProxyResource) UnmarshalJSON(data []byte) error {
 		case "type":
 				err = unpopulate(val, "Type", &p.Type)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", p, err)
@@ -1611,6 +1695,8 @@ func (r *Resource) UnmarshalJSON(data []byte) error {
 		case "type":
 				err = unpopulate(val, "Type", &r.Type)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", r, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", r, err)
@@ -1658,6 +1744,8 @@ func (s *SystemData) UnmarshalJSON(data []byte) error {
 		case "lastModifiedByType":
 				err = unpopulate(val, "LastModifiedByType", &s.LastModifiedByType)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", s, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", s, err)
@@ -1693,6 +1781,8 @@ func (t *Taint) UnmarshalJSON(data []byte) error {
 		case "value":
 				err = unpopulate(val, "Value", &t.Value)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", t, err)
@@ -1724,6 +1814,8 @@ func (t *TokenClaimMappingsProfile) UnmarshalJSON(data []byte) error {
 		case "username":
 				err = unpopulate(val, "Username", &t.Username)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", t, err)
@@ -1755,6 +1847,8 @@ func (t *TokenClaimValidationRuleProfile) UnmarshalJSON(data []byte) error {
 		case "requiredValue":
 				err = unpopulate(val, "RequiredValue", &t.RequiredValue)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", t, err)
@@ -1790,6 +1884,8 @@ func (t *TokenIssuerProfile) UnmarshalJSON(data []byte) error {
 		case "url":
 				err = unpopulate(val, "URL", &t.URL)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", t, err)
@@ -1837,6 +1933,8 @@ func (t *TrackedResource) UnmarshalJSON(data []byte) error {
 		case "type":
 				err = unpopulate(val, "Type", &t.Type)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", t, err)
@@ -1868,6 +1966,8 @@ func (u *UserAssignedIdentity) UnmarshalJSON(data []byte) error {
 		case "principalId":
 				err = unpopulate(val, "PrincipalID", &u.PrincipalID)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", u, err)
@@ -1903,6 +2003,8 @@ func (v *VersionProfile) UnmarshalJSON(data []byte) error {
 		case "id":
 				err = unpopulate(val, "ID", &v.ID)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", v, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", v, err)
@@ -1930,6 +2032,8 @@ func (v *VersionProfileUpdate) UnmarshalJSON(data []byte) error {
 		case "id":
 				err = unpopulate(val, "ID", &v.ID)
 			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", v, key)
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", v, err)

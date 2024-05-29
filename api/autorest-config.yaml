@@ -11,3 +11,4 @@ go:
   containing-module: "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
   azure-arm: true
   generate-fakes: true
+  disallow-unknown-fields: true
