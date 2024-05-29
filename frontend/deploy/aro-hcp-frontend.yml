@@ -63,7 +63,7 @@ objects:
           containers:
             - name: aro-hcp-frontend
               image: ${ARO_HCP_FRONTEND_IMAGE}
-              imagePullPolicy: IfNotPresent
+              imagePullPolicy: Always
               env:
               - name: DB_NAME
                 value: ${DB_NAME}

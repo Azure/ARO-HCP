@@ -1,4 +1,4 @@
-package main
+package frontend
 
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
@@ -12,8 +12,13 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/metrics"
 )
+
+// Emitter emits different types of metrics
+type Emitter interface {
+	EmitCounter(metricName string, value float64, labels map[string]string)
+	EmitGauge(metricName string, value float64, labels map[string]string)
+}
 
 type PrometheusEmitter struct {
 	gauges   map[string]*prometheus.GaugeVec
@@ -50,7 +55,7 @@ func (pe *PrometheusEmitter) EmitCounter(name string, value float64, labels map[
 }
 
 type MetricsMiddleware struct {
-	metrics.Emitter
+	Emitter
 	cache *Cache
 }
 

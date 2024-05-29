@@ -1,10 +1,9 @@
-package main
+package database
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -33,17 +32,17 @@ type DBConfig struct {
 }
 
 // NewDatabaseConfig configures database configuration values for access
-func NewDatabaseConfig() *DBConfig {
+func NewDatabaseConfig(dbName, dbURL string) *DBConfig {
 	opt := &azidentity.DefaultAzureCredentialOptions{}
 	c := &DBConfig{
-		DBName:        os.Getenv("DB_NAME"),
-		DBUrl:         os.Getenv("DB_URL"),
+		DBName:        dbName,
+		DBUrl:         dbURL,
 		ClientOptions: opt,
 	}
 	return c
 }
 
-// NewDatabaseClient instanstiates a Cosmos DatabaseClient targeting Frontends async DB
+// NewDatabaseClient instantiates a Cosmos DatabaseClient targeting Frontends async DB
 func NewDatabaseClient(config *DBConfig) (*DBClient, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(config.ClientOptions)
 	if err != nil {
