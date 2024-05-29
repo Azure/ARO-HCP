@@ -29,6 +29,13 @@ func main() {
 
 	logger.Info(fmt.Sprintf("%s (%s) started", ProgramName, version))
 
+	// Fetch the region from the env variable
+	region := os.Getenv("REGION")
+	if region == "" {
+		logger.Error("REGION env variable is not set.")
+	}
+	logger.Info(fmt.Sprintf("Application running in region: %s", region))
+
 	ctx := context.Background()
 	stop := make(chan struct{})
 
@@ -52,7 +59,7 @@ func main() {
 		logger.Error(fmt.Sprintf("Creating the database client failed: %v", err))
 	}
 
-	frontend := NewFrontend(logger, listener, prometheusEmitter, dbClient)
+	frontend := NewFrontend(logger, listener, prometheusEmitter, dbClient, region)
 
 	// Verify the Async DB is available and accessible
 	logger.Info("Testing DB Access")

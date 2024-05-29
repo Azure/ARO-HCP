@@ -19,6 +19,8 @@ parameters:
   - name: DB_NAME
     description: Name of the Cosmos DB object in Azure
     value: "none"
+  - name: REGION
+    required: true
 
 objects:
   - apiVersion: v1
@@ -67,6 +69,8 @@ objects:
                 value: ${DB_NAME}
               - name: DB_URL
                 value: "https://${DB_NAME}.documents.azure.com:443/"
+              - name: REGION
+                value: ${REGION}
               ports:
                 - containerPort: 8443
                   protocol: TCP

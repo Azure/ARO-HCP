@@ -8,6 +8,7 @@ ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
 CLUSTER_NAME ?=
 DEPLOYMENTNAME=$(RESOURCEGROUP)
+REGION ?= eastus
 
 
 frontend:
@@ -38,7 +39,8 @@ deploy:
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
-		-p DB_NAME="$${DB_NAME}"| oc apply -f -
+		-p DB_NAME="$${DB_NAME}"
+		-p REGION=${REGION}| oc apply -f -
 
 undeploy:
 	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
@@ -57,7 +59,8 @@ deploy-private:
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
-		-p DB_NAME="$${DB_NAME}" > "$${TMP_DEPLOY}";\
+		-p DB_NAME="$${DB_NAME}" \
+		-p REGION=${REGION}> "$${TMP_DEPLOY}";\
 	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl create -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 undeploy-private:
