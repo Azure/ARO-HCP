@@ -1,4 +1,4 @@
-package main
+package frontend
 
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -23,7 +24,7 @@ func MiddlewareSystemData(w http.ResponseWriter, r *http.Request, next http.Hand
 		} else {
 			logger, err := LoggerFromContext(r.Context())
 			if err != nil {
-				DefaultLogger().Error(err.Error())
+				config.DefaultLogger().Error(err.Error())
 				arm.WriteInternalServerError(w)
 				return
 			}

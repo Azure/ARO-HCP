@@ -1,4 +1,4 @@
-package main
+package frontend
 
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
@@ -16,13 +16,13 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/google/uuid"
+	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/google/uuid"
-
+	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/metrics"
 )
 
 const (
@@ -36,14 +36,15 @@ const (
 )
 
 type Frontend struct {
+	conn     *sdk.Connection
 	logger   *slog.Logger
 	listener net.Listener
 	server   http.Server
 	cache    Cache
-	dbClient DBClient
+	dbClient database.DBClient
 	ready    atomic.Value
 	done     chan struct{}
-	metrics  metrics.Emitter
+	metrics  Emitter
 	region   string
 }
 
@@ -54,8 +55,9 @@ func MuxPattern(method string, segments ...string) string {
 	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emitter, dbClient *DBClient, region string) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient *database.DBClient, region string, conn *sdk.Connection) *Frontend {
 	f := &Frontend{
+		conn:     conn,
 		logger:   logger,
 		listener: listener,
 		metrics:  emitter,
@@ -330,13 +332,14 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	cluster = api.NewDefaultHCPOpenShiftCluster()
 	versionedRequestCluster.Normalize(cluster)
+	f.cache.SetCluster(resourceID, cluster)
 
-	var doc *HCPOpenShiftClusterDocument
+	var doc *database.HCPOpenShiftClusterDocument
 	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID, subscriptionID)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
-			doc = &HCPOpenShiftClusterDocument{
+			doc = &database.HCPOpenShiftClusterDocument{
 				ID:           uuid.New().String(),
 				Key:          resourceID,
 				ClusterID:    NewUID(),
@@ -354,8 +357,6 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		f.logger.Error(fmt.Sprintf("failed to create document for resource %s: %v", resourceID, err))
 	}
 	f.logger.Info(fmt.Sprintf("document created for %s", resourceID))
-
-	f.cache.SetCluster(resourceID, cluster)
 
 	resp, err := json.Marshal(versionedRequestCluster)
 	if err != nil {
@@ -401,7 +402,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	err = f.dbClient.DeleteClusterDoc(ctx, resourceID, subscriptionID)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
 			return
@@ -437,7 +438,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subscriptionID))
 			writer.WriteHeader(http.StatusNotFound)
 			return
@@ -490,12 +491,12 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		"state":          string(subscription.State),
 	})
 
-	var doc *SubscriptionDocument
+	var doc *database.SubscriptionDocument
 	doc, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subscriptionID))
-			doc = &SubscriptionDocument{
+			doc = &database.SubscriptionDocument{
 				ID:           uuid.New().String(),
 				PartitionKey: subscriptionID,
 				Subscription: &subscription,
