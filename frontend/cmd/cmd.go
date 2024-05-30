@@ -72,10 +72,8 @@ func (opts *FrontendOpts) Run() error {
 	prometheusEmitter := frontend.NewPrometheusEmitter()
 
 	// Configure database configuration and client
-	var dbClient database.DBClient
-	if opts.useCache {
-		dbClient = database.NewCache()
-	} else {
+	dbClient := database.NewCache()
+	if !opts.useCache {
 		var err error
 
 		dbConfig := database.NewCosmosDBConfig(opts.cosmosName, opts.cosmosURL)
