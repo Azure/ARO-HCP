@@ -74,7 +74,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter metrics.Emi
 	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache)
 
 	// Setup metrics middleware
-	metricsMiddleware := MetricsMiddleware{Emitter: emitter}
+	metricsMiddleware := MetricsMiddleware{cache: &f.cache, Emitter: emitter}
 
 	mux := NewMiddlewareMux(
 		MiddlewarePanic,

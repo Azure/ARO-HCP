@@ -10,7 +10,6 @@ CLUSTER_NAME ?=
 DEPLOYMENTNAME=$(RESOURCEGROUP)
 REGION ?= eastus
 
-
 frontend:
 	go build -o aro-hcp-frontend .
 
@@ -39,14 +38,15 @@ deploy:
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
-		-p DB_NAME="$${DB_NAME}"
+		-p DB_NAME="$${DB_NAME}" \
 		-p REGION=${REGION}| oc apply -f -
 
 undeploy:
 	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
-		-p FRONTEND_MI_CLIENT_ID="null" | oc delete -f -
+		-p FRONTEND_MI_CLIENT_ID="null" \
+		-p REGION="null" | oc delete -f -
 
 deploy-private:
 	@test "${RESOURCEGROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCEGROUP and CLUSTER_NAME must be defined" && exit 1)
@@ -68,7 +68,8 @@ undeploy-private:
 	TMP_DEPLOY=$(shell mktemp);\
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
-		-p FRONTEND_MI_CLIENT_ID="null" > "$${TMP_DEPLOY}";\
+		-p FRONTEND_MI_CLIENT_ID="null" \
+		-p REGION="null" > "$${TMP_DEPLOY}";\
 	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 .PHONY: frontend clean image deploy undeploy deploy-private undeploy-private
