@@ -16,11 +16,14 @@ import (
 	"strings"
 	"sync/atomic"
 
+	v1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+
 	"github.com/google/uuid"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/database"
+	"github.com/Azure/ARO-HCP/frontend/pkg/ocm"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -258,12 +261,24 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
-	cluster, found := f.cache.GetCluster(resourceID)
-	if !found {
-		writer.WriteHeader(http.StatusNotFound)
-		return
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	doc, err := f.dbClient.GetClusterDoc(ctx, resourceID, subscriptionID)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			f.logger.Error(fmt.Sprintf("existing document not found for cluster: %s", resourceID))
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		} else {
+			f.logger.Error(err.Error())
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
-	versionedResource := versionedInterface.NewHCPOpenShiftCluster(cluster)
+
+	cluster, _ := f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Get().Send()
+	hcpCluster, _ := ocm.ConvertCStoFrontend(*cluster.Body())
+
+	versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 	resp, err := json.Marshal(versionedResource)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -296,17 +311,49 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
+	resourceGroup := request.PathValue(PathSegmentResourceGroupName)
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	cluster, updating := f.cache.GetCluster(resourceID)
-	versionedCurrentCluster := versionedInterface.NewHCPOpenShiftCluster(cluster)
+	var doc *database.HCPOpenShiftClusterDocument
+	var updating bool = true
+	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID, subscriptionID)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			updating = false
+			f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
+			doc = &database.HCPOpenShiftClusterDocument{
+				ID:           uuid.New().String(),
+				Key:          resourceID,
+				PartitionKey: subscriptionID,
+			}
+		} else {
+			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
+			arm.WriteInternalServerError(writer)
+			return
+		}
+	}
+
+	var hcpCluster *api.HCPOpenShiftCluster
+	var csResp *v1.ClusterGetResponse
+	if doc.ClusterID != "" {
+		csResp, err = f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Get().Send()
+		if err != nil {
+			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		if csResp.Body() != nil {
+			hcpCluster, _ = ocm.ConvertCStoFrontend(*csResp.Body())
+		}
+	}
+	versionedCurrentCluster := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 
 	var versionedRequestCluster api.VersionedHCPOpenShiftCluster
 	switch request.Method {
 	case http.MethodPut:
 		versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
 	case http.MethodPatch:
-		if cluster == nil {
+		if hcpCluster == nil {
 			// PATCH request will not create a new cluster.
 			originalPath, _ := OriginalPathFromContext(ctx)
 			f.logger.Error("Resource not found")
@@ -315,7 +362,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 				originalPath, "Resource not found")
 			return
 		}
-		versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(cluster)
+		versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 	}
 
 	body, err := BodyFromContext(ctx)
@@ -336,28 +383,24 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	cluster = api.NewDefaultHCPOpenShiftCluster()
-	versionedRequestCluster.Normalize(cluster)
-	f.cache.SetCluster(resourceID, cluster)
+	hcpCluster = api.NewDefaultHCPOpenShiftCluster()
+	versionedRequestCluster.Normalize(hcpCluster)
 
-	var doc *database.HCPOpenShiftClusterDocument
-	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID, subscriptionID)
+	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
+	newCsCluster, err := ocm.BuildCSCluster(resourceGroup, subscriptionID, hcpCluster)
 	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Info(fmt.Sprintf("existing document not found for cluster - creating one for %s", resourceID))
-			doc = &database.HCPOpenShiftClusterDocument{
-				ID:           uuid.New().String(),
-				Key:          resourceID,
-				ClusterID:    NewUID(),
-				PartitionKey: subscriptionID,
-			}
-		} else {
-			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
-			arm.WriteInternalServerError(writer)
-			return
-		}
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
+	req, err := f.conn.ClustersMgmt().V1().Clusters().Add().Body(newCsCluster).Send()
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	doc.ClusterID = req.Body().ID()
 	err = f.dbClient.SetClusterDoc(ctx, doc)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to create document for resource %s: %v", resourceID, err))
@@ -399,12 +442,28 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	resourceID := request.URL.Path
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	_, found := f.cache.GetCluster(resourceID)
-	if !found {
-		writer.WriteHeader(http.StatusNotFound)
-		return
+	var doc *database.HCPOpenShiftClusterDocument
+	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID, subscriptionID)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		} else {
+			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
+			arm.WriteInternalServerError(writer)
+			return
+		}
 	}
-	f.cache.DeleteCluster(resourceID)
+
+	if doc.ClusterID != "" {
+		_, err = f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Delete().Send()
+		if err != nil {
+			f.logger.Error(fmt.Sprintf("failed to delete cluster %s: %v", doc.ClusterID, err))
+			arm.WriteInternalServerError(writer)
+			return
+		}
+	}
 
 	err = f.dbClient.DeleteClusterDoc(ctx, resourceID, subscriptionID)
 	if err != nil {

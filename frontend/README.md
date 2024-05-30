@@ -1,5 +1,15 @@
 # ARO-HCP-FRONTEND
 
+## Build frontend binary for local testing
+```
+make frontend
+```
+
+## Run the frontend binary locally (requires a local running CS to fully function)
+```
+make run
+```
+
 ## Build the frontend container
 ```bash
 # Note: until the ACR location is defined, you must set the image base
@@ -39,8 +49,11 @@ make undeploy-private
 ## Available endpoints
 
 > Note: If you need a test cluster.json file for some of the below API calls, you can generate one using [utils/create.go](./utils/create.go)
->
 > `go run utils/create.go`
+>
+> Any Create/Get/Delete cluster calls below will expect a running CS in order to function for now
+
+
 
 Update a subscription state (Must be **Registered** for other calls to function)
 ```bash
@@ -49,36 +62,36 @@ curl -X PUT localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID?api-version=2.0 --
 
 List the Operations for the Provider
 ```bash
-curl -X GET "https://localhost:8443/providers/Microsoft.RedHatOpenshift/operations?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/providers/Microsoft.RedHatOpenshift/operations?api-version=2024-06-10-preview"
 ```
 
 List HcpOpenShiftVersions Resources by Location
 
 ```bash
-curl -X GET "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/locations/YOUR_LOCATION/providers/Microsoft.RedHatOpenshift/hcpOpenShiftVersions?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/locations/YOUR_LOCATION/providers/Microsoft.RedHatOpenshift/hcpOpenShiftVersions?api-version=2024-06-10-preview"
 ```
 
 List HcpOpenShiftClusterResource Resources by Subscription ID
 ```bash
-curl -X GET "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters?api-version=2024-06-10-preview"
 ```
 
 Get a HcpOpenShiftClusterResource
 ```bash
-curl -X GET "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
 ```
 
 Create or Update a HcpOpenShiftClusterResource
 ```bash
-curl -X PUT "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview" --json @cluster.json
+curl -X PUT "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview" --json @cluster.json
 ```
 
 Delete a HcpOpenShiftClusterResource
 ```bash
-curl -X DELETE "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
+curl -X DELETE "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
 ```
 
 Execute deployment preflight checks
 ```bash
-curl -X POST "https://localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/deployments/YOUR_DEPLOYMENT_NAME/preflight?api-version=2020-06-01" --json preflight.json
+curl -X POST "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/deployments/YOUR_DEPLOYMENT_NAME/preflight?api-version=2020-06-01" --json preflight.json
 ```
