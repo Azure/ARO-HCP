@@ -1,0 +1,32 @@
+{
+  "type": "osd-4",
+  "properties": {
+    "spec": {
+      "version": {
+        "id": "openshift-v4.15.11",
+        "channelGroup": "stable"
+      },
+      "dns": {
+        "baseDomainPrefix": "xyz"
+      },
+      "network": {
+        "podCidr": "10.10.0.0/24",
+        "serviceCidr": "10.10.0.0/24",
+        "machineCidr": "10.10.0.0/24"
+      },
+      "console": {},
+      "api": {
+        "visibility": "public"
+      },
+      "proxy": {},
+      "platform": {
+        "managedResourceGroup": "anatale-test-mrg",
+        "subnetId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/xyz/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
+        "outboundType": "loadBalancer",
+        "networkSecurityGroupId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/xyz/providers/Microsoft.Network/networkSecurityGroups/xyz",
+        "etcdEncryptionSetId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/xyz/providers/Microsoft.Compute/encryptionSets/xyz"
+      },
+      "externalAuth": {}
+    }
+  }
+}
