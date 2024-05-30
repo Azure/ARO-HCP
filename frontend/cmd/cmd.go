@@ -65,18 +65,8 @@ func NewRootCmd() *cobra.Command {
 }
 
 func (opts *FrontendOpts) Run() error {
-	version := "unknown"
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				version = setting.Value
-				break
-			}
-		}
-	}
-
 	logger := config.DefaultLogger()
-	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version))
+	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version()))
 
 	// Init prometheus emitter
 	prometheusEmitter := frontend.NewPrometheusEmitter()
@@ -132,7 +122,21 @@ func (opts *FrontendOpts) Run() error {
 	close(stop)
 
 	f.Join()
-	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version))
+	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version()))
 
 	return nil
+}
+
+func version() string {
+	version := "unknown"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				version = setting.Value
+				break
+			}
+		}
+	}
+
+	return version
 }
