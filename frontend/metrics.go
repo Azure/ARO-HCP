@@ -78,10 +78,10 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 		routePattern := r.URL.Path
 		duration := time.Since(startTime).Milliseconds()
 
+		subscriptionState := "Unknown"
 		subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 		if subscriptionId != "" {
 			sub, exists := mm.cache.GetSubscription(subscriptionId)
-
 			if !exists {
 				arm.WriteError(
 					w, http.StatusBadRequest,
@@ -91,21 +91,15 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 				return
 			}
 
-			mm.Emitter.EmitCounter("frontend_count", 1.0, map[string]string{
-				"verb":        r.Method,
-				"api_version": r.URL.Query().Get(APIVersionKey),
-				"code":        strconv.Itoa(lrw.statusCode),
-				"route":       routePattern,
-				"state":       string(sub.State),
-			})
+			subscriptionState = string(sub.State)
 		}
 
-		// Emit metrics
 		mm.Emitter.EmitCounter("frontend_count", 1.0, map[string]string{
 			"verb":        r.Method,
 			"api_version": r.URL.Query().Get(APIVersionKey),
 			"code":        strconv.Itoa(lrw.statusCode),
 			"route":       routePattern,
+			"state":       subscriptionState,
 		})
 
 		mm.Emitter.EmitGauge("frontend_duration", float64(duration), map[string]string{
