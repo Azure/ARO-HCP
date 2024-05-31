@@ -72,10 +72,8 @@ func (opts *FrontendOpts) Run() error {
 	prometheusEmitter := frontend.NewPrometheusEmitter()
 
 	// Configure database configuration and client
-	var dbClient database.DBClient
-	if opts.useCache {
-		dbClient = database.NewCache()
-	} else {
+	dbClient := database.NewCache()
+	if !opts.useCache {
 		var err error
 
 		dbConfig := database.NewCosmosDBConfig(opts.cosmosName, opts.cosmosURL)
@@ -102,15 +100,6 @@ func (opts *FrontendOpts) Run() error {
 	}
 
 	f := frontend.NewFrontend(logger, listener, prometheusEmitter, dbClient, opts.region, conn)
-
-	// Verify the Async DB is available and accessible
-	logger.Info("Testing DB Access")
-	result, err := dbClient.DBConnectionTest(context.Background())
-	if err != nil {
-		logger.Error(fmt.Sprintf("Database test failed to fetch properties: %v", err))
-	} else {
-		logger.Info(fmt.Sprintf("Database check completed - %s", result))
-	}
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)

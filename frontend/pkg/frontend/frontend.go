@@ -151,11 +151,9 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	}
 
 	f.logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
-
 	f.ready.Store(true)
 
-	err := f.server.Serve(f.listener)
-	if err != http.ErrServerClosed {
+	if err := f.server.Serve(f.listener); !errors.Is(err, http.ErrServerClosed) {
 		f.logger.Error(err.Error())
 		os.Exit(1)
 	}
@@ -167,7 +165,15 @@ func (f *Frontend) Join() {
 	<-f.done
 }
 
-func (f *Frontend) CheckReady() bool {
+func (f *Frontend) CheckReady(ctx context.Context) bool {
+	// Verify the DB is available and accessible
+	result, err := f.dbClient.DBConnectionTest(ctx)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("Database test failed to fetch properties: %v", err))
+		return false
+	}
+	f.logger.Debug(fmt.Sprintf("Database check completed - %s", result))
+
 	return f.ready.Load().(bool)
 }
 
@@ -180,7 +186,8 @@ func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 
 func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Request) {
 	var healthStatus float64
-	if f.CheckReady() {
+
+	if f.CheckReady(request.Context()) {
 		writer.WriteHeader(http.StatusOK)
 		healthStatus = 1.0
 	} else {
