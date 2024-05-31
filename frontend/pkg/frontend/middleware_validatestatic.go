@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"regexp"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	uuid "github.com/google/uuid"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -18,29 +18,45 @@ var rxResourceGroupName = regexp.MustCompile(`^[a-zA-Z0-9_()-][a-zA-Z0-9_().-]{0
 var rxResourceName = regexp.MustCompile(`^[a-zA-Z0-9-]{3,24}$`)
 
 func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	// To conform with "OAPI012: Resource IDs must not be case sensitive"
+	// we need to use the original, non-lowercased resource ID components
+	// in response messages.
+	originalPath, _ := OriginalPathFromContext(r.Context())
+	resourceID, _ := azcorearm.ParseResourceID(originalPath)
 
-	subId := r.PathValue(PathSegmentSubscriptionID)
-	resourceGroupName := r.PathValue(PathSegmentResourceGroupName)
-	resourceName := r.PathValue(PathSegmentResourceName)
-
-	if subId != "" {
-		if uuid.Validate(subId) != nil {
-			arm.WriteError(w, http.StatusBadRequest, arm.CloudErrorCodeInvalidSubscriptionID, "", "The provided subscription identifier '%s' is malformed or invalid.", subId)
-			return
+	if resourceID != nil {
+		if resourceID.SubscriptionID != "" {
+			if uuid.Validate(resourceID.SubscriptionID) != nil {
+				arm.WriteError(w, http.StatusBadRequest,
+					arm.CloudErrorCodeInvalidSubscriptionID,
+					resourceID.String(),
+					"The provided subscription identifier '%s' is malformed or invalid.",
+					resourceID.SubscriptionID)
+				return
+			}
 		}
-	}
 
-	if resourceGroupName != "" {
-		if !rxResourceGroupName.MatchString(resourceGroupName) {
-			arm.WriteError(w, http.StatusBadRequest, arm.CloudErrorInvalidResourceGroupName, "", "Resource group '%s' is invalid.", resourceGroupName)
-			return
+		if resourceID.ResourceGroupName != "" {
+			if !rxResourceGroupName.MatchString(resourceID.ResourceGroupName) {
+				arm.WriteError(w, http.StatusBadRequest,
+					arm.CloudErrorInvalidResourceGroupName,
+					resourceID.String(),
+					"Resource group '%s' is invalid.",
+					resourceID.ResourceGroupName)
+				return
+			}
 		}
-	}
 
-	if resourceName != "" {
-		if !rxResourceName.MatchString(resourceName) {
-			arm.WriteError(w, http.StatusBadRequest, arm.CloudErrorInvalidResourceName, "", "The Resource '%s/%s' under resource group '%s' is invalid.", api.ResourceType, resourceName, resourceGroupName)
-			return
+		if resourceID.Name != "" {
+			if !rxResourceName.MatchString(resourceID.Name) {
+				arm.WriteError(w, http.StatusBadRequest,
+					arm.CloudErrorInvalidResourceName,
+					resourceID.String(),
+					"The Resource '%s/%s' under resource group '%s' is invalid.",
+					resourceID.ResourceType, resourceID.Name,
+					resourceID.ResourceGroupName)
+				return
+			}
 		}
 	}
 
