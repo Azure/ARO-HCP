@@ -16,8 +16,8 @@ func NewCache() DBClient {
 	}
 }
 
-func (c *Cache) DBConnectionTest(ctx context.Context) (string, error) {
-	return "using cache", nil
+func (c *Cache) DBConnectionTest(ctx context.Context) error {
+	return nil
 }
 
 func (c *Cache) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, error) {

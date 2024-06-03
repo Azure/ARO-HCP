@@ -167,12 +167,11 @@ func (f *Frontend) Join() {
 
 func (f *Frontend) CheckReady(ctx context.Context) bool {
 	// Verify the DB is available and accessible
-	result, err := f.dbClient.DBConnectionTest(ctx)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("Database test failed to fetch properties: %v", err))
+	if err := f.dbClient.DBConnectionTest(ctx); err != nil {
+		f.logger.Error(fmt.Sprintf("Database test failed: %v", err))
 		return false
 	}
-	f.logger.Debug(fmt.Sprintf("Database check completed - %s", result))
+	f.logger.Debug("Database check completed")
 
 	return f.ready.Load().(bool)
 }

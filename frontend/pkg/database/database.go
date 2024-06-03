@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -18,8 +19,11 @@ const (
 
 var ErrNotFound = errors.New("DocumentNotFound")
 
+// DBClient is a document store for frontend to perform required CRUD operations against
 type DBClient interface {
-	DBConnectionTest(ctx context.Context) (string, error)
+	// DBConnectionTest is used to health check the database. If the database is not reachable or otherwise not ready
+	// to be used, an error should be returned.
+	DBConnectionTest(ctx context.Context) error
 
 	GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, error)
 	SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error
@@ -76,23 +80,20 @@ func NewCosmosDBClient(config *CosmosDBConfig) (DBClient, error) {
 }
 
 // DBConnectionTest checks the async database is accessible on startup
-func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) (string, error) {
-	if d.config.DBName == "none" || d.config.DBName == "" {
-		return "No database configured, skipping", nil
-	}
-
+func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) error {
 	database, err := d.client.NewDatabase(d.config.DBName)
 	if err != nil {
-		return "", err
+		return fmt.Errorf("failed to create Cosmos database client during healthcheck: %v", err)
 	}
-	result, err := database.Read(ctx, nil)
-	if err != nil {
-		return "", err
+
+	if _, err := database.Read(ctx, nil); err != nil {
+		return fmt.Errorf("failed to read Cosmos database information during healthcheck: %v", err)
 	}
-	return result.DatabaseProperties.ID, nil
+
+	return nil
 }
 
-// GetClusterDoc retreives a cluster document from async DB using resource ID
+// GetClusterDoc retrieves a cluster document from async DB using resource ID
 func (d *CosmosDBClient) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, error) {
 	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
 	if err != nil {
