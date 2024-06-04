@@ -275,8 +275,20 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	cluster, _ := f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Get().Send()
-	hcpCluster, _ := ocm.ConvertCStoFrontend(*cluster.Body())
+	cluster, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Get().Send()
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("cluster not found in clusters-service: %v", err))
+		writer.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(cluster.Body())
+	if err != nil {
+		// Should never happen currently
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 	resp, err := json.Marshal(versionedResource)
@@ -343,7 +355,13 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 		if csResp.Body() != nil {
-			hcpCluster, _ = ocm.ConvertCStoFrontend(*csResp.Body())
+			hcpCluster, err = ocm.ConvertCStoHCPOpenShiftCluster(csResp.Body())
+			if err != nil {
+				// Should never happen currently
+				f.logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
 		}
 	}
 	versionedCurrentCluster := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)

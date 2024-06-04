@@ -57,7 +57,7 @@ make undeploy-private
 
 Update a subscription state (Must be **Registered** for other calls to function)
 ```bash
-curl -X PUT localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID?api-version=2.0 --json '{"state":"Registered"}'
+curl -X PUT localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0 --json '{"state":"Registered"}'
 ```
 
 List the Operations for the Provider
@@ -68,30 +68,30 @@ curl -X GET "localhost:8443/providers/Microsoft.RedHatOpenshift/operations?api-v
 List HcpOpenShiftVersions Resources by Location
 
 ```bash
-curl -X GET "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/locations/YOUR_LOCATION/providers/Microsoft.RedHatOpenshift/hcpOpenShiftVersions?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/locations/YOUR_LOCATION/providers/Microsoft.RedHatOpenshift/hcpOpenShiftVersions?api-version=2024-06-10-preview"
 ```
 
 List HcpOpenShiftClusterResource Resources by Subscription ID
 ```bash
-curl -X GET "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters?api-version=2024-06-10-preview"
 ```
 
 Get a HcpOpenShiftClusterResource
 ```bash
-curl -X GET "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
 ```
 
 Create or Update a HcpOpenShiftClusterResource
 ```bash
-curl -X PUT "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview" --json @cluster.json
+curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview" --json @cluster.json
 ```
 
 Delete a HcpOpenShiftClusterResource
 ```bash
-curl -X DELETE "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
+curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/YOUR_CLUSTER_NAME?api-version=2024-06-10-preview"
 ```
 
 Execute deployment preflight checks
 ```bash
-curl -X POST "localhost:8443/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME/providers/Microsoft.RedHatOpenshift/deployments/YOUR_DEPLOYMENT_NAME/preflight?api-version=2020-06-01" --json preflight.json
+curl -X POST "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/deployments/YOUR_DEPLOYMENT_NAME/preflight?api-version=2020-06-01" --json preflight.json
 ```

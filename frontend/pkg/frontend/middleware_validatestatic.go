@@ -53,17 +53,19 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 				}
 			}
 
-		if resourceID.Name != "" && resourceID.ResourceType.String() != "Microsoft.Resources/subscriptions" {
-			if !rxResourceName.MatchString(resourceID.Name) {
-				arm.WriteError(w, http.StatusBadRequest,
-					arm.CloudErrorInvalidResourceName,
-					resourceID.String(),
-					"The Resource '%s/%s' under resource group '%s' is invalid.",
-					resourceID.ResourceType, resourceID.Name,
-					resourceID.ResourceGroupName)
-				return
+			if resourceID.Name != "" {
+				if !rxResourceName.MatchString(resourceID.Name) {
+					arm.WriteError(w, http.StatusBadRequest,
+						arm.CloudErrorInvalidResourceName,
+						resourceID.String(),
+						"The Resource '%s/%s' under resource group '%s' is invalid.",
+						resourceID.ResourceType, resourceID.Name,
+						resourceID.ResourceGroupName)
+					return
+				}
 			}
 		}
 	}
+
 	next(w, r)
 }

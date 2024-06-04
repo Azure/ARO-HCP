@@ -6,6 +6,7 @@ toolchain go1.22.2
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.2
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.0.1
 	github.com/google/go-cmp v0.6.0
@@ -19,7 +20,6 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.7.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
