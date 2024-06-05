@@ -5,7 +5,7 @@ package arm
 
 type Subscription struct {
 	State            RegistrationState `json:"state"`
-	RegsitrationDate *string           `json:"registrationDate,omitempty"`
+	RegistrationDate *string           `json:"registrationDate,omitempty"`
 	Properties       *Properties       `json:"properties,omitempty"`
 }
 
