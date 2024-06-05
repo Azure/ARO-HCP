@@ -30,7 +30,12 @@ func TestMiddlewareValidateStatic(t *testing.T) {
 		expectedBody       string
 	}{
 		{
-			name:               "Valid request",
+			name:               "Valid request for a subscription resource",
+			path:               "/Subscriptions/42d9eac4-d29a-4d6e-9e26-3439758b1491",
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "Valid request for a HCPOpenShiftClusters resource",
 			path:               "/Subscriptions/42d9eac4-d29a-4d6e-9e26-3439758b1491/ResourceGroups/MyResourceGroup/Providers/Microsoft.RedHatOpenShift/HCPOpenShiftClusters/MyCluster",
 			expectedStatusCode: http.StatusOK,
 		},
