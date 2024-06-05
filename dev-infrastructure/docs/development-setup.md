@@ -130,7 +130,7 @@ To setup broker access for a maestro consumer on a mgmt-cluster, set the `deploy
 
 ```sh
 cd dev-infrastructure
-AKSCONFIG=mgmt-cluster make mgmt-cluster
+AKSCONFIG=mgmt-cluster make cluster
 AKSCONFIG=mgmt-cluster make aks.kubeconfig
 KUBECONFIG=mgmt-cluster.kubeconfig scripts/maestro-consumer.sh
 ```
