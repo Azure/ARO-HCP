@@ -30,7 +30,7 @@ const (
 	contextKeyVersion
 	contextKeyCorrelationData
 	contextKeySystemData
-	contextKeySubscriptionState
+	contextKeySubscription
 )
 
 func ContextWithOriginalPath(ctx context.Context, originalPath string) context.Context {
@@ -123,17 +123,33 @@ func SystemDataFromContext(ctx context.Context) (*arm.SystemData, error) {
 	return systemData, nil
 }
 
-func ContextWithSubscriptionState(ctx context.Context, subscriptionState arm.RegistrationState) context.Context {
-	return context.WithValue(ctx, contextKeySubscriptionState, subscriptionState)
+func ContextWithSubscription(ctx context.Context, subscription arm.Subscription) context.Context {
+	return context.WithValue(ctx, contextKeySubscription, subscription)
 }
 
-func SubscriptionStateFromContext(ctx context.Context) (arm.RegistrationState, error) {
-	subscriptionState, ok := ctx.Value(contextKeySubscriptionState).(arm.RegistrationState)
+func SubscriptionFromContext(ctx context.Context) (arm.Subscription, error) {
+	sub, ok := ctx.Value(contextKeySubscription).(arm.Subscription)
 	if !ok {
-		err := &ContextError{
-			got: subscriptionState,
+		return arm.Subscription{}, &ContextError{
+			got: sub,
 		}
-		return subscriptionState, err
 	}
-	return subscriptionState, nil
+	return sub, nil
+}
+
+func TenantIDFromContext(ctx context.Context) (string, error) {
+	sub, ok := ctx.Value(contextKeySubscription).(arm.Subscription)
+	if !ok {
+		return "", &ContextError{
+			got: sub,
+		}
+	}
+
+	if sub.Properties == nil || sub.Properties.TenantId == nil {
+		return "", &ContextError{
+			got: sub,
+		}
+	}
+
+	return *sub.Properties.TenantId, nil
 }

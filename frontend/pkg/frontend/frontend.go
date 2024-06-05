@@ -73,7 +73,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 		region:   region,
 	}
 
-	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(&f.cache)
+	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(f.dbClient)
 
 	// Setup metrics middleware
 	metricsMiddleware := MetricsMiddleware{cache: &f.cache, Emitter: emitter}
@@ -488,7 +488,6 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	}
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	f.cache.SetSubscription(subscriptionID, &subscription)
 
 	// Emit the subscription state metric
 	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
