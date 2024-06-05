@@ -7,6 +7,9 @@ param persist bool = false
 @description('Captures logged in users UID')
 param currentUserId string
 
+@description('Captures logged in users principal name')
+param currentUserPrincipal string
+
 @description('VNET address prefix')
 param vnetAddressPrefix string
 
@@ -60,6 +63,12 @@ param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-of
 
 @description('The resourcegroups where the Maestro infrastructure will be deployed.')
 param maestroInfraResourceGroup string = resourceGroup().name
+
+@description('Deploy ARO HCP CS Infrastructure if true')
+param deployCsInfra bool
+
+@description('The namespace where CS resources will be deployed.')
+param csNamespace string
 
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
@@ -135,4 +144,24 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
   dependsOn: [
     maestroInfra
   ]
+}
+
+//
+//   C L U S T E R   S E R V I C E
+//
+
+module cs '../modules/cs.bicep' = if (deployCsInfra) {
+  name: 'cluster-service'
+  params: {
+    aksClusterName: svcCluster.outputs.aksClusterName
+    namespace: csNamespace
+    location: location
+    currentUserId: currentUserId
+    currentUserPrincipal: currentUserPrincipal
+    clusterServiceManagedIdentityPrincipalId: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'cs'
+    )[0].uamiPrincipalID
+    clusterServiceManagedIdentityName: filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'cs')[0].uamiName
+  }
 }
