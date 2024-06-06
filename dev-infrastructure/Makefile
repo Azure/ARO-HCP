@@ -27,9 +27,10 @@ lint:
 	done
 
 rg:
-	az group create \
+	@az group create \
   		--name $(RESOURCEGROUP)  \
-  		--location $(LOCATION)
+  		--location $(LOCATION) \
+		--output none
 
 cluster: rg
 ifndef AKSCONFIG
@@ -67,6 +68,17 @@ ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
 	@scripts/aks-admin-access.sh $(RESOURCEGROUP)
+
+cs-out-of-cluster-db-access: rg
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	@DB_HOST=$$(az postgres flexible-server list -g $(RESOURCEGROUP) | jq .[0].fullyQualifiedDomainName -r); \
+	ACCESS_TOKEN=$$(az account get-access-token --resource='https://ossrdbms-aad.database.windows.net' | jq .accessToken -r); \
+	echo "export PGHOST='$$DB_HOST'"; \
+	echo "export PGUSER='$(CURRENTUSER_NAME)'"; \
+	echo "export PGDATABASE='ocm'"; \
+	echo "export PGPASSWORD='$$ACCESS_TOKEN'"
 
 aks.kubeconfig:
 ifndef AKSCONFIG

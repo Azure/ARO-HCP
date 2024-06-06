@@ -344,3 +344,29 @@ To create a cluster in CS using a locally running Frontend, see the frontend [RE
 To tear down your CS setup:
 1) Kill the running clusters-service process
 2) Clean up the database `make db/teardown`
+
+## CS Azure Database Postgres
+
+To create a Postgres DB on Azure enabled for Entra authentication, a svc cluster needs to be created with the `deployCsInfra` parameter set to `true` in the `svc-cluster.bicepparam` file.
+
+### Access the database from outside of the AKS cluster
+
+The connection parameters for the database can be aquired via `AKSCONFIG=svc-cluster make cs-out-of-cluster-db-access`.
+
+The output are in ENV var format for the `psql` tool, so this works to get a connection into the DB#
+
+```sh
+eval $(AKSCONFIG=svc-cluster make cs-out-of-cluster-db-access)
+psql
+```
+
+> The password is a temporary access token that is valid only for 1h
+
+### Access the database from inside of the AKS cluster
+
+* the `cs` namespace of the svc cluster contains
+  * a `ConfigMap` named `cs` with the connection parameters
+  * a `ServiceAccount` named `cs` that is annotated for workload identity usage
+* the CS pod will need to be labeled with `azure.workload.identity/use: "true"`, which injects several ENV variables prefixed with `AZ_*`
+
+TODO: CS needs to use these `AZ_*` env variables to get an access token to be used as a DB password
