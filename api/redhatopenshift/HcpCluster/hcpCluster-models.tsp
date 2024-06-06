@@ -548,7 +548,7 @@ model Taint {
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
   /** The resourceId for the subnet used by the workers */
-  subnetId: string;
+  subnetId?: string;
 
   /** The VM size according to the documentation:
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
@@ -558,7 +558,7 @@ model NodePoolPlatformProfile {
   #suppress "@azure-tools/typespec-azure-core/casing-style" "The field needs to be indicate size in GB not in Gb"
   diskSizeGB?: int32;
 
-  /** The type of the disc storage account
+  /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
    */
   diskStorageAccountType?: string;
@@ -572,11 +572,11 @@ model NodePoolPlatformProfile {
   /** Whether the worker machines should be encrypted at host */
   encryptionAtHost?: boolean;
 
-  /** Disk Encryption Set ID that will be used for ecnryption the Nodes disks
+  /** Disk Encryption Set ID that will be used for encryption the Nodes disks
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
    */
-  discEncryptionSetId?: string;
+  diskEncryptionSetId?: string;
 
   /** Is the disk ephemeral */
   ephemeralOsDisk?: boolean;

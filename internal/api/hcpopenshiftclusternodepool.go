@@ -34,10 +34,10 @@ type NodePoolProfile struct {
 	SubnetID               string              `json:"subnetId,omitempty"`
 	EncryptionAtHost       bool                `json:"encryptionAtHost,omitempty"`
 	AutoRepair             bool                `json:"autoRepair,omitempty"`
-	DiscEncryptionSetID    string              `json:"discEncryptionSetId,omitempty"`
+	DiskEncryptionSetID    string              `json:"diskEncryptionSetId,omitempty"`
 	TuningConfigs          []string            `json:"tuningConfigs,omitempty"`
 	AvailabilityZone       string              `json:"availabilityZone,omitempty"`
-	DiscStorageAccountType string              `json:"discStorageAccountType,omitempty"`
+	DiskStorageAccountType string              `json:"diskStorageAccountType,omitempty"`
 	VMSize                 string              `json:"vmSize,omitempty"`
 	Autoscaling            NodePoolAutoscaling `json:"autoscaling,omitempty"`
 }

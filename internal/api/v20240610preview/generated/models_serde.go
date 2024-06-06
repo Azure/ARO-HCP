@@ -1275,7 +1275,7 @@ func (n *NodePoolAutoScalingUpdate) UnmarshalJSON(data []byte) error {
 func (n NodePoolPlatformProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "availabilityZone", n.AvailabilityZone)
-	populate(objectMap, "discEncryptionSetId", n.DiscEncryptionSetID)
+	populate(objectMap, "diskEncryptionSetId", n.DiskEncryptionSetID)
 	populate(objectMap, "diskSizeGB", n.DiskSizeGB)
 	populate(objectMap, "diskStorageAccountType", n.DiskStorageAccountType)
 	populate(objectMap, "encryptionAtHost", n.EncryptionAtHost)
@@ -1297,8 +1297,8 @@ func (n *NodePoolPlatformProfile) UnmarshalJSON(data []byte) error {
 		case "availabilityZone":
 				err = unpopulate(val, "AvailabilityZone", &n.AvailabilityZone)
 			delete(rawMsg, key)
-		case "discEncryptionSetId":
-				err = unpopulate(val, "DiscEncryptionSetID", &n.DiscEncryptionSetID)
+		case "diskEncryptionSetId":
+				err = unpopulate(val, "DiskEncryptionSetID", &n.DiskEncryptionSetID)
 			delete(rawMsg, key)
 		case "diskSizeGB":
 				err = unpopulate(val, "DiskSizeGB", &n.DiskSizeGB)
