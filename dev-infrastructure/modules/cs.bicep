@@ -91,6 +91,9 @@ module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = {
     newUserName: clusterServiceManagedIdentityName
     newUserPrincipalId: clusterServiceManagedIdentityPrincipalId
   }
+  dependsOn: [
+    postgres
+  ]
 }
 
 //
