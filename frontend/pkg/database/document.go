@@ -4,10 +4,11 @@ import "github.com/Azure/ARO-HCP/internal/api/arm"
 
 // HCPOpenShiftClusterDocument represents an HCP OpenShift cluster document.
 type HCPOpenShiftClusterDocument struct {
-	ID           string `json:"id,omitempty"`
-	Key          string `json:"key,omitempty"`
-	PartitionKey string `json:"partitionKey,omitempty"`
-	ClusterID    string `json:"clusterid,omitempty"`
+	ID           string          `json:"id,omitempty"`
+	Key          string          `json:"key,omitempty"`
+	PartitionKey string          `json:"partitionKey,omitempty"`
+	ClusterID    string          `json:"clusterid,omitempty"`
+	SystemData   *arm.SystemData `json:"systemData,omitempty"` // TODO: Should CS store this?
 
 	// Values provided by Cosmos after doc creation
 	ResourceID  string `json:"_rid,omitempty"`
