@@ -196,7 +196,7 @@ Should your development needs require a running instance of CS to test with, her
 
 To complete the below steps you will need:
 1) `podman`, `ocm` cli (latest), and [`yq`](https://github.com/mikefarah/yq) cli (version 4+)
-2) The [Clusters Service repo](https://gitlab.cee.redhat.com/service/uhc-clusters-service) cloned down (can also use a fork if you have one)
+2) An up-to-date [Clusters Service repo](https://gitlab.cee.redhat.com/service/uhc-clusters-service) cloned down (can also use a fork if you have one)
 
 > If you don't have or want to install `yq`, any steps below using `yq` can be done manually
 
@@ -270,17 +270,6 @@ make db/setup
 
 # Initialize the DB
 ./clusters-service init --config-file ./development.yml
-
-# Update DB to set avaialble versions
-# NOTE: required until https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/merge_requests/7895 is merged
-# login to db
-make db/login
-
-INSERT INTO versions (id, raw_id, enabled, dflt, channel_group, hypershift_enabled, hypershift_default, release_image, rosa_enabled)
-VALUES ('openshift-v4.15.11', '4.15.11', 'true', 'true', 'stable', 'true', 'true', '', 'true');
-
-# logout
-\q
 ```
 
 3) Start CS:
@@ -339,6 +328,8 @@ cat cluster-test.json | ocm post /api/clusters_mgmt/v1/clusters
 ```
 
 You should now have a cluster in OCM. You can verify using `ocm list clusters` or `ocm get cluster CLUSTERID`
+
+To create a cluster in CS using a locally running Frontend, see the frontend [README](../../frontend/README.md)
 
 ## CS Dev Cleanup
 

@@ -57,6 +57,11 @@ func TestMiddlewareValidateStatic(t *testing.T) {
 			expectedStatusCode: http.StatusBadRequest,
 			expectedBody:       "The Resource 'MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/$' under resource group 'MyResourceGroup' is invalid.",
 		},
+		{
+			name:               "Resource name is a valid subscription ID",
+			path:               "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000",
+			expectedStatusCode: http.StatusOK,
+		},
 	}
 
 	for _, tc := range tests {

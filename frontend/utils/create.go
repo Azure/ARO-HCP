@@ -18,11 +18,16 @@ func main() {
 // CreateJSONFile creates a base cluster JSON file for use with testing frontend to create clusters
 func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				Type: "osd-4",
+			},
+		},
 		Properties: api.HCPOpenShiftClusterProperties{
 			ProvisioningState: arm.ProvisioningState(""),
 			Spec: api.ClusterSpec{
 				Version: api.VersionProfile{
-					ID:           "1.19.0",
+					ID:           "openshift-v4.15.11",
 					ChannelGroup: "stable",
 				},
 				DNS: api.DNSProfile{
@@ -30,9 +35,9 @@ func CreateJSONFile() error {
 				},
 				Network: api.NetworkProfile{
 					NetworkType: api.NetworkType(""),
-					PodCIDR:     "10.10.0.0/24",
-					ServiceCIDR: "10.10.0.0/24",
-					MachineCIDR: "10.10.0.0/24",
+					PodCIDR:     "10.128.0.0/14",
+					ServiceCIDR: "172.30.0.0/16",
+					MachineCIDR: "10.0.0.0/16",
 					HostPrefix:  0,
 				},
 				API: api.APIProfile{
@@ -41,18 +46,12 @@ func CreateJSONFile() error {
 				FIPS:                          false,
 				EtcdEncryption:                false,
 				DisableUserWorkloadMonitoring: false,
-				Proxy: api.ProxyProfile{
-					HTTPProxy:  "",
-					HTTPSProxy: "",
-					NoProxy:    "",
-					TrustedCA:  "",
-				},
 				Platform: api.PlatformProfile{
-					ManagedResourceGroup:   "xyz",
-					SubnetID:               "/subscriptions/xyz/resourceGroups/xyz/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
+					ManagedResourceGroup:   "dev-test-mrg",
+					SubnetID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
 					OutboundType:           api.OutboundType("loadBalancer"),
-					NetworkSecurityGroupID: "/subscriptions/xyz/resourceGroups/xyz/providers/Microsoft.Network/networkSecurityGroups/xyz",
-					EtcdEncryptionSetID:    "/subscriptions/xyz/resourceGroups/xyz/providers/Microsoft.Compute/encryptionSets/xyz",
+					NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
+					EtcdEncryptionSetID:    "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Compute/encryptionSets/xyz",
 				},
 				IssuerURL:    "",
 				ExternalAuth: api.ExternalAuthConfigProfile{},

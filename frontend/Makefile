@@ -13,6 +13,9 @@ REGION ?= eastus
 frontend:
 	go build -o aro-hcp-frontend .
 
+run:
+	./aro-hcp-frontend --use-cache --region ${REGION} --clusters-service-url http://localhost:8000
+
 clean:
 	rm -f aro-hcp-frontend
 
