@@ -191,7 +191,7 @@ func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Reques
 		writer.WriteHeader(http.StatusOK)
 		healthStatus = 1.0
 	} else {
-		writer.WriteHeader(http.StatusInternalServerError)
+		arm.WriteInternalServerError(writer)
 		healthStatus = 0.0
 	}
 
@@ -268,7 +268,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 			return
 		} else {
 			f.logger.Error(err.Error())
-			writer.WriteHeader(http.StatusInternalServerError)
+			arm.WriteInternalServerError(writer)
 			return
 		}
 	}
@@ -525,7 +525,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 			return
 		} else {
 			f.logger.Error(err.Error())
-			writer.WriteHeader(http.StatusInternalServerError)
+			arm.WriteInternalServerError(writer)
 			return
 		}
 	}
@@ -533,7 +533,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	resp, err := json.Marshal(&doc)
 	if err != nil {
 		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusInternalServerError)
+		arm.WriteInternalServerError(writer)
 		return
 	}
 	_, err = writer.Write(resp)
@@ -558,7 +558,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	err = json.Unmarshal(body, &subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusBadRequest)
+		arm.WriteCloudError(writer, arm.NewUnmarshalCloudError(err))
 		return
 	}
 
@@ -603,7 +603,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	resp, err := json.Marshal(subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusInternalServerError)
+		arm.WriteInternalServerError(writer)
 		return
 	}
 	_, err = writer.Write(resp)
