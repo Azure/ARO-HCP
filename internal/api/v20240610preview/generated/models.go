@@ -446,9 +446,6 @@ type NodePoolAutoScalingUpdate struct {
 
 // NodePoolPlatformProfile - Azure node pool platform configuration
 type NodePoolPlatformProfile struct {
-	// REQUIRED; The resourceId for the subnet used by the workers
-	SubnetID *string
-
 	// REQUIRED; The VM size according to the documentation:
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
 	VMSize *string
@@ -457,15 +454,15 @@ type NodePoolPlatformProfile struct {
 // * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
 	AvailabilityZone *string
 
-	// Disk Encryption Set ID that will be used for ecnryption the Nodes disks
+	// Disk Encryption Set ID that will be used for encryption the Nodes disks
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
-	DiscEncryptionSetID *string
+	DiskEncryptionSetID *string
 
 	// The OS disk size in GB
 	DiskSizeGB *int32
 
-	// The type of the disc storage account
+	// The type of the disk storage account
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *string
 
@@ -474,6 +471,9 @@ type NodePoolPlatformProfile struct {
 
 	// Is the disk ephemeral
 	EphemeralOsDisk *bool
+
+	// The resourceId for the subnet used by the workers
+	SubnetID *string
 }
 
 // NodePoolProperties - Represents the node pool properties

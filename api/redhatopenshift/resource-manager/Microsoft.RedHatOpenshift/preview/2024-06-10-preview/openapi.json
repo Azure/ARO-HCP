@@ -1853,7 +1853,7 @@
         },
         "diskStorageAccountType": {
           "type": "string",
-          "description": "The type of the disc storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types"
+          "description": "The type of the disk storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types"
         },
         "availabilityZone": {
           "type": "string",
@@ -1863,9 +1863,9 @@
           "type": "boolean",
           "description": "Whether the worker machines should be encrypted at host"
         },
-        "discEncryptionSetId": {
+        "diskEncryptionSetId": {
           "type": "string",
-          "description": "Disk Encryption Set ID that will be used for ecnryption the Nodes disks\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption"
+          "description": "Disk Encryption Set ID that will be used for encryption the Nodes disks\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption"
         },
         "ephemeralOsDisk": {
           "type": "boolean",
@@ -1873,7 +1873,6 @@
         }
       },
       "required": [
-        "subnetId",
         "vmSize"
       ]
     },
