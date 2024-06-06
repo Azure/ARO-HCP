@@ -365,7 +365,7 @@ psql
 ### Access the database from inside of the AKS cluster
 
 * the `cs` namespace of the svc cluster contains
-  * a `ConfigMap` named `cs` with the connection parameters
+  * a `ConfigMap` named `db` with the connection parameters
   * a `ServiceAccount` named `cs` that is annotated for workload identity usage
 * the CS pod will need to be labeled with `azure.workload.identity/use: "true"`, which injects several ENV variables prefixed with `AZ_*`
 
