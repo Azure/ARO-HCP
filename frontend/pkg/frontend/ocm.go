@@ -1,6 +1,10 @@
-package ocm
+package frontend
 
 import (
+	"context"
+	"fmt"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	v1 "github.com/openshift/api/config/v1"
 
@@ -17,23 +21,33 @@ const (
 )
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func ConvertCStoHCPOpenShiftCluster(cluster *cmv1.Cluster) (*api.HCPOpenShiftCluster, error) {
+func (f *Frontend) ConvertCStoHCPOpenShiftCluster(ctx context.Context, cluster *cmv1.Cluster) (*api.HCPOpenShiftCluster, error) {
+	systemData, err := SystemDataFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	originalPath, err := OriginalPathFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get original path: %w", err)
+	}
+	resourceID, err := azcorearm.ParseResourceID(originalPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse resource ID: %w", err)
+	}
+	resourceType, err := azcorearm.ParseResourceType(originalPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse resource type: %w", err)
+	}
+
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
-			Location: "",
-			Tags:     nil,
+			Location: cluster.Region().ID(),
+			Tags:     nil, // TODO: OCM should support cluster.Azure().Tags(),
 			Resource: arm.Resource{
-				ID:   cluster.ID(),
-				Name: cluster.Name(),
-				Type: cluster.Flavour().ID(),
-				SystemData: &arm.SystemData{
-					CreatedBy:          "",
-					CreatedByType:      "",
-					CreatedAt:          nil,
-					LastModifiedBy:     "",
-					LastModifiedByType: "",
-					LastModifiedAt:     nil,
-				},
+				ID:         resourceID.String(),
+				Name:       resourceID.Name,
+				Type:       resourceType.String(),
+				SystemData: systemData,
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
@@ -59,7 +73,7 @@ func ConvertCStoHCPOpenShiftCluster(cluster *cmv1.Cluster) (*api.HCPOpenShiftClu
 				},
 				API: api.APIProfile{
 					URL:        cluster.API().URL(),
-					IP:         "",
+					IP:         "", // TODO: Unsure if OCM will support this field
 					Visibility: api.Visibility(cluster.API().Listening()),
 				},
 				FIPS:                          cluster.FIPS(),
@@ -85,7 +99,7 @@ func ConvertCStoHCPOpenShiftCluster(cluster *cmv1.Cluster) (*api.HCPOpenShiftClu
 				},
 				Ingress: []*api.IngressProfile{
 					{
-						IP:         "",
+						IP:         "", // TODO: Unsure if OCM will support this field
 						URL:        "",
 						Visibility: "",
 					},
@@ -98,7 +112,19 @@ func ConvertCStoHCPOpenShiftCluster(cluster *cmv1.Cluster) (*api.HCPOpenShiftClu
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
-func BuildCSCluster(rg string, subID string, hcpCluster *api.HCPOpenShiftCluster) (*cmv1.Cluster, error) {
+func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenShiftCluster) (*cmv1.Cluster, error) {
+	originalPath, err := OriginalPathFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get original path: %w", err)
+	}
+	resourceID, err := azcorearm.ParseResourceID(originalPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse resource ID: %w", err)
+	}
+	tenantID, err := TenantIDFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get tenant ID: %w", err)
+	}
 
 	clusterBuilder := cmv1.NewCluster().
 		Name(hcpCluster.Name).
@@ -124,14 +150,14 @@ func BuildCSCluster(rg string, subID string, hcpCluster *api.HCPOpenShiftCluster
 		AdditionalTrustBundle(hcpCluster.Properties.Spec.Proxy.TrustedCA).
 		Azure(cmv1.NewAzure().
 			ManagedResourceGroupName(hcpCluster.Properties.Spec.Platform.ManagedResourceGroup).
-			ResourceGroupName(rg).
+			ResourceGroupName(resourceID.ResourceGroupName).
 			SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
 			NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID).
 			ResourceName(hcpCluster.Name).
-			SubscriptionID(subID).
-			TenantID("dev-test-tenant")). // tenant ID is not available at this time -- this is a dummy placeholder)
+			SubscriptionID(resourceID.SubscriptionID).
+			TenantID(tenantID)).
 		Region(cmv1.NewCloudRegion().
-			ID("eastus")). // Region is not available at this time -- this is a dummy placeholder)
+			ID(f.region)).
 		CloudProvider(cmv1.NewCloudProvider().
 			ID(csCloudProvider)).
 		Product(cmv1.NewProduct().
