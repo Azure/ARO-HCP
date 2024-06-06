@@ -14,3 +14,17 @@ updates:
           - '@azure-tools/*'
     schedule:
       interval: 'weekly'
+  - package-ecosystem: gomod
+    directory: /frontend
+    schedule:
+      interval: 'weekly'
+    groups:
+      azure-sdk-for-go:
+        patterns:
+          - 'github.com/Azure/azure-sdk-for-go/*'
+    open-pull-requests-limit: 3
+  - package-ecosystem: gomod
+    directory: /internal
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 3
