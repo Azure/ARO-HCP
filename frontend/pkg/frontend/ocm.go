@@ -21,11 +21,7 @@ const (
 )
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func (f *Frontend) ConvertCStoHCPOpenShiftCluster(ctx context.Context, cluster *cmv1.Cluster) (*api.HCPOpenShiftCluster, error) {
-	systemData, err := SystemDataFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (f *Frontend) ConvertCStoHCPOpenShiftCluster(ctx context.Context, systemData *arm.SystemData, cluster *cmv1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	originalPath, err := OriginalPathFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get original path: %w", err)

@@ -279,7 +279,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(ctx, cluster.Body())
+	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(ctx, doc.SystemData, cluster.Body())
 	if err != nil {
 		// Should never happen currently
 		f.logger.Error(err.Error())
@@ -316,6 +316,13 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
+	systemData, err := SystemDataFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 
 	// URL path is already lowercased by middleware.
@@ -333,6 +340,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 				ID:           uuid.New().String(),
 				Key:          resourceID,
 				PartitionKey: subscriptionID,
+				SystemData:   systemData,
 			}
 		} else {
 			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
@@ -351,7 +359,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 		if csResp.Body() != nil {
-			hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(ctx, csResp.Body())
+			hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(ctx, doc.SystemData, csResp.Body())
 			if err != nil {
 				// Should never happen currently
 				f.logger.Error(err.Error())
