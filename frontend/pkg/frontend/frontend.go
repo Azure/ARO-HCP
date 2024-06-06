@@ -530,7 +530,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		}
 	}
 
-	resp, err := json.Marshal(&doc)
+	resp, err := json.Marshal(&doc.Subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
