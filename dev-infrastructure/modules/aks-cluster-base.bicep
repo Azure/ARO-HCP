@@ -61,16 +61,6 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   }
 }
 
-resource aks_nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
-  name: 'aks-nsg'
-  location: location
-}
-
-resource aks_pod_nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
-  name: 'aks-pod-nsg'
-  location: location
-}
-
 resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   location: location
   name: aksKeyVaultName
@@ -154,9 +144,6 @@ resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = 
   name: 'ClusterSubnet-001'
   properties: {
     addressPrefix: subnetPrefix
-    networkSecurityGroup: {
-      id: aks_nsg.id
-    }
     privateEndpointNetworkPolicies: 'Disabled'
     serviceEndpoints: [
       {
@@ -180,9 +167,6 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
   name: 'PodSubnet-001'
   properties: {
     addressPrefix: podSubnetPrefix
-    networkSecurityGroup: {
-      id: aks_pod_nsg.id
-    }
     privateEndpointNetworkPolicies: 'Disabled'
     serviceEndpoints: [
       {
