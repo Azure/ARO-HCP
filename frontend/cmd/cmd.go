@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -99,6 +100,9 @@ func (opts *FrontendOpts) Run() error {
 		return err
 	}
 
+	if len(opts.region) == 0 {
+		return errors.New("region is required")
+	}
 	f := frontend.NewFrontend(logger, listener, prometheusEmitter, dbClient, opts.region, conn)
 
 	stop := make(chan struct{})

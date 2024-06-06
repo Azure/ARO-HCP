@@ -23,7 +23,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/database"
-	"github.com/Azure/ARO-HCP/frontend/pkg/ocm"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -280,7 +279,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(cluster.Body())
+	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(ctx, cluster.Body())
 	if err != nil {
 		// Should never happen currently
 		f.logger.Error(err.Error())
@@ -321,7 +320,6 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	// URL path is already lowercased by middleware.
 	resourceID := request.URL.Path
-	resourceGroup := request.PathValue(PathSegmentResourceGroupName)
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	var doc *database.HCPOpenShiftClusterDocument
@@ -353,7 +351,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 		if csResp.Body() != nil {
-			hcpCluster, err = ocm.ConvertCStoHCPOpenShiftCluster(csResp.Body())
+			hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(ctx, csResp.Body())
 			if err != nil {
 				// Should never happen currently
 				f.logger.Error(err.Error())
@@ -403,7 +401,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedRequestCluster.Normalize(hcpCluster)
 
 	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
-	newCsCluster, err := ocm.BuildCSCluster(resourceGroup, subscriptionID, hcpCluster)
+	newCsCluster, err := f.BuildCSCluster(ctx, hcpCluster)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
