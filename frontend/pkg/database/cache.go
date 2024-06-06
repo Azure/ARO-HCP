@@ -1,14 +1,20 @@
 package database
 
-import "context"
+import (
+	"context"
+)
 
 var _ DBClient = &Cache{}
 
+// Cache is a simple DBClient that allows us to perform simple tests without needing a real CosmosDB. For production,
+// use CosmosDBClient instead. Call NewCache() to initialize a Cache correctly.
 type Cache struct {
 	cluster      map[string]*HCPOpenShiftClusterDocument
 	subscription map[string]*SubscriptionDocument
 }
 
+// NewCache initializes a new Cache to allow for simple tests without needing a real CosmosDB. For production, use
+// NewCosmosDBConfig instead.
 func NewCache() DBClient {
 	return &Cache{
 		cluster:      make(map[string]*HCPOpenShiftClusterDocument),
@@ -16,11 +22,11 @@ func NewCache() DBClient {
 	}
 }
 
-func (c *Cache) DBConnectionTest(ctx context.Context) (string, error) {
-	return "using cache", nil
+func (c *Cache) DBConnectionTest(ctx context.Context) error {
+	return nil
 }
 
-func (c *Cache) GetClusterDoc(ctx context.Context, resourceID string, partitionKey string) (*HCPOpenShiftClusterDocument, error) {
+func (c *Cache) GetClusterDoc(ctx context.Context, resourceID string, subscriptionID string) (*HCPOpenShiftClusterDocument, error) {
 	if _, ok := c.cluster[resourceID]; ok {
 		return c.cluster[resourceID], nil
 	}
@@ -29,18 +35,18 @@ func (c *Cache) GetClusterDoc(ctx context.Context, resourceID string, partitionK
 }
 
 func (c *Cache) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error {
-	c.cluster[doc.ResourceID] = doc
+	c.cluster[doc.Key] = doc
 	return nil
 }
 
-func (c *Cache) DeleteClusterDoc(ctx context.Context, resourceID string, partitionKey string) error {
+func (c *Cache) DeleteClusterDoc(ctx context.Context, resourceID string, subscriptionID string) error {
 	delete(c.cluster, resourceID)
 	return nil
 }
 
-func (c *Cache) GetSubscriptionDoc(ctx context.Context, partitionKey string) (*SubscriptionDocument, error) {
-	if _, ok := c.subscription[partitionKey]; ok {
-		return c.subscription[partitionKey], nil
+func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
+	if _, ok := c.subscription[subscriptionID]; ok {
+		return c.subscription[subscriptionID], nil
 	}
 
 	return nil, ErrNotFound

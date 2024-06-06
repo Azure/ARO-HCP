@@ -65,27 +65,15 @@ func NewRootCmd() *cobra.Command {
 }
 
 func (opts *FrontendOpts) Run() error {
-	version := "unknown"
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				version = setting.Value
-				break
-			}
-		}
-	}
-
 	logger := config.DefaultLogger()
-	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version))
+	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version()))
 
 	// Init prometheus emitter
 	prometheusEmitter := frontend.NewPrometheusEmitter()
 
 	// Configure database configuration and client
-	var dbClient database.DBClient
-	if opts.useCache {
-		dbClient = database.NewCache()
-	} else {
+	dbClient := database.NewCache()
+	if !opts.useCache {
 		var err error
 
 		dbConfig := database.NewCosmosDBConfig(opts.cosmosName, opts.cosmosURL)
@@ -113,15 +101,6 @@ func (opts *FrontendOpts) Run() error {
 
 	f := frontend.NewFrontend(logger, listener, prometheusEmitter, dbClient, opts.region, conn)
 
-	// Verify the Async DB is available and accessible
-	logger.Info("Testing DB Access")
-	result, err := dbClient.DBConnectionTest(context.Background())
-	if err != nil {
-		logger.Error(fmt.Sprintf("Database test failed to fetch properties: %v", err))
-	} else {
-		logger.Info(fmt.Sprintf("Database check completed - %s", result))
-	}
-
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
@@ -132,7 +111,21 @@ func (opts *FrontendOpts) Run() error {
 	close(stop)
 
 	f.Join()
-	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version))
+	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version()))
 
 	return nil
+}
+
+func version() string {
+	version := "unknown"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				version = setting.Value
+				break
+			}
+		}
+	}
+
+	return version
 }

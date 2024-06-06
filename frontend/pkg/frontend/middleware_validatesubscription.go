@@ -6,6 +6,7 @@ package frontend
 import (
 	"net/http"
 
+	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -16,12 +17,12 @@ const (
 )
 
 type SubscriptionStateMuxValidator struct {
-	cache *Cache
+	dbClient database.DBClient
 }
 
-func NewSubscriptionStateMuxValidator(c *Cache) *SubscriptionStateMuxValidator {
+func NewSubscriptionStateMuxValidator(dbClient database.DBClient) *SubscriptionStateMuxValidator {
 	return &SubscriptionStateMuxValidator{
-		cache: c,
+		dbClient: dbClient,
 	}
 }
 
@@ -38,9 +39,10 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 		return
 	}
 
-	sub, exists := s.cache.GetSubscription(subscriptionId)
-
-	if !exists {
+	// TODO: Ideally, we don't want to have to hit the database in this middleware
+	// Currently, we are using the database to retrieve the subscription's tenantID and state
+	sub, err := s.dbClient.GetSubscriptionDoc(r.Context(), subscriptionId)
+	if err != nil {
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",
@@ -49,10 +51,9 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 		return
 	}
 
-	// the subscription exists, store its current state as context
-	ctx := ContextWithSubscriptionState(r.Context(), sub.State)
+	ctx := ContextWithSubscription(r.Context(), *sub.Subscription)
 	r = r.WithContext(ctx)
-	switch sub.State {
+	switch sub.Subscription.State {
 	case arm.Registered:
 		next(w, r)
 	case arm.Unregistered:
@@ -66,7 +67,7 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
-				sub.State)
+				sub.Subscription.State)
 			return
 		}
 		next(w, r)
@@ -75,6 +76,6 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
-			sub.State)
+			sub.Subscription.State)
 	}
 }

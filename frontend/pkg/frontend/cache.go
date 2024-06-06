@@ -38,11 +38,3 @@ func (c *Cache) GetSubscription(id string) (*arm.Subscription, bool) {
 	subscription, found := c.subscription[id]
 	return subscription, found
 }
-
-func (c *Cache) SetSubscription(id string, subscription *arm.Subscription) {
-	c.subscription[id] = subscription
-}
-
-func (c *Cache) DeleteSubscription(id string) {
-	delete(c.subscription, id)
-}

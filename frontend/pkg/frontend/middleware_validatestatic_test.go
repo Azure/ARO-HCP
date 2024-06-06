@@ -22,58 +22,55 @@ func TestMiddlewareValidateStatic(t *testing.T) {
 	})
 
 	tests := []struct {
-		name              string
-		path              string
-		subscriptionID    string
-		resourceGroupName string
+		name string
+		path string
 
-		resourceType       string
-		resourceName       string
 		operationsId       string
 		expectedStatusCode int
 		expectedBody       string
 	}{
 		{
-			name:               "Valid request",
-			path:               "/subscriptions/42d9eac4-d29a-4d6e-9e26-3439758b1491",
-			subscriptionID:     "42d9eac4-d29a-4d6e-9e26-3439758b1491",
+			name:               "Valid request for a subscription resource",
+			path:               "/Subscriptions/42d9eac4-d29a-4d6e-9e26-3439758b1491",
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "Valid request for a HCPOpenShiftClusters resource",
+			path:               "/Subscriptions/42d9eac4-d29a-4d6e-9e26-3439758b1491/ResourceGroups/MyResourceGroup/Providers/Microsoft.RedHatOpenShift/HCPOpenShiftClusters/MyCluster",
 			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:               "Invalid subscription ID",
-			path:               "/subscriptions/invalid!sub!id",
-			subscriptionID:     "invalid!sub!id",
+			path:               "/Subscriptions/invalid!sub!id",
 			expectedStatusCode: http.StatusBadRequest,
 			expectedBody:       "The provided subscription identifier 'invalid!sub!id' is malformed or invalid.",
 		},
 		{
 			name:               "Invalid resource group name",
-			path:               "/resourcegroups/resourcegroup!",
-			resourceGroupName:  "resourcegroup!",
+			path:               "/Subscriptions/00000000-0000-0000-0000-000000000000/ResourceGroups/ResourceGroup!",
 			expectedStatusCode: http.StatusBadRequest,
-			expectedBody:       "Resource group 'resourcegroup!' is invalid.",
+			expectedBody:       "Resource group 'ResourceGroup!' is invalid.",
 		},
 		{
 			name:               "Invalid resource name",
-			path:               "/resourcegroup/providers/microsoft.redhatopenshift/hcpopenshiftcluster/$",
-			resourceGroupName:  "resourcegroup",
-			resourceType:       "hcpOpenShiftClusters",
-			resourceName:       "$",
+			path:               "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/RESOURCEGROUPS/MyResourceGroup/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/$",
 			expectedStatusCode: http.StatusBadRequest,
-			expectedBody:       "The Resource 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/$' under resource group 'resourcegroup' is invalid.",
+			expectedBody:       "The Resource 'MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/$' under resource group 'MyResourceGroup' is invalid.",
+		},
+		{
+			name:               "Resource name is a valid subscription ID",
+			path:               "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000",
+			expectedStatusCode: http.StatusOK,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "http://example.com"+tc.path, nil)
+			req = req.WithContext(ContextWithOriginalPath(req.Context(), tc.path))
 
 			// Use httptest.ResponseRecorder to record the response
 			w := httptest.NewRecorder()
-
-			req.SetPathValue(PathSegmentSubscriptionID, tc.subscriptionID)
-			req.SetPathValue(PathSegmentResourceGroupName, tc.resourceGroupName)
-			req.SetPathValue(PathSegmentResourceName, tc.resourceName)
 
 			// Execute the middleware
 			MiddlewareValidateStatic(w, req, nextHandler)

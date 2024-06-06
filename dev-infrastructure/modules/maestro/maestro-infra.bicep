@@ -153,34 +153,47 @@ resource maestroServerMqttClientGroup 'Microsoft.EventGrid/namespaces/clientGrou
   }
 }
 
-// create a topic space for the maestro server
-resource maestroServerTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2023-12-15-preview' = {
-  name: 'maestro-server'
+// create a topic space for the maestro server to subscribe to
+resource maestroServerSubscribeTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2023-12-15-preview' = {
+  name: 'maestro-server-subscribe'
   parent: eventGridNamespace
   properties: {
     topicTemplates: [
-      'sources/#'
+      'sources/maestro/consumers/+/agentevents'
     ]
   }
 }
 
-resource maestroServerPermissionBindingPublish 'Microsoft.EventGrid/namespaces/permissionBindings@2023-12-15-preview' = {
-  name: 'maestro-server-publish'
-  parent: eventGridNamespace
-  properties: {
-    clientGroupName: maestroServerMqttClientGroup.name
-    permission: 'Publisher'
-    topicSpaceName: maestroServerTopicspace.name
-  }
-}
-
+// ... and grant the maestro server client permission to subscribe to the topic space
 resource maestroServerPermissionBindingSubscribe 'Microsoft.EventGrid/namespaces/permissionBindings@2023-12-15-preview' = {
-  name: 'maestro-server-subscribe'
+  name: 'maestro-server-subscribe-binding'
   parent: eventGridNamespace
   properties: {
     clientGroupName: maestroServerMqttClientGroup.name
     permission: 'Subscriber'
-    topicSpaceName: maestroServerTopicspace.name
+    topicSpaceName: maestroServerSubscribeTopicspace.name
+  }
+}
+
+// create a topic space for the maestro server to publish to
+resource maestroServerPublishTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2023-12-15-preview' = {
+  name: 'maestro-server-publish'
+  parent: eventGridNamespace
+  properties: {
+    topicTemplates: [
+      'sources/maestro/consumers/+/sourceevents'
+    ]
+  }
+}
+
+// ... and grant the maestro server client permission to publish to the topic space
+resource maestroServerPermissionBindingPublish 'Microsoft.EventGrid/namespaces/permissionBindings@2023-12-15-preview' = {
+  name: 'maestro-server-publish-binding'
+  parent: eventGridNamespace
+  properties: {
+    clientGroupName: maestroServerMqttClientGroup.name
+    permission: 'Publisher'
+    topicSpaceName: maestroServerPublishTopicspace.name
   }
 }
 

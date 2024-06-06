@@ -4,6 +4,7 @@ package frontend
 // Licensed under the Apache License 2.0.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,23 +16,22 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func TestMiddlewareValidateSubscription(t *testing.T) {
-	subscriptionId := "1234-5678"
+	subscriptionId := "sub-1234-5678"
+	tenantId := "tenant-1234-5678"
 	defaultRequestPath := fmt.Sprintf("subscriptions/%s/resourceGroups/xyz", subscriptionId)
-	cache := NewCache()
-	middleware := NewSubscriptionStateMuxValidator(cache)
 
 	tests := []struct {
-		name           string
-		subscriptionId string
-		cachedState    arm.RegistrationState
-		expectedState  arm.RegistrationState
-		httpMethod     string
-		requestPath    string
-		expectedError  *arm.CloudError
+		name          string
+		cachedState   arm.RegistrationState
+		expectedState arm.RegistrationState
+		httpMethod    string
+		requestPath   string
+		expectedError *arm.CloudError
 	}{
 		{
 			name:          "subscription is already registered",
@@ -155,9 +155,21 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			dbClient := database.NewCache()
+			middleware := NewSubscriptionStateMuxValidator(dbClient)
 
 			if tt.cachedState != "" {
-				cache.SetSubscription(subscriptionId, &arm.Subscription{State: tt.cachedState})
+				if err := dbClient.SetSubscriptionDoc(context.Background(), &database.SubscriptionDocument{
+					PartitionKey: subscriptionId,
+					Subscription: &arm.Subscription{
+						State: tt.cachedState,
+						Properties: &arm.Properties{
+							TenantId: &tenantId,
+						},
+					},
+				}); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			writer := httptest.NewRecorder()
@@ -178,25 +190,22 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			}
 
 			middleware.MiddlewareValidateSubscriptionState(writer, request, next)
-
-			// clear the cache for the next test
-			cache.DeleteSubscription(subscriptionId)
-
-			result, err := SubscriptionStateFromContext(request.Context())
-			if err == nil {
-				if !reflect.DeepEqual(result, tt.expectedState) {
-					t.Error(cmp.Diff(result, tt.expectedState))
+			sub, err := SubscriptionFromContext(request.Context())
+			if err != nil {
+				if tt.expectedError != nil {
+					var actualError *arm.CloudError
+					body, _ := io.ReadAll(http.MaxBytesReader(writer, writer.Result().Body, 4*megabyte))
+					_ = json.Unmarshal(body, &actualError)
+					if (writer.Result().StatusCode != tt.expectedError.StatusCode) || actualError.Code != tt.expectedError.Code || actualError.Message != tt.expectedError.Message {
+						t.Errorf("unexpected CloudError, wanted %v, got %v", tt.expectedError, actualError)
+					}
+				} else {
+					t.Errorf("expected CloudError, wanted %v, got %v", tt.expectedError, err)
 				}
-			} else if tt.expectedState != "" {
-				t.Errorf("Expected RegistrationState %s in request context", tt.expectedState)
 			}
-			if tt.expectedError != nil {
-				var actualError *arm.CloudError
-				body, _ := io.ReadAll(http.MaxBytesReader(writer, writer.Result().Body, 4*megabyte))
-				_ = json.Unmarshal(body, &actualError)
-				if (writer.Result().StatusCode != tt.expectedError.StatusCode) || actualError.Code != tt.expectedError.Code || actualError.Message != tt.expectedError.Message {
-					t.Errorf("unexpected CloudError, wanted %v, got %v", tt.expectedError, actualError)
-				}
+
+			if !reflect.DeepEqual(sub.State, tt.expectedState) {
+				t.Error(cmp.Diff(sub.State, tt.expectedState))
 			}
 		})
 	}
