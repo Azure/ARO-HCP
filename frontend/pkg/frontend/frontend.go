@@ -43,7 +43,6 @@ type Frontend struct {
 	logger   *slog.Logger
 	listener net.Listener
 	server   http.Server
-	cache    Cache // TODO: Delete
 	dbClient database.DBClient
 	ready    atomic.Value
 	done     chan struct{}
@@ -70,7 +69,6 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 				return ContextWithLogger(context.Background(), logger)
 			},
 		},
-		cache:    *NewCache(),
 		dbClient: dbClient,
 		done:     make(chan struct{}),
 		region:   region,
@@ -79,7 +77,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(f.dbClient)
 
 	// Setup metrics middleware
-	metricsMiddleware := MetricsMiddleware{cache: &f.cache, Emitter: emitter}
+	metricsMiddleware := MetricsMiddleware{dbClient: dbClient, Emitter: emitter}
 
 	mux := NewMiddlewareMux(
 		MiddlewarePanic,
