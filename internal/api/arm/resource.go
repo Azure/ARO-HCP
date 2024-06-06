@@ -54,12 +54,18 @@ const (
 // SystemData includes creation and modification metadata for resources
 // See https://eng.ms/docs/products/arm/api_contracts/resourcesystemdata
 type SystemData struct {
-	CreatedBy          string        `json:"createdBy,omitempty"`
-	CreatedByType      CreatedByType `json:"createdByType,omitempty"      validate:"omitempty,enum_createdbytype"`
-	CreatedAt          *time.Time    `json:"createdAt,omitempty"`
-	LastModifiedBy     string        `json:"lastModifiedBy,omitempty"`
+	// CreatedBy is a string identifier for the identity that created the resource
+	CreatedBy string `json:"createdBy,omitempty"`
+	// CreatedByType is the type of identity that created the resource: User, Application, ManagedIdentity
+	CreatedByType CreatedByType `json:"createdByType,omitempty"      validate:"omitempty,enum_createdbytype"`
+	// The timestamp of resource creation (UTC)
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+	// LastModifiedBy is a string identifier for the identity that last modified the resource
+	LastModifiedBy string `json:"lastModifiedBy,omitempty"`
+	// LastModifiedByType is the type of identity that last modified the resource: User, Application, ManagedIdentity
 	LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty" validate:"omitempty,enum_createdbytype"`
-	LastModifiedAt     *time.Time    `json:"lastModifiedAt,omitempty"`
+	// LastModifiedAt is the timestamp of resource last modification (UTC)
+	LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`
 }
 
 func (src *SystemData) Copy(dst *SystemData) {
