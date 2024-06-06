@@ -11,7 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/frontend/pkg/config"
+	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 )
 
 // Emitter emits different types of metrics
@@ -56,7 +57,7 @@ func (pe *PrometheusEmitter) EmitCounter(name string, value float64, labels map[
 
 type MetricsMiddleware struct {
 	Emitter
-	cache *Cache
+	dbClient database.DBClient
 }
 
 type logResponseWriter struct {
@@ -73,6 +74,11 @@ func (lrw *logResponseWriter) WriteHeader(code int) {
 // Metrics middleware to capture response time and status code
 func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 	return func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		logger, err := LoggerFromContext(r.Context())
+		if err != nil {
+			logger = config.DefaultLogger()
+		}
+
 		startTime := time.Now()
 
 		lrw := &logResponseWriter{ResponseWriter: w}
@@ -86,17 +92,13 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 		subscriptionState := "Unknown"
 		subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 		if subscriptionId != "" {
-			sub, exists := mm.cache.GetSubscription(subscriptionId)
-			if !exists {
-				arm.WriteError(
-					w, http.StatusBadRequest,
-					arm.CloudErrorInvalidSubscriptionState, "",
-					UnregisteredSubscriptionStateMessage,
-					subscriptionId)
-				return
+			sub, err := mm.dbClient.GetSubscriptionDoc(r.Context(), subscriptionId)
+			if err != nil {
+				// If we can't determine the subscription state, we can still expose a metric for subscriptionState "Unknown"
+				logger.Info("unable to retrieve subscription document for the `frontend_count` metric", "subscriptionId", subscriptionId, "error", err)
+			} else {
+				subscriptionState = string(sub.Subscription.State)
 			}
-
-			subscriptionState = string(sub.State)
 		}
 
 		mm.Emitter.EmitCounter("frontend_count", 1.0, map[string]string{
