@@ -16,10 +16,9 @@ import (
 	"strings"
 	"sync/atomic"
 
-	v1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-
 	"github.com/google/uuid"
 	sdk "github.com/openshift-online/ocm-sdk-go"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/database"
@@ -28,13 +27,14 @@ import (
 )
 
 const (
-	PatternSubscriptions  = "subscriptions/{" + PathSegmentSubscriptionID + "}"
-	PatternLocations      = "locations/{" + PageSegmentLocation + "}"
-	PatternProviders      = "providers/" + api.ResourceType
-	PatternDeployments    = "deployments/{" + PathSegmentDeploymentName + "}"
-	PatternResourceGroups = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
-	PatternResourceName   = "{" + PathSegmentResourceName + "}"
-	PatternActionName     = "{" + PathSegmentActionName + "}"
+	PatternSubscriptions    = "subscriptions/{" + PathSegmentSubscriptionID + "}"
+	PatternLocations        = "locations/{" + PageSegmentLocation + "}"
+	PatternProviders        = "providers/" + api.ResourceType
+	PatternNodepoolResource = "nodepools/{" + PathSegmentNodepoolName + "}"
+	PatternDeployments      = "deployments/{" + PathSegmentDeploymentName + "}"
+	PatternResourceGroups   = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
+	PatternResourceName     = "{" + PathSegmentResourceName + "}"
+	PatternActionName       = "{" + PathSegmentActionName + "}"
 )
 
 type Frontend struct {
@@ -127,6 +127,20 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
+
+	// Nodepool Routes
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+	mux.Handle(
+		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
+	mux.Handle(
+		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
+	mux.Handle(
+		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 
 	// Exclude ARO-HCP API version validation for endpoints defined by ARM.
 	postMuxMiddleware = NewMiddleware(
@@ -350,7 +364,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 
 	var hcpCluster *api.HCPOpenShiftCluster
-	var csResp *v1.ClusterGetResponse
+	var csResp *cmv1.ClusterGetResponse
 	if doc.ClusterID != "" {
 		csResp, err = f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Get().Send()
 		if err != nil {

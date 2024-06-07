@@ -11,40 +11,53 @@ import (
 // OpenShift clusters.
 type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
-	Properties HCPOpenShiftClusterNodePoolProperties `json:":properties,omitempty"`
+	Properties HCPOpenShiftClusterNodePoolProperties `json:":properties,omitempty" validate:"required_for_put"`
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
-	Profile           NodePoolProfile       `json:"profile,omitempty" visibility:"read,create,update"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read" validate:"omitempty,enum_provisioningstate"`
+	Spec              NodePoolSpec          `json:"spec,omitempty" visibility:"read,create,update" validate:"required_for_put"`
 }
 
-// NodePoolProfile represents a worker node pool configuration.
+type NodePoolSpec struct {
+	Version       VersionProfile          `json:"version,omitempty" visibility:"read create update" validate:"required_for_put"`
+	Platform      NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create" validate:"required_for_put"`
+	Replicas      int32                   `json:"replicas,omitempty" visibility:"read create update"`
+	AutoRepair    bool                    `json:"autoRepair,omitempty" visibility:"read create"`
+	Autoscaling   NodePoolAutoscaling     `json:"autoscaling,omitempty" visibility:"read create update"`
+	Labels        map[string]string       `json:"labels,omitempty" visibility:"read create update"`
+	Taints        []*Taint                `json:"taints,omitempty" visibility:"read create update"`
+	TuningConfigs []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
+}
+
+// NodePoolPlatformProfile represents a worker node pool configuration.
 // Visibility for the entire struct is "read".
-type NodePoolProfile struct {
-	Name                   string              `json:"name,omitempty"`
-	Version                string              `json:"version,omitempty"`
-	Labels                 []string            `json:"labels,omitempty"`
-	Taints                 []string            `json:"taints,omitempty"`
-	DiskSize               int32               `json:"diskSize,omitempty"`
-	EphemeralOSDisk        bool                `json:"ephemeralOsDisk,omitempty"`
-	Replicas               int32               `json:"replicas,omitempty"`
-	SubnetID               string              `json:"subnetId,omitempty"`
-	EncryptionAtHost       bool                `json:"encryptionAtHost,omitempty"`
-	AutoRepair             bool                `json:"autoRepair,omitempty"`
-	DiskEncryptionSetID    string              `json:"diskEncryptionSetId,omitempty"`
-	TuningConfigs          []string            `json:"tuningConfigs,omitempty"`
-	AvailabilityZone       string              `json:"availabilityZone,omitempty"`
-	DiskStorageAccountType string              `json:"diskStorageAccountType,omitempty"`
-	VMSize                 string              `json:"vmSize,omitempty"`
-	Autoscaling            NodePoolAutoscaling `json:"autoscaling,omitempty"`
+type NodePoolPlatformProfile struct {
+	SubnetID               string `json:"subnetId,omitempty"`
+	VMSize                 string `json:"vmSize,omitempty" validate:"required_for_put"`
+	DiskSizeGB             int32  `json:"diskSizeGB,omitempty"`
+	DiskStorageAccountType string `json:"diskStorageAccountType,omitempty"`
+	AvailabilityZone       string `json:"availabilityZone,omitempty"`
+	EncryptionAtHost       bool   `json:"encryptionAtHost,omitempty"`
+	DiskEncryptionSetID    string `json:"diskEncryptionSetId,omitempty"`
+	EphemeralOSDisk        bool   `json:"ephemeralOsDisk,omitempty"`
 }
 
 // NodePoolAutoscaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read".
 type NodePoolAutoscaling struct {
-	MinReplicas int32 `json:"minReplicas,omitempty"`
-	MaxReplicas int32 `json:"maxReplicas,omitempty"`
+	Min int32 `json:"min,omitempty" validate:"required_for_put"`
+	Max int32 `json:"max,omitempty" validate:"required_for_put"`
+}
+
+type Taint struct {
+	Effect Effect `json:"effect,omitempty" validate:"required_for_put,enum_effect"`
+	Key    string `json:"key,omitempty" validate:"required_for_put"`
+	Value  string `json:"value,omitempty"`
+}
+
+func NewDefaultHCPOpenShiftClusterNodepool() *HCPOpenShiftClusterNodePool {
+	return &HCPOpenShiftClusterNodePool{}
 }
