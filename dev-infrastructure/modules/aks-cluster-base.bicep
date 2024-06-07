@@ -74,7 +74,7 @@ resource aks_pod_nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
 
 resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   location: location
-  name: take('aks-kv-${clusterType}-${uniqueString(currentUserId)}', 24)
+  name: 'aks-kv-${resourceGroup().name}'
   tags: {
     resourceGroup: resourceGroup().name
   }
