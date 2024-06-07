@@ -25,3 +25,14 @@ const (
 	VisibilityPublic  Visibility = "public"
 	VisibilityPrivate Visibility = "private"
 )
+
+type Effect string
+
+const (
+	// EffectNoExecute - NoExecute taint effect
+	EffectNoExecute Effect = "NoExecute"
+	// EffectNoSchedule - NoSchedule taint effect
+	EffectNoSchedule Effect = "NoSchedule"
+	// EffectPreferNoSchedule - PreferNoSchedule taint effect
+	EffectPreferNoSchedule Effect = "PreferNoSchedule"
+)
