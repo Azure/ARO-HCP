@@ -11,7 +11,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.0.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/openshift-online/ocm-sdk-go v0.1.421
+	github.com/openshift-online/ocm-sdk-go v0.1.423
 	github.com/prometheus/client_golang v1.19.0
 	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.8.0
