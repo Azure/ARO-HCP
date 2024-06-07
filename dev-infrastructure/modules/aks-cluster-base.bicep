@@ -74,7 +74,7 @@ resource aks_pod_nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
 
 resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   location: location
-  name: 'aks-kv-${resourceGroup().name}'
+  name: '${replace(resourceGroup().name, 'underlay-', '')}-kv'
   tags: {
     resourceGroup: resourceGroup().name
   }
