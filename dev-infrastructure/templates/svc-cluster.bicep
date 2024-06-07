@@ -7,9 +7,6 @@ param persist bool = false
 @description('Captures logged in users UID')
 param currentUserId string
 
-@description('Captures logged in users principal name')
-param currentUserPrincipal string
-
 @description('VNET address prefix')
 param vnetAddressPrefix string
 
@@ -150,18 +147,19 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
 //   C L U S T E R   S E R V I C E
 //
 
-module cs '../modules/cs.bicep' = if (deployCsInfra) {
+module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
   name: 'cluster-service'
   params: {
     aksClusterName: svcCluster.outputs.aksClusterName
     namespace: csNamespace
     location: location
-    currentUserId: currentUserId
-    currentUserPrincipal: currentUserPrincipal
     clusterServiceManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'cs'
+      id => id.uamiName == 'cluster-service'
     )[0].uamiPrincipalID
-    clusterServiceManagedIdentityName: filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'cs')[0].uamiName
+    clusterServiceManagedIdentityName: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'cluster-service'
+    )[0].uamiName
   }
 }

@@ -1,7 +1,6 @@
 SHELL = /bin/bash
 
 CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
-CURRENTUSER_NAME=$(shell az ad signed-in-user show | jq -r '.userPrincipalName')
 LOCATION?=eastus
 RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
 MAESTRO_INFRA_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
@@ -45,7 +44,6 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			currentUserPrincipal=$(CURRENTUSER_NAME) \
 			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 
 cluster-what-if: rg
@@ -60,7 +58,6 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			currentUserPrincipal=$(CURRENTUSER_NAME) \
 			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 
 aks.admin-access: rg
@@ -73,12 +70,7 @@ cs-out-of-cluster-db-access: rg
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
-	@DB_HOST=$$(az postgres flexible-server list -g $(RESOURCEGROUP) | jq .[0].fullyQualifiedDomainName -r); \
-	ACCESS_TOKEN=$$(az account get-access-token --resource='https://ossrdbms-aad.database.windows.net' | jq .accessToken -r); \
-	echo "export PGHOST='$$DB_HOST'"; \
-	echo "export PGUSER='$(CURRENTUSER_NAME)'"; \
-	echo "export PGDATABASE='ocm'"; \
-	echo "export PGPASSWORD='$$ACCESS_TOKEN'"
+	@scripts/current-user-pg-access.sh $(RESOURCEGROUP) "cs-"
 
 aks.kubeconfig:
 ifndef AKSCONFIG

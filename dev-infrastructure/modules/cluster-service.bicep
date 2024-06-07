@@ -7,14 +7,8 @@ param clusterServiceManagedIdentityName string
 @description('The managed identity CS uses to interact with Azure resources')
 param clusterServiceManagedIdentityPrincipalId string
 
-@description('An optional user ID that will get admin access on the Postgres database')
-param currentUserId string
-
-@description('An optional user principal name that will get admin access on the Postgres database')
-param currentUserPrincipal string
-
 @description('The name of the database to create for CS')
-param csDatabaseName string = 'ocm'
+param csDatabaseName string = 'cluster-service'
 
 @description('The AKS cluster name where cluster-service is hosted.')
 param aksClusterName string
@@ -40,12 +34,6 @@ module postgres 'postgres/postgres.bicep' = {
         principalId: postgresAdminManagedIdentity.properties.principalId
         principalName: postgresAdminManagedIdentity.name
         principalType: 'ServicePrincipal'
-      }
-      // use the current user as DB admin if defined - for dev purposes
-      {
-        principalId: currentUserId
-        principalName: currentUserPrincipal
-        principalType: 'User'
       }
     ]
     version: '12'
@@ -113,7 +101,7 @@ module dbConfigMap './aks-manifest.bicep' = {
         apiVersion: 'v1'
         kind: 'ConfigMap'
         metadata: {
-          name: 'db'
+          name: 'database'
           namespace: namespace
         }
         data: {

@@ -357,16 +357,16 @@ The output are in ENV var format for the `psql` tool, so this works to get a con
 
 ```sh
 eval $(AKSCONFIG=svc-cluster make cs-out-of-cluster-db-access)
-psql
+psql -d cluster-service
 ```
 
 > The password is a temporary access token that is valid only for 1h
 
 ### Access the database from inside of the AKS cluster
 
-* the `cs` namespace of the svc cluster contains
-  * a `ConfigMap` named `db` with the connection parameters
-  * a `ServiceAccount` named `cs` that is annotated for workload identity usage
+* the `cluster-service` namespace of the svc cluster contains
+  * a `ConfigMap` named `database` with the connection parameters
+  * a `ServiceAccount` named `cluster-service` that is annotated for workload identity usage with the `cluster-service` managed identity
 * the CS pod will need to be labeled with `azure.workload.identity/use: "true"`, which injects several ENV variables prefixed with `AZ_*`
 
 TODO: CS needs to use these `AZ_*` env variables to get an access token to be used as a DB password
