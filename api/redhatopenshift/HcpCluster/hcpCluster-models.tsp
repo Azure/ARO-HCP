@@ -129,6 +129,18 @@ model ClusterSpec {
 union ProvisioningState {
   string,
   ResourceProvisioningState,
+
+  /** Non-terminal state indicating the resource has been accepted */
+  "Accepted",
+
+  /** Non-terminal state indicating the resource is deleting */
+  "Deleting",
+
+  /** Non-terminal state indicating the resource is provisioning */
+  "Provisioning",
+
+  /** Non-terminal state indicating the resource is updating */
+  "Updating",
 }
 
 /** Versions represents an OpenShift version. */
@@ -434,7 +446,7 @@ model IngressProfile {
 model NodePoolProperties {
   /** Provisioning state */
   @visibility("read")
-  provisioningState?: ResourceProvisioningState;
+  provisioningState?: ProvisioningState;
 
   /** The node pool resource specification */
   spec: NodePoolSpec;
