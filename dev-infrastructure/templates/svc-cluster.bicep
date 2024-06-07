@@ -71,6 +71,9 @@ param csNamespace string
 @maxLength(60)
 param csPostgresServerName string
 
+@description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
+param maxClientSessionsPerAuthName int
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -117,6 +120,7 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestro
     eventGridNamespaceName: maestroEventGridNamespacesName
     location: location
     currentUserId: currentUserId
+    maxClientSessionsPerAuthName: maxClientSessionsPerAuthName
     maestroKeyVaultName: maestroKeyVaultName
     kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
   }
