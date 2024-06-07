@@ -29,6 +29,9 @@ param location string
 @description('An optional user ID that will get admin access for Key Vault. For dev purposes.')
 param currentUserId string
 
+@description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
+param maxClientSessionsPerAuthName int
+
 @description('The name for the Key Vault for Maestro certificates')
 param maestroKeyVaultName string
 
@@ -130,7 +133,7 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2023-12-15-preview' 
     publicNetworkAccess: 'Enabled'
     topicSpacesConfiguration: {
       state: 'Enabled'
-      maximumClientSessionsPerAuthenticationName: 1
+      maximumClientSessionsPerAuthenticationName: maxClientSessionsPerAuthName
       clientAuthentication: {
         alternativeAuthenticationNameSources: [
           'ClientCertificateDns'

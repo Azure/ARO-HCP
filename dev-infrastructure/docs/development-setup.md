@@ -111,7 +111,9 @@ This will delete:
 
 ## Maestro Infrastructure
 
-Maestro infrastructure is provisioned as part of the svc-cluster. To deploy the Maestro infrastructure and deploy the Maestro server onto the service cluster set the `deployMaestroInfra` toggle to `true` and run
+Maestro infrastructure is provisioned as part of the svc-cluster. To deploy the Maestro infrastructure and deploy the Maestro server onto the service cluster set the `deployMaestroInfra` toggle to `true`. If you plan to run the Maestro server or agent with multiple replicas, set `maxClientSessionsPerAuthName` to the number of replicas.
+
+Then run the command:
 
 ```sh
 cd dev-infrastructure
