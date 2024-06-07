@@ -84,7 +84,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(ctx context.Context, systemDat
 				Platform: api.PlatformProfile{
 					ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
 					SubnetID:               cluster.Azure().SubnetResourceID(),
-					OutboundType:           "",
+					OutboundType:           api.OutboundTypeLoadBalancer,
 					NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 					EtcdEncryptionSetID:    "",
 				},
