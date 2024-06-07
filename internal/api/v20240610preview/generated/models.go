@@ -482,7 +482,7 @@ type NodePoolProperties struct {
 	Spec *NodePoolSpec
 
 	// READ-ONLY; Provisioning state
-	ProvisioningState *ResourceProvisioningState
+	ProvisioningState *ProvisioningState
 }
 
 // NodePoolSpec - Worker node pool profile

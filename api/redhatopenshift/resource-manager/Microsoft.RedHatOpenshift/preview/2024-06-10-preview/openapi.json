@@ -1881,7 +1881,7 @@
       "description": "Represents the node pool properties",
       "properties": {
         "provisioningState": {
-          "$ref": "#/definitions/Azure.ResourceManager.ResourceProvisioningState",
+          "$ref": "#/definitions/ProvisioningState",
           "description": "Provisioning state",
           "readOnly": true
         },
@@ -2044,7 +2044,11 @@
       "enum": [
         "Succeeded",
         "Failed",
-        "Canceled"
+        "Canceled",
+        "Accepted",
+        "Deleting",
+        "Provisioning",
+        "Updating"
       ],
       "x-ms-enum": {
         "name": "ProvisioningState",
@@ -2064,6 +2068,26 @@
             "name": "Canceled",
             "value": "Canceled",
             "description": "Resource creation was canceled."
+          },
+          {
+            "name": "Accepted",
+            "value": "Accepted",
+            "description": "Non-terminal state indicating the resource has been accepted"
+          },
+          {
+            "name": "Deleting",
+            "value": "Deleting",
+            "description": "Non-terminal state indicating the resource is deleting"
+          },
+          {
+            "name": "Provisioning",
+            "value": "Provisioning",
+            "description": "Non-terminal state indicating the resource is provisioning"
+          },
+          {
+            "name": "Updating",
+            "value": "Updating",
+            "description": "Non-terminal state indicating the resource is updating"
           }
         ]
       },

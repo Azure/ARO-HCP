@@ -143,20 +143,32 @@ func PossibleOutboundTypeValues() []OutboundType {
 type ProvisioningState string
 
 const (
+	// ProvisioningStateAccepted - Non-terminal state indicating the resource has been accepted
+	ProvisioningStateAccepted ProvisioningState = "Accepted"
 	// ProvisioningStateCanceled - Resource creation was canceled.
 	ProvisioningStateCanceled ProvisioningState = "Canceled"
+	// ProvisioningStateDeleting - Non-terminal state indicating the resource is deleting
+	ProvisioningStateDeleting ProvisioningState = "Deleting"
 	// ProvisioningStateFailed - Resource creation failed.
 	ProvisioningStateFailed ProvisioningState = "Failed"
+	// ProvisioningStateProvisioning - Non-terminal state indicating the resource is provisioning
+	ProvisioningStateProvisioning ProvisioningState = "Provisioning"
 	// ProvisioningStateSucceeded - Resource has been created.
 	ProvisioningStateSucceeded ProvisioningState = "Succeeded"
+	// ProvisioningStateUpdating - Non-terminal state indicating the resource is updating
+	ProvisioningStateUpdating ProvisioningState = "Updating"
 )
 
 // PossibleProvisioningStateValues returns the possible values for the ProvisioningState const type.
 func PossibleProvisioningStateValues() []ProvisioningState {
 	return []ProvisioningState{	
+		ProvisioningStateAccepted,
 		ProvisioningStateCanceled,
+		ProvisioningStateDeleting,
 		ProvisioningStateFailed,
+		ProvisioningStateProvisioning,
 		ProvisioningStateSucceeded,
+		ProvisioningStateUpdating,
 	}
 }
 
