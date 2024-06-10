@@ -59,6 +59,12 @@ endif
 			currentUserId=$(CURRENTUSER) \
 			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 
+aks.admin-access: rg
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	@scripts/aks-admin-access.sh $(RESOURCEGROUP)
+
 aks.kubeconfig:
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
