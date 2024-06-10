@@ -12,7 +12,6 @@ param acrSku string
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool
 
-
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
   name: acrName
   location: location
