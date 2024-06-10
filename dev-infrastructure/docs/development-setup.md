@@ -44,6 +44,13 @@ There are a few variants to chose from when creating an AKS cluster:
    KUBECONFIG=aks.kubeconfig kubectl get ns
    ```
 
+1. Access cluter via the Azure portal or via `az aks command invoke`
+
+  ```bash
+  AKSCONFIG=svc-cluster make aks.admin-access  # one time
+  az aks command invoke ...
+  ```
+
 ## Creating your own "First Party Application"
 In order for a resource provider to interact with a customers tenant, we create a special type of Application + Service Principal called a First Party Application. This applications' service principal is then granted permissions over certain resources / resource groups within the customers tenant. In the dev tenant we do not need nor can create a First Party Application (they are tied to AME). Instead, we create a Third Party Application, and grant it permissions over our dev subscription so the RP can then interact and create the required resources.
 
@@ -336,5 +343,3 @@ To create a cluster in CS using a locally running Frontend, see the frontend [RE
 To tear down your CS setup:
 1) Kill the running clusters-service process
 2) Clean up the database `make db/teardown`
-
-
