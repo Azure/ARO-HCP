@@ -41,10 +41,6 @@ var aksClusterAdminRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8'
 )
-var aksClusterRbacClusterAdminRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions/',
-  'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b'
-)
 var networkContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
@@ -347,28 +343,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         ]
       }
     }
-  }
-}
-
-// az aks command invoke --resource-group hcp-standalone-mshen --name aro-hcp-cluster-001 --command "kubectl get ns"
-resource currentUserAksClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (length(currentUserId) > 0) {
-  scope: aksCluster
-  name: guid(location, aksClusterName, aksClusterAdminRoleId, currentUserId)
-  properties: {
-    roleDefinitionId: aksClusterAdminRoleId
-    principalId: currentUserId
-    principalType: 'User'
-  }
-}
-
-// az aks command invoke --resource-group hcp-standalone-mshen --name aro-hcp-cluster-001 --command "kubectl get ns"
-resource currentUserAksRbacClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (length(currentUserId) > 0) {
-  scope: aksCluster
-  name: guid(location, aksClusterName, aksClusterRbacClusterAdminRoleId, currentUserId)
-  properties: {
-    roleDefinitionId: aksClusterRbacClusterAdminRoleId
-    principalId: currentUserId
-    principalType: 'User'
   }
 }
 
