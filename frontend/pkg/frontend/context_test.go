@@ -36,20 +36,27 @@ func TestTenantIDFromContext(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ctx := ContextWithSubscription(context.Background(), test.sub)
-		actual, err := TenantIDFromContext(ctx)
-		if err != nil {
-			if !test.expectErr {
-				t.Errorf("expected err to be nil, got %v", err)
-			}
-		} else {
-			if test.expectErr {
-				t.Error("expected err to be non-nil")
-			}
+		t.Run(test.name, func(t *testing.T) {
+			ctx := ContextWithSubscription(context.Background(), test.sub)
+			actual, err := TenantIDFromContext(ctx)
+			assertError(t, actual, test.expected, err, test.expectErr)
+		})
+	}
+}
 
-			if actual != test.expected {
-				t.Errorf("expected %s, got %s", test.expected, actual)
-			}
+func assertError(t *testing.T, actual string, expected string, err error, expectErr bool) {
+	if err != nil {
+		if !expectErr {
+			t.Errorf("expected err to be nil, got %v", err)
 		}
+		return
+	}
+
+	if expectErr {
+		t.Error("expected err to be non-nil")
+	}
+
+	if actual != expected {
+		t.Errorf("expected %s, got %s", expected, actual)
 	}
 }
