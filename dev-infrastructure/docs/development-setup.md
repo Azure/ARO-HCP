@@ -32,7 +32,7 @@ There are a few variants to chose from when creating an AKS cluster:
 1. Access private AKS clusters with:
 
    ```bash
-   az aks command invoke --resource-group ${RESOURCE_GROUP} --name aro-hcp-cluster-001 --command "kubectl get ns"
+   az aks command invoke --resource-group ${RESOURCE_GROUP} --name CLUSTER_NAME --command "kubectl get ns"
    ```
 
    Docs: https://learn.microsoft.com/en-us/azure/aks/access-private-cluster?tabs=azure-cli
@@ -40,8 +40,9 @@ There are a few variants to chose from when creating an AKS cluster:
 1. Access public AKS clusters with:
 
    ```bash
+   AKSCONFIG=svc-cluster make aks.admin-access  # one time
    AKSCONFIG=svc-cluster make aks.kubeconfig
-   KUBECONFIG=aks.kubeconfig kubectl get ns
+   KUBECONFIG=${HOME}/.kube/${AKSCONFIG}.kubeconfig kubectl get ns
    ```
 
 1. Access cluter via the Azure portal or via `az aks command invoke`
