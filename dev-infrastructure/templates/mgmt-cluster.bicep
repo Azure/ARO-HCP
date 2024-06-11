@@ -25,6 +25,10 @@ param kubernetesVersion string
 @description('Istio control plane version to use with AKS')
 param istioVersion string
 
+@description('The name of the keyvault for AKS.')
+@maxLength(24)
+param aksKeyVaultName string
+
 @description('List of workload identities to create and their required values')
 param workloadIdentities array
 
@@ -34,11 +38,21 @@ param deployMaestroConsumer bool
 @description('Namespace to deploy the Maestro Consumer to.')
 param maestroNamespace string
 
-@description('The OneCertV2 domain to use to use for the Maestro certificate.')
-param maestroCertDomain string?
+@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
+param maestroCertDomain string
+
+@description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
+@maxLength(24)
+param maestroKeyVaultName string
+
+@description('The name of the managed identity that will manage certificates in maestros keyvault.')
+param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
 
 @description('The resourcegroups where the Maestro infrastructure is deployed.')
 param maestroInfraResourceGroup string
+
+@description('The name of the eventgrid namespace for Maestro.')
+param maestroEventGridNamespacesName string
 
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
@@ -55,21 +69,13 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'mgmt-cluster'
     workloadIdentities: workloadIdentities
+    aksKeyVaultName: aksKeyVaultName
   }
 }
 
 //
 //   M A E S T R O
 //
-
-module maestroConfig '../modules/maestro/maestro-config.bicep' = {
-  name: 'maestro-config'
-  params: {
-    location: location
-    resourceGroupName: maestroInfraResourceGroup
-    certificateDomain: maestroCertDomain
-  }
-}
 
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer && maestroInfraResourceGroup != '') {
   name: 'maestro-consumer'
@@ -87,10 +93,10 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployM
     namespace: maestroNamespace
     maestroInfraResourceGroup: maestroInfraResourceGroup
     maestroConsumerName: mgmtCluster.outputs.aksClusterName
-    maestroEventGridNamespaceName: maestroConfig.outputs.maestroEventGridNamespaceName
-    maestroKeyVaultName: maestroConfig.outputs.maestroKeyVaultName
-    maestroKeyVaultOfficerManagedIdentityName: maestroConfig.outputs.kvCertOfficerManagedIdentityName
-    maestroKeyVaultCertificateDomain: maestroConfig.outputs.maestroCertificateDomain
+    maestroEventGridNamespaceName: maestroEventGridNamespacesName
+    maestroKeyVaultName: maestroKeyVaultName
+    maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
+    maestroKeyVaultCertificateDomain: maestroCertDomain
     location: location
   }
 }

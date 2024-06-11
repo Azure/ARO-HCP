@@ -6,9 +6,14 @@ param vnetAddressPrefix = '10.132.0.0/14'
 param subnetPrefix = '10.132.8.0/21'
 param podSubnetPrefix = '10.132.64.0/18'
 param enablePrivateCluster = false
+param aksKeyVaultName = take('aks-kv-mgmt-cluster-${uniqueString(currentUserId)}', 24)
 param persist = false
 param deployMaestroConsumer = false
 param maestroNamespace = 'maestro'
+param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
+param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
+param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
+
 param workloadIdentities = items({
   maestro_wi: {
     uamiName: 'maestro-consumer'

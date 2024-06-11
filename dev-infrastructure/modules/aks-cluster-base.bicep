@@ -22,6 +22,9 @@ param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
 
+@maxLength(24)
+param aksKeyVaultName string
+
 // Local Params
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
 param dnsPrefix string = aksClusterName
@@ -70,7 +73,7 @@ resource aks_pod_nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
 
 resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   location: location
-  name: take('aks-kv-${clusterType}-${uniqueString(currentUserId)}', 24)
+  name: aksKeyVaultName
   tags: {
     resourceGroup: resourceGroup().name
   }
