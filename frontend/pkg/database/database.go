@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	clustersContainer = "Clusters"
-	subsContainer     = "Subscriptions"
-	billingContainer  = "Billing"
-	asyncContainer    = "AsyncOperations"
+	clustersContainer  = "Clusters"
+	nodePoolsContainer = "NodePools"
+	subsContainer      = "Subscriptions"
+	billingContainer   = "Billing"
+	asyncContainer     = "AsyncOperations"
 )
 
 var ErrNotFound = errors.New("DocumentNotFound")
@@ -32,6 +33,10 @@ type DBClient interface {
 	// DeleteClusterDoc deletes an HCPOpenShiftClusterDocument from the database given the resourceID and containing
 	// subscriptionID of a Microsoft.RedHatOpenshift/HcpOpenShiftClusters resource.
 	DeleteClusterDoc(ctx context.Context, resourceID string, subscriptionID string) error
+
+	GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error)
+	SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error
+	DeleteNodePoolDoc(ctx context.Context, resourceID string) error
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
 	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
@@ -175,6 +180,19 @@ func (d *CosmosDBClient) DeleteClusterDoc(ctx context.Context, resourceID string
 		return err
 	}
 	return nil
+}
+
+func (d *CosmosDBClient) GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error) {
+	panic("implement me")
+}
+
+func (d *CosmosDBClient) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error {
+	panic("implement me")
+}
+
+// DeleteNodePoolDoc removes a NodePool document from the DB using resource ID
+func (d *CosmosDBClient) DeleteNodePoolDoc(ctx context.Context, resourceID string) error {
+	panic("implement me")
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID

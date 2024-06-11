@@ -7,7 +7,23 @@ type HCPOpenShiftClusterDocument struct {
 	ID           string          `json:"id,omitempty"`
 	Key          string          `json:"key,omitempty"`
 	PartitionKey string          `json:"partitionKey,omitempty"`
-	ClusterID    string          `json:"clusterid,omitempty"`
+	ClusterID    string          `json:"clusterId,omitempty"`
+	SystemData   *arm.SystemData `json:"systemData,omitempty"` // TODO: Should CS store this?
+
+	// Values provided by Cosmos after doc creation
+	ResourceID  string `json:"_rid,omitempty"`
+	Self        string `json:"_self,omitempty"`
+	ETag        string `json:"_etag,omitempty"`
+	Attachments string `json:"_attachments,omitempty"`
+	Timestamp   int    `json:"_ts,omitempty"`
+}
+
+// NodePoolDocument represents an HCP OpenShift NodePool document.
+type NodePoolDocument struct {
+	ID           string          `json:"id,omitempty"`
+	Key          string          `json:"key,omitempty"`
+	PartitionKey string          `json:"partitionKey,omitempty"`
+	NodePoolID   string          `json:"nodePoolId,omitempty"`
 	SystemData   *arm.SystemData `json:"systemData,omitempty"` // TODO: Should CS store this?
 
 	// Values provided by Cosmos after doc creation

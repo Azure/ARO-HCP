@@ -3,6 +3,7 @@ package frontend
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -47,6 +48,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(ctx context.Context, systemDat
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
+			// ProvisioningState: cluster.State(), // TODO: align with OCM on ProvisioningState
 			Spec: api.ClusterSpec{
 				Version: api.VersionProfile{
 					ID:                cluster.Version().ID(),
@@ -173,4 +175,89 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		return nil, err
 	}
 	return cluster, nil
+}
+
+func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.SystemData, np *cmv1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+	nodePool := &api.HCPOpenShiftClusterNodePool{
+		TrackedResource: arm.TrackedResource{}, // TODO: Implement
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			// ProvisioningState: np.Status(), // TODO: Align with OCM on aligning with ProvisioningState
+			Spec: api.NodePoolSpec{
+				Version: api.VersionProfile{
+					ID:                np.Version().ID(),
+					ChannelGroup:      np.Version().ChannelGroup(),
+					AvailableUpgrades: np.Version().AvailableUpgrades(),
+				},
+				Platform: api.NodePoolPlatformProfile{
+					SubnetID:               np.Subnet(),
+					VMSize:                 np.AzureNodePool().VMSize(),
+					DiskStorageAccountType: np.AzureNodePool().OSDiskStorageAccountType(),
+					AvailabilityZone:       np.AvailabilityZone(),
+					EncryptionAtHost:       false, // TODO: Not implemented in OCM
+					DiskEncryptionSetID:    "",    // TODO: Not implemented in OCM
+					EphemeralOSDisk:        np.AzureNodePool().EphemeralOSDiskEnabled(),
+				},
+				Replicas:   int32(np.Replicas()),
+				AutoRepair: np.AutoRepair(),
+				Autoscaling: api.NodePoolAutoscaling{
+					Min: int32(np.Autoscaling().MinReplica()),
+					Max: int32(np.Autoscaling().MaxReplica()),
+				},
+				Labels:        np.Labels(),
+				TuningConfigs: np.TuningConfigs(),
+			},
+		},
+	}
+
+	// TODO: Ask OCM if we can get OSDiskSizeGibibytes to an int
+	diskSizeGB, err := strconv.Atoi(np.AzureNodePool().OSDiskSizeGibibytes())
+	if err != nil {
+		return nil, fmt.Errorf("could not convert node pool OSDiskSizeGibibytes %s: %w", np.AzureNodePool().OSDiskSizeGibibytes(), err)
+	}
+	nodePool.Properties.Spec.Platform.DiskSizeGB = int32(diskSizeGB)
+
+	taints := make([]*api.Taint, len(np.Taints()))
+	for i, t := range np.Taints() {
+		taints[i] = &api.Taint{
+			Effect: api.Effect(t.Effect()),
+			Key:    t.Key(),
+			Value:  t.Value(),
+		}
+	}
+	nodePool.Properties.Spec.Taints = taints
+
+	return nodePool, nil
+}
+
+func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShiftClusterNodePool) (*cmv1.NodePool, error) {
+	azureNodepool := cmv1.NewAzureNodePool().
+		VMSize(nodepool.Properties.Spec.Platform.VMSize).
+		ResourceName(nodepool.Name).
+		EphemeralOSDiskEnabled(nodepool.Properties.Spec.Platform.EphemeralOSDisk).
+		OSDiskSizeGibibytes(strconv.Itoa(int(nodepool.Properties.Spec.Platform.DiskSizeGB))).
+		OSDiskStorageAccountType(nodepool.Properties.Spec.Platform.DiskStorageAccountType)
+
+	npBuilder := cmv1.NewNodePool().
+		AutoRepair(nodepool.Properties.Spec.AutoRepair).
+		Autoscaling(cmv1.NewNodePoolAutoscaling().
+			MinReplica(int(nodepool.Properties.Spec.Autoscaling.Min)).
+			MaxReplica(int(nodepool.Properties.Spec.Autoscaling.Max))).
+		Labels(nodepool.Properties.Spec.Labels).
+		Replicas(int(nodepool.Properties.Spec.Replicas)).
+		Subnet(nodepool.Properties.Spec.Platform.SubnetID).
+		TuningConfigs(nodepool.Properties.Spec.TuningConfigs...).
+		Version(cmv1.NewVersion().
+			ID(nodepool.Properties.Spec.Version.ID).
+			ChannelGroup(nodepool.Properties.Spec.Version.ChannelGroup).
+			AvailableUpgrades(nodepool.Properties.Spec.Version.AvailableUpgrades...)).
+		AzureNodePool(azureNodepool)
+
+	for _, t := range nodepool.Properties.Spec.Taints {
+		npBuilder = npBuilder.Taints(cmv1.NewTaint().
+			Effect(string(t.Effect)).
+			Key(t.Key).
+			Value(t.Value))
+	}
+
+	return npBuilder.Build()
 }
