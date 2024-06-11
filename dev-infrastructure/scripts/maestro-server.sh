@@ -8,7 +8,7 @@ oc process --local -f https://raw.githubusercontent.com/openshift-online/maestro
 oc process --local -f https://raw.githubusercontent.com/openshift-online/maestro/main/templates/service-template-aro-hcp.yml \
     IMAGE_REGISTRY=quay.io \
     IMAGE_REPOSITORY=redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro \
-    IMAGE_TAG=0ba050b00ef480cf2da6bd937a0ca3711c51644d \
+    IMAGE_TAG=ae149df618cb0812d2072b20658a9cff84c087eb \
     DB_SSLMODE=disable \
     ENABLE_HTTPS=false \
     DB_SECRET_NAME=maestro-db \

@@ -184,6 +184,9 @@ resource maestroServerPublishTopicspace 'Microsoft.EventGrid/namespaces/topicSpa
       'sources/maestro/consumers/+/sourceevents'
     ]
   }
+  dependsOn: [
+    maestroServerSubscribeTopicspace // this dependency prevents concurrent topicspace updates
+  ]
 }
 
 // ... and grant the maestro server client permission to publish to the topic space
@@ -219,6 +222,9 @@ resource maestroConsumersSubscribeTopicspace 'Microsoft.EventGrid/namespaces/top
       'sources/maestro/consumers/\${client.attributes.consumer_name}/sourceevents'
     ]
   }
+  dependsOn: [
+    maestroServerPublishTopicspace // this dependency prevents concurrent topicspace updates
+  ]
 }
 
 // ... and grant the maestro consumer client group permission to subscribe to the topic space
@@ -241,6 +247,9 @@ resource maestroConsumersPublishTopicspace 'Microsoft.EventGrid/namespaces/topic
       'sources/maestro/consumers/\${client.attributes.consumer_name}/agentevents'
     ]
   }
+  dependsOn: [
+    maestroConsumersSubscribeTopicspace // this dependency prevents concurrent topicspace updates
+  ]
 }
 
 // ... and grant the maestro consumer client group permission to publish to the topic space
