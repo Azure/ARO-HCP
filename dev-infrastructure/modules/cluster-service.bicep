@@ -16,7 +16,8 @@ param aksClusterName string
 @description('The namespace where CS will be hosted.')
 param namespace string
 
-var postgresServerName = 'cs-${location}-${uniqueString(resourceGroup().name)}'
+@description('The name of the Postgres server for CS')
+param postgresServerName string
 
 resource postgresAdminManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${postgresServerName}-db-admin-msi'

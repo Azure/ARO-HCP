@@ -17,6 +17,7 @@ param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
 param deployCsInfra = false
 param csNamespace = 'cluster-service'
+param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 param workloadIdentities = items({
   frontend_wi: {
     uamiName: 'frontend'

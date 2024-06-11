@@ -67,6 +67,10 @@ param deployCsInfra bool
 @description('The namespace where CS resources will be deployed.')
 param csNamespace string
 
+@description('The name of the Postgres server for CS')
+@maxLength(60)
+param csPostgresServerName string
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -153,6 +157,7 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
     aksClusterName: svcCluster.outputs.aksClusterName
     namespace: csNamespace
     location: location
+    postgresServerName: csPostgresServerName
     clusterServiceManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'cluster-service'
