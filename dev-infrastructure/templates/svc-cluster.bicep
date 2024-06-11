@@ -25,6 +25,10 @@ param kubernetesVersion string
 @description('Istio control plane version to use with AKS')
 param istioVersion string
 
+@description('The name of the keyvault for AKS.')
+@maxLength(24)
+param aksKeyVaultName string
+
 // TODO: When the work around workload identity for the RP is finalized, change this to true
 @description('disableLocalAuth for the ARO HCP RP CosmosDB')
 param disableLocalAuth bool
@@ -41,11 +45,21 @@ param deployMaestroInfra bool
 @description('The namespace where the maestro resources will be deployed.')
 param maestroNamespace string
 
-@description('The OneCertV2 domain to use to use for the maestro certificate.')
-param maestroCertDomain string?
+@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
+param maestroCertDomain string
+
+@description('The name of the eventgrid namespace for Maestro.')
+param maestroEventGridNamespacesName string
+
+@description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
+@maxLength(24)
+param maestroKeyVaultName string
+
+@description('The name of the managed identity that will manage certificates in maestros keyvault.')
+param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
 
 @description('The resourcegroups where the Maestro infrastructure will be deployed.')
-param maestroInfraResourceGroup string
+param maestroInfraResourceGroup string = resourceGroup().name
 
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
@@ -62,6 +76,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
     workloadIdentities: workloadIdentities
+    aksKeyVaultName: aksKeyVaultName
   }
 }
 var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]
@@ -85,24 +100,15 @@ output frontend_mi_client_id string = frontendMI.uamiClientID
 //   M A E S T R O
 //
 
-module maestroConfig '../modules/maestro/maestro-config.bicep' = {
-  name: 'maestro-config'
-  params: {
-    location: location
-    resourceGroupName: maestroInfraResourceGroup
-    certificateDomain: maestroCertDomain
-  }
-}
-
 module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestroInfra) {
   name: 'maestro-infra'
   scope: resourceGroup(maestroInfraResourceGroup)
   params: {
-    eventGridNamespaceName: maestroConfig.outputs.maestroEventGridNamespaceName
+    eventGridNamespaceName: maestroEventGridNamespacesName
     location: location
     currentUserId: currentUserId
-    maestroKeyVaultName: maestroConfig.outputs.maestroKeyVaultName
-    kvCertOfficerManagedIdentityName: maestroConfig.outputs.kvCertOfficerManagedIdentityName
+    maestroKeyVaultName: maestroKeyVaultName
+    kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
   }
 }
 
@@ -120,10 +126,10 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
     )[0].uamiClientID
     namespace: maestroNamespace
     maestroInfraResourceGroup: maestroInfraResourceGroup
-    maestroEventGridNamespaceName: maestroConfig.outputs.maestroEventGridNamespaceName
-    maestroKeyVaultName: maestroConfig.outputs.maestroKeyVaultName
-    maestroKeyVaultOfficerManagedIdentityName: maestroConfig.outputs.kvCertOfficerManagedIdentityName
-    maestroKeyVaultCertificateDomain: maestroConfig.outputs.maestroCertificateDomain
+    maestroEventGridNamespaceName: maestroEventGridNamespacesName
+    maestroKeyVaultName: maestroKeyVaultName
+    maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
+    maestroKeyVaultCertificateDomain: maestroCertDomain
     location: location
   }
   dependsOn: [
