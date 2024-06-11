@@ -61,6 +61,16 @@ param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-of
 @description('The resourcegroups where the Maestro infrastructure will be deployed.')
 param maestroInfraResourceGroup string = resourceGroup().name
 
+@description('Deploy ARO HCP CS Infrastructure if true')
+param deployCsInfra bool
+
+@description('The namespace where CS resources will be deployed.')
+param csNamespace string
+
+@description('The name of the Postgres server for CS')
+@maxLength(60)
+param csPostgresServerName string
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -135,4 +145,26 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
   dependsOn: [
     maestroInfra
   ]
+}
+
+//
+//   C L U S T E R   S E R V I C E
+//
+
+module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
+  name: 'cluster-service'
+  params: {
+    aksClusterName: svcCluster.outputs.aksClusterName
+    namespace: csNamespace
+    location: location
+    postgresServerName: csPostgresServerName
+    clusterServiceManagedIdentityPrincipalId: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'cluster-service'
+    )[0].uamiPrincipalID
+    clusterServiceManagedIdentityName: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'cluster-service'
+    )[0].uamiName
+  }
 }

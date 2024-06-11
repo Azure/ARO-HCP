@@ -26,9 +26,10 @@ lint:
 	done
 
 rg:
-	az group create \
+	@az group create \
   		--name $(RESOURCEGROUP)  \
-  		--location $(LOCATION)
+  		--location $(LOCATION) \
+		--output none
 
 cluster: rg
 ifndef AKSCONFIG
@@ -64,6 +65,12 @@ ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
 	@scripts/aks-admin-access.sh $(RESOURCEGROUP)
+
+cs-out-of-cluster-db-access: rg
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	@scripts/current-user-pg-access.sh $(RESOURCEGROUP) "cs-"
 
 aks.kubeconfig:
 ifndef AKSCONFIG

@@ -15,7 +15,9 @@ param maestroNamespace = 'maestro'
 param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
 param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
-
+param deployCsInfra = false
+param csNamespace = 'cluster-service'
+param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 param workloadIdentities = items({
   frontend_wi: {
     uamiName: 'frontend'
@@ -26,6 +28,11 @@ param workloadIdentities = items({
     uamiName: 'maestro-server'
     namespace: maestroNamespace
     serviceAccountName: 'maestro'
+  }
+  cs_wi: {
+    uamiName: 'cluster-service'
+    namespace: csNamespace
+    serviceAccountName: 'cluster-service'
   }
 })
 // This parameter is always overriden in the Makefile
