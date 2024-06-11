@@ -10,6 +10,7 @@ var _ DBClient = &Cache{}
 // use CosmosDBClient instead. Call NewCache() to initialize a Cache correctly.
 type Cache struct {
 	cluster      map[string]*HCPOpenShiftClusterDocument
+	nodePool     map[string]*NodePoolDocument
 	subscription map[string]*SubscriptionDocument
 }
 
@@ -18,6 +19,7 @@ type Cache struct {
 func NewCache() DBClient {
 	return &Cache{
 		cluster:      make(map[string]*HCPOpenShiftClusterDocument),
+		nodePool:     make(map[string]*NodePoolDocument),
 		subscription: make(map[string]*SubscriptionDocument),
 	}
 }
@@ -41,6 +43,24 @@ func (c *Cache) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocum
 
 func (c *Cache) DeleteClusterDoc(ctx context.Context, resourceID string, subscriptionID string) error {
 	delete(c.cluster, resourceID)
+	return nil
+}
+
+func (c *Cache) GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error) {
+	if _, ok := c.nodePool[resourceID]; ok {
+		return c.nodePool[resourceID], nil
+	}
+
+	return nil, ErrNotFound
+}
+
+func (c *Cache) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error {
+	c.nodePool[doc.Key] = doc
+	return nil
+}
+
+func (c *Cache) DeleteNodePoolDoc(ctx context.Context, resourceID string) error {
+	delete(c.nodePool, resourceID)
 	return nil
 }
 
