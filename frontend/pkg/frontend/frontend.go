@@ -19,7 +19,6 @@ import (
 	"github.com/google/uuid"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -73,84 +72,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 		region:   region,
 	}
 
-	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(f.dbClient)
-
-	// Setup metrics middleware
-	metricsMiddleware := MetricsMiddleware{dbClient: dbClient, Emitter: emitter}
-
-	mux := NewMiddlewareMux(
-		MiddlewarePanic,
-		MiddlewareLogging,
-		MiddlewareBody,
-		MiddlewareLowercase,
-		MiddlewareSystemData,
-		MiddlewareValidateStatic,
-		metricsMiddleware.Metrics(),
-	)
-
-	// Unauthenticated routes
-	mux.HandleFunc("/", f.NotFound)
-	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz", "ready"), f.HealthzReady)
-	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
-	mux.HandleFunc(MuxPattern(http.MethodGet, PatternSubscriptions), f.ArmSubscriptionGet)
-	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionPut)
-
-	// Expose Prometheus metrics endpoint
-	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
-
-	// Authenticated routes
-	postMuxMiddleware := NewMiddleware(
-		MiddlewareLoggingPostMux,
-		MiddlewareValidateAPIVersion,
-		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
-	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceListBySubscription))
-	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceListByLocation))
-	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceListByResourceGroup))
-	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
-	mux.Handle(
-		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
-	mux.Handle(
-		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
-	mux.Handle(
-		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
-	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
-
-	// Nodepool Routes
-	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
-	mux.Handle(
-		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
-	mux.Handle(
-		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
-	mux.Handle(
-		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
-
-	// Exclude ARO-HCP API version validation for endpoints defined by ARM.
-	postMuxMiddleware = NewMiddleware(
-		MiddlewareLoggingPostMux,
-		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
-	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
-		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))
-
-	f.server.Handler = mux
+	f.server.Handler = f.routes()
 
 	return f
 }
