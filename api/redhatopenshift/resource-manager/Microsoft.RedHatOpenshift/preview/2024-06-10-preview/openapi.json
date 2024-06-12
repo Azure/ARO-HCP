@@ -1846,10 +1846,10 @@
           "type": "string",
           "description": "The VM size according to the documentation:\n- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes"
         },
-        "diskSizeGB": {
+        "diskSizeGiB": {
           "type": "integer",
           "format": "int32",
-          "description": "The OS disk size in GB"
+          "description": "The OS disk size in GiB"
         },
         "diskStorageAccountType": {
           "type": "string",

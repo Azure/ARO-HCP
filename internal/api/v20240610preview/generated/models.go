@@ -459,8 +459,8 @@ type NodePoolPlatformProfile struct {
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
 	DiskEncryptionSetID *string
 
-	// The OS disk size in GB
-	DiskSizeGB *int32
+	// The OS disk size in GiB
+	DiskSizeGiB *int32
 
 	// The type of the disk storage account
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
