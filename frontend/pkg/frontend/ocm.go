@@ -3,7 +3,6 @@ package frontend
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -194,7 +193,8 @@ func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.Syst
 					DiskStorageAccountType: np.AzureNodePool().OSDiskStorageAccountType(),
 					AvailabilityZone:       np.AvailabilityZone(),
 					EncryptionAtHost:       false, // TODO: Not implemented in OCM
-					DiskEncryptionSetID:    "",    // TODO: Not implemented in OCM
+					DiskSizeGiB:            int32(np.AzureNodePool().OSDiskSizeGibibytes()),
+					DiskEncryptionSetID:    "", // TODO: Not implemented in OCM
 					EphemeralOSDisk:        np.AzureNodePool().EphemeralOSDiskEnabled(),
 				},
 				Replicas:   int32(np.Replicas()),
@@ -208,13 +208,6 @@ func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.Syst
 			},
 		},
 	}
-
-	// TODO: Ask OCM if we can get OSDiskSizeGibibytes to an int
-	diskSizeGiB, err := strconv.Atoi(np.AzureNodePool().OSDiskSizeGibibytes())
-	if err != nil {
-		return nil, fmt.Errorf("could not convert node pool OSDiskSizeGibibytes %s: %w", np.AzureNodePool().OSDiskSizeGibibytes(), err)
-	}
-	nodePool.Properties.Spec.Platform.DiskSizeGiB = int32(diskSizeGiB)
 
 	taints := make([]*api.Taint, len(np.Taints()))
 	for i, t := range np.Taints() {
@@ -234,7 +227,7 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 		VMSize(nodepool.Properties.Spec.Platform.VMSize).
 		ResourceName(nodepool.Name).
 		EphemeralOSDiskEnabled(nodepool.Properties.Spec.Platform.EphemeralOSDisk).
-		OSDiskSizeGibibytes(strconv.Itoa(int(nodepool.Properties.Spec.Platform.DiskSizeGiB))).
+		OSDiskSizeGibibytes(int(nodepool.Properties.Spec.Platform.DiskSizeGiB)).
 		OSDiskStorageAccountType(nodepool.Properties.Spec.Platform.DiskStorageAccountType)
 
 	npBuilder := cmv1.NewNodePool().
