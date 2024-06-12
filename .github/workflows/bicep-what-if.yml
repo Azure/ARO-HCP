@@ -9,6 +9,7 @@ on:
       - 'dev-infrastructure/**/*.bicep'
       - '.github/workflows/bicep-what-if.yml'
       - '.github/workflows/build-dev-acr.yml'
+      - '.github/workflows/build-dev-infra.yml'
 
 jobs:
   what-if:
