@@ -1,0 +1,65 @@
+---
+name: Build Dev Infrastructure
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'dev-infrastructure/**/*.bicep'
+      - '.github/workflows/bicep-what-if.yml'
+      - '.github/workflows/build-dev-acr.yml'
+      - '.github/workflows/build-dev-infra.yml'
+    types:
+      - closed
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  when_merged:
+    if: github.event.pull_request.merged == true
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        with:
+          fetch-depth: 1
+
+      - name: 'Az CLI login'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Deploy or Update'
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            RESOURCEGROUP="aro-hcp-dev"
+            cd dev-infrastructure/
+
+            az group create -g "${RESOURCEGROUP}" -l eastus
+
+            # service cluster
+            az deployment group \
+              --name "svc-cluster-${GITHUB_REF}" \
+              --resource-group "${RESOURCEGROUP}" \
+              --template-file templates/svc-cluster.bicep \
+              --parameters configurations/svc-cluster.bicepparam \
+              --parameters currentUserId="${GITHUB_ACTOR}" \
+              --parameters maestroInfraResourceGroup="${RESOURCEGROUP}"
+              --parameters persist="true"
+
+#            # management cluster
+#            az deployment group what-if \
+#              --name "mgmt-cluster-${GITHUB_REF}" \
+#              --resource-group "${RESOURCEGROUP}" \
+#              --template-file templates/mgmt-cluster.bicep \
+#              --parameters configurations/mgmt-cluster.bicepparam \
+#               --parameters currentUserId="${GITHUB_ACTOR}" \
+#               --parameters maestroInfraResourceGroup="${RESOURCEGROUP}"
+#               --parameters persist="true"
