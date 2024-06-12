@@ -15,34 +15,28 @@ import (
 const (
 	csCloudProvider    string = "azure"
 	csProductId        string = "aro"
+	resourceType       string = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 	csHypershifEnabled bool   = true
 	csMultiAzEnabled   bool   = true
 	csCCSEnabled       bool   = true
 )
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func (f *Frontend) ConvertCStoHCPOpenShiftCluster(ctx context.Context, systemData *arm.SystemData, cluster *cmv1.Cluster) (*api.HCPOpenShiftCluster, error) {
-	originalPath, err := OriginalPathFromContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not get original path: %w", err)
-	}
-	resourceID, err := azcorearm.ParseResourceID(originalPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse resource ID: %w", err)
-	}
-	resourceType, err := azcorearm.ParseResourceType(originalPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse resource type: %w", err)
-	}
+func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cluster *cmv1.Cluster) (*api.HCPOpenShiftCluster, error) {
+
+	resourceGroupName := cluster.Azure().ResourceGroupName()
+	resourceName := cluster.Azure().ResourceName()
+	subID := cluster.Azure().SubscriptionID()
+	resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s", subID, resourceGroupName, resourceType, resourceName)
 
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Location: cluster.Region().ID(),
 			Tags:     nil, // TODO: OCM should support cluster.Azure().Tags(),
 			Resource: arm.Resource{
-				ID:         resourceID.String(),
-				Name:       resourceID.Name,
-				Type:       resourceType.String(),
+				ID:         resourceID,
+				Name:       resourceName,
+				Type:       resourceType,
 				SystemData: systemData,
 			},
 		},

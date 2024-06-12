@@ -147,6 +147,40 @@ func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, req
 
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceListBySubscription", versionedInterface))
 
+	subscriptionId := request.PathValue(PathSegmentSubscriptionID)
+
+	query := fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
+	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	systemData := &arm.SystemData{} //Empty data until https://issues.redhat.com/browse/ARO-8002 is completed
+	var hcpCluster *api.HCPOpenShiftCluster
+	clusters := clustersListResponse.Items().Slice()
+	for _, cluster := range clusters {
+
+		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
+		resp, err := json.Marshal(versionedResource)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		_, err = writer.Write(resp)
+		if err != nil {
+			f.logger.Error(err.Error())
+		}
+	}
 	writer.WriteHeader(http.StatusOK)
 }
 
@@ -162,6 +196,39 @@ func (f *Frontend) ArmResourceListByLocation(writer http.ResponseWriter, request
 
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceListByLocation", versionedInterface))
 
+	location := request.PathValue(PageSegmentLocation)
+	query := fmt.Sprintf("region.id='%s'", location)
+	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	systemData := &arm.SystemData{} //Empty data until https://issues.redhat.com/browse/ARO-8002 is completed
+	var hcpCluster *api.HCPOpenShiftCluster
+	clusters := clustersListResponse.Items().Slice()
+	for _, cluster := range clusters {
+		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
+		resp, err := json.Marshal(versionedResource)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		_, err = writer.Write(resp)
+		if err != nil {
+			f.logger.Error(err.Error())
+		}
+	}
+
 	writer.WriteHeader(http.StatusOK)
 }
 
@@ -176,6 +243,40 @@ func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, re
 	}
 
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceListByResourceGroup", versionedInterface))
+
+	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	query := fmt.Sprintf("azure.resource_group_name='%s'", resourceGroupName)
+	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	systemData := &arm.SystemData{} //Empty data until https://issues.redhat.com/browse/ARO-8002 is completed
+	var hcpCluster *api.HCPOpenShiftCluster
+	clusters := clustersListResponse.Items().Slice()
+	for _, cluster := range clusters {
+
+		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
+		resp, err := json.Marshal(versionedResource)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		_, err = writer.Write(resp)
+		if err != nil {
+			f.logger.Error(err.Error())
+		}
+	}
 
 	writer.WriteHeader(http.StatusOK)
 }
@@ -215,7 +316,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(ctx, doc.SystemData, cluster.Body())
+	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(doc.SystemData, cluster.Body())
 	if err != nil {
 		// Should never happen currently
 		f.logger.Error(err.Error())
@@ -295,7 +396,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 		if csResp.Body() != nil {
-			hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(ctx, doc.SystemData, csResp.Body())
+			hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(doc.SystemData, csResp.Body())
 			if err != nil {
 				// Should never happen currently
 				f.logger.Error(err.Error())

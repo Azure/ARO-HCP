@@ -1,0 +1,31 @@
+{
+  "name": "klin-aro-hcp-2",
+  "product": {
+    "id": "aro"
+  },
+  "ccs": {
+    "enabled": true
+  },
+  "region": {
+    "id": "eastus"
+  },
+  "hypershift": {
+    "enabled": true
+  },
+  "multi_az": true,
+  "azure": {
+    "resource_name": "klin-test-name-2",
+    "subscription_id": "00000000-0000-0000-0000-000000000000",
+    "resource_group_name": "klin-test-rg-2",
+    "tenant_id": "klin-test-tenant",
+    "managed_resource_group_name": "klin-test-mrg",
+    "subnet_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/klin-test-rg-2/providers/Microsoft.Network/virtualNetworks/vnet/subnets/mySubnet",
+    "network_security_group_resource_id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/klin-test-rg-2/providers/Microsoft.Network/networkSecurityGroups/myNSG"
+  },
+  "properties": {
+    "provision_shard_id": "1"
+  },
+  "version": {
+    "id": "openshift-v4.15.11"
+  }
+}
