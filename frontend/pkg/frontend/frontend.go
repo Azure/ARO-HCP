@@ -463,7 +463,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subscriptionID))
-			writer.WriteHeader(http.StatusNoContent)
+			writer.WriteHeader(http.StatusNotFound)
 			return
 		} else {
 			f.logger.Error(err.Error())

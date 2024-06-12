@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"io"
 	"log/slog"
 	"net"
@@ -15,6 +13,8 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/database"
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func TestReadiness(t *testing.T) {
@@ -81,7 +81,7 @@ func TestSubscriptionsGET(t *testing.T) {
 		{
 			name:               "GET Subscription - No Doc",
 			subDoc:             nil,
-			expectedStatusCode: http.StatusNoContent,
+			expectedStatusCode: http.StatusNotFound,
 		},
 	}
 
