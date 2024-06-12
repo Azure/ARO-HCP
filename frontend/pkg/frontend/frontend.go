@@ -463,7 +463,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subscriptionID))
-			writer.WriteHeader(http.StatusNotFound)
+			writer.WriteHeader(http.StatusNoContent)
 			return
 		} else {
 			f.logger.Error(err.Error())
@@ -478,12 +478,12 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		arm.WriteInternalServerError(writer)
 		return
 	}
+
+	writer.WriteHeader(http.StatusOK)
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
-
-	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.Request) {
@@ -548,12 +548,12 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		arm.WriteInternalServerError(writer)
 		return
 	}
+
+	writer.WriteHeader(http.StatusCreated)
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
-
-	writer.WriteHeader(http.StatusCreated)
 }
 
 func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *http.Request) {
