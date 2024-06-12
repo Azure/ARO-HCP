@@ -566,9 +566,8 @@ model NodePoolPlatformProfile {
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
   vmSize: string;
 
-  /** The OS disk size in GB */
-  #suppress "@azure-tools/typespec-azure-core/casing-style" "The field needs to be indicate size in GB not in Gb"
-  diskSizeGB?: int32;
+  /** The OS disk size in GiB */
+  diskSizeGiB?: int32;
 
   /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types

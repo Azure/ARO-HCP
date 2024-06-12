@@ -210,11 +210,11 @@ func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.Syst
 	}
 
 	// TODO: Ask OCM if we can get OSDiskSizeGibibytes to an int
-	diskSizeGB, err := strconv.Atoi(np.AzureNodePool().OSDiskSizeGibibytes())
+	diskSizeGiB, err := strconv.Atoi(np.AzureNodePool().OSDiskSizeGibibytes())
 	if err != nil {
 		return nil, fmt.Errorf("could not convert node pool OSDiskSizeGibibytes %s: %w", np.AzureNodePool().OSDiskSizeGibibytes(), err)
 	}
-	nodePool.Properties.Spec.Platform.DiskSizeGB = int32(diskSizeGB)
+	nodePool.Properties.Spec.Platform.DiskSizeGiB = int32(diskSizeGiB)
 
 	taints := make([]*api.Taint, len(np.Taints()))
 	for i, t := range np.Taints() {
@@ -234,7 +234,7 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 		VMSize(nodepool.Properties.Spec.Platform.VMSize).
 		ResourceName(nodepool.Name).
 		EphemeralOSDiskEnabled(nodepool.Properties.Spec.Platform.EphemeralOSDisk).
-		OSDiskSizeGibibytes(strconv.Itoa(int(nodepool.Properties.Spec.Platform.DiskSizeGB))).
+		OSDiskSizeGibibytes(strconv.Itoa(int(nodepool.Properties.Spec.Platform.DiskSizeGiB))).
 		OSDiskStorageAccountType(nodepool.Properties.Spec.Platform.DiskStorageAccountType)
 
 	npBuilder := cmv1.NewNodePool().

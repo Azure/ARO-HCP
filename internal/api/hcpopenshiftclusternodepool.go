@@ -37,7 +37,7 @@ type NodePoolSpec struct {
 type NodePoolPlatformProfile struct {
 	SubnetID               string `json:"subnetId,omitempty"`
 	VMSize                 string `json:"vmSize,omitempty" validate:"required_for_put"`
-	DiskSizeGB             int32  `json:"diskSizeGB,omitempty"`
+	DiskSizeGiB            int32  `json:"diskSizeGiB,omitempty"`
 	DiskStorageAccountType string `json:"diskStorageAccountType,omitempty"`
 	AvailabilityZone       string `json:"availabilityZone,omitempty"`
 	EncryptionAtHost       bool   `json:"encryptionAtHost,omitempty"`
