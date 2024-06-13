@@ -1,5 +1,5 @@
 ---
-name: Build Dev Infrastructure
+name: Build Dev Infra
 on:
   pull_request:
     branches:
@@ -7,7 +7,6 @@ on:
     paths:
       - 'dev-infrastructure/**/*.bicep'
       - '.github/workflows/bicep-what-if.yml'
-      - '.github/workflows/build-dev-acr.yml'
       - '.github/workflows/build-dev-infra.yml'
     types:
       - closed
@@ -30,9 +29,9 @@ jobs:
       - name: 'Az CLI login'
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: 'Deploy or Update'
         uses: azure/cli@v2
@@ -42,11 +41,18 @@ jobs:
             RESOURCEGROUP="aro-hcp-dev"
             cd dev-infrastructure/
 
-            az group create -g "${RESOURCEGROUP}" -l eastus
+            az group create -g "${RESOURCEGROUP}" -l eastus --tags persist=true
+
+            # dev acr
+            az deployment group create \
+              --name "dev-acr-${GITHUB_RUN_ID}" \
+              --resource-group "${RESOURCEGROUP}" \
+              --template-file templates/dev-acr.bicep \
+              --parameters configurations/dev-acr.bicepparam
 
             # service cluster
-            az deployment group \
-              --name "svc-cluster-${GITHUB_REF}" \
+            az deployment group create \
+              --name "svc-cluster-${GITHUB_RUN_ID}" \
               --resource-group "${RESOURCEGROUP}" \
               --template-file templates/svc-cluster.bicep \
               --parameters configurations/svc-cluster.bicepparam \
@@ -55,11 +61,8 @@ jobs:
               --parameters persist="true"
 
 #            # management cluster
-#            az deployment group what-if \
-#              --name "mgmt-cluster-${GITHUB_REF}" \
+#            az deployment group create \
+#              --name "mgmt-cluster-${GITHUB_RUN_ID}" \
 #              --resource-group "${RESOURCEGROUP}" \
 #              --template-file templates/mgmt-cluster.bicep \
-#              --parameters configurations/mgmt-cluster.bicepparam \
-#               --parameters currentUserId="${GITHUB_ACTOR}" \
-#               --parameters maestroInfraResourceGroup="${RESOURCEGROUP}"
-#               --parameters persist="true"
+#              --parameters configurations/mgmt-cluster.bicepparam \              
