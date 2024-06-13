@@ -1,5 +1,5 @@
 @minLength(5)
-@maxLength(50)
+@maxLength(40)
 @description('Globally unique name of the Azure Container Registry')
 param acrName string
 
@@ -12,7 +12,7 @@ param acrSku string
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool
 
-resource acrResource 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
+resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
   location: location
   tags: {
@@ -23,6 +23,48 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-01-01-preview'
   }
   properties: {
     adminUserEnabled: false
+    anonymousPullEnabled: false
+    // Premium-only feature
+    // https://azure.microsoft.com/en-us/blog/azure-container-registry-mitigating-data-exfiltration-with-dedicated-data-endpoints/
+    dataEndpointEnabled: false
+    encryption: {
+      // The naming of this field is misleading - it disables encryption with a customer-managed key.
+      // Data in Azure Container Registry is encrypted, just with an Azure-managed key.
+      // https://learn.microsoft.com/en-us/azure/container-registry/tutorial-enable-customer-managed-keys#show-encryption-status
+      status: 'disabled'
+    }
+  }
+}
+
+// https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-overview
+resource acrPurgeTask 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' = {
+  name: '${acrName}-purge'
+  location: location
+  parent: acrResource
+  tags: {
+    persist: toLower(string(persist))
+  }
+  properties: {
+    agentConfiguration: {
+      cpu: 2
+    }
+    platform: {
+      architecture: 'amd64'
+      os: 'Linux'
+    }
+    step: {
+      encodedTaskContent: base64('acr purge --ago 7d')
+      type: 'EncodedTask'
+    }
+    timeout: 3600
+    trigger: {
+      timerTriggers: [
+        {
+          name: 'weekly'
+          schedule: '0 0 * * *'
+        }
+      ]
+    }
   }
 }
 
