@@ -45,7 +45,7 @@ jobs:
 
             # dev acr
             az deployment group \
-              --name "dev-acr-${GITHUB_REF}" \
+              --name "dev-acr-${GITHUB_RUN_ID}" \
               --resource-group "${RESOURCEGROUP}" \
               --template-file templates/dev-acr.bicep \
               --parameters configurations/dev-acr.bicepparam
