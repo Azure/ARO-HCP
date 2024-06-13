@@ -53,4 +53,5 @@ jobs:
               --parameters configurations/svc-cluster.bicepparam \
               --parameters currentUserId="${GITHUB_ACTOR}" \
               --parameters maestroInfraResourceGroup="${RESOURCEGROUP}" \
+              --parameters deployFrontendCosmos="true" \
               --parameters persist="true"
