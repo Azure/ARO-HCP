@@ -1,7 +1,14 @@
 #!/bin/bash
 set -e
 
-HCPDEVSUBSCRIPTION="ARO HCP E2E"
+HCPDEVSUBSCRIPTION=$1
+
+if [[ -z "$HCPDEVSUBSCRIPTION" ]]; then
+    echo "ERROR: Must provide Subscription Name"
+    echo "usage: create-application.sh '<SUBSCRIPTION_NAME>'"
+    exit 1
+fi
+
 az account set --name "${HCPDEVSUBSCRIPTION}"
 
 SUBSCRIPTION=$(az account show -o json | jq -r '.id')
