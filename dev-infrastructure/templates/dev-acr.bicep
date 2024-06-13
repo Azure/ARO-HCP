@@ -23,7 +23,6 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   }
   properties: {
     adminUserEnabled: false
-    anonymousPullEnabled: false
     // Premium-only feature
     // https://azure.microsoft.com/en-us/blog/azure-container-registry-mitigating-data-exfiltration-with-dedicated-data-endpoints/
     dataEndpointEnabled: false
