@@ -65,4 +65,4 @@ jobs:
 #              --name "mgmt-cluster-${GITHUB_RUN_ID}" \
 #              --resource-group "${RESOURCEGROUP}" \
 #              --template-file templates/mgmt-cluster.bicep \
-#              --parameters configurations/mgmt-cluster.bicepparam \              
+#              --parameters configurations/mgmt-cluster.bicepparam \
