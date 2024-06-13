@@ -41,10 +41,10 @@ jobs:
             RESOURCEGROUP="aro-hcp-dev"
             cd dev-infrastructure/
 
-            az group create -g "${RESOURCEGROUP}" -l eastus
+            az group create -g "${RESOURCEGROUP}" -l eastus --tags persist=true
 
             # dev acr
-            az deployment group \
+            az deployment group create \
               --name "dev-acr-${GITHUB_RUN_ID}" \
               --resource-group "${RESOURCEGROUP}" \
               --template-file templates/dev-acr.bicep \
