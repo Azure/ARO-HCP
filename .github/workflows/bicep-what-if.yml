@@ -38,25 +38,19 @@ jobs:
 
             az group create -g "${RESOURCEGROUP}" -l eastus --tags persist=true
 
+            # dev acr
+            az deployment group what-if \
+              --name "${GITHUB_RUN_ID}" \
+              --resource-group "${RESOURCEGROUP}" \
+              --template-file templates/dev-acr.bicep \
+              --parameters configurations/dev-acr.bicepparam
+
             # service cluster
             az deployment group what-if \
               --name "${GITHUB_RUN_ID}" \
               --resource-group "${RESOURCEGROUP}" \
               --template-file templates/svc-cluster.bicep \
               --parameters configurations/svc-cluster.bicepparam \
-              --parameters currentUserId="${GITHUB_ACTOR}"
-
-            # management cluster
-            az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
-              --resource-group "${RESOURCEGROUP}" \
-              --template-file templates/mgmt-cluster.bicep \
-              --parameters configurations/mgmt-cluster.bicepparam \
-              --parameters currentUserId="${GITHUB_ACTOR}"
-
-            # dev acr
-            az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
-              --resource-group "${RESOURCEGROUP}" \
-              --template-file templates/dev-acr.bicep \
-              --parameters configurations/dev-acr.bicepparam \
+              --parameters currentUserId="${GITHUB_ACTOR}" \
+              --parameters maestroInfraResourceGroup="${RESOURCEGROUP}" \
+              --parameters persist="true"
