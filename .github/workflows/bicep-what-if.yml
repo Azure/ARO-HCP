@@ -8,7 +8,6 @@ on:
     paths:
       - 'dev-infrastructure/**/*.bicep'
       - '.github/workflows/bicep-what-if.yml'
-      - '.github/workflows/build-dev-acr.yml'
       - '.github/workflows/build-dev-infra.yml'
 
 jobs:
@@ -37,7 +36,7 @@ jobs:
             RESOURCEGROUP="aro-hcp-dev"
             cd dev-infrastructure/
 
-            az group create -g "${RESOURCEGROUP}" -l eastus
+            az group create -g "${RESOURCEGROUP}" -l eastus --tags persist=true
 
             # service cluster
             az deployment group what-if \
