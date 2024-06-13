@@ -57,7 +57,7 @@ make undeploy-private
 
 Update a subscription state (Must be **Registered** for other calls to function)
 ```bash
-curl -X PUT localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0 --json '{"state":"Registered", "properties": { "tenantId": "00000000-0000-0000-0000-000000000000"}}'
+curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0" --json '{"state":"Registered", "properties": { "tenantId": "00000000-0000-0000-0000-000000000000"}}'
 ```
 
 List the Operations for the Provider
