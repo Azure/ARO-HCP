@@ -43,7 +43,7 @@ jobs:
 
             az group create -g "${RESOURCEGROUP}" -l eastus --tags persist=true
 
-            # dev acr
+            # dev Azure Container Registry (ACR)
             az deployment group create \
               --name "dev-acr-${GITHUB_RUN_ID}" \
               --resource-group "${RESOURCEGROUP}" \
@@ -57,7 +57,7 @@ jobs:
               --template-file templates/svc-cluster.bicep \
               --parameters configurations/svc-cluster.bicepparam \
               --parameters currentUserId="${GITHUB_ACTOR}" \
-              --parameters maestroInfraResourceGroup="${RESOURCEGROUP}"
+              --parameters maestroInfraResourceGroup="${RESOURCEGROUP}" \
               --parameters persist="true"
 
 #            # management cluster
