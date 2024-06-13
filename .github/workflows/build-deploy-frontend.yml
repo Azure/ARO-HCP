@@ -8,6 +8,11 @@ on:
       - '.github/workflows/build-deploy-frontend.yml'
       - 'frontend/**'
       - 'internal/**'
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
 
 jobs:
   build_push_frontend:
