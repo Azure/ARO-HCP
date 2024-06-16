@@ -13,7 +13,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/openshift-online/ocm-sdk-go v0.1.424
 	github.com/prometheus/client_golang v1.19.1
-	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/exp v0.0.0-20240409090435-93d18d7e34b8
 )
