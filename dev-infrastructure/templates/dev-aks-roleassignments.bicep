@@ -1,9 +1,8 @@
 // This is used to grant CI the ability to deploy resources into
 // dev AKS clusters. It should not be used in higher environments.
 param aksClusterName string
-param location string
-
-var githubActionsAppID = '3aa9b94b-acfc-4e7e-b952-158a174cb1bb'
+param location string = resourceGroup().location
+param githubActionsPrincipalID string
 
 // https://learn.microsoft.com/en-us/azure/aks/manage-azure-rbac#create-role-assignments-for-users-to-access-the-cluster
 // Azure Kubernetes Service RBAC Cluster Admin
@@ -20,9 +19,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' exis
 // az aks command invoke --resource-group hcp-standalone-mshen --name aro-hcp-cluster-001 --command "kubectl get ns"
 resource currentUserAksClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: aksCluster
-  name: guid(location, aksClusterName, aksClusterRbacClusterAdminRoleId, githubActionsAppID)
+  name: guid(location, aksClusterName, aksClusterRbacClusterAdminRoleId, githubActionsPrincipalID)
   properties: {
     roleDefinitionId: aksClusterRbacClusterAdminRoleId
-    principalId: githubActionsAppID
+    principalId: githubActionsPrincipalID
   }
 }

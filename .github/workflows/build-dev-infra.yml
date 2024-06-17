@@ -62,10 +62,11 @@ jobs:
               --parameters persist="true"
 
             SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
+
             # service cluster rolebindings
             az deployment group create \
               --name "svc-rolebindings-${GITHUB_RUN_ID}" \
               --resource-group "${RESOURCEGROUP}" \
               --template-file templates/dev-aks-roleassignments.bicep \
               --parameters aksClusterName=${SVC_CLUSTER_NAME} \
-              --parameters location="eastus"
+              --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
