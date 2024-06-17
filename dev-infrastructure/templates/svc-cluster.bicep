@@ -92,6 +92,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
   }
 }
+
+output aksClusterName string = svcCluster.outputs.aksClusterName
 var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]
 
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {

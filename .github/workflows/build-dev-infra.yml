@@ -61,9 +61,12 @@ jobs:
               --parameters deployFrontendCosmos="true" \
               --parameters persist="true"
 
-#            # management cluster
-#            az deployment group create \
-#              --name "mgmt-cluster-${GITHUB_RUN_ID}" \
-#              --resource-group "${RESOURCEGROUP}" \
-#              --template-file templates/mgmt-cluster.bicep \
-#              --parameters configurations/mgmt-cluster.bicepparam \
+            SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
+
+            # service cluster rolebindings
+            az deployment group create \
+              --name "svc-rolebindings-${GITHUB_RUN_ID}" \
+              --resource-group "${RESOURCEGROUP}" \
+              --template-file templates/dev-aks-roleassignments.bicep \
+              --parameters aksClusterName=${SVC_CLUSTER_NAME} \
+              --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
