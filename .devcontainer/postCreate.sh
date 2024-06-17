@@ -16,7 +16,7 @@ npm ci
 
 # Install the tsp cli
 # pinned to the last working version combination
-npm install -g @typespec/compiler@0.56.0
+npm install -g @typespec/compiler@0.57.0
 
 # Install azure/oav for validation of openapi and swagger example generation
 # https://github.com/Azure/oav
