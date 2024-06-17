@@ -1,6 +1,6 @@
 SHELL = /bin/bash
 COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
-ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
+ARO_HCP_BASE_IMAGE ?= devarohcp.azurecr.io
 ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
 # for deploying frontend into private aks cluster via invoke command
@@ -31,6 +31,28 @@ endif
 push: image
 	docker push ${ARO_HCP_FRONTEND_IMAGE}
 
+
+kustomize-update:
+	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
+	pushd deploy/overlays/dev;\
+	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
+			-g ${RESOURCEGROUP} \
+			-n ${DEPLOYMENTNAME} \
+			--query properties.outputs.frontend_mi_client_id.value);\
+	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name') DB_NAME=$${DB_NAME:-"none"};\
+	kustomize edit set configmap frontend-config \
+		--from-literal=DB_NAME="$${DB_NAME}" \
+		--from-literal=DB_URL="https://$${DB_NAME}.documents.azure.com:443/" \
+		--from-literal=FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
+		--from-literal=CURRENT_VERSION=${ARO_HCP_FRONTEND_IMAGE} \
+		--from-literal=REGION=${REGION}
+
+kustomize-deploy: kustomize-update
+	kubectl apply -k deploy/overlays/dev
+
+kustomize-undeploy:
+	kubectl delete -k deploy/overlays/dev
+
 deploy:
 	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
 	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
@@ -58,7 +80,7 @@ deploy-private:
 			-g ${RESOURCEGROUP} \
 			-n ${DEPLOYMENTNAME} \
 			--query properties.outputs.frontend_mi_client_id.value);\
-	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name' || echo "none");\			
+	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name' || echo "none");\
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \

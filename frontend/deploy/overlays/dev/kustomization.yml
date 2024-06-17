@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aro-hcp
+resources:
+- ../../base
+configMapGenerator:
+- behavior: create
+  literals:
+  - DB_URL=REPLACED_BY_KUSTOMIZE
+  - FRONTEND_MI_CLIENT_ID=REPLACED_BY_KUSTOMIZE
+  - CURRENT_VERSION=REPLACED_BY_KUSTOMIZE
+  - DB_NAME=REPLACED_BY_KUSTOMIZE
+  - REGION=REPLACED_BY_KUSTOMIZE
+  name: frontend-config
+  options:
+    disableNameSuffixHash: true
+replacements:
+- source:
+    fieldPath: data.CURRENT_VERSION
+    kind: ConfigMap
+    name: frontend-config
+  targets:
+  - fieldPaths:
+    - spec.template.spec.containers.[name=aro-hcp-frontend].image
+    select:
+      kind: Deployment
+      name: aro-hcp-frontend
+      namespace: aro-hcp
+- source:
+    fieldPath: data.FRONTEND_MI_CLIENT_ID
+    kind: ConfigMap
+    name: frontend-config
+  targets:
+  - fieldPaths:
+    - metadata.annotations.azure\.workload\.identity/client-id
+    select:
+      kind: ServiceAccount
+      name: frontend
+      namespace: aro-hcp
