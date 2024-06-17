@@ -1,8 +1,16 @@
 // Constants
 param aksClusterName string = take('aro-hcp-${clusterType}-${uniqueString(clusterType)}', 63)
-param agentMinCount int = 2
-param agentMaxCount int = 3
-param agentVMSize string = 'Standard_D2s_v3'
+
+// System agentpool spec(Infra)
+param systemAgentMinCount int = 2
+param systemAgentMaxCount int = 3
+param systemAgentVMSize string = 'Standard_D2s_v3'
+
+// User agentpool spec (Worker)
+param userAgentMinCount int = 2
+param userAgentMaxCount int = 3
+param userAgentVMSize string = 'Standard_D2s_v3'
+
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
 
@@ -32,7 +40,8 @@ param dnsPrefix string = aksClusterName
 @description('Disk size (in GB) to provision for each of the agent pool nodes. This value ranges from 0 to 1023. Specifying 0 will apply the default disk size for that agentVMSize.')
 @minValue(0)
 @maxValue(1023)
-param osDiskSizeGB int = 32
+param systemOsDiskSizeGB int = 32
+param userOsDiskSizeGB int = 32
 
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
@@ -263,14 +272,38 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         enableEncryptionAtHost: true
         enableFIPS: true
         osDiskType: 'Ephemeral'
-        osDiskSizeGB: osDiskSizeGB
-        count: agentMinCount
-        minCount: agentMinCount
-        maxCount: agentMaxCount
-        vmSize: agentVMSize
+        osDiskSizeGB: systemOsDiskSizeGB
+        count: systemAgentMinCount
+        minCount: systemAgentMinCount
+        maxCount: systemAgentMaxCount
+        vmSize: systemAgentVMSize
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
-        maxPods: 100
+        maxPods: 250
+        availabilityZones: [
+          '1'
+          '2'
+          '3'
+        ]
+      }
+      {
+        name: 'user'
+        osType: 'Linux'
+        osSKU: 'AzureLinux'
+        mode: 'User'
+        orchestratorVersion: kubernetesVersion
+        enableAutoScaling: true
+        enableEncryptionAtHost: true
+        enableFIPS: true
+        osDiskType: 'Ephemeral'
+        osDiskSizeGB: userOsDiskSizeGB
+        count: userAgentMinCount
+        minCount: userAgentMinCount
+        maxCount: userAgentMaxCount
+        vmSize: userAgentVMSize
+        vnetSubnetID: aksNodeSubnet.id
+        podSubnetID: aksPodSubnet.id
+        maxPods: 250
         availabilityZones: [
           '1'
           '2'
