@@ -33,7 +33,6 @@ push: image
 
 
 kustomize-update:
-	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
 	pushd deploy/overlays/dev;\
 	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
 			-g ${RESOURCEGROUP} \

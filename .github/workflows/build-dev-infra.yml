@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  when_merged:
+  deploy_update_infra:
     if: github.event.pull_request.merged == true
     permissions:
       id-token: 'write'
