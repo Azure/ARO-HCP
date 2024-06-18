@@ -279,7 +279,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         vmSize: systemAgentVMSize
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
-        maxPods: 250
+        maxPods: 100
         availabilityZones: [
           '1'
           '2'
