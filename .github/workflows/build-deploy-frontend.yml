@@ -94,7 +94,9 @@ jobs:
           cluster-name: ${{ steps.find_service_cluster.outputs.name }}
           use-kubelogin: 'true'
 
-      - name: Deploy Frontend
+      - name: 'Deploy Frontend'
+        env:
+          RESOURCEGROUP: aro-hcp-dev
         run: |
           cd frontend/
           make kustomize-deploy
