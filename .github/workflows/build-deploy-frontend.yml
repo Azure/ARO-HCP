@@ -1,9 +1,6 @@
 ---
 name: Build/Push Frontend Image
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -11,6 +8,11 @@ on:
       - '.github/workflows/build-deploy-frontend.yml'
       - 'frontend/**'
       - 'internal/**'
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
 
 jobs:
   build_push_frontend:
@@ -31,7 +33,7 @@ jobs:
           make image
 
       - name: 'Az CLI login'
-        if: github.event.push.ref == 'refs/heads/main'
+        if: github.event.pull_request.merged == true
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -40,7 +42,7 @@ jobs:
 
 
       - name: Push frontend container image
-        if: github.event.push.ref == 'refs/heads/main'
+        if: github.event.pull_request.merged == true
         env:
           ARO_HCP_IMAGE_ACR: devarohcp
         run: |
@@ -48,7 +50,7 @@ jobs:
           az acr login --name devarohcp
           make push
   deploy_frontend:
-    if: github.event.push.ref == 'refs/heads/main'
+    if: github.event.pull_request.merged == true
     needs:
       - build_push_frontend
     permissions:
