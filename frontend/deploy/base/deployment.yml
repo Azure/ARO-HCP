@@ -27,10 +27,7 @@ spec:
         - name: aro-hcp-frontend
           image: IMAGE_NAME
           imagePullPolicy: Always
-          args: [
-            "--use-cache",
-            "--clusters-service-url", "http://localhost:8000"
-          ]
+          args: ["--clusters-service-url", "http://localhost:8000"]
           env:
           - name: DB_NAME
             valueFrom:
