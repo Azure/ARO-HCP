@@ -3,8 +3,13 @@
 # Description
 The RP for the ARO-HCP project.
 
-
 ## Development setup
+
+For instructions on building out a dev environment for testing -- Review the [Dev Infrastructure](./dev-infrastructure/docs/development-setup.md) guide
+
+For instructions on building and testing Frontend -- Check out Frontend's [README](./frontend/README.md)
+
+## Remote Containers Development setup
 
 The setup is based on VSCode Remote Containers. See [here](https://code.visualstudio.com/docs/remote/containers) for more information.
 

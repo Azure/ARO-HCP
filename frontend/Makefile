@@ -54,7 +54,6 @@ kustomize-undeploy:
 	kubectl delete -k deploy/overlays/dev
 
 deploy:
-	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
 	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
 			-g ${RESOURCEGROUP} \
 			-n ${DEPLOYMENTNAME} \
@@ -67,14 +66,12 @@ deploy:
 		-p REGION=${REGION}| oc apply -f -
 
 undeploy:
-	@test "${RESOURCEGROUP}" != "" || (echo "RESOURCEGROUP must be defined" && exit 1)
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="null" \
 		-p REGION="null" | oc delete -f -
 
 deploy-private:
-	@test "${RESOURCEGROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCEGROUP and CLUSTER_NAME must be defined" && exit 1)
 	TMP_DEPLOY=$(shell mktemp);\
 	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
 			-g ${RESOURCEGROUP} \
@@ -89,7 +86,6 @@ deploy-private:
 	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl create -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 undeploy-private:
-	@test "${RESOURCEGROUP}" != "" && test "${CLUSTER_NAME}" != "" || (echo "RESOURCEGROUP and CLUSTER_NAME must be defined" && exit 1)
 	TMP_DEPLOY=$(shell mktemp);\
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
