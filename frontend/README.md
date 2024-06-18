@@ -12,7 +12,8 @@ make run
 
 ## Build the frontend container
 ```bash
-# Note: until the ACR location is defined, you must set the image base
+# Note: for testing changes, please use your own registry
+# versus pushing images to the DEV ACR
 export ARO_HCP_BASE_IMAGE="quay.io/QUAY_USERNAME"
 make image
 
@@ -20,6 +21,7 @@ make image
 make push
 
 # all in one option
+export ARO_HCP_BASE_IMAGE="quay.io/QUAY_USERNAME"
 make build-push
 ```
 
@@ -32,16 +34,18 @@ docker run -p 8443:8443 aro-hcp-frontend
 
 **In Cluster:**
 ```bash
-# Deploy
-make deploy
+### Using Kustomize -- Prefered as this is how DEV is updated
+# Requires kustomize CLI to be installed
+AKSCONFIG=svc-cluster make kustomize-deploy
+AKSCONFIG=svc-cluster make kustomize-undeploy
 
-# Undeploy
-make undeploy
+### Non-Kustomize -- eventually will be removed?
+AKSCONFIG=svc-cluster make deploy
+AKSCONFIG=svc-cluster make undeploy
 
 # If using a private cluster
-make deploy-private
-
-make undeploy-private
+AKSCONFIG=svc-cluster make deploy-private
+AKSCONFIG=svc-cluster make undeploy-private
 ```
 
 > To create a cluster, follow the instructions in [development-setup.md](../dev-infrastructure/docs/development-setup.md)
