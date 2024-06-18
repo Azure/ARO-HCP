@@ -286,30 +286,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
           '3'
         ]
       }
-      {
-        name: 'user'
-        osType: 'Linux'
-        osSKU: 'AzureLinux'
-        mode: 'User'
-        orchestratorVersion: kubernetesVersion
-        enableAutoScaling: true
-        enableEncryptionAtHost: true
-        enableFIPS: true
-        osDiskType: 'Ephemeral'
-        osDiskSizeGB: userOsDiskSizeGB
-        count: userAgentMinCount
-        minCount: userAgentMinCount
-        maxCount: userAgentMaxCount
-        vmSize: userAgentVMSize
-        vnetSubnetID: aksNodeSubnet.id
-        podSubnetID: aksPodSubnet.id
-        maxPods: 250
-        availabilityZones: [
-          '1'
-          '2'
-          '3'
-        ]
-      }
     ]
     networkProfile: {
       networkDataplane: 'cilium'
@@ -368,6 +344,35 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         ]
       }
     }
+  }
+}
+
+// additional agent pool for user workload
+resource userPool 'Microsoft.ContainerService/managedClusters/agentPools@2024-03-02-preview' = {
+  name: 'user'
+  parent: aksCluster
+  properties: {
+    osType: 'Linux'
+    osSKU: 'AzureLinux'
+    mode: 'User'
+    orchestratorVersion: kubernetesVersion
+    enableAutoScaling: true
+    enableEncryptionAtHost: true
+    enableFIPS: true
+    osDiskType: 'Ephemeral'
+    osDiskSizeGB: userOsDiskSizeGB
+    count: userAgentMinCount
+    minCount: userAgentMinCount
+    maxCount: userAgentMaxCount
+    vmSize: userAgentVMSize
+    vnetSubnetID: aksNodeSubnet.id
+    podSubnetID: aksPodSubnet.id
+    maxPods: 250
+    availabilityZones: [
+      '1'
+      '2'
+      '3'
+    ]
   }
 }
 
