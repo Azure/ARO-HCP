@@ -34,10 +34,10 @@ push: image
 
 kustomize-update:
 	pushd deploy/overlays/dev;\
-	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
+	FRONTEND_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
-			-n ${DEPLOYMENTNAME} \
-			--query properties.outputs.frontend_mi_client_id.value);\
+			-n frontend-${REGION} \
+			--query clientId);\
 	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name') DB_NAME=$${DB_NAME:-"none"};\
 	kustomize edit set configmap frontend-config \
 		--from-literal=DB_NAME="$${DB_NAME}" \
