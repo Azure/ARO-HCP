@@ -94,6 +94,7 @@ jobs:
           cluster-name: ${{ steps.find_service_cluster.outputs.name }}
           use-kubelogin: 'true'
 
-      - name: List namespaces
+      - name: Deploy Frontend
         run: |
-          kubectl get namespaces
+          cd frontend/
+          make kustomize-deploy
