@@ -145,7 +145,7 @@ jobs:
         env:
           RESOURCEGROUP: aro-hcp-dev
         run: |
-          curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux.tar.gz
+          curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.15.9/openshift-client-linux.tar.gz
           tar xzf openshift-client-linux.tar.gz
           sudo mv oc /usr/local/bin/oc
 
