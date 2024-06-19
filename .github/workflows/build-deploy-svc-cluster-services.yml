@@ -156,7 +156,7 @@ jobs:
           cluster-name: ${{ steps.find_service_cluster.outputs.name }}
           use-kubelogin: 'true'
 
-      - name: 'Deploy Frontend'
+      - name: 'Deploy Cluster Service'
         env:
           RESOURCEGROUP: aro-hcp-dev
         run: |
