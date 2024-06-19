@@ -106,7 +106,7 @@ jobs:
           cd frontend/
           make kustomize-deploy
   deploy_cluster_service:
-    if: github.event.pull_request.merged == true
+    #if: github.event.pull_request.merged == true
     permissions:
       id-token: 'write'
       contents: 'read'
