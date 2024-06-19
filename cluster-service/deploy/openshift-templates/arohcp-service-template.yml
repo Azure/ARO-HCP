@@ -1,0 +1,580 @@
+# This file contains an OpenShift template that creates all the objects needed
+# for a working installation of the clusters service.
+
+---
+
+apiVersion: v1
+kind: Template
+metadata:
+  name: clusters-service
+  annotations:
+    description: "Clusters Service"
+parameters:
+
+- name: NAMESPACE
+  description: The OpenShift Namespace where the resources will be created.
+  displayName: Namespace
+  required: true
+  value: cluster-service
+
+# TODO: This parameter isn't currently used, but kept to avoid failures in the
+# execution of saasherder. It will be removed once the version of the service
+# that doesn't use it is deployed to all environments.
+- name: DEBUG_PORT
+  value: ""
+
+- name: DEBUG_MAX_DURATION
+  description: Maximum allowed duration for /debug/pprof/ profiling requests, e.g. "30s" or "5m".  "0" means no limit.
+  value: "5m"
+
+- name: RUNTIME_MODE
+  description: Sets the runtime configuration mode for CS
+  value: "aro-hcp"
+
+- name: DEFAULT_EXPIRATION
+  description: Default expiration time assigned to any newly created cluster (e.g. 45m or 72h). 0 means no expiration.
+  value: "0"
+
+- name: MAXIMUM_EXPIRATION
+  description: Maximum expiration duration possible for any newly created cluster (e.g. 72h means the expiration date cannot be greater than 72h). 0 means no maximum expiration value possible.
+  value: "0"
+
+- name: FIRST_STALE_CLUSTER_NOTIFICATION
+  description: Duration since cluster creation after which the first notification for stale cluster should be sent.
+  value: "24h" # 1 day
+
+- name: SECOND_STALE_CLUSTER_NOTIFICATION
+  description: Duration since cluster creation after which the second notification for stale cluster should be sent. 
+  value: "600h" # 25 days
+
+- name: STALE_CLUSTER_AUTOCLEANUP_WINDOW
+  description: Duration after which a stale cluster can be cleaned up. 
+  value: "720h" # 30days
+
+- name: IMAGE_REGISTRY
+  description: Image registry.
+
+- name: IMAGE_REPOSITORY
+  description: Image repository.
+
+- name: IMAGE_TAG
+  description: Image tag.
+
+- name: LOG_LEVEL
+  description: Log verbosity level.
+  value: "debug"
+
+- name: REPLICAS
+  description: Number of replicas of the service to run.
+  value: "1"
+
+- name: JWKS_URL
+  description: Location of the JSON web key set used to verify tokens.
+  value: "http://localhost"
+
+- name: TOKEN_URL
+  description: Location of the service that issues JSON web tokens.
+  value: "http://localhost"
+
+- name: INSECURE
+  description: Disables TLS cert verification on authentication.
+  value: "false"
+
+- name: GATEWAY_URL
+  description: URL of the gateway.
+  value: "http://localhost"
+
+- name: CLIENT_SCOPES
+  description: Level of access that an app can request to a resource
+  value: "openid"
+
+- name: ENVIRONMENT
+  description: Environment associated with this instance.
+  value: "aro-hcp-dev"
+
+- name: FEDRAMP
+  description: Whether this environment runs in FedRAMP mode.
+  value: "true"
+
+- name: BACKPLANE_URL
+  description: |-
+      The URL of the Backplane API which is exposed via an endpoint and is dynamically consumed by the Backplane CLI.
+      Backplane CLI expects a URL with the following format https://api.<OCM environment>.backplane.<domain>
+      The <domain> part is specific to each deployment environment. The <OCM environment> part is optional.
+  # Note: this is defaulted to empty string and should be overriden in fedramp app-interface.
+  # This being an empty string, CS will send an empty string back via the /environment endpoint
+  # thus making the Backplane CLI failover to check if the backplane user has an environment variable BACKPLANE_URL set and use it instead.
+  value: ""
+
+- name: PROVISION_SHARD_CLUSTER_LIMIT
+  description: Provision shard limit of managed clusters.
+  value: "500"
+
+- name: FORCE_MIGRATION
+  description: If not empty clears the dirty flag and forces the given migration version.
+  value: ""
+
+- name: CLUSTER_ERROR_REPORT
+  description: If set to true, a cluster error will trigger a report.
+  value: "false"
+
+- name: MACHINE_POOL_MIGRATION_WORKER_PERIOD
+  description: Period between executions of day-1 machine pool migration worker. Useful time units are "m" or "h".
+  value: 1h
+
+- name: USER_DEFINED_DNS_BASE_DOMAIN
+  description: The name of the DNS base domain for creating a user defined domains.
+  value: "i1.devshift.org" # Note: this is defaulted to a commercial value. This should be overriden in fedramp app-interface
+
+- name: BATCH_PROCESSES_DRY_RUN
+  description: Signals batch processes step to run in dry run
+  value: "true"
+
+- name: BATCH_PROCESSES
+  description: Date identification of each batch process expected to be run. Comma separated sequence.
+  value: ""
+
+
+# These limits are based on the metrics collected in the production environment
+# over the last year. In particular the following Prometheus queries were used
+# to obtain the values:
+#
+# - For the memory request:
+#
+# max(
+#   quantile_over_time(
+#     0.5,
+#     container_memory_usage_bytes{
+#       cluster="app-sre",
+#       namespace="uhc-production",
+#       pod_name=~"^clusters-service-.*$",
+#       container_name="service"
+#     }
+#     [1w]
+#   )
+# )
+#
+# The result was exactly 88322048. Added a margin of 25% and rounded up to a
+# multiple of 50 MiB which results in 150 MiB.
+#
+# - For the memory limit:
+#
+# max(
+#   max_over_time(
+#     container_memory_usage_bytes{
+#       cluster="app-sre",
+#       namespace="uhc-production",
+#       pod_name=~"^clusters-service-.*$",
+#       container_name="service"
+#     }
+#     [1w]
+#   )
+# )
+#
+# The result was exactly 131502080. Added a margin of 25% and rounded up to a
+# multiple of 50 MiB which results in 200 MiB.
+#
+# - For the CPU request:
+#
+# max(
+#   quantile_over_time(
+#     0.5,
+#     pod_name:container_cpu_usage:sum{
+#       cluster="app-sre",
+#       namespace="uhc-production",
+#       pod_name=~"^clusters-service-.*$"
+#     }
+#     [1w]
+#   )
+# )
+#
+# The result was exactly 0.03117216095926307. Added a margin of 25% and rounded
+# up to a multiple of 0.05 cores, which results in 0.05 cores.
+#
+# - For the CPU limit:
+#
+# max(
+#   max_over_time(
+#     pod_name:container_cpu_usage:sum{
+#       cluster="app-sre",
+#       namespace="uhc-production",
+#       pod_name=~"^clusters-service-.*$"
+#     }
+#     [1w]
+#   )
+# )
+#
+# The result was exactly 0.2380057350296368. Added a margin of 25% and rounded
+# up to a multiple of 0.05 cores, which results in 0.3 cores.
+- name: MEMORY_REQUEST
+  description: Memory request.
+  value: "150Mi"
+- name: MEMORY_LIMIT
+  description: Memory limit.
+  value: "1Gi"
+- name: CPU_REQUEST
+  description: CPU request.
+  value: "50m"
+- name: CPU_LIMIT
+  description: CPU limit.
+  value: "1"
+
+objects:
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: cloud-resources-config
+    namespace: ${NAMESPACE}
+  data:
+    instance-types.yaml: |
+      instance_types:
+        - id: m5.2xlarge
+          name: m5.2xlarge - General purpose
+          cloud_provider_id: aws
+          cpu_cores: 8
+          memory: 34359738368
+          category: general_purpose
+          size: 2xlarge
+          ccs_only: true
+          generic_name: standard-8
+    cloud-regions.yaml: |
+      cloud_regions:
+        - id: eastus
+          cloud_provider_id: azure
+          display_name: Azure East US
+          supports_multi_az: true
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: cloud-resource-constraints-config
+    namespace: ${NAMESPACE}
+  data:
+    instance-type-constraints.yaml: |
+      instance_types:
+        - id: m5.2xlarge
+          enabled: true
+    cloud-region-constraints.yaml: |
+      cloud_regions:
+        - id: eastus
+          enabled: true
+          govcloud: false
+          ccs_only: false
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: cluster-proxy-service-config
+    namespace: ${NAMESPACE}
+  data:
+    config.yaml: |
+      # Hosts that should be added to noProxy for all clusters
+      noProxy: []
+      # Hosts that should be added to noProxy for AWS clusters
+      noProxy_aws: []
+      # Hosts that should be added to noProxy for GCP clusters
+      noProxy_gcp: []
+      # Readiness endpoints that verify proxy connectivity
+      readinessEndpoints:
+        - "https://api.openshift.com"
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: authentication
+    namespace: ${NAMESPACE}
+  data:
+    jwks.json: ""
+    acl.yml: ""
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: clusters-service
+    labels:
+      app: clusters-service
+    namespace: ${NAMESPACE}
+  data:
+    # This file contains the default OpenShift installer configuration. It
+    # will be read when a new cluster is created, and merged with the
+    # configuration dynamically generated by the service.
+    install-config.yaml: |
+      apiVersion: v1
+      kind: InstallConfig
+      imageContentSources:
+      - source: quay.io/openshift-release-dev/ocp-release
+        mirrors:
+        - quay.io/openshift-release-dev/ocp-release
+      - source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+        mirrors:
+        - quay.io/openshift-release-dev/ocp-v4.0-art-dev
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: region-constraints-config
+    namespace: ${NAMESPACE}
+  data:
+    config.yaml: |
+      cloud_providers:
+      - name: azure
+        regions:
+          - name: eastus
+            version_constraints:
+              min_version: 4.11.0
+
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: clusters-service
+    namespace: ${NAMESPACE}
+    labels:
+      app: clusters-service
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: clusters-service
+    namespace: ${NAMESPACE}
+    labels:
+      app: clusters-service
+  spec:
+    selector:
+      matchLabels:
+        app: clusters-service
+    replicas: ${{REPLICAS}}
+    template:
+      metadata:
+        labels:
+          app: clusters-service
+      spec:
+        serviceAccount: clusters-service
+        serviceAccountName: clusters-service
+        volumes:
+        - name: service
+          secret:
+            secretName: clusters-service
+        - name: shards
+          secret:
+            secretName: provision-shards
+        - name: rds
+          secret:
+            secretName: ocm-cs-db
+        - name: oidc
+          secret:
+            secretName: rh-oidc-s3-secret
+        - name: authentication
+          configMap:
+            name: authentication
+        - name: region-constraints
+          configMap:
+            name: region-constraints-config
+        - name: instance-types
+          configMap:
+            name: cloud-resources-config
+        - name: instance-type-constraints
+          configMap:
+            name: cloud-resource-constraints-config
+        - name: cloud-regions
+          configMap:
+            name: cloud-resources-config
+        - name: cloud-region-constraints
+          configMap:
+            name: cloud-resource-constraints-config
+        - name: proxy
+          configMap:
+            name: cluster-proxy-service-config
+        - name: config
+          configMap:
+            name: clusters-service
+        - name: mixin-pull-secret
+          secret:
+            secretName: hive-ci-global-pull-secret
+            optional: true
+        initContainers:
+        - name: init
+          image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - name: rds
+            mountPath: /secrets/rds
+          - name: service
+            mountPath: /secrets/service
+          command:
+          - /usr/local/bin/clusters-service
+          - init
+          - --db-host=@/secrets/rds/db.host
+          - --db-port=@/secrets/rds/db.port
+          - --db-name=@/secrets/rds/db.name
+          - --db-user=@/secrets/rds/db.user
+          - --db-password=@/secrets/rds/db.password
+          - --db-disable-tls=true
+          - --force-migration=${FORCE_MIGRATION}
+          - --batch-processes-dry-run=${BATCH_PROCESSES_DRY_RUN}
+          - --batch-processes=${BATCH_PROCESSES}
+        containers:
+        - name: service
+          image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - name: service
+            mountPath: /secrets/service
+          - name: shards
+            mountPath: /secrets/shards
+          - name: rds
+            mountPath: /secrets/rds
+          - name: authentication
+            mountPath: /configs/authentication
+          - name: region-constraints
+            mountPath: /configs/region-constraints
+          - name: proxy
+            mountPath: /configs/proxy
+          - name: config
+            mountPath: /configs/service
+          - name: mixin-pull-secret
+            mountPath: /secrets/mixin-pull-secret
+          - name: instance-types
+            mountPath: /configs/cloud-resources/instance-types.yaml
+            subPath: instance-types.yaml
+          - name: instance-type-constraints
+            mountPath: /configs/cloud-resource-constraints/instance-type-constraints.yaml
+            subPath: instance-type-constraints.yaml
+          - name: cloud-regions
+            mountPath: /configs/cloud-resources/cloud-regions.yaml
+            subPath: cloud-regions.yaml
+          - name: cloud-region-constraints
+            mountPath: /configs/cloud-resource-constraints/cloud-region-constraints.yaml
+            subPath: cloud-region-constraints.yaml
+          env:
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          command:
+          - /usr/local/bin/clusters-service
+          - serve
+          - --log-level=${LOG_LEVEL}
+          - --namespace=$(NAMESPACE)
+          - --runtime-mode=${RUNTIME_MODE}
+          - --default-expiration=${DEFAULT_EXPIRATION}
+          - --maximum-expiration=${MAXIMUM_EXPIRATION}
+          - --db-host=@/secrets/rds/db.host
+          - --db-port=@/secrets/rds/db.port
+          - --db-name=@/secrets/rds/db.name
+          - --db-user=@/secrets/rds/db.user
+          - --db-password=@/secrets/rds/db.password
+          - --db-disable-tls=true
+          - --gateway-url=${GATEWAY_URL}
+          - --client-id=@/secrets/service/client.id
+          - --client-secret=@/secrets/service/client.secret
+          - --client-scopes=${CLIENT_SCOPES}
+          - --user-defined-dns-base-domain=${USER_DEFINED_DNS_BASE_DOMAIN}
+          - --jwks-url=${JWKS_URL}
+          - --jwks-file=/configs/authentication/jwks.json
+          - --acl-file=/configs/authentication/acl.yml
+          - --token-url=${TOKEN_URL}
+          - --insecure=${INSECURE}
+          - --api-listener-network=tcp
+          - --api-listener-address=:8000
+          - --metrics-listener-network=tcp
+          - --metrics-listener-address=:8080
+          - --healthcheck-listener-network=tcp
+          - --healthcheck-listener-address=:8083
+          - --environment=${ENVIRONMENT}
+          - --fedramp=${FEDRAMP}
+          - --backplane-url=${BACKPLANE_URL}
+          - --provision-shards-config=/secrets/shards/config
+          - --install-config-file=/configs/service/install-config.yaml
+          - --proxy-config-file=/configs/proxy/config.yaml
+          - --aws-sts-policy-directory=/configs/policies
+          - --mixin-pull-secret-path=/secrets/mixin-pull-secret
+          - --region-constraints-config=/configs/region-constraints/config.yaml
+          - --instance-type-config=/configs/cloud-resources/instance-types.yaml
+          - --instance-type-constraints-config=/configs/cloud-resource-constraints/instance-type-constraints.yaml
+          - --cloud-region-config=/configs/cloud-resources/cloud-regions.yaml
+          - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
+
+          livenessProbe:
+            httpGet:
+              path: /api/clusters_mgmt/v1
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8083
+              scheme: HTTP
+              httpHeaders:
+              - name: User-Agent
+                value: Probe
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: ${MEMORY_REQUEST}
+              cpu: ${CPU_REQUEST}
+            limits:
+              memory: ${MEMORY_LIMIT}
+              cpu: ${CPU_LIMIT}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: clusters-service
+    namespace: ${NAMESPACE}
+    labels:
+      app: clusters-service
+      port: api
+    annotations:
+      "service.alpha.openshift.io/serving-cert-secret-name": clusters-service-tls-envoy
+  spec:
+    selector:
+      app: clusters-service
+    ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+
+# Services for diagnostic ports (not part of main service because we
+# don't want exposing them externally through same route).
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: clusters-service-metrics
+    namespace: ${NAMESPACE}
+    labels:
+      # {app, port} labels together identify this service for monitoring
+      app: clusters-service
+      port: metrics
+    annotations:
+      "service.alpha.openshift.io/serving-cert-secret-name": clusters-service-tls-metrics
+  spec:
+    selector:
+      app: clusters-service
+    ports:
+    - port: 8080
+      targetPort: 8080
+      name: metrics
+      protocol: TCP
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: clusters-service-healthcheck
+    namespace: ${NAMESPACE}
+    labels:
+      app: clusters-service
+      port: healthcheck
+  spec:
+    selector:
+      app: clusters-service
+    ports:
+    - port: 8083
+      targetPort: 8083
+      name: healthcheck
+      protocol: TCP
