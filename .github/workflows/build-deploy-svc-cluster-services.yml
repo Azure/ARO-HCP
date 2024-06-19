@@ -145,9 +145,9 @@ jobs:
         env:
           RESOURCEGROUP: aro-hcp-dev
         run: |
-          curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.15.9/openshift-client-linux.tar.gz
-          tar xzf openshift-client-linux.tar.gz
+          curl -sfLo - https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.15.9/openshift-client-linux.tar.gz | tar xzf -
           sudo mv oc /usr/local/bin/oc
+          chmod +x /usr/local/bin/oc
 
       - name: 'Setup kubectl for service cluster'
         uses: azure/aks-set-context@37037e33d3a2fc08abe40c887d81c3f6e1eb93b9 # v4.0.0
