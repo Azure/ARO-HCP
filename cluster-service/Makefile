@@ -17,3 +17,5 @@ deploy:
 	  -p IMAGE_REGISTRY=devarohcp.azurecr.io \
 	  -p IMAGE_REPOSITORY=uhc-clusters-service \
 	  -p IMAGE_TAG=1717599112 | oc apply -f -
+
+.PHONY: deploy
