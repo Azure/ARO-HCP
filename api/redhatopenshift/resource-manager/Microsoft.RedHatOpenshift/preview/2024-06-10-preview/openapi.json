@@ -242,8 +242,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           }
         ],
         "responses": {
@@ -289,8 +289,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           },
           {
             "name": "resource",
@@ -366,8 +366,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           },
           {
             "name": "properties",
@@ -440,8 +440,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           }
         ],
         "responses": {
@@ -504,8 +504,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           }
         ],
         "responses": {
@@ -553,8 +553,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           }
         ],
         "responses": {
@@ -602,8 +602,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           }
         ],
         "responses": {
@@ -654,8 +654,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           },
           {
             "name": "nodePoolName",
@@ -711,8 +711,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           },
           {
             "name": "nodePoolName",
@@ -798,8 +798,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           },
           {
             "name": "nodePoolName",
@@ -882,8 +882,8 @@
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 54,
+            "pattern": "^[a-zA-Z0-9-]{3,54}$"
           },
           {
             "name": "nodePoolName",
@@ -1186,6 +1186,8 @@
         "baseDomainPrefix": {
           "type": "string",
           "description": "BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.\nBaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources",
+          "maxLength": 15,
+          "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
           "x-ms-mutability": [
             "create"
           ]

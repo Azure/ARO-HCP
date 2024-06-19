@@ -20,9 +20,9 @@ namespace Microsoft.RedHatOpenshift;
 model HcpOpenShiftClusterResource
   is TrackedResource<HcpOpenShiftClusterProperties> {
   /** Name of HCP cluster */
-  @pattern("^[a-zA-Z0-9-]{3,24}$")
+  @pattern("^[a-zA-Z0-9-]{3,54}$")
   @minLength(3)
-  @maxLength(24)
+  @maxLength(54)
   @key("hcpOpenShiftClusterName") // sets the alternative name for the name propery
   @path
   @segment("hcpOpenShiftClusters")
@@ -41,6 +41,7 @@ model HcpOpenShiftClusterResource
 model HcpOpenShiftClusterNodePoolResource
   is TrackedResource<NodePoolProperties> {
   /** Name of HCP cluster */
+  //TODO: Figure out the correct length to put here
   @pattern("^[a-zA-Z0-9-]{3,24}$")
   @minLength(3)
   @maxLength(24)
@@ -168,6 +169,11 @@ model DnsProfile {
    * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
    * */
   @visibility("create")
+  @maxLength(15)
+  @pattern(
+    "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+    "Alphanumerics, underscores, and hyphens.  Must start and end with an alphanumeric."
+  )
   baseDomainPrefix: string;
 }
 
