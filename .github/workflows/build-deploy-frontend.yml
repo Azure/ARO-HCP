@@ -91,6 +91,11 @@ jobs:
         with:
           kubelogin-version: 'v0.1.3'
 
+      - name: 'Install oc'
+        uses: redhat-actions/oc-installer@35b60c3f9757ae4301521556e1b75ff6f59f8d7c # v1.2
+        with:
+          oc_version: '4.16'
+
       - name: 'Setup kubectl for service cluster'
         uses: azure/aks-set-context@37037e33d3a2fc08abe40c887d81c3f6e1eb93b9 # v4.0.0
         with:
