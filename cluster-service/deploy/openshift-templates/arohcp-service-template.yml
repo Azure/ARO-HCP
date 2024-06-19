@@ -44,11 +44,11 @@ parameters:
   value: "24h" # 1 day
 
 - name: SECOND_STALE_CLUSTER_NOTIFICATION
-  description: Duration since cluster creation after which the second notification for stale cluster should be sent. 
+  description: Duration since cluster creation after which the second notification for stale cluster should be sent.
   value: "600h" # 25 days
 
 - name: STALE_CLUSTER_AUTOCLEANUP_WINDOW
-  description: Duration after which a stale cluster can be cleaned up. 
+  description: Duration after which a stale cluster can be cleaned up.
   value: "720h" # 30days
 
 - name: IMAGE_REGISTRY
