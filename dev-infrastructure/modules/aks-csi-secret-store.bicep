@@ -45,7 +45,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' exis
 }
 
 module maestroCSISecretStoreConfig '../modules/aks-manifest.bicep' = {
-  name: '${deployment().name}-${csiSecProviderClassName}-aks-manifest'
+  name: '${deployment().name}-${csiSecProviderClassName}-manifest'
   params: {
     aksClusterName: aksClusterName
     manifests: [
