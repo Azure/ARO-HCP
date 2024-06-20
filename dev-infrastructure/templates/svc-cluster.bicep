@@ -90,6 +90,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     clusterType: 'svc-cluster'
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
+    deployUserAgentPool: false
   }
 }
 var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]

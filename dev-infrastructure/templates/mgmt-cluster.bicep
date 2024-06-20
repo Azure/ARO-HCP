@@ -70,6 +70,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     clusterType: 'mgmt-cluster'
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
+    deployUserAgentPool: true
   }
 }
 
