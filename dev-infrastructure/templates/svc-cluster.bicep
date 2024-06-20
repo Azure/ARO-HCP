@@ -121,7 +121,6 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestro
   params: {
     eventGridNamespaceName: maestroEventGridNamespacesName
     location: location
-    currentUserId: currentUserId
     maxClientSessionsPerAuthName: maxClientSessionsPerAuthName
     maestroKeyVaultName: maestroKeyVaultName
     kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName

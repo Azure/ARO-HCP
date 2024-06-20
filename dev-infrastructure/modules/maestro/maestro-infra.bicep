@@ -26,9 +26,6 @@ param eventGridNamespaceName string
 @description('The location of the EventGrid Namespace')
 param location string
 
-@description('An optional user ID that will get admin access for Key Vault. For dev purposes.')
-param currentUserId string
-
 @description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
 param maxClientSessionsPerAuthName int
 
@@ -96,25 +93,6 @@ resource kvManagedIdentityRoleAssignment 'Microsoft.Authorization/roleAssignment
     roleDefinitionId: keyVaultCertificateOfficerRoleId
     principalId: kvCertOfficerManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
-  }
-}
-
-//
-//  K E Y    V A U L T   A D M I N   F O R   D E V
-//
-
-var keyVaultAdminRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions/',
-  '00482a5a-887f-4fb3-b363-3b7fe8e74483'
-)
-
-resource keyVaultAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (length(currentUserId) > 0) {
-  scope: kv
-  name: guid(location, maestroKeyVaultName, keyVaultAdminRoleId, currentUserId)
-  properties: {
-    roleDefinitionId: keyVaultAdminRoleId
-    principalId: currentUserId
-    principalType: 'User'
   }
 }
 
