@@ -21,6 +21,9 @@ parameters:
     value: "none"
   - name: REGION
     required: true
+  - name: CLUSTERS_SERVICE_URL
+    required: true
+    value: "http://clusters-service.cluster-service.svc.cluster.local:8000"
 
 objects:
   - apiVersion: v1
@@ -67,7 +70,7 @@ objects:
               args: [
                 "--use-cache",
                 "--region", "${REGION}",
-                "--clusters-service-url", "http://localhost:8000"
+                "--clusters-service-url", "${CLUSTERS_SERVICE_URL}"
               ]
               env:
               - name: DB_NAME
