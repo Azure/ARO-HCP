@@ -187,3 +187,5 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
     scope: cosmosDbAccount.id
   }
 }
+
+output cosmosDBName string = name
