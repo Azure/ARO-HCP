@@ -92,4 +92,7 @@ undeploy-private:
 		-p REGION="null" > "$${TMP_DEPLOY}";\
 	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
+smoke-tests:
+	go test -v -count 1 ./utils/frontend_smoke_test.go
+
 .PHONY: frontend clean image deploy undeploy deploy-private undeploy-private
