@@ -1,0 +1,26 @@
+---
+apiVersion: v1
+kind: Template
+metadata:
+  name: maestro-ns
+parameters:
+
+  - name: NAMESPACE
+    description: The OpenShift Namespace where the resources will be created.
+    displayName: Namespace
+    required: true
+    value: maestro
+
+  - name: ISTIO_VERSION
+    description: The version of Istio to use for this namespace
+    displayName: Istio Version
+    required: true
+
+objects:
+
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ${NAMESPACE}
+      labels:
+        istio.io/rev: ${ISTIO_VERSION}
