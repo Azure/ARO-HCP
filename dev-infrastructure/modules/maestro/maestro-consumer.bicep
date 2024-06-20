@@ -76,7 +76,7 @@ module maestroConfigMap '../aks-manifest.bicep' = {
 // access certificates stored in KeyVault
 
 module maestroCSISecretStoreConfig '../aks-csi-secret-store.bicep' = {
-  name: '${deployment().name}-csi-secret-store-manifest'
+  name: '${deployment().name}-csi-secret-store'
   params: {
     aksClusterName: aksClusterName
     clientId: maestroServerManagedIdentityClientId

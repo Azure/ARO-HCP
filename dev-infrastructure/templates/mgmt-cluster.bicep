@@ -78,7 +78,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
 //
 
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer && maestroInfraResourceGroup != '') {
-  name: 'maestro-consumer'
+  name: 'maestro-consumer-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()
   params: {
     aksClusterName: mgmtCluster.outputs.aksClusterName
