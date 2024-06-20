@@ -7,6 +7,7 @@ param systemAgentMaxCount int = 3
 param systemAgentVMSize string = 'Standard_D2s_v3'
 
 // User agentpool spec (Worker)
+param deployUserAgentPool bool = false
 param userAgentMinCount int = 2
 param userAgentMaxCount int = 3
 param userAgentVMSize string = 'Standard_D2s_v3'
@@ -348,7 +349,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
 }
 
 // additional agent pool for user workload
-resource userPool 'Microsoft.ContainerService/managedClusters/agentPools@2024-03-02-preview' = {
+resource userPool 'Microsoft.ContainerService/managedClusters/agentPools@2024-02-01' = if (deployUserAgentPool) {
   name: 'user'
   parent: aksCluster
   properties: {
