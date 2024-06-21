@@ -208,7 +208,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	cluster, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Get().Send()
+	cluster, err := f.GetCSCluster(doc.ClusterID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("cluster not found in clusters-service: %v", err))
 		writer.WriteHeader(http.StatusNoContent)
@@ -288,7 +288,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	var hcpCluster *api.HCPOpenShiftCluster
 	var csResp *cmv1.ClusterGetResponse
 	if doc.ClusterID != "" {
-		csResp, err = f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Get().Send()
+		csResp, err = f.GetCSCluster(doc.ClusterID)
 		if err != nil {
 			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
@@ -352,7 +352,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	req, err := f.conn.ClustersMgmt().V1().Clusters().Add().Body(newCsCluster).Send()
+	req, err := f.PostCSCluster(newCsCluster)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -415,7 +415,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	}
 
 	if doc.ClusterID != "" {
-		_, err = f.conn.ClustersMgmt().V1().Clusters().Cluster(doc.ClusterID).Delete().Send()
+		_, err = f.DeleteCSCluster(doc.ClusterID)
 		if err != nil {
 			f.logger.Error(fmt.Sprintf("failed to delete cluster %s: %v", doc.ClusterID, err))
 			arm.WriteInternalServerError(writer)

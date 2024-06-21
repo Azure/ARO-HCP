@@ -176,6 +176,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 	return cluster, nil
 }
 
+// ConvertCStoNodepool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
 func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.SystemData, np *cmv1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{}, // TODO: Implement
@@ -222,6 +223,7 @@ func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.Syst
 	return nodePool, nil
 }
 
+// BuildCSNodepool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object
 func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShiftClusterNodePool) (*cmv1.NodePool, error) {
 	azureNodepool := cmv1.NewAzureNodePool().
 		VMSize(nodepool.Properties.Spec.Platform.VMSize).
@@ -253,4 +255,31 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 	}
 
 	return npBuilder.Build()
+}
+
+// GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
+func (f *Frontend) GetCSCluster(clusterID string) (*cmv1.ClusterGetResponse, error) {
+	cluster, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Get().Send()
+	if err != nil {
+		return nil, err
+	}
+	return cluster, nil
+}
+
+// PostCSCluster creates and sends a POST request to create a cluster in Clusters Service
+func (f *Frontend) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.ClustersAddResponse, error) {
+	resp, err := f.conn.ClustersMgmt().V1().Clusters().Add().Body(cluster).Send()
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
+func (f *Frontend) DeleteCSCluster(clusterID string) (*cmv1.ClusterDeleteResponse, error) {
+	resp, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Delete().Send()
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
