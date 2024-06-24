@@ -10,8 +10,8 @@ on:
       - main
     paths:
       - 'api/**'
-      - 'package.json'
-      - 'package-lock.json'
+      - 'api/package.json'
+      - 'api/package-lock.json'
 
 jobs:
   typescript_api_spec_validation:
@@ -30,14 +30,9 @@ jobs:
         with:
           node-version: 'v20.12.0'
 
-      - name: Install tsp
-        run: npm install -g @typespec/compiler@0.55.0
-
       - name: Install dependencies
         run: npm ci
-
-      - name: Install autorest
-        run: npm install -g autorest@3.7.1
+        working-directory: './api'
 
       - name: make generate
         run: make generate

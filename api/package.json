@@ -8,5 +8,14 @@
     "@typespec/openapi3": "^0.57.0",
     "@typespec/rest": "^0.57.0",
     "@typespec/versioning": "^0.57.0"
+  },
+  "scripts": {
+    "format-check": "tsp format --check \"**/*.tsp\"",
+    "format": "tsp format \"**/*.tsp\"",
+    "generate": "tsp compile redhatopenshift/HcpCluster --warn-as-error && autorest --verbose autorest-config.yaml"
+  },
+  "devDependencies": {
+    "@typespec/compiler": "^0.57.0",
+    "autorest": "^3.7.1"
   }
 }

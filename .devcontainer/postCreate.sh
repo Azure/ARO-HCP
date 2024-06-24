@@ -14,17 +14,10 @@ echo "source /usr/share/bash-completion/completions/git" >> ~/.bashrc
 
 npm ci
 
-# Install the tsp cli
-# pinned to the last working version combination
-npm install -g @typespec/compiler@0.57.0
-
 # Install azure/oav for validation of openapi and swagger example generation
 # https://github.com/Azure/oav
+# TODO: if we need to, we should move this out of here and into `api/package.json`
 npm install -g oav@3.3.4
-
-# Install the autorest used to generate golang and python clients
-# it uses the dotnet, which is installed via feature in devcontainer.json
-npm install -g autorest@3.7.1
 
 # Install the golang-lint
 # binary will be $(go env GOPATH)/bin/golangci-lint
