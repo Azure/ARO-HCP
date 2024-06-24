@@ -7,13 +7,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 const (
@@ -72,11 +73,6 @@ func TestPutSubscriptions(t *testing.T) {
 
 		})
 	}
-
-	err = runner.cleanup()
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 // smokeTest captures the data needed to test the functionality of the RP
@@ -102,6 +98,7 @@ type smokeTestRunner struct {
 func newRunner() (*smokeTestRunner, error) {
 	dbName := os.Getenv("DB_NAME")
 	dbURL := os.Getenv("DB_URL")
+	tempContainer := os.Getenv("TEMP_CONTAINER")
 
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
@@ -113,7 +110,7 @@ func newRunner() (*smokeTestRunner, error) {
 		return nil, err
 	}
 
-	cClient, err := client.NewContainer(dbName, "Subscriptions")
+	cClient, err := client.NewContainer(dbName, tempContainer)
 	if err != nil {
 		return nil, err
 	}
