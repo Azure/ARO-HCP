@@ -56,9 +56,8 @@ jobs:
           make push
 
   deploy_frontend:
-    if: github.event.pull_request.merged == true
-    needs:
-      - build_push_frontend
+    # if: github.event.pull_request.merged == true
+    needs: build_push_frontend
     permissions:
       id-token: 'write'
       contents: 'read'
@@ -100,24 +99,23 @@ jobs:
           cluster-name: ${{ steps.find_service_cluster.outputs.name }}
           use-kubelogin: 'true'
 
-      - name: 'Deploy Frontend'
-        env:
-          RESOURCEGROUP: aro-hcp-dev
-        run: |
-          cd frontend/
-          make kustomize-deploy
+      # - name: 'Deploy Frontend'
+      #   env:
+      #     RESOURCEGROUP: aro-hcp-dev
+      #   run: |
+      #     cd frontend/
+      #     make kustomize-deploy
 
   frontend_smoketests:
-    if: github.event.pull_request.merged == true
-    needs:
-      - deploy_frontend
+    # if: github.event.pull_request.merged == true
+    needs: deploy_frontend
     permissions:
       id-token: 'write'
       contents: 'read'
     runs-on: 'ubuntu-latest'
     outputs:
-      db_name: ${{ steps.get_db_config.db_name}}
-      db_url: ${{ steps.get_db_config.db_url}}
+      db_name: ${{ steps.get_db_config.db_name }}
+      db_url: ${{ steps.get_db_config.db_url }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -130,6 +128,17 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: 'Find service cluster'
+        id: find_service_cluster
+        uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+        env:
+          RESOURCEGROUP: aro-hcp-dev
+        with:
+          azcliversion: latest
+          inlineScript: |
+            echo "name=$(az aks list --resource-group "${RESOURCEGROUP}" --output tsv --query "[?tags.clusterType == 'svc-cluster'].name | [0]")" >> $GITHUB_OUTPUT
+
+
       - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
 
       - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.2
@@ -140,7 +149,7 @@ jobs:
         uses: azure/aks-set-context@37037e33d3a2fc08abe40c887d81c3f6e1eb93b9 # v4.0.0
         with:
           resource-group: 'aro-hcp-dev'
-          cluster-name: ${{ needs.deploy_frontend.outputs.service_cluster_name}}
+          cluster-name: ${{ steps.find_service_cluster.outputs.name }}
           use-kubelogin: 'true'
 
       - name: 'Get DB Config'
@@ -151,13 +160,16 @@ jobs:
         with:
           azcliversion: latest
           inlineScript: |
-            echo "db_name=${RESOURCEGROUP}-rp-cosmos" >> $GITHUB_OUTPUT
-            echo "db_url=$(az cosmosdb show -n $DB_NAME -g $RESOURCEGROUP --query documentEndpoint -o tsv)" >> $GITHUB_OUTPUT
+            db_name="${RESOURCEGROUP}-rp-cosmos"
+            db_url="$(az cosmosdb show -n $db_name -g $RESOURCEGROUP --query documentEndpoint -o tsv)"
+
+            echo "db_name=$db_name" >> $GITHUB_OUTPUT
+            echo "db_url=$db_url" >> $GITHUB_OUTPUT
 
       - name: 'Run Smoketests'
         env:
-          DB_NAME: ${{ steps.get_db_config.db_name}}
-          DB_URL: ${{ steps.get_db_config.db_url}}
+          DB_NAME: ${{ steps.get_db_config.outputs.db_name }}
+          DB_URL: ${{ steps.get_db_config.outputs.db_url }}
         run: |
           cd frontend/
           kubectl port-forward -n aro-hcp svc/aro-hcp-frontend :8443 &
