@@ -5,13 +5,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 )
@@ -43,11 +39,7 @@ func TestPutSubscriptions(t *testing.T) {
 		},
 	}
 
-	runner, err := newRunner()
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	runner := newRunner()
 	for _, test := range testSuite {
 		t.Run(test.name, func(t *testing.T) {
 			req, err := http.NewRequest(test.method, apiURL+test.resourceID, test.payload)
@@ -72,11 +64,6 @@ func TestPutSubscriptions(t *testing.T) {
 
 		})
 	}
-
-	err = runner.cleanup()
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 // smokeTest captures the data needed to test the functionality of the RP
@@ -93,36 +80,16 @@ type smokeTests []smokeTest
 
 // smokeTestRunner is a constructor to instantiate everything needed for testing including clean up
 type smokeTestRunner struct {
-	ctx      context.Context
-	client   http.Client
-	dbClient *azcosmos.ContainerClient
+	ctx    context.Context
+	client http.Client
 }
 
 // newRunner returns a new smokeTestRunner
-func newRunner() (*smokeTestRunner, error) {
-	dbName := os.Getenv("DB_NAME")
-	dbURL := os.Getenv("DB_URL")
-
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := azcosmos.NewClient(dbURL, cred, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	cClient, err := client.NewContainer(dbName, "Subscriptions")
-	if err != nil {
-		return nil, err
-	}
-
+func newRunner() *smokeTestRunner {
 	return &smokeTestRunner{
-		ctx:      context.Background(),
-		client:   http.Client{},
-		dbClient: cClient,
-	}, nil
+		ctx:    context.Background(),
+		client: http.Client{},
+	}
 }
 
 // testValidation is a post validation test ran after each test
@@ -142,66 +109,4 @@ func (s *smokeTestRunner) testValidation(t *testing.T, test smokeTest) func(t *t
 			t.Errorf("post test validation failed: expected %s, got %s", test.expect, string(body))
 		}
 	}
-}
-
-// getTestDocument fetches the document ID of the test document in Cosmos for clean up
-func (s *smokeTestRunner) getTestDocumentID() (string, error) {
-	var document map[string]interface{}
-
-	opt := azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{{Name: "@partitionKey", Value: testSubscription}},
-	}
-	pk := azcosmos.NewPartitionKeyString(testSubscription)
-	queryPager := s.dbClient.NewQueryItemsPager("SELECT * FROM c WHERE c.partitionKey = @partitionKey", pk, &opt)
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(s.ctx)
-		if err != nil {
-			return "", err
-		}
-
-		for _, item := range queryResponse.Items {
-			err = json.Unmarshal(item, &document)
-			if err != nil {
-				return "", err
-			}
-		}
-	}
-	if document != nil {
-		return fmt.Sprintf("%s", document["id"]), nil
-	}
-	return "", fmt.Errorf("document not found -- nothing to do")
-}
-
-// cleanup ensures the test document is removed from Cosmos for future testing
-func (s *smokeTestRunner) cleanup() error {
-	var document map[string]interface{}
-
-	opt := azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{{Name: "@partitionKey", Value: testSubscription}},
-	}
-	pk := azcosmos.NewPartitionKeyString(testSubscription)
-	queryPager := s.dbClient.NewQueryItemsPager("SELECT * FROM c WHERE c.partitionKey = @partitionKey", pk, &opt)
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(s.ctx)
-		if err != nil {
-			return err
-		}
-
-		for _, item := range queryResponse.Items {
-			err = json.Unmarshal(item, &document)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	if document != nil {
-		_, err := s.dbClient.DeleteItem(s.ctx, pk, fmt.Sprint(document["id"]), nil)
-		if err != nil {
-			return err
-		}
-
-	} else {
-		return fmt.Errorf("document not found -- nothing to do")
-	}
-	return nil
 }
