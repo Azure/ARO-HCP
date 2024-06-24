@@ -2,10 +2,9 @@ SHELL = /bin/bash
 
 .PHONY: generate
 generate: 
-	tsp format --check "**/*.tsp"
-	tsp compile redhatopenshift/HcpCluster --warn-as-error
-	autorest --verbose autorest-config.yaml 
+	npm run format-check
+	npm run generate
 
 .PHONY: fmt
 fmt:
-	tsp format "**/*.tsp"
+	npm run format
