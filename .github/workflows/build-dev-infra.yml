@@ -71,5 +71,5 @@ jobs:
               --resource-group "${RESOURCEGROUP}" \
               --template-file templates/dev-aks-roleassignments.bicep \
               --parameters aksClusterName=${SVC_CLUSTER_NAME} \
-              --parameters cosmosDBName=$(COSMOS_DB_NAME)
+              --parameters cosmosDBName=${COSMOS_DB_NAME} \
               --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
