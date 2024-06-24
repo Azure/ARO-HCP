@@ -70,7 +70,6 @@ type ConsoleProfile struct {
 // APIProfile represents a cluster API server configuration.
 type APIProfile struct {
 	URL        string     `json:"url,omitempty"        visibility:"read"        validate:"omitempty,url"`
-	IP         string     `json:"ip,omitempty"         visibility:"read"        validate:"omitempty,ipv4"`
 	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"required_for_put,enum_visibility"`
 }
 

@@ -230,10 +230,6 @@ model ApiProfile {
   @visibility("read")
   url: string;
 
-  /** ip address of the API server */
-  @visibility("read")
-  ip: string;
-
   /** should the API server be accessible from the internet */
   @visibility("create")
   visibility: Visibility;

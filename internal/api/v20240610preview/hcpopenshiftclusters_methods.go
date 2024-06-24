@@ -87,7 +87,6 @@ func newConsoleProfile(from *api.ConsoleProfile) *generated.ConsoleProfile {
 func newAPIProfile(from *api.APIProfile) *generated.APIProfile {
 	return &generated.APIProfile{
 		URL:        api.Ptr(from.URL),
-		IP:         api.Ptr(from.IP),
 		Visibility: api.Ptr(generated.Visibility(from.Visibility)),
 	}
 }
@@ -441,9 +440,6 @@ func (p *APIProfile) Normalize(out *api.APIProfile) {
 func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
 	if p.URL != nil {
 		out.URL = *p.URL
-	}
-	if p.IP != nil {
-		out.IP = *p.IP
 	}
 	if p.Visibility != nil {
 		out.Visibility = api.Visibility(*p.Visibility)
