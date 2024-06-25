@@ -9,6 +9,7 @@ RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
 CLUSTER_NAME ?=
 DEPLOYMENTNAME=$(RESOURCEGROUP)
 REGION ?= eastus
+NAMESPACE ?= aro-hcp
 
 frontend:
 	go build -o aro-hcp-frontend .
@@ -46,11 +47,26 @@ kustomize-update:
 		--from-literal=CURRENT_VERSION=${ARO_HCP_FRONTEND_IMAGE} \
 		--from-literal=REGION=${REGION}
 
-kustomize-deploy: kustomize-update
-	kubectl apply -k deploy/overlays/dev
+kustomize-update-gha:
+	pushd deploy/overlays/test;\
+	FRONTEND_MI_CLIENT_ID=$(shell az identity show \
+			-g ${RESOURCEGROUP} \
+			-n frontend-${REGION} \
+			--query clientId);\
+	kustomize edit set configmap frontend-config \
+		--from-literal=DB_NAME="${DB_NAME}" \
+		--from-literal=DB_URL="${DB_URL}" \
+		--from-literal=FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
+		--from-literal=CURRENT_VERSION=${ARO_HCP_FRONTEND_IMAGE} \
+		--from-literal=REGION=${REGION}
+
+kustomize-deploy:
+	kubectl create ns ${NAMESPACE}
+	kubectl apply -n ${NAMESPACE} -k deploy/overlays/dev
 
 kustomize-undeploy:
-	kubectl delete -k deploy/overlays/dev
+	kubectl delete -n ${NAMESPACE} -k deploy/overlays/dev && \
+	kubectl delete ns ${NAMESPACE}
 
 deploy:
 	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
