@@ -105,6 +105,7 @@
             RESOURCEGROUP: aro-hcp-dev
           run: |
             cd frontend/
+            make kustomize-update
             make kustomize-deploy
 
     deploy_cluster_service:
