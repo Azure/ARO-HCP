@@ -3,8 +3,6 @@
     "Actions": [
         "Microsoft.Resources/subscriptions/resourceGroups/read",
         "Microsoft.Resources/subscriptions/resourceGroups/write",
-        "Microsoft.Features/features/read",
-        "Microsoft.Features/providers/features/read",
         "Microsoft.Authorization/*/action"
     ]
 }
