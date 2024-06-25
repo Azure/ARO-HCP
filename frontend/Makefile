@@ -48,7 +48,7 @@ kustomize-update:
 		--from-literal=REGION=${REGION}
 
 kustomize-update-gha:
-	pushd deploy/overlays/test;\
+	pushd deploy/overlays/dev;\
 	FRONTEND_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend-${REGION} \
@@ -61,7 +61,8 @@ kustomize-update-gha:
 		--from-literal=REGION=${REGION}
 
 kustomize-deploy:
-	kubectl create ns ${NAMESPACE}
+	CHECK=$(shell kubectl get ns -o name ${NAMESPACE} 2>/dev/null);\
+	if [[ -z "$${CHECK}" ]]; then kubectl create ns ${NAMESPACE}; fi
 	kubectl apply -n ${NAMESPACE} -k deploy/overlays/dev
 
 kustomize-undeploy:
