@@ -70,7 +70,6 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(ctx context.Context, systemDat
 				},
 				API: api.APIProfile{
 					URL:        cluster.API().URL(),
-					IP:         "", // TODO: Unsure if OCM will support this field
 					Visibility: api.Visibility(cluster.API().Listening()),
 				},
 				FIPS:                          cluster.FIPS(),

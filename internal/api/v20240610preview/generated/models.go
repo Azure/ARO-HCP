@@ -14,9 +14,6 @@ type APIProfile struct {
 	// REQUIRED; should the API server be accessible from the internet
 	Visibility *Visibility
 
-	// READ-ONLY; ip address of the API server
-	IP *string
-
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 }

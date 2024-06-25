@@ -943,11 +943,6 @@
           "description": "URL endpoint for the API server",
           "readOnly": true
         },
-        "ip": {
-          "type": "string",
-          "description": "ip address of the API server",
-          "readOnly": true
-        },
         "visibility": {
           "$ref": "#/definitions/Visibility",
           "description": "should the API server be accessible from the internet",
@@ -958,7 +953,6 @@
       },
       "required": [
         "url",
-        "ip",
         "visibility"
       ]
     },

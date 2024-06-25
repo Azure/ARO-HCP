@@ -17,7 +17,6 @@ import (
 // MarshalJSON implements the json.Marshaller interface for type APIProfile.
 func (a APIProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "ip", a.IP)
 	populate(objectMap, "url", a.URL)
 	populate(objectMap, "visibility", a.Visibility)
 	return json.Marshal(objectMap)
@@ -32,9 +31,6 @@ func (a *APIProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "ip":
-				err = unpopulate(val, "IP", &a.IP)
-			delete(rawMsg, key)
 		case "url":
 				err = unpopulate(val, "URL", &a.URL)
 			delete(rawMsg, key)
