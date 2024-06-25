@@ -74,7 +74,7 @@ func (client *HcpOpenShiftClustersClient) AdminCredentials(ctx context.Context, 
 
 // adminCredentialsCreateRequest creates the AdminCredentials request.
 func (client *HcpOpenShiftClustersClient) adminCredentialsCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *HcpOpenShiftClustersClientAdminCredentialsOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/adminCredentials"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/adminCredentials"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -161,7 +161,7 @@ func (client *HcpOpenShiftClustersClient) createOrUpdate(ctx context.Context, re
 
 // createOrUpdateCreateRequest creates the CreateOrUpdate request.
 func (client *HcpOpenShiftClustersClient) createOrUpdateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, resource HcpOpenShiftClusterResource, options *HcpOpenShiftClustersClientBeginCreateOrUpdateOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -241,7 +241,7 @@ func (client *HcpOpenShiftClustersClient) deleteOperation(ctx context.Context, r
 
 // deleteCreateRequest creates the Delete request.
 func (client *HcpOpenShiftClustersClient) deleteCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *HcpOpenShiftClustersClientBeginDeleteOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -297,7 +297,7 @@ func (client *HcpOpenShiftClustersClient) Get(ctx context.Context, resourceGroup
 
 // getCreateRequest creates the Get request.
 func (client *HcpOpenShiftClustersClient) getCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *HcpOpenShiftClustersClientGetOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -362,7 +362,7 @@ func (client *HcpOpenShiftClustersClient) KubeConfig(ctx context.Context, resour
 
 // kubeConfigCreateRequest creates the KubeConfig request.
 func (client *HcpOpenShiftClustersClient) kubeConfigCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *HcpOpenShiftClustersClientKubeConfigOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/kubeConfig"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/kubeConfig"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -426,7 +426,7 @@ func (client *HcpOpenShiftClustersClient) NewListByResourceGroupPager(resourceGr
 
 // listByResourceGroupCreateRequest creates the ListByResourceGroup request.
 func (client *HcpOpenShiftClustersClient) listByResourceGroupCreateRequest(ctx context.Context, resourceGroupName string, options *HcpOpenShiftClustersClientListByResourceGroupOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters"
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -485,7 +485,7 @@ func (client *HcpOpenShiftClustersClient) NewListBySubscriptionPager(options *Hc
 
 // listBySubscriptionCreateRequest creates the ListBySubscription request.
 func (client *HcpOpenShiftClustersClient) listBySubscriptionCreateRequest(ctx context.Context, options *HcpOpenShiftClustersClientListBySubscriptionOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters"
+	urlPath := "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -519,7 +519,7 @@ func (client *HcpOpenShiftClustersClient) listBySubscriptionHandleResponse(resp 
 //   - properties - The resource properties to be updated.
 //   - options - HcpOpenShiftClustersClientBeginUpdateOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginUpdate
 //     method.
-func (client *HcpOpenShiftClustersClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterResourceUpdate, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*runtime.Poller[HcpOpenShiftClustersClientUpdateResponse], error) {
+func (client *HcpOpenShiftClustersClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterPatch, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*runtime.Poller[HcpOpenShiftClustersClientUpdateResponse], error) {
 	if options == nil || options.ResumeToken == "" {
 		resp, err := client.update(ctx, resourceGroupName, hcpOpenShiftClusterName, properties, options)
 		if err != nil {
@@ -541,7 +541,7 @@ func (client *HcpOpenShiftClustersClient) BeginUpdate(ctx context.Context, resou
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
-func (client *HcpOpenShiftClustersClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterResourceUpdate, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*http.Response, error) {
+func (client *HcpOpenShiftClustersClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterPatch, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*http.Response, error) {
 	var err error
 	const operationName = "HcpOpenShiftClustersClient.BeginUpdate"
 	ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, operationName)
@@ -563,8 +563,8 @@ func (client *HcpOpenShiftClustersClient) update(ctx context.Context, resourceGr
 }
 
 // updateCreateRequest creates the Update request.
-func (client *HcpOpenShiftClustersClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterResourceUpdate, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
+func (client *HcpOpenShiftClustersClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties HcpOpenShiftClusterPatch, options *HcpOpenShiftClustersClientBeginUpdateOptions) (*policy.Request, error) {
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}

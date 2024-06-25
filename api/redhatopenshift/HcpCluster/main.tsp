@@ -1,16 +1,11 @@
-import "@typespec/http";
-import "@typespec/rest";
 import "@typespec/versioning";
-import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
 
 import "./hcpCluster.tsp";
 import "./hcpVersions.tsp";
 
 using TypeSpec.Http;
-using TypeSpec.Rest;
 using TypeSpec.Versioning;
-using Azure.Core;
 using Azure.ResourceManager;
 
 /** Microsoft.RedHatOpenshift Resource Provider management API. */
@@ -18,8 +13,10 @@ using Azure.ResourceManager;
 @service({
   title: "Microsoft.RedHatOpenshift management service",
 })
-@versioned(Microsoft.RedHatOpenshift.Versions)
-namespace Microsoft.RedHatOpenshift;
+@versioned(Microsoft.RedHatOpenShift.Versions)
+namespace Microsoft.RedHatOpenShift;
+
+interface Operations extends Azure.ResourceManager.Operations {}
 
 /** The available API versions. */
 enum Versions {

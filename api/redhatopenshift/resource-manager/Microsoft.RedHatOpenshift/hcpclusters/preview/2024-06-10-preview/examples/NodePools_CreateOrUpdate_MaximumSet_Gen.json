@@ -5,23 +5,22 @@
     "api-version": "2024-06-10-preview",
     "subscriptionId": "F64FF5E2-2AD0-4E4D-A9D5-6E88511247A7",
     "resourceGroupName": "rgopenapi",
-    "hcpOpenShiftClusterName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
-    "nodePoolName": "Replace this value with a string matching RegExp ^[a-zA-Z0-9-]{3,24}$",
+    "hcpOpenShiftClusterName": "hcpCluster-name",
+    "nodePoolName": "nodePool-name",
     "resource": {
       "properties": {
         "spec": {
           "version": {
-            "id": "tbg",
-            "channelGroup": "rhhchgarryftdwzbadtwrzcbighms"
+            "channelGroup": "stable",
+            "id": "jlufyoivqzyxnqzwijozipxmgux"
           },
           "platform": {
             "subnetId": "afapulyhvjjg",
             "vmSize": "hfdapwwtchingr",
-            "diskSizeGB": 12,
+            "diskSizeGiB": 12,
             "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
             "availabilityZone": "mssxcjzxagdxoeuqydthwc",
             "encryptionAtHost": true,
-            "discEncryptionSetId": "rjasgujgzleldjwp",
             "ephemeralOsDisk": true
           },
           "replicas": 18,
@@ -31,10 +30,17 @@
             "max": 29
           },
           "labels": [
-            "ufrvhxdwltr"
+            {
+              "key": "release",
+              "value": "4.12"
+            }
           ],
           "taints": [
-            "yzmuazkxmfhksrjm"
+            {
+              "key": "iveofwsptzsxepyfirlfypshvkgzkpfdwrpreacacbcifrzpvmgmovnpmkeqxgvamtbwqfewlrnlcqcmbnqhdgvosyxazqxwtlcviveerkvdrveayeyvasngwjmrsnhyvmayzrndwahvuoocvbqjuscmybctzhrhbotipnrwhnkhejgiuanmidrdjetccddupjtvvztlbwlgdxgdwlhxdlluvcduh",
+              "value": "x",
+              "effect": "NoSchedule"
+            }
           ],
           "tuningConfigs": [
             "m"
@@ -54,18 +60,18 @@
           "provisioningState": "Succeeded",
           "spec": {
             "version": {
+              "channelGroup": "stable",
               "availableUpgrades": [
-                "jlufyoivqzyxnqzwijozipxmgux"
+                "4.12"
               ]
             },
             "platform": {
               "subnetId": "afapulyhvjjg",
               "vmSize": "hfdapwwtchingr",
-              "diskSizeGB": 12,
+              "diskSizeGiB": 12,
               "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
               "availabilityZone": "mssxcjzxagdxoeuqydthwc",
               "encryptionAtHost": true,
-              "discEncryptionSetId": "rjasgujgzleldjwp",
               "ephemeralOsDisk": true
             },
             "autoScaling": {
@@ -81,7 +87,7 @@
           "key7212": "uufkzlwqnoxdfihpqz"
         },
         "location": "mqewzbuvnyxnwbmir",
-        "id": "ogtjdgogxemijejkai",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",
         "name": "riywfucwvfwoepzliopnphdfjw",
         "type": "znmdhkzcopsephiyom",
         "systemData": {
@@ -103,18 +109,18 @@
           "provisioningState": "Succeeded",
           "spec": {
             "version": {
+              "channelGroup": "stable",
               "availableUpgrades": [
-                "jlufyoivqzyxnqzwijozipxmgux"
+                "4.12"
               ]
             },
             "platform": {
               "subnetId": "afapulyhvjjg",
               "vmSize": "hfdapwwtchingr",
-              "diskSizeGB": 12,
+              "diskSizeGiB": 12,
               "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
               "availabilityZone": "mssxcjzxagdxoeuqydthwc",
               "encryptionAtHost": true,
-              "discEncryptionSetId": "rjasgujgzleldjwp",
               "ephemeralOsDisk": true
             },
             "autoScaling": {
@@ -130,7 +136,7 @@
           "key7212": "uufkzlwqnoxdfihpqz"
         },
         "location": "mqewzbuvnyxnwbmir",
-        "id": "ogtjdgogxemijejkai",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",
         "name": "riywfucwvfwoepzliopnphdfjw",
         "type": "znmdhkzcopsephiyom",
         "systemData": {

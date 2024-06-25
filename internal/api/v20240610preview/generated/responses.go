@@ -7,10 +7,10 @@
 
 package generated
 
-// HcpClusterVersionOperationsClientListByLocationResponse contains the response from method HcpClusterVersionOperationsClient.NewListByLocationPager.
-type HcpClusterVersionOperationsClientListByLocationResponse struct {
-	// The response of a HcpOpenShiftVersions list operation.
-	HcpOpenShiftVersionsListResult
+// HcpClusterVersionsClientListByLocationResponse contains the response from method HcpClusterVersionsClient.NewListByLocationPager.
+type HcpClusterVersionsClientListByLocationResponse struct {
+	// The response of a HcpOpenShiftVersionResource list operation.
+	HcpOpenShiftVersionResourceListResult
 }
 
 // HcpOpenShiftClustersClientAdminCredentialsResponse contains the response from method HcpOpenShiftClustersClient.AdminCredentials.

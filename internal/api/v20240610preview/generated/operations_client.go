@@ -65,7 +65,7 @@ func (client *OperationsClient) NewListPager(options *OperationsClientListOption
 
 // listCreateRequest creates the List request.
 func (client *OperationsClient) listCreateRequest(ctx context.Context, options *OperationsClientListOptions) (*policy.Request, error) {
-	urlPath := "/providers/Microsoft.RedHatOpenshift/operations"
+	urlPath := "/providers/Microsoft.RedHatOpenShift/operations"
 	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	if err != nil {
 		return nil, err

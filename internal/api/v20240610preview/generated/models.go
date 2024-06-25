@@ -23,21 +23,30 @@ type APIProfile struct {
 
 // ClaimProfile - External auth claim profile
 type ClaimProfile struct {
-	// REQUIRED; Claim
+	// REQUIRED; Claim name of the external profile
 	Claim *string
 
-	// REQUIRED; Prefix
+	// REQUIRED; Prefix for the claim external profile
 	Prefix *string
 
 	// REQUIRED; Prefix policy
 	PrefixPolicy *string
 }
 
+// ClusterPatchSpec - The patchable cluster specification
+type ClusterPatchSpec struct {
+	// Disable user workload monitoring
+	DisableUserWorkloadMonitoring *bool
+
+	// Openshift cluster proxy configuration
+	Proxy *ProxyProfile
+
+	// Version of the control plane components
+	Version *VersionProfileUpdate
+}
+
 // ClusterSpec - The cluster resource specification
 type ClusterSpec struct {
-	// REQUIRED; Azure platform configuration
-	Platform *PlatformProfile
-
 	// REQUIRED; Version of the control plane components
 	Version *VersionProfile
 
@@ -66,6 +75,9 @@ type ClusterSpec struct {
 	// Cluster network configuration
 	Network *NetworkProfile
 
+	// Azure platform configuration
+	Platform *PlatformProfile
+
 	// Openshift cluster proxy configuration
 	Proxy *ProxyProfile
 
@@ -76,21 +88,6 @@ type ClusterSpec struct {
 	Console *ConsoleProfile
 }
 
-// ClusterSpecUpdate - The cluster resource specification
-type ClusterSpecUpdate struct {
-	// Cluster DNS configuration
-	DNS any
-
-	// Disable user workload monitoring
-	DisableUserWorkloadMonitoring *bool
-
-	// Openshift cluster proxy configuration
-	Proxy *ProxyProfile
-
-	// Version of the control plane components
-	Version *VersionProfileUpdate
-}
-
 // ConsoleProfile - Configuration of the cluster web console
 type ConsoleProfile struct {
 	// READ-ONLY; The cluster web console URL endpoint
@@ -99,8 +96,8 @@ type ConsoleProfile struct {
 
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
-	// REQUIRED; BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix
-// is the name that will appear in the cluster's DNS, provisioned cloud providers resources
+	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
+// that will appear in the cluster's DNS, provisioned cloud providers resources
 	BaseDomainPrefix *string
 
 	// READ-ONLY; BaseDomain is the base DNS domain of the cluster.
@@ -210,11 +207,26 @@ type HcpOpenShiftClusterKubeconfig struct {
 	Kubeconfig *string
 }
 
+// HcpOpenShiftClusterNodePoolPatch - The template for adding optional properties.
+type HcpOpenShiftClusterNodePoolPatch struct {
+	// Managed Service Identity
+	Identity *ManagedServiceIdentityUpdate
+
+	// Represents the patchable node pool properties
+	Properties *NodePoolPatchProperties
+
+	// Resource tags.
+	Tags map[string]*string
+}
+
 // HcpOpenShiftClusterNodePoolResource - Concrete tracked resource types can be created by aliasing this type using a specific
 // property type.
 type HcpOpenShiftClusterNodePoolResource struct {
 	// REQUIRED; The geo-location where the resource lives
 	Location *string
+
+	// The managed service identities assigned to this resource.
+	Identity *ManagedServiceIdentity
 
 	// The resource-specific properties for this resource.
 	Properties *NodePoolProperties
@@ -244,42 +256,27 @@ type HcpOpenShiftClusterNodePoolResourceListResult struct {
 	NextLink *string
 }
 
-// HcpOpenShiftClusterNodePoolResourceUpdate - The type used for update operations of the HcpOpenShiftClusterNodePoolResource.
-type HcpOpenShiftClusterNodePoolResourceUpdate struct {
-	// The updatable properties of the HcpOpenShiftClusterNodePoolResource.
-	Properties *HcpOpenShiftClusterNodePoolResourceUpdateProperties
+// HcpOpenShiftClusterPatch - The template for adding optional properties.
+type HcpOpenShiftClusterPatch struct {
+	// Managed service identity
+	Identity *ManagedServiceIdentityUpdate
+
+	// HCP patchable cluster properties
+	Properties *HcpOpenShiftClusterPatchProperties
 
 	// Resource tags.
 	Tags map[string]*string
 }
 
-// HcpOpenShiftClusterNodePoolResourceUpdateProperties - The updatable properties of the HcpOpenShiftClusterNodePoolResource.
-type HcpOpenShiftClusterNodePoolResourceUpdateProperties struct {
-	// Representation of a autoscaling in a node pool.
-	AutoScaling *NodePoolAutoScalingUpdate
-
-	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
-	Labels map[string]*string
-
-	// The number of worker nodes, it cannot be used together with autoscaling
-	Replicas *int32
-
-	// Taints for the nodes
-	Taints []*Taint
-
-	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
-// Tuned resources to define the tuning configuration to be applied to nodes
-// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
-// or PerformanceProfile.
-	TuningConfigs []*string
-
-	// OpenShift version for the nodepool
-	Version *VersionProfileUpdate
+// HcpOpenShiftClusterPatchProperties - HCP patchable cluster properties
+type HcpOpenShiftClusterPatchProperties struct {
+	// The cluster resource specification.
+	Spec *ClusterPatchSpec
 }
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
-	// REQUIRED; The cluster resouce specification.
+	// The cluster resource specification.
 	Spec *ClusterSpec
 
 	// READ-ONLY; The status of the last operation.
@@ -322,26 +319,8 @@ type HcpOpenShiftClusterResourceListResult struct {
 	NextLink *string
 }
 
-// HcpOpenShiftClusterResourceUpdate - The type used for update operations of the HcpOpenShiftClusterResource.
-type HcpOpenShiftClusterResourceUpdate struct {
-	// The managed service identities assigned to this resource.
-	Identity *ManagedServiceIdentity
-
-	// The updatable properties of the HcpOpenShiftClusterResource.
-	Properties *HcpOpenShiftClusterResourceUpdateProperties
-
-	// Resource tags.
-	Tags map[string]*string
-}
-
-// HcpOpenShiftClusterResourceUpdateProperties - The updatable properties of the HcpOpenShiftClusterResource.
-type HcpOpenShiftClusterResourceUpdateProperties struct {
-	// The cluster resouce specification.
-	Spec *ClusterSpecUpdate
-}
-
-// HcpOpenShiftVersions represents a location based available HCP cluster versions
-type HcpOpenShiftVersions struct {
+// HcpOpenShiftVersionResource - HcpOpenShiftVersions represents a location based available HCP cluster versions
+type HcpOpenShiftVersionResource struct {
 	// The resource-specific properties for this resource.
 	Properties *HcpOpenShiftVersionsProperties
 
@@ -358,10 +337,10 @@ type HcpOpenShiftVersions struct {
 	Type *string
 }
 
-// HcpOpenShiftVersionsListResult - The response of a HcpOpenShiftVersions list operation.
-type HcpOpenShiftVersionsListResult struct {
-	// REQUIRED; The HcpOpenShiftVersions items on this page
-	Value []*HcpOpenShiftVersions
+// HcpOpenShiftVersionResourceListResult - The response of a HcpOpenShiftVersionResource list operation.
+type HcpOpenShiftVersionResourceListResult struct {
+	// REQUIRED; The HcpOpenShiftVersionResource items on this page
+	Value []*HcpOpenShiftVersionResource
 
 	// The link to the next page of items
 	NextLink *string
@@ -388,6 +367,15 @@ type IngressProfile struct {
 	URL *string
 }
 
+// Label represents the k8s label
+type Label struct {
+	// The key of the label
+	Key *string
+
+	// The value of the label
+	Value *string
+}
+
 // ManagedServiceIdentity - Managed service identity (system assigned and/or user assigned identities)
 type ManagedServiceIdentity struct {
 	// REQUIRED; Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
@@ -406,6 +394,15 @@ type ManagedServiceIdentity struct {
 
 	// READ-ONLY; The tenant ID of the system assigned identity. This property will only be provided for a system assigned identity.
 	TenantID *string
+}
+
+// ManagedServiceIdentityUpdate - The template for adding optional properties.
+type ManagedServiceIdentityUpdate struct {
+	// The type of managed identity assigned to this resource.
+	Type *ManagedServiceIdentityType
+
+	// The identities assigned to this resource by the user.
+	UserAssignedIdentities map[string]*UserAssignedIdentity
 }
 
 // NetworkProfile - Network profile of the cluster
@@ -428,20 +425,41 @@ type NetworkProfile struct {
 
 // NodePoolAutoScaling - Node pool autoscaling
 type NodePoolAutoScaling struct {
-	// REQUIRED; The maximum number of nodes in the node pool
-	Max *int32
-
-	// REQUIRED; The minimum number of nodes in the node pool
-	Min *int32
-}
-
-// NodePoolAutoScalingUpdate - Node pool autoscaling
-type NodePoolAutoScalingUpdate struct {
 	// The maximum number of nodes in the node pool
 	Max *int32
 
 	// The minimum number of nodes in the node pool
 	Min *int32
+}
+
+// NodePoolPatchProperties - Represents the patchable node pool properties
+type NodePoolPatchProperties struct {
+	// The node pool resource specification
+	Spec *NodePoolPatchSpec
+}
+
+// NodePoolPatchSpec - Worker node pool profile
+type NodePoolPatchSpec struct {
+	// Representation of a autoscaling in a node pool.
+	AutoScaling *NodePoolAutoScaling
+
+	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	Labels []*Label
+
+	// The number of worker nodes, it cannot be used together with autoscaling
+	Replicas *int32
+
+	// Taints for the nodes
+	Taints []*Taint
+
+	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
+// Tuned resources to define the tuning configuration to be applied to nodes
+// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
+// or PerformanceProfile.
+	TuningConfigs []*string
+
+	// OpenShift version for the nodepool
+	Version *VersionProfileUpdate
 }
 
 // NodePoolPlatformProfile - Azure node pool platform configuration
@@ -478,7 +496,7 @@ type NodePoolPlatformProfile struct {
 
 // NodePoolProperties - Represents the node pool properties
 type NodePoolProperties struct {
-	// REQUIRED; The node pool resource specification
+	// The node pool resource specification
 	Spec *NodePoolSpec
 
 	// READ-ONLY; Provisioning state
@@ -493,14 +511,14 @@ type NodePoolSpec struct {
 	// REQUIRED; OpenShift version for the nodepool
 	Version *VersionProfile
 
-	// Autorepair
+	// Auto-repair
 	AutoRepair *bool
 
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
 	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
-	Labels map[string]*string
+	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
 	Replicas *int32
@@ -652,10 +670,10 @@ type SystemData struct {
 
 // Taint is controlling the node taint and its effects
 type Taint struct {
-	// REQUIRED; The effect of the taint The good example of the taint effect is NoSchedule
+	// The effect of the taint The good example of the taint effect is NoSchedule
 	Effect *Effect
 
-	// REQUIRED; The key of the taint The good example of the taint key is node-role.kubernetes.io/master
+	// The key of the taint The good example of the taint key is node-role.kubernetes.io/master
 	Key *string
 
 	// The value of the taint The good example of the taint value is NoSchedule
@@ -673,7 +691,7 @@ type TokenClaimMappingsProfile struct {
 
 // TokenClaimValidationRuleProfile - External auth claim validation rule
 type TokenClaimValidationRuleProfile struct {
-	// REQUIRED; Claim
+	// REQUIRED; Claim name for the validation profile
 	Claim *string
 
 	// REQUIRED; Required value
