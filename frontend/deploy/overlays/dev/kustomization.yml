@@ -5,11 +5,11 @@ resources:
 configMapGenerator:
 - behavior: create
   literals:
-  - FRONTEND_MI_CLIENT_ID=c470390a-5e6c-46f5-84ef-40e397e9d21b
-  - CURRENT_VERSION=quay.io/anatale/arohcpfrontend:a6414cc-dirty
-  - DB_NAME=aro-hcp-dev-rp-cosmos
-  - REGION=eastus
-  - DB_URL=https://aro-hcp-dev-rp-cosmos.documents.azure.com:443/
+  - DB_URL=REPLACED_BY_KUSTOMIZE
+  - FRONTEND_MI_CLIENT_ID=REPLACED_BY_KUSTOMIZE
+  - CURRENT_VERSION=REPLACED_BY_KUSTOMIZE
+  - DB_NAME=REPLACED_BY_KUSTOMIZE
+  - REGION=REPLACED_BY_KUSTOMIZE
   name: frontend-config
   options:
     disableNameSuffixHash: true
