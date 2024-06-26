@@ -86,18 +86,21 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(ctx context.Context, systemDat
 					SubnetID:               cluster.Azure().SubnetResourceID(),
 					OutboundType:           api.OutboundTypeLoadBalancer,
 					NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
-					EtcdEncryptionSetID:    "",
+					EtcdEncryptionSetID:    "", // TODO: Post-MVP
 				},
-				IssuerURL: "",
-				ExternalAuth: api.ExternalAuthConfigProfile{
+				IssuerURL: "", // TODO: In ARO-HCP, customers never create the OIDC provider themselves,
+				// CS will create it for them and then we need to return the OIDC url here.
+				// This does seem like it could provide value in ROSA, so maybe it could be there as well.
+				// Not needed until there is HyperShift support for managed identities (P2)
+				ExternalAuth: api.ExternalAuthConfigProfile{ // TODO: BYO-OIDC for Adobe? Figure this out, there are potential read-only problems with this field
 					Enabled:       false,
 					ExternalAuths: []*v1.OIDCProvider{},
 				},
-				Ingress: []*api.IngressProfile{
+				Ingress: []*api.IngressProfile{ // TODO: Is there a BU requirement for this field in the RP/CS API? Can we just have the default ingress profile (and only allow one)?
 					{
-						IP:         "", // TODO: Unsure if OCM will support this field
-						URL:        "",
-						Visibility: "",
+						IP:         "", // TODO: There is a customer use-case for this field with custom domains, but how can CS get this IP address?
+						URL:        "", // This is useful
+						Visibility: "", // Need to ensure this field stays
 					},
 				},
 			},
@@ -164,7 +167,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		CCS(cmv1.NewCCS().Enabled(csCCSEnabled)).
 		Properties(map[string]string{ // per CS, required for testing locally)
 			"provision_shard_id":           "1",
-			"provisioner_noop_provision":   "true",
+			"provisioner_noop_provision":   "true", // Keep these as cobra flags for development/testing
 			"provisioner_noop_deprovision": "true",
 		}) // temporary values for testing purposes
 
