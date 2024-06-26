@@ -1,5 +1,6 @@
 // Constants
 param aksClusterName string = take('aro-hcp-${clusterType}-${uniqueString(clusterType)}', 63)
+param aksNodeResourceGroupName string
 
 // System agentpool spec(Infra)
 param systemAgentMinCount int = 2
@@ -245,7 +246,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
       managed: true
       enableAzureRBAC: true
     }
-    nodeResourceGroup: '${resourceGroup().name}-aks1'
+    nodeResourceGroup: aksNodeResourceGroupName
     apiServerAccessProfile: {
       enablePrivateCluster: enablePrivateCluster
     }

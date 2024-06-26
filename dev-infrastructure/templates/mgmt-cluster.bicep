@@ -7,6 +7,9 @@ param persist bool = false
 @description('Captures logged in users UID')
 param currentUserId string
 
+@description('Name of the resource group for the AKS nodes')
+param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
+
 @description('VNET address prefix')
 param vnetAddressPrefix string
 
@@ -61,6 +64,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     location: location
     persist: persist
     currentUserId: currentUserId
+    aksNodeResourceGroupName: aksNodeResourceGroupName
     enablePrivateCluster: enablePrivateCluster
     istioVersion: istioVersion
     kubernetesVersion: kubernetesVersion
