@@ -98,14 +98,14 @@ objects:
                   type: RuntimeDefault
               livenessProbe:
                 httpGet:
-                  path: /healthz/ready
+                  path: /healthz
                   port: 8443
                 initialDelaySeconds: 15
                 periodSeconds: 20
                 failureThreshold: 3
               readinessProbe:
                 httpGet:
-                  path: /healthz/ready
+                  path: /healthz
                   port: 8443
                 initialDelaySeconds: 5
                 periodSeconds: 10
