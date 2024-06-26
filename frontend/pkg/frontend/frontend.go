@@ -119,7 +119,7 @@ func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 		"The requested path could not be found.")
 }
 
-func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 	var healthStatus float64
 
 	if f.CheckReady(request.Context()) {
@@ -131,7 +131,7 @@ func (f *Frontend) HealthzReady(writer http.ResponseWriter, request *http.Reques
 	}
 
 	f.metrics.EmitGauge("frontend_health", healthStatus, map[string]string{
-		"endpoint": "/healthz/ready",
+		"endpoint": "/healthz",
 	})
 }
 

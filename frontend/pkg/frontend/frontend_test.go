@@ -48,7 +48,7 @@ func TestReadiness(t *testing.T) {
 				return ContextWithLogger(context.Background(), f.logger)
 			}
 
-			rs, err := ts.Client().Get(ts.URL + "/healthz/ready")
+			rs, err := ts.Client().Get(ts.URL + "/healthz")
 			if err != nil {
 				t.Fatal(err)
 			}

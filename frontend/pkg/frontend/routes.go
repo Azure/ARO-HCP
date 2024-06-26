@@ -26,7 +26,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
-	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz", "ready"), f.HealthzReady)
+	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
 	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
 	mux.HandleFunc(MuxPattern(http.MethodGet, PatternSubscriptions), f.ArmSubscriptionGet)
 	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionPut)
