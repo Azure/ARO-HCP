@@ -234,7 +234,13 @@ To complete the below steps you will need:
 
 > If you don't have or want to install `yq`, any steps below using `yq` can be done manually
 
-From the root of the CS repo on our system:
+Option 1: Configure and initialize Cluster Service using the script:
+Run ./dev-infrastructure/local_CS.sh from the root of ARO-HCP repo where "uhc-clusters-service" and "ARO-HCP" repos should be at the same level:
+- uhc-clusters-service/
+- ARO-HCP/
+- etc
+
+Option 2: You can follow the below manual steps from the root of the CS repo on our system:
 
 1) Setup required config files
 
@@ -290,6 +296,25 @@ cloud_providers:
         - product: hcp
           version_constraints:
             min_version: 4.12.23
+EOF
+
+cat <<EOF > ./configs/cloud-resources/instance-types.yaml
+instance_types:
+  - id: Standard_D4as_v4
+    name: Standard_D4as_v4 - General purpose
+    cloud_provider_id: azure
+    cpu_cores: 4
+    memory: 17179869184
+    category: general_purpose
+    size: d4as_v4
+    generic_name: standard-d4as_v4
+EOF
+
+cat <<EOF > ./configs/cloud-resource-constraints/instance-type-constraints.yaml
+instance_types:
+  - id: Standard_D4as_v4
+    ccs_only: true
+    enabled: true
 EOF
 ```
 

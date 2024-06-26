@@ -85,6 +85,17 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 
+	// node pools
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		postMuxMiddleware.HandlerFunc(f.GetNodePool))
+	mux.Handle(
+		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		postMuxMiddleware.HandlerFunc(f.CreateNodePool))
+	mux.Handle(
+		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		postMuxMiddleware.HandlerFunc(f.DeleteNodePool))
+
 	// Exclude ARO-HCP API version validation for endpoints defined by ARM.
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareLoggingPostMux,
