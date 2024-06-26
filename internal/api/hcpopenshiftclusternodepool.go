@@ -11,7 +11,7 @@ import (
 // OpenShift clusters.
 type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
-	Properties HCPOpenShiftClusterNodePoolProperties `json:":properties,omitempty" validate:"required_for_put"`
+	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty" validate:"required_for_put"`
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
@@ -26,7 +26,7 @@ type NodePoolSpec struct {
 	Platform      NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create" validate:"required_for_put"`
 	Replicas      int32                   `json:"replicas,omitempty" visibility:"read create update"`
 	AutoRepair    bool                    `json:"autoRepair,omitempty" visibility:"read create"`
-	Autoscaling   NodePoolAutoscaling     `json:"autoscaling,omitempty" visibility:"read create update"`
+	Autoscaling   NodePoolAutoscaling     `json:"autoScaling,omitempty" visibility:"read create update"`
 	Labels        map[string]string       `json:"labels,omitempty" visibility:"read create update"`
 	Taints        []*Taint                `json:"taints,omitempty" visibility:"read create update"`
 	TuningConfigs []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
@@ -59,5 +59,9 @@ type Taint struct {
 }
 
 func NewDefaultHCPOpenShiftClusterNodepool() *HCPOpenShiftClusterNodePool {
-	return &HCPOpenShiftClusterNodePool{}
+	return &HCPOpenShiftClusterNodePool{
+		Properties: HCPOpenShiftClusterNodePoolProperties{
+			Spec: NodePoolSpec{},
+		},
+	}
 }

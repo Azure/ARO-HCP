@@ -177,8 +177,28 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 }
 
 func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.SystemData, np *cmv1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+	originalPath, err := OriginalPathFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get original path: %w", err)
+	}
+	resourceID, err := azcorearm.ParseResourceID(originalPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse resource ID: %w", err)
+	}
+	resourceType, err := azcorearm.ParseResourceType(originalPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse resource type: %w", err)
+	}
+
 	nodePool := &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{}, // TODO: Implement
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:         resourceID.String(),
+				Name:       resourceID.Name,
+				Type:       resourceType.String(),
+				SystemData: systemData,
+			},
+		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			// ProvisioningState: np.Status(), // TODO: Align with OCM on aligning with ProvisioningState
 			Spec: api.NodePoolSpec{
@@ -232,18 +252,26 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 
 	npBuilder := cmv1.NewNodePool().
 		AutoRepair(nodepool.Properties.Spec.AutoRepair).
-		Autoscaling(cmv1.NewNodePoolAutoscaling().
+		Labels(nodepool.Properties.Spec.Labels)
+
+	// from CS API: "Only one of 'replicas' and 'autoscaling' can be provided.
+	if nodepool.Properties.Spec.Replicas != 0 {
+		npBuilder.Replicas(int(nodepool.Properties.Spec.Replicas))
+	} else {
+		npBuilder.Autoscaling(cmv1.NewNodePoolAutoscaling().
 			MinReplica(int(nodepool.Properties.Spec.Autoscaling.Min)).
-			MaxReplica(int(nodepool.Properties.Spec.Autoscaling.Max))).
-		Labels(nodepool.Properties.Spec.Labels).
-		Replicas(int(nodepool.Properties.Spec.Replicas)).
+			MaxReplica(int(nodepool.Properties.Spec.Autoscaling.Max)))
+	}
+
+	npBuilder.
 		Subnet(nodepool.Properties.Spec.Platform.SubnetID).
 		TuningConfigs(nodepool.Properties.Spec.TuningConfigs...).
 		Version(cmv1.NewVersion().
 			ID(nodepool.Properties.Spec.Version.ID).
 			ChannelGroup(nodepool.Properties.Spec.Version.ChannelGroup).
 			AvailableUpgrades(nodepool.Properties.Spec.Version.AvailableUpgrades...)).
-		AzureNodePool(azureNodepool)
+		AzureNodePool(azureNodepool).
+		ID(nodepool.Name)
 
 	for _, t := range nodepool.Properties.Spec.Taints {
 		npBuilder = npBuilder.Taints(cmv1.NewTaint().
