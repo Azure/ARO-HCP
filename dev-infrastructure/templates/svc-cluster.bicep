@@ -114,7 +114,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   }
 }
 
-output cosmosDBName string = rpCosmosDb.outputs.cosmosDBName
+output cosmosDBName string = deployFrontendCosmos ? rpCosmosDb.outputs.cosmosDBName : ''
 output frontend_mi_client_id string = frontendMI.uamiClientID
 
 //

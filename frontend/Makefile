@@ -35,6 +35,7 @@ push: image
 
 kustomize-update:
 	pushd deploy/overlays/dev;\
+	REGION=$(shell az group show -n aro-hcp-dev --query location -o tsv);\
 	FRONTEND_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend-${REGION} \
@@ -45,10 +46,11 @@ kustomize-update:
 		--from-literal=DB_URL="https://$${DB_NAME}.documents.azure.com:443/" \
 		--from-literal=FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
 		--from-literal=CURRENT_VERSION=${ARO_HCP_FRONTEND_IMAGE} \
-		--from-literal=REGION=${REGION}
+		--from-literal=REGION="$${REGION}"
 
 kustomize-update-gha:
 	pushd deploy/overlays/dev;\
+	REGION=$(shell az group show -n aro-hcp-dev --query location -o tsv);\
 	FRONTEND_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend-${REGION} \
@@ -58,7 +60,7 @@ kustomize-update-gha:
 		--from-literal=DB_URL="${DB_URL}" \
 		--from-literal=FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
 		--from-literal=CURRENT_VERSION=${ARO_HCP_FRONTEND_IMAGE} \
-		--from-literal=REGION=${REGION}
+		--from-literal=REGION="$${REGION}"
 
 kustomize-deploy:
 	CHECK=$(shell kubectl get ns -o name ${NAMESPACE} 2>/dev/null);\
