@@ -45,7 +45,9 @@ There are a few variants to chose from when creating an AKS cluster:
    KUBECONFIG=${HOME}/.kube/${AKSCONFIG}.kubeconfig kubectl get ns
    ```
 
-1. Access cluter via the Azure portal or via `az aks command invoke`
+   (Replace svc with mgmt for management clusters)
+
+1. Access cluster via the Azure portal or via `az aks command invoke`
 
   ```bash
   AKSCONFIG=svc-cluster make aks.admin-access  # one time
