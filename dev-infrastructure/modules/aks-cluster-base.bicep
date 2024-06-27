@@ -65,6 +65,73 @@ var acrPullRoleDefinitionId = subscriptionResourceId(
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 )
 
+var systemAgentPool = [
+  {
+    name: 'system'
+    osType: 'Linux'
+    osSKU: 'AzureLinux'
+    mode: 'System'
+    orchestratorVersion: kubernetesVersion
+    enableAutoScaling: true
+    enableEncryptionAtHost: true
+    enableFIPS: true
+    kubeletDiskType: 'OS'
+    osDiskType: 'Ephemeral'
+    osDiskSizeGB: systemOsDiskSizeGB
+    count: systemAgentMinCount
+    minCount: systemAgentMinCount
+    maxCount: systemAgentMaxCount
+    vmSize: systemAgentVMSize
+    type: 'VirtualMachineScaleSets'
+    upgradeSettings: {
+      maxSurge: '10%'
+    }
+    vnetSubnetID: aksNodeSubnet.id
+    podSubnetID: aksPodSubnet.id
+    maxPods: 100
+    availabilityZones: [
+      '1'
+      '2'
+      '3'
+    ]
+  }
+]
+
+var userAgentPool = [
+  {
+    name: 'user'
+    osType: 'Linux'
+    osSKU: 'AzureLinux'
+    mode: 'User'
+    orchestratorVersion: kubernetesVersion
+    enableAutoScaling: true
+    enableEncryptionAtHost: true
+    enableFIPS: true
+    kubeletDiskType: 'OS'
+    osDiskType: 'Ephemeral'
+    osDiskSizeGB: userOsDiskSizeGB
+    count: userAgentMinCount
+    minCount: userAgentMinCount
+    maxCount: userAgentMaxCount
+    vmSize: userAgentVMSize
+    type: 'VirtualMachineScaleSets'
+    upgradeSettings: {
+      maxSurge: '10%'
+    }
+    vnetSubnetID: aksNodeSubnet.id
+    podSubnetID: aksPodSubnet.id
+    maxPods: 250
+    availabilityZones: [
+      '1'
+      '2'
+      '3'
+    ]
+  }
+]
+
+// if deployUserAgentPool is true, set agent profile to both pools, otherwise dont
+var agentProfile = deployUserAgentPool ? concat(systemAgentPool, userAgentPool) : systemAgentPool
+
 // Main
 // Tags the subscription
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
@@ -263,32 +330,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
     kubernetesVersion: kubernetesVersion
     enableRBAC: true
     dnsPrefix: dnsPrefix
-    agentPoolProfiles: [
-      {
-        name: 'system'
-        osType: 'Linux'
-        osSKU: 'AzureLinux'
-        mode: 'System'
-        orchestratorVersion: kubernetesVersion
-        enableAutoScaling: true
-        enableEncryptionAtHost: true
-        enableFIPS: true
-        osDiskType: 'Ephemeral'
-        osDiskSizeGB: systemOsDiskSizeGB
-        count: systemAgentMinCount
-        minCount: systemAgentMinCount
-        maxCount: systemAgentMaxCount
-        vmSize: systemAgentVMSize
-        vnetSubnetID: aksNodeSubnet.id
-        podSubnetID: aksPodSubnet.id
-        maxPods: 100
-        availabilityZones: [
-          '1'
-          '2'
-          '3'
-        ]
-      }
-    ]
+    agentPoolProfiles: agentProfile
     networkProfile: {
       networkDataplane: 'cilium'
       networkPolicy: 'cilium'
@@ -346,35 +388,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         ]
       }
     }
-  }
-}
-
-// additional agent pool for user workload
-resource userPool 'Microsoft.ContainerService/managedClusters/agentPools@2024-02-01' = if (deployUserAgentPool) {
-  name: 'user'
-  parent: aksCluster
-  properties: {
-    osType: 'Linux'
-    osSKU: 'AzureLinux'
-    mode: 'User'
-    orchestratorVersion: kubernetesVersion
-    enableAutoScaling: true
-    enableEncryptionAtHost: true
-    enableFIPS: true
-    osDiskType: 'Ephemeral'
-    osDiskSizeGB: userOsDiskSizeGB
-    count: userAgentMinCount
-    minCount: userAgentMinCount
-    maxCount: userAgentMaxCount
-    vmSize: userAgentVMSize
-    vnetSubnetID: aksNodeSubnet.id
-    podSubnetID: aksPodSubnet.id
-    maxPods: 250
-    availabilityZones: [
-      '1'
-      '2'
-      '3'
-    ]
   }
 }
 
