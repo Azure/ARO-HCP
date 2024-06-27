@@ -1,5 +1,5 @@
 // Constants
-param aksClusterName string = take('aro-hcp-${clusterType}-${uniqueString(clusterType)}', 63)
+param aksClusterName string
 param aksNodeResourceGroupName string
 
 // System agentpool spec(Infra)
