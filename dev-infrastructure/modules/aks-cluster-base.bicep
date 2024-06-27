@@ -273,12 +273,17 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         enableAutoScaling: true
         enableEncryptionAtHost: true
         enableFIPS: true
+        kubeletDiskType: 'OS'
         osDiskType: 'Ephemeral'
         osDiskSizeGB: systemOsDiskSizeGB
         count: systemAgentMinCount
         minCount: systemAgentMinCount
         maxCount: systemAgentMaxCount
         vmSize: systemAgentVMSize
+        type: 'VirtualMachineScaleSets'
+        upgradeSettings: {
+          maxSurge: '10%'
+        }
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
         maxPods: 100
@@ -354,6 +359,7 @@ resource userPool 'Microsoft.ContainerService/managedClusters/agentPools@2024-02
   name: 'user'
   parent: aksCluster
   properties: {
+
     osType: 'Linux'
     osSKU: 'AzureLinux'
     mode: 'User'
@@ -361,12 +367,17 @@ resource userPool 'Microsoft.ContainerService/managedClusters/agentPools@2024-02
     enableAutoScaling: true
     enableEncryptionAtHost: true
     enableFIPS: true
+    kubeletDiskType: 'OS'
     osDiskType: 'Ephemeral'
     osDiskSizeGB: userOsDiskSizeGB
     count: userAgentMinCount
     minCount: userAgentMinCount
     maxCount: userAgentMaxCount
     vmSize: userAgentVMSize
+    type: 'VirtualMachineScaleSets'
+    upgradeSettings: {
+      maxSurge: '10%'
+    }
     vnetSubnetID: aksNodeSubnet.id
     podSubnetID: aksPodSubnet.id
     maxPods: 250
