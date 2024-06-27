@@ -7,6 +7,7 @@ param subnetPrefix = '10.128.8.0/21'
 param podSubnetPrefix = '10.128.64.0/18'
 param enablePrivateCluster = false
 param persist = false
+param aksClusterName = 'aro-hcp-svc-cluster'
 param aksKeyVaultName = take('aks-kv-svc-cluster-${uniqueString(currentUserId)}', 24)
 param disableLocalAuth = false
 param deployFrontendCosmos = false

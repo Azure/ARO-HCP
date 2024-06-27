@@ -7,6 +7,9 @@ param persist bool = false
 @description('Captures logged in users UID')
 param currentUserId string
 
+@description('AKS cluster name')
+param aksClusterName string
+
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
 
@@ -83,6 +86,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   params: {
     location: location
     persist: persist
+    aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     currentUserId: currentUserId
     enablePrivateCluster: enablePrivateCluster
