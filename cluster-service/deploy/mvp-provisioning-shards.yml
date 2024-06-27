@@ -1,0 +1,23 @@
+provision_shards:
+- id: 1
+  hypershift_config: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - name: default
+      cluster:
+        server: http://localhost
+    users:
+    - name: default
+      user:
+        token: foo
+    contexts:
+    - name: default
+      context:
+        cluster: default
+        user: default
+    current-context: default
+  status: active
+  region: westus3
+  cloud_provider: azure
+  topology: dedicated
