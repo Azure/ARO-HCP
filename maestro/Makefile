@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
-REGION ?= eastus
+REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location)
 
 deploy-server:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show \
