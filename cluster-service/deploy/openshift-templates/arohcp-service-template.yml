@@ -82,7 +82,7 @@ parameters:
 
 - name: GATEWAY_URL
   description: URL of the gateway.
-  value: "http://localhost"
+  value: "http://127.0.0.1:9090"
 
 - name: CLIENT_SCOPES
   description: Level of access that an app can request to a resource
@@ -91,10 +91,6 @@ parameters:
 - name: ENVIRONMENT
   description: Environment associated with this instance.
   value: "aro-hcp-dev"
-
-- name: FEDRAMP
-  description: Whether this environment runs in FedRAMP mode.
-  value: "true"
 
 - name: BACKPLANE_URL
   description: |-
@@ -482,7 +478,6 @@ objects:
           - --healthcheck-listener-network=tcp
           - --healthcheck-listener-address=:8083
           - --environment=${ENVIRONMENT}
-          - --fedramp=${FEDRAMP}
           - --backplane-url=${BACKPLANE_URL}
           - --provision-shards-config=/secrets/shards/config
           - --install-config-file=/configs/service/install-config.yaml
