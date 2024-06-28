@@ -20,6 +20,11 @@ param maxClientSessionsPerAuthName = 2
 param deployCsInfra = false
 param csNamespace = 'cluster-service'
 param csPostgresServerName = 'cs-pg-aro-hcp-dev'
+
+param serviceKeyVaultName = 'service-kv-aro-hcp-dev'
+param serviceKeyVaultSoftDelete = true
+param serviceKeyPrivate = false
+
 param workloadIdentities = items({
   frontend_wi: {
     uamiName: 'frontend'

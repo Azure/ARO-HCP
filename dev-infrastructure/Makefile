@@ -76,7 +76,7 @@ aks.kubeconfig:
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
-	AKS_NAME="$$(az aks list --query "[?tags.clusterType == '$(AKSCONFIG)'].name" -ojson | jq -r '.[0]')"; \
+	AKS_NAME="$$(az aks list --query "[?tags.clusterType == '$(AKSCONFIG)'].name" -ojson -g $(RESOURCEGROUP) | jq -r '.[0]')"; \
 	az aks get-credentials -n "$${AKS_NAME}" -g $(RESOURCEGROUP) -a -f "${HOME}/.kube/$(AKSCONFIG).kubeconfig"
 
 secrets-download:

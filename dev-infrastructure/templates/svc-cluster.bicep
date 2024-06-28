@@ -80,6 +80,15 @@ param csPostgresServerName string
 @description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
 param maxClientSessionsPerAuthName int
 
+@description('The name of the service keyvault')
+param serviceKeyVaultName string
+
+@description('Soft delete setting for service keyvault')
+param serviceKeyVaultSoftDelete bool = true
+
+@description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
+param serviceKeyPrivate bool = true
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -181,5 +190,21 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'cluster-service'
     )[0].uamiName
+  }
+}
+
+//
+//   K E Y V A U L T S
+//
+
+module keyVault '../modules/keyvault/keyvault.bicep' = {
+  name: 'keyvault-service'
+  params: {
+    location: location
+    keyVaultName: serviceKeyVaultName
+    private: serviceKeyPrivate
+    enableSoftDelete: serviceKeyVaultSoftDelete
+    subnetId: svcCluster.outputs.aksNodeSubnetId
+    vnetId: svcCluster.outputs.aksVnetId
   }
 }
