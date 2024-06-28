@@ -2,6 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
 - ../../base
+- namespace.yml
+namespace: aro-hcp
 configMapGenerator:
 - behavior: create
   literals:
