@@ -20,6 +20,11 @@ param maxClientSessionsPerAuthName = 2
 param deployCsInfra = false
 param csNamespace = 'cluster-service'
 param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
+
+param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24)
+param serviceKeyVaultSoftDelete = false
+param serviceKeyPrivate = false
+
 param workloadIdentities = items({
   frontend_wi: {
     uamiName: 'frontend'
