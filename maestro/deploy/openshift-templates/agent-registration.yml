@@ -1,0 +1,41 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: maestro-agent-registration
+parameters:
+
+- name: NAMESPACE
+  description: namespace of the maestro server
+  value: maestro
+
+- name: AGENT_NAME
+  description: name of the agent to register
+  required: true
+
+objects:
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: agent-registration-${AGENT_NAME}
+  spec:
+    template:
+      spec:
+        containers:
+        - name: registration
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              sleep 1000000;
+              curl -X POST -H "Content-Type: application/json"
+              -d "$REGISTRATION_PAYLOAD"
+              http://maestro:8000/api/maestro/v1/consumers;
+          env:
+          - name: REGISTRATION_PAYLOAD
+            value: |
+              {
+                "name": "${AGENT_NAME}"
+              }
+        restartPolicy: Never
+    backoffLimit: 4

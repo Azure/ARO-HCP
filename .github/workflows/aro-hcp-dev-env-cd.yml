@@ -274,6 +274,14 @@
           cluster-name: ${{ steps.find_management_cluster.outputs.name }}
           use-kubelogin: 'true'
 
+      - name: 'Deploy Maestro Agent'
+        env:
+          RESOURCEGROUP: aro-hcp-dev-mc
+          MAESTRO_INFRA_RESOURCEGROUP: aro-hcp-dev
+        run: |
+          cd maestro/
+          make deploy-agent
+
       - name: 'Deploy PKO'
         env:
           RESOURCEGROUP: aro-hcp-dev-mc
