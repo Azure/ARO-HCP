@@ -5,17 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 const (
-	clustersContainer  = "Clusters"
-	nodePoolsContainer = "NodePools"
-	subsContainer      = "Subscriptions"
-	billingContainer   = "Billing"
-	asyncContainer     = "AsyncOperations"
+	clustersContainer   = "Clusters"
+	nodePoolsContainer  = "NodePools"
+	subsContainer       = "Subscriptions"
+	billingContainer    = "Billing"
+	operationsContainer = "Operations"
 )
 
 var ErrNotFound = errors.New("DocumentNotFound")
@@ -37,6 +39,10 @@ type DBClient interface {
 	GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error)
 	SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error
 	DeleteNodePoolDoc(ctx context.Context, resourceID string) error
+
+	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
+	SetOperationDoc(ctx context.Context, doc *OperationDocument) error
+	DeleteOperationDoc(ctx context.Context, operationID string) error
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
 	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
@@ -193,6 +199,81 @@ func (d *CosmosDBClient) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocume
 // DeleteNodePoolDoc removes a NodePool document from the DB using resource ID
 func (d *CosmosDBClient) DeleteNodePoolDoc(ctx context.Context, resourceID string) error {
 	panic("implement me")
+}
+
+// GetOperationDoc retrieves the asynchronous operation document for the given
+// operation ID from the "operations" container
+func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
+	container, err := d.client.NewContainer(operationsContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	pk := azcosmos.NewPartitionKeyString(operationID)
+
+	response, err := container.ReadItem(ctx, pk, operationID, nil)
+	if err != nil {
+		var responseErr *azcore.ResponseError
+		errors.As(err, &responseErr)
+		if responseErr.StatusCode == http.StatusNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	var doc *OperationDocument
+	err = json.Unmarshal(response.Value, &doc)
+	if err != nil {
+		return nil, err
+	}
+
+	return doc, nil
+}
+
+// SetOperationDoc writes an asynchronous operation document to the "operations"
+// container
+func (d *CosmosDBClient) SetOperationDoc(ctx context.Context, doc *OperationDocument) error {
+	container, err := d.client.NewContainer(operationsContainer)
+	if err != nil {
+		return err
+	}
+
+	pk := azcosmos.NewPartitionKeyString(doc.ID)
+
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+
+	_, err = container.UpsertItem(ctx, pk, data, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteOperationDoc deletes the asynchronous operation document for the given
+// operation ID from the "operations" container
+func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID string) error {
+	container, err := d.client.NewContainer(operationsContainer)
+	if err != nil {
+		return err
+	}
+
+	pk := azcosmos.NewPartitionKeyString(operationID)
+
+	_, err = container.DeleteItem(ctx, pk, operationID, nil)
+	if err != nil {
+		var responseErr *azcore.ResponseError
+		errors.As(err, &responseErr)
+		if responseErr.StatusCode == http.StatusNotFound {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	return nil
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID

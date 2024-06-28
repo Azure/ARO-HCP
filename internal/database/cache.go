@@ -11,6 +11,7 @@ var _ DBClient = &Cache{}
 type Cache struct {
 	cluster      map[string]*HCPOpenShiftClusterDocument
 	nodePool     map[string]*NodePoolDocument
+	operation    map[string]*OperationDocument
 	subscription map[string]*SubscriptionDocument
 }
 
@@ -61,6 +62,24 @@ func (c *Cache) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error
 
 func (c *Cache) DeleteNodePoolDoc(ctx context.Context, resourceID string) error {
 	delete(c.nodePool, resourceID)
+	return nil
+}
+
+func (c *Cache) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
+	if _, ok := c.operation[operationID]; ok {
+		return c.operation[operationID], nil
+	}
+
+	return nil, ErrNotFound
+}
+
+func (c *Cache) SetOperationDoc(ctx context.Context, doc *OperationDocument) error {
+	c.operation[doc.ID] = doc
+	return nil
+}
+
+func (c *Cache) DeleteOperationDoc(ctx context.Context, operationID string) error {
+	delete(c.operation, operationID)
 	return nil
 }
 
