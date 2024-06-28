@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
-MAESTRO_INFRA_RESOURCEGROUP ?= RESOURCEGROUP
+MAESTRO_INFRA_RESOURCEGROUP ?= ${RESOURCEGROUP}
 REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location)
 
 deploy-server:
@@ -38,5 +38,12 @@ deploy-agent:
 	  -p MAESTRO_MI_CLIENT_ID=$${MAESTRO_MI_CLIENT_ID} \
 	  -p MAESTRO_KV_NAME=$${MAESTRO_KV_NAME} \
 	  -p AZURE_TENANT_ID=$${TENANT_ID} | oc apply -f -
+
+register-agent:
+ifndef AGENT_NAME
+	$(error "Must set AGENT_NAME")
+endif
+	oc process --local -f deploy/openshift-templates/agent-registration.yml \
+	  -p AGENT_NAME=${AGENT_NAME} | oc apply -f -
 
 .PHONY: deploy-server
