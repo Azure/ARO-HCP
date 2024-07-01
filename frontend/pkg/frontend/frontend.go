@@ -135,7 +135,7 @@ func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 	})
 }
 
-func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -145,37 +145,58 @@ func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, req
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceListBySubscription", versionedInterface))
+	var query string
+	subscriptionId := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	location := request.PathValue(PageSegmentLocation)
 
-	writer.WriteHeader(http.StatusOK)
-}
+	switch {
+	case resourceGroupName != "":
+		query = fmt.Sprintf("azure.resource_group_name='%s'", resourceGroupName)
+	case location != "":
+		query = fmt.Sprintf("region.id='%s'", location)
+	case subscriptionId != "" && location == "" && resourceGroupName == "":
+		query = fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
+	}
 
-func (f *Frontend) ArmResourceListByLocation(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
+	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceListByLocation", versionedInterface))
+	systemData := &arm.SystemData{}
+	var hcpCluster *api.HCPOpenShiftCluster
+	var versionedHcpClusters []*api.VersionedHCPOpenShiftCluster
+	clusters := clustersListResponse.Items().Slice()
+	for _, cluster := range clusters {
+		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
 
-	writer.WriteHeader(http.StatusOK)
-}
+		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
+		versionedHcpClusters = append(versionedHcpClusters, &versionedResource)
+	}
 
-func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
+	result := api.VersionedHCPOpenShiftClusterList{
+		Value:    versionedHcpClusters,
+		NextLink: nil, // TO DO: Implement pagination
+	}
 
-	versionedInterface, err := VersionFromContext(ctx)
+	resp, err := json.Marshal(result)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceListByResourceGroup", versionedInterface))
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
 
 	writer.WriteHeader(http.StatusOK)
 }
@@ -215,7 +236,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(ctx, doc.SystemData, cluster.Body())
+	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(doc.SystemData, cluster.Body())
 	if err != nil {
 		// Should never happen currently
 		f.logger.Error(err.Error())
@@ -295,7 +316,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 		if csResp.Body() != nil {
-			hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(ctx, doc.SystemData, csResp.Body())
+			hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(doc.SystemData, csResp.Body())
 			if err != nil {
 				// Should never happen currently
 				f.logger.Error(err.Error())

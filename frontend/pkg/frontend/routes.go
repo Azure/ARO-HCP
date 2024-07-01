@@ -41,13 +41,13 @@ func (f *Frontend) routes() *MiddlewareMux {
 		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceListBySubscription))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceListByLocation))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceListByResourceGroup))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
