@@ -23,7 +23,7 @@ param csPostgresServerName = 'cs-pg-aro-hcp-dev'
 
 param serviceKeyVaultName = 'service-kv-aro-hcp-dev'
 param serviceKeyVaultSoftDelete = true
-param serviceKeyPrivate = false
+param serviceKeyVaultPrivate = false
 
 param workloadIdentities = items({
   frontend_wi: {
