@@ -135,7 +135,7 @@ func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 	})
 }
 
-func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -145,107 +145,24 @@ func (f *Frontend) ArmResourceListBySubscription(writer http.ResponseWriter, req
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceListBySubscription", versionedInterface))
-
+	var query string
 	subscriptionId := request.PathValue(PathSegmentSubscriptionID)
-
-	query := fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
-	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	systemData := &arm.SystemData{} //Empty data until https://issues.redhat.com/browse/ARO-8002 is completed
-	var hcpCluster *api.HCPOpenShiftCluster
-	clusters := clustersListResponse.Items().Slice()
-	for _, cluster := range clusters {
-
-		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-		resp, err := json.Marshal(versionedResource)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		_, err = writer.Write(resp)
-		if err != nil {
-			f.logger.Error(err.Error())
-		}
-	}
-	writer.WriteHeader(http.StatusOK)
-}
-
-func (f *Frontend) ArmResourceListByLocation(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceListByLocation", versionedInterface))
-
-	location := request.PathValue(PageSegmentLocation)
-	query := fmt.Sprintf("region.id='%s'", location)
-	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	systemData := &arm.SystemData{} //Empty data until https://issues.redhat.com/browse/ARO-8002 is completed
-	var hcpCluster *api.HCPOpenShiftCluster
-	clusters := clustersListResponse.Items().Slice()
-	for _, cluster := range clusters {
-		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-		resp, err := json.Marshal(versionedResource)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		_, err = writer.Write(resp)
-		if err != nil {
-			f.logger.Error(err.Error())
-		}
-	}
-
-	writer.WriteHeader(http.StatusOK)
-}
-
-func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceListByResourceGroup", versionedInterface))
-
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	query := fmt.Sprintf("azure.resource_group_name='%s'", resourceGroupName)
+	location := request.PathValue(PageSegmentLocation)
+
+	switch {
+	case resourceGroupName != "":
+		query = fmt.Sprintf("azure.resource_group_name='%s'", resourceGroupName)
+	case location != "":
+		query = fmt.Sprintf("region.id='%s'", location)
+	case subscriptionId != "" && location == "" && resourceGroupName == "":
+		query = fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
+	default:
+		f.logger.Error("Missing required path parameters")
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -253,11 +170,11 @@ func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, re
 		return
 	}
 
-	systemData := &arm.SystemData{} //Empty data until https://issues.redhat.com/browse/ARO-8002 is completed
+	systemData := &arm.SystemData{}
 	var hcpCluster *api.HCPOpenShiftCluster
+	var versionedHcpClusters []*api.VersionedHCPOpenShiftCluster
 	clusters := clustersListResponse.Items().Slice()
 	for _, cluster := range clusters {
-
 		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
 		if err != nil {
 			f.logger.Error(err.Error())
@@ -266,16 +183,23 @@ func (f *Frontend) ArmResourceListByResourceGroup(writer http.ResponseWriter, re
 		}
 
 		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-		resp, err := json.Marshal(versionedResource)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		_, err = writer.Write(resp)
-		if err != nil {
-			f.logger.Error(err.Error())
-		}
+		versionedHcpClusters = append(versionedHcpClusters, &versionedResource)
+	}
+
+	result := api.VersionedHCPOpenShiftClusterList{
+		Value:    versionedHcpClusters,
+		NextLink: nil, // TO DO: Implement pagination
+	}
+
+	resp, err := json.Marshal(result)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
 	}
 
 	writer.WriteHeader(http.StatusOK)
