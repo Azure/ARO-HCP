@@ -87,7 +87,7 @@ param serviceKeyVaultName string
 param serviceKeyVaultSoftDelete bool = true
 
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
-param serviceKeyPrivate bool = true
+param serviceKeyVaultPrivate bool = true
 
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
@@ -202,7 +202,7 @@ module keyVault '../modules/keyvault/keyvault.bicep' = {
   params: {
     location: location
     keyVaultName: serviceKeyVaultName
-    private: serviceKeyPrivate
+    private: serviceKeyVaultPrivate
     enableSoftDelete: serviceKeyVaultSoftDelete
     subnetId: svcCluster.outputs.aksNodeSubnetId
     vnetId: svcCluster.outputs.aksVnetId

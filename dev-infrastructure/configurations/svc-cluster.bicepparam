@@ -23,7 +23,7 @@ param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 
 param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24)
 param serviceKeyVaultSoftDelete = false
-param serviceKeyPrivate = false
+param serviceKeyVaultPrivate = false
 
 param workloadIdentities = items({
   frontend_wi: {
