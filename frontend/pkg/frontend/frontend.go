@@ -157,10 +157,6 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		query = fmt.Sprintf("region.id='%s'", location)
 	case subscriptionId != "" && location == "" && resourceGroupName == "":
 		query = fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
-	default:
-		f.logger.Error("Missing required path parameters")
-		arm.WriteInternalServerError(writer)
-		return
 	}
 
 	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
