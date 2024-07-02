@@ -8,7 +8,7 @@ param persist bool = false
 param currentUserId string
 
 @description('AKS cluster name')
-param aksClusterName string = 'aro-hcp-mgmt-1'
+param aksClusterName string = 'aro-hcp-aks'
 
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
@@ -103,7 +103,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployM
     )[0].uamiClientID
     namespace: maestroNamespace
     maestroInfraResourceGroup: maestroInfraResourceGroup
-    maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name)?resourceGroup().name:''
+    maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name) ? resourceGroup().name:''
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     maestroKeyVaultName: maestroKeyVaultName
     maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
