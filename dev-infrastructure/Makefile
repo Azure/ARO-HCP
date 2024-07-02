@@ -72,6 +72,12 @@ ifndef AKSCONFIG
 endif
 	@scripts/current-user-pg-access.sh $(RESOURCEGROUP) "cs-"
 
+maestro-out-of-cluster-db-access: rg
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	@scripts/current-user-pg-access.sh $(RESOURCEGROUP) "maestro-"
+
 aks.kubeconfig:
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
