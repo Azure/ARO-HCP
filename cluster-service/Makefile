@@ -9,6 +9,6 @@ deploy:
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
 	  -p IMAGE_REGISTRY=devarohcp.azurecr.io \
 	  -p IMAGE_REPOSITORY=cluster-service/uhc-clusters-service \
-	  -p IMAGE_TAG=1719430575 | oc apply -f -
+	  -p IMAGE_TAG=1719933964 | oc apply -f -
 
 .PHONY: deploy
