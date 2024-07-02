@@ -69,7 +69,8 @@ jobs:
               --template-file templates/mgmt-cluster.bicep \
               --parameters configurations/mvp-mgmt-cluster.bicepparam \
               --parameters currentUserId="${GITHUB_ACTOR}" \
-              --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}"
+              --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}" \
+              --parameters zoneResourceGroup="${SC_RESOURCEGROUP}"
 
             SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
             COSMOS_DB_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.cosmosDBName.value)

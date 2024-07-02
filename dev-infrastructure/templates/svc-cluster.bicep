@@ -89,6 +89,19 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
+type DNSZoneProperties = {
+  name: string
+  parentZoneName: string
+  parentZoneResourceGroup: string
+}
+
+@description('The name DNS zone to create')
+param dnsZone DNSZoneProperties = {
+  name: ''
+  parentZoneName: ''
+  parentZoneResourceGroup: ''
+}
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -169,6 +182,25 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
   dependsOn: [
     maestroInfra
   ]
+}
+
+//
+//   D N S
+//
+
+resource zone 'Microsoft.Network/dnsZones@2018-05-01' = if (dnsZone.name != '') {
+  name: dnsZone.name
+  location: 'global'
+}
+
+module delegation '../modules/dns/zone-delegation.bicep' = if (dnsZone.name != '' && dnsZone.parentZoneName != '' && dnsZone.parentZoneResourceGroup != '') {
+  name: 'zone-delegation'
+  scope: resourceGroup(dnsZone.parentZoneResourceGroup)
+  params: {
+    childZoneName: dnsZone.name
+    childZoneNameservers: zone.properties.nameServers
+    parentZoneName: dnsZone.parentZoneName
+  }
 }
 
 //
