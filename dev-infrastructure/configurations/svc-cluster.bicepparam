@@ -25,6 +25,12 @@ param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24
 param serviceKeyVaultSoftDelete = false
 param serviceKeyVaultPrivate = false
 
+param dnsZone = {
+  name: '${take('dev-${uniqueString(currentUserId)}', 10)}.hcp.osadev.cloud'
+  parentZoneName: 'hcp.osadev.cloud'
+  parentZoneResourceGroup: 'global'
+}
+
 param workloadIdentities = items({
   frontend_wi: {
     uamiName: 'frontend'
