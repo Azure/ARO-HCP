@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 func TestReadiness(t *testing.T) {

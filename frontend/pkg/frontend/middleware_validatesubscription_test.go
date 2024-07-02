@@ -16,8 +16,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 func TestMiddlewareValidateSubscription(t *testing.T) {
