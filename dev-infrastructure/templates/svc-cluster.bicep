@@ -77,6 +77,16 @@ param csNamespace string
 @maxLength(60)
 param csPostgresServerName string
 
+@description('The name of the Postgres server for Maestro')
+@maxLength(60)
+param maestroPostgresServerName string
+
+@description('The version of the Postgres server for Maestro')
+param maestroPostgresServerVersion string
+
+@description('The size of the Postgres server for Maestro')
+param maestroPostgresServerStorageSizeGB int
+
 @description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
 param maxClientSessionsPerAuthName int
 
@@ -143,6 +153,17 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestro
     maxClientSessionsPerAuthName: maxClientSessionsPerAuthName
     maestroKeyVaultName: maestroKeyVaultName
     kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
+    postgresServerName: maestroPostgresServerName
+    postgresServerVersion: maestroPostgresServerVersion
+    postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
+    maestroServerManagedIdentityPrincipalId: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'maestro-server'
+    )[0].uamiPrincipalID
+    maestroServerManagedIdentityName: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'maestro-server'
+    )[0].uamiName
   }
 }
 

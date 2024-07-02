@@ -11,12 +11,17 @@ param aksClusterName = 'aro-hcp-svc-cluster'
 param aksKeyVaultName = take('aks-kv-svc-cluster-${uniqueString(currentUserId)}', 24)
 param disableLocalAuth = false
 param deployFrontendCosmos = false
+
 param deployMaestroInfra = false
 param maestroNamespace = 'maestro'
 param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
 param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
 param maxClientSessionsPerAuthName = 2
+param maestroPostgresServerName = take('maestro-pg-${uniqueString(currentUserId)}', 60)
+param maestroPostgresServerVersion = '15'
+param maestroPostgresServerStorageSizeGB = 32
+
 param deployCsInfra = false
 param csNamespace = 'cluster-service'
 param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
