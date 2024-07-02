@@ -279,4 +279,3 @@
         run: |
           cd pko/
           make deploy
-  
