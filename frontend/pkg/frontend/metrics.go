@@ -12,7 +12,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
-	"github.com/Azure/ARO-HCP/frontend/pkg/database"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 // Emitter emits different types of metrics

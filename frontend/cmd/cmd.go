@@ -14,9 +14,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
-	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type FrontendOpts struct {

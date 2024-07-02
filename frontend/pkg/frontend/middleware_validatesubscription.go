@@ -6,8 +6,8 @@ package frontend
 import (
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 const (
