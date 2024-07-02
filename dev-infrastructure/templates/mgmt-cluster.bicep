@@ -60,6 +60,8 @@ param maestroInfraResourceGroup string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
+func isValidMaestroConsumerName(input string) bool => length(input) <= 90 && contains(input, '[^a-zA-Z0-9_-]') == false
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
   scope: resourceGroup()
@@ -101,7 +103,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployM
     )[0].uamiClientID
     namespace: maestroNamespace
     maestroInfraResourceGroup: maestroInfraResourceGroup
-    maestroConsumerName: resourceGroup().name
+    maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name)?resourceGroup().name:''
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     maestroKeyVaultName: maestroKeyVaultName
     maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
