@@ -11,8 +11,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync/atomic"
 
@@ -159,7 +161,23 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		query = fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
 	}
 
-	clustersListResponse, err := f.conn.ClustersMgmt().V1().Clusters().List().Search(query).Send()
+	pageSize := 10
+	pageNumber := 1
+
+	if pageStr := request.URL.Query().Get("page"); pageStr != "" {
+		pageNumber, _ = strconv.Atoi(pageStr)
+	}
+	if sizeStr := request.URL.Query().Get("size"); sizeStr != "" {
+		pageSize, _ = strconv.Atoi(sizeStr)
+	}
+
+	// Create the request with initial parameters:
+	clustersRequest := f.conn.ClustersMgmt().V1().Clusters().List().Search(query)
+	clustersRequest.Size(pageSize)
+	clustersRequest.Page(pageNumber)
+
+	// Send the initial request:
+	clustersListResponse, err := clustersRequest.Send()
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -182,9 +200,16 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		versionedHcpClusters = append(versionedHcpClusters, &versionedResource)
 	}
 
+	// Check if there are more pages to fetch and set NextLink if applicable:
+	var nextLink string
+	if clustersListResponse.Size() >= pageSize {
+		nextPage := pageNumber + 1
+		nextLink = buildNextLink(request.URL.Path, request.URL.Query(), nextPage, pageSize)
+	}
+
 	result := api.VersionedHCPOpenShiftClusterList{
 		Value:    versionedHcpClusters,
-		NextLink: nil, // TO DO: Implement pagination
+		NextLink: &nextLink,
 	}
 
 	resp, err := json.Marshal(result)
@@ -193,6 +218,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		arm.WriteInternalServerError(writer)
 		return
 	}
+
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -736,4 +762,20 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 		}
 	}
 	return featureMap
+}
+
+// Function to build the NextLink URL with pagination parameters
+func buildNextLink(basePath string, queryParams url.Values, nextPage, pageSize int) string {
+	// Clone the existing query parameters
+	newParams := make(url.Values)
+	for key, values := range queryParams {
+		newParams[key] = values
+	}
+
+	newParams.Set("page", strconv.Itoa(nextPage))
+	newParams.Set("size", strconv.Itoa(pageSize))
+
+	// Construct the next link URL
+	nextLink := basePath + "?" + newParams.Encode()
+	return nextLink
 }
