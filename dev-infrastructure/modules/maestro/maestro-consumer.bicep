@@ -3,6 +3,7 @@ param maestroServerManagedIdentityPrincipalId string
 param maestroServerManagedIdentityClientId string
 param namespace string
 
+@minLength(1)
 param maestroConsumerName string
 param maestroInfraResourceGroup string
 param maestroEventGridNamespaceName string
