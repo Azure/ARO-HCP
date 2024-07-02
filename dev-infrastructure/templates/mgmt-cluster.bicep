@@ -8,7 +8,7 @@ param persist bool = false
 param currentUserId string
 
 @description('AKS cluster name')
-param aksClusterName string = 'aro-hcp-mgmt-aks1'
+param aksClusterName string = 'aro-hcp-mgmt-1'
 
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
