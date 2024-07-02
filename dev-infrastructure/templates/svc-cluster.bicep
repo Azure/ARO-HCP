@@ -194,7 +194,7 @@ resource zone 'Microsoft.Network/dnsZones@2018-05-01' = if (dnsZone.name != '') 
 }
 
 module delegation '../modules/dns/zone-delegation.bicep' = if (dnsZone.name != '' && dnsZone.parentZoneName != '' && dnsZone.parentZoneResourceGroup != '') {
-  name: 'dns'
+  name: 'zone-delegation'
   scope: resourceGroup(dnsZone.parentZoneResourceGroup)
   params: {
     childZoneName: dnsZone.name
