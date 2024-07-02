@@ -1,0 +1,8 @@
+
+repositories:
+  quay:
+    - image
+numberOfTags: 3
+quaySecretfile: /tmp/quay-secret
+acrRegistry: devarohcp.azurecr.io
+tenantId: f00b4r
