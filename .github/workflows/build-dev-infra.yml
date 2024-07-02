@@ -60,8 +60,7 @@ jobs:
               --template-file templates/svc-cluster.bicep \
               --parameters configurations/mvp-svc-cluster.bicepparam \
               --parameters currentUserId="${GITHUB_ACTOR}" \
-              --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}" \
-              --parameters zoneResourceGroup="${SC_RESOURCEGROUP}"
+              --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}"
 
             # management cluster
             az deployment group create \
