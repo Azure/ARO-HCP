@@ -4,6 +4,7 @@ CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
 LOCATION?=eastus
 RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
 MAESTRO_INFRA_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
+DNS_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
 DEPLOYMENTNAME=$(RESOURCEGROUP)
 
 list:
@@ -44,7 +45,8 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
+			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP) \
+			zoneResourceGroup=$(DNS_RESOURCEGROUP)
 
 cluster-what-if: rg
 ifndef AKSCONFIG
@@ -58,7 +60,8 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
+			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP) \
+			zoneResourceGroup=$(DNS_RESOURCEGROUP)
 
 aks.admin-access: rg
 ifndef AKSCONFIG

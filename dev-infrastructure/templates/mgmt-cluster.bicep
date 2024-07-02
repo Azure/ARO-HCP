@@ -60,6 +60,12 @@ param maestroInfraResourceGroup string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
+@description('The name of the zone to get access to')
+param zoneName string
+
+@description('The resource group that hosts the zone')
+param zoneResourceGroup string
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
   scope: resourceGroup()
@@ -107,5 +113,23 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployM
     maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
     maestroKeyVaultCertificateDomain: maestroCertDomain
     location: location
+  }
+}
+
+//
+//  E X T E R N A L   D N S
+//
+
+var externalDnsManagedIdentityPrincipalId = filter(
+  mgmtCluster.outputs.userAssignedIdentities,
+  id => id.uamiName == 'external-dns'
+)[0].uamiPrincipalID
+
+module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
+  name: guid(zoneName, mgmtCluster.name, 'external-dns')
+  scope: resourceGroup(zoneResourceGroup)
+  params: {
+    zoneName: zoneName
+    zoneContributerManagedIdentityPrincipalId: externalDnsManagedIdentityPrincipalId
   }
 }
