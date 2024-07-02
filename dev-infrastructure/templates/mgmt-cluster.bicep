@@ -103,7 +103,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployM
     )[0].uamiClientID
     namespace: maestroNamespace
     maestroInfraResourceGroup: maestroInfraResourceGroup
-    maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name) ? resourceGroup().name:''
+    maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name) ? resourceGroup().name : ''
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     maestroKeyVaultName: maestroKeyVaultName
     maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
