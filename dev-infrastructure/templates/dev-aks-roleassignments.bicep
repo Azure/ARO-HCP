@@ -1,6 +1,7 @@
 // This is used to grant CI the ability to deploy resources into
 // dev AKS clusters. It should not be used in higher environments.
 param aksClusterName string
+param grantCosmosAccess bool = false
 param cosmosDBName string
 param location string = resourceGroup().location
 param githubActionsPrincipalID string
@@ -21,7 +22,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' exis
   name: aksClusterName
 }
 
-resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
+resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = if (grantCosmosAccess) {
   name: cosmosDBName
 }
 
@@ -35,7 +36,7 @@ resource currentUserAksClusterAdmin 'Microsoft.Authorization/roleAssignments@202
   }
 }
 
-resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
+resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = if (grantCosmosAccess) {
   name: cosmosRoleAssignmentId
   parent: cosmosDbAccount
   properties: {

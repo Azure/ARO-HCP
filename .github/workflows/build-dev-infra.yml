@@ -72,6 +72,7 @@ jobs:
               --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}" \
               --parameters zoneResourceGroup="${SC_RESOURCEGROUP}"
 
+            MGMT_CLUSTER_NAME=$(az deployment group show --resource-group "${MC_RESOURCEGROUP}" --name "mgmt-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
             SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
             COSMOS_DB_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.cosmosDBName.value)
 
@@ -82,4 +83,15 @@ jobs:
               --template-file templates/dev-aks-roleassignments.bicep \
               --parameters aksClusterName=${SVC_CLUSTER_NAME} \
               --parameters cosmosDBName=${COSMOS_DB_NAME} \
+              --parameters grantCosmosAccess=true \
+              --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
+
+            # management cluster rolebindings
+            az deployment group create \
+              --name "mgmt-rolebindings-${GITHUB_RUN_ID}" \
+              --resource-group "${MC_RESOURCEGROUP}" \
+              --template-file templates/dev-aks-roleassignments.bicep \
+              --parameters aksClusterName=${MGMT_CLUSTER_NAME} \
+              --parameters cosmosDBName=${COSMOS_DB_NAME} \
+              --parameters grantCosmosAccess=false \
               --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
