@@ -31,7 +31,7 @@ param serviceKeyVaultSoftDelete = false
 param serviceKeyVaultPrivate = false
 
 param dnsZone = {
-  name: '${take('dev-${uniqueString(currentUserId)}', 10)}.hcp.osadev.cloud'
+  name: take('dev-${uniqueString(currentUserId)}', 10)
   parentZoneName: 'hcp.osadev.cloud'
   parentZoneResourceGroup: 'global'
 }

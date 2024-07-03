@@ -112,6 +112,9 @@ param dnsZone DNSZoneProperties = {
   parentZoneResourceGroup: ''
 }
 
+@description('The name of the resource group for the DNS zone')
+param zoneResourceGroup string = resourceGroup().name
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -209,9 +212,12 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
 //   D N S
 //
 
-resource zone 'Microsoft.Network/dnsZones@2018-05-01' = if (dnsZone.name != '') {
+module zone '../modules/dns/zone.bicep' = if (dnsZone.name != '' && dnsZone.parentZoneName != '') {
   name: dnsZone.name
-  location: 'global'
+  scope: resourceGroup(zoneResourceGroup)
+  params: {
+    zoneName: '${dnsZone.name}.${dnsZone.parentZoneName}'
+  }
 }
 
 module delegation '../modules/dns/zone-delegation.bicep' = if (dnsZone.name != '' && dnsZone.parentZoneName != '' && dnsZone.parentZoneResourceGroup != '') {
@@ -219,7 +225,7 @@ module delegation '../modules/dns/zone-delegation.bicep' = if (dnsZone.name != '
   scope: resourceGroup(dnsZone.parentZoneResourceGroup)
   params: {
     childZoneName: dnsZone.name
-    childZoneNameservers: zone.properties.nameServers
+    childZoneNameservers: zone.outputs.nameServers
     parentZoneName: dnsZone.parentZoneName
   }
 }

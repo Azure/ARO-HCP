@@ -31,7 +31,7 @@ param serviceKeyVaultSoftDelete = true
 param serviceKeyVaultPrivate = false
 
 param dnsZone = {
-  name: 'aro-hcp-dev.hcp.osadev.cloud'
+  name: 'aro-hcp-dev'
   parentZoneName: 'hcp.osadev.cloud'
   parentZoneResourceGroup: 'global'
 }
