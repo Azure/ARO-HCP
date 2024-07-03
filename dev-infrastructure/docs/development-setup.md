@@ -128,6 +128,17 @@ KUBECONFIG=svc-cluster.kubeconfig kubectl port-forward svc/maestro 8000 -n maest
 
 At this point `localhost:8000` forwards traffic to the Maestro server running on the SC.
 
+### Access the database from outside of the AKS cluster
+
+The connection parameters for the database can be aquired via `AKSCONFIG=svc-cluster make maestro-out-of-cluster-db-access`.
+
+The output are in ENV var format for the `psql` tool, so this works to get a connection into the DB#
+
+```sh
+eval $(AKSCONFIG=svc-cluster make maestro-out-of-cluster-db-access)
+psql -d maestro
+```
+
 ## Maestro consumer
 
 Before setting up a Maestro consumer, make sure that
