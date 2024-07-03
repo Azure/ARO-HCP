@@ -57,7 +57,7 @@ model HcpOpenShiftClusterProperties {
   @visibility("read")
   provisioningState?: ProvisioningState;
 
-  /** The cluster resouce specification. */
+  /** The cluster resource specification. */
   @visibility("create", "update")
   spec: ClusterSpec;
 }

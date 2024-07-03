@@ -276,7 +276,7 @@ type HcpOpenShiftClusterNodePoolResourceUpdateProperties struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
-	// REQUIRED; The cluster resouce specification.
+	// REQUIRED; The cluster resource specification.
 	Spec *ClusterSpec
 
 	// READ-ONLY; The status of the last operation.
@@ -333,7 +333,7 @@ type HcpOpenShiftClusterResourceUpdate struct {
 
 // HcpOpenShiftClusterResourceUpdateProperties - The updatable properties of the HcpOpenShiftClusterResource.
 type HcpOpenShiftClusterResourceUpdateProperties struct {
-	// The cluster resouce specification.
+	// The cluster resource specification.
 	Spec *ClusterSpecUpdate
 }
 

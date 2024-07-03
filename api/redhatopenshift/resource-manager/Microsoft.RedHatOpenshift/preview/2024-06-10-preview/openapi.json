@@ -1522,7 +1522,7 @@
         },
         "spec": {
           "$ref": "#/definitions/ClusterSpec",
-          "description": "The cluster resouce specification.",
+          "description": "The cluster resource specification.",
           "x-ms-mutability": [
             "update",
             "create"
@@ -1601,7 +1601,7 @@
       "properties": {
         "spec": {
           "$ref": "#/definitions/ClusterSpecUpdate",
-          "description": "The cluster resouce specification.",
+          "description": "The cluster resource specification.",
           "x-ms-mutability": [
             "update",
             "create"
