@@ -225,33 +225,11 @@ module delegation '../modules/dns/zone-delegation.bicep' = if (dnsZone.name != '
 }
 
 //
-//   C L U S T E R   S E R V I C E
-//
-
-module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
-  name: 'cluster-service'
-  params: {
-    aksClusterName: svcCluster.outputs.aksClusterName
-    namespace: csNamespace
-    location: location
-    postgresServerName: csPostgresServerName
-    clusterServiceManagedIdentityPrincipalId: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'cluster-service'
-    )[0].uamiPrincipalID
-    clusterServiceManagedIdentityName: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'cluster-service'
-    )[0].uamiName
-  }
-}
-
-//
 //   K E Y V A U L T S
 //
 
-module keyVault '../modules/keyvault/keyvault.bicep' = {
-  name: 'keyvault-service'
+module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
+  name: 'service-keyvault'
   params: {
     location: location
     keyVaultName: serviceKeyVaultName
@@ -260,4 +238,40 @@ module keyVault '../modules/keyvault/keyvault.bicep' = {
     subnetId: svcCluster.outputs.aksNodeSubnetId
     vnetId: svcCluster.outputs.aksVnetId
   }
+}
+
+//
+//   C L U S T E R   S E R V I C E
+//
+
+var csManagedIdentityPrincipalId = filter(
+  svcCluster.outputs.userAssignedIdentities,
+  id => id.uamiName == 'cluster-service'
+)[0].uamiPrincipalID
+
+module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
+  name: 'cluster-service'
+  params: {
+    aksClusterName: svcCluster.outputs.aksClusterName
+    namespace: csNamespace
+    location: location
+    postgresServerName: csPostgresServerName
+    clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
+    clusterServiceManagedIdentityName: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'cluster-service'
+    )[0].uamiName
+  }
+}
+
+module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(serviceKeyVaultName, 'cs', 'read')
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalId: csManagedIdentityPrincipalId
+  }
+  dependsOn: [
+    serviceKeyVault
+  ]
 }
