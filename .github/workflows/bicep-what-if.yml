@@ -64,4 +64,5 @@ jobs:
               --template-file templates/mgmt-cluster.bicep \
               --parameters configurations/mvp-mgmt-cluster.bicepparam \
               --parameters currentUserId="${GITHUB_ACTOR}" \
-              --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}"
+              --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}" \
+              --parameters zoneResourceGroup="${SC_RESOURCEGROUP}"

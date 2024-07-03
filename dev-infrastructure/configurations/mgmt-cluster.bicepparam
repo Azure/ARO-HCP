@@ -15,14 +15,22 @@ param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24
 param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
 
+param zoneName = '${take('dev-${uniqueString(currentUserId)}', 10)}.hcp.osadev.cloud'
+
 param workloadIdentities = items({
   maestro_wi: {
     uamiName: 'maestro-consumer'
     namespace: maestroNamespace
     serviceAccountName: 'maestro'
   }
+  external_dns_wi: {
+    uamiName: 'external-dns'
+    namespace: 'external-dns'
+    serviceAccountName: 'external-dns'
+  }
 })
 
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
 param maestroInfraResourceGroup = ''
+param zoneResourceGroup = ''
