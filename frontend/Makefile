@@ -22,11 +22,9 @@ clean:
 build-push: image push
 
 image:
-ifeq ($(shell docker images --filter reference=${ARO_HCP_FRONTEND_IMAGE} --quiet),)
 	pushd .. && git archive --output frontend/archive.tar.gz HEAD && popd
-	docker build --platform="linux/amd64" -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
+	docker build -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
 	rm -f archive.tar.gz
-endif
 
 push: image
 	docker push ${ARO_HCP_FRONTEND_IMAGE}
