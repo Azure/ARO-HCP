@@ -9,6 +9,8 @@
         - 'frontend/**'
         - 'cluster-service/**'
         - 'internal/**'
+        - 'maestro/**'
+        - 'pko/**'
       types:
         - opened
         - synchronize
@@ -20,6 +22,13 @@
     cancel-in-progress: false
 
   jobs:
+    is_running_on_fork:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Fail if PR submitted from fork
+          if: ${{ github.event.pull_request.head.repo.full_name != 'Azure/ARO-HCP' }}
+          run: core.setFailed('Expected source repository to be Azure/ARO-HCP, re-create PR as a branch of Azure/ARO-HCP')
+
     deploy_update_infra:
       if: github.event.pull_request.merged == true
       permissions:
