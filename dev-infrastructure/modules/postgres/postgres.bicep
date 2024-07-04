@@ -106,6 +106,7 @@ resource postgres_firewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRu
   }
 }
 
+@batchSize(1)
 resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2023-03-01-preview' = [
   for admin in filter(databaseAdministrators, a => a.principalId != ''): {
     name: admin.principalId
@@ -115,30 +116,24 @@ resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrator
       principalType: admin.principalType
       tenantId: subscription().tenantId
     }
+    dependsOn: [postgres_firewall]
   }
 ]
 
-// to figure out how to run this sequentially
+@batchSize(1)
 resource postgres_config 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2023-03-01-preview' = [
-  for (config, i) in configurations: {
+  for config in configurations: {
     name: config.source
     parent: postgres
     properties: {
       source: 'user-override'
       value: config.value
     }
-    dependsOn: i == 0
-      ? [postgres_admin]
-      : [
-          resourceId(
-            'Microsoft.DBforPostgreSQL/flexibleServers/configurations',
-            postgres.name,
-            configurations[i - 1].source
-          )
-        ]
+    dependsOn: [postgres_admin]
   }
 ]
 
+@batchSize(1)
 resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-03-01-preview' = [
   for database in databases: {
     name: database.name
@@ -147,6 +142,7 @@ resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@
       charset: database.charset
       collation: database.collation
     }
+    dependsOn: [postgres_config]
   }
 ]
 
