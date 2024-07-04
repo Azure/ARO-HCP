@@ -12,6 +12,30 @@ param acrSku string
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool
 
+
+@description('Vew all resources, but does not allow you to make any changes.')
+var keyVaultReadUserId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
+
+resource acrUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${acrName}-msi'
+  location: location
+}
+
+
+resource acrKeyVaultReadRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVaultReadUserId)
+  scope: 'service-kv-aro-hcp-dev'
+  properties: {
+    roleDefinitionId: keyVaultReadUserId
+    principalId: acrUserDefinedManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
   location: location
@@ -32,6 +56,45 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
       // https://learn.microsoft.com/en-us/azure/container-registry/tutorial-enable-customer-managed-keys#show-encryption-status
       status: 'disabled'
     }
+  }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${acrUserDefinedManagedIdentity.id}': {}
+    }
+  }
+}
+
+
+resource quayCredentials 'Microsoft.ContainerRegistry/registries/credentialSets@2023-01-01-preview' = {
+  name: 'string'
+  parent: acrResource
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${acrUserDefinedManagedIdentity.id}': {}
+    }
+  }
+  properties: {
+    authCredentials: [
+      {
+        name: 'TODO'
+        passwordSecretIdentifier: 'TODO'
+        usernameSecretIdentifier: 'TODO'
+      }
+    ]
+    loginServer: 'TODO'
+  }
+}
+
+
+resource quayCacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01-preview' = {
+  name: 'string'
+  parent: acrResource
+  properties: {
+    credentialSetResourceId: 'string'
+    sourceRepository: 'quay.io/*'
+    targetRepository: '*'
   }
 }
 
