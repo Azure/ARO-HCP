@@ -45,6 +45,8 @@ param dnsPrefix string = aksClusterName
 param systemOsDiskSizeGB int = 32
 param userOsDiskSizeGB int = 32
 
+param additionalAcrResourceGroups array = [resourceGroup().name]
+
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -58,11 +60,6 @@ var aksClusterAdminRoleId = subscriptionResourceId(
 var networkContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
-)
-
-var acrPullRoleDefinitionId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 )
 
 var systemAgentPool = [
@@ -391,14 +388,34 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
   }
 }
 
-resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aksCluster.id, acrPullRoleDefinitionId)
-  properties: {
-    principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalType: 'ServicePrincipal'
+//
+// ACR Pull Permissions on the own resource group and the resource groups provided
+// by acrResourceGroups
+//
+
+var acrPullRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+)
+
+var acrResourceGroups = union(additionalAcrResourceGroups, [resourceGroup().name])
+
+resource acrRg 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
+  for rg in acrResourceGroups: {
+    name: rg
+    scope: subscription()
   }
-}
+]
+
+module acrPullRole 'acr-pull-permission.bicep' = [
+  for (_, i) in acrResourceGroups: {
+    name: guid(acrRg[i].id, aksCluster.id, acrPullRoleDefinitionId)
+    scope: acrRg[i]
+    params: {
+      principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
+    }
+  }
+]
 
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
   for wi in workloadIdentities: {

@@ -7,6 +7,7 @@ param subnetPrefix = '10.132.8.0/21'
 param podSubnetPrefix = '10.132.64.0/18'
 param enablePrivateCluster = false
 param aksClusterName = 'aro-hcp-mgmt-cluster'
+param additionalAcrResourceGroups = ['aro-hcp-dev']
 param aksKeyVaultName = take('aks-kv-mgmt-cluster-${uniqueString(currentUserId)}', 24)
 param persist = false
 param deployMaestroConsumer = false
