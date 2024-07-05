@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'dev-infrastructure/**/*.bicep'
+      - 'dev-infrastructure/**/*.bicepparam'
       - '.github/workflows/bicep-what-if.yml'
       - '.github/workflows/aro-hcp-dev-env-cd.yml'
 
