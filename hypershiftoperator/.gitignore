@@ -1,0 +1,3 @@
+kubectl-slice
+deploy/base
+deploy/overlays/dev/tmp

@@ -1,0 +1,7 @@
+[
+{
+    "op": "add",
+    "path": "/spec/template/metadata/labels/azure.workload.identity~1use",
+    "value": "true"
+}
+]
