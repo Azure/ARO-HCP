@@ -1,6 +1,6 @@
 param parentZoneName string
 
-param childZoneName string
+param childZoneName string = resourceGroup().location
 
 param childZoneNameservers array
 
