@@ -102,18 +102,14 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
-type DNSZoneProperties = {
-  name: string
-  parentZoneName: string
-  parentZoneResourceGroup: string
-}
+@description('This is the region name in dev/staging/production, can be overriden for testing')
+param regionalDNSSubdomain string = resourceGroup().location
 
-@description('The name DNS zone to create')
-param dnsZone DNSZoneProperties = {
-  name: ''
-  parentZoneName: ''
-  parentZoneResourceGroup: ''
-}
+@description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
+param baseDNSZoneName string = ''
+
+@description('The resource group to deploy the base DNS zone to')
+param baseDNSZoneResourceGroup string = ''
 
 @description('The name of the resource group for the DNS zone')
 param zoneResourceGroup string = resourceGroup().name
@@ -216,21 +212,21 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
 //   D N S
 //
 
-module zone '../modules/dns/zone.bicep' = if (dnsZone.name != '' && dnsZone.parentZoneName != '') {
-  name: dnsZone.name
+module zone '../modules/dns/zone.bicep' = if (regionalDNSSubdomain != '' && baseDNSZoneName != '') {
+  name: regionalDNSSubdomain
   scope: resourceGroup(zoneResourceGroup)
   params: {
-    zoneName: '${dnsZone.name}.${dnsZone.parentZoneName}'
+    zoneName: '${regionalDNSSubdomain}.${baseDNSZoneName}'
   }
 }
 
-module delegation '../modules/dns/zone-delegation.bicep' = if (dnsZone.name != '' && dnsZone.parentZoneName != '' && dnsZone.parentZoneResourceGroup != '') {
+module delegation '../modules/dns/zone-delegation.bicep' = if (regionalDNSSubdomain != '' && baseDNSZoneName != '' && baseDNSZoneResourceGroup != '') {
   name: 'zone-delegation'
-  scope: resourceGroup(dnsZone.parentZoneResourceGroup)
+  scope: resourceGroup(baseDNSZoneResourceGroup)
   params: {
-    childZoneName: dnsZone.name
+    childZoneName: regionalDNSSubdomain
     childZoneNameservers: zone.outputs.nameServers
-    parentZoneName: dnsZone.parentZoneName
+    parentZoneName: baseDNSZoneName
   }
 }
 
