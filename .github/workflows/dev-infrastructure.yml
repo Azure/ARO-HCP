@@ -2,9 +2,6 @@
 name: Validate dev-infrastructure
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
