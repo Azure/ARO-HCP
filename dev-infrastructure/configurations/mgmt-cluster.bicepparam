@@ -9,6 +9,7 @@ param enablePrivateCluster = false
 param aksClusterName = 'aro-hcp-mgmt-cluster'
 param additionalAcrResourceGroups = ['aro-hcp-dev']
 param aksKeyVaultName = take('aks-kv-mgmt-cluster-${uniqueString(currentUserId)}', 24)
+param aksEtcdKVEnableSoftDelete = false
 param persist = false
 param deployMaestroConsumer = false
 param maestroNamespace = 'maestro'

@@ -10,6 +10,7 @@ param persist = false
 param aksClusterName = 'aro-hcp-svc-cluster'
 param additionalAcrResourceGroups = ['aro-hcp-dev']
 param aksKeyVaultName = take('aks-kv-svc-cluster-${uniqueString(currentUserId)}', 24)
+param aksEtcdKVEnableSoftDelete = false
 param disableLocalAuth = false
 param deployFrontendCosmos = false
 
