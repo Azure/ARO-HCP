@@ -109,13 +109,10 @@ param serviceKeyVaultPrivate bool = true
 param regionalDNSSubdomain string = resourceGroup().location
 
 @description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
-param baseDNSZoneName string = ''
+param baseDNSZoneName string
 
 @description('The resource group to deploy the base DNS zone to')
-param baseDNSZoneResourceGroup string = ''
-
-@description('The name of the resource group for the DNS zone')
-param zoneResourceGroup string = resourceGroup().name
+param baseDNSZoneResourceGroup string = 'global'
 
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
@@ -215,21 +212,17 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
 //
 //   D N S
 //
-
-module zone '../modules/dns/zone.bicep' = if (regionalDNSSubdomain != '' && baseDNSZoneName != '') {
-  name: regionalDNSSubdomain
-  scope: resourceGroup(zoneResourceGroup)
-  params: {
-    zoneName: '${regionalDNSSubdomain}.${baseDNSZoneName}'
-  }
+resource regionalZone 'Microsoft.Network/dnsZones@2018-05-01' = {
+  name: '${regionalDNSSubdomain}.${baseDNSZoneName}'
+  location: 'global'
 }
 
-module delegation '../modules/dns/zone-delegation.bicep' = if (regionalDNSSubdomain != '' && baseDNSZoneName != '' && baseDNSZoneResourceGroup != '') {
-  name: 'zone-delegation'
+module regionalZoneDelegation '../modules/dns/zone-delegation.bicep' = {
+  name: 'regional-zone-delegation'
   scope: resourceGroup(baseDNSZoneResourceGroup)
   params: {
     childZoneName: regionalDNSSubdomain
-    childZoneNameservers: zone.outputs.nameServers
+    childZoneNameservers: regionalZone.properties.nameServers
     parentZoneName: baseDNSZoneName
   }
 }
