@@ -1,5 +1,5 @@
 using '../templates/dev-acr.bicep'
 
 param acrName = 'devarohcp'
-param acrSku = 'Basic'
+param acrSku = 'Standard'
 param persist = true
