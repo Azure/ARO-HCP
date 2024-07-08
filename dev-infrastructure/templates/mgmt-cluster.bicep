@@ -38,6 +38,9 @@ param istioVersion string
 @maxLength(24)
 param aksKeyVaultName string
 
+@description('Manage soft delete setting for AKS etcd key-value store')
+param aksEtcdKVEnableSoftDelete bool = true
+
 @description('List of workload identities to create and their required values')
 param workloadIdentities array
 
@@ -80,6 +83,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     currentUserId: currentUserId
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
+    aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     enablePrivateCluster: enablePrivateCluster
     istioVersion: istioVersion
     kubernetesVersion: kubernetesVersion

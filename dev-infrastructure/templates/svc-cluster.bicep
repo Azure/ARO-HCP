@@ -38,6 +38,9 @@ param istioVersion string
 @maxLength(24)
 param aksKeyVaultName string
 
+@description('Manage soft delete setting for AKS etcd key-value store')
+param aksEtcdKVEnableSoftDelete bool = true
+
 // TODO: When the work around workload identity for the RP is finalized, change this to true
 @description('disableLocalAuth for the ARO HCP RP CosmosDB')
 param disableLocalAuth bool
@@ -122,6 +125,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     persist: persist
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
+    aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     currentUserId: currentUserId
     enablePrivateCluster: enablePrivateCluster
     kubernetesVersion: kubernetesVersion

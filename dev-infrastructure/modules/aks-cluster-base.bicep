@@ -1,6 +1,7 @@
 // Constants
 param aksClusterName string
 param aksNodeResourceGroupName string
+param aksEtcdKVEnableSoftDelete bool
 
 // System agentpool spec(Infra)
 param systemAgentMinCount int = 2
@@ -141,35 +142,21 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   }
 }
 
-resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  location: location
+module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
   name: aksKeyVaultName
-  tags: {
-    resourceGroup: resourceGroup().name
+  params: {
+    location: location
+    keyVaultName: aksKeyVaultName
+    // todo: change for higher environments
+    private: false
+    enableSoftDelete: aksEtcdKVEnableSoftDelete
+    // AKS managed private endpoints on its own when the etcd KV is private
+    managedPrivateEndpoint: false
   }
-  properties: {
-    enableRbacAuthorization: true
-    enabledForDeployment: false
-    enabledForDiskEncryption: false
-    enabledForTemplateDeployment: false
-    networkAcls: {
-      bypass: 'AzureServices'
-      defaultAction: 'Deny'
-      ipRules: [
-        {
-          // TODO: restrict in higher environments
-          value: '0.0.0.0/0'
-        }
-      ]
-    }
-    // TODO: disabled in higher environments
-    publicNetworkAccess: 'Enabled'
-    sku: {
-      name: 'standard'
-      family: 'A'
-    }
-    tenantId: subscription().tenantId
-  }
+}
+
+resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: aksKeyVaultName
 }
 
 resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
@@ -195,6 +182,9 @@ resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
       ]
     }
   }
+  dependsOn: [
+    aks_keyvault_builder
+  ]
 }
 
 resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -205,6 +195,9 @@ resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-
     principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    aks_keyvault_builder
+  ]
 }
 
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {

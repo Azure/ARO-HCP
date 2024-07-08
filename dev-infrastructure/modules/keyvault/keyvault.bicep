@@ -2,13 +2,17 @@ param location string
 
 param keyVaultName string
 
-param subnetId string
+param subnetId string = ''
 
-param vnetId string
+param vnetId string = ''
 
 param enableSoftDelete bool
 
 param private bool
+
+// Event for some private KVs it makes sense to disable the creation of a private endpoint,
+// e.g. AKS KMS on a private KV will manage their own private endpoint setup in the nodepool RG
+param managedPrivateEndpoint bool = true
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   location: location
@@ -37,7 +41,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
 
 var privateDnsZoneName = 'privatelink.vaultcore.azure.net'
 
-resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = {
+resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = if (managedPrivateEndpoint) {
   name: '${keyVaultName}-pe'
   location: location
   properties: {
@@ -58,13 +62,13 @@ resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01'
   }
 }
 
-resource keyVaultPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+resource keyVaultPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (managedPrivateEndpoint) {
   name: privateDnsZoneName
   location: 'global'
   properties: {}
 }
 
-resource keyVaultPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+resource keyVaultPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (managedPrivateEndpoint) {
   parent: keyVaultPrivateEndpointDnsZone
   name: uniqueString(keyVault.id)
   location: 'global'
@@ -76,7 +80,7 @@ resource keyVaultPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtu
   }
 }
 
-resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = {
+resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = if (managedPrivateEndpoint) {
   parent: keyVaultPrivateEndpoint
   name: '${keyVaultName}-dns-group'
   properties: {
