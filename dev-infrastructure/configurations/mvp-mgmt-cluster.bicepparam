@@ -16,7 +16,7 @@ param maestroKeyVaultName = 'maestro-kv-aro-hcp-dev'
 param maestroEventGridNamespacesName = 'maestro-eventgrid-aro-hcp-dev'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-dev.azure.com'
 
-param zoneName = 'aro-hcp-dev.hcp.osadev.cloud'
+param baseDNSZoneName = 'hcp.osadev.cloud'
 
 param workloadIdentities = items({
   maestro_wi: {

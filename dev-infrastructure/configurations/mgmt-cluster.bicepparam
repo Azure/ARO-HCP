@@ -16,7 +16,8 @@ param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24
 param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
 
-param zoneName = '${take('dev-${uniqueString(currentUserId)}', 10)}.hcp.osadev.cloud'
+param baseDNSZoneName = 'hcp.osadev.cloud'
+param regionalDNSSubdomain = 'reg-${take(uniqueString(currentUserId), 5)}'
 
 param workloadIdentities = items({
   maestro_wi: {
