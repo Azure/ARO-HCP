@@ -1,7 +1,12 @@
 [
-{
-    "op": "add",
-    "path": "/spec/template/metadata/labels/azure.workload.identity~1use",
-    "value": "true"
-}
+    {
+        "op": "add",
+        "path": "/spec/template/metadata/labels/azure.workload.identity~1use",
+        "value": "true"
+    },
+    {
+        "op": "replace",
+        "path": "/spec/template/spec/containers/0/command/0",
+        "value": "/ko-app/external-dns"
+    }
 ]

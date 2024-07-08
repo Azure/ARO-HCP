@@ -32,7 +32,7 @@ unpack-ho-manifests:
 		--external-dns-provider azure \
 		--external-dns-secret external-dns-azure \
 		--external-dns-domain-filter ${ZONE_NAME} \
-		--external-dns-image devarohcp.azurecr.io/edo/external-dns-rhel8:1.0.1-4 \
+		--external-dns-image registry.k8s.io/external-dns/external-dns:v0.14.2 \
 		--managed-service ARO-HCP | ./kubectl-slice -f - -o deploy/base
 	@echo "resources:" > deploy/base/kustomization.yml
 	@find deploy/base -type f \( -name "*.yml" -o -name "*.yaml" \) ! -name "kustomization.yml" | sed 's/^deploy\/base\//  - /' >> deploy/base/kustomization.yml
