@@ -101,6 +101,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   }
 }
 
+output aksClusterName string = mgmtCluster.outputs.aksClusterName
+
 //
 //   M A E S T R O
 //
