@@ -1,0 +1,13 @@
+---
+apiVersion: operator.openshift.io/v1alpha1
+kind: ImageContentSourcePolicy
+metadata:
+  name: ubi8
+spec:
+  repositoryDigestMirrors:
+  - mirrors:
+    - devarohcp.azurecr.io/ubi8
+    source: registry.access.redhat.com/ubi8
+  - mirrors:
+    - devarohcp.azurecr.io/ubi8
+    source: registry.redhat.io/ubi8
