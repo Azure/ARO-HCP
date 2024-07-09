@@ -86,7 +86,7 @@
                 --parameters configurations/mvp-mgmt-cluster.bicepparam \
                 --parameters currentUserId="${GITHUB_ACTOR}" \
                 --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}" \
-                --parameters zoneResourceGroup="${SC_RESOURCEGROUP}"
+                --parameters regionalZoneResourceGroup="${SC_RESOURCEGROUP}"
 
               MGMT_CLUSTER_NAME=$(az deployment group show --resource-group "${MC_RESOURCEGROUP}" --name "mgmt-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
               SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
