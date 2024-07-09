@@ -268,6 +268,15 @@ func (f *Frontend) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.ClustersAddRespon
 	return resp, nil
 }
 
+// UpdateCSCluster sends a POST request to update a cluster in Clusters Service
+func (f *Frontend) UpdateCSCluster(clusterID string, cluster *cmv1.Cluster) (*cmv1.ClusterUpdateResponse, error) {
+	resp, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Update().Body(cluster).Send()
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
 func (f *Frontend) DeleteCSCluster(clusterID string) (*cmv1.ClusterDeleteResponse, error) {
 	resp, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Delete().Send()
