@@ -2,9 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
 - ../../base
-- customresourcedefinition-imagecontentsourcepolicy.yml
-- imagecontentsourcepolicy-release-images.yml
-- imagecontentsourcepolicy-ubi8.yml
 namespace: hypershift
 patches:
 - target:
@@ -18,6 +15,12 @@ patches:
     kind: Deployment
     name: external-dns
   path: patch-deployment-external-dns.json
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: operator
+  path: patch-deployment-operator.json
 secretGenerator:
 - name: external-dns-azure
   type: Opaque
