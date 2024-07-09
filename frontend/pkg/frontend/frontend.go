@@ -395,7 +395,7 @@ func (f *Frontend) ArmResourceUpdate(writer http.ResponseWriter, request *http.R
 			}
 		}
 	}
-
+	versionedCurrentCluster := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 	versionedRequestCluster := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 	body, err := BodyFromContext(ctx)
 	if err != nil {
@@ -406,6 +406,12 @@ func (f *Frontend) ArmResourceUpdate(writer http.ResponseWriter, request *http.R
 	if err = json.Unmarshal(body, versionedRequestCluster); err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteCloudError(writer, arm.NewUnmarshalCloudError(err))
+		return
+	}
+
+	if cloudError := versionedRequestCluster.ValidateStatic(versionedCurrentCluster, updating, request.Method); cloudError != nil {
+		f.logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
