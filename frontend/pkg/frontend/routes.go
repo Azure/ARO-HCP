@@ -53,10 +53,10 @@ func (f *Frontend) routes() *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceCreate))
 	mux.Handle(
 		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceUpdate))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
