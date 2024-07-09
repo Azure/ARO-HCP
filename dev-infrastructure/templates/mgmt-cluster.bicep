@@ -73,7 +73,7 @@ param baseDNSZoneName string = ''
 param regionalDNSSubdomain string = resourceGroup().location
 
 @description('The resource group that hosts the regional zone')
-param zoneResourceGroup string
+param regionalZoneResourceGroup string
 
 func isValidMaestroConsumerName(input string) bool => length(input) <= 90 && contains(input, '[^a-zA-Z0-9_-]') == false
 
@@ -142,7 +142,7 @@ var externalDnsManagedIdentityPrincipalId = filter(
 
 module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
   name: guid(regionalDNSSubdomain, mgmtCluster.name, 'external-dns')
-  scope: resourceGroup(zoneResourceGroup)
+  scope: resourceGroup(regionalZoneResourceGroup)
   params: {
     zoneName: '${regionalDNSSubdomain}.${baseDNSZoneName}'
     zoneContributerManagedIdentityPrincipalId: externalDnsManagedIdentityPrincipalId

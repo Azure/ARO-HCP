@@ -49,9 +49,7 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP) \
-			zoneResourceGroup=$(DNS_RESOURCEGROUP)
-
+			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 cluster-what-if: rg
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
