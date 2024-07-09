@@ -8,7 +8,7 @@ roleAssignments=$(az role assignment list -g ${RESOURCEGROUP} --query "[?princip
 if [ -n "$roleAssignments" ]; then
     while IFS=$'\t' read -r id principalId; do
         # Check if the Managed Identity exists
-        identityExists=$(az identity show --ids $principalId --query id -o tsv 2>/dev/null)
+        identityExists=$(az ad sp show --id $principalId --query id -o tsv 2>/dev/null)
 
         if [ -z "$identityExists" ]; then
             echo "Role Assignment ID $id is bound to a non-existent Managed Identity $principalId... deleting"
