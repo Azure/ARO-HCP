@@ -1,0 +1,148 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    hypershift.openshift.io/install-cli-version: 'openshift/hypershift: 0f9f6863fd9e86de00f9779980128f8ba38cfe9f.
+      Latest supported OCP: 4.17.0'
+  creationTimestamp: null
+  name: operator
+  namespace: hypershift
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      name: operator
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: operator
+        hypershift.openshift.io/operator-component: operator
+        name: operator
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: name
+                  operator: In
+                  values:
+                  - operator
+              topologyKey: kubernetes.io/hostname
+            weight: 10
+      containers:
+      - args:
+        - run
+        - --namespace=$(MY_NAMESPACE)
+        - --pod-name=$(MY_NAME)
+        - --metrics-addr=:9000
+        - --enable-dedicated-request-serving-isolation=true
+        - --enable-ocp-cluster-monitoring=false
+        - --enable-ci-debug-output=false
+        - --private-platform=None
+        - --cert-dir=/var/run/secrets/serving-cert
+        command:
+        - /usr/bin/hypershift-operator
+        env:
+        - name: MY_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: METRICS_SET
+          value: Telemetry
+        - name: CERT_ROTATION_SCALE
+          value: 24h0m0s
+        - name: MANAGED_SERVICE
+          value: ARO-HCP
+        image: quay.io/hypershift/hypershift-operator:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /metrics
+            port: 9000
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: operator
+        ports:
+        - containerPort: 9000
+          name: metrics
+          protocol: TCP
+        - containerPort: 9443
+          name: manager
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /metrics
+            port: 9000
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 10m
+            memory: 150Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: /var/run/secrets/serving-cert
+          name: serving-cert
+        - mountPath: /etc/pki/ca-trust/extracted/pem
+          name: trusted-ca-bundle
+          readOnly: true
+      initContainers:
+      - args:
+        - init
+        command:
+        - /usr/bin/hypershift-operator
+        image: quay.io/hypershift/hypershift-operator:latest
+        imagePullPolicy: IfNotPresent
+        name: init-environment
+        resources: {}
+        securityContext:
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /var/run/ca-trust
+          name: openshift-config-managed-trusted-ca-bundle
+          readOnly: true
+        - mountPath: /trust-bundle
+          name: trusted-ca-bundle
+      priorityClassName: hypershift-operator
+      serviceAccountName: operator
+      volumes:
+      - name: serving-cert
+        secret:
+          secretName: manager-serving-cert
+      - configMap:
+          items:
+          - key: ca-bundle.crt
+            path: tls-ca-bundle.pem
+          name: openshift-config-managed-trusted-ca-bundle
+          optional: true
+        name: openshift-config-managed-trusted-ca-bundle
+      - emptyDir: {}
+        name: trusted-ca-bundle
+status: {}
