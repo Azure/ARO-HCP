@@ -32,7 +32,7 @@ There are a few variants to chose from when creating an AKS cluster:
 1. Access private AKS clusters with:
 
    ```bash
-   az aks command invoke --resource-group ${RESOURCE_GROUP} --name CLUSTER_NAME --command "kubectl get ns"
+   az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl get ns"
    ```
 
    Docs: https://learn.microsoft.com/en-us/azure/aks/access-private-cluster?tabs=azure-cli
