@@ -6,7 +6,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -85,7 +85,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 				IssuerURL: "",
 				ExternalAuth: api.ExternalAuthConfigProfile{
 					Enabled:       false,
-					ExternalAuths: []*v1.OIDCProvider{},
+					ExternalAuths: []*configv1.OIDCProvider{},
 				},
 				Ingress: []*api.IngressProfile{
 					{
