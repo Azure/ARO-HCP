@@ -38,6 +38,9 @@ param istioVersion string
 @maxLength(24)
 param aksKeyVaultName string
 
+@description('Manage soft delete setting for AKS etcd key-value store')
+param aksEtcdKVEnableSoftDelete bool = true
+
 @description('List of workload identities to create and their required values')
 param workloadIdentities array
 
@@ -63,10 +66,13 @@ param maestroInfraResourceGroup string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
-@description('The name of the zone to get access to')
-param zoneName string
+@description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
+param baseDNSZoneName string = ''
 
-@description('The resource group that hosts the zone')
+@description('This is the region name in dev/staging/production, can be overriden for testing')
+param regionalDNSSubdomain string = resourceGroup().location
+
+@description('The resource group that hosts the regional zone')
 param zoneResourceGroup string
 
 func isValidMaestroConsumerName(input string) bool => length(input) <= 90 && contains(input, '[^a-zA-Z0-9_-]') == false
@@ -80,6 +86,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     currentUserId: currentUserId
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
+    aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     enablePrivateCluster: enablePrivateCluster
     istioVersion: istioVersion
     kubernetesVersion: kubernetesVersion
@@ -93,6 +100,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     additionalAcrResourceGroups: additionalAcrResourceGroups
   }
 }
+
+output aksClusterName string = mgmtCluster.outputs.aksClusterName
 
 //
 //   M A E S T R O
@@ -132,10 +141,10 @@ var externalDnsManagedIdentityPrincipalId = filter(
 )[0].uamiPrincipalID
 
 module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
-  name: guid(zoneName, mgmtCluster.name, 'external-dns')
+  name: guid(regionalDNSSubdomain, mgmtCluster.name, 'external-dns')
   scope: resourceGroup(zoneResourceGroup)
   params: {
-    zoneName: zoneName
+    zoneName: '${regionalDNSSubdomain}.${baseDNSZoneName}'
     zoneContributerManagedIdentityPrincipalId: externalDnsManagedIdentityPrincipalId
   }
 }

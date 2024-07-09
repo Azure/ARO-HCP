@@ -9,6 +9,7 @@ param enablePrivateCluster = false
 param aksClusterName = 'aro-hcp-mgmt-cluster'
 param additionalAcrResourceGroups = ['aro-hcp-dev']
 param aksKeyVaultName = take('aks-kv-mgmt-cluster-${uniqueString(currentUserId)}', 24)
+param aksEtcdKVEnableSoftDelete = false
 param persist = false
 param deployMaestroConsumer = false
 param maestroNamespace = 'maestro'
@@ -16,7 +17,8 @@ param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24
 param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
 
-param zoneName = '${take('dev-${uniqueString(currentUserId)}', 10)}.hcp.osadev.cloud'
+param baseDNSZoneName = 'hcp.osadev.cloud'
+param regionalDNSSubdomain = 'reg-${take(uniqueString(currentUserId), 5)}'
 
 param workloadIdentities = items({
   maestro_wi: {

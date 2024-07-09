@@ -6,6 +6,8 @@
         - main
       paths:
         - '.github/workflows/aro-hcp-dev-env-cd.yml'
+        - 'dev-infrastructure/**/*.bicep'
+        - 'dev-infrastructure/**/*.bicepparam'
         - 'frontend/**'
         - 'cluster-service/**'
         - 'internal/**'
