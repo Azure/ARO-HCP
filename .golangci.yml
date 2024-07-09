@@ -16,6 +16,7 @@ linters:
     - goimports
     - gosimple
     - govet
+    - importas
     - ineffassign
     - staticcheck
     - typecheck
@@ -23,3 +24,12 @@ linters:
 linters-settings:
   goimports:
     local-prefixes: github.com/Azure/ARO-HCP
+  importas:
+    no-unaliased: true
+    alias:
+      - pkg: github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1
+        alias: cmv1
+      - pkg: github.com/Azure/azure-sdk-for-go/sdk/azcore/arm
+        alias: azcorearm
+      - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
+        alias: $1$2
