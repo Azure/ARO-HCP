@@ -37,11 +37,12 @@ prepare-ho-manifests:
 	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_podmonitors.yaml
 	curl https://raw.githubusercontent.com/openshift/api/master/route/v1/zz_generated.crd-manifests/routes-Default.crd.yaml -o deploy/base/customresourcedefinition-routes-default.crd.yaml
 	@podman run -it --rm ${HO_IMAGE} install render \
-		--enable-conversion-webhook false \
+		--enable-conversion-webhook=false \
 		--external-dns-provider azure \
 		--external-dns-secret external-dns-azure \
 		--external-dns-domain-filter ${ZONE_NAME} \
 		--external-dns-image ${EDO_IMAGE} \
+		--external-dns-txt-owner-id ARO-HCP \
 		--managed-service ARO-HCP | ./kubectl-slice -f - -o deploy/base
 	@echo "apiVersion: kustomize.config.k8s.io/v1beta1" > deploy/base/kustomization.yml
 	@echo "kind: Kustomization" >> deploy/base/kustomization.yml
