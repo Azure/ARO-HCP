@@ -2,39 +2,50 @@ SHELL := /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
 LOCATION ?= $(shell az group show -n ${RESOURCEGROUP} --query location)
-EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID := $(shell az identity show -g ${RESOURCEGROUP} -n external-dns-${LOCATION} --query clientId -o tsv)
+EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID ?= $(shell az identity show -g ${RESOURCEGROUP} -n external-dns-${LOCATION} --query clientId -o tsv)
 ZONE_RESOURCE_GROUP ?= $(shell az role assignment list --assignee ${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID} --all --query "[?roleDefinitionName == 'DNS Zone Contributor'].resourceGroup | [0]" -o tsv)
 ZONE_NAME ?= $(shell az network dns zone list -g ${ZONE_RESOURCE_GROUP} --query "[?zoneType=='Public'].name" -o tsv)
+AZURE_TENANT_ID ?= $(shell az account show --query tenantId --output tsv)
+AZURE_SUBSCRIPTION_ID ?= $(shell az account show --query id --output tsv)
 
-deploy-crds:
-	oc apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
-	oc apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml
-	oc apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml
-	oc apply -f https://raw.githubusercontent.com/openshift/api/master/route/v1/zz_generated.crd-manifests/routes-Default.crd.yaml
+HO_IMAGE ?= quay.io/acm-d/rhtap-hypershift-operator:0f9f686
+EDO_IMAGE ?= devarohcp.azurecr.io/external-dns/external-dns:v0.14.2
 
-deploy: deploy-crds unpack-ho-manifests
-	AZURE_TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	AZURE_SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) && \
-	oc process --local -f deploy/openshift-templates/external-dns-azure-secret.yml \
-	  -p AZURE_TENANT_ID=$${AZURE_TENANT_ID} \
-	  -p AZURE_SUBSCRIPTION_ID=$${AZURE_SUBSCRIPTION_ID} \
-	  -p EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID=${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID} \
-	  -p ZONE_RESOURCE_GROUP=${ZONE_RESOURCE_GROUP} | oc apply -n hypershift -f - && \
+create-edo-azure-creds:
+	@echo '{' > deploy/overlays/dev/edo-azure-credentials.json
+	@echo '  "tenantId": "${AZURE_TENANT_ID}",' >> deploy/overlays/dev/edo-azure-credentials.json
+	@echo '  "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",' >> deploy/overlays/dev/edo-azure-credentials.json
+	@echo '  "resourceGroup": "${ZONE_RESOURCE_GROUP}",' >> deploy/overlays/dev/edo-azure-credentials.json
+	@echo '  "useWorkloadIdentityExtension": true,' >> deploy/overlays/dev/edo-azure-credentials.json
+	@echo '  "userAssignedIdentityID": "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}"' >> deploy/overlays/dev/edo-azure-credentials.json
+	@echo '}' >> deploy/overlays/dev/edo-azure-credentials.json
+
+create-edo-sa-patch:
+	@echo '[{"op": "add", "path": "/metadata/annotations/azure.workload.identity~1client-id", "value": "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}"}]' > deploy/overlays/dev/patch-serviceaccount-external-dns.json
+
+deploy: create-edo-azure-creds create-edo-sa-patch
 	pushd deploy/overlays/dev && \
-	jq --arg mi_client_id "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}" '.[0].value = $$mi_client_id' patch-templates/patch-serviceaccount-external-dns.json > tmp/patch-serviceaccount-external-dns.json && \
 	kubectl apply --server-side --force-conflicts -k .
 
-unpack-ho-manifests:
+# run this task whenever HO_IMAGE or EDO_IMAGE is updated
+# commit the changes to deploy/base to the repo since we don't have podman or docker in CI
+prepare-ho-manifests:
 	@curl -sfLo - "https://github.com/patrickdappollonio/kubectl-slice/releases/download/v1.3.1/kubectl-slice_${shell uname -s | tr '[:upper:]' '[:lower:]'}_${shell uname -m}.tar.gz" | tar xzf - kubectl-slice
 	@rm deploy/base/*
-	@podman run -it --rm quay.io/acm-d/rhtap-hypershift-operator:0f9f686 install render \
+	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_servicemonitors.yaml
+	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_prometheusrules.yaml
+	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_podmonitors.yaml
+	curl https://raw.githubusercontent.com/openshift/api/master/route/v1/zz_generated.crd-manifests/routes-Default.crd.yaml -o deploy/base/customresourcedefinition-routes-default.crd.yaml
+	@podman run -it --rm ${HO_IMAGE} install render \
 		--enable-conversion-webhook false \
 		--external-dns-provider azure \
 		--external-dns-secret external-dns-azure \
 		--external-dns-domain-filter ${ZONE_NAME} \
-		--external-dns-image registry.k8s.io/external-dns/external-dns:v0.14.2 \
+		--external-dns-image ${EDO_IMAGE} \
 		--managed-service ARO-HCP | ./kubectl-slice -f - -o deploy/base
-	@echo "resources:" > deploy/base/kustomization.yml
+	@echo "apiVersion: kustomize.config.k8s.io/v1beta1" > deploy/base/kustomization.yml
+	@echo "kind: Kustomization" >> deploy/base/kustomization.yml
+	@echo "resources:" >> deploy/base/kustomization.yml
 	@find deploy/base -type f \( -name "*.yml" -o -name "*.yaml" \) ! -name "kustomization.yml" | sed 's/^deploy\/base\//  - /' >> deploy/base/kustomization.yml
 
-.PHONY: deploy-crds deploy unpack-ho-manifests
+.PHONY: create-edo-azure-creds deploy unpack-ho-manifests

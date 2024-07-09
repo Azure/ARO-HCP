@@ -8,10 +8,15 @@ patches:
     version: v1
     kind: ServiceAccount
     name: external-dns
-  path: tmp/patch-serviceaccount-external-dns.json
+  path: patch-serviceaccount-external-dns.json
 - target:
     group: apps
     version: v1
     kind: Deployment
     name: external-dns
   path: patch-deployment-external-dns.json
+secretGenerator:
+- name: external-dns-azure
+  type: Opaque
+  files:
+  - credentials=edo-azure-credentials.json
