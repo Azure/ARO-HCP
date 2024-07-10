@@ -347,7 +347,7 @@ func (f *Frontend) ArmResourceCreate(writer http.ResponseWriter, request *http.R
 	doc.ClusterID = req.Body().ID()
 	err = f.dbClient.SetClusterDoc(ctx, doc)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to create document for resource %s: %v", doc.Key, err))
+		f.logger.Error(fmt.Sprintf("failed to create document for resource %s: %v", doc.ClusterID, err))
 	}
 
 	resp, err := json.Marshal(versionedRequestCluster)
@@ -435,7 +435,7 @@ func (f *Frontend) ArmResourceUpdate(writer http.ResponseWriter, request *http.R
 	doc.ClusterID = req.Body().ID()
 	err = f.dbClient.SetClusterDoc(ctx, doc)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to update document for resource %s: %v", doc.Key, err))
+		f.logger.Error(fmt.Sprintf("failed to update document for resource %s: %v", doc.ClusterID, err))
 	}
 
 	resp, err := json.Marshal(versionedRequestCluster)
