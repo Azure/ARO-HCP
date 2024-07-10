@@ -116,6 +116,19 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		return nil, fmt.Errorf("could not get tenant ID: %w", err)
 	}
 
+	// additionalProperties should be empty in production, it is configurable for development to pin to specific
+	// provision shards or instruct CS to skip the full provisioning/deprovisioning flow.
+	additionalProperties := map[string]string{}
+	if f.clusterServiceConfig.ProvisionShardID != nil {
+		additionalProperties["provision_shard_id"] = *f.clusterServiceConfig.ProvisionShardID
+	}
+	if f.clusterServiceConfig.ProvisionerNoOpProvision {
+		additionalProperties["provisioner_noop_provision"] = "true"
+	}
+	if f.clusterServiceConfig.ProvisionerNoOpDeprovision {
+		additionalProperties["provisioner_noop_deprovision"] = "true"
+	}
+
 	clusterBuilder := cmv1.NewCluster().
 		Name(hcpCluster.Name).
 		Flavour(cmv1.NewFlavour().
@@ -156,11 +169,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 			Enabled(csHypershifEnabled)).
 		MultiAZ(csMultiAzEnabled).
 		CCS(cmv1.NewCCS().Enabled(csCCSEnabled)).
-		Properties(map[string]string{ // per CS, required for testing locally)
-			"provision_shard_id":           "1",
-			"provisioner_noop_provision":   "true",
-			"provisioner_noop_deprovision": "true",
-		}) // temporary values for testing purposes
+		Properties(additionalProperties)
 
 	cluster, err := clusterBuilder.Build()
 	if err != nil {
@@ -252,7 +261,7 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 
 // GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
 func (f *Frontend) GetCSCluster(clusterID string) (*cmv1.ClusterGetResponse, error) {
-	cluster, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Get().Send()
+	cluster, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Get().Send()
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +270,7 @@ func (f *Frontend) GetCSCluster(clusterID string) (*cmv1.ClusterGetResponse, err
 
 // PostCSCluster creates and sends a POST request to create a cluster in Clusters Service
 func (f *Frontend) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.ClustersAddResponse, error) {
-	resp, err := f.conn.ClustersMgmt().V1().Clusters().Add().Body(cluster).Send()
+	resp, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Add().Body(cluster).Send()
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +279,7 @@ func (f *Frontend) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.ClustersAddRespon
 
 // DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
 func (f *Frontend) DeleteCSCluster(clusterID string) (*cmv1.ClusterDeleteResponse, error) {
-	resp, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Delete().Send()
+	resp, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Delete().Send()
 	if err != nil {
 		return nil, err
 	}

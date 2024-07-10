@@ -16,11 +16,15 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type FrontendOpts struct {
-	clustersServiceURL string
-	insecure           bool
+	clustersServiceURL            string
+	clusterServiceProvisionShard  string
+	clusterServiceNoopProvision   bool
+	clusterServiceNoopDeprovision bool
+	insecure                      bool
 
 	region string
 	port   int
@@ -33,9 +37,10 @@ type FrontendOpts struct {
 func NewRootCmd() *cobra.Command {
 	opts := &FrontendOpts{}
 	rootCmd := &cobra.Command{
-		Use:   "aro-hcp-frontend",
-		Args:  cobra.NoArgs,
-		Short: "Serve the ARO HCP Frontend",
+		Use:     "aro-hcp-frontend",
+		Version: version(),
+		Args:    cobra.NoArgs,
+		Short:   "Serve the ARO HCP Frontend",
 		Long: `Serve the ARO HCP Frontend
 
 	This command runs the ARO HCP Frontend. It communicates with Clusters Service and a CosmosDB
@@ -57,6 +62,9 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.Flags().StringVar(&opts.clustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway.")
 	rootCmd.Flags().BoolVar(&opts.insecure, "insecure", false, "Skip validating TLS for clusters-service.")
+	rootCmd.Flags().StringVar(&opts.clusterServiceProvisionShard, "cluster-service-provision-shard", "", "Manually specify provision shard for all requests to cluster service")
+	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
+	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
 
 	rootCmd.MarkFlagsMutuallyExclusive("use-cache", "cosmos-name")
 	rootCmd.MarkFlagsMutuallyExclusive("use-cache", "cosmos-url")
@@ -89,8 +97,6 @@ func (opts *FrontendOpts) Run() error {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("Application running in region: %s", opts.region))
-
 	// Initialize Clusters Service Client
 	conn, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(opts.clustersServiceURL).
@@ -100,10 +106,22 @@ func (opts *FrontendOpts) Run() error {
 		return err
 	}
 
+	csCfg := frontend.ClusterServiceConfig{
+		Conn:                       conn,
+		ProvisionerNoOpProvision:   opts.clusterServiceNoopDeprovision,
+		ProvisionerNoOpDeprovision: opts.clusterServiceNoopDeprovision,
+	}
+
+	if opts.clusterServiceProvisionShard != "" {
+		csCfg.ProvisionShardID = api.Ptr(opts.clusterServiceProvisionShard)
+	}
+
 	if len(opts.region) == 0 {
 		return errors.New("region is required")
 	}
-	f := frontend.NewFrontend(logger, listener, prometheusEmitter, dbClient, opts.region, conn)
+	logger.Info(fmt.Sprintf("Application running in region: %s", opts.region))
+
+	f := frontend.NewFrontend(logger, listener, prometheusEmitter, dbClient, opts.region, csCfg)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
