@@ -13,6 +13,7 @@
         - 'internal/**'
         - 'maestro/**'
         - 'pko/**'
+        - 'acm/**'
       types:
         - opened
         - synchronize
@@ -277,4 +278,11 @@
           RESOURCEGROUP: aro-hcp-dev
         run: |
           cd pko/
+          make deploy
+
+      - name: 'Deploy ACM'
+        env:
+          RESOURCEGROUP: aro-hcp-dev
+        run: |
+          cd acm/
           make deploy
