@@ -39,15 +39,32 @@ const (
 )
 
 type Frontend struct {
-	conn     *sdk.Connection
-	logger   *slog.Logger
-	listener net.Listener
-	server   http.Server
-	dbClient database.DBClient
-	ready    atomic.Value
-	done     chan struct{}
-	metrics  Emitter
-	region   string
+	clusterServiceConfig ClusterServiceConfig
+	logger               *slog.Logger
+	listener             net.Listener
+	server               http.Server
+	dbClient             database.DBClient
+	ready                atomic.Value
+	done                 chan struct{}
+	metrics              Emitter
+	region               string
+}
+
+type ClusterServiceConfig struct {
+	// Conn is an ocm-sdk-go connection to Cluster Service
+	Conn *sdk.Connection
+
+	// ProvisionShardID sets the provision_shard_id property for all cluster requests to Cluster Service, which pins all
+	// cluster requests to Cluster Service to a specific shard during testing
+	ProvisionShardID *string
+
+	// ProvisionerNoOpProvision sets the provisioner_noop_provision property for all cluster requests to Cluster
+	// Service, which short-circuits the full provision flow during testing
+	ProvisionerNoOpProvision bool
+
+	// ProvisionerNoOpDeprovision sets the provisioner_noop_deprovision property for all cluster requests to Cluster
+	// Service, which short-circuits the full deprovision flow during testing
+	ProvisionerNoOpDeprovision bool
 }
 
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
@@ -57,12 +74,12 @@ func MuxPattern(method string, segments ...string) string {
 	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, region string, conn *sdk.Connection) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, region string, csCfg ClusterServiceConfig) *Frontend {
 	f := &Frontend{
-		conn:     conn,
-		logger:   logger,
-		listener: listener,
-		metrics:  emitter,
+		clusterServiceConfig: csCfg,
+		logger:               logger,
+		listener:             listener,
+		metrics:              emitter,
 		server: http.Server{
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
@@ -172,7 +189,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 
 	// Create the request with initial parameters:
-	clustersRequest := f.conn.ClustersMgmt().V1().Clusters().List().Search(query)
+	clustersRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().List().Search(query)
 	clustersRequest.Size(pageSize)
 	clustersRequest.Page(pageNumber)
 

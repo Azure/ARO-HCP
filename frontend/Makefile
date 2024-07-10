@@ -14,7 +14,11 @@ frontend:
 	go build -o aro-hcp-frontend .
 
 run:
-	./aro-hcp-frontend --use-cache --region eastus --clusters-service-url http://localhost:8000
+	./aro-hcp-frontend --use-cache --region eastus \
+		--clusters-service-url http://localhost:8000 \
+		--cluster-service-provision-shard 1 \
+		--cluster-service-noop-provision \
+		--cluster-service-noop-deprovision
 
 clean:
 	rm -f aro-hcp-frontend
