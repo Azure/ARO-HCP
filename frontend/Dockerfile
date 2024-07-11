@@ -7,7 +7,7 @@ ADD archive.tar.gz .
 ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
 RUN cd frontend && make frontend
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot@sha256:e4faf092445ca7608aedfd7261788c270fc604dca9d1d8c8c4d18dedb1615142
+FROM --platform=${TARGETPLATFORM:-linux/amd64} mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot@sha256:ef0dc582fc2a8dd34fbb41341a3a9a1aaa70d4542ff04ce4e33a641e52e4807e
 WORKDIR /
 COPY --from=builder /app/frontend/aro-hcp-frontend .
 ENTRYPOINT ["/aro-hcp-frontend"]
