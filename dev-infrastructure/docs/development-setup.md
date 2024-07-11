@@ -385,3 +385,13 @@ psql -d cluster-service
 * the CS pod will need to be labeled with `azure.workload.identity/use: "true"`, which injects several ENV variables prefixed with `AZ_*`
 
 TODO: CS needs to use these `AZ_*` env variables to get an access token to be used as a DB password
+
+## Azure Credentials and Pull Secret for HCP creation
+
+To test HCP creation, an Azure credentials file with clientId/clientSecret and a pull secret are required.
+The `service-kv-aro-hcp-dev` KV hosts to shared secrets for the creds file and the pull secrets, that can be used by the team for testing
+
+```sh
+az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-pull-secret" | jq .value -r > pull-secret.json
+az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
+```
