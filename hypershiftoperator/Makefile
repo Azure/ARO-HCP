@@ -23,7 +23,10 @@ create-edo-azure-creds:
 create-edo-sa-patch:
 	@echo '[{"op": "add", "path": "/metadata/annotations/azure.workload.identity~1client-id", "value": "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}"}]' > deploy/overlays/dev/patch-serviceaccount-external-dns.json
 
-deploy: create-edo-azure-creds create-edo-sa-patch
+create-domain-file:
+	@echo "${ZONE_NAME}" > deploy/overlays/dev/domain.txt
+
+deploy: create-edo-azure-creds create-edo-sa-patch create-domain-file
 	pushd deploy/overlays/dev && \
 	kubectl apply --server-side --force-conflicts -k .
 
@@ -40,7 +43,7 @@ prepare-ho-manifests:
 		--enable-conversion-webhook=false \
 		--external-dns-provider azure \
 		--external-dns-secret external-dns-azure \
-		--external-dns-domain-filter ${ZONE_NAME} \
+		--external-dns-domain-filter \$$\(DOMAIN\) \
 		--external-dns-image ${EDO_IMAGE} \
 		--external-dns-txt-owner-id ARO-HCP \
 		--managed-service ARO-HCP | ./kubectl-slice -f - -o deploy/base
