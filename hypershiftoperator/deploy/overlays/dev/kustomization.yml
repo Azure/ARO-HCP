@@ -26,3 +26,4 @@ secretGenerator:
   type: Opaque
   files:
   - credentials=edo-azure-credentials.json
+  - domain=domain.txt

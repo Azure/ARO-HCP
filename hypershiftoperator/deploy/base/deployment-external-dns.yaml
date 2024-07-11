@@ -22,7 +22,7 @@ spec:
       - args:
         - --source=service
         - --source=openshift-route
-        - --domain-filter=reg-jsy5z.hcp.osadev.cloud
+        - --domain-filter=$(DOMAIN)
         - --provider=azure
         - --registry=txt
         - --txt-suffix=-external-dns

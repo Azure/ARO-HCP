@@ -14,6 +14,7 @@
         - 'maestro/**'
         - 'pko/**'
         - 'acm/**'
+        - 'hypershiftoperator/**'
       types:
         - opened
         - synchronize
@@ -225,7 +226,7 @@
     deploy_to_management_cluster:
       if: github.event.pull_request.merged == true
       needs:
-        - deploy_update_infra
+       - deploy_update_infra
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -275,14 +276,22 @@
 
       - name: 'Deploy PKO'
         env:
-          RESOURCEGROUP: aro-hcp-dev
+          RESOURCEGROUP: aro-hcp-dev-mc
         run: |
           cd pko/
           make deploy
 
       - name: 'Deploy ACM'
         env:
-          RESOURCEGROUP: aro-hcp-dev
+          RESOURCEGROUP: aro-hcp-dev-mc
         run: |
           cd acm/
+          make deploy
+
+      - name: 'Deploy Hypershift Operator and External DNS Operator'
+        env:
+          RESOURCEGROUP: aro-hcp-dev-mc
+          ZONE_RESOURCE_GROUP: aro-hcp-dev
+        run: |
+          cd hypershiftoperator/
           make deploy

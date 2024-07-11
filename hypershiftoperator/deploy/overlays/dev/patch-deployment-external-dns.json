@@ -8,5 +8,20 @@
         "op": "replace",
         "path": "/spec/template/spec/containers/0/command/0",
         "value": "/ko-app/external-dns"
+    },
+    {
+        "op": "add",
+        "path": "/spec/template/spec/containers/0/env",
+        "value": [
+            {
+                "name": "DOMAIN",
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "key": "domain",
+                        "name": "external-dns-azure"
+                    }
+                }
+            }
+        ]
     }
 ]
