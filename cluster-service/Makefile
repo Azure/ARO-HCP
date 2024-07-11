@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
-REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location)
+REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location -o tsv)
 
 deploy:
 	DOMAIN=$(shell az network dns zone list -g ${RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv) && \
