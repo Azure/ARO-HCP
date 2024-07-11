@@ -6,7 +6,7 @@ updates:
     schedule:
       interval: 'daily'
   - package-ecosystem: 'npm'
-    directory: /
+    directory: /api
     groups:
       typespec:
         patterns:
