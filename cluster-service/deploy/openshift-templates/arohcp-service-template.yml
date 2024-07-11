@@ -524,8 +524,6 @@ objects:
     labels:
       app: clusters-service
       port: api
-    annotations:
-      "service.alpha.openshift.io/serving-cert-secret-name": clusters-service-tls-envoy
   spec:
     selector:
       app: clusters-service
@@ -546,8 +544,6 @@ objects:
       # {app, port} labels together identify this service for monitoring
       app: clusters-service
       port: metrics
-    annotations:
-      "service.alpha.openshift.io/serving-cert-secret-name": clusters-service-tls-metrics
   spec:
     selector:
       app: clusters-service

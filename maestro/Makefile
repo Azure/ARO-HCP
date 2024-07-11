@@ -16,7 +16,7 @@ deploy-server:
 	oc process --local -f deploy/openshift-templates/service-template.yml \
 	  -p IMAGE_REGISTRY=quay.io \
 	  -p IMAGE_REPOSITORY=redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro \
-	  -p IMAGE_TAG=ae149df618cb0812d2072b20658a9cff84c087eb \
+	  -p IMAGE_TAG=6583de322fb4518a32f6ab21c0c1f6a144ea65cd \
 	  -p DB_SSLMODE=disable \
 	  -p DB_SECRET_NAME=maestro-db \
 	  -p MAESTRO_MI_CLIENT_ID=$${MAESTRO_MI_CLIENT_ID} \
