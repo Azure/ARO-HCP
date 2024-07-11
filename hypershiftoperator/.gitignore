@@ -1,0 +1,4 @@
+kubectl-slice
+edo-azure-credentials.json
+patch-serviceaccount-external-dns.json
+test

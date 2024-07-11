@@ -26,7 +26,7 @@ param workloadIdentities = items({
   }
   external_dns_wi: {
     uamiName: 'external-dns'
-    namespace: 'external-dns'
+    namespace: 'hypershift'
     serviceAccountName: 'external-dns'
   }
 })
