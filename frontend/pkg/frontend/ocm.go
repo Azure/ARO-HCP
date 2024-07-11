@@ -279,7 +279,7 @@ func (f *Frontend) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.ClustersAddRespon
 
 // UpdateCSCluster sends a POST request to update a cluster in Clusters Service
 func (f *Frontend) UpdateCSCluster(clusterID string, cluster *cmv1.Cluster) (*cmv1.ClusterUpdateResponse, error) {
-	resp, err := f.conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Update().Body(cluster).Send()
+	resp, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Update().Body(cluster).Send()
 	if err != nil {
 		return nil, err
 	}
