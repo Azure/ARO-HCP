@@ -68,7 +68,7 @@ module postgres 'postgres/postgres.bicep' = {
 }
 
 //
-// Create DB user for the cluster-service managed identity and enable entra authentication
+// Create DB user for the clusters-service managed identity and enable entra authentication
 //
 
 module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = {

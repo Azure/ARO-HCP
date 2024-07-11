@@ -381,7 +381,7 @@ psql -d cluster-service
 
 * the `cluster-service` namespace of the svc cluster contains
   * a `ConfigMap` named `database` with the connection parameters
-  * a `ServiceAccount` named `cluster-service` that is annotated for workload identity usage with the `cluster-service` managed identity
+  * a `ServiceAccount` named `clusters-service` that is annotated for workload identity usage with the `clusters-service` managed identity
 * the CS pod will need to be labeled with `azure.workload.identity/use: "true"`, which injects several ENV variables prefixed with `AZ_*`
 
 TODO: CS needs to use these `AZ_*` env variables to get an access token to be used as a DB password

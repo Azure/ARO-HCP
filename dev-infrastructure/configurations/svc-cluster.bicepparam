@@ -48,9 +48,9 @@ param workloadIdentities = items({
     serviceAccountName: 'maestro'
   }
   cs_wi: {
-    uamiName: 'cluster-service'
+    uamiName: 'clusters-service'
     namespace: csNamespace
-    serviceAccountName: 'cluster-service'
+    serviceAccountName: 'clusters-service'
   }
 })
 // This parameter is always overriden in the Makefile

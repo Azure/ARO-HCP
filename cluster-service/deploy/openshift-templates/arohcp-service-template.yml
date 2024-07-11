@@ -214,6 +214,9 @@ parameters:
 - name: CPU_LIMIT
   description: CPU limit.
   value: "1"
+- name: AZURE_CS_MI_CLIENT_ID
+  description: Client ID for the clusters-service manage identity.
+  required: true
 
 objects:
 
@@ -327,6 +330,8 @@ objects:
     namespace: ${NAMESPACE}
     labels:
       app: clusters-service
+    annotations:
+        azure.workload.identity/client-id: ${AZURE_CS_MI_CLIENT_ID}
 
 - apiVersion: apps/v1
   kind: Deployment
