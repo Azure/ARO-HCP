@@ -46,11 +46,9 @@ deploy-agent:
 	  -p EVENTGRID_HOSTNAME=$${EVENTGRID_HOSTNAME} \
 	  -p AZURE_TENANT_ID=$${TENANT_ID} | oc apply -f -
 
+# still WIP
 register-agent:
-ifndef AGENT_NAME
-	$(error "Must set AGENT_NAME")
-endif
 	oc process --local -f deploy/openshift-templates/agent-registration.yml \
-	  -p AGENT_NAME=${AGENT_NAME} | oc apply -f -
+	  -p MAESTRO_AGENT_CONSUMER_NAME=${RESOURCEGROUP} | oc apply -f -
 
 .PHONY: deploy-server

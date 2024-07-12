@@ -9,15 +9,15 @@ parameters:
   description: namespace of the maestro server
   value: maestro
 
-- name: AGENT_NAME
-  description: name of the agent to register
+- name: MAESTRO_AGENT_CONSUMER_NAME
+  description: name of the consumer to register
   required: true
 
 objects:
 - apiVersion: batch/v1
   kind: Job
   metadata:
-    name: agent-registration-${AGENT_NAME}
+    name: agent-registration-${MAESTRO_AGENT_CONSUMER_NAME}
   spec:
     template:
       spec:
@@ -35,7 +35,7 @@ objects:
           - name: REGISTRATION_PAYLOAD
             value: |
               {
-                "name": "${AGENT_NAME}"
+                "name": "${MAESTRO_AGENT_CONSUMER_NAME}"
               }
         restartPolicy: Never
     backoffLimit: 4
