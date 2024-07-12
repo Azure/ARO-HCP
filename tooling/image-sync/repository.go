@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
 )
@@ -235,11 +234,16 @@ func (a *AzureContainerRegistry) RepositoryExists(ctx context.Context, repositor
 	return false, nil
 }
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 // GetTags returns the tags in the given repository
 func (a *AzureContainerRegistry) GetTags(ctx context.Context, repository string) ([]string, error) {
+
 	var tags []string
 
-	pager := a.acrClient.NewListTagsPager(repository, &azcontainerregistry.ClientListTagsOptions{OrderBy: to.Ptr(azcontainerregistry.ArtifactTagOrderByLastUpdatedOnDescending)})
+	pager := a.acrClient.NewListTagsPager(repository, &azcontainerregistry.ClientListTagsOptions{OrderBy: ptr(azcontainerregistry.ArtifactTagOrderByLastUpdatedOnDescending)})
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {

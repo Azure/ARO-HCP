@@ -2,6 +2,7 @@ package main
 
 import (
 	defaultlog "log"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,8 +16,8 @@ var (
 		Use:   "image-sync",
 		Short: "image-sync",
 		Long:  "image-sync",
-		Run: func(cmd *cobra.Command, args []string) {
-			DoSync()
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return DoSync()
 		},
 	}
 	cfgFile  string
@@ -33,7 +34,11 @@ func main() {
 
 	cobra.OnInitialize(initConfig)
 	cobra.OnInitialize(configureLogging)
-	syncCmd.Execute()
+	err := syncCmd.Execute()
+
+	if err != nil {
+		os.Exit(1)
+	}
 }
 
 func initConfig() {
