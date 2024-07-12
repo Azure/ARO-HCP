@@ -38,6 +38,18 @@ parameters:
   description: Name of the key vault used by Maestro
   required: true
 
+- name: MAESTRO_AGENT_CONSUMER_NAME
+  description: Consumer name for the agent
+  required: true
+
+- name: EVENTGRID_CA_BASE64
+  description: Base64 encoded CA certificate for Eventgrid
+  required: true
+
+- name: EVENTGRID_HOSTNAME
+  description: Hostname for Eventgrid
+  required: true
+
 objects:
 - apiVersion: apiextensions.k8s.io/v1
   kind: CustomResourceDefinition
@@ -137,11 +149,11 @@ objects:
     parameters:
       clientID: ${MAESTRO_MI_CLIENT_ID}
       cloudName: AzurePublicCloud
-      keyvaultName: maestro-kv-aro-hcp-dev
+      keyvaultName: ${MAESTRO_KV_NAME}
       objects: |-
         array:
           - |
-            objectName: aro-hcp-mgmt-cluster-gvfxqtnhh7hi6
+            objectName: ${MAESTRO_AGENT_CONSUMER_NAME}
             objectType: secret
             objectAlias: maestro
       tenantId: ${AZURE_TENANT_ID}
@@ -276,6 +288,26 @@ objects:
     resourceNames: ["extension-apiserver-authentication"]
     verbs: ["get", "list", "watch"]
 
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: maestro
+    labels:
+      app: maestro-agent
+  stringData:
+    config.yaml: |
+      brokerHost: "${EVENTGRID_HOSTNAME}:8883"
+      username: ""
+      password: ""
+      caFile: /secrets/maestro/ca.crt
+      clientCertFile: /secrets/mqtt-creds/maestro.crt
+      clientKeyFile: /secrets/mqtt-creds/maestro.key
+      topics:
+        sourceEvents: sources/maestro/consumers/${MAESTRO_AGENT_CONSUMER_NAME}/sourceevents
+        agentEvents: sources/maestro/consumers/${MAESTRO_AGENT_CONSUMER_NAME}/agentevents
+  data:
+    ca.crt: ${EVENTGRID_CA_BASE64}
+
 - kind: Deployment
   apiVersion: apps/v1
   metadata:
@@ -300,26 +332,20 @@ objects:
           command:
             - /usr/local/bin/maestro
             - agent
-            - --consumer-name=$(CONSUMER_NAME)
+            - --consumer-name=${MAESTRO_AGENT_CONSUMER_NAME}
             - --workload-source-driver=mqtt
-            - --workload-source-config=/secrets/mqtt/config.yaml
-            - --cloudevents-client-id=$(CONSUMER_NAME)-work-agent
-          env:
-          - name: CONSUMER_NAME
-            valueFrom:
-              secretKeyRef:
-                name: maestro-mqtt
-                key: consumer-name.cfg
+            - --workload-source-config=/secrets/maestro/config.yaml
+            - --cloudevents-client-id=${MAESTRO_AGENT_CONSUMER_NAME}-work-agent
           volumeMounts:
-          - name: mqtt
-            mountPath: /secrets/mqtt
+          - name: maestro
+            mountPath: /secrets/maestro
           - name: mqtt-creds
             mountPath: /secrets/mqtt-creds
             readOnly: true
         volumes:
-        - name: mqtt
+        - name: maestro
           secret:
-            secretName: maestro-mqtt
+            secretName: maestro
         - name: mqtt-creds
           csi:
             driver: secrets-store.csi.k8s.io
