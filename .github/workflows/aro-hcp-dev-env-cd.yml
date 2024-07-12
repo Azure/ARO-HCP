@@ -224,9 +224,9 @@
             make deploy-server
 
     deploy_to_management_cluster:
-      #if: github.event.pull_request.merged == true
-      #needs:
-      # - deploy_update_infra
+      if: github.event.pull_request.merged == true
+      needs:
+      - deploy_update_infra
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -274,6 +274,20 @@
           cluster-name: ${{ steps.find_management_cluster.outputs.name }}
           use-kubelogin: 'true'
 
+      - name: 'Deploy PKO'
+        env:
+          RESOURCEGROUP: aro-hcp-dev-mc
+        run: |
+          cd pko/
+          make deploy
+
+      - name: 'Deploy ACM'
+        env:
+          RESOURCEGROUP: aro-hcp-dev-mc
+        run: |
+          cd acm/
+          make deploy
+
       - name: 'Deploy Maestro Agent'
         env:
           RESOURCEGROUP: aro-hcp-dev-mc
@@ -282,24 +296,10 @@
           cd maestro/
           make deploy-agent
 
-      # - name: 'Deploy PKO'
-      #   env:
-      #     RESOURCEGROUP: aro-hcp-dev-mc
-      #   run: |
-      #     cd pko/
-      #     make deploy
-
-      # - name: 'Deploy ACM'
-      #   env:
-      #     RESOURCEGROUP: aro-hcp-dev-mc
-      #   run: |
-      #     cd acm/
-      #     make deploy
-
-      # - name: 'Deploy Hypershift Operator and External DNS Operator'
-      #   env:
-      #     RESOURCEGROUP: aro-hcp-dev-mc
-      #     ZONE_RESOURCE_GROUP: aro-hcp-dev
-      #   run: |
-      #     cd hypershiftoperator/
-      #     make deploy
+      - name: 'Deploy Hypershift Operator and External DNS Operator'
+        env:
+          RESOURCEGROUP: aro-hcp-dev-mc
+          ZONE_RESOURCE_GROUP: aro-hcp-dev
+        run: |
+          cd hypershiftoperator/
+          make deploy
