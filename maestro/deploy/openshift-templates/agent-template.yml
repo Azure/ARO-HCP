@@ -292,6 +292,7 @@ objects:
   apiVersion: v1
   metadata:
     name: maestro
+    namespace: ${AGENT_NAMESPACE}
     labels:
       app: maestro-agent
   stringData:
@@ -312,6 +313,7 @@ objects:
   apiVersion: apps/v1
   metadata:
     name: maestro-agent
+    namespace: ${AGENT_NAMESPACE}
     labels:
       app: maestro-agent
   spec:
