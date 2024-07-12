@@ -24,7 +24,7 @@ param maestroPostgresServerName = take('maestro-pg-${uniqueString(currentUserId)
 param maestroPostgresServerVersion = '15'
 param maestroPostgresServerStorageSizeGB = 32
 
-param deployCsInfra = false
+param deployCsInfra = true
 param csNamespace = 'cluster-service'
 param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 

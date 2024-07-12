@@ -349,6 +349,7 @@ objects:
       metadata:
         labels:
           app: clusters-service
+          azure.workload.identity/use: "true"
       spec:
         serviceAccount: clusters-service
         serviceAccountName: clusters-service
@@ -410,7 +411,8 @@ objects:
           - --db-name=@/secrets/rds/db.name
           - --db-user=@/secrets/rds/db.user
           - --db-password=@/secrets/rds/db.password
-          - --db-disable-tls=true
+          - --db-disable-tls=false
+          - --db-auth-method=az-entra
           - --force-migration=${FORCE_MIGRATION}
           - --batch-processes-dry-run=${BATCH_PROCESSES_DRY_RUN}
           - --batch-processes=${BATCH_PROCESSES}
@@ -465,7 +467,8 @@ objects:
           - --db-name=@/secrets/rds/db.name
           - --db-user=@/secrets/rds/db.user
           - --db-password=@/secrets/rds/db.password
-          - --db-disable-tls=true
+          - --db-disable-tls=false
+          - --db-auth-method=az-entra
           - --gateway-url=${GATEWAY_URL}
           - --client-id=@/secrets/service/client.id
           - --client-secret=@/secrets/service/client.secret
