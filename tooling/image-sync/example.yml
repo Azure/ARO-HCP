@@ -1,8 +1,6 @@
-
 repositories:
-  quay:
-    - image
+    - registry.k8s.io/external-dns/external-dns
 numberOfTags: 3
-quaySecretfile: /tmp/quay-secret
-acrRegistry: devarohcp.azurecr.io
-tenantId: f00b4r
+quaySecretfile: /var/run/quay-secret.json
+acrRegistry: someregistry.azurecr.io
+tenantId: 1ab61791-4b66-4ea4-85ff-aa2c0bf37e57
