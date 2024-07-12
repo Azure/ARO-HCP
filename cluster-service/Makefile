@@ -11,7 +11,12 @@ deploy:
 	oc process --local -f deploy/openshift-templates/arohcp-db-template.yml | oc apply -f -
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
 	  -p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/tmp-provisioning-shard.yml)" | oc apply -f -
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
+			-g ${RESOURCEGROUP} \
+			-n clusters-service-${REGION} \
+			--query clientId) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
+	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
 	  -p IMAGE_REGISTRY=devarohcp.azurecr.io \
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
 	  -p IMAGE_TAG=fc17932 | oc apply -f -

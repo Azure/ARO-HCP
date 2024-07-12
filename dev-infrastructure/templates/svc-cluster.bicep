@@ -249,7 +249,7 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
 
 var csManagedIdentityPrincipalId = filter(
   svcCluster.outputs.userAssignedIdentities,
-  id => id.uamiName == 'cluster-service'
+  id => id.uamiName == 'clusters-service'
 )[0].uamiPrincipalID
 
 module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
@@ -262,7 +262,7 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
     clusterServiceManagedIdentityName: filter(
       svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'cluster-service'
+      id => id.uamiName == 'clusters-service'
     )[0].uamiName
   }
 }
