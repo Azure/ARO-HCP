@@ -33,7 +33,7 @@ deploy-agent:
 			--query clientId) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	MAESTRO_KV_NAME=$(shell az keyvault list --query "[?starts_with(name, 'maestro-kv')].name" -g ${MAESTRO_INFRA_RESOURCEGROUP} --output tsv) && \
-	EVENTGRID_CA_BASE64='$(shell cat ../dev-infrastructure/scripts/digicert-global-root-g3.crt | base64)' && \
+	EVENTGRID_CA_BASE64='$(shell cat ../dev-infrastructure/scripts/digicert-global-root-g3.crt | base64 | tr -d '\n')' && \
 	EVENTGRID_HOSTNAME=$(shell az resource show --ids ${EVENTGRID_ID} --query properties.topicSpacesConfiguration.hostname -o tsv) && \
 	oc process --local -f deploy/openshift-templates/agent-template.yml \
 	  -p IMAGE_REGISTRY=quay.io \
