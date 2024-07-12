@@ -2,7 +2,7 @@ SHELL = /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
 REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location -o tsv)
-IMAGE_TAG ?= 1720806765
+IMAGE_TAG ?= 1720810722
 
 deploy:
 	DOMAIN=$(shell az network dns zone list -g ${RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv) && \
@@ -13,7 +13,7 @@ deploy:
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
 		-p DB_HOST=$(shell az postgres flexible-server list --resource-group ${RESOURCEGROUP} --query "[?starts_with(name, 'cs-pg-')].fullyQualifiedDomainName" -o tsv) \
 		-p DB_NAME=cluster-service \
-		-p DB_USER=cs-pg-aaaaaaaaaaaaa-db-admin-msi \
+		-p DB_USER=clusters-service \
 		-p DB_PASSWORD=fetched-at-runtime \
 	  	-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/tmp-provisioning-shard.yml)" | oc apply -f -
 
