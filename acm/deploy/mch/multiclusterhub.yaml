@@ -1,0 +1,40 @@
+apiVersion: operator.open-cluster-management.io/v1
+kind: MultiClusterHub
+metadata:
+  annotations:
+    installer.open-cluster-management.io/mce-subscription-spec: '{"source": "multiclusterengine-catalog","channel": "stable-2.6","sourceNamespace": "olm"}'
+  name: multiclusterhub
+  namespace: open-cluster-management
+spec:
+  availabilityConfig: High
+  enableClusterBackup: false
+  hubSize: Small
+  imagePullSecret: open-cluster-management-image-pull-credentials
+  ingress: {}
+  overrides:
+    components:
+    - enabled: false
+      name: app-lifecycle
+    - enabled: true
+      name: cluster-lifecycle
+    - enabled: false
+      name: cluster-permission
+    - enabled: false
+      name: console
+    - enabled: true
+      name: grc
+    - enabled: false
+      name: insights
+    - enabled: true
+      name: multicluster-engine
+    - enabled: false
+      name: multicluster-observability
+    - enabled: false
+      name: search
+    - enabled: false
+      name: submariner-addon
+    - enabled: false
+      name: volsync
+    - enabled: false
+      name: cluster-backup
+  separateCertificateManagement: false
