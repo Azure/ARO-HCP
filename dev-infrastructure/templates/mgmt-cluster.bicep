@@ -47,9 +47,6 @@ param workloadIdentities array
 @description('Deploys a Maestro Consumer to the management cluster if set to true.')
 param deployMaestroConsumer bool
 
-@description('Namespace to deploy the Maestro Consumer to.')
-param maestroNamespace string
-
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
 
@@ -111,16 +108,10 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployM
   name: 'maestro-consumer-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()
   params: {
-    aksClusterName: mgmtCluster.outputs.aksClusterName
     maestroServerManagedIdentityPrincipalId: filter(
       mgmtCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-consumer'
     )[0].uamiPrincipalID
-    maestroServerManagedIdentityClientId: filter(
-      mgmtCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-consumer'
-    )[0].uamiClientID
-    namespace: maestroNamespace
     maestroInfraResourceGroup: maestroInfraResourceGroup
     maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name) ? resourceGroup().name : ''
     maestroEventGridNamespaceName: maestroEventGridNamespacesName

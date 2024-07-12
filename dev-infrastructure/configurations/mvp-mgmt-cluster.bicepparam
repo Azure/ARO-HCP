@@ -11,7 +11,6 @@ param additionalAcrResourceGroups = ['aro-hcp-dev']
 param aksKeyVaultName = 'aks-kv-aro-hcp-dev-mc-1'
 param persist = true
 param deployMaestroConsumer = true
-param maestroNamespace = 'maestro'
 param maestroKeyVaultName = 'maestro-kv-aro-hcp-dev'
 param maestroEventGridNamespacesName = 'maestro-eventgrid-aro-hcp-dev'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-dev.azure.com'
@@ -21,7 +20,7 @@ param baseDNSZoneName = 'hcp.osadev.cloud'
 param workloadIdentities = items({
   maestro_wi: {
     uamiName: 'maestro-consumer'
-    namespace: maestroNamespace
+    namespace: 'maestro'
     serviceAccountName: 'maestro'
   }
   external_dns_wi: {

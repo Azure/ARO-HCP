@@ -226,7 +226,7 @@
     deploy_to_management_cluster:
       if: github.event.pull_request.merged == true
       needs:
-       - deploy_update_infra
+      - deploy_update_infra
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -287,6 +287,14 @@
         run: |
           cd acm/
           make deploy
+
+      - name: 'Deploy Maestro Agent'
+        env:
+          RESOURCEGROUP: aro-hcp-dev-mc
+          MAESTRO_INFRA_RESOURCEGROUP: aro-hcp-dev
+        run: |
+          cd maestro/
+          make deploy-agent
 
       - name: 'Deploy Hypershift Operator and External DNS Operator'
         env:
