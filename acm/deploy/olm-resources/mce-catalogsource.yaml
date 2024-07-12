@@ -15,4 +15,3 @@ spec:
       interval: 10m
   grpcPodConfig:
     securityContextConfig: restricted
-    
