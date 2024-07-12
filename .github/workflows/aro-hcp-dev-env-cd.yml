@@ -224,9 +224,9 @@
             make deploy-server
 
     deploy_to_management_cluster:
-      if: github.event.pull_request.merged == true
-      needs:
-      - deploy_update_infra
+      # if: github.event.pull_request.merged == true
+      # needs:
+      # - deploy_update_infra
       permissions:
         id-token: 'write'
         contents: 'read'
