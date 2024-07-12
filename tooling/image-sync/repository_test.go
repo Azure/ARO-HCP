@@ -188,3 +188,187 @@ func TestCreateOauthRequest(t *testing.T) {
 	assert.Equal(t, "test/oauth2/exchange/", req.URL.Path)
 	assert.Equal(t, "application/x-www-form-urlencoded", req.Header.Get("Content-Type"))
 }
+
+func TestGetNewestTags(t *testing.T) {
+
+	testCases := []struct {
+		name                string
+		response            *rawOCIResponse
+		numberOfTags        int
+		expected            []string
+		expectedError       bool
+		expectedErrorString string
+	}{
+		{
+			name: "parser error",
+			response: &rawOCIResponse{
+				Manifest: map[string]rawManifest{
+					"latest": {
+						TimeUploadedMs: "1x",
+						Tag:            []string{"latest"},
+					},
+				},
+			},
+			expectedError:       true,
+			expectedErrorString: "failed to parse manifest {1x [latest]} time: strconv.Atoi: parsing \"1x\": invalid syntax",
+		},
+		{
+			name: "single tag",
+			response: &rawOCIResponse{
+				Manifest: map[string]rawManifest{
+					"latest": {
+						TimeUploadedMs: "1",
+						Tag:            []string{"latest"},
+					},
+				},
+				Tags: []string{"latest"},
+			},
+			numberOfTags: 1,
+			expected:     []string{"latest"},
+		},
+		{
+			name: "multiple tags",
+			response: &rawOCIResponse{
+				Manifest: map[string]rawManifest{
+					"abc": {
+						TimeUploadedMs: "0",
+						Tag:            []string{"abc"},
+					},
+					"def": {
+						TimeUploadedMs: "1",
+						Tag:            []string{"def"},
+					},
+					"ghi": {
+						TimeUploadedMs: "2",
+						Tag:            []string{"ghi"},
+					},
+				},
+				Tags: []string{"abc", "def", "ghi"},
+			},
+			numberOfTags: 1,
+			expected:     []string{"ghi"},
+		},
+		{
+			name: "complete tags",
+			response: &rawOCIResponse{
+				Manifest: map[string]rawManifest{
+					"abc": {
+						TimeUploadedMs: "0",
+						Tag:            []string{"abc"},
+					},
+					"def": {
+						TimeUploadedMs: "1",
+						Tag:            []string{"def"},
+					},
+					"ghi": {
+						TimeUploadedMs: "2",
+						Tag:            []string{"ghi"},
+					},
+				},
+				Tags: []string{"abc", "def", "ghi"},
+			},
+			numberOfTags: 3,
+			expected:     []string{"ghi", "def", "abc"},
+		},
+		{
+			name: "untagged manifest",
+			response: &rawOCIResponse{
+				Manifest: map[string]rawManifest{
+					"abc": {
+						TimeUploadedMs: "0",
+					},
+					"def": {
+						TimeUploadedMs: "1",
+						Tag:            []string{"def"},
+					},
+					"ghi": {
+						TimeUploadedMs: "2",
+						Tag:            []string{"ghi"},
+					},
+				},
+				Tags: []string{"def", "ghi"},
+			},
+			numberOfTags: 2,
+			expected:     []string{"ghi", "def"},
+		},
+	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.name, func(t *testing.T) {
+			tags, err := getNewestTags(testcase.response, testcase.numberOfTags)
+			if testcase.expectedError {
+				assert.Error(t, err, testcase.expectedErrorString)
+			} else {
+				assert.NilError(t, err)
+				assert.Equal(t, testcase.numberOfTags, len(tags))
+				for i, tag := range tags {
+					assert.Equal(t, testcase.expected[i], tag)
+				}
+			}
+		})
+
+	}
+
+}
+
+func TestOciGetTags(t *testing.T) {
+	o := OCIRegistry{}
+	o.numberOftags = 3
+
+	testcases := []struct {
+		name          string
+		response      string
+		length        int
+		expected      []string
+		expectedError bool
+		errorString   string
+		statusCode    int
+	}{
+		{
+			name:          "one response",
+			response:      `{"manifest":{"latest":{"timeUploadedMs":"1","tag":["latest"]}},"tags":["latest"]}`,
+			length:        1,
+			expected:      []string{"latest"},
+			expectedError: false,
+		},
+		{
+			name:          "fail",
+			response:      `{"manifest":{"latest":{"timeUploadedMs":"1x","tag":["latest"]}},"tags":["latest"]}`,
+			expectedError: true,
+			errorString:   "failed to parse manifest {1x [latest]} time: strconv.Atoi: parsing \"1x\": invalid syntax",
+		},
+		{
+			name:          "httpFail",
+			expectedError: true,
+			errorString:   "unexpected status code 502",
+			statusCode:    http.StatusBadGateway,
+		},
+	}
+
+	for _, testcase := range testcases {
+		t.Run(testcase.name, func(t *testing.T) {
+			mock := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					if testcase.statusCode != 0 {
+						w.WriteHeader(testcase.statusCode)
+					}
+					w.Write([]byte(testcase.response))
+				}))
+			defer mock.Close()
+
+			o.baseURL = mock.URL
+			o.httpclient = mock.Client()
+
+			ociTags, err := o.GetTags(context.TODO(), "test")
+			if testcase.expectedError {
+				assert.Error(t, err, testcase.errorString)
+			} else {
+				assert.NilError(t, err)
+				assert.Equal(t, testcase.length, len(ociTags))
+				for i, tag := range ociTags {
+					assert.Equal(t, testcase.expected[i], tag)
+				}
+			}
+		})
+	}
+}

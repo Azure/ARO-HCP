@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -255,4 +257,98 @@ func (a *AzureContainerRegistry) GetTags(ctx context.Context, repository string)
 	}
 
 	return tags, nil
+}
+
+// OCIRegistry implements OCI Repository access
+type OCIRegistry struct {
+	httpclient   *http.Client
+	baseURL      string
+	numberOftags int
+}
+
+// NewOCIRegistry creates a new OCIRegistry access client
+func NewOCIRegistry(cfg *SyncConfig, baseURL string) *OCIRegistry {
+	o := &OCIRegistry{
+		httpclient:   &http.Client{Timeout: time.Duration(cfg.RequestTimeout) * time.Second},
+		numberOftags: cfg.NumberOfTags,
+	}
+	if !strings.HasPrefix(o.baseURL, "https://") {
+		o.baseURL = fmt.Sprintf("https://%s", baseURL)
+	} else {
+		o.baseURL = baseURL
+	}
+	return o
+}
+
+type rawManifest struct {
+	TimeUploadedMs string
+	Tag            []string
+}
+
+type rawOCIResponse struct {
+	Manifest map[string]rawManifest
+	Tags     []string
+}
+
+func getNewestTags(response *rawOCIResponse, numberOfTags int) ([]string, error) {
+	var returnTags []string
+
+	uploadedTagAt := make(map[int][]string)
+	uploadTimes := make([]int, 0, len(response.Manifest))
+
+	for _, manifest := range response.Manifest {
+		if len(manifest.Tag) == 0 {
+			continue
+		}
+		uploadedAt, err := strconv.Atoi(manifest.TimeUploadedMs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse manifest %s time: %v", manifest, err)
+		}
+		uploadedTagAt[uploadedAt] = manifest.Tag
+		uploadTimes = append(uploadTimes, uploadedAt)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(uploadTimes)))
+
+	for i, k := range uploadTimes {
+		if i >= numberOfTags {
+			break
+		}
+		returnTags = append(returnTags, uploadedTagAt[k]...)
+	}
+
+	return returnTags, nil
+}
+
+// GetTags returns the tags in the given repository
+func (o *OCIRegistry) GetTags(ctx context.Context, image string) ([]string, error) {
+	Log().Debugw("Getting tags for image", "image", image)
+
+	path := fmt.Sprintf("%s/v2/%s/tags/list", o.baseURL, image)
+	req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
+	Log().Debugw("Sending request", "path", path)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := o.httpclient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	Log().Debugw("Got response", "statuscode", resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var rawOCIResponse rawOCIResponse
+	err = json.Unmarshal(body, &rawOCIResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+	}
+
+	return getNewestTags(&rawOCIResponse, o.numberOftags)
 }

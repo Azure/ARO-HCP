@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/containers/image/copy"
 	"github.com/containers/image/docker"
@@ -13,8 +14,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// SyncConfig is the configuration for the image sync
 type SyncConfig struct {
-	Repositories   RepositorySoruce
+	Repositories   []string
 	NumberOfTags   int
 	QuaySecretFile string
 	AcrRegistry    string
@@ -23,16 +25,14 @@ type SyncConfig struct {
 	AddLatest      bool
 }
 
+// QuaySecret is the secret for quay.io
 type QuaySecret struct {
 	BearerToken  string
 	PullUsername string
 	PullPassword string
 }
 
-type RepositorySoruce struct {
-	Quay []string
-}
-
+// NewSyncConfig creates a new SyncConfig from the configuration file
 func NewSyncConfig() *SyncConfig {
 	var sc *SyncConfig
 	v := viper.GetViper()
@@ -47,6 +47,7 @@ func NewSyncConfig() *SyncConfig {
 	return sc
 }
 
+// Copy copies an image from one registry to another
 func Copy(ctx context.Context, dstreference, srcreference string, dstauth, srcauth *types.DockerAuthConfig) error {
 	policyctx, err := signature.NewPolicyContext(&signature.Policy{
 		Default: signature.PolicyRequirements{
@@ -93,6 +94,25 @@ func readQuaySecret(filename string) (*QuaySecret, error) {
 	return &secret, nil
 }
 
+func filterTagsToSync(src, target []string) []string {
+	var tagsToSync []string
+
+	for _, srcTag := range src {
+		found := false
+		for _, targetTag := range target {
+			if srcTag == targetTag {
+				found = true
+				break
+			}
+		}
+		if !found {
+			tagsToSync = append(tagsToSync, srcTag)
+		}
+	}
+	return tagsToSync
+}
+
+// DoSync syncs the images from the source registry to the target registry
 func DoSync() {
 	cfg := NewSyncConfig()
 	Log().Infow("Syncing images", "images", cfg.Repositories, "numberoftags", cfg.NumberOfTags)
@@ -106,18 +126,39 @@ func DoSync() {
 	if err != nil {
 		Log().Fatalw("Error reading secret file", "error", err)
 	}
-
 	qr := NewQuayRegistry(cfg, quaySecret.BearerToken)
+
 	acr := NewAzureContainerRegistry(cfg)
+	acrPullSecret, err := acr.GetPullSecret(ctx)
+	if err != nil {
+		Log().Fatalw("Error getting pull secret", "error", err)
+	}
 
-	for _, repoName := range cfg.Repositories.Quay {
-		var quayTags, acrTags []string
+	acrAuth := types.DockerAuthConfig{Username: "00000000-0000-0000-0000-000000000000", Password: acrPullSecret.RefreshToken}
+	quayAuth := types.DockerAuthConfig{Username: quaySecret.PullUsername, Password: quaySecret.PullPassword}
 
-		quayTags, err := qr.GetTags(ctx, repoName)
-		if err != nil {
-			Log().Fatalw("Error getting tags", "error", err)
+	for _, repoName := range cfg.Repositories {
+		var srcTags, acrTags []string
+
+		baseURL := strings.Split(repoName, "/")[0]
+		repoName = strings.Join(strings.Split(repoName, "/")[1:], "/")
+		srcAuth := types.DockerAuthConfig{}
+
+		if baseURL == "quay.io" {
+			srcAuth = quayAuth
+			srcTags, err = qr.GetTags(ctx, repoName)
+			if err != nil {
+				Log().Fatalw("Error getting tags", "error", err)
+			}
+			Log().Infow("Got tags from quay", "tags", srcTags)
+		} else {
+			oci := NewOCIRegistry(cfg, baseURL)
+			srcTags, err = oci.GetTags(ctx, repoName)
+			if err != nil {
+				Log().Fatalw("Error getting tags", "error", err)
+			}
+			Log().Infow(fmt.Sprintf("Got tags from %s", baseURL), "repo", repoName, "tags", srcTags)
 		}
-		Log().Infow("Got tags from quay", "tags", quayTags)
 
 		exists, err := acr.RepositoryExists(ctx, repoName)
 		if err != nil {
@@ -134,37 +175,16 @@ func DoSync() {
 			Log().Infow("Repository does not exist", "repository", repoName)
 		}
 
-		var tagsToSync []string
-
-		for _, tag := range quayTags {
-			found := false
-			for _, acrTag := range acrTags {
-				if tag == acrTag {
-					found = true
-					break
-				}
-			}
-			if !found {
-				tagsToSync = append(tagsToSync, tag)
-			}
-		}
+		tagsToSync := filterTagsToSync(srcTags, acrTags)
 
 		Log().Infow("Images to sync", "images", tagsToSync)
 
-		t, err := acr.GetPullSecret(ctx)
-		if err != nil {
-			Log().Fatalw("Error getting pull secret", "error", err)
-		}
-
-		acrAuth := types.DockerAuthConfig{Username: "00000000-0000-0000-0000-000000000000", Password: t.RefreshToken}
-		quayAuth := types.DockerAuthConfig{Username: quaySecret.PullUsername, Password: quaySecret.PullPassword}
-
 		for _, tagToSync := range tagsToSync {
-			source := fmt.Sprintf("quay.io/%s:%s", repoName, tagToSync)
+			source := fmt.Sprintf("%s/%s:%s", baseURL, repoName, tagToSync)
 			target := fmt.Sprintf("%s/%s:%s", cfg.AcrRegistry, repoName, tagToSync)
-			Log().Infow("Copying images", "images", tagsToSync, "from", source, "to", target)
+			Log().Infow("Copying images", "images", tagToSync, "from", source, "to", target)
 
-			err = Copy(ctx, target, source, &acrAuth, &quayAuth)
+			err = Copy(ctx, target, source, &acrAuth, &srcAuth)
 			if err != nil {
 				Log().Fatalw("Error copying image", "error", err.Error())
 
