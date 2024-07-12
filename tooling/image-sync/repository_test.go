@@ -20,7 +20,8 @@ func TestNewQuayClientAssertAuthentication(t *testing.T) {
 	mock := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "Bearer fooBar", r.Header.Get("Authorization"))
-			w.Write([]byte(`{"tags":[{"name":"test"}]}`))
+			_, err := w.Write([]byte(`{"tags":[{"name":"test"}]}`))
+			assert.NilError(t, err)
 		}))
 	defer mock.Close()
 
@@ -83,7 +84,8 @@ func TestQuayGetTags(t *testing.T) {
 					if testcase.statusCode != 0 {
 						w.WriteHeader(testcase.statusCode)
 					}
-					w.Write([]byte(testcase.response))
+					_, err := w.Write([]byte(testcase.response))
+					assert.NilError(t, err)
 				}))
 			defer mock.Close()
 
@@ -150,7 +152,8 @@ func TestGetPullSecret(t *testing.T) {
 					if testcase.statusCode != 0 {
 						w.WriteHeader(testcase.statusCode)
 					}
-					w.Write([]byte(testcase.response))
+					_, err := w.Write([]byte(testcase.response))
+					assert.NilError(t, err)
 				}))
 			defer mock.Close()
 
@@ -352,7 +355,8 @@ func TestOciGetTags(t *testing.T) {
 					if testcase.statusCode != 0 {
 						w.WriteHeader(testcase.statusCode)
 					}
-					w.Write([]byte(testcase.response))
+					_, err := w.Write([]byte(testcase.response))
+					assert.NilError(t, err)
 				}))
 			defer mock.Close()
 

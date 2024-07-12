@@ -71,13 +71,14 @@ func (q *QuayRegistry) GetTags(ctx context.Context, image string) ([]string, err
 	Log().Debugw("Getting tags for image", "image", image)
 	path := fmt.Sprintf("%s/api/v1/repository/%s/tag/", q.baseUrl, image)
 	req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
+
 	Log().Debugw("Sending request", "path", path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 	resp, err := q.httpclient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	Log().Debugw("Got response", "statuscode", resp.StatusCode)
 
@@ -87,7 +88,7 @@ func (q *QuayRegistry) GetTags(ctx context.Context, image string) ([]string, err
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	var tagsResponse TagsResponse
@@ -177,7 +178,7 @@ func (a *AzureContainerRegistry) createOauthRequest(ctx context.Context, accessT
 	Log().Debugw("Creating request", "path", path)
 	req, err := http.NewRequestWithContext(ctx, "POST", path, strings.NewReader(form.Encode()))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	return req, nil
@@ -185,15 +186,18 @@ func (a *AzureContainerRegistry) createOauthRequest(ctx context.Context, accessT
 
 func (a *AzureContainerRegistry) GetPullSecret(ctx context.Context) (*AuthSecret, error) {
 	accessToken, err := a.getAccessTokenImpl(ctx, a.credential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get access token: %v", err)
+	}
 
 	req, err := a.createOauthRequest(ctx, accessToken)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create OAuth request: %v", err)
 	}
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -202,7 +206,7 @@ func (a *AzureContainerRegistry) GetPullSecret(ctx context.Context) (*AuthSecret
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	var authSecret AuthSecret
@@ -329,13 +333,14 @@ func (o *OCIRegistry) GetTags(ctx context.Context, image string) ([]string, erro
 
 	path := fmt.Sprintf("%s/v2/%s/tags/list", o.baseURL, image)
 	req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
-	Log().Debugw("Sending request", "path", path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
+
+	Log().Debugw("Sending request", "path", path)
 	resp, err := o.httpclient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	Log().Debugw("Got response", "statuscode", resp.StatusCode)
 
@@ -345,7 +350,7 @@ func (o *OCIRegistry) GetTags(ctx context.Context, image string) ([]string, erro
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	var rawOCIResponse rawOCIResponse
