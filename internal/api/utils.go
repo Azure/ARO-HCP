@@ -1,12 +1,12 @@
 package api
 
+// Copyright (c) Microsoft Corporation.
+// Licensed under the Apache License 2.0.
+
 import (
 	"iter"
 	"slices"
 )
-
-// Copyright (c) Microsoft Corporation.
-// Licensed under the Apache License 2.0.
 
 // Ptr returns a pointer to p.
 func Ptr[T any](p T) *T {
