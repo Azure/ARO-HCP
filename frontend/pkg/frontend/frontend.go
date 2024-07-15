@@ -301,7 +301,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	writer.WriteHeader(http.StatusOK)
 }
 
-func (f *Frontend) ArmResourceCreateorUpdate(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
 	// This handles both PUT and PATCH requests. The only notable
