@@ -97,15 +97,13 @@ func readQuaySecret(filename string) (*QuaySecret, error) {
 func filterTagsToSync(src, target []string) []string {
 	var tagsToSync []string
 
+	targetMap := make(map[string]bool)
+	for _, targetTag := range target {
+		targetMap[targetTag] = true
+	}
+
 	for _, srcTag := range src {
-		found := false
-		for _, targetTag := range target {
-			if srcTag == targetTag {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if _, ok := targetMap[srcTag]; !ok {
 			tagsToSync = append(tagsToSync, srcTag)
 		}
 	}
