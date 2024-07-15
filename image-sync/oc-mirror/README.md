@@ -2,12 +2,12 @@
 
 This container contains oc-mirror end required dependencies.
 
-## Usage
+## Example usage for devarohcp
 
  * Build the container image ```docker build -t oc-mirror .```
  * Get credentials for Openshift registries https://console.redhat.com/openshift/install/pull-secret
- * Get Azure registry credentials ```az acr login -n <<registry>>```
- * Run the sync using the build container
+ * Get Azure registry credentials ```az acr login -n devarohcp```
+ * Run the sync using the built container
 ```BASH
 docker run -it --rm --tmpfs /oc-mirror-workspace \
   -e XDG_RUNTIME_DIR=/ \
