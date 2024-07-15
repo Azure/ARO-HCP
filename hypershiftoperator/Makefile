@@ -1,8 +1,7 @@
 SHELL := /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
-LOCATION ?= $(shell az group show -n ${RESOURCEGROUP} --query location)
-EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID ?= $(shell az identity show -g ${RESOURCEGROUP} -n external-dns-${LOCATION} --query clientId -o tsv)
+EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID ?= $(shell az identity show -g ${RESOURCEGROUP} -n external-dns --query clientId -o tsv)
 ZONE_RESOURCE_GROUP ?= $(shell az role assignment list --assignee ${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID} --all --query "[?roleDefinitionName == 'DNS Zone Contributor'].resourceGroup | [0]" -o tsv)
 ZONE_NAME ?= $(shell az network dns zone list -g ${ZONE_RESOURCE_GROUP} --query "[?zoneType=='Public'].name" -o tsv)
 AZURE_TENANT_ID ?= $(shell az account show --query tenantId --output tsv)

@@ -13,7 +13,7 @@ deploy:
 	  -p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/tmp-provisioning-shard.yml)" | oc apply -f -
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
-			-n clusters-service-${REGION} \
+			-n clusters-service \
 			--query clientId) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
 	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \

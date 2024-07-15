@@ -372,7 +372,7 @@ The output are in ENV var format for the `psql` tool, so this works to get a con
 
 ```sh
 eval $(AKSCONFIG=svc-cluster make cs-out-of-cluster-db-access)
-psql -d cluster-service
+psql -d clusters-service
 ```
 
 > The password is a temporary access token that is valid only for 1h

@@ -413,7 +413,7 @@ module acrPullRole 'acr-pull-permission.bicep' = [
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
   for wi in workloadIdentities: {
     location: location
-    name: '${wi.value.uamiName}-${location}'
+    name: wi.value.uamiName
   }
 ]
 

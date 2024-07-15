@@ -11,7 +11,6 @@ CS_DB_NAME=$(echo ${CS_DB} | jq -r .name)
 
 ALREADY_ADMIN=$(az postgres flexible-server ad-admin list -g  ${RESOURCEGROUP} -s ${CS_DB_NAME} | jq  --arg principalname "${CURRENTUSER_NAME}" '[.[] | select(.principalName == $principalname)] | length')
 if [ $ALREADY_ADMIN -eq 0 ]; then
-    echo "grainting ${CURRENTUSER_NAME} admin permissions on ${CS_DB_NAME}"
     az postgres flexible-server ad-admin create --server-name ${CS_DB_NAME} --resource-group ${RESOURCEGROUP} --object-id ${CURRENTUSER} --display-name ${CURRENTUSER_NAME}
 fi
 

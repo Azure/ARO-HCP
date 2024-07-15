@@ -34,6 +34,7 @@ var sqlScriptLines = [
   ';'
   'SECURITY LABEL for "pgaadauth" on role "${newUserName}" is \'aadauth,oid=${newUserPrincipalId},type=service\';'
   'GRANT ALL PRIVILEGES ON DATABASE ${databaseName} TO "${newUserName}";'
+  'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "${newUserName}";'
 ]
 
 module csManagedIdentityDatabaseAccess 'postgres-sql.bicep' = {
