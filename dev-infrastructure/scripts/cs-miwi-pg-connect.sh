@@ -4,12 +4,13 @@ RESOURCEGROUP=$1
 DB_SERVER_NAME_PREFIX=$2
 MANAGED_IDENTITY_NAME=$3
 NAMESPACE=$4
+SA_NAME=$5
 
 # prep creds and configs
 PGHOST=$(az postgres flexible-server list --resource-group ${RESOURCEGROUP} --query "[?starts_with(name, '${DB_SERVER_NAME_PREFIX}')].fullyQualifiedDomainName" -o tsv)
 AZURE_TENANT_ID=$(az account show | jq .homeTenantId -r)
 AZURE_CLIENT_ID=$(az identity show -g ${RESOURCEGROUP} -n ${MANAGED_IDENTITY_NAME} --query clientId -o tsv)
-SA_TOKEN=$(kubectl create token ${MANAGED_IDENTITY_NAME} --namespace=${NAMESPACE} --audience api://AzureADTokenExchange)
+SA_TOKEN=$(kubectl create token ${SA_NAME} --namespace=${NAMESPACE} --audience api://AzureADTokenExchange)
 
 # az login with managed identity via SA token
 export AZURE_CONFIG_DIR="${HOME}/.azure-profile-cs-${RESOURCEGROUP}"

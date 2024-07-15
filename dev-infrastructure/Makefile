@@ -81,19 +81,19 @@ cs-miwi-pg-connect: rg
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
-	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "cs-pg-" "clusters-service" "cluster-service"
+	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "cs-pg-" "clusters-service" "cluster-service" "clusters-service"
 
 maestro-current-user-pg-connect: rg
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
-	@scripts/cs-current-user-pg-connect.sh $(RESOURCEGROUP) "maestro-"
+	@scripts/cs-current-user-pg-connect.sh $(RESOURCEGROUP) "maestro-pg-"
 
 maestro-miwi-pg-connect: rg
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
-	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "maestro-" "maestro-server" "maestro"
+	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "maestro-pg-" "maestro-server" "maestro" "maestro"
 
 aks.kubeconfig:
 ifndef AKSCONFIG

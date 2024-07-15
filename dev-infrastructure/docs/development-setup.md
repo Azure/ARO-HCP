@@ -130,20 +130,18 @@ At this point `localhost:8000` forwards traffic to the Maestro server running on
 
 ### Access the database from outside of the AKS cluster
 
-To connect to the database as current user run:
+To connect to the database as current user run
 
 ```sh
-scripts
 eval $(AKSCONFIG=svc-cluster make maestro-current-user-pg-connect)
 psql -d maestro
 ```
 
-The output of the make target are in ENV var format for the `psql` tool, so this works to get a connection into the DB.
+The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
 
 To connect to the database with the managed identity of Maestro, make sure to have a KUBECONFIG for the cluster that runs Maestro Server and run
 
 ```sh
-scripts
 eval $(AKSCONFIG=svc-cluster make maestro-miwi-pg-connect)
 psql -d maestro
 ```
@@ -379,14 +377,14 @@ To create a Postgres DB on Azure enabled for Entra authentication, a svc cluster
 
 ### Access the database from outside of the AKS cluster
 
-To connect to the database as current user run:
+To connect to the database as current user run
 
 ```sh
 eval $(AKSCONFIG=svc-cluster make cs-current-user-pg-connect)
 psql -d clusters-service
 ```
 
-The output of the make target are in ENV var format for the `psql` tool, so this works to get a connection into the DB.
+The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
 
 To connect to the database with the managed identity of CS, make sure to have a KUBECONFIG for the cluster that runs CS and run
 
