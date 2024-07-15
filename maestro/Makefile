@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
-MAESTRO_INFRA_RESOURCEGROUP ?= RESOURCEGROUP
+MAESTRO_INFRA_RESOURCEGROUP ?= ${RESOURCEGROUP}
 REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location -o tsv)
 EVENTGRID_ID = $(shell az resource list -g ${MAESTRO_INFRA_RESOURCEGROUP} --resource-type "Microsoft.EventGrid/namespaces" --query "[].id" -o tsv)
 
