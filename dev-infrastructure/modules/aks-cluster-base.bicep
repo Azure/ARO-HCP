@@ -431,31 +431,6 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
   }
 ]
 
-module serviceAccounts './aks-manifest.bicep' = {
-  name: '${aksClusterName}-service-accounts'
-  params: {
-    aksClusterName: aksClusterName
-    manifests: [
-      for i in range(0, length(workloadIdentities)): {
-        apiVersion: 'v1'
-        kind: 'ServiceAccount'
-        metadata: {
-          name: workloadIdentities[i].value.serviceAccountName
-          namespace: workloadIdentities[i].value.namespace
-          annotations: {
-            'azure.workload.identity/client-id': uami[i].properties.clientId
-          }
-        }
-      }
-    ]
-    aksManagedIdentityId: aksClusterUserDefinedManagedIdentity.id
-    location: location
-  }
-  dependsOn: [
-    aksClusterAdminRoleAssignment
-  ]
-}
-
 // Outputs
 output userAssignedIdentities array = [
   for i in range(0, length(workloadIdentities)): {
