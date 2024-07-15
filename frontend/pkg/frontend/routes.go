@@ -1,11 +1,7 @@
 package frontend
 
 import (
-	"net/http"
-
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 func (f *Frontend) routes() *MiddlewareMux {
@@ -26,13 +22,13 @@ func (f *Frontend) routes() *MiddlewareMux {
 
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
-	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
+	mux.HandleFunc("GET /healthz", f.Healthz)
 	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
-	mux.HandleFunc(MuxPattern(http.MethodGet, PatternSubscriptions), f.ArmSubscriptionGet)
-	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionPut)
+	mux.HandleFunc("GET /subscriptions/{subscriptionid}", f.ArmSubscriptionGet)
+	mux.HandleFunc("PUT /subscriptions/{subscriptionid}", f.ArmSubscriptionPut)
 
 	// Expose Prometheus metrics endpoint
-	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	// Authenticated routes
 	postMuxMiddleware := NewMiddleware(
@@ -40,28 +36,28 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareValidateAPIVersion,
 		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders),
+		"GET /subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/hcpopenshiftclusters",
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders),
+		"GET /subscriptions/{subscriptionid}/locations/{location}/providers/microsoft.redhatopenshift/hcpopenshiftclusters",
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
+		"GET /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters",
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		"GET /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}",
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
-		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		"PUT /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}",
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
-		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		"PATCH /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}",
 		postMuxMiddleware.HandlerFunc(f.ArmResourceUpdate))
 	mux.Handle(
-		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		"DELETE /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}",
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
+		"POST /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{resourcename}/{actionname}",
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 
 	// Exclude ARO-HCP API version validation for endpoints defined by ARM.
@@ -69,7 +65,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareLoggingPostMux,
 		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
+		"POST /subscriptions/{subscriptionid}/resourcegroups/{resourcegroupname}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/deployments/{deploymentname}/preflight",
 		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))
 
 	return mux
