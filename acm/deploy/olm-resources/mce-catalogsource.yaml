@@ -1,0 +1,17 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: multiclusterengine-catalog
+  namespace: olm
+spec:
+  displayName: MultiCluster Engine
+  image: quay.io/zhiweiyin/backplane-operator-catalog:v2.6.0
+  publisher: Red Hat
+  sourceType: grpc
+  secrets:
+  - open-cluster-management-image-pull-credentials
+  updateStrategy:
+    registryPoll:
+      interval: 10m
+  grpcPodConfig:
+    securityContextConfig: restricted

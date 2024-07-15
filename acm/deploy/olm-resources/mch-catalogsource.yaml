@@ -1,0 +1,17 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: acm-custom-registry
+  namespace: olm
+spec:
+  displayName: Advanced Cluster Management
+  image: quay.io/zhiweiyin/multiclusterhub-operator-catalog:v2.11.0
+  publisher: Red Hat
+  secrets:
+  - open-cluster-management-image-pull-credentials
+  sourceType: grpc
+  updateStrategy:
+    registryPoll:
+      interval: 10m
+  grpcPodConfig:
+    securityContextConfig: restricted
