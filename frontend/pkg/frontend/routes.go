@@ -2,32 +2,20 @@ package frontend
 
 import (
 	"fmt"
-	"net/http"
-	"path"
-	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 const (
-	PatternSubscriptions    = "subscriptions/{" + PathSegmentSubscriptionID + "}"
-	PatternLocations        = "locations/{" + PageSegmentLocation + "}"
-	PatternProviders        = "providers/" + api.ResourceType
-	PatternNodepoolResource = "nodepools/{" + PathSegmentNodepoolName + "}"
-	PatternDeployments      = "deployments/{" + PathSegmentDeploymentName + "}"
-	PatternResourceGroups   = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
-	PatternResourceName     = "{" + PathSegmentResourceName + "}"
-	PatternActionName       = "{" + PathSegmentActionName + "}"
+	// Wildcard path segment names for request multiplexing, must be lowercase as we lowercase the request URL pattern when registering handlers
+	PageSegmentLocation          = "location"
+	PathSegmentSubscriptionID    = "subscriptionid"
+	PathSegmentResourceGroupName = "resourcegroupname"
+	PathSegmentResourceName      = "resourcename"
+	PathSegmentDeploymentName    = "deploymentname"
+	PathSegmentActionName        = "actionname"
+	PathSegmentNodepoolName      = "nodepoolname"
 )
-
-// MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
-// Literal path segments must be lowercase because MiddlewareLowercase
-// converts the request URL to lowercase before multiplexing.
-func MuxPattern(method string, segments ...string) string {
-	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
-}
 
 func (f *Frontend) routes() *MiddlewareMux {
 	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(f.dbClient)
@@ -47,13 +35,17 @@ func (f *Frontend) routes() *MiddlewareMux {
 
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
-	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
+	mux.HandleFunc("GET /healthz", f.Healthz)
 	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
-	mux.HandleFunc(MuxPattern(http.MethodGet, PatternSubscriptions), f.ArmSubscriptionGet)
-	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionPut)
+	mux.HandleFunc(
+		fmt.Sprintf("GET /subscriptions/{%s}", PathSegmentSubscriptionID),
+		f.ArmSubscriptionGet)
+	mux.HandleFunc(
+		fmt.Sprintf("PUT /subscriptions/{%s}", PathSegmentSubscriptionID),
+		f.ArmSubscriptionPut)
 
 	// Expose Prometheus metrics endpoint
-	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	// Authenticated routes
 	postMuxMiddleware := NewMiddleware(
@@ -61,28 +53,28 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareValidateAPIVersion,
 		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders),
+		fmt.Sprintf("GET /subscriptions/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters", PathSegmentSubscriptionID),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders),
+		fmt.Sprintf("GET /subscriptions/{%s}/locations/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters", PathSegmentSubscriptionID, PageSegmentLocation),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
+		fmt.Sprintf("GET /subscriptions/{%s}/resourcegroups/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters", PathSegmentSubscriptionID, PathSegmentResourceGroupName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		fmt.Sprintf("GET /subscriptions/{%s}/resourcegroups/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{%s}", PathSegmentSubscriptionID, PathSegmentResourceGroupName, PathSegmentResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
-		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		fmt.Sprintf("PUT /subscriptions/{%s}/resourcegroups/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{%s}", PathSegmentSubscriptionID, PathSegmentResourceGroupName, PathSegmentResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
-		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		fmt.Sprintf("PATCH /subscriptions/{%s}/resourcegroups/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{%s}", PathSegmentSubscriptionID, PathSegmentResourceGroupName, PathSegmentResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceUpdate))
 	mux.Handle(
-		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		fmt.Sprintf("DELETE /subscriptions/{%s}/resourcegroups/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{%s}", PathSegmentSubscriptionID, PathSegmentResourceGroupName, PathSegmentResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
+		fmt.Sprintf("POST /subscriptions/{%s}/resourcegroups/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{%s}/{%s}", PathSegmentSubscriptionID, PathSegmentResourceGroupName, PathSegmentResourceName, PathSegmentActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 
 	// node pools
@@ -101,7 +93,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareLoggingPostMux,
 		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
+		fmt.Sprintf("POST /subscriptions/{%s}/resourcegroups/{%s}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/deployments/{%s}/preflight", PathSegmentSubscriptionID, PathSegmentResourceGroupName, PathSegmentDeploymentName),
 		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))
 
 	return mux
