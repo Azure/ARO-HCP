@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
-MAESTRO_INFRA_RESOURCEGROUP ?= RESOURCEGROUP
+MAESTRO_INFRA_RESOURCEGROUP ?= ${RESOURCEGROUP}
 REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location -o tsv)
 EVENTGRID_ID = $(shell az resource list -g ${MAESTRO_INFRA_RESOURCEGROUP} --resource-type "Microsoft.EventGrid/namespaces" --query "[].id" -o tsv)
 
@@ -9,7 +9,7 @@ EVENTGRID_ID = $(shell az resource list -g ${MAESTRO_INFRA_RESOURCEGROUP} --reso
 deploy-server:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
-			-n maestro-server-${REGION} \
+			-n maestro-server \
 			--query clientId) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	MAESTRO_KV_NAME=$(shell az keyvault list --query "[?starts_with(name, 'maestro-kv')].name" -g ${MAESTRO_INFRA_RESOURCEGROUP} --output tsv) && \
@@ -29,7 +29,7 @@ deploy-server:
 deploy-agent:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
-			-n maestro-consumer-${REGION} \
+			-n maestro-consumer \
 			--query clientId) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	MAESTRO_KV_NAME=$(shell az keyvault list --query "[?starts_with(name, 'maestro-kv')].name" -g ${MAESTRO_INFRA_RESOURCEGROUP} --output tsv) && \

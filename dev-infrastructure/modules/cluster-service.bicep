@@ -8,7 +8,7 @@ param clusterServiceManagedIdentityName string
 param clusterServiceManagedIdentityPrincipalId string
 
 @description('The name of the database to create for CS')
-param csDatabaseName string = 'cluster-service'
+param csDatabaseName string = 'clusters-service'
 
 @description('The AKS cluster name where cluster-service is hosted.')
 param aksClusterName string

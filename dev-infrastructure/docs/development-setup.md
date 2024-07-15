@@ -130,14 +130,25 @@ At this point `localhost:8000` forwards traffic to the Maestro server running on
 
 ### Access the database from outside of the AKS cluster
 
-The connection parameters for the database can be aquired via `AKSCONFIG=svc-cluster make maestro-out-of-cluster-db-access`.
-
-The output are in ENV var format for the `psql` tool, so this works to get a connection into the DB#
+To connect to the database as current user run
 
 ```sh
-eval $(AKSCONFIG=svc-cluster make maestro-out-of-cluster-db-access)
+eval $(AKSCONFIG=svc-cluster make maestro-current-user-pg-connect)
 psql -d maestro
 ```
+
+The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
+
+To connect to the database with the managed identity of Maestro, make sure to have a KUBECONFIG for the cluster that runs Maestro Server and run
+
+```sh
+eval $(AKSCONFIG=svc-cluster make maestro-miwi-pg-connect)
+psql -d maestro
+```
+
+Once logged in, verify the connection with `\conninfo`
+
+> The password is a temporary access token that is valid only for 1h
 
 ## Maestro consumer
 
@@ -366,14 +377,23 @@ To create a Postgres DB on Azure enabled for Entra authentication, a svc cluster
 
 ### Access the database from outside of the AKS cluster
 
-The connection parameters for the database can be aquired via `AKSCONFIG=svc-cluster make cs-out-of-cluster-db-access`.
-
-The output are in ENV var format for the `psql` tool, so this works to get a connection into the DB#
+To connect to the database as current user run
 
 ```sh
-eval $(AKSCONFIG=svc-cluster make cs-out-of-cluster-db-access)
-psql -d cluster-service
+eval $(AKSCONFIG=svc-cluster make cs-current-user-pg-connect)
+psql -d clusters-service
 ```
+
+The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
+
+To connect to the database with the managed identity of CS, make sure to have a KUBECONFIG for the cluster that runs CS and run
+
+```sh
+eval $(AKSCONFIG=svc-cluster make cs-miwi-pg-connect)
+psql -d clusters-service
+```
+
+Once logged in, verify the connection with `\conninfo`
 
 > The password is a temporary access token that is valid only for 1h
 

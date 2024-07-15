@@ -71,17 +71,29 @@ ifndef AKSCONFIG
 endif
 	@scripts/aks-admin-access.sh $(RESOURCEGROUP)
 
-cs-out-of-cluster-db-access: rg
+cs-current-user-pg-connect: rg
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
-	@scripts/current-user-pg-access.sh $(RESOURCEGROUP) "cs-"
+	@scripts/cs-current-user-pg-connect.sh $(RESOURCEGROUP) "cs-pg-"
 
-maestro-out-of-cluster-db-access: rg
+cs-miwi-pg-connect: rg
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
-	@scripts/current-user-pg-access.sh $(RESOURCEGROUP) "maestro-"
+	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "cs-pg-" "clusters-service" "cluster-service" "clusters-service"
+
+maestro-current-user-pg-connect: rg
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	@scripts/cs-current-user-pg-connect.sh $(RESOURCEGROUP) "maestro-pg-"
+
+maestro-miwi-pg-connect: rg
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "maestro-pg-" "maestro-server" "maestro" "maestro"
 
 aks.kubeconfig:
 ifndef AKSCONFIG

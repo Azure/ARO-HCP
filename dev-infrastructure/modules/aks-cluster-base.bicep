@@ -412,7 +412,7 @@ module acrPullRole 'acr-pull-permission.bicep' = [
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
   for wi in workloadIdentities: {
     location: location
-    name: '${wi.value.uamiName}-${location}'
+    name: wi.value.uamiName
   }
 ]
 
@@ -429,31 +429,6 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
     }
   }
 ]
-
-module serviceAccounts './aks-manifest.bicep' = {
-  name: '${aksClusterName}-service-accounts'
-  params: {
-    aksClusterName: aksClusterName
-    manifests: [
-      for i in range(0, length(workloadIdentities)): {
-        apiVersion: 'v1'
-        kind: 'ServiceAccount'
-        metadata: {
-          name: workloadIdentities[i].value.serviceAccountName
-          namespace: workloadIdentities[i].value.namespace
-          annotations: {
-            'azure.workload.identity/client-id': uami[i].properties.clientId
-          }
-        }
-      }
-    ]
-    aksManagedIdentityId: aksClusterUserDefinedManagedIdentity.id
-    location: location
-  }
-  dependsOn: [
-    aksClusterAdminRoleAssignment
-  ]
-}
 
 // Outputs
 output userAssignedIdentities array = [
