@@ -1,9 +1,8 @@
-FROM registry.access.redhat.com/ubi8/ubi:8.8 AS downloader
-
-ENV OC_VERSION=4.16.0
+FROM registry.access.redhat.com/ubi9/ubi:9.4-1123.1719560047 AS downloader
 
 RUN dnf -y install unzip glibc-langpack-en
 
+ENV OC_VERSION=4.16.3
 
 RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux.tar.gz \
     -o oc.tar.gz && \
@@ -15,8 +14,7 @@ RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VER
     tar -zvxf oc-mirror.tar.gz && \
     mv oc-mirror /usr/local/bin
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3
-
+FROM registry.access.redhat.com/ubi9/ubi:9.4-1123.1719560047
 
 COPY --chown=0:0 --chmod=755 --from=downloader \
     /usr/local/bin/oc-mirror \

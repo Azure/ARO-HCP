@@ -1,0 +1,12 @@
+kind: ImageSetConfiguration
+apiVersion: mirror.openshift.io/v1alpha2
+storageConfig:
+  registry:
+    imageURL: devarohcp.azurecr.io/mirror/oc-mirror-metadata
+    skipTLS: false
+mirror:
+  platform:
+    channels:
+      - name: stable-4.16
+        type: ocp
+    graph: true
