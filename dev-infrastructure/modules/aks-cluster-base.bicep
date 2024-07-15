@@ -313,7 +313,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         config: {
           enableSecretRotation: 'true'
           rotationPollInterval: '5m'
-          syncSecret: 'true'
         }
       }
     }
