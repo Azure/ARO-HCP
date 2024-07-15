@@ -4,16 +4,16 @@ This container contains oc-mirror end required dependencies.
 
 ## Example usage for devarohcp
 
- * Build the container image ```docker build -t oc-mirror .```
+ * Build the container image ```podman build -t oc-mirror .```
  * Get credentials for Openshift registries https://console.redhat.com/openshift/install/pull-secret
  * Get Azure registry credentials ```az acr login -n devarohcp```
  * Run the sync using the built container
 ```BASH
-docker run -it --rm --tmpfs /oc-mirror-workspace \
+podman run -it --rm --tmpfs /oc-mirror-workspace \
   -e XDG_RUNTIME_DIR=/ \
-  -v $PWD/imageset-config.yml:/imageset-config.yml \
-  -v $HOME/.docker/config.json:/containers/auth.json \
-  docker.io/library/oc-mirror \
+  -v $PWD/imageset-config.yml:/imageset-config.yml:Z \
+  -v $HOME/.docker/config.json:/containers/auth.json:Z \
+  oc-mirror \
   oc mirror --config=/imageset-config.yml docker://devarohcp.azurecr.io --dry-run
 ```
 
