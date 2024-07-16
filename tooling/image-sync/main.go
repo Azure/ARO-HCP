@@ -53,22 +53,12 @@ func initConfig() {
 func configureLogging() {
 	loggerConfig := zap.NewDevelopmentConfig()
 
-	switch logLevel {
-	case "info":
-		loggerConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	case "debug":
-		loggerConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-	case "error":
-		loggerConfig.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-	case "warn":
-		loggerConfig.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
-	case "fatal":
-		loggerConfig.Level = zap.NewAtomicLevelAt(zap.FatalLevel)
-	case "panic":
-		loggerConfig.Level = zap.NewAtomicLevelAt(zap.PanicLevel)
-	default:
-		loggerConfig.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	loglevel, err := zap.ParseAtomicLevel(logLevel)
+	if err != nil {
+		defaultlog.Fatal(err)
 	}
+
+	loggerConfig.Level = loglevel
 
 	loggerConfig.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
 
