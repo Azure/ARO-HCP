@@ -14,7 +14,6 @@ param disableLocalAuth = false
 param deployFrontendCosmos = true
 
 param deployMaestroInfra = true
-param maestroNamespace = 'maestro'
 param maestroKeyVaultName = 'maestro-kv-aro-hcp-dev'
 param maestroEventGridNamespacesName = 'maestro-eventgrid-aro-hcp-dev'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-dev.azure.com'
@@ -42,7 +41,7 @@ param workloadIdentities = items({
   }
   maestro_wi: {
     uamiName: 'maestro-server'
-    namespace: maestroNamespace
+    namespace: 'maestro'
     serviceAccountName: 'maestro'
   }
   cs_wi: {

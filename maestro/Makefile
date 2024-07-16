@@ -13,6 +13,8 @@ deploy-server:
 			--query clientId) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	MAESTRO_KV_NAME=$(shell az keyvault list --query "[?starts_with(name, 'maestro-kv')].name" -g ${MAESTRO_INFRA_RESOURCEGROUP} --output tsv) && \
+	EVENTGRID_CA_BASE64='$(shell cat ../dev-infrastructure/scripts/digicert-global-root-g3.crt | base64 | tr -d '\n')' && \
+	EVENTGRID_HOSTNAME=$(shell az resource show --ids ${EVENTGRID_ID} --query properties.topicSpacesConfiguration.hostname -o tsv) && \
 	oc process --local -f deploy/openshift-templates/namespace-template.yml \
 	  -p ISTIO_VERSION=asm-1-20 | oc apply -f - && \
 	oc process --local -f deploy/openshift-templates/db-template.yml | oc apply -f - && \
@@ -24,6 +26,8 @@ deploy-server:
 	  -p DB_SECRET_NAME=maestro-db \
 	  -p MAESTRO_MI_CLIENT_ID=$${MAESTRO_MI_CLIENT_ID} \
 	  -p MAESTRO_KV_NAME=$${MAESTRO_KV_NAME} \
+	  -p EVENTGRID_CA_BASE64=$${EVENTGRID_CA_BASE64} \
+	  -p EVENTGRID_HOSTNAME=$${EVENTGRID_HOSTNAME} \
 	  -p AZURE_TENANT_ID=$${TENANT_ID} | oc apply -f -
 
 deploy-agent:

@@ -1,8 +1,6 @@
 /*
 This module is responsible for:
  - setting up EventGrid access for the maestro server
- - placeing MQTT broker configuration into the maestro namespace of an AKS cluster
- - placeing CSI secret store configuration into the maestro namespace of an AKS cluster
 
 Execution scope: the resourcegroup of the AKS cluster where the maestro server
 will be deployed.
@@ -12,7 +10,6 @@ TODO:
   this module needs to be enhanced to manage access to both (e.g. privatelink)
 */
 
-param aksClusterName string
 param maestroServerManagedIdentityPrincipalId string
 
 param maestroInfraResourceGroup string
@@ -36,48 +33,4 @@ module evengGridAccess './maestro-eventgrid-access.bicep' = {
     certificateAccessManagedIdentityPrincipalId: maestroServerManagedIdentityPrincipalId
     location: location
   }
-}
-
-// Maestro MQTT K8S Secret
-
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' existing = {
-  name: aksClusterName
-}
-
-var configMap = '''
-brokerHost: "{0}:8883"
-username: ""
-password: ""
-caFile: /secrets/mqtt/ca.crt
-clientCertFile: /secrets/mqtt-creds/maestro.crt
-clientKeyFile: /secrets/mqtt-creds/maestro.key
-topics:
-  sourceEvents: sources/maestro/consumers/+/sourceevents
-  agentEvents: sources/maestro/consumers/+/agentevents
-'''
-
-module maestroConfigMap '../aks-manifest.bicep' = {
-  name: '${deployment().name}-mqtt-secret-manifest'
-  params: {
-    aksClusterName: aksCluster.name
-    manifests: [
-      {
-        apiVersion: 'v1'
-        kind: 'Secret'
-        metadata: {
-          name: 'maestro-mqtt'
-          namespace: 'maestro'
-        }
-        stringData: {
-          'config.yaml': format(configMap, evengGridAccess.outputs.EventGridHostname)
-          'ca.crt': loadTextContent('../../scripts/digicert-global-root-g3.crt')
-        }
-      }
-    ]
-    aksManagedIdentityId: items(aksCluster.identity.userAssignedIdentities)[0].key
-    location: location
-  }
-  dependsOn: [
-    evengGridAccess
-  ]
 }

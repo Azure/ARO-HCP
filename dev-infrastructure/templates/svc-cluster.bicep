@@ -184,7 +184,6 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestro
 module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaestroInfra) {
   name: 'maestro-server'
   params: {
-    aksClusterName: svcCluster.outputs.aksClusterName
     maestroServerManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-server'
