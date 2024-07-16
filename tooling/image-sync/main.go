@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Azure/ARO-HCP/tooling/image-sync/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -17,16 +18,12 @@ var (
 		Short: "image-sync",
 		Long:  "image-sync",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return DoSync()
+			return internal.DoSync()
 		},
 	}
 	cfgFile  string
 	logLevel string
 )
-
-func Log() *zap.SugaredLogger {
-	return zap.L().Sugar()
-}
 
 func main() {
 	syncCmd.Flags().StringVarP(&cfgFile, "cfgFile", "c", "", "Configuration File")
@@ -45,8 +42,8 @@ func initConfig() {
 	viper.SetConfigFile(cfgFile)
 	viper.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err == nil {
-		Log().Debugw("Using configuration", "config", cfgFile)
+	if err := viper.ReadInConfig(); err != nil {
+		defaultlog.Fatal(err)
 	}
 }
 

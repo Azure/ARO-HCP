@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"context"
@@ -12,7 +12,12 @@ import (
 	"github.com/containers/image/signature"
 	"github.com/containers/image/types"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
+
+func Log() *zap.SugaredLogger {
+	return zap.L().Sugar()
+}
 
 // SyncConfig is the configuration for the image sync
 type SyncConfig struct {
