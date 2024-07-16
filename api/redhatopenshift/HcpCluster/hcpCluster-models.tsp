@@ -267,13 +267,13 @@ model PlatformProfile {
   managedResourceGroup: string;
 
   /** ResourceId for the subnet used by the control plane */
-  subnetId: string;
+  subnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
   outboundType?: OutboundType = OutboundType.loadBalancer;
 
   /** ResourceId for the network security group attached to the cluster subnet */
-  networkSecurityGroupId: string;
+  networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
   /** The id of the disk encryption set to be used for etcd.
    * Configure this when `etcdEncryption` is set to true
@@ -282,11 +282,24 @@ model PlatformProfile {
   etcdEncryptionSetId?: string;
 }
 
+scalar SubnetResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.Network/virtualNetworks/subnets",
+    }
+  ]>;
+
+scalar NetworkSecurityGroupResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.Network/networkSecurityGroups",
+    }
+  ]>;
 /** The outbound routing strategy used to provide your cluster egress to the internet. */
 union OutboundType {
   string,
 
-  /** The loadbalancer configuration */
+  /** The load balancer configuration */
   loadBalancer: "loadBalancer",
 }
 

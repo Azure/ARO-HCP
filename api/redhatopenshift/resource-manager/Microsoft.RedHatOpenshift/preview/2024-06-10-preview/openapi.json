@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "Microsoft.RedHatOpenshift management service",
+    "title": "Azure Red Hat OpenShift Hosted Control Planes Service",
     "version": "2024-06-10-preview",
     "description": "Microsoft.RedHatOpenshift Resource Provider management API.",
     "x-typespec-generated": [
@@ -1762,6 +1762,18 @@
         "machineCidr"
       ]
     },
+    "NetworkSecurityGroupResourceId": {
+      "type": "string",
+      "format": "arm-id",
+      "description": "A type definition that refers the id to an Azure Resource Manager resource.",
+      "x-ms-arm-id-details": {
+        "allowedResources": [
+          {
+            "type": "Microsoft.Network/networkSecurityGroups"
+          }
+        ]
+      }
+    },
     "NetworkType": {
       "type": "string",
       "description": "The cluster network type",
@@ -1979,7 +1991,7 @@
           {
             "name": "loadBalancer",
             "value": "loadBalancer",
-            "description": "The loadbalancer configuration"
+            "description": "The load balancer configuration"
           }
         ]
       }
@@ -1993,7 +2005,7 @@
           "description": "Resource group to put cluster resources"
         },
         "subnetId": {
-          "type": "string",
+          "$ref": "#/definitions/SubnetResourceId",
           "description": "ResourceId for the subnet used by the control plane"
         },
         "outboundType": {
@@ -2010,13 +2022,13 @@
               {
                 "name": "loadBalancer",
                 "value": "loadBalancer",
-                "description": "The loadbalancer configuration"
+                "description": "The load balancer configuration"
               }
             ]
           }
         },
         "networkSecurityGroupId": {
-          "type": "string",
+          "$ref": "#/definitions/NetworkSecurityGroupResourceId",
           "description": "ResourceId for the network security group attached to the cluster subnet"
         },
         "etcdEncryptionSetId": {
@@ -2105,6 +2117,18 @@
           "type": "string",
           "description": "The trusted CA for the proxy"
         }
+      }
+    },
+    "SubnetResourceId": {
+      "type": "string",
+      "format": "arm-id",
+      "description": "A type definition that refers the id to an Azure Resource Manager resource.",
+      "x-ms-arm-id-details": {
+        "allowedResources": [
+          {
+            "type": "Microsoft.Network/virtualNetworks/subnets"
+          }
+        ]
       }
     },
     "Taint": {
