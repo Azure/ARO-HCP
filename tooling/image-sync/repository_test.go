@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -42,7 +43,7 @@ func TestQuayGetTags(t *testing.T) {
 
 	testcases := []struct {
 		name          string
-		response      string
+		responses     []string
 		length        int
 		expected      []string
 		expectedError bool
@@ -51,29 +52,38 @@ func TestQuayGetTags(t *testing.T) {
 	}{
 		{
 			name:          "one response",
-			response:      `{"tags":[{"name":"test"}]}`,
+			responses:     []string{`{"tags":[{"name":"test"}]}`},
 			length:        1,
 			expected:      []string{"test"},
 			expectedError: false,
 		},
 		{
 			name:          "multiple response",
-			response:      `{"tags":[{"name":"test"},{"name":"test"},{"name":"test"},{"name":"test"},{"name":"test"} ]}`,
+			responses:     []string{`{"tags":[{"name":"test"},{"name":"test"},{"name":"test"},{"name":"test"},{"name":"test"} ]}`},
 			length:        3,
 			expected:      []string{"test", "test", "test"},
 			expectedError: false,
 		},
 		{
 			name:          "fail",
-			response:      `{"tags":[{"name":"test"},]}`,
+			responses:     []string{`{"tags":[{"name":"test"},]}`},
 			expectedError: true,
-			errorString:   "failed to unmarshal response: invalid character ']' looking for beginning of value",
+			errorString:   "failed to get tags: failed to unmarshal response: invalid character ']' looking for beginning of value",
 		},
 		{
 			name:          "httpFail",
 			expectedError: true,
-			errorString:   "unexpected status code 502",
+			responses:     []string{""},
+			errorString:   "failed to get tags: unexpected status code 502",
 			statusCode:    http.StatusBadGateway,
+		},
+		{
+			name: "paginated",
+			responses: []string{`{"tags":[{"name":"test0"}, {"name":"test1"}], "has_additional": true}`,
+				`{"tags":[{"name":"test2"}], "has_additional": true}`,
+				`{"tags":[{"name":"test3"}], "has_additional": true}`},
+			length:   3,
+			expected: []string{"test0", "test1", "test2"},
 		},
 	}
 
@@ -81,10 +91,12 @@ func TestQuayGetTags(t *testing.T) {
 		t.Run(testcase.name, func(t *testing.T) {
 			mock := httptest.NewServer(http.HandlerFunc(
 				func(w http.ResponseWriter, r *http.Request) {
+					page, err := strconv.Atoi(r.URL.Query().Get("page"))
+					assert.NilError(t, err)
 					if testcase.statusCode != 0 {
 						w.WriteHeader(testcase.statusCode)
 					}
-					_, err := w.Write([]byte(testcase.response))
+					_, err = w.Write([]byte(testcase.responses[page-1]))
 					assert.NilError(t, err)
 				}))
 			defer mock.Close()

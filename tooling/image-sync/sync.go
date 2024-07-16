@@ -114,10 +114,6 @@ func filterTagsToSync(src, target []string) []string {
 func DoSync() error {
 	cfg := NewSyncConfig()
 	Log().Infow("Syncing images", "images", cfg.Repositories, "numberoftags", cfg.NumberOfTags)
-	if cfg.NumberOfTags > 50 {
-		//Todo implement/test pagination for quay
-		return fmt.Errorf("number of tags is too high")
-	}
 	ctx := context.Background()
 
 	quaySecret, err := readQuaySecret(cfg.QuaySecretFile)
@@ -150,14 +146,14 @@ func DoSync() error {
 			if err != nil {
 				return fmt.Errorf("error getting quay tags: %w", err)
 			}
-			Log().Infow("Got tags from quay", "tags", srcTags)
+			Log().Debugw("Got tags from quay", "tags", srcTags)
 		} else {
 			oci := NewOCIRegistry(cfg, baseURL)
 			srcTags, err = oci.GetTags(ctx, repoName)
 			if err != nil {
 				return fmt.Errorf("error getting oci tags: %w", err)
 			}
-			Log().Infow(fmt.Sprintf("Got tags from %s", baseURL), "repo", repoName, "tags", srcTags)
+			Log().Debugw(fmt.Sprintf("Got tags from %s", baseURL), "repo", repoName, "tags", srcTags)
 		}
 
 		exists, err := acr.RepositoryExists(ctx, repoName)

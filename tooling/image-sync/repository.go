@@ -43,7 +43,7 @@ type QuayRegistry struct {
 
 // NewQuayRegistry creates a new QuayRegistry access client
 func NewQuayRegistry(cfg *SyncConfig, bearerToken string) *QuayRegistry {
-	return &QuayRegistry{
+	q := &QuayRegistry{
 		httpclient: &http.Client{Timeout: time.Duration(cfg.RequestTimeout) * time.Second,
 			Transport: &AuthedTransport{
 				Key:     "Bearer " + bearerToken,
@@ -53,23 +53,21 @@ func NewQuayRegistry(cfg *SyncConfig, bearerToken string) *QuayRegistry {
 		baseUrl:      "https://quay.io",
 		numberOftags: cfg.NumberOfTags,
 	}
+	return q
 }
 
 type TagsResponse struct {
 	Tags          []Tags
 	Page          int
-	HasAdditional bool
+	HasAdditional bool `json:"has_additional"`
 }
 
 type Tags struct {
 	Name string
 }
 
-// GetTags returns the tags for the given image
-func (q *QuayRegistry) GetTags(ctx context.Context, image string) ([]string, error) {
-	// Todo pagination
-	Log().Debugw("Getting tags for image", "image", image)
-	path := fmt.Sprintf("%s/api/v1/repository/%s/tag/", q.baseUrl, image)
+func (q *QuayRegistry) getTagPage(ctx context.Context, image string, page int) (*TagsResponse, error) {
+	path := fmt.Sprintf("%s/api/v1/repository/%s/tag/?limit=100&page=%s", q.baseUrl, image, strconv.Itoa(page))
 	req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
 
 	Log().Debugw("Sending request", "path", path)
@@ -97,18 +95,36 @@ func (q *QuayRegistry) GetTags(ctx context.Context, image string) ([]string, err
 		return nil, fmt.Errorf("failed to unmarshal response: %v", err)
 	}
 
-	var tags []string
+	return &tagsResponse, nil
+}
 
-	for _, tag := range tagsResponse.Tags {
-		if tag.Name == "latest" {
-			continue
+// GetTags returns the tags for the given image
+func (q *QuayRegistry) GetTags(ctx context.Context, image string) ([]string, error) {
+	Log().Debugw("Getting tags for image", "image", image)
+
+	var tags []string
+	hasAdditional := true
+
+	// hard coded limit of 100, to make sure process does not get stuck
+	for page := 1; len(tags) < q.numberOftags && hasAdditional && page < 100; page++ {
+		tagsResponse, err := q.getTagPage(ctx, image, page)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get tags: %v", err)
 		}
-		tags = append(tags, tag.Name)
-		if len(tags) >= q.numberOftags {
+		for _, tag := range tagsResponse.Tags {
+			if tag.Name == "latest" {
+				continue
+			}
+			tags = append(tags, tag.Name)
+			// Check length again, cause pagesize might be way bigger than number of tags
+			if len(tags) >= q.numberOftags {
+				return tags, nil
+			}
+		}
+		if !tagsResponse.HasAdditional {
 			break
 		}
 	}
-
 	return tags, nil
 }
 
