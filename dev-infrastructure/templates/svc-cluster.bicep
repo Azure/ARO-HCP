@@ -54,9 +54,6 @@ param workloadIdentities array
 @description('Deploy ARO HCP Maestro Infrastructure if true')
 param deployMaestroInfra bool
 
-@description('The namespace where the maestro resources will be deployed.')
-param maestroNamespace string
-
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
 
@@ -192,11 +189,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaest
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-server'
     )[0].uamiPrincipalID
-    maestroServerManagedIdentityClientId: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-server'
-    )[0].uamiClientID
-    namespace: maestroNamespace
     maestroInfraResourceGroup: maestroInfraResourceGroup
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     maestroKeyVaultName: maestroKeyVaultName

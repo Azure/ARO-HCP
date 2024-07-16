@@ -14,8 +14,6 @@ TODO:
 
 param aksClusterName string
 param maestroServerManagedIdentityPrincipalId string
-param maestroServerManagedIdentityClientId string
-param namespace string
 
 param maestroInfraResourceGroup string
 param maestroEventGridNamespaceName string
@@ -78,31 +76,6 @@ module maestroConfigMap '../aks-manifest.bicep' = {
     ]
     aksManagedIdentityId: items(aksCluster.identity.userAssignedIdentities)[0].key
     location: location
-  }
-  dependsOn: [
-    evengGridAccess
-  ]
-}
-
-// maestro CSI secret store configuration to access the EventGrid
-// access certificates stored in KeyVault
-
-module maestroCSISecretStoreConfig '../aks-csi-secret-store.bicep' = {
-  name: '${deployment().name}-csi-secret-store-manifest'
-  params: {
-    aksClusterName: aksClusterName
-    clientId: maestroServerManagedIdentityClientId
-    keyVaultName: maestroKeyVaultName
-    location: location
-    namespace: namespace
-    csiSecProviderClassName: 'maestro'
-    objects: [
-      {
-        objectName: evengGridAccess.outputs.KeyVaultCertName
-        objectType: 'secret'
-        objectAlias: 'maestro'
-      }
-    ]
   }
   dependsOn: [
     evengGridAccess
