@@ -4,9 +4,10 @@ This container contains oc-mirror end required dependencies.
 
 ## Example usage for devarohcp
 
- * Build the container image ```podman build -t oc-mirror .```
+ * Build the container image `podman build -t oc-mirror .`
+ * Alternatively, use `make image`
  * Get credentials for Openshift registries https://console.redhat.com/openshift/install/pull-secret
- * Get Azure registry credentials ```az acr login -n devarohcp```
+ * Get Azure registry credentials `az acr login -n devarohcp`
  * Run the sync using the built container
 ```BASH
 podman run -it --rm --tmpfs /oc-mirror-workspace \
