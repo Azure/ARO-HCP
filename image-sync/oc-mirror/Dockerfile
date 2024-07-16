@@ -1,11 +1,14 @@
-FROM registry.access.redhat.com/ubi9/ubi:9.4-1123.1719560047 AS downloader
+FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS downloader
 
-RUN dnf -y install unzip glibc-langpack-en
+RUN set -eux; \
+# Upgrade all packages per https://eng.ms/docs/more/containers-secure-supply-chain/updating
+	tdnf update -y; \
+    tdnf -y install unzip wget tar ca-certificates; \ 
+	tdnf clean all
 
 ENV OC_VERSION=4.16.3
 
-RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux.tar.gz \
-    -o oc.tar.gz && \
+RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux.tar.gz -o oc.tar.gz  && \
     tar -zvxf oc.tar.gz && \
     mv oc kubectl /usr/local/bin
 
@@ -14,7 +17,14 @@ RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VER
     tar -zvxf oc-mirror.tar.gz && \
     mv oc-mirror /usr/local/bin
 
-FROM registry.access.redhat.com/ubi9/ubi:9.4-1123.1719560047
+FROM mcr.microsoft.com/cbl-mariner/base/core:2.0
+
+RUN mkdir --mode=777 /workspace; \
+    tdnf update -y; \
+    tdnf -y install ca-certificates; \
+    tdnf clean all
+
+WORKDIR /workspace
 
 COPY --chown=0:0 --chmod=755 --from=downloader \
     /usr/local/bin/oc-mirror \
