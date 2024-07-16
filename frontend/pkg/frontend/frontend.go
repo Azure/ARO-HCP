@@ -13,9 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"strconv"
-	"strings"
 	"sync/atomic"
 
 	"github.com/google/uuid"
@@ -25,17 +23,6 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/database"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-)
-
-const (
-	PatternSubscriptions    = "subscriptions/{" + PathSegmentSubscriptionID + "}"
-	PatternLocations        = "locations/{" + PageSegmentLocation + "}"
-	PatternProviders        = "providers/" + api.ResourceType
-	PatternNodepoolResource = "nodepools/{" + PathSegmentNodepoolName + "}"
-	PatternDeployments      = "deployments/{" + PathSegmentDeploymentName + "}"
-	PatternResourceGroups   = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
-	PatternResourceName     = "{" + PathSegmentResourceName + "}"
-	PatternActionName       = "{" + PathSegmentActionName + "}"
 )
 
 type Frontend struct {
@@ -65,13 +52,6 @@ type ClusterServiceConfig struct {
 	// ProvisionerNoOpDeprovision sets the provisioner_noop_deprovision property for all cluster requests to Cluster
 	// Service, which short-circuits the full deprovision flow during testing
 	ProvisionerNoOpDeprovision bool
-}
-
-// MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
-// Literal path segments must be lowercase because MiddlewareLowercase
-// converts the request URL to lowercase before multiplexing.
-func MuxPattern(method string, segments ...string) string {
-	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
 func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, region string, csCfg ClusterServiceConfig) *Frontend {

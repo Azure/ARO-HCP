@@ -1,12 +1,33 @@
 package frontend
 
 import (
+	"fmt"
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 )
+
+const (
+	PatternSubscriptions    = "subscriptions/{" + PathSegmentSubscriptionID + "}"
+	PatternLocations        = "locations/{" + PageSegmentLocation + "}"
+	PatternProviders        = "providers/" + api.ResourceType
+	PatternNodepoolResource = "nodepools/{" + PathSegmentNodepoolName + "}"
+	PatternDeployments      = "deployments/{" + PathSegmentDeploymentName + "}"
+	PatternResourceGroups   = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
+	PatternResourceName     = "{" + PathSegmentResourceName + "}"
+	PatternActionName       = "{" + PathSegmentActionName + "}"
+)
+
+// MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
+// Literal path segments must be lowercase because MiddlewareLowercase
+// converts the request URL to lowercase before multiplexing.
+func MuxPattern(method string, segments ...string) string {
+	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
+}
 
 func (f *Frontend) routes() *MiddlewareMux {
 	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(f.dbClient)
