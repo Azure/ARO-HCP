@@ -2,9 +2,9 @@ FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS downloader
 
 RUN set -eux; \
 # Upgrade all packages per https://eng.ms/docs/more/containers-secure-supply-chain/updating
-	tdnf update -y; \
+    tdnf update -y; \
     tdnf -y install unzip wget tar ca-certificates; \ 
-	tdnf clean all
+    tdnf clean all
 
 ENV OC_VERSION=4.16.3
 
