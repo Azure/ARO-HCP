@@ -36,6 +36,7 @@ const (
 	PatternResourceGroups   = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
 	PatternResourceName     = "{" + PathSegmentResourceName + "}"
 	PatternActionName       = "{" + PathSegmentActionName + "}"
+	Test                    = "unused"
 )
 
 type Frontend struct {
