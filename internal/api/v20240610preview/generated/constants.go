@@ -128,7 +128,7 @@ func PossibleOriginValues() []Origin {
 type OutboundType string
 
 const (
-	// OutboundTypeLoadBalancer - The loadbalancer configuration
+	// OutboundTypeLoadBalancer - The load balancer configuration
 	OutboundTypeLoadBalancer OutboundType = "loadBalancer"
 )
 

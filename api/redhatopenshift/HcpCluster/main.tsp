@@ -16,7 +16,7 @@ using Azure.ResourceManager;
 /** Microsoft.RedHatOpenshift Resource Provider management API. */
 @armProviderNamespace
 @service({
-  title: "Microsoft.RedHatOpenshift management service",
+  title: "Azure Red Hat OpenShift Hosted Control Planes Service",
 })
 @versioned(Microsoft.RedHatOpenshift.Versions)
 namespace Microsoft.RedHatOpenshift;
