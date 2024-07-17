@@ -48,7 +48,7 @@ var _ DBClient = &CosmosDBClient{}
 
 // CosmosDBClient defines the needed values to perform CRUD operations against the async DB
 type CosmosDBClient struct {
-	client *azcosmos.Client
+	client *azcosmos.DatabaseClient
 	config *CosmosDBConfig
 }
 
@@ -86,18 +86,18 @@ func NewCosmosDBClient(config *CosmosDBConfig) (DBClient, error) {
 		return nil, err
 	}
 
-	d.client = client
+	// This only fails if the database ID is empty.
+	d.client, err = client.NewDatabase(config.DBName)
+	if err != nil {
+		return nil, err
+	}
+
 	return d, nil
 }
 
 // DBConnectionTest checks the async database is accessible on startup
 func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) error {
-	database, err := d.client.NewDatabase(d.config.DBName)
-	if err != nil {
-		return fmt.Errorf("failed to create Cosmos database client during healthcheck: %v", err)
-	}
-
-	if _, err := database.Read(ctx, nil); err != nil {
+	if _, err := d.client.Read(ctx, nil); err != nil {
 		return fmt.Errorf("failed to read Cosmos database information during healthcheck: %v", err)
 	}
 
@@ -106,7 +106,7 @@ func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) error {
 
 // GetClusterDoc retrieves a cluster document from async DB using resource ID
 func (d *CosmosDBClient) GetClusterDoc(ctx context.Context, resourceID string, subscriptionID string) (*HCPOpenShiftClusterDocument, error) {
-	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
+	container, err := d.client.NewContainer(clustersContainer)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (d *CosmosDBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClu
 		return err
 	}
 
-	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
+	container, err := d.client.NewContainer(clustersContainer)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (d *CosmosDBClient) DeleteClusterDoc(ctx context.Context, resourceID string
 		return fmt.Errorf("while attempting to delete the cluster, failed to get cluster document: %w", err)
 	}
 
-	container, err := d.client.NewContainer(d.config.DBName, clustersContainer)
+	container, err := d.client.NewContainer(clustersContainer)
 	if err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func (d *CosmosDBClient) DeleteNodePoolDoc(ctx context.Context, resourceID strin
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
 func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
-	container, err := d.client.NewContainer(d.config.DBName, subsContainer)
+	container, err := d.client.NewContainer(subsContainer)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (d *CosmosDBClient) SetSubscriptionDoc(ctx context.Context, doc *Subscripti
 		return err
 	}
 
-	container, err := d.client.NewContainer(d.config.DBName, subsContainer)
+	container, err := d.client.NewContainer(subsContainer)
 	if err != nil {
 		return err
 	}
