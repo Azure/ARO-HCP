@@ -236,6 +236,8 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
+output svcKeyVaultName string = serviceKeyVault.outputs.kvName
+
 //
 //   C L U S T E R   S E R V I C E
 //

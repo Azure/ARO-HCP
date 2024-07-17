@@ -512,6 +512,7 @@ objects:
           - --instance-type-constraints-config=/configs/cloud-resource-constraints/instance-type-constraints.yaml
           - --cloud-region-config=/configs/cloud-resources/cloud-regions.yaml
           - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
+          # uncomment the following line once CS supports this parameter
           #- --azure-auth-file=/secrets/azure-credentials/azure-auth-file
           livenessProbe:
             httpGet:
