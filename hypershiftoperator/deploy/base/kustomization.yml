@@ -5,6 +5,7 @@ resources:
   - customresourcedefinition-routes-default.crd.yaml
   - customresourcedefinition-machinepools.cluster.x-k8s.io.yaml
   - clusterrole-external-dns.yaml
+  - customresourcedefinition-openstackmachinetemplates.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-ibmpowervsmachines.infrastructure.cluster.x-k8s.io.yaml
   - configmap-openshift-config-managed-trusted-ca-bundle.yaml
   - customresourcedefinition-azuremanagedmachinepools.infrastructure.cluster.x-k8s.io.yaml
@@ -15,6 +16,7 @@ resources:
   - podmonitor-external-dns.yaml
   - customresourcedefinition-awsclusterstaticidentities.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremachines.infrastructure.cluster.x-k8s.io.yaml
+  - customresourcedefinition-openstackfloatingippools.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-awsmachines.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremanagedcontrolplanetemplates.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-certificaterevocationrequests.certificates.hypershift.openshift.io.yaml
@@ -40,6 +42,7 @@ resources:
   - customresourcedefinition-kubevirtmachines.infrastructure.cluster.x-k8s.io.yaml
   - priorityclass-hypershift-api-critical.yaml
   - customresourcedefinition-ibmvpcclusters.infrastructure.cluster.x-k8s.io.yaml
+  - customresourcedefinition-openstackclusters.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-ibmpowervsimages.infrastructure.cluster.x-k8s.io.yaml
   - clusterrolebinding-hypershift-operator.yaml
   - customresourcedefinition-agentclusters.capi-provider.agent-install.openshift.io.yaml
@@ -60,6 +63,7 @@ resources:
   - role-hypershift-operator.yaml
   - customresourcedefinition-certificatesigningrequestapprovals.certificates.hypershift.openshift.io.yaml
   - customresourcedefinition-kubevirtclustertemplates.infrastructure.cluster.x-k8s.io.yaml
+  - customresourcedefinition-openstackmachines.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-kubevirtclusters.infrastructure.cluster.x-k8s.io.yaml
   - priorityclass-hypershift-control-plane.yaml
   - customresourcedefinition-monitoring.coreos.com_prometheusrules.yaml
@@ -69,6 +73,7 @@ resources:
   - serviceaccount-external-dns.yaml
   - rolebinding-prometheus.yaml
   - clusterrolebinding-external-dns.yaml
+  - customresourcedefinition-openstackclustertemplates.infrastructure.cluster.x-k8s.io.yaml
   - namespace-hypershift.yaml
   - service-operator.yaml
   - rolebinding-hypershift-operator.yaml

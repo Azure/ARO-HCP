@@ -7,7 +7,7 @@ ZONE_NAME ?= $(shell az network dns zone list -g ${ZONE_RESOURCE_GROUP} --query 
 AZURE_TENANT_ID ?= $(shell az account show --query tenantId --output tsv)
 AZURE_SUBSCRIPTION_ID ?= $(shell az account show --query id --output tsv)
 
-HO_IMAGE ?= quay.io/acm-d/rhtap-hypershift-operator:0f9f686
+HO_IMAGE ?= devarohcp.azurecr.io/acm-d/rhtap-hypershift-operator:84136f3
 EDO_IMAGE ?= devarohcp.azurecr.io/external-dns/external-dns:v0.14.2
 
 create-edo-azure-creds:
@@ -39,6 +39,7 @@ prepare-ho-manifests:
 	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_podmonitors.yaml
 	curl https://raw.githubusercontent.com/openshift/api/master/route/v1/zz_generated.crd-manifests/routes-Default.crd.yaml -o deploy/base/customresourcedefinition-routes-default.crd.yaml
 	@podman run -it --rm ${HO_IMAGE} install render \
+		--hypershift-image ${HO_IMAGE} \
 		--enable-conversion-webhook=false \
 		--external-dns-provider azure \
 		--external-dns-secret external-dns-azure \

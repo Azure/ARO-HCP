@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    hypershift.openshift.io/install-cli-version: 'openshift/hypershift: 0f9f6863fd9e86de00f9779980128f8ba38cfe9f.
+    hypershift.openshift.io/install-cli-version: 'openshift/hypershift: 84136f3a1c0d933dd05a8dc8eb8c7e8509110f13.
       Latest supported OCP: 4.17.0'
   creationTimestamp: null
   name: operator
@@ -60,7 +60,7 @@ spec:
           value: 24h0m0s
         - name: MANAGED_SERVICE
           value: ARO-HCP
-        image: quay.io/hypershift/hypershift-operator:latest
+        image: devarohcp.azurecr.io/acm-d/rhtap-hypershift-operator:84136f3
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 5
@@ -113,7 +113,7 @@ spec:
         - init
         command:
         - /usr/bin/hypershift-operator
-        image: quay.io/hypershift/hypershift-operator:latest
+        image: devarohcp.azurecr.io/acm-d/rhtap-hypershift-operator:84136f3
         imagePullPolicy: IfNotPresent
         name: init-environment
         resources: {}
