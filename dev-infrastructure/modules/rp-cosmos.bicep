@@ -10,11 +10,21 @@ param userAssignedMI string
 param uamiPrincipalId string
 
 // Local Params
-var containerNames = [
-  'Subscriptions'
-  'AsyncOperations'
-  'Clusters'
-  'Billing'
+var containers = [
+  {
+    name: 'Subscriptions'
+  }
+  {
+    name: 'Operations'
+    defaultTtl: 604800 // 7 days
+    partitionKeyPaths: ['/id']
+  }
+  {
+    name: 'Clusters'
+  }
+  {
+    name: 'Billing'
+  }
 ]
 
 param roleDefinitionId string = '00000000-0000-0000-0000-000000000002'
@@ -138,12 +148,13 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-11-15
 }
 
 resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = [
-  for containerName in containerNames: {
+  for c in containers: {
     parent: cosmosDb
-    name: containerName
+    name: c.name
     properties: {
       resource: {
-        id: containerName
+        id: c.name
+        defaultTtl: contains(c, 'defaultTtl') ? c.defaultTtl : -1 // no expiration
         indexingPolicy: {
           indexingMode: 'consistent'
           automatic: true
@@ -159,9 +170,7 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
           ]
         }
         partitionKey: {
-          paths: [
-            '/partitionKey'
-          ]
+          paths: contains(c, 'partitionKeyPaths') ? c.partitionKeyPaths : ['/partitionKey']
           kind: 'Hash'
           version: 2
         }
