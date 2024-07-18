@@ -169,6 +169,14 @@ parameters:
   description: Name of the key vault used by Maestro
   required: true
 
+- name: EVENTGRID_CA_BASE64
+  description: Base64 encoded CA certificate for Eventgrid
+  required: true
+
+- name: EVENTGRID_HOSTNAME
+  description: Hostname for Eventgrid
+  required: true
+
 objects:
   - apiVersion: secrets-store.csi.x-k8s.io/v1
     kind: SecretProviderClass
@@ -196,6 +204,26 @@ objects:
       namespace: ${NAMESPACE}
       annotations:
         azure.workload.identity/client-id: ${MAESTRO_MI_CLIENT_ID}
+  - kind: Secret
+    apiVersion: v1
+    metadata:
+      name: maestro
+      namespace: ${NAMESPACE}
+      labels:
+        app: maestro
+    stringData:
+      config.yaml: |
+        brokerHost: "${EVENTGRID_HOSTNAME}:8883"
+        username: ""
+        password: ""
+        caFile: /secrets/maestro/ca.crt
+        clientCertFile: /secrets/mqtt-creds/maestro.crt
+        clientKeyFile: /secrets/mqtt-creds/maestro.key
+        topics:
+          sourceEvents: sources/maestro/consumers/+/sourceevents
+          agentEvents: sources/maestro/consumers/+/agentevents
+    data:
+      ca.crt: ${EVENTGRID_CA_BASE64}
   - kind: Deployment
     apiVersion: apps/v1
     metadata:
@@ -223,9 +251,9 @@ objects:
           - name: db
             secret:
               secretName: ${DB_SECRET_NAME}
-          - name: mqtt
+          - name: maestro
             secret:
-              secretName: maestro-mqtt
+              secretName: maestro
           - name: mqtt-creds
             csi:
               driver: secrets-store.csi.k8s.io
@@ -257,8 +285,8 @@ objects:
             volumeMounts:
             - name: db
               mountPath: /secrets/db
-            - name: mqtt
-              mountPath: /secrets/mqtt
+            - name: maestro
+              mountPath: /secrets/maestro
             - name: mqtt-creds
               mountPath: /secrets/mqtt-creds
               readOnly: true
@@ -283,7 +311,7 @@ objects:
             - --db-rootcert=/secrets/db/db.ca_cert
             - --db-sslmode=${DB_SSLMODE}
             - --db-max-open-connections=${DB_MAX_OPEN_CONNS}
-            - --message-broker-config-file=/secrets/mqtt/config.yaml
+            - --message-broker-config-file=/secrets/maestro/config.yaml
             - --message-broker-type=mqtt
             - --enable-ocm-mock=${ENABLE_OCM_MOCK}
             - --enable-jwt=${ENABLE_JWT}
