@@ -344,7 +344,7 @@ objects:
     namespace: ${NAMESPACE}
   type: Opaque
   data:
-    azure-auth-file: "${CS_SERVICE_PRINCIPAL_CREDS_BASE64}"
+    azure-auth-config: "${CS_SERVICE_PRINCIPAL_CREDS_BASE64}"
 
 - apiVersion: apps/v1
   kind: Deployment
@@ -512,7 +512,7 @@ objects:
           - --instance-type-constraints-config=/configs/cloud-resource-constraints/instance-type-constraints.yaml
           - --cloud-region-config=/configs/cloud-resources/cloud-regions.yaml
           - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
-          - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-file
+          - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-config
           livenessProbe:
             httpGet:
               path: /api/clusters_mgmt/v1
