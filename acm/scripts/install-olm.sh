@@ -24,14 +24,9 @@ base_url="${2:-${default_base_url}}"
 url="${base_url}/${release}"
 namespace=olm
 
-if kubectl get deployment olm-operator -n ${namespace} > /dev/null 2>&1; then
-    echo "OLM is already installed in ${namespace} namespace. Exiting..."
-    exit 1
-fi
-
-kubectl create -f "${url}/crds.yaml"
+kubectl apply --server-side --force-conflicts -f "${url}/crds.yaml"
 kubectl wait --for=condition=Established -f "${url}/crds.yaml"
-kubectl create -f "${url}/olm.yaml"
+kubectl apply --server-side --force-conflicts -f "${url}/olm.yaml"
 
 # wait for deployments to be ready
 kubectl rollout status -w deployment/olm-operator --namespace="${namespace}"
