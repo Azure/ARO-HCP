@@ -1,5 +1,6 @@
 SHELL := /bin/bash
 
+AKSCONFIG ?= mgmt-cluster
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
 EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID ?= $(shell az identity show -g ${RESOURCEGROUP} -n external-dns --query clientId -o tsv)
 ZONE_RESOURCE_GROUP ?= $(shell az role assignment list --assignee ${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID} --all --query "[?roleDefinitionName == 'DNS Zone Contributor'].resourceGroup | [0]" -o tsv)
