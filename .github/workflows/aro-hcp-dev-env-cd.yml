@@ -34,7 +34,7 @@
           run: core.setFailed('Expected source repository to be Azure/ARO-HCP, re-create PR as a branch of Azure/ARO-HCP')
 
     deploy_update_infra:
-      #if: github.event.pull_request.merged == true
+      if: github.event.pull_request.merged == true
       permissions:
         id-token: 'write'
         contents: 'read'
