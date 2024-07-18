@@ -22,6 +22,7 @@ patches:
   path: patch-deployment-operator.json
 secretGenerator:
 - name: external-dns-azure
+  namespace: hypershift
   type: Opaque
   files:
   - credentials=edo-azure-credentials.json
