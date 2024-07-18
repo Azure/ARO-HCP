@@ -13,21 +13,21 @@ import (
 //
 // OAPI012: Resource IDs must not be case sensitive
 //
-//   Any entity name in the URL or resource ID (resource group names, resource
-//   names, resource provider names) must be treated case insensitively. RPs
-//   should also persist the casing provided by the user for tags, resource
-//   names, etc... and use that same casing in responses.
+//	Any entity name in the URL or resource ID (resource group names, resource
+//	names, resource provider names) must be treated case insensitively. RPs
+//	should also persist the casing provided by the user for tags, resource
+//	names, etc... and use that same casing in responses.
 //
-//   Example:
+//	Example:
 //
-//   The following two resource IDs are both valid and point to the same
-//   resource. Casing must be ignored.
+//	The following two resource IDs are both valid and point to the same
+//	resource. Casing must be ignored.
 //
-//   /subscriptions/45cefb9a-1824-4c35-ab4b-05c78763c03e/resourceGroups/myResourceGroup/
-//   providers/Microsoft.KeyVault/vaults/sample-vault?api-version=2019-09-01
+//	/subscriptions/45cefb9a-1824-4c35-ab4b-05c78763c03e/resourceGroups/myResourceGroup/
+//	providers/Microsoft.KeyVault/vaults/sample-vault?api-version=2019-09-01
 //
-//   /SUBSCRIPTIONS/45CEFB9A-1824-4C35-AB4B-05C78763C03E/RESOURCEGROUPS/myresourceGROUP/
-//   PROVIDERS/MICROSOFT.keyvault/VAULTS/SAMPLE-VAULT?API-VERSION=2019-09-01
+//	/SUBSCRIPTIONS/45CEFB9A-1824-4C35-AB4B-05C78763C03E/RESOURCEGROUPS/myresourceGROUP/
+//	PROVIDERS/MICROSOFT.keyvault/VAULTS/SAMPLE-VAULT?API-VERSION=2019-09-01
 //
 // The frontend uses ServeMux from Go's standard library (net/http), which
 // matches literal (that is, non-wildcarded) path segments case-sensitively.
