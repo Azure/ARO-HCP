@@ -1,11 +1,12 @@
 SHELL = /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
+CONSUMER_NAME ?= aro-hcp-mgmt-cluster-$(USER)
 REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location -o tsv)
 
 deploy:
 	DOMAIN=$(shell az network dns zone list -g ${RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv) && \
-	sed -e "s/DOMAIN/$${DOMAIN}/g" -e "s/REGION/${REGION}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
+	sed -e "s/DOMAIN/$${DOMAIN}/g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
 	oc process --local -f deploy/openshift-templates/arohcp-namespace-template.yml \
 	  -p ISTIO_VERSION=asm-1-20 | oc apply -f -
 	oc process --local -f deploy/openshift-templates/arohcp-db-template.yml | oc apply -f -

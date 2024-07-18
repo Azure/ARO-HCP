@@ -8,11 +8,11 @@ provision_shards:
       "grpc_api_config": {
         "url": "maestro-grpc.maestro.svc.cluster.local:8090"
       },
-      "consumer_name": "mc-1"
+      "consumer_name": "CONSUMER_NAME"
     }
   status: active
-  azure_base_domain: DOMAIN
-  management_cluster_id: mc-1
+  azure_base_domain: "DOMAIN"
+  management_cluster_id: local-cluster
   region: REGION
   cloud_provider: azure
   topology: dedicated
