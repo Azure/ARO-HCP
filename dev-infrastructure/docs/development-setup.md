@@ -280,23 +280,23 @@ provision_shards:
         user: default
     current-context: default
   status: active
-  region: eastus
+  region: westus3
   cloud_provider: azure
   topology: dedicated
 EOF
 
-# Enable the eastus region in cloud region constraints config
-yq -i '.cloud_regions |= map(select(.id == "eastus").enabled = true)' configs/cloud-resource-constraints/cloud-region-constraints.yaml
+# Enable the westus3 region in cloud region constraints config
+yq -i '.cloud_regions |= map(select(.id == "westus3").enabled = true)' configs/cloud-resource-constraints/cloud-region-constraints.yaml
 
 # you can verify the region change with the below
-yq '.cloud_regions[] | select(.id == "eastus")' configs/cloud-resource-constraints/cloud-region-constraints.yaml
+yq '.cloud_regions[] | select(.id == "westus3")' configs/cloud-resource-constraints/cloud-region-constraints.yaml
 
 # Update region_constraints.config with new cloud provider
 cat <<EOF > ./region_constraints.config
 cloud_providers:
 - name: azure
   regions:
-    - name: eastus
+    - name: westus3
       version_constraints:
         min_version: 4.11.0
       product_constraints:
@@ -368,7 +368,7 @@ cat <<EOF > cluster-test.json
     "enabled": true
   },
   "region": {
-    "id": "eastus"
+    "id": "westus3"
   },
   "hypershift": {
     "enabled": true

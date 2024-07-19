@@ -3,7 +3,7 @@
 # This script can be used to spin up a standalone dev application which will be used as a 'mock first party application'.
 # This is required due to the lack of the ability to have a first party app be used in the dev tenant
 
-LOCATION=${LOCATION:-"eastus"}
+LOCATION=${LOCATION:-"westus3"}
 UNIQUE_PREFIX=${UNIQUE_PREFIX:-"HCP-$USER-$LOCATION"}
 # Microsoft.KeyVault has the shortest name length limit of 24 characters.
 # We restrict the prefix to 21 characters to allow room for the "-kv" suffix.
