@@ -154,7 +154,7 @@ ocm post /api/clusters_mgmt/v1/clusters << EOF
     "enabled": true
   },
   "region": {
-    "id": "eastus"
+    "id": "westus3"
   },
   "hypershift": {
     "enabled": true

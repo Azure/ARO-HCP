@@ -19,6 +19,7 @@ deploy:
 			--query clientId) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
 	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
+	  -p REGION=${REGION} \
 	  -p IMAGE_REGISTRY=devarohcp.azurecr.io \
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
 	  -p IMAGE_TAG=fc17932 | oc apply -f -
