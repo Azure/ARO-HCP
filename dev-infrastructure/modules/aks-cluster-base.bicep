@@ -92,6 +92,9 @@ var systemAgentPool = [
       '2'
       '3'
     ]
+    securityProfile: {
+      sshAccess: 'Disabled'
+    }
   }
 ]
 
@@ -124,6 +127,9 @@ var userAgentPool = [
       '2'
       '3'
     ]
+    securityProfile: {
+      sshAccess: 'Disabled'
+    }
   }
 ]
 
@@ -303,6 +309,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
       managed: true
       enableAzureRBAC: true
     }
+    disableLocalAccounts: true
     nodeResourceGroup: aksNodeResourceGroupName
     apiServerAccessProfile: {
       enablePrivateCluster: enablePrivateCluster
@@ -342,7 +349,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
     }
     autoUpgradeProfile: {
       nodeOSUpgradeChannel: 'NodeImage'
-      upgradeChannel: 'node-image'
+      upgradeChannel: 'patch'
     }
     oidcIssuerProfile: {
       enabled: true

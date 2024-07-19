@@ -130,7 +130,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     clusterType: 'svc-cluster'
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
-    deployUserAgentPool: false
+    deployUserAgentPool: true
     additionalAcrResourceGroups: additionalAcrResourceGroups
   }
 }
