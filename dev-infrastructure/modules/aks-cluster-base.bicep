@@ -291,7 +291,7 @@ resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@
   }
 }
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-preview' = {
   location: location
   name: aksClusterName
   tags: {
