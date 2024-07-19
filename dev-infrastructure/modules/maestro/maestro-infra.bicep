@@ -35,6 +35,9 @@ param maestroKeyVaultName string
 @description('The name for the Managed Identity that will be created for Key Vault Certificate management.')
 param kvCertOfficerManagedIdentityName string
 
+@description('Whether to deploy the Postgres server for Maestro')
+param deployPostgres bool
+
 @description('The name of the Postgres server for Maestro')
 param postgresServerName string
 
@@ -75,7 +78,7 @@ resource postgresAdminManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIde
   location: location
 }
 
-module postgres '../postgres/postgres.bicep' = {
+module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
   name: '${deployment().name}-postgres'
   params: {
     name: postgresServerName
@@ -116,7 +119,7 @@ module postgres '../postgres/postgres.bicep' = {
   }
 }
 
-module csManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' = {
+module csManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' = if (deployPostgres) {
   name: '${deployment().name}-maestro-db-access'
   params: {
     postgresServerName: postgresServerName

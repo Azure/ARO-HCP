@@ -22,6 +22,7 @@ param maxClientSessionsPerAuthName = 2
 param maestroPostgresServerName = take('maestro-pg-${uniqueString(currentUserId)}', 60)
 param maestroPostgresServerVersion = '15'
 param maestroPostgresServerStorageSizeGB = 32
+param deployMaestroPostgres = false
 
 param deployCsInfra = false
 param csNamespace = 'cluster-service'

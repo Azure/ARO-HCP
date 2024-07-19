@@ -80,6 +80,9 @@ param csNamespace string
 @maxLength(60)
 param csPostgresServerName string
 
+@description('Deploy ARO HCP Maestro Postgres if true')
+param deployMaestroPostgres bool = true
+
 @description('The name of the Postgres server for Maestro')
 @maxLength(60)
 param maestroPostgresServerName string
@@ -178,6 +181,7 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestro
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-server'
     )[0].uamiName
+    deployPostgres: deployMaestroPostgres
   }
 }
 

@@ -21,6 +21,7 @@ param maxClientSessionsPerAuthName = 2
 param maestroPostgresServerName = 'maestro-pg-aro-hcp-dev'
 param maestroPostgresServerVersion = '15'
 param maestroPostgresServerStorageSizeGB = 32
+param deployMaestroPostgres = false
 
 param deployCsInfra = false
 param csNamespace = 'cluster-service'
