@@ -8,7 +8,7 @@ The idea of this repo is to provide means to create a development environment th
 
 ## Prerequisites
 
-* `az`, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>)
+* `az`, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version 1.30+
 * `az login` with your Red Hat email
 
 ## Cluster creation procedure
@@ -71,7 +71,8 @@ The service cluster base configuration to use for development is `configurations
    ```bash
    AKSCONFIG=svc-cluster make aks.admin-access  # one time
    AKSCONFIG=svc-cluster make aks.kubeconfig
-   KUBECONFIG=${HOME}/.kube/${AKSCONFIG}.kubeconfig kubectl get ns
+   AKSCONFIG=svc-cluster export KUBECONFIG=${HOME}/.kube/${AKSCONFIG}.kubeconfig
+   kubectl get ns
    ```
 
    (Replace svc with mgmt for management clusters)
@@ -257,6 +258,10 @@ yq -i '(.aws-access-key-id, .aws-secret-access-key, .route53-access-key-id, .rou
 
 # Generate a provision_shards.config for port-forwarded maestro ...
 make -C $the_aro_hcp_dir/cluster-service provision-shard > provision_shards.config
+
+# the resulting configuration requires two portforwardings into the service cluster
+kubectl port-forward svc/maestro 8001:8000 -n maestro
+kubectl port-forward svc/maestro-grpc 8090 -n maestro
 
 # ... or update provision shards config with new shard manually
 cat <<EOF > ./provision_shards.config
