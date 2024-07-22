@@ -278,38 +278,38 @@ func (client *NodePoolsClient) getHandleResponse(resp *http.Response) (NodePools
 	return result, nil
 }
 
-// NewListByHcpOpenShiftClusterResourcePager - List HcpOpenShiftClusterNodePoolResource resources by HcpOpenShiftClusterResource
+// NewListByParentPager - List HcpOpenShiftClusterNodePoolResource resources by HcpOpenShiftClusterResource
 //
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - Name of HCP cluster
-//   - options - NodePoolsClientListByHcpOpenShiftClusterResourceOptions contains the optional parameters for the NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager
+//   - options - NodePoolsClientListByParentOptions contains the optional parameters for the NodePoolsClient.NewListByParentPager
 //     method.
-func (client *NodePoolsClient) NewListByHcpOpenShiftClusterResourcePager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByHcpOpenShiftClusterResourceOptions) (*runtime.Pager[NodePoolsClientListByHcpOpenShiftClusterResourceResponse]) {
-	return runtime.NewPager(runtime.PagingHandler[NodePoolsClientListByHcpOpenShiftClusterResourceResponse]{
-		More: func(page NodePoolsClientListByHcpOpenShiftClusterResourceResponse) bool {
+func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) (*runtime.Pager[NodePoolsClientListByParentResponse]) {
+	return runtime.NewPager(runtime.PagingHandler[NodePoolsClientListByParentResponse]{
+		More: func(page NodePoolsClientListByParentResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
-		Fetcher: func(ctx context.Context, page *NodePoolsClientListByHcpOpenShiftClusterResourceResponse) (NodePoolsClientListByHcpOpenShiftClusterResourceResponse, error) {
-		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager")
+		Fetcher: func(ctx context.Context, page *NodePoolsClientListByParentResponse) (NodePoolsClientListByParentResponse, error) {
+		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "NodePoolsClient.NewListByParentPager")
 			nextLink := ""
 			if page != nil {
 				nextLink = *page.NextLink
 			}
 			resp, err := runtime.FetcherForNextLink(ctx, client.internal.Pipeline(), nextLink, func(ctx context.Context) (*policy.Request, error) {
-				return client.listByHcpOpenShiftClusterResourceCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, options)
+				return client.listByParentCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, options)
 			}, nil)
 			if err != nil {
-				return NodePoolsClientListByHcpOpenShiftClusterResourceResponse{}, err
+				return NodePoolsClientListByParentResponse{}, err
 			}
-			return client.listByHcpOpenShiftClusterResourceHandleResponse(resp)
+			return client.listByParentHandleResponse(resp)
 			},
 		Tracer: client.internal.Tracer(),
 	})
 }
 
-// listByHcpOpenShiftClusterResourceCreateRequest creates the ListByHcpOpenShiftClusterResource request.
-func (client *NodePoolsClient) listByHcpOpenShiftClusterResourceCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByHcpOpenShiftClusterResourceOptions) (*policy.Request, error) {
+// listByParentCreateRequest creates the ListByParent request.
+func (client *NodePoolsClient) listByParentCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) (*policy.Request, error) {
 	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
@@ -334,11 +334,11 @@ func (client *NodePoolsClient) listByHcpOpenShiftClusterResourceCreateRequest(ct
 	return req, nil
 }
 
-// listByHcpOpenShiftClusterResourceHandleResponse handles the ListByHcpOpenShiftClusterResource response.
-func (client *NodePoolsClient) listByHcpOpenShiftClusterResourceHandleResponse(resp *http.Response) (NodePoolsClientListByHcpOpenShiftClusterResourceResponse, error) {
-	result := NodePoolsClientListByHcpOpenShiftClusterResourceResponse{}
+// listByParentHandleResponse handles the ListByParent response.
+func (client *NodePoolsClient) listByParentHandleResponse(resp *http.Response) (NodePoolsClientListByParentResponse, error) {
+	result := NodePoolsClientListByParentResponse{}
 	if err := runtime.UnmarshalAsJSON(resp, &result.HcpOpenShiftClusterNodePoolResourceListResult); err != nil {
-		return NodePoolsClientListByHcpOpenShiftClusterResourceResponse{}, err
+		return NodePoolsClientListByParentResponse{}, err
 	}
 	return result, nil
 }

@@ -94,7 +94,7 @@
     },
     "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftVersions": {
       "get": {
-        "operationId": "HcpClusterVersionOperations_ListByLocation",
+        "operationId": "HcpClusterVersionOperations_List",
         "tags": [
           "HcpClusterVersionOperations"
         ],
@@ -122,14 +122,6 @@
             "schema": {
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
-          }
-        },
-        "x-ms-examples": {
-          "HcpClusterVersionOperations_ListByLocation_Maximum": {
-            "$ref": "./examples/HcpClusterVersionOperations_ListByLocation_MaximumSet_Gen.json"
-          },
-          "HcpClusterVersionOperations_ListByLocation_Minimum": {
-            "$ref": "./examples/HcpClusterVersionOperations_ListByLocation_MinimumSet_Gen.json"
           }
         },
         "x-ms-pageable": {
@@ -580,7 +572,7 @@
     },
     "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools": {
       "get": {
-        "operationId": "NodePools_ListByHcpOpenShiftClusterResource",
+        "operationId": "NodePools_ListByParent",
         "tags": [
           "NodePools"
         ],
@@ -618,11 +610,6 @@
             "schema": {
               "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
             }
-          }
-        },
-        "x-ms-examples": {
-          "NodePools_ListByHcpOpenShiftClusterResource": {
-            "$ref": "./examples/NodePools_ListByHcpOpenShiftClusterResource_MaximumSet_Gen.json"
           }
         },
         "x-ms-pageable": {
@@ -954,6 +941,47 @@
       "required": [
         "url",
         "visibility"
+      ]
+    },
+    "Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate": {
+      "type": "object",
+      "description": "Managed service identity (system assigned and/or user assigned identities)",
+      "properties": {
+        "type": {
+          "$ref": "../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentityType",
+          "description": "The type of managed identity assigned to this resource."
+        },
+        "userAssignedIdentities": {
+          "type": "object",
+          "description": "The identities assigned to this resource by the user.",
+          "additionalProperties": {
+            "allOf": [
+              {
+                "$ref": "../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/UserAssignedIdentity"
+              }
+            ],
+            "type": "object",
+            "x-nullable": true
+          }
+        }
+      }
+    },
+    "Azure.ResourceManager.CommonTypes.TrackedResourceUpdate": {
+      "type": "object",
+      "description": "The resource model definition for an Azure Resource Manager tracked top level resource which has 'tags' and a 'location'",
+      "properties": {
+        "tags": {
+          "type": "object",
+          "description": "Resource tags.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../common-types/resource-management/v5/types.json#/definitions/Resource"
+        }
       ]
     },
     "Azure.ResourceManager.ResourceProvisioningState": {
@@ -1402,8 +1430,7 @@
       "properties": {
         "properties": {
           "$ref": "#/definitions/NodePoolProperties",
-          "description": "The resource-specific properties for this resource.",
-          "x-ms-client-flatten": true
+          "description": "The resource-specific properties for this resource."
         }
       },
       "allOf": [
@@ -1435,81 +1462,18 @@
     },
     "HcpOpenShiftClusterNodePoolResourceUpdate": {
       "type": "object",
-      "description": "The type used for update operations of the HcpOpenShiftClusterNodePoolResource.",
+      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
       "properties": {
-        "tags": {
-          "type": "object",
-          "description": "Resource tags.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
         "properties": {
-          "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResourceUpdateProperties",
-          "x-ms-client-flatten": true
+          "$ref": "#/definitions/NodePoolPropertiesUpdate",
+          "description": "The resource-specific properties for this resource."
         }
-      }
-    },
-    "HcpOpenShiftClusterNodePoolResourceUpdateProperties": {
-      "type": "object",
-      "description": "The updatable properties of the HcpOpenShiftClusterNodePoolResource.",
-      "properties": {
-        "version": {
-          "$ref": "#/definitions/VersionProfileUpdate",
-          "description": "OpenShift version for the nodepool",
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
-        },
-        "replicas": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The number of worker nodes, it cannot be used together with autoscaling",
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
-        },
-        "autoScaling": {
-          "$ref": "#/definitions/NodePoolAutoScalingUpdate",
-          "description": "Representation of a autoscaling in a node pool."
-        },
-        "labels": {
-          "type": "object",
-          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
-          "additionalProperties": {
-            "$ref": "#/definitions/labelValue"
-          },
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
-        },
-        "taints": {
-          "type": "array",
-          "description": "Taints for the nodes",
-          "items": {
-            "$ref": "#/definitions/Taint"
-          },
-          "x-ms-identifiers": [
-            "key",
-            "value",
-            "effect"
-          ],
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
-        },
-        "tuningConfigs": {
-          "type": "array",
-          "description": "Tuning configs, TODO provide meaningful explanation\nTuningConfig is a list of references to ConfigMaps containing serialized\nTuned resources to define the tuning configuration to be applied to\nnodes in the NodePool.\nEach ConfigMap must have a single key named \"tuned\" whose value is the\nJSON or YAML of a serialized Tuned or PerformanceProfile.",
-          "items": {
-            "type": "string"
-          }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
         }
-      }
+      ]
     },
     "HcpOpenShiftClusterProperties": {
       "type": "object",
@@ -1533,14 +1497,27 @@
         "spec"
       ]
     },
+    "HcpOpenShiftClusterPropertiesUpdate": {
+      "type": "object",
+      "description": "HCP cluster properties",
+      "properties": {
+        "spec": {
+          "$ref": "#/definitions/ClusterSpecUpdate",
+          "description": "The cluster resource specification.",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "HcpOpenShiftClusterResource": {
       "type": "object",
       "description": "HCP cluster resource",
       "properties": {
         "properties": {
           "$ref": "#/definitions/HcpOpenShiftClusterProperties",
-          "description": "The resource-specific properties for this resource.",
-          "x-ms-client-flatten": true
+          "description": "The resource-specific properties for this resource."
         },
         "identity": {
           "$ref": "../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentity",
@@ -1576,38 +1553,22 @@
     },
     "HcpOpenShiftClusterResourceUpdate": {
       "type": "object",
-      "description": "The type used for update operations of the HcpOpenShiftClusterResource.",
+      "description": "HCP cluster resource",
       "properties": {
-        "identity": {
-          "$ref": "../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentity",
-          "description": "The managed service identities assigned to this resource."
-        },
-        "tags": {
-          "type": "object",
-          "description": "Resource tags.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
         "properties": {
-          "$ref": "#/definitions/HcpOpenShiftClusterResourceUpdateProperties",
-          "x-ms-client-flatten": true
+          "$ref": "#/definitions/HcpOpenShiftClusterPropertiesUpdate",
+          "description": "The resource-specific properties for this resource."
+        },
+        "identity": {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate",
+          "description": "The managed service identities assigned to this resource."
         }
-      }
-    },
-    "HcpOpenShiftClusterResourceUpdateProperties": {
-      "type": "object",
-      "description": "The updatable properties of the HcpOpenShiftClusterResource.",
-      "properties": {
-        "spec": {
-          "$ref": "#/definitions/ClusterSpecUpdate",
-          "description": "The cluster resource specification.",
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
         }
-      }
+      ]
     },
     "HcpOpenShiftVersions": {
       "type": "object",
@@ -1615,8 +1576,7 @@
       "properties": {
         "properties": {
           "$ref": "#/definitions/HcpOpenShiftVersionsProperties",
-          "description": "The resource-specific properties for this resource.",
-          "x-ms-client-flatten": true
+          "description": "The resource-specific properties for this resource."
         }
       },
       "allOf": [
@@ -1898,6 +1858,16 @@
         "spec"
       ]
     },
+    "NodePoolPropertiesUpdate": {
+      "type": "object",
+      "description": "Represents the node pool properties",
+      "properties": {
+        "spec": {
+          "$ref": "#/definitions/NodePoolSpecUpdate",
+          "description": "The node pool resource specification"
+        }
+      }
+    },
     "NodePoolSpec": {
       "type": "object",
       "description": "Worker node pool profile",
@@ -1977,6 +1947,67 @@
         "version",
         "platform"
       ]
+    },
+    "NodePoolSpecUpdate": {
+      "type": "object",
+      "description": "Worker node pool profile",
+      "properties": {
+        "version": {
+          "$ref": "#/definitions/VersionProfileUpdate",
+          "description": "OpenShift version for the nodepool",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "replicas": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "autoScaling": {
+          "$ref": "#/definitions/NodePoolAutoScalingUpdate",
+          "description": "Representation of a autoscaling in a node pool."
+        },
+        "labels": {
+          "type": "object",
+          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "additionalProperties": {
+            "$ref": "#/definitions/labelValue"
+          },
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "taints": {
+          "type": "array",
+          "description": "Taints for the nodes",
+          "items": {
+            "$ref": "#/definitions/Taint"
+          },
+          "x-ms-identifiers": [
+            "key",
+            "value",
+            "effect"
+          ],
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "tuningConfigs": {
+          "type": "array",
+          "description": "Tuning configs, TODO provide meaningful explanation\nTuningConfig is a list of references to ConfigMaps containing serialized\nTuned resources to define the tuning configuration to be applied to\nnodes in the NodePool.\nEach ConfigMap must have a single key named \"tuned\" whose value is the\nJSON or YAML of a serialized Tuned or PerformanceProfile.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "OutboundType": {
       "type": "string",
