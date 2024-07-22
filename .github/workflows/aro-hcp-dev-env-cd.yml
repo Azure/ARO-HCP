@@ -220,6 +220,7 @@
         - name: 'Deploy Maestro Server'
           env:
             RESOURCEGROUP: aro-hcp-dev
+            MAESTRO_INFRA_RESOURCEGROUP: aro-hcp-dev
           run: |
             cd maestro/
             make deploy-server

@@ -217,6 +217,8 @@ parameters:
 - name: AZURE_CS_MI_CLIENT_ID
   description: Client ID for the clusters-service manage identity.
   required: true
+- name: REGION
+  value: "westus3"
 
 objects:
 
@@ -239,7 +241,7 @@ objects:
           generic_name: standard-8
     cloud-regions.yaml: |
       cloud_regions:
-        - id: eastus
+        - id: ${REGION}
           cloud_provider_id: azure
           display_name: Azure East US
           supports_multi_az: true
@@ -256,7 +258,7 @@ objects:
           enabled: true
     cloud-region-constraints.yaml: |
       cloud_regions:
-        - id: eastus
+        - id: ${REGION}
           enabled: true
           govcloud: false
           ccs_only: false
@@ -319,7 +321,7 @@ objects:
       cloud_providers:
       - name: azure
         regions:
-          - name: eastus
+          - name: ${REGION}
             version_constraints:
               min_version: 4.11.0
 

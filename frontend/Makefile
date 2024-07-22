@@ -5,6 +5,7 @@ ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
 # for deploying frontend into private aks cluster via invoke command
 # these values must be set
+AKSCONFIG ?= svc-cluster
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
 CLUSTER_NAME ?=
 DEPLOYMENTNAME=$(RESOURCEGROUP)
@@ -14,7 +15,7 @@ frontend:
 	go build -o aro-hcp-frontend .
 
 run:
-	./aro-hcp-frontend --use-cache --region eastus \
+	./aro-hcp-frontend --use-cache --region ${REGION} \
 		--clusters-service-url http://localhost:8000 \
 		--cluster-service-provision-shard 1 \
 		--cluster-service-noop-provision \

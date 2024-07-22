@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 
 CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
-LOCATION?=eastus
+LOCATION?=westus3
 RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
 MAESTRO_INFRA_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
 DNS_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)

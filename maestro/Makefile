@@ -1,7 +1,8 @@
 SHELL = /bin/bash
 
 RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
-MAESTRO_INFRA_RESOURCEGROUP ?= ${RESOURCEGROUP}
+MAESTRO_INFRA_RESOURCEGROUP ?= aro-hcp-svc-cluster-$(USER)
+CONSUMER_NAME ?= aro-hcp-mgmt-cluster-$(USER)
 REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location -o tsv)
 EVENTGRID_ID = $(shell az resource list -g ${MAESTRO_INFRA_RESOURCEGROUP} --resource-type "Microsoft.EventGrid/namespaces" --query "[].id" -o tsv)
 
@@ -50,8 +51,11 @@ deploy-agent:
 	  -p EVENTGRID_HOSTNAME=$${EVENTGRID_HOSTNAME} \
 	  -p AZURE_TENANT_ID=$${TENANT_ID} | oc apply -f -
 
-# still WIP
 register-agent:
+	./register-maestro-consumer.sh ${CONSUMER_NAME}
+
+# still WIP
+register-agent-job:
 	oc process --local -f deploy/openshift-templates/agent-registration.yml \
 	  -p MAESTRO_AGENT_CONSUMER_NAME=${RESOURCEGROUP} | oc apply -f -
 

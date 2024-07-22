@@ -95,6 +95,9 @@ var systemAgentPool = [
     securityProfile: {
       sshAccess: 'Disabled'
     }
+    nodeTaints: [
+      'CriticalAddonsOnly=true:NoSchedule'
+    ]
   }
 ]
 

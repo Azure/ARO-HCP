@@ -45,7 +45,3 @@ az role assignment create \
     --role "Storage Blob Data Contributor" \
     --assignee  $AROHCPENGINEERSGROUPID \
     --scope "/subscriptions/$HCPDEVSUBSCRIPTIONID/resourceGroups/$RESOURCEGROUP/providers/Microsoft.Storage/storageAccounts/$STORAGEACCOUNTNAME"
-
-
-
-

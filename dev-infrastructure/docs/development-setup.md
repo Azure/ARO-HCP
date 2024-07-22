@@ -1,35 +1,64 @@
 # Development setup
 
+[[_TOC_]]
+
 ## Background
 
 The idea of this repo is to provide means to create a development environment that resemble the (future) production setup in a repeatable way. In order to do so, the creation of all infrastructure resources is based on bicep templates and parameter files.
 
 ## Prerequisites
 
-* `az`, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>)
+* `az`, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version 1.30+
 * `az login` with your Red Hat email
 
-## Procedure
+## Cluster creation procedure
 
 There are a few variants to chose from when creating an AKS cluster:
+
 * Service Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Service cluster
-* Management Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Management cluster (coming soon)
+* Management Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Management cluster
 
-1. Decide on the variant and update the corresponding configuration file as desired
+When creating a cluster, also supporting infrastructure is created, e.g. managed identities, permissions, databases, keyvaults, ...
 
-  For example, you can toggle `deployFrontendCosmos` in configurations/svc-cluster.bicepparam to control whether or not to deploy a CosmosDB for frontend development.
+### Create a Service Cluster
 
-1. Provision an AKS Cluster for each Variant
+The service cluster base configuration to use for development is `configurations/svc-cluster.bicepparam`. Depending on the personal requirements this file offers some features toggles for the main features of the service cluster and the regional resources.
 
-   ```bash
-   # Service Cluster
-   AKSCONFIG=svc-cluster make cluster
+* `deployFrontendCosmos` - set to `true` if you want a CosmosDB created for the RP
 
-   # Management Cluster
-   AKSCONFIG=mgmt-cluster make cluster
-   ```
+  This also includes managed identity and access permissions
 
-1. Access private AKS clusters with:
+* `deployCsInfra` - set to `true` if you want CS infra to be provisioned, e.g. if you want to develop on RP and run it towards an on-cluster CS
+
+  This includes a Postgres DB and access permissions to the DB and the service KeyVault
+
+* `deployMaestroInfra` - set to `true` if you want Maestro infra to be provisioned, e.g. if you want to develop on CS and run it towards an on-cluster Maestro
+
+  This includes an EventGrid Namespaces instance, a Postgres DB and access permissions for the Maestro Server
+
+* `persist` - if set to `true` the resourcegroup holding the cluster and the regional resources will not be deleted after a couple of days
+
+Change those flags accordingly and then run the following command. Depending on the selected features, this may take a while:
+
+  ```bash
+  AKSCONFIG=svc-cluster make cluster
+  ```
+
+### Create a Management Cluster
+
+The service cluster base configuration to use for development is `configurations/mgmt-cluster.bicepparam`. This parameter file offers feature toggles as well.
+
+* `deployMaestroConsumer` - if set to `true` deploys the required infrastructure to run a Maestro Consumer (TODO find a better name for this flag because it does not deploy the consumer itself). For this to work, the Service Cluster needs to be deployed with `deployMaestroInfra: true`
+
+* `persist` - if set to `true` the resourcegroup holding the cluster will not be deleted after a couple of days
+
+> A Management Cluster depends on certain resources found in the resource group of the Service Cluster. Therefore, a standalone Management Cluster can't be created right now and requires a Service Cluster
+
+  ```bash
+  AKSCONFIG=mgmt-cluster make cluster
+  ```
+
+### Access private AKS clusters (deprecate this?)
 
    ```bash
    az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl get ns"
@@ -37,27 +66,40 @@ There are a few variants to chose from when creating an AKS cluster:
 
    Docs: https://learn.microsoft.com/en-us/azure/aks/access-private-cluster?tabs=azure-cli
 
-1. Access public AKS clusters with:
+### Access public AKS clusters
 
    ```bash
    AKSCONFIG=svc-cluster make aks.admin-access  # one time
    AKSCONFIG=svc-cluster make aks.kubeconfig
-   KUBECONFIG=${HOME}/.kube/${AKSCONFIG}.kubeconfig kubectl get ns
+   AKSCONFIG=svc-cluster export KUBECONFIG=${HOME}/.kube/${AKSCONFIG}.kubeconfig
+   kubectl get ns
    ```
 
    (Replace svc with mgmt for management clusters)
 
-1. Access cluster via the Azure portal or via `az aks command invoke`
+### Access cluster via the Azure portal or via `az aks command invoke`
 
   ```bash
   AKSCONFIG=svc-cluster make aks.admin-access  # one time
   az aks command invoke ...
   ```
 
+### Cleanup
+
+> Please note that all resource groups not tagged with `persist=true` will be deleted by our cleanup pipeline after 48 hours
+
+Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azure
+
+   ```bash
+   AKSCONFIG=svc-cluster make clean
+   ```
+
 ## Creating your own "First Party Application"
+
 In order for a resource provider to interact with a customers tenant, we create a special type of Application + Service Principal called a First Party Application. This applications' service principal is then granted permissions over certain resources / resource groups within the customers tenant. In the dev tenant we do not need nor can create a First Party Application (they are tied to AME). Instead, we create a Third Party Application, and grant it permissions over our dev subscription so the RP can then interact and create the required resources.
 
 ### Step 1 - Log into the dev account
+
 Follow the "Preparation" steps
 
 ### Step 2 - Create the Application and its dependencies
@@ -72,6 +114,7 @@ A unique prefix for all resources created by the script is a 20 character combin
 To change which region the resources are deployed in, update $LOCATION in the script.
 
 This will create:
+
 1. A resource group
 1. A keyvault
 1. A default certificate in the keyvault
@@ -79,6 +122,7 @@ This will create:
 1. A service principal/application using the created cert as its authentication, and given access based on the custom role definition
 
 ### Step 3 (optional) - log in as the mock application
+
 You may need to manually interact with resources as the service principal, however this shouldn't be required. If you do need to, the 'login' command will download the cert and login with it. Don't forget to logout of the service principal in order to log back in via your personal account.
 
 ```bash
@@ -94,6 +138,7 @@ sh dev-application.sh delete
 ```
 
 This will delete:
+
 1. All role assignments using the custom role
 1. The service principal
 1. The app registration
@@ -101,144 +146,104 @@ This will delete:
 1. The keyvault, then purge the keyvault
 1. The resource group
 
-## Cleanup
+## Deploy Services to the service cluster
 
-> Please note that all resource groups not tagged with `persist=true` will be deleted by our cleanup pipeline after 48 hours
+> Make sure your `KUBECONFIG` points to the service cluster!!!
 
-1. Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azure
+> The service cluster has no ingress. To interact with the services you deploy use `kubectl port-forward`
+
+### Maestro Server
+
+  ```bash
+  cd maestro
+  AKSCONFIG=svc-cluster make deploy-server
+  ```
+
+To validate, have a look at the `maestro` namespace on the service cluster. Some pod restarts are expected in the first 1 minute until the containerized DB is ready.
+
+To access the HTTP and GRPC endpoints of maestro, run
+
+  ```bash
+  kubectl port-forward svc/maestro 8001:8000 -n maestro
+  kubectl port-forward svc/maestro-grpc 8090 -n maestro
+  ```
+
+### Cluster Service
 
    ```bash
-   AKSCONFIG=svc-cluster make clean
+   cd cluster-service/
+   make deploy
    ```
 
-## Maestro Infrastructure
+To validate, have a look at the `cluster-service` namespace.
 
-Maestro infrastructure is provisioned as part of the svc-cluster. To deploy the Maestro infrastructure and deploy the Maestro server onto the service cluster set the `deployMaestroInfra` toggle to `true`. If you plan to run the Maestro server or agent with multiple replicas, set `maxClientSessionsPerAuthName` to the number of replicas.
+### Frontend
 
-Then run the command:
+  ```bash
+  cd frontend/
+  make kustomize-update
+  make kustomize-deploy
+  ```
 
-```sh
-cd dev-infrastructure
-AKSCONFIG=svc-cluster make cluster
-AKSCONFIG=svc-cluster make aks.kubeconfig
-KUBECONFIG=svc-cluster.kubeconfig scripts/maestro-server.sh
+To validate, have a look at the `aro-hcp` namespace on the service cluster.
 
-KUBECONFIG=svc-cluster.kubeconfig kubectl port-forward svc/maestro 8000 -n maestro
-```
+## Deploy Services to the management cluster
 
-At this point `localhost:8000` forwards traffic to the Maestro server running on the SC.
+> Make sure your `KUBECONFIG` points to the management cluster!!!
 
-### Access the database from outside of the AKS cluster
+### Hypershift Operator and External DNS
 
-To connect to the database as current user run
+  ```bash
+  cd hypershiftoperator/
+  make deploy
+  ```
 
-```sh
-eval $(AKSCONFIG=svc-cluster make maestro-current-user-pg-connect)
-psql -d maestro
-```
+> The installation fail first time because of the order resources are applied by kustomize. For now, run the command twice.
 
-The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
+### ACM
 
-To connect to the database with the managed identity of Maestro, make sure to have a KUBECONFIG for the cluster that runs Maestro Server and run
+  ```bash
+  cd acm
+  make deploy
+  ```
 
-```sh
-eval $(AKSCONFIG=svc-cluster make maestro-miwi-pg-connect)
-psql -d maestro
-```
+## Maestro Agent
 
-Once logged in, verify the connection with `\conninfo`
+First install the agent
 
-> The password is a temporary access token that is valid only for 1h
+  ```bash
+  cd maestro
+  AKSCONFIG=mgmt-cluster make deploy-agent
+  ```
 
-## Maestro consumer
+Then register it with the Maestro Server
 
-Before setting up a Maestro consumer, make sure that
+Make sure your `KUBECONFIG` points to the service cluster, then run
 
-* the Maestro infrastructure has been deployed
-* the Maestro server has been installed on the SC
-* the port forwarding is active to reach the Maestro server
-
-> Currently, the AKS cluster name is used as a consumer name for Maestro. That is subject to change.
-
-To setup broker access for a maestro consumer on a mgmt-cluster, set the `deployMaestroConsumer` toggle to `true` and run
-
-```sh
-cd dev-infrastructure
-AKSCONFIG=mgmt-cluster make cluster
-AKSCONFIG=mgmt-cluster make aks.kubeconfig
-KUBECONFIG=mgmt-cluster.kubeconfig scripts/maestro-consumer.sh
-```
-
-This will also register the Maestro consumer with the Maestro server. You can verify that the consumer is present in Maestros consumer inventory by running
-
-```sh
-curl -s http://localhost:8000/api/maestro/v1/consumers | jq .items
-[
-  {
-    "created_at": "2024-05-20T15:09:51.451048Z",
-    "href": "/api/maestro/v1/consumers/913c07f8-de91-4d2b-9610-8edb4e4820b2",
-    "id": "913c07f8-de91-4d2b-9610-8edb4e4820b2",
-    "kind": "Consumer",
-    "name": "aro-hcp-mgmt-cluster-gvfxqtnhh7hi6",
-    "updated_at": "2024-05-20T15:09:51.451048Z"
-  }
-]
-```
-
-To post a manifest (e.g. a `Namespace`) to the MC via Maestro, run
-
-```sh
-cd dev-infrastructure
-kubectl create namespace my-test --dry-run=client -o json | scripts/maestro-send.sh
-```
-
-Then verify, that the namespaces has been created on the cluster and also check the result via Maestro.
-
-```sh
-kubectl get ns
-curl -s http://localhost:8000/api/maestro/v1/resources | jq .items
-[
-  {
-    "consumer_name": "aro-hcp-mgmt-cluster-gvfxqtnhh7hi6",
-    "created_at": "2024-05-20T15:20:06.155763Z",
-    "href": "/api/maestro/v1/resources/d8b6c827-ac32-4736-a913-a45ad2a86171",
-    "id": "d8b6c827-ac32-4736-a913-a45ad2a86171",
-    "kind": "Resource",
-    "manifest": {
-      "apiVersion": "v1",
-      "kind": "Namespace",
-      "metadata": {
-        "name": "my-test"
-      }
-    },
-    "name": "d8b6c827-ac32-4736-a913-a45ad2a86171",
-    "status": {
-      "ContentStatus": {
-        "phase": "Active"
-      }
-      ...
-    }
-    "updated_at": "2024-05-20T15:20:06.821849Z",
-    "version": 1
-  }
-]
-```
+  ```bash
+  cd maestro
+  AKSCONFIG=svc-cluster make register-agent
+  ```
 
 ## CS Local Development Setup
 
 Should your development needs require a running instance of CS to test with, here is how to spin up a locally running Clusters Service with containerized database suitable enough for testing.
 
 To complete the below steps you will need:
+
 1) `podman`, `ocm` cli (latest), and [`yq`](https://github.com/mikefarah/yq) cli (version 4+)
 2) An up-to-date [Clusters Service repo](https://gitlab.cee.redhat.com/service/uhc-clusters-service) cloned down (can also use a fork if you have one)
 
 > If you don't have or want to install `yq`, any steps below using `yq` can be done manually
 
+### Configure and run CS
+
 Option 1: Configure and initialize Cluster Service using the script:
 Run ./dev-infrastructure/local_CS.sh from the root of ARO-HCP repo where "uhc-clusters-service" and "ARO-HCP" repos should be at the same level:
-- uhc-clusters-service/
-- ARO-HCP/
-- etc
+
+* uhc-clusters-service/
+* ARO-HCP/
+* etc
 
 Option 2: You can follow the below manual steps from the root of the CS repo on our system:
 
@@ -251,7 +256,14 @@ cp ./configs/development.yml .
 # Update any required empty strings to 'none'
 yq -i '(.aws-access-key-id, .aws-secret-access-key, .route53-access-key-id, .route53-secret-access-key, .oidc-access-key-id, .oidc-secret-access-key, .network-verifier-access-key-id, .network-verifier-secret-access-key, .client-id, .client-secret) = "none"' development.yml
 
-# Update provision shards config with new shard
+# Generate a provision_shards.config for port-forwarded maestro ...
+make -C $the_aro_hcp_dir/cluster-service provision-shard > provision_shards.config
+
+# the resulting configuration requires two portforwardings into the service cluster
+kubectl port-forward svc/maestro 8001:8000 -n maestro
+kubectl port-forward svc/maestro-grpc 8090 -n maestro
+
+# ... or update provision shards config with new shard manually
 cat <<EOF > ./provision_shards.config
 provision_shards:
 - id: 1
@@ -273,23 +285,23 @@ provision_shards:
         user: default
     current-context: default
   status: active
-  region: eastus
+  region: westus3
   cloud_provider: azure
   topology: dedicated
 EOF
 
-# Enable the eastus region in cloud region constraints config
-yq -i '.cloud_regions |= map(select(.id == "eastus").enabled = true)' configs/cloud-resource-constraints/cloud-region-constraints.yaml
+# Enable the westus3 region in cloud region constraints config
+yq -i '.cloud_regions |= map(select(.id == "westus3").enabled = true)' configs/cloud-resource-constraints/cloud-region-constraints.yaml
 
 # you can verify the region change with the below
-yq '.cloud_regions[] | select(.id == "eastus")' configs/cloud-resource-constraints/cloud-region-constraints.yaml
+yq '.cloud_regions[] | select(.id == "westus3")' configs/cloud-resource-constraints/cloud-region-constraints.yaml
 
 # Update region_constraints.config with new cloud provider
 cat <<EOF > ./region_constraints.config
 cloud_providers:
 - name: azure
   regions:
-    - name: eastus
+    - name: westus3
       version_constraints:
         min_version: 4.11.0
       product_constraints:
@@ -339,7 +351,8 @@ make db/setup
 
 You now have a running, functioning local CS deployment
 
-To interact with CS:
+### Interact with CS
+
 1) Login to your local CS deployment
 
 ```bash
@@ -347,6 +360,7 @@ ocm login --url=http://localhost:8000 --use-auth-code
 ```
 
 2) Create a test cluster - note that `version.id` must match the version inserted into the database earlier.
+
 ```bash
 NAME="<INSERT-NAME-HERE>"
 cat <<EOF > cluster-test.json
@@ -359,7 +373,7 @@ cat <<EOF > cluster-test.json
     "enabled": true
   },
   "region": {
-    "id": "eastus"
+    "id": "westus3"
   },
   "hypershift": {
     "enabled": true
@@ -393,10 +407,35 @@ To create a cluster in CS using a locally running Frontend, see the frontend [RE
 ## CS Dev Cleanup
 
 To tear down your CS setup:
+
 1) Kill the running clusters-service process
 2) Clean up the database `make db/teardown`
 
-## CS Azure Database Postgres
+## Appendix
+
+### Access Maestro Postgres from outside of the AKS cluster
+
+To connect to the database as current user run
+
+  ```sh
+  eval $(AKSCONFIG=svc-cluster make maestro-current-user-pg-connect)
+  psql -d maestro
+  ```
+
+The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
+
+To connect to the database with the managed identity of Maestro, make sure to have a KUBECONFIG for the cluster that runs Maestro Server and run
+
+  ```sh
+  eval $(AKSCONFIG=svc-cluster make maestro-miwi-pg-connect)
+  psql -d maestro
+  ```
+
+Once logged in, verify the connection with `\conninfo`
+
+> The password is a temporary access token that is valid only for 1
+
+### Access Cluster Service Postgres from outside of the AKS cluster
 
 To create a Postgres DB on Azure enabled for Entra authentication, a svc cluster needs to be created with the `deployCsInfra` parameter set to `true` in the `svc-cluster.bicepparam` file.
 
@@ -404,39 +443,45 @@ To create a Postgres DB on Azure enabled for Entra authentication, a svc cluster
 
 To connect to the database as current user run
 
-```sh
-eval $(AKSCONFIG=svc-cluster make cs-current-user-pg-connect)
-psql -d clusters-service
-```
+  ```sh
+  eval $(make cs-current-user-pg-connect)
+  psql -d clusters-service
+  ```
 
 The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
 
 To connect to the database with the managed identity of CS, make sure to have a KUBECONFIG for the cluster that runs CS and run
 
-```sh
-eval $(AKSCONFIG=svc-cluster make cs-miwi-pg-connect)
-psql -d clusters-service
-```
+  ```sh
+  eval $(make cs-miwi-pg-connect)
+  psql -d clusters-service
+  ```
 
 Once logged in, verify the connection with `\conninfo`
 
 > The password is a temporary access token that is valid only for 1h
 
-### Access the database from inside of the AKS cluster
-
-* the `cluster-service` namespace of the svc cluster contains
-  * a `ConfigMap` named `database` with the connection parameters
-  * a `ServiceAccount` named `clusters-service` that is annotated for workload identity usage with the `clusters-service` managed identity
-* the CS pod will need to be labeled with `azure.workload.identity/use: "true"`, which injects several ENV variables prefixed with `AZ_*`
-
-TODO: CS needs to use these `AZ_*` env variables to get an access token to be used as a DB password
-
-## Azure Credentials and Pull Secret for HCP creation
+### Azure Credentials and Pull Secret for HCP creation
 
 To test HCP creation, an Azure credentials file with clientId/clientSecret and a pull secret are required.
 The `service-kv-aro-hcp-dev` KV hosts to shared secrets for the creds file and the pull secrets, that can be used by the team for testing
 
-```sh
-az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-pull-secret" | jq .value -r > pull-secret.json
-az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
-```
+* Pull secrets that can pull from RH registries and the DEV ACR
+
+  ```sh
+  az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-pull-secret" | jq .value -r > pull-secret.json
+  ````
+
+* Azure SP credentials in the format Hypershift Operator requires it (line format)
+
+  ```sh
+  az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
+  ```
+
+* Azuer SP credentials in the format CS requires it (json format)
+
+  ```sh
+  az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
+  ```
+
+## Create a full DEV environment
