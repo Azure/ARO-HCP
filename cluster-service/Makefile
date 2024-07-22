@@ -24,7 +24,7 @@ deploy:
 	  -p CS_SERVICE_PRINCIPAL_CREDS_BASE64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
 	  -p IMAGE_REGISTRY=devarohcp.azurecr.io \
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
-	  -p IMAGE_TAG=fc17932 | oc apply -f -
+	  -p IMAGE_TAG=b1268cf | oc apply -f -
 
 provision-shard:
 	@DOMAIN=$(shell az network dns zone list -g ${RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv) && \
