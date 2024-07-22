@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/containers/image/copy"
-	"github.com/containers/image/docker"
-	"github.com/containers/image/signature"
-	"github.com/containers/image/types"
+	"github.com/containers/image/v5/copy"
+	"github.com/containers/image/v5/docker"
+	"github.com/containers/image/v5/signature"
+	"github.com/containers/image/v5/types"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
