@@ -6,7 +6,7 @@ The idea of this repo is to provide means to create a development environment th
 
 ## Prerequisites
 
-* `az`, `jq`, `make`
+* `az`, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>)
 * `az login` with your Red Hat email
 
 ## Procedure
