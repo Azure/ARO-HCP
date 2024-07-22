@@ -18,6 +18,35 @@ type APIProfile struct {
 	URL *string
 }
 
+// AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
+// identities)
+type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
+	// The type of managed identity assigned to this resource.
+	Type *ManagedServiceIdentityType
+
+	// The identities assigned to this resource by the user.
+	UserAssignedIdentities map[string]*Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties
+}
+
+// AzureResourceManagerCommonTypesTrackedResourceUpdate - The resource model definition for an Azure Resource Manager tracked
+// top level resource which has 'tags' and a 'location'
+type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
+	// Resource tags.
+	Tags map[string]*string
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
 // ClaimProfile - External auth claim profile
 type ClaimProfile struct {
 	// REQUIRED; Claim
@@ -86,6 +115,14 @@ type ClusterSpecUpdate struct {
 
 	// Version of the control plane components
 	Version *VersionProfileUpdate
+}
+
+type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
+	// READ-ONLY; The client ID of the assigned identity.
+	ClientID *string
+
+	// READ-ONLY; The principal ID of the assigned identity.
+	PrincipalID *string
 }
 
 // ConsoleProfile - Configuration of the cluster web console
@@ -241,37 +278,26 @@ type HcpOpenShiftClusterNodePoolResourceListResult struct {
 	NextLink *string
 }
 
-// HcpOpenShiftClusterNodePoolResourceUpdate - The type used for update operations of the HcpOpenShiftClusterNodePoolResource.
+// HcpOpenShiftClusterNodePoolResourceUpdate - Concrete tracked resource types can be created by aliasing this type using
+// a specific property type.
 type HcpOpenShiftClusterNodePoolResourceUpdate struct {
-	// The updatable properties of the HcpOpenShiftClusterNodePoolResource.
-	Properties *HcpOpenShiftClusterNodePoolResourceUpdateProperties
+	// The resource-specific properties for this resource.
+	Properties *NodePoolPropertiesUpdate
 
 	// Resource tags.
 	Tags map[string]*string
-}
 
-// HcpOpenShiftClusterNodePoolResourceUpdateProperties - The updatable properties of the HcpOpenShiftClusterNodePoolResource.
-type HcpOpenShiftClusterNodePoolResourceUpdateProperties struct {
-	// Representation of a autoscaling in a node pool.
-	AutoScaling *NodePoolAutoScalingUpdate
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
 
-	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
-	Labels map[string]*string
+	// READ-ONLY; The name of the resource
+	Name *string
 
-	// The number of worker nodes, it cannot be used together with autoscaling
-	Replicas *int32
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
 
-	// Taints for the nodes
-	Taints []*Taint
-
-	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
-// Tuned resources to define the tuning configuration to be applied to nodes
-// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
-// or PerformanceProfile.
-	TuningConfigs []*string
-
-	// OpenShift version for the nodepool
-	Version *VersionProfileUpdate
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
 }
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
@@ -281,6 +307,12 @@ type HcpOpenShiftClusterProperties struct {
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
+}
+
+// HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
+type HcpOpenShiftClusterPropertiesUpdate struct {
+	// The cluster resource specification.
+	Spec *ClusterSpecUpdate
 }
 
 // HcpOpenShiftClusterResource - HCP cluster resource
@@ -319,22 +351,28 @@ type HcpOpenShiftClusterResourceListResult struct {
 	NextLink *string
 }
 
-// HcpOpenShiftClusterResourceUpdate - The type used for update operations of the HcpOpenShiftClusterResource.
+// HcpOpenShiftClusterResourceUpdate - HCP cluster resource
 type HcpOpenShiftClusterResourceUpdate struct {
 	// The managed service identities assigned to this resource.
-	Identity *ManagedServiceIdentity
+	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
 
-	// The updatable properties of the HcpOpenShiftClusterResource.
-	Properties *HcpOpenShiftClusterResourceUpdateProperties
+	// The resource-specific properties for this resource.
+	Properties *HcpOpenShiftClusterPropertiesUpdate
 
 	// Resource tags.
 	Tags map[string]*string
-}
 
-// HcpOpenShiftClusterResourceUpdateProperties - The updatable properties of the HcpOpenShiftClusterResource.
-type HcpOpenShiftClusterResourceUpdateProperties struct {
-	// The cluster resource specification.
-	Spec *ClusterSpecUpdate
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
 }
 
 // HcpOpenShiftVersions represents a location based available HCP cluster versions
@@ -482,6 +520,12 @@ type NodePoolProperties struct {
 	ProvisioningState *ProvisioningState
 }
 
+// NodePoolPropertiesUpdate - Represents the node pool properties
+type NodePoolPropertiesUpdate struct {
+	// The node pool resource specification
+	Spec *NodePoolSpecUpdate
+}
+
 // NodePoolSpec - Worker node pool profile
 type NodePoolSpec struct {
 	// REQUIRED; Azure node pool platform configuration
@@ -510,6 +554,30 @@ type NodePoolSpec struct {
 // in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
 // or PerformanceProfile.
 	TuningConfigs []*string
+}
+
+// NodePoolSpecUpdate - Worker node pool profile
+type NodePoolSpecUpdate struct {
+	// Representation of a autoscaling in a node pool.
+	AutoScaling *NodePoolAutoScalingUpdate
+
+	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	Labels map[string]*string
+
+	// The number of worker nodes, it cannot be used together with autoscaling
+	Replicas *int32
+
+	// Taints for the nodes
+	Taints []*Taint
+
+	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
+// Tuned resources to define the tuning configuration to be applied to nodes
+// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
+// or PerformanceProfile.
+	TuningConfigs []*string
+
+	// OpenShift version for the nodepool
+	Version *VersionProfileUpdate
 }
 
 // Operation - Details of a REST API operation, returned from the Resource Provider Operations API
