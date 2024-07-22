@@ -100,7 +100,8 @@ ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
 	AKS_NAME="$$(az aks list --query "[?tags.clusterType == '$(AKSCONFIG)'].name" -ojson -g $(RESOURCEGROUP) | jq -r '.[0]')"; \
-	az aks get-credentials -n "$${AKS_NAME}" -g $(RESOURCEGROUP) -a -f "${HOME}/.kube/$(AKSCONFIG).kubeconfig"
+	az aks get-credentials -n "$${AKS_NAME}" -g $(RESOURCEGROUP) -f "${HOME}/.kube/$(AKSCONFIG).kubeconfig"
+	kubelogin convert-kubeconfig -l azurecli --kubeconfig "${HOME}/.kube/$(AKSCONFIG).kubeconfig"
 
 secrets-download:
 	@[ "${SECRET_SA_ACCOUNT_NAME}" ] || ( echo ">> SECRET_SA_ACCOUNT_NAME is not set"; exit 1 )
