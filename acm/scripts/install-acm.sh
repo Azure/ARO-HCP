@@ -69,3 +69,6 @@ kubectl wait --for=condition=ManagedClusterJoined managedcluster local-cluster -
 kubectl wait --for=condition=ManagedClusterConditionAvailable managedcluster local-cluster --timeout=600s
 kubectl wait --for=jsonpath='{.status.conditions[?(@.type=="Applied")].status}'=True -n local-cluster manifestwork local-cluster-klusterlet --timeout=600s
 kubectl wait --for=jsonpath='{.status.conditions[?(@.type=="Available")].status}'=True -n local-cluster manifestwork local-cluster-klusterlet --timeout=600s
+
+# apply managedclusterset
+kubectl apply -f deploy/mch/managedclusterset.yaml
