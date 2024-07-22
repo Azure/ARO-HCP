@@ -95,6 +95,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
     additionalAcrResourceGroups: additionalAcrResourceGroups
+    userAgentMinCount: 3
+    userAgentMaxCount: 9
   }
 }
 
