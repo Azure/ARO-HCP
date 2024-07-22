@@ -7,7 +7,7 @@ ZONE_NAME ?= $(shell az network dns zone list -g ${ZONE_RESOURCE_GROUP} --query 
 AZURE_TENANT_ID ?= $(shell az account show --query tenantId --output tsv)
 AZURE_SUBSCRIPTION_ID ?= $(shell az account show --query id --output tsv)
 
-HO_IMAGE ?= devarohcp.azurecr.io/acm-d/rhtap-hypershift-operator:84136f3
+HO_IMAGE ?= devarohcp.azurecr.io/acm-d/rhtap-hypershift-operator:2c34df3
 EDO_IMAGE ?= devarohcp.azurecr.io/external-dns/external-dns:v0.14.2
 
 create-edo-azure-creds:
@@ -26,8 +26,8 @@ create-domain-file:
 	@echo "${ZONE_NAME}" > deploy/overlays/dev/domain.txt
 
 deploy: create-edo-azure-creds create-edo-sa-patch create-domain-file
-	pushd deploy/overlays/dev && \
-	kubectl apply --server-side --force-conflicts -k .
+	kubectl apply --server-side --force-conflicts -k deploy/crds
+	kubectl apply --server-side --force-conflicts -k deploy/overlays/dev
 
 # run this task whenever HO_IMAGE or EDO_IMAGE is updated
 # commit the changes to deploy/base to the repo since we don't have podman or docker in CI
@@ -47,9 +47,18 @@ prepare-ho-manifests:
 		--external-dns-image ${EDO_IMAGE} \
 		--external-dns-txt-owner-id ARO-HCP \
 		--managed-service ARO-HCP | ./kubectl-slice -f - -o deploy/base
+	@rm deploy/crds/*
+	@mkdir -p deploy/crds
+	@mv deploy/base/customresourcedefinition*.yaml deploy/crds
+
+	@echo "apiVersion: kustomize.config.k8s.io/v1beta1" > deploy/crds/kustomization.yml
+	@echo "kind: Kustomization" >> deploy/crds/kustomization.yml
+	@echo "resources:" >> deploy/crds/kustomization.yml
+	@find deploy/crds -type f -name "customresourcedefinition*.yaml" ! -name "kustomization.yml" | sed 's/^deploy\/crds\//  - /' >> deploy/crds/kustomization.yml
+
 	@echo "apiVersion: kustomize.config.k8s.io/v1beta1" > deploy/base/kustomization.yml
 	@echo "kind: Kustomization" >> deploy/base/kustomization.yml
 	@echo "resources:" >> deploy/base/kustomization.yml
-	@find deploy/base -type f \( -name "*.yml" -o -name "*.yaml" \) ! -name "kustomization.yml" | sed 's/^deploy\/base\//  - /' >> deploy/base/kustomization.yml
+	@find deploy/base -type f -name "*.yaml" ! -name "kustomization.yml" | sed 's/^deploy\/base\//  - /' >> deploy/base/kustomization.yml
 
 .PHONY: create-edo-azure-creds deploy unpack-ho-manifests
