@@ -32,9 +32,7 @@ type SyncConfig struct {
 
 // QuaySecret is the secret for quay.io
 type QuaySecret struct {
-	BearerToken  string
-	PullUsername string
-	PullPassword string
+	BearerToken string
 }
 
 // NewSyncConfig creates a new SyncConfig from the configuration file
@@ -134,19 +132,16 @@ func DoSync() error {
 	}
 
 	acrAuth := types.DockerAuthConfig{Username: "00000000-0000-0000-0000-000000000000", Password: acrPullSecret.RefreshToken}
-	quayAuth := types.DockerAuthConfig{Username: quaySecret.PullUsername, Password: quaySecret.PullPassword}
 
 	for _, repoName := range cfg.Repositories {
 		var srcTags, acrTags []string
 
 		baseURL := strings.Split(repoName, "/")[0]
 		repoName = strings.Join(strings.Split(repoName, "/")[1:], "/")
-		srcAuth := types.DockerAuthConfig{}
 
 		Log().Infow("Syncing repository", "repository", repoName, "baseurl", baseURL)
 
 		if baseURL == "quay.io" {
-			srcAuth = quayAuth
 			srcTags, err = qr.GetTags(ctx, repoName)
 			if err != nil {
 				return fmt.Errorf("error getting quay tags: %w", err)
@@ -185,7 +180,7 @@ func DoSync() error {
 			target := fmt.Sprintf("%s/%s:%s", cfg.AcrRegistry, repoName, tagToSync)
 			Log().Infow("Copying images", "images", tagToSync, "from", source, "to", target)
 
-			err = Copy(ctx, target, source, &acrAuth, &srcAuth)
+			err = Copy(ctx, target, source, &acrAuth, nil)
 			if err != nil {
 				return fmt.Errorf("error copying image: %w", err)
 			}

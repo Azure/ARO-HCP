@@ -30,8 +30,11 @@ The secret file for the Quay registry should look like this:
 ```JSON
 {
   "BearerToken": "ibiw0990J09jw90fjwelakjsda1kl2KJdndfssd", # notsecret
-  "PullUsername": "quay+user", # notsecret
-  "PullPassword": "wzo3PqL3eTdqv42AbsBiFNdhGh6u" # notsecret
 }
 ```
 
+### Pull Secrets
+
+Authentication leverages the standard containers auth files. It is described here: [https://github.com/containers/image/blob/main/docs/containers-auth.json.5.md#description](https://github.com/containers/image/blob/main/docs/containers-auth.json.5.md#description)
+
+Thus, create an authorization file. You can override the path using `XDG_RUNTIME_DIR`: `${XDG_RUNTIME_DIR}/containers/auth.json`.
