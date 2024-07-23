@@ -1,6 +1,6 @@
 using '../templates/mgmt-cluster.bicep'
 
-param kubernetesVersion = '1.29.2'
+param kubernetesVersion = '1.29.5'
 param vnetAddressPrefix = '10.132.0.0/14'
 param subnetPrefix = '10.132.8.0/21'
 param podSubnetPrefix = '10.132.64.0/18'
@@ -29,7 +29,7 @@ param workloadIdentities = items({
   }
 })
 
-// This parameter is always overriden in the Makefile
+// These parameters are always overridden in the Makefile
 param currentUserId = ''
 param maestroInfraResourceGroup = ''
 param regionalZoneResourceGroup = ''
