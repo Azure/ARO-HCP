@@ -85,6 +85,14 @@ type ClusterSpec struct {
 	Console *ConsoleProfile
 }
 
+type ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
+	// READ-ONLY; The client ID of the assigned identity.
+	ClientID *string
+
+	// READ-ONLY; The principal ID of the assigned identity.
+	PrincipalID *string
+}
+
 // ConsoleProfile - Configuration of the cluster web console
 type ConsoleProfile struct {
 	// READ-ONLY; The cluster web console URL endpoint
@@ -399,7 +407,7 @@ type ManagedServiceIdentityUpdate struct {
 	Type *ManagedServiceIdentityType
 
 	// The identities assigned to this resource by the user.
-	UserAssignedIdentities map[string]*UserAssignedIdentity
+	UserAssignedIdentities map[string]*ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties
 }
 
 // NetworkProfile - Network profile of the cluster

@@ -35,9 +35,9 @@ type NodePoolsServer struct{
 	// HTTP status codes to indicate success: http.StatusOK
 	Get func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *generated.NodePoolsClientGetOptions) (resp azfake.Responder[generated.NodePoolsClientGetResponse], errResp azfake.ErrorResponder)
 
-	// NewListByHcpOpenShiftClusterResourcePager is the fake for method NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager
+	// NewListByParentPager is the fake for method NodePoolsClient.NewListByParentPager
 	// HTTP status codes to indicate success: http.StatusOK
-	NewListByHcpOpenShiftClusterResourcePager func(resourceGroupName string, hcpOpenShiftClusterName string, options *generated.NodePoolsClientListByHcpOpenShiftClusterResourceOptions) (resp azfake.PagerResponder[generated.NodePoolsClientListByHcpOpenShiftClusterResourceResponse])
+	NewListByParentPager func(resourceGroupName string, hcpOpenShiftClusterName string, options *generated.NodePoolsClientListByParentOptions) (resp azfake.PagerResponder[generated.NodePoolsClientListByParentResponse])
 
 	// BeginUpdate is the fake for method NodePoolsClient.BeginUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusAccepted
@@ -53,7 +53,7 @@ func NewNodePoolsServerTransport(srv *NodePoolsServer) *NodePoolsServerTransport
 		srv: srv,
 		beginCreateOrUpdate: newTracker[azfake.PollerResponder[generated.NodePoolsClientCreateOrUpdateResponse]](),
 		beginDelete: newTracker[azfake.PollerResponder[generated.NodePoolsClientDeleteResponse]](),
-		newListByHcpOpenShiftClusterResourcePager: newTracker[azfake.PagerResponder[generated.NodePoolsClientListByHcpOpenShiftClusterResourceResponse]](),
+		newListByParentPager: newTracker[azfake.PagerResponder[generated.NodePoolsClientListByParentResponse]](),
 		beginUpdate: newTracker[azfake.PollerResponder[generated.NodePoolsClientUpdateResponse]](),
 	}
 }
@@ -64,7 +64,7 @@ type NodePoolsServerTransport struct {
 	srv *NodePoolsServer
 	beginCreateOrUpdate *tracker[azfake.PollerResponder[generated.NodePoolsClientCreateOrUpdateResponse]]
 	beginDelete *tracker[azfake.PollerResponder[generated.NodePoolsClientDeleteResponse]]
-	newListByHcpOpenShiftClusterResourcePager *tracker[azfake.PagerResponder[generated.NodePoolsClientListByHcpOpenShiftClusterResourceResponse]]
+	newListByParentPager *tracker[azfake.PagerResponder[generated.NodePoolsClientListByParentResponse]]
 	beginUpdate *tracker[azfake.PollerResponder[generated.NodePoolsClientUpdateResponse]]
 }
 
@@ -86,8 +86,8 @@ func (n *NodePoolsServerTransport) Do(req *http.Request) (*http.Response, error)
 		resp, err = n.dispatchBeginDelete(req)
 	case "NodePoolsClient.Get":
 		resp, err = n.dispatchGet(req)
-	case "NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager":
-		resp, err = n.dispatchNewListByHcpOpenShiftClusterResourcePager(req)
+	case "NodePoolsClient.NewListByParentPager":
+		resp, err = n.dispatchNewListByParentPager(req)
 	case "NodePoolsClient.BeginUpdate":
 		resp, err = n.dispatchBeginUpdate(req)
 	default:
@@ -238,12 +238,12 @@ func (n *NodePoolsServerTransport) dispatchGet(req *http.Request) (*http.Respons
 	return resp, nil
 }
 
-func (n *NodePoolsServerTransport) dispatchNewListByHcpOpenShiftClusterResourcePager(req *http.Request) (*http.Response, error) {
-	if n.srv.NewListByHcpOpenShiftClusterResourcePager == nil {
-		return nil, &nonRetriableError{errors.New("fake for method NewListByHcpOpenShiftClusterResourcePager not implemented")}
+func (n *NodePoolsServerTransport) dispatchNewListByParentPager(req *http.Request) (*http.Response, error) {
+	if n.srv.NewListByParentPager == nil {
+		return nil, &nonRetriableError{errors.New("fake for method NewListByParentPager not implemented")}
 	}
-	newListByHcpOpenShiftClusterResourcePager := n.newListByHcpOpenShiftClusterResourcePager.get(req)
-	if newListByHcpOpenShiftClusterResourcePager == nil {
+	newListByParentPager := n.newListByParentPager.get(req)
+	if newListByParentPager == nil {
 	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/nodePools`
 	regex := regexp.MustCompile(regexStr)
 	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
@@ -258,23 +258,23 @@ func (n *NodePoolsServerTransport) dispatchNewListByHcpOpenShiftClusterResourceP
 	if err != nil {
 		return nil, err
 	}
-resp := n.srv.NewListByHcpOpenShiftClusterResourcePager(resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
-		newListByHcpOpenShiftClusterResourcePager = &resp
-		n.newListByHcpOpenShiftClusterResourcePager.add(req, newListByHcpOpenShiftClusterResourcePager)
-		server.PagerResponderInjectNextLinks(newListByHcpOpenShiftClusterResourcePager, req, func(page *generated.NodePoolsClientListByHcpOpenShiftClusterResourceResponse, createLink func() string) {
+resp := n.srv.NewListByParentPager(resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
+		newListByParentPager = &resp
+		n.newListByParentPager.add(req, newListByParentPager)
+		server.PagerResponderInjectNextLinks(newListByParentPager, req, func(page *generated.NodePoolsClientListByParentResponse, createLink func() string) {
 			page.NextLink = to.Ptr(createLink())
 		})
 	}
-	resp, err := server.PagerResponderNext(newListByHcpOpenShiftClusterResourcePager, req)
+	resp, err := server.PagerResponderNext(newListByParentPager, req)
 	if err != nil {
 		return nil, err
 	}
 	if !contains([]int{http.StatusOK}, resp.StatusCode) {
-		n.newListByHcpOpenShiftClusterResourcePager.remove(req)
+		n.newListByParentPager.remove(req)
 		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusOK", resp.StatusCode)}
 	}
-	if !server.PagerResponderMore(newListByHcpOpenShiftClusterResourcePager) {
-		n.newListByHcpOpenShiftClusterResourcePager.remove(req)
+	if !server.PagerResponderMore(newListByParentPager) {
+		n.newListByParentPager.remove(req)
 	}
 	return resp, nil
 }

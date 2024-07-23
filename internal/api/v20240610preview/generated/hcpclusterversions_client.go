@@ -42,37 +42,37 @@ func NewHcpClusterVersionsClient(subscriptionID string, credential azcore.TokenC
 	return client, nil
 }
 
-// NewListByLocationPager - List HcpOpenShiftVersionResource resources by location
+// NewListPager - List HcpOpenShiftVersionResource resources by location
 //
 // Generated from API version 2024-06-10-preview
 //   - location - The name of the Azure region.
-//   - options - HcpClusterVersionsClientListByLocationOptions contains the optional parameters for the HcpClusterVersionsClient.NewListByLocationPager
+//   - options - HcpClusterVersionsClientListOptions contains the optional parameters for the HcpClusterVersionsClient.NewListPager
 //     method.
-func (client *HcpClusterVersionsClient) NewListByLocationPager(location string, options *HcpClusterVersionsClientListByLocationOptions) (*runtime.Pager[HcpClusterVersionsClientListByLocationResponse]) {
-	return runtime.NewPager(runtime.PagingHandler[HcpClusterVersionsClientListByLocationResponse]{
-		More: func(page HcpClusterVersionsClientListByLocationResponse) bool {
+func (client *HcpClusterVersionsClient) NewListPager(location string, options *HcpClusterVersionsClientListOptions) (*runtime.Pager[HcpClusterVersionsClientListResponse]) {
+	return runtime.NewPager(runtime.PagingHandler[HcpClusterVersionsClientListResponse]{
+		More: func(page HcpClusterVersionsClientListResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
-		Fetcher: func(ctx context.Context, page *HcpClusterVersionsClientListByLocationResponse) (HcpClusterVersionsClientListByLocationResponse, error) {
-		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "HcpClusterVersionsClient.NewListByLocationPager")
+		Fetcher: func(ctx context.Context, page *HcpClusterVersionsClientListResponse) (HcpClusterVersionsClientListResponse, error) {
+		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "HcpClusterVersionsClient.NewListPager")
 			nextLink := ""
 			if page != nil {
 				nextLink = *page.NextLink
 			}
 			resp, err := runtime.FetcherForNextLink(ctx, client.internal.Pipeline(), nextLink, func(ctx context.Context) (*policy.Request, error) {
-				return client.listByLocationCreateRequest(ctx, location, options)
+				return client.listCreateRequest(ctx, location, options)
 			}, nil)
 			if err != nil {
-				return HcpClusterVersionsClientListByLocationResponse{}, err
+				return HcpClusterVersionsClientListResponse{}, err
 			}
-			return client.listByLocationHandleResponse(resp)
+			return client.listHandleResponse(resp)
 			},
 		Tracer: client.internal.Tracer(),
 	})
 }
 
-// listByLocationCreateRequest creates the ListByLocation request.
-func (client *HcpClusterVersionsClient) listByLocationCreateRequest(ctx context.Context, location string, options *HcpClusterVersionsClientListByLocationOptions) (*policy.Request, error) {
+// listCreateRequest creates the List request.
+func (client *HcpClusterVersionsClient) listCreateRequest(ctx context.Context, location string, options *HcpClusterVersionsClientListOptions) (*policy.Request, error) {
 	urlPath := "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftVersions"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
@@ -93,11 +93,11 @@ func (client *HcpClusterVersionsClient) listByLocationCreateRequest(ctx context.
 	return req, nil
 }
 
-// listByLocationHandleResponse handles the ListByLocation response.
-func (client *HcpClusterVersionsClient) listByLocationHandleResponse(resp *http.Response) (HcpClusterVersionsClientListByLocationResponse, error) {
-	result := HcpClusterVersionsClientListByLocationResponse{}
+// listHandleResponse handles the List response.
+func (client *HcpClusterVersionsClient) listHandleResponse(resp *http.Response) (HcpClusterVersionsClientListResponse, error) {
+	result := HcpClusterVersionsClientListResponse{}
 	if err := runtime.UnmarshalAsJSON(resp, &result.HcpOpenShiftVersionResourceListResult); err != nil {
-		return HcpClusterVersionsClientListByLocationResponse{}, err
+		return HcpClusterVersionsClientListResponse{}, err
 	}
 	return result, nil
 }

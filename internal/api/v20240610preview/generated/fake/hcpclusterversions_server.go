@@ -22,9 +22,9 @@ import (
 
 // HcpClusterVersionsServer is a fake server for instances of the generated.HcpClusterVersionsClient type.
 type HcpClusterVersionsServer struct{
-	// NewListByLocationPager is the fake for method HcpClusterVersionsClient.NewListByLocationPager
+	// NewListPager is the fake for method HcpClusterVersionsClient.NewListPager
 	// HTTP status codes to indicate success: http.StatusOK
-	NewListByLocationPager func(location string, options *generated.HcpClusterVersionsClientListByLocationOptions) (resp azfake.PagerResponder[generated.HcpClusterVersionsClientListByLocationResponse])
+	NewListPager func(location string, options *generated.HcpClusterVersionsClientListOptions) (resp azfake.PagerResponder[generated.HcpClusterVersionsClientListResponse])
 
 }
 
@@ -34,7 +34,7 @@ type HcpClusterVersionsServer struct{
 func NewHcpClusterVersionsServerTransport(srv *HcpClusterVersionsServer) *HcpClusterVersionsServerTransport {
 	return &HcpClusterVersionsServerTransport{
 		srv: srv,
-		newListByLocationPager: newTracker[azfake.PagerResponder[generated.HcpClusterVersionsClientListByLocationResponse]](),
+		newListPager: newTracker[azfake.PagerResponder[generated.HcpClusterVersionsClientListResponse]](),
 	}
 }
 
@@ -42,7 +42,7 @@ func NewHcpClusterVersionsServerTransport(srv *HcpClusterVersionsServer) *HcpClu
 // Don't use this type directly, use NewHcpClusterVersionsServerTransport instead.
 type HcpClusterVersionsServerTransport struct {
 	srv *HcpClusterVersionsServer
-	newListByLocationPager *tracker[azfake.PagerResponder[generated.HcpClusterVersionsClientListByLocationResponse]]
+	newListPager *tracker[azfake.PagerResponder[generated.HcpClusterVersionsClientListResponse]]
 }
 
 // Do implements the policy.Transporter interface for HcpClusterVersionsServerTransport.
@@ -57,8 +57,8 @@ func (h *HcpClusterVersionsServerTransport) Do(req *http.Request) (*http.Respons
 	var err error
 
 	switch method {
-	case "HcpClusterVersionsClient.NewListByLocationPager":
-		resp, err = h.dispatchNewListByLocationPager(req)
+	case "HcpClusterVersionsClient.NewListPager":
+		resp, err = h.dispatchNewListPager(req)
 	default:
 		err = fmt.Errorf("unhandled API %s", method)
 	}
@@ -70,12 +70,12 @@ func (h *HcpClusterVersionsServerTransport) Do(req *http.Request) (*http.Respons
 	return resp, nil
 }
 
-func (h *HcpClusterVersionsServerTransport) dispatchNewListByLocationPager(req *http.Request) (*http.Response, error) {
-	if h.srv.NewListByLocationPager == nil {
-		return nil, &nonRetriableError{errors.New("fake for method NewListByLocationPager not implemented")}
+func (h *HcpClusterVersionsServerTransport) dispatchNewListPager(req *http.Request) (*http.Response, error) {
+	if h.srv.NewListPager == nil {
+		return nil, &nonRetriableError{errors.New("fake for method NewListPager not implemented")}
 	}
-	newListByLocationPager := h.newListByLocationPager.get(req)
-	if newListByLocationPager == nil {
+	newListPager := h.newListPager.get(req)
+	if newListPager == nil {
 	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/locations/(?P<location>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftVersions`
 	regex := regexp.MustCompile(regexStr)
 	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
@@ -86,23 +86,23 @@ func (h *HcpClusterVersionsServerTransport) dispatchNewListByLocationPager(req *
 	if err != nil {
 		return nil, err
 	}
-resp := h.srv.NewListByLocationPager(locationParam, nil)
-		newListByLocationPager = &resp
-		h.newListByLocationPager.add(req, newListByLocationPager)
-		server.PagerResponderInjectNextLinks(newListByLocationPager, req, func(page *generated.HcpClusterVersionsClientListByLocationResponse, createLink func() string) {
+resp := h.srv.NewListPager(locationParam, nil)
+		newListPager = &resp
+		h.newListPager.add(req, newListPager)
+		server.PagerResponderInjectNextLinks(newListPager, req, func(page *generated.HcpClusterVersionsClientListResponse, createLink func() string) {
 			page.NextLink = to.Ptr(createLink())
 		})
 	}
-	resp, err := server.PagerResponderNext(newListByLocationPager, req)
+	resp, err := server.PagerResponderNext(newListPager, req)
 	if err != nil {
 		return nil, err
 	}
 	if !contains([]int{http.StatusOK}, resp.StatusCode) {
-		h.newListByLocationPager.remove(req)
+		h.newListPager.remove(req)
 		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusOK", resp.StatusCode)}
 	}
-	if !server.PagerResponderMore(newListByLocationPager) {
-		h.newListByLocationPager.remove(req)
+	if !server.PagerResponderMore(newListPager) {
+		h.newListPager.remove(req)
 	}
 	return resp, nil
 }

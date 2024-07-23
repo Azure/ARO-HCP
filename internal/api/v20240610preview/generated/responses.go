@@ -7,8 +7,8 @@
 
 package generated
 
-// HcpClusterVersionsClientListByLocationResponse contains the response from method HcpClusterVersionsClient.NewListByLocationPager.
-type HcpClusterVersionsClientListByLocationResponse struct {
+// HcpClusterVersionsClientListResponse contains the response from method HcpClusterVersionsClient.NewListPager.
+type HcpClusterVersionsClientListResponse struct {
 	// The response of a HcpOpenShiftVersionResource list operation.
 	HcpOpenShiftVersionResourceListResult
 }
@@ -77,8 +77,8 @@ type NodePoolsClientGetResponse struct {
 	HcpOpenShiftClusterNodePoolResource
 }
 
-// NodePoolsClientListByHcpOpenShiftClusterResourceResponse contains the response from method NodePoolsClient.NewListByHcpOpenShiftClusterResourcePager.
-type NodePoolsClientListByHcpOpenShiftClusterResourceResponse struct {
+// NodePoolsClientListByParentResponse contains the response from method NodePoolsClient.NewListByParentPager.
+type NodePoolsClientListByParentResponse struct {
 	// The response of a HcpOpenShiftClusterNodePoolResource list operation.
 	HcpOpenShiftClusterNodePoolResourceListResult
 }
