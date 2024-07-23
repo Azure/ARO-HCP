@@ -26,7 +26,10 @@ create-edo-sa-patch:
 create-domain-file:
 	@echo "${ZONE_NAME}" > deploy/overlays/dev/domain.txt
 
-deploy: create-edo-azure-creds create-edo-sa-patch create-domain-file
+create-txt-owner-id-file:
+	@echo "${RESOURCEGROUP}" > deploy/overlays/dev/txt_owner_id.txt
+
+deploy: create-edo-azure-creds create-edo-sa-patch create-domain-file create-txt-owner-id-file
 	kubectl apply --server-side --force-conflicts -k deploy/crds
 	kubectl apply --server-side --force-conflicts -k deploy/overlays/dev
 
@@ -46,7 +49,7 @@ prepare-ho-manifests:
 		--external-dns-secret external-dns-azure \
 		--external-dns-domain-filter \$$\(DOMAIN\) \
 		--external-dns-image ${EDO_IMAGE} \
-		--external-dns-txt-owner-id ARO-HCP \
+		--external-dns-txt-owner-id \$$\(TXT_OWNER_ID\) \
 		--managed-service ARO-HCP | ./kubectl-slice -f - -o deploy/base
 	@rm deploy/crds/*
 	@mkdir -p deploy/crds

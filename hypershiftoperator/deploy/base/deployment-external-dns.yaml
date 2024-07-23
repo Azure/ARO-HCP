@@ -26,7 +26,7 @@ spec:
         - --provider=azure
         - --registry=txt
         - --txt-suffix=-external-dns
-        - --txt-owner-id=ARO-HCP
+        - --txt-owner-id=$(TXT_OWNER_ID)
         - --label-filter=hypershift.openshift.io/route-visibility!=private
         - --interval=1m
         - --txt-cache-interval=1h
