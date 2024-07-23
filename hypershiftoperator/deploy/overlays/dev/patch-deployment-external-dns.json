@@ -21,6 +21,15 @@
                         "name": "external-dns-azure"
                     }
                 }
+            },
+            {
+                "name": "TXT_OWNER_ID",
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "key": "txt_owner_id",
+                        "name": "external-dns-azure"
+                    }
+                }
             }
         ]
     },

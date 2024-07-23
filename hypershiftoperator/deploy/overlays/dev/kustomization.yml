@@ -27,3 +27,4 @@ secretGenerator:
   files:
   - credentials=edo-azure-credentials.json
   - domain=domain.txt
+  - txt_owner_id=txt_owner_id.txt
