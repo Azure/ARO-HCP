@@ -484,4 +484,29 @@ The `service-kv-aro-hcp-dev` KV hosts to shared secrets for the creds file and t
   az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
   ```
 
-## Create a full DEV environment
+### Access integrated DEV environment
+
+The integrated DEV environment is hosted in `westus3` and consists of
+
+* the RG `aro-hcp-dev` containing the regional resources (DNS, Eventgrid, Postgres DBs, ...) and the AKS service cluster
+* the RG `aro-hcp-dev-mc` containing the AKS mgmt cluster
+
+To access the SC run
+
+```sh
+AKSCONFIG=svc-cluster RESOURCEGROUP=aro-hcp-dev make aks.admin-access # run one
+AKSCONFIG=svc-cluster RESOURCEGROUP=aro-hcp-dev make aks.kubeconfig
+export KUBECONFIG=${HOME}/.kube/svc-cluster.kubeconfig
+kubectl get ns
+```
+
+To access the MC run
+
+```sh
+AKSCONFIG=mgmt-cluster RESOURCEGROUP=aro-hcp-dev-mc make aks.admin-access # run one
+AKSCONFIG=mgmt-cluster RESOURCEGROUP=aro-hcp-dev-mc make aks.kubeconfig
+export KUBECONFIG=${HOME}/.kube/mgmt-cluster.kubeconfig
+kubectl get ns
+```
+
+> It might take a couple of minutes for the permissions created by `make aks.admin-access` to take effect.
