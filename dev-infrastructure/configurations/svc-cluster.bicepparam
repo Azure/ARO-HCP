@@ -25,7 +25,6 @@ param maestroPostgresServerStorageSizeGB = 32
 param deployMaestroPostgres = false
 
 param deployCsInfra = false
-param csNamespace = 'cluster-service'
 param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 
 param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24)
@@ -49,7 +48,7 @@ param workloadIdentities = items({
   }
   cs_wi: {
     uamiName: 'clusters-service'
-    namespace: csNamespace
+    namespace: 'cluster-service'
     serviceAccountName: 'clusters-service'
   }
 })

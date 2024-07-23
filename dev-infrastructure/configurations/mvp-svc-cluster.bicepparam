@@ -24,7 +24,6 @@ param maestroPostgresServerStorageSizeGB = 32
 param deployMaestroPostgres = false
 
 param deployCsInfra = false
-param csNamespace = 'cluster-service'
 param csPostgresServerName = 'cs-pg-aro-hcp-dev'
 
 param serviceKeyVaultName = 'service-kv-aro-hcp-dev'
@@ -47,7 +46,7 @@ param workloadIdentities = items({
   }
   cs_wi: {
     uamiName: 'clusters-service'
-    namespace: csNamespace
+    namespace: 'cluster-service'
     serviceAccountName: 'clusters-service'
   }
 })

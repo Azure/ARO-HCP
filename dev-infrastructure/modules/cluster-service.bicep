@@ -10,12 +10,6 @@ param clusterServiceManagedIdentityPrincipalId string
 @description('The name of the database to create for CS')
 param csDatabaseName string = 'clusters-service'
 
-@description('The AKS cluster name where cluster-service is hosted.')
-param aksClusterName string
-
-@description('The namespace where CS will be hosted.')
-param namespace string
-
 @description('The name of the Postgres server for CS')
 param postgresServerName string
 
@@ -83,39 +77,6 @@ module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = {
   dependsOn: [
     postgres
   ]
-}
-
-//
-// create configmap with DB access metadata in AKS cluster
-//
-
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-01-01' existing = {
-  name: aksClusterName
-}
-
-module dbConfigMap './aks-manifest.bicep' = {
-  name: '${deployment().name}-db-configmap'
-  params: {
-    aksClusterName: aksClusterName
-    manifests: [
-      {
-        apiVersion: 'v1'
-        kind: 'ConfigMap'
-        metadata: {
-          name: 'database'
-          namespace: namespace
-        }
-        data: {
-          name: csDatabaseName
-          username: clusterServiceManagedIdentityName
-          host: postgres.outputs.hostname
-          port: string(postgres.outputs.port)
-        }
-      }
-    ]
-    aksManagedIdentityId: items(aksCluster.identity.userAssignedIdentities)[0].key
-    location: location
-  }
 }
 
 //
