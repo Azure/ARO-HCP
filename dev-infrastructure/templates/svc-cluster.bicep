@@ -73,9 +73,6 @@ param maestroInfraResourceGroup string = resourceGroup().name
 @description('Deploy ARO HCP CS Infrastructure if true')
 param deployCsInfra bool
 
-@description('The namespace where CS resources will be deployed.')
-param csNamespace string
-
 @description('The name of the Postgres server for CS')
 @maxLength(60)
 param csPostgresServerName string
@@ -251,8 +248,6 @@ var csManagedIdentityPrincipalId = filter(
 module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
   name: 'cluster-service'
   params: {
-    aksClusterName: svcCluster.outputs.aksClusterName
-    namespace: csNamespace
     location: location
     postgresServerName: csPostgresServerName
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
