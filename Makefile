@@ -1,5 +1,7 @@
 SHELL = /bin/bash
 
+# This build tag is currently leveraged by tooling/image-sync
+# https://github.com/containers/image?tab=readme-ov-file#building
 GOTAGS?='containers_image_openpgp'
 
 all: test lint
@@ -13,6 +15,6 @@ test:
 # https://github.com/golang/go/issues/50745
 MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint:
-	golangci-lint run -v $(MODULES)
+	golangci-lint run -v --build-tags=$(GOTAGS) $(MODULES)
 
 .PHONY: all clean lint test
