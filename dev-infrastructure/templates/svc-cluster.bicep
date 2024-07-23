@@ -32,7 +32,7 @@ param enablePrivateCluster bool
 param kubernetesVersion string
 
 @description('Istio control plane version to use with AKS')
-param istioVersion string
+param istioVersion array
 
 @description('The name of the keyvault for AKS.')
 @maxLength(24)
