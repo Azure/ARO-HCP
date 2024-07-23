@@ -126,6 +126,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     currentUserId: currentUserId
     enablePrivateCluster: enablePrivateCluster
     kubernetesVersion: kubernetesVersion
+    deployIstio: true
     istioVersion: istioVersion
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix

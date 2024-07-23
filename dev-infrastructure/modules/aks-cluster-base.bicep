@@ -26,7 +26,8 @@ param persist bool = false
 param currentUserId string
 param enablePrivateCluster bool = true
 param kubernetesVersion string
-param istioVersion string
+param deployIstio bool
+param istioVersion string = 'asm-1-20'
 param vnetAddressPrefix string
 param subnetPrefix string
 param podSubnetPrefix string
@@ -371,22 +372,24 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
         enabled: true
       }
     }
-    serviceMeshProfile: {
-      mode: 'Istio'
-      istio: {
-        components: {
-          ingressGateways: [
-            {
-              enabled: true
-              mode: 'External'
+    serviceMeshProfile: (deployIstio)
+      ? {
+          mode: 'Istio'
+          istio: {
+            components: {
+              ingressGateways: [
+                {
+                  enabled: true
+                  mode: 'External'
+                }
+              ]
             }
-          ]
+            revisions: [
+              istioVersion
+            ]
+          }
         }
-        revisions: [
-          istioVersion
-        ]
-      }
-    }
+      : null
   }
 }
 

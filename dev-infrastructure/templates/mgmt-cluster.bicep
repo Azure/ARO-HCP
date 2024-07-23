@@ -31,9 +31,6 @@ param enablePrivateCluster bool
 @description('Kuberentes version to use with AKS')
 param kubernetesVersion string
 
-@description('Istio control plane version to use with AKS')
-param istioVersion string
-
 @description('The name of the keyvault for AKS.')
 @maxLength(24)
 param aksKeyVaultName string
@@ -85,7 +82,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     enablePrivateCluster: enablePrivateCluster
-    istioVersion: istioVersion
+    deployIstio: false
     kubernetesVersion: kubernetesVersion
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix
