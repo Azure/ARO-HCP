@@ -34,7 +34,6 @@
                 },
                 "api": {
                   "url": "dkjmzzhkvyoqx",
-                  "ip": "jznqwislumdsvpgnenm",
                   "visibility": "public"
                 },
                 "proxy": {
@@ -45,9 +44,9 @@
                 },
                 "platform": {
                   "managedResourceGroup": "nhyhywrxupo",
-                  "subnetId": "kqujobzvoswldorx",
+                  "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
                   "outboundType": "loadBalancer",
-                  "networkSecurityGroupId": "groupid",
+                  "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
                   "etcdEncryptionSetId": "mrhumnvbsnnzduuhw"
                 },
                 "issuerUrl": "pqfgpubcuaaovvpeqal",

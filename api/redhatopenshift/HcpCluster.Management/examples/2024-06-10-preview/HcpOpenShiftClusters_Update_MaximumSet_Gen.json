@@ -1,11 +1,36 @@
 {
-  "title": "HcpOpenShiftClusters_Get",
-  "operationId": "HcpOpenShiftClusters_Get",
+  "title": "HcpOpenShiftClusters_Update",
+  "operationId": "HcpOpenShiftClusters_Update",
   "parameters": {
     "api-version": "2024-06-10-preview",
     "subscriptionId": "FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D",
     "resourceGroupName": "rgopenapi",
-    "hcpOpenShiftClusterName": "hcpCluster-name"
+    "hcpOpenShiftClusterName": "hcpCluster-name",
+    "properties": {
+      "identity": {
+        "type": "None",
+        "userAssignedIdentities": {
+          "key4794": {}
+        }
+      },
+      "tags": {
+        "key4965": "gadonynrfuc"
+      },
+      "properties": {
+        "spec": {
+          "version": {
+            "id": "nsj"
+          },
+          "disableUserWorkloadMonitoring": true,
+          "proxy": {
+            "httpProxy": "sjjbjvkimlvtwdnwjodcajidcoompt",
+            "httpsProxy": "xwjukendejiksp",
+            "noProxy": "mlsbdpjpyzpydpkeqvt",
+            "trustedCa": "uxebp"
+          }
+        }
+      }
+    }
   },
   "responses": {
     "200": {
@@ -33,7 +58,6 @@
             },
             "api": {
               "url": "dkjmzzhkvyoqx",
-              "ip": "jznqwislumdsvpgnenm",
               "visibility": "public"
             },
             "proxy": {
@@ -44,9 +68,9 @@
             },
             "platform": {
               "managedResourceGroup": "nhyhywrxupo",
-              "subnetId": "kqujobzvoswldorx",
+              "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
               "outboundType": "loadBalancer",
-              "networkSecurityGroupId": "groupid",
+              "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
               "etcdEncryptionSetId": "mrhumnvbsnnzduuhw"
             },
             "issuerUrl": "pqfgpubcuaaovvpeqal",
@@ -123,6 +147,11 @@
           "lastModifiedByType": "User",
           "lastModifiedAt": "2024-03-27T14:57:32.578Z"
         }
+      }
+    },
+    "202": {
+      "headers": {
+        "location": "https://contoso.com/operationstatus"
       }
     }
   }
