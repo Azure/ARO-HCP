@@ -6,9 +6,8 @@ param childZoneNameservers array
 
 param ttl int = 3600
 
-resource parentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
+resource parentZone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
   name: parentZoneName
-  location: 'global'
 }
 
 resource delegation 'Microsoft.Network/dnsZones/NS@2018-05-01' = {
