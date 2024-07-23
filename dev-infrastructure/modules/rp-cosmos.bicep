@@ -154,7 +154,7 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
     properties: {
       resource: {
         id: c.name
-        defaultTtl: contains(c, 'defaultTtl') ? c.defaultTtl : -1 // no expiration
+        defaultTtl: c.?defaultTtl ?? -1 // no expiration
         indexingPolicy: {
           indexingMode: 'consistent'
           automatic: true
@@ -170,7 +170,7 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
           ]
         }
         partitionKey: {
-          paths: contains(c, 'partitionKeyPaths') ? c.partitionKeyPaths : ['/partitionKey']
+          paths: c.?partitionKeyPaths ?? ['/partitionKey']
           kind: 'Hash'
           version: 2
         }
