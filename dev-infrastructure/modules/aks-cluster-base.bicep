@@ -166,7 +166,7 @@ module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
 }
 
 resource aks_keyvault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: aksKeyVaultName
+  name: aks_keyvault_builder.name
 }
 
 resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
@@ -192,9 +192,6 @@ resource aks_etcd_kms 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
       ]
     }
   }
-  dependsOn: [
-    aks_keyvault_builder
-  ]
 }
 
 resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -205,9 +202,6 @@ resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-
     principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
-  dependsOn: [
-    aks_keyvault_builder
-  ]
 }
 
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
