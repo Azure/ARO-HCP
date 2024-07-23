@@ -11,7 +11,7 @@ provision_shards:
       "consumer_name": "CONSUMER_NAME"
     }
   status: active
-  azure_base_domain: "DOMAIN"
+  azure_base_domain: "ZONE_RESOURCE_ID"
   management_cluster_id: local-cluster
   region: REGION
   cloud_provider: azure
