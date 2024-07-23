@@ -1,6 +1,6 @@
 using '../templates/svc-cluster.bicep'
 
-param kubernetesVersion = '1.29.2'
+param kubernetesVersion = '1.29.5'
 param istioVersion = 'asm-1-20'
 param vnetAddressPrefix = '10.128.0.0/14'
 param subnetPrefix = '10.128.8.0/21'
@@ -50,6 +50,7 @@ param workloadIdentities = items({
     serviceAccountName: 'clusters-service'
   }
 })
-// This parameter is always overriden in the Makefile
+
+// These parameters are always overridden in the Makefile
 param currentUserId = ''
 param maestroInfraResourceGroup = ''
