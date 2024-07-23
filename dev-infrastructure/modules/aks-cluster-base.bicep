@@ -27,7 +27,7 @@ param currentUserId string
 param enablePrivateCluster bool = true
 param kubernetesVersion string
 param deployIstio bool
-param istioVersion string = 'asm-1-20'
+param istioVersion array = ['asm-1-20']
 param vnetAddressPrefix string
 param subnetPrefix string
 param podSubnetPrefix string
@@ -378,9 +378,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
                 }
               ]
             }
-            revisions: [
-              istioVersion
-            ]
+            revisions: istioVersion
           }
         }
       : null
