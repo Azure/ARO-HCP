@@ -97,3 +97,5 @@ resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZ
     keyVaultPrivateDnsZoneVnetLink
   ]
 }
+
+output kvName string = keyVault.name
