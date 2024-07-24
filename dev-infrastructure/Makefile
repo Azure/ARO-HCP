@@ -6,6 +6,8 @@ RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
 MAESTRO_INFRA_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
 DNS_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
 DEPLOYMENTNAME=$(RESOURCEGROUP)
+DEPLOYMENTNAMEACR=$(RESOURCEGROUP)-ACR
+ACRNAME?=devarochp$(shell echo $(CURRENTUSER) | sha256sum  | head -c 24) 
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -35,6 +37,17 @@ rg:
 cleanup-orgphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh aro-hcp-dev
+
+acr: rg
+	az deployment group create \
+		--name "$(DEPLOYMENTNAMEACR)" \
+		--resource-group $(RESOURCEGROUP) \
+		--template-file templates/dev-acr.bicep \
+		--confirm-with-what-if \
+		--parameters \
+			configurations/dev-acr.bicepparam \
+		--parameters \
+			acrName=$(ACRNAME)
 
 cluster: rg cleanup-orgphaned-rolebindings
 ifndef AKSCONFIG
