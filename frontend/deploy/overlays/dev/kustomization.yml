@@ -4,6 +4,17 @@ resources:
 - ../../base
 - namespace.yml
 namespace: aro-hcp
+
+patches:
+- patch: |-
+    - op: add
+      # "~1" is an escaped "/"
+      path: /metadata/labels/istio.io~1rev
+      value: asm-1-20
+  target:
+    kind: Namespace
+    name: aro-hcp
+
 configMapGenerator:
 - behavior: create
   literals:
