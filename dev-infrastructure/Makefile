@@ -34,7 +34,7 @@ rg:
   		--location $(LOCATION) \
 		--output none
 
-cleanup-orgphaned-rolebindings:
+cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh aro-hcp-dev
 
@@ -49,7 +49,7 @@ acr: rg
 		--parameters \
 			acrName=$(ACRNAME)
 
-cluster: rg cleanup-orgphaned-rolebindings
+cluster: rg cleanup-orphaned-rolebindings
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
