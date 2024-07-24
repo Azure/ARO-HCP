@@ -219,7 +219,9 @@ parameters:
   required: true
 - name: REGION
   value: "westus3"
-
+- name: CS_SERVICE_PRINCIPAL_CREDS_BASE64
+  description: Base64 encoded service principal credentials for CS. This is temporary for P1
+  required: true
 objects:
 
 - apiVersion: v1
@@ -335,6 +337,15 @@ objects:
     annotations:
         azure.workload.identity/client-id: ${AZURE_CS_MI_CLIENT_ID}
 
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: azure-credentials
+    namespace: ${NAMESPACE}
+  type: Opaque
+  data:
+    azure-auth-config: "${CS_SERVICE_PRINCIPAL_CREDS_BASE64}"
+
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
@@ -395,6 +406,9 @@ objects:
           secret:
             secretName: hive-ci-global-pull-secret
             optional: true
+        - name: azure-credentials
+          secret:
+            secretName: azure-credentials
         initContainers:
         - name: init
           image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
@@ -449,6 +463,8 @@ objects:
           - name: cloud-region-constraints
             mountPath: /configs/cloud-resource-constraints/cloud-region-constraints.yaml
             subPath: cloud-region-constraints.yaml
+          - name: azure-credentials
+            mountPath: /secrets/azure-credentials
           env:
           - name: NAMESPACE
             valueFrom:
@@ -496,7 +512,7 @@ objects:
           - --instance-type-constraints-config=/configs/cloud-resource-constraints/instance-type-constraints.yaml
           - --cloud-region-config=/configs/cloud-resources/cloud-regions.yaml
           - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
-
+          - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-config
           livenessProbe:
             httpGet:
               path: /api/clusters_mgmt/v1

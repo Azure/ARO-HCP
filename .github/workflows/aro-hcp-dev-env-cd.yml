@@ -93,6 +93,7 @@
               MGMT_CLUSTER_NAME=$(az deployment group show --resource-group "${MC_RESOURCEGROUP}" --name "mgmt-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
               SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
               COSMOS_DB_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.cosmosDBName.value)
+              SVC_KV_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.svcKeyVaultName.value)
 
               # service cluster role assignments
               az deployment group create \
@@ -112,6 +113,14 @@
                 --parameters aksClusterName=${MGMT_CLUSTER_NAME} \
                 --parameters cosmosDBName=${COSMOS_DB_NAME} \
                 --parameters grantCosmosAccess=false \
+                --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
+
+              # regional role assignments
+              az deployment group create \
+                --name "region-roleassigns-${GITHUB_RUN_ID}" \
+                --resource-group "${SC_RESOURCEGROUP}" \
+                --template-file templates/dev-region-roleassignments.bicep \
+                --parameters serviceKeyVaultName=${SVC_KV_NAME} \
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
     build_push_frontend:
