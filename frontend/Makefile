@@ -1,5 +1,5 @@
 SHELL = /bin/bash
-COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
+COMMIT = $(shell git rev-parse --short=7 HEAD)
 ARO_HCP_BASE_IMAGE ?= devarohcp.azurecr.io
 ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
