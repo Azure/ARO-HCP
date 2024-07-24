@@ -62,8 +62,7 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP) \
-			zoneResourceGroup=$(DNS_RESOURCEGROUP)
+			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 
 aks.admin-access: rg
 ifndef AKSCONFIG
