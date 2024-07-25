@@ -1,0 +1,46 @@
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: cluster-service
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-frontend
+  namespace: cluster-service
+spec:
+  action: "ALLOW"
+  rules:
+    - from:
+      - source:
+          principals: ["cluster.local/ns/aro-hcp/sa/frontend"]
+      to:
+      - operation:
+          ports:
+            - "8000"
+  selector:
+    matchLabels:
+      app: "clusters-service"
+---
+# TODO: Remove when migration to Azure Postgres completes
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: cluster-service
+spec:
+  action: "ALLOW"
+  rules:
+    - from:
+      - source:
+          principals: ["cluster.local/ns/cluster-service/sa/clusters-service"]
+      to:
+      - operation:
+          ports:
+            - "5432"
+  selector:
+    matchLabels:
+      name: "ocm-cs-db"

@@ -210,6 +210,11 @@
             cluster-name: ${{ steps.find_service_cluster.outputs.name }}
             use-kubelogin: 'true'
 
+        - name: 'Deploy Istio Configuration'
+          run: |
+            cd istio
+            make deploy-service
+
         - name: 'Deploy Frontend'
           env:
             RESOURCEGROUP: aro-hcp-dev
