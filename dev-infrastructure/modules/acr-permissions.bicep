@@ -14,7 +14,7 @@ var acrPushRoleDefinitionId = subscriptionResourceId(
   '8311e382-0749-4cb8-b61a-304f252e45ec'
 )
 
-resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if(!grantPushAccess) {
+resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!grantPushAccess) {
   name: deployment().name
   properties: {
     principalId: principalId
@@ -23,7 +23,7 @@ resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if(!
   }
 }
 
-resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if(grantPushAccess)  {
+resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPushAccess) {
   name: deployment().name
   properties: {
     principalId: principalId
