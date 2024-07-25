@@ -31,7 +31,14 @@ lint:
 	done
 .PHONY: lint
 
-rg:
+feature-registration:
+	@az deployment sub create \
+		--name "feature-registration"
+		--template-file templates/feature-registration.bicep \
+		--confirm-with-what-if
+.PHONY: feature-registration
+
+rg: feature-registration
 	@az group create \
   		--name $(RESOURCEGROUP)  \
   		--location $(LOCATION) \
@@ -106,7 +113,6 @@ ifndef AKSCONFIG
 endif
 	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "cs-pg-" "clusters-service" "cluster-service" "clusters-service"
 .PHONY: cs-miwi-pg-connect
-
 
 maestro-current-user-pg-connect: rg
 ifndef AKSCONFIG

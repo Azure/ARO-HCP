@@ -42,6 +42,12 @@ jobs:
             az group create -g "${SC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
             az group create -g "${MC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
 
+            # AFEC feature flags
+            az deployment sub what-if \
+              --name "${GITHUB_RUN_ID}" \
+              --location "${REGION}" \
+              --template-file templates/feature-registration.bicep
+
             # dev acr
             az deployment group what-if \
               --name "${GITHUB_RUN_ID}" \
