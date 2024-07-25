@@ -53,11 +53,15 @@ deploy-agent:
 		--set image.tag=${MAESTRO_TAG}
 
 register-agent:
-	./register-maestro-consumer.sh ${CONSUMER_NAME}
+ifeq ($(strip ${CONSUMER_NAME}),)
+	$(error "Must set CONSUMER_NAME")
+endif
+	@if ! kubectl get service maestro -n maestro > /dev/null 2>&1; then \
+        echo "Error: Service 'maestro' not found in namespace 'maestro'"; \
+        exit 1; \
+    fi
+	helm upgrade --install ${CONSUMER_NAME} deploy/helm/registration \
+		--namespace maestro \
+		--set consumerName=${CONSUMER_NAME}
 
-# still WIP
-register-agent-job:
-	oc process --local -f deploy/openshift-templates/agent-registration.yml \
-	  -p MAESTRO_AGENT_CONSUMER_NAME=${CONSUMER_NAME} | oc apply -f -
-
-.PHONY: deploy-server deploy-agent register-agent register-agent-job
+.PHONY: deploy-server deploy-agent register-agent
