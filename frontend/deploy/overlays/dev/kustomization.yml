@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - ../../base
 - namespace.yml
+- authorizationpolicy.yml
 namespace: aro-hcp
 
 patches:
