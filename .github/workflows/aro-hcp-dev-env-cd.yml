@@ -98,7 +98,7 @@
               # acr role assignments
               az deployment group create \
                 --name "dev-acr-roleassignments-${GITHUB_RUN_ID}" \
-                --resource-group $(SC_RESOURCEGROUP) \
+                --resource-group ${SC_RESOURCEGROUP} \
                 --template-file templates/dev-acr-roleassignments.bicep \
                 --parameters configurations/mvp-dev-acr-roleassignments.bicepparam
 

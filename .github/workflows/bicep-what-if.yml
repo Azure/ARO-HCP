@@ -70,7 +70,7 @@ jobs:
 
             # acr role assignments
             az deployment group what-if \
-              --name "$(GITHUB_RUN_ID)" \
-              --resource-group $(SC_RESOURCEGROUP) \
+              --name "${GITHUB_RUN_ID}" \
+              --resource-group ${SC_RESOURCEGROUP} \
               --template-file templates/dev-acr-roleassignments.bicep \
               --parameters configurations/mvp-dev-acr-roleassignments.bicepparam
