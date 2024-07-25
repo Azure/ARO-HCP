@@ -8,6 +8,7 @@ EVENTGRID_ID = $(shell az resource list -g ${MAESTRO_INFRA_RESOURCEGROUP} --reso
 
 
 deploy-server:
+	kubectl apply -f deploy/istio.yml
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
 			-n maestro-server \
