@@ -49,6 +49,15 @@ acr: rg
 		--parameters \
 			acrName=$(ACRNAME)
 
+acr-roleassignments:
+	az deployment group create \
+		--name "$(DEPLOYMENTNAMEACR)" \
+		--resource-group $(RESOURCEGROUP) \
+		--template-file templates/dev-acr-roleassignments.bicep \
+		--confirm-with-what-if \
+		--parameters \
+			acrName=$(ACRNAME)
+
 cluster: rg cleanup-orphaned-rolebindings
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")

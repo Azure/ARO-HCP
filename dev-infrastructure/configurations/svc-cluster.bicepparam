@@ -51,6 +51,11 @@ param workloadIdentities = items({
     namespace: 'cluster-service'
     serviceAccountName: 'clusters-service'
   }
+  image_sync_wi: {
+    uamiName: 'image-sync'
+    namespace: 'image-sync'
+    serviceAccountName: 'image-sync'
+  }
 })
 // This parameter is always overriden in the Makefile
 param currentUserId = ''

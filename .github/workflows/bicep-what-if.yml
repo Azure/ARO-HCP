@@ -47,7 +47,7 @@ jobs:
               --name "${GITHUB_RUN_ID}" \
               --resource-group "${SC_RESOURCEGROUP}" \
               --template-file templates/dev-acr.bicep \
-              --parameters configurations/dev-acr.bicepparam
+              --parameters configurations/mvp-dev-acr.bicepparam
 
             # service cluster
             az deployment group what-if \
@@ -67,3 +67,10 @@ jobs:
               --parameters currentUserId="${GITHUB_ACTOR}" \
               --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}" \
               --parameters regionalZoneResourceGroup="${SC_RESOURCEGROUP}"
+
+            # acr role assignments
+            az deployment group what-if \
+              --name "$(GITHUB_RUN_ID)" \
+              --resource-group $(SC_RESOURCEGROUP) \
+              --template-file templates/dev-acr-roleassignments.bicep \
+              --parameters configurations/mvp-dev-acr-roleassignments.bicepparam
