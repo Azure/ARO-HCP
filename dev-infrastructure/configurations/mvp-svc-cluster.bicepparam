@@ -30,9 +30,6 @@ param serviceKeyVaultName = 'service-kv-aro-hcp-dev'
 param serviceKeyVaultSoftDelete = true
 param serviceKeyVaultPrivate = false
 
-param baseDNSZoneName = 'hcp.osadev.cloud'
-param baseDNSZoneResourceGroup = 'global'
-
 param workloadIdentities = items({
   frontend_wi: {
     uamiName: 'frontend'

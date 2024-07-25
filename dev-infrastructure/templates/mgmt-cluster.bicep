@@ -63,8 +63,8 @@ param maestroEventGridNamespacesName string
 @description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
 param baseDNSZoneName string = ''
 
-@description('This is the region name in dev/staging/production, can be overriden for testing')
-param regionalDNSSubdomain string = resourceGroup().location
+@description('This is the region name in dev/staging/production')
+var regionalDNSSubdomain = empty(currentUserId) ? location : '${location}-${take(uniqueString(currentUserId), 5)}'
 
 @description('The resource group that hosts the regional zone')
 param regionalZoneResourceGroup string
