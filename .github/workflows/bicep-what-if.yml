@@ -1,6 +1,11 @@
 ---
 name: Bicep What If
-
+env:
+  REGION: westus3
+  REGIONAL_RESOURCEGROUP: aro-hcp-dev-westus3
+  SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
+  MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
+  ARO_HCP_IMAGE_ACR: devarohcp
 on:
   pull_request:
     branches:
@@ -36,10 +41,6 @@ jobs:
         with:
           azcliversion: latest
           inlineScript: |
-            REGION=westus3
-            SC_RESOURCEGROUP="aro-hcp-dev"
-            MC_RESOURCEGROUP="aro-hcp-dev-mc"
-            REGIONAL_RESOURCEGROUP="aro-hcp-dev-$REGION"
             cd dev-infrastructure/
 
             az group create -g "${SC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
@@ -75,7 +76,7 @@ jobs:
               --template-file templates/svc-cluster.bicep \
               --parameters configurations/mvp-svc-cluster.bicepparam \
               --parameters currentUserId="${GITHUB_ACTOR}" \
-              --parameters regionalResourceGroup="${SC_RESOURCEGROUP}"
+              --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
             # management cluster
             az deployment group what-if \
