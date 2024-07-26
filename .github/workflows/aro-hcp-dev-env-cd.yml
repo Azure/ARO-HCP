@@ -15,6 +15,7 @@
         - 'pko/**'
         - 'acm/**'
         - 'hypershiftoperator/**'
+        - 'image-sync/**/'
       types:
         - opened
         - synchronize
@@ -154,6 +155,40 @@
             ARO_HCP_IMAGE_ACR: devarohcp
           run: |
             cd frontend/
+            az acr login --name devarohcp
+            make push
+
+    build_push_oc-mirror:
+      permissions:
+        id-token: 'write'
+        contents: 'read'
+      runs-on: 'ubuntu-latest'
+      steps:
+        - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+          with:
+            fetch-depth: 1
+
+        - name: Build frontend container image
+          env:
+            ARO_HCP_IMAGE_ACR: devarohcp
+          run: |
+            cd image-sync/oc-mirror
+            make image
+
+        - name: 'Az CLI login'
+          if: github.event.pull_request.merged == true
+          uses: azure/login@v2
+          with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+        - name: Push frontend container image
+          if: github.event.pull_request.merged == true
+          env:
+            ARO_HCP_IMAGE_ACR: devarohcp
+          run: |
+            cd image-sync/oc-mirror/
             az acr login --name devarohcp
             make push
 
