@@ -1,0 +1,127 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: frontend-template
+
+parameters:
+  - name: NAMESPACE
+    required: true
+    value: aro-hcp
+  - name: OC_MIRROR_IMAGE
+    required: true
+  - name: OC_MIRROR_CLIENT_ID
+    required: true
+    description: "Client ID of Frontend Managed Identity"
+  - name: TENANT_ID
+    description: "Tenant ID of the Subscription"
+    required: true
+  - name: KEYVAULT_NAME
+    description: "Name of the KeyVault service in Azure"
+    required: true
+  - name: TARGET_REGISTRY
+    description: "Name of the target registry"
+    required: true
+
+objects:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ${NAMESPACE}
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      annotations:
+        azure.workload.identity/client-id: "${OC_MIRROR_CLIENT_ID}"
+      name: image-sync
+      namespace: ${NAMESPACE}
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      labels:
+        run: ocmirror
+        azure.workload.identity/use: "true"
+      name: ocmirror
+      namespace: ${NAMESPACE}
+    spec:
+      initContainers:
+      - name: init-myservice
+        image: mcr.microsoft.com/azure-cli:cbl-mariner2.0
+        command: ['sh', '-c',
+                  "az login --federated-token $(cat $AZURE_FEDERATED_TOKEN_FILE) --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID; accessToken=$(az acr login --name ${TARGET_REGISTRY} --expose-token | grep accessToken |cut -d ':' -f2| tr -d ' \",') ; cat /tmp/secret-orig/pull-secret | base64 -d  |sed \"s/TOKENTOBEREPLACED/$accessToken/\" > /etc/containers/auth.json",
+                  ]
+        volumeMounts:
+        - name: pull-secrets-updated
+          mountPath: "/etc/containers"
+        - name: pull-secret
+          mountPath: "/tmp/secret-orig"
+      containers:
+      - image: ${OC_MIRROR_IMAGE}
+        name: ocmirror
+        command: ["oc-mirror", "--config", "/etc/ocmirror/imageset-config.yml", "docker://${TARGET_REGISTRY}.azurecr.io"]
+        env:
+          - name: XDG_RUNTIME_DIR
+            value: /etc/
+        volumeMounts:
+        - name: ocmirror-config
+          mountPath: "/etc/ocmirror"
+          readOnly: true
+        - name: pull-secrets-updated
+          mountPath: "/etc/containers"
+          readOnly: true
+        - name: workspace
+          mountPath: "/workspace"
+      volumes:
+      - name: ocmirror-config
+        configMap:
+          name: ocmirror-config
+      - name: workspace
+        emptyDir: {}
+      - name: pull-secrets-updated
+        emptyDir: {}
+      - name: pull-secret
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "ocmirror-pullsecret"
+      serviceAccountName: image-sync
+    status: {}
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ocmirror-config
+      namespace: ${NAMESPACE}
+    data:
+      imageset-config.yml: |
+        kind: ImageSetConfiguration
+        apiVersion: mirror.openshift.io/v1alpha2
+        storageConfig:
+          registry:
+            imageURL: ${TARGET_REGISTRY}/mirror/oc-mirror-metadata
+            skipTLS: false
+        mirror:
+          platform:
+            channels:
+              - name: stable-4.16
+                type: ocp
+                full: true
+            graph: true
+  - apiVersion: secrets-store.csi.x-k8s.io/v1
+    kind: SecretProviderClass
+    metadata:
+      name: ocmirror-pullsecret
+      namespace: ${NAMESPACE}
+    spec:
+      parameters:
+        clientID: "${OC_MIRROR_CLIENT_ID}"
+        cloudName: AzurePublicCloud
+        keyvaultName: ${KEYVAULT_NAME}
+        objects: |-
+          array:
+            - |
+              objectName: pull-secret
+              objectType: secret
+        tenantId: ${TENANT_ID}
+        usePodIdentity: "false"
+      provider: azure
