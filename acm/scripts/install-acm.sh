@@ -50,9 +50,21 @@ kubectl rollout status -w deployment/multiclusterhub-operator -n open-cluster-ma
 # install multiclusterhub CR
 kubectl apply -f deploy/mch/multiclusterhub.yaml
 
-# wait for mce to be up and running
+# wait for MCE and CRD to be present
 wait_resource multicluster-engine csv multicluster-engine.v2.6.0
 kubectl wait --for=jsonpath='{.status.phase}'=Succeeded csv multicluster-engine.v2.6.0 -n multicluster-engine --timeout=600s
+
+# disable hypershift operator management and metrics on hypershift-addon
+# we only need it to manage ManagedCluster adoption
+wait_resource multicluster-engine addondeploymentconfigs hypershift-addon-deploy-config
+kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"}]}}'
+
+# tmp - override hypershift-addon to use
+kubectl apply -f deploy/mch/mce-overrides.yml -n multicluster-engine
+wait_resource mce multiclusterengine
+kubectl annotate mce multiclusterengine --overwrite installer.multicluster.openshift.io/image-overrides-configmap=mce-overrides
+
+# wait for MCE setup to finalize
 kubectl wait --for=condition=Established crds multiclusterengines.multicluster.openshift.io --timeout=600s
 kubectl rollout status -w deployment/multicluster-engine-operator -n multicluster-engine --timeout=600s
 wait_resource crds manifestworks.work.open-cluster-management.io
