@@ -9,4 +9,5 @@ mirror:
     channels:
       - name: stable-4.16
         type: ocp
+        full: true
     graph: true
