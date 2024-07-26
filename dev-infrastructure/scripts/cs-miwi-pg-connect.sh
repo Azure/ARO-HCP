@@ -8,7 +8,7 @@ SA_NAME=$5
 
 # prep creds and configs
 PGHOST=$(az postgres flexible-server list --resource-group ${RESOURCEGROUP} --query "[?starts_with(name, '${DB_SERVER_NAME_PREFIX}')].fullyQualifiedDomainName" -o tsv)
-AZURE_TENANT_ID=$(az account show | jq .homeTenantId -r)
+AZURE_TENANT_ID=$(az account show -o json | jq .homeTenantId -r)
 AZURE_CLIENT_ID=$(az identity show -g ${RESOURCEGROUP} -n ${MANAGED_IDENTITY_NAME} --query clientId -o tsv)
 SA_TOKEN=$(kubectl create token ${SA_NAME} --namespace=${NAMESPACE} --audience api://AzureADTokenExchange)
 
@@ -18,7 +18,7 @@ rm -rf $AZURE_CONFIG_DIR
 az login --federated-token ${SA_TOKEN} --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID > /dev/null 2>&1
 
 # get tmp DB password
-PGPASSWORD=$(az account get-access-token --resource='https://ossrdbms-aad.database.windows.net' | jq .accessToken -r)
+PGPASSWORD=$(az account get-access-token --resource='https://ossrdbms-aad.database.windows.net' -o json | jq .accessToken -r)
 rm -rf $AZURE_CONFIG_DIR
 
 echo export PGHOST=${PGHOST}
