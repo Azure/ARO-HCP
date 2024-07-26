@@ -37,7 +37,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     retentionInterval: 'P1D'
     scriptContent: '''
       az login --identity
-      export PGPASSWORD=$(az account get-access-token --resource-type oss-rdbms | jq .accessToken -r)
+      export PGPASSWORD=$(az account get-access-token --resource-type oss-rdbms -o json | jq .accessToken -r)
       echo "${SQL_SCRIPT}" | base64 -d > script.sql
       apk add postgresql-client
       psql -f script.sql

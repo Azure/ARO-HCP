@@ -1,6 +1,6 @@
 SHELL = /bin/bash
 
-CURRENTUSER=$(shell az ad signed-in-user show | jq -r '.id')
+CURRENTUSER=$(shell az ad signed-in-user show -o json | jq -r '.id')
 LOCATION?=westus3
 RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
 MAESTRO_INFRA_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
