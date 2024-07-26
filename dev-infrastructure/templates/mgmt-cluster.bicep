@@ -54,9 +54,6 @@ param maestroKeyVaultName string
 @description('The name of the managed identity that will manage certificates in maestros keyvault.')
 param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
 
-@description('The resourcegroups where the Maestro infrastructure is deployed.')
-param maestroInfraResourceGroup string
-
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
@@ -67,7 +64,7 @@ param baseDNSZoneName string = ''
 var regionalDNSSubdomain = empty(currentUserId) ? location : '${location}-${take(uniqueString(currentUserId), 5)}'
 
 @description('The resource group that hosts the regional zone')
-param regionalZoneResourceGroup string
+param regionalResourceGroup string
 
 func isValidMaestroConsumerName(input string) bool => length(input) <= 90 && contains(input, '[^a-zA-Z0-9_-]') == false
 
@@ -103,15 +100,14 @@ output aksClusterName string = mgmtCluster.outputs.aksClusterName
 //   M A E S T R O
 //
 
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer && maestroInfraResourceGroup != '') {
-  name: 'maestro-consumer-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup()
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer) {
+  name: 'maestro-consumer'
   params: {
     maestroServerManagedIdentityPrincipalId: filter(
       mgmtCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-consumer'
     )[0].uamiPrincipalID
-    maestroInfraResourceGroup: maestroInfraResourceGroup
+    maestroInfraResourceGroup: regionalResourceGroup
     maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name) ? resourceGroup().name : ''
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     maestroKeyVaultName: maestroKeyVaultName
@@ -132,7 +128,7 @@ var externalDnsManagedIdentityPrincipalId = filter(
 
 module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
   name: guid(regionalDNSSubdomain, mgmtCluster.name, 'external-dns')
-  scope: resourceGroup(regionalZoneResourceGroup)
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     zoneName: '${regionalDNSSubdomain}.${baseDNSZoneName}'
     zoneContributerManagedIdentityPrincipalId: externalDnsManagedIdentityPrincipalId

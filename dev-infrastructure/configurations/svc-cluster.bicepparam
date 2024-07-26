@@ -14,11 +14,9 @@ param aksEtcdKVEnableSoftDelete = false
 param disableLocalAuth = false
 param deployFrontendCosmos = false
 
-param deployMaestroInfra = false
 param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
-param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
+param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
-param maxClientSessionsPerAuthName = 2
 param maestroPostgresServerName = take('maestro-pg-${uniqueString(currentUserId)}', 60)
 param maestroPostgresServerVersion = '15'
 param maestroPostgresServerStorageSizeGB = 32
@@ -55,4 +53,4 @@ param workloadIdentities = items({
 })
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
-param maestroInfraResourceGroup = ''
+param regionalResourceGroup = ''

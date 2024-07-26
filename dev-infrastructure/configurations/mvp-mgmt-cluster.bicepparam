@@ -31,5 +31,4 @@ param workloadIdentities = items({
 
 // These parameters are always overridden in the Makefile
 param currentUserId = ''
-param maestroInfraResourceGroup = ''
-param regionalZoneResourceGroup = ''
+param regionalResourceGroup = ''

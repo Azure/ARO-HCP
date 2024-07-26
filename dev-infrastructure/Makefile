@@ -2,11 +2,11 @@ SHELL = /bin/bash
 
 CURRENTUSER=$(shell az ad signed-in-user show -o json | jq -r '.id')
 LOCATION?=westus3
-RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
-REGIONAL_RESOURCEGROUP?=aro-hcp-$(LOCATION)-$(USER)
-MAESTRO_INFRA_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
+RESOURCEGROUP?=aro-hcp-$(USER)-$(LOCATION)-${AKSCONFIG}
+REGIONAL_RESOURCEGROUP?=aro-hcp-$(USER)-$(LOCATION)
+GLOBAL_RESOURCEGROUP?=global
 DEPLOYMENTNAME=$(RESOURCEGROUP)
-DEPLOYMENTNAMEACR=$(RESOURCEGROUP)-ACR
+DEPLOYMENTNAMEREGION=$(REGIONAL_RESOURCEGROUP)-REGION
 ACRNAME?=devarochp$(shell echo $(CURRENTUSER) | sha256sum  | head -c 24)
 
 list:
@@ -55,7 +55,7 @@ regionalRg:
 
 dns: regionalRg
 	az deployment group create \
-		--name "$(DEPLOYMENTNAMEACR)" \
+		--name "$(DEPLOYMENTNAMEREGION)-DNS" \
 		--resource-group $(REGIONAL_RESOURCEGROUP) \
 		--template-file templates/dev-dns.bicep \
 		--confirm-with-what-if \
@@ -67,12 +67,14 @@ dns: regionalRg
 
 cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
+	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
+	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
 	@scripts/cleanup-orphaned-rolebindings.sh aro-hcp-dev
 .PHONY: cleanup-orphaned-rolebindings
 
 acr: regionalRg
 	az deployment group create \
-		--name "$(DEPLOYMENTNAMEACR)" \
+		--name "$(DEPLOYMENTNAMEREGION)-ACR" \
 		--resource-group $(REGIONAL_RESOURCEGROUP) \
 		--template-file templates/dev-acr.bicep \
 		--confirm-with-what-if \
@@ -90,8 +92,21 @@ acr-roleassignments:
 		--confirm-with-what-if \
 		--parameters \
 			acrName=$(ACRNAME)
+.PHONY: acr-roleassignments
 
-cluster: rg cleanup-orphaned-rolebindings dns acr
+region: regionalRg
+	az deployment group create \
+		--name "$(DEPLOYMENTNAMEREGION)" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file templates/region.bicep \
+		--confirm-with-what-if \
+		--parameters \
+			configurations/region.bicepparam \
+		--parameters \
+			currentUserId=$(CURRENTUSER)
+.PHONY: region
+
+cluster: rg cleanup-orphaned-rolebindings region dns acr
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
@@ -104,8 +119,7 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP) \
-			regionalZoneResourceGroup=$(REGIONAL_RESOURCEGROUP)
+			regionalResourceGroup=$(REGIONAL_RESOURCEGROUP)
 .PHONY: cluster
 
 cluster-what-if: rg
@@ -120,7 +134,6 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 .PHONY: cluster-what-if
 
 aks.admin-access: rg

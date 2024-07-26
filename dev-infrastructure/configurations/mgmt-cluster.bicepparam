@@ -12,7 +12,7 @@ param aksEtcdKVEnableSoftDelete = false
 param persist = false
 param deployMaestroConsumer = false
 param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
-param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
+param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
 
 param baseDNSZoneName = 'hcp.osadev.cloud'
@@ -32,5 +32,4 @@ param workloadIdentities = items({
 
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
-param maestroInfraResourceGroup = ''
-param regionalZoneResourceGroup = maestroInfraResourceGroup
+param regionalResourceGroup = ''

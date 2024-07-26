@@ -81,6 +81,13 @@
                 --template-file templates/dev-acr.bicep \
                 --parameters configurations/mvp-dev-acr.bicepparam
 
+              # maestro infra
+              az deployment group create \
+                --name "dev-acr-${GITHUB_RUN_ID}" \
+                --resource-group "${REGIONAL_RESOURCEGROUP}" \
+                --template-file templates/region.bicep \
+                --parameters configurations/mvp-region.bicepparam
+
               # service cluster
               az deployment group create \
                 --name "svc-cluster-${GITHUB_RUN_ID}" \
@@ -88,7 +95,7 @@
                 --template-file templates/svc-cluster.bicep \
                 --parameters configurations/mvp-svc-cluster.bicepparam \
                 --parameters currentUserId="${GITHUB_ACTOR}" \
-                --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}"
+                --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
               # management cluster
               az deployment group create \
@@ -97,8 +104,7 @@
                 --template-file templates/mgmt-cluster.bicep \
                 --parameters configurations/mvp-mgmt-cluster.bicepparam \
                 --parameters currentUserId="${GITHUB_ACTOR}" \
-                --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}" \
-                --parameters regionalZoneResourceGroup="${REGIONAL_RESOURCEGROUP}"
+                --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
               MGMT_CLUSTER_NAME=$(az deployment group show --resource-group "${MC_RESOURCEGROUP}" --name "mgmt-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
               SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)

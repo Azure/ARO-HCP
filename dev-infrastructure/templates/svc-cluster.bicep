@@ -11,7 +11,7 @@ param currentUserId string
 param aksClusterName string
 
 @description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
-param additionalAcrResourceGroups array = [resourceGroup().name]
+param additionalAcrResourceGroups array = [regionalResourceGroup]
 
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
@@ -51,8 +51,8 @@ param deployFrontendCosmos bool
 @description('List of workload identities to create and their required values')
 param workloadIdentities array
 
-@description('Deploy ARO HCP Maestro Infrastructure if true')
-param deployMaestroInfra bool
+@description('The resourcegroup for regional infrastructure')
+param regionalResourceGroup string
 
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
@@ -66,9 +66,6 @@ param maestroKeyVaultName string
 
 @description('The name of the managed identity that will manage certificates in maestros keyvault.')
 param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
-
-@description('The resourcegroups where the Maestro infrastructure will be deployed.')
-param maestroInfraResourceGroup string = resourceGroup().name
 
 @description('Deploy ARO HCP CS Infrastructure if true')
 param deployCsInfra bool
@@ -89,9 +86,6 @@ param maestroPostgresServerVersion string
 
 @description('The size of the Postgres server for Maestro')
 param maestroPostgresServerStorageSizeGB int
-
-@description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
-param maxClientSessionsPerAuthName int
 
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
@@ -150,15 +144,15 @@ output frontend_mi_client_id string = frontendMI.uamiClientID
 //   M A E S T R O
 //
 
-module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestroInfra) {
-  name: 'maestro-infra'
-  scope: resourceGroup(maestroInfraResourceGroup)
+module maestroServer '../modules/maestro/maestro-server.bicep' = {
+  name: 'maestro-server'
   params: {
-    eventGridNamespaceName: maestroEventGridNamespacesName
-    location: location
-    maxClientSessionsPerAuthName: maxClientSessionsPerAuthName
+    maestroInfraResourceGroup: regionalResourceGroup
+    maestroEventGridNamespaceName: maestroEventGridNamespacesName
     maestroKeyVaultName: maestroKeyVaultName
-    kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
+    maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
+    maestroKeyVaultCertificateDomain: maestroCertDomain
+    deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
@@ -170,27 +164,8 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = if (deployMaestro
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-server'
     )[0].uamiName
-    deployPostgres: deployMaestroPostgres
-  }
-}
-
-module maestroServer '../modules/maestro/maestro-server.bicep' = if (deployMaestroInfra) {
-  name: 'maestro-server'
-  params: {
-    maestroServerManagedIdentityPrincipalId: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-server'
-    )[0].uamiPrincipalID
-    maestroInfraResourceGroup: maestroInfraResourceGroup
-    maestroEventGridNamespaceName: maestroEventGridNamespacesName
-    maestroKeyVaultName: maestroKeyVaultName
-    maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
-    maestroKeyVaultCertificateDomain: maestroCertDomain
     location: location
   }
-  dependsOn: [
-    maestroInfra
-  ]
 }
 
 //
