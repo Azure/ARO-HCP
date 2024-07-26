@@ -1,15 +1,16 @@
 SHELL = /bin/bash
-COMMIT = $(shell git rev-parse --short=7 HEAD)
-ARO_HCP_BASE_IMAGE ?= devarohcp.azurecr.io
-ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
 # for deploying frontend into private aks cluster via invoke command
 # these values must be set
 AKSCONFIG ?= svc-cluster
-RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
+CONFIG_PROFILE ?= dev
+include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
+
+COMMIT = $(shell git rev-parse --short=7 HEAD)
+ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
+ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 CLUSTER_NAME ?=
 DEPLOYMENTNAME=$(RESOURCEGROUP)
-REGION ?= $(shell az group show -n ${RESOURCEGROUP} --query location)
 
 frontend:
 	go build -o aro-hcp-frontend .

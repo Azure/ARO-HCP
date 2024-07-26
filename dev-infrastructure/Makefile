@@ -1,13 +1,12 @@
 SHELL = /bin/bash
 
-CURRENTUSER=$(shell az ad signed-in-user show -o json | jq -r '.id')
-LOCATION?=westus3
-RESOURCEGROUP?=aro-hcp-$(USER)-$(LOCATION)-${AKSCONFIG}
-REGIONAL_RESOURCEGROUP?=aro-hcp-$(USER)-$(LOCATION)
-GLOBAL_RESOURCEGROUP?=global
-DEPLOYMENTNAME=$(RESOURCEGROUP)
-DEPLOYMENTNAMEREGION=$(REGIONAL_RESOURCEGROUP)-REGION
-ACRNAME?=devarochp$(shell echo $(CURRENTUSER) | sha256sum  | head -c 24)
+CONFIG_PROFILE ?= dev
+include configurations/$(CONFIG_PROFILE).mk
+
+CURRENTUSER = $(shell az ad signed-in-user show | jq -r '.id')
+DEPLOYMENTNAME = $(RESOURCEGROUP)
+DEPLOYMENTNAMEREGION = $(REGIONAL_RESOURCEGROUP)-REGION
+ACRNAME ?= devarochp$(shell echo $(CURRENTUSER) | sha256sum  | head -c 24)
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -40,16 +39,16 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 .PHONY: feature-registration
 
 rg:
-	@az group create \
+	az group create \
   		--name $(RESOURCEGROUP)  \
-  		--location $(LOCATION) \
+		--location $(REGION) \
 		--output none
 .PHONY: rg
 
 regionalRg:
 	@az group create \
-  		--name $(REGIONAL_RESOURCEGROUP)  \
-  		--location $(LOCATION) \
+		--name $(REGIONAL_RESOURCEGROUP)  \
+		--location $(REGION) \
 		--output none
 .PHONY: regionalRg
 

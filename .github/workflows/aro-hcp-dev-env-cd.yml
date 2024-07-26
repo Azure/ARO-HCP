@@ -1,5 +1,11 @@
 ---
   name: ARO HCP Dev Environment Continuous Deployment
+  env:
+    REGION: westus3
+    REGIONAL_RESOURCEGROUP: aro-hcp-dev-westus3
+    SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
+    MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
+    ARO_HCP_IMAGE_ACR: devarohcp
   on:
     pull_request:
       branches:
@@ -56,10 +62,6 @@
           with:
             azcliversion: latest
             inlineScript: |
-              REGION=westus3
-              SC_RESOURCEGROUP="aro-hcp-dev"
-              MC_RESOURCEGROUP="aro-hcp-dev-mc"
-              REGIONAL_RESOURCEGROUP="aro-hcp-dev-$REGION"
               cd dev-infrastructure/
 
               az group create -g "${SC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
@@ -157,8 +159,6 @@
             fetch-depth: 1
 
         - name: Build frontend container image
-          env:
-            ARO_HCP_IMAGE_ACR: devarohcp
           run: |
             cd frontend/
             make image
@@ -173,11 +173,9 @@
 
         - name: Push frontend container image
           if: github.event.pull_request.merged == true
-          env:
-            ARO_HCP_IMAGE_ACR: devarohcp
           run: |
             cd frontend/
-            az acr login --name devarohcp
+            az acr login --name ${ARO_HCP_IMAGE_ACR}
             make push
 
     deploy_to_service_cluster:
@@ -191,6 +189,8 @@
       runs-on: 'ubuntu-latest'
       outputs:
         service_cluster_name: ${{ steps.find_service_cluster.name }}
+      env:
+        RESOURCEGROUP: ${{env.SC_RESOURCEGROUP}}
       steps:
         - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
           with:
@@ -206,12 +206,10 @@
         - name: 'Find service cluster'
           id: find_service_cluster
           uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
-          env:
-            RESOURCEGROUP: aro-hcp-dev
           with:
             azcliversion: latest
             inlineScript: |
-              echo "name=$(az aks list --resource-group "${RESOURCEGROUP}" --output tsv --query "[?tags.clusterType == 'svc-cluster'].name | [0]")" >> $GITHUB_OUTPUT
+              echo "name=$(az aks list --resource-group "${SC_RESOURCEGROUP}" --output tsv --query "[?tags.clusterType == 'svc-cluster'].name | [0]")" >> $GITHUB_OUTPUT
 
         - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
 
@@ -229,7 +227,7 @@
         - name: 'Setup kubectl for service cluster'
           uses: azure/aks-set-context@37037e33d3a2fc08abe40c887d81c3f6e1eb93b9 # v4.0.0
           with:
-            resource-group: 'aro-hcp-dev'
+            resource-group: ${{env.SC_RESOURCEGROUP}}
             cluster-name: ${{ steps.find_service_cluster.outputs.name }}
             use-kubelogin: 'true'
 
@@ -239,25 +237,17 @@
             make deploy-service
 
         - name: 'Deploy Frontend'
-          env:
-            RESOURCEGROUP: aro-hcp-dev
           run: |
             cd frontend/
             make kustomize-update
             make kustomize-deploy
 
         - name: 'Deploy Cluster Service'
-          env:
-            RESOURCEGROUP: aro-hcp-dev
-            CONSUMER_NAME: aro-hcp-dev-mc
           run: |
             cd cluster-service/
             make deploy
 
         - name: 'Deploy Maestro Server'
-          env:
-            RESOURCEGROUP: aro-hcp-dev
-            MAESTRO_INFRA_RESOURCEGROUP: aro-hcp-dev
           run: |
             cd maestro/
             make deploy-server
@@ -272,6 +262,8 @@
       runs-on: 'ubuntu-latest'
       outputs:
         management_cluster_name: ${{ steps.find_management_cluster.name }}
+      env:
+        RESOURCEGROUP: ${{env.MC_RESOURCEGROUP}}
       steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -309,36 +301,26 @@
       - name: 'Setup kubectl for management cluster'
         uses: azure/aks-set-context@37037e33d3a2fc08abe40c887d81c3f6e1eb93b9 # v4.0.0
         with:
-          resource-group: 'aro-hcp-dev-mc'
+          resource-group: ${{env.MC_RESOURCEGROUP}}
           cluster-name: ${{ steps.find_management_cluster.outputs.name }}
           use-kubelogin: 'true'
 
       - name: 'Deploy PKO'
-        env:
-          RESOURCEGROUP: aro-hcp-dev-mc
         run: |
           cd pko/
           make deploy
 
       - name: 'Deploy ACM'
-        env:
-          RESOURCEGROUP: aro-hcp-dev-mc
         run: |
           cd acm/
           make deploy
 
       - name: 'Deploy Maestro Agent'
-        env:
-          RESOURCEGROUP: aro-hcp-dev-mc
-          MAESTRO_INFRA_RESOURCEGROUP: aro-hcp-dev
         run: |
           cd maestro/
           make deploy-agent
 
       - name: 'Deploy Hypershift Operator and External DNS Operator'
-        env:
-          RESOURCEGROUP: aro-hcp-dev-mc
-          ZONE_RESOURCE_GROUP: aro-hcp-dev
         run: |
           cd hypershiftoperator/
           make deploy
