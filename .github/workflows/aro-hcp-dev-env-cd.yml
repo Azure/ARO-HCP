@@ -250,8 +250,6 @@
       runs-on: 'ubuntu-latest'
       outputs:
         management_cluster_name: ${{ steps.find_management_cluster.name }}
-      env:
-        RESOURCEGROUP: ${{ env.MC_RESOURCEGROUP }}
       steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -302,6 +300,8 @@
           make deploy
 
       - name: 'Deploy Maestro Agent'
+        env:
+          RESOURCEGROUP: ${{ env.MC_RESOURCEGROUP }}
         run: |
           cd maestro/
           make deploy-agent
