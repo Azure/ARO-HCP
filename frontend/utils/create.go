@@ -51,38 +51,36 @@ func CreateJSONFile() error {
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
-			ProvisioningState: arm.ProvisioningState(""),
 			Spec: api.ClusterSpec{
 				Version: api.VersionProfile{
-					ID:           "openshift-v4.15.11",
+					ID:           "openshift-v4.16.0",
 					ChannelGroup: "stable",
 				},
-				DNS: api.DNSProfile{
-					BaseDomainPrefix: "xyz",
-				},
+				DNS: api.DNSProfile{},
 				Network: api.NetworkProfile{
-					NetworkType: api.NetworkType(""),
+					NetworkType: api.NetworkTypeOVNKubernetes,
 					PodCIDR:     "10.128.0.0/14",
 					ServiceCIDR: "172.30.0.0/16",
 					MachineCIDR: "10.0.0.0/16",
-					HostPrefix:  0,
+					HostPrefix:  23,
 				},
+				Console: api.ConsoleProfile{},
 				API: api.APIProfile{
 					Visibility: api.Visibility("public"),
 				},
 				FIPS:                          false,
 				EtcdEncryption:                false,
 				DisableUserWorkloadMonitoring: false,
+				Proxy:                         api.ProxyProfile{},
 				Platform: api.PlatformProfile{
 					ManagedResourceGroup:   "dev-test-mrg",
+					NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
 					SubnetID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
 					OutboundType:           api.OutboundType("loadBalancer"),
-					NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
-					EtcdEncryptionSetID:    "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Compute/encryptionSets/xyz",
 				},
 				IssuerURL:    "",
 				ExternalAuth: api.ExternalAuthConfigProfile{},
-				Ingress:      []*api.IngressProfile{},
+				Ingress:      nil,
 			},
 		},
 	}
@@ -111,7 +109,7 @@ func CreateNodePool() error {
 			ProvisioningState: arm.ProvisioningState(""),
 			Spec: api.NodePoolSpec{
 				Version: api.VersionProfile{
-					ID:           "openshift-v4.15.11",
+					ID:           "openshift-v4.16.0",
 					ChannelGroup: "stable",
 				},
 				Platform: api.NodePoolPlatformProfile{
