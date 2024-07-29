@@ -89,7 +89,8 @@
                 --name "region-${GITHUB_RUN_ID}" \
                 --resource-group "${REGIONAL_RESOURCEGROUP}" \
                 --template-file templates/region.bicep \
-                --parameters configurations/mvp-region.bicepparam
+                --parameters configurations/mvp-region.bicepparam \
+                --parameters currentUserId="${GITHUB_ACTOR}" \
 
               # service cluster
               az deployment group create \
