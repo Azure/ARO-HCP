@@ -317,6 +317,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	var updating = (doc != nil)
 	var docUpdated bool // whether to upsert the doc
+	var operationRequest database.OperationRequest
 
 	var versionedCurrentCluster api.VersionedHCPOpenShiftCluster
 	var versionedRequestCluster api.VersionedHCPOpenShiftCluster
@@ -342,6 +343,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// the Tags map to remain nil so we can see if the request
 		// body included a new set of resource tags.
 
+		operationRequest = database.OperationRequestUpdate
+
 		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
@@ -354,6 +357,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			successStatusCode = http.StatusAccepted
 		}
 	} else {
+		operationRequest = database.OperationRequestCreate
+
 		switch request.Method {
 		case http.MethodPut:
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
@@ -456,6 +461,13 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		f.logger.Info(fmt.Sprintf("document upserted for %s", resourceID))
 	}
 
+	err = f.StartOperation(writer, request, operationRequest, doc.InternalID)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	responseBody, err := marshalCSCluster(csCluster, doc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -514,8 +526,14 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	// TODO: Eventually this will be an asynchronous delete and need to return a 202
-	writer.WriteHeader(http.StatusOK)
+	err = f.StartOperation(writer, request, database.OperationRequestDelete, doc.InternalID)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
@@ -840,6 +858,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	var updating = (nodePoolDoc != nil)
 	var docUpdated bool // whether to upsert the doc
+	var operationRequest database.OperationRequest
 
 	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
 	var versionedRequestNodePool api.VersionedHCPOpenShiftClusterNodePool
@@ -865,6 +884,8 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// the Tags map to remain nil so we can see if the request
 		// body included a new set of resource tags.
 
+		operationRequest = database.OperationRequestUpdate
+
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
@@ -877,6 +898,8 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			successStatusCode = http.StatusAccepted
 		}
 	} else {
+		operationRequest = database.OperationRequestCreate
+
 		switch request.Method {
 		case http.MethodPut:
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
@@ -979,6 +1002,13 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		f.logger.Info(fmt.Sprintf("document upserted for %s", nodePoolResourceID))
 	}
 
+	err = f.StartOperation(writer, request, operationRequest, nodePoolDoc.InternalID)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	responseBody, err := marshalCSNodePool(csNodePool, nodePoolDoc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -1028,6 +1058,13 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	err = f.clusterServiceConfig.DeleteCSNodePool(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", resourceID, err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.StartOperation(writer, request, database.OperationRequestDelete, doc.InternalID)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
 		arm.WriteInternalServerError(writer)
 		return
 	}
