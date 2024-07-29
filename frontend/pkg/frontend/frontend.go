@@ -14,10 +14,8 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"sync/atomic"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -829,28 +827,24 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	nodePoolResourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	f.logger.Info(fmt.Sprintf("%s: CreateNodePool", versionedInterface))
 
-	// URL path is already lowercased by middleware.
-	nodePoolResourceID := request.URL.Path
-
-	nodePoolResourceIDObject, err := azcorearm.ParseResourceID(nodePoolResourceID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("could not parse resource ID: %v", err))
+	clusterResourceID := nodePoolResourceID.Parent
+	if clusterResourceID == nil {
+		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %s", nodePoolResourceID))
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	clusterResourceIDObject := nodePoolResourceIDObject.Parent
-	if clusterResourceIDObject == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %v", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	clusterResourceID := strings.ToLower(clusterResourceIDObject.String())
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	clusterDoc, err := f.dbClient.GetClusterDoc(ctx, clusterResourceID, subscriptionID)
+	clusterDoc, err := f.dbClient.GetClusterDoc(ctx, clusterResourceID.String(), subscriptionID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing document not found for cluster %s when creating node pool", clusterResourceID))
@@ -870,19 +864,19 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	if csResp.Body().State() == cmv1.ClusterStateUninstalling {
-		f.logger.Error(fmt.Sprintf("failed to create nodepool for cluster %v as it is in %v state", clusterResourceID, cmv1.ClusterStateUninstalling))
+		f.logger.Error(fmt.Sprintf("failed to create nodepool for cluster %s as it is in %v state", clusterResourceID, cmv1.ClusterStateUninstalling))
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	nodePoolDoc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID)
+	nodePoolDoc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID.String())
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("creating nodepool document for %s", nodePoolResourceID))
 
 			nodePoolDoc = &database.NodePoolDocument{
 				ID:           uuid.New().String(),
-				Key:          nodePoolResourceID,
+				Key:          nodePoolResourceID.String(),
 				PartitionKey: subscriptionID,
 				SystemData:   systemData,
 			}
@@ -974,28 +968,24 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
+	nodePoolResourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	f.logger.Info(fmt.Sprintf("%s: GetNodePools", versionedInterface))
 
-	// URL path is already lowercased by middleware.
-	nodePoolResourceID := request.URL.Path
-
-	nodePoolResourceIDObject, err := azcorearm.ParseResourceID(nodePoolResourceID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("could not parse resource ID: %v", err))
+	clusterResourceID := nodePoolResourceID.Parent
+	if clusterResourceID == nil {
+		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %s", nodePoolResourceID))
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	clusterResourceIDObject := nodePoolResourceIDObject.Parent
-	if clusterResourceIDObject == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %v", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	clusterResourceID := strings.ToLower(clusterResourceIDObject.String())
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	clusterDoc, err := f.dbClient.GetClusterDoc(ctx, clusterResourceID, subscriptionID)
+	clusterDoc, err := f.dbClient.GetClusterDoc(ctx, clusterResourceID.String(), subscriptionID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing cluster document not found for cluster: %s on GET node pool by name", clusterResourceID))
@@ -1008,7 +998,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	nodePoolDoc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID)
+	nodePoolDoc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID.String())
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing node pool document not found for node pool: %s on GET node pool by name", nodePoolResourceID))
@@ -1066,28 +1056,24 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	nodePoolResourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	f.logger.Info(fmt.Sprintf("%s: DeleteNodePool", versionedInterface))
 
-	// URL path is already lowercased by middleware.
-	nodePoolResourceID := request.URL.Path
-
-	nodePoolResourceIDObject, err := azcorearm.ParseResourceID(nodePoolResourceID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("could not parse resource ID: %v", err))
+	clusterResourceID := nodePoolResourceID.Parent
+	if clusterResourceID == nil {
+		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %s", nodePoolResourceID))
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	clusterResourceIDObject := nodePoolResourceIDObject.Parent
-	if clusterResourceIDObject == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %v", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	clusterResourceID := strings.ToLower(clusterResourceIDObject.String())
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	clusterDoc, err := f.dbClient.GetClusterDoc(ctx, clusterResourceID, subscriptionID)
+	clusterDoc, err := f.dbClient.GetClusterDoc(ctx, clusterResourceID.String(), subscriptionID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing document not found for cluster %s when deleting node pool", clusterResourceID))
@@ -1099,7 +1085,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	doc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID)
+	doc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID.String())
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("nodepool document cannot be deleted -- nodepool document not found for %s", nodePoolResourceID))
@@ -1125,7 +1111,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	err = f.dbClient.DeleteNodePoolDoc(ctx, nodePoolResourceID)
+	err = f.dbClient.DeleteNodePoolDoc(ctx, nodePoolResourceID.String())
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("nodepool document cannot be deleted -- nodepool document not found for %s", nodePoolResourceID))

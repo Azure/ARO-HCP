@@ -55,7 +55,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 	// Expose Prometheus metrics endpoint
 	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
 
-	// Authenticated routes
+	// List endpoints
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
@@ -69,6 +69,14 @@ func (f *Frontend) routes() *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+
+	// Resource ID endpoints
+	// Request context holds an azcorearm.ResourceID
+	postMuxMiddleware = NewMiddleware(
+		MiddlewareResourceID,
+		MiddlewareLoggingPostMux,
+		MiddlewareValidateAPIVersion,
+		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
@@ -84,8 +92,6 @@ func (f *Frontend) routes() *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
-
-	// node pools
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
 		postMuxMiddleware.HandlerFunc(f.GetNodePool))

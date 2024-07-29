@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -103,13 +102,9 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
 func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenShiftCluster) (*cmv1.Cluster, error) {
-	originalPath, err := OriginalPathFromContext(ctx)
+	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("could not get original path: %w", err)
-	}
-	resourceID, err := azcorearm.ParseResourceID(originalPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse resource ID: %w", err)
+		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
 	}
 	tenantID, err := TenantIDFromContext(ctx)
 	if err != nil {
@@ -180,17 +175,9 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 
 // ConvertCStoNodepool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
 func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.SystemData, np *cmv1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	originalPath, err := OriginalPathFromContext(ctx)
+	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("could not get original path: %w", err)
-	}
-	resourceID, err := azcorearm.ParseResourceID(originalPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse resource ID: %w", err)
-	}
-	resourceType, err := azcorearm.ParseResourceType(originalPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse resource type: %w", err)
+		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
 	}
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
@@ -198,7 +185,7 @@ func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.Syst
 			Resource: arm.Resource{
 				ID:         resourceID.String(),
 				Name:       resourceID.Name,
-				Type:       resourceType.String(),
+				Type:       resourceID.ResourceType.String(),
 				SystemData: systemData,
 			},
 		},
