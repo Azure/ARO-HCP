@@ -183,7 +183,7 @@
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-        - name: Push frontend container image
+        - name: Push image-sync container image
           if: github.event.pull_request.merged == true
           env:
             ARO_HCP_IMAGE_ACR: devarohcp
