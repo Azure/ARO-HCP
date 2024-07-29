@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -28,6 +30,7 @@ const (
 	contextKeyBody
 	contextKeyLogger
 	contextKeyVersion
+	contextKeyResourceID
 	contextKeyCorrelationData
 	contextKeySystemData
 	contextKeySubscription
@@ -91,6 +94,21 @@ func VersionFromContext(ctx context.Context) (api.Version, error) {
 		return version, err
 	}
 	return version, nil
+}
+
+func ContextWithResourceID(ctx context.Context, resourceID *azcorearm.ResourceID) context.Context {
+	return context.WithValue(ctx, contextKeyResourceID, resourceID)
+}
+
+func ResourceIDFromContext(ctx context.Context) (*azcorearm.ResourceID, error) {
+	resourceID, ok := ctx.Value(contextKeyResourceID).(*azcorearm.ResourceID)
+	if !ok {
+		err := &ContextError{
+			got: resourceID,
+		}
+		return resourceID, err
+	}
+	return resourceID, nil
 }
 
 func ContextWithCorrelationData(ctx context.Context, correlationData *arm.CorrelationData) context.Context {
