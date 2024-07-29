@@ -46,7 +46,7 @@ param dnsPrefix string = aksClusterName
 param systemOsDiskSizeGB int = 32
 param userOsDiskSizeGB int = 32
 
-param acrPullResourceGroups array = [resourceGroup().name]
+param acrPullResourceGroups array = []
 
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
