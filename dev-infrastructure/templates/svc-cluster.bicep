@@ -271,7 +271,7 @@ module acrPushRole '../modules/acr-permissions.bicep' = [
     name: guid(imageSyncAcrResourceGroups[i].id, resourceGroup().name, 'image-sync', 'push')
     scope: imageSyncAcrResourceGroups[i]
     params: {
-      principalId: imageSyncManagedIdentityPrincipalId.properties.principalId
+      principalId: imageSyncManagedIdentityPrincipalId
       grantPushAccess: true
     }
   }
