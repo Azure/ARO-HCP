@@ -9,15 +9,9 @@ param location string = resourceGroup().location
 @description('Service tier of the Azure Container Registry.')
 param acrSku string
 
-@description('Set to true to prevent resources from being pruned after 48 hours')
-param persist bool
-
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
   location: location
-  tags: {
-    persist: toLower(string(persist))
-  }
   sku: {
     name: acrSku
   }
@@ -40,9 +34,6 @@ resource acrPurgeTask 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' 
   name: '${acrName}-purge'
   location: location
   parent: acrResource
-  tags: {
-    persist: toLower(string(persist))
-  }
   properties: {
     agentConfiguration: {
       cpu: 2
