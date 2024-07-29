@@ -269,6 +269,7 @@ module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep
   }
   dependsOn: [
     serviceKeyVault
+    svcCluster
   ]
 }
 
@@ -287,5 +288,6 @@ module imageServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bi
   }
   dependsOn: [
     serviceKeyVault
+    svcCluster
   ]
 }
