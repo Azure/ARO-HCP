@@ -11,7 +11,9 @@ param baseDNSZoneResourceGroup string = 'global'
 param currentUserId string = ''
 
 @description('This is the region name in dev/staging/production')
-param regionalDNSSubdomain string = empty(currentUserId) ? location : '${location}-${take(uniqueString(currentUserId), 5)}'
+param regionalDNSSubdomain string = empty(currentUserId)
+  ? location
+  : '${location}-${take(uniqueString(currentUserId), 5)}'
 
 resource regionalZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: '${regionalDNSSubdomain}.${baseDNSZoneName}'
