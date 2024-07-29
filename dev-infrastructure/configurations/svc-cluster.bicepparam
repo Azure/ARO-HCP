@@ -8,17 +8,14 @@ param podSubnetPrefix = '10.128.64.0/18'
 param enablePrivateCluster = false
 param persist = false
 param aksClusterName = 'aro-hcp-svc-cluster'
-param additionalAcrResourceGroups = ['aro-hcp-dev']
 param aksKeyVaultName = take('aks-kv-svc-cluster-${uniqueString(currentUserId)}', 24)
 param aksEtcdKVEnableSoftDelete = false
 param disableLocalAuth = false
 param deployFrontendCosmos = false
 
-param deployMaestroInfra = false
 param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
-param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
+param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
-param maxClientSessionsPerAuthName = 2
 param maestroPostgresServerName = take('maestro-pg-${uniqueString(currentUserId)}', 60)
 param maestroPostgresServerVersion = '15'
 param maestroPostgresServerStorageSizeGB = 32
@@ -30,10 +27,6 @@ param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24)
 param serviceKeyVaultSoftDelete = false
 param serviceKeyVaultPrivate = false
-
-param baseDNSZoneName = 'hcp.osadev.cloud'
-param baseDNSZoneResourceGroup = 'global'
-param regionalDNSSubdomain = 'reg-${take(uniqueString(currentUserId), 5)}'
 
 param workloadIdentities = items({
   frontend_wi: {
@@ -57,6 +50,10 @@ param workloadIdentities = items({
     serviceAccountName: 'image-sync'
   }
 })
+
+param acrPullResourceGroups = [regionalResourceGroup, 'global']
+param imageSyncAcrResourceGroupNames = [regionalResourceGroup, 'global']
+
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
-param maestroInfraResourceGroup = ''
+param regionalResourceGroup = ''

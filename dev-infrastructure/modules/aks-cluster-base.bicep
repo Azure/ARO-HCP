@@ -23,7 +23,6 @@ param location string
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
-param currentUserId string
 param enablePrivateCluster bool = true
 param kubernetesVersion string
 param deployIstio bool
@@ -47,7 +46,7 @@ param dnsPrefix string = aksClusterName
 param systemOsDiskSizeGB int = 32
 param userOsDiskSizeGB int = 32
 
-param additionalAcrResourceGroups array = [resourceGroup().name]
+param acrPullResourceGroups array = []
 
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
@@ -139,18 +138,6 @@ var userAgentPool = [
 
 // if deployUserAgentPool is true, set agent profile to both pools, otherwise dont
 var agentProfile = deployUserAgentPool ? concat(systemAgentPool, userAgentPool) : systemAgentPool
-
-// Main
-// Tags the subscription
-resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
-  name: 'default'
-  properties: {
-    tags: {
-      persist: toLower(string(persist))
-      deployedBy: currentUserId
-    }
-  }
-}
 
 module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
   name: aksKeyVaultName
@@ -395,17 +382,15 @@ var acrPullRoleDefinitionId = subscriptionResourceId(
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 )
 
-var acrResourceGroups = union(additionalAcrResourceGroups, [resourceGroup().name])
-
 resource acrRg 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
-  for rg in acrResourceGroups: {
+  for rg in acrPullResourceGroups: {
     name: rg
     scope: subscription()
   }
 ]
 
 module acrPullRole 'acr-permissions.bicep' = [
-  for (_, i) in acrResourceGroups: {
+  for (_, i) in acrPullResourceGroups: {
     name: guid(acrRg[i].id, aksCluster.id, acrPullRoleDefinitionId)
     scope: acrRg[i]
     params: {

@@ -11,7 +11,7 @@ param currentUserId string
 param aksClusterName string = 'aro-hcp-aks'
 
 @description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
-param additionalAcrResourceGroups array = [resourceGroup().name]
+param acrPullResourceGroups array = []
 
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
@@ -54,22 +54,33 @@ param maestroKeyVaultName string
 @description('The name of the managed identity that will manage certificates in maestros keyvault.')
 param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
 
-@description('The resourcegroups where the Maestro infrastructure is deployed.')
-param maestroInfraResourceGroup string
-
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
 @description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
 param baseDNSZoneName string = ''
 
-@description('This is the region name in dev/staging/production, can be overriden for testing')
-param regionalDNSSubdomain string = resourceGroup().location
+@description('This is the region name in dev/staging/production')
+param regionalDNSSubdomain string = empty(currentUserId)
+  ? location
+  : '${location}-${take(uniqueString(currentUserId), 5)}'
 
 @description('The resource group that hosts the regional zone')
-param regionalZoneResourceGroup string
+param regionalResourceGroup string
 
 func isValidMaestroConsumerName(input string) bool => length(input) <= 90 && contains(input, '[^a-zA-Z0-9_-]') == false
+
+// Tags the resource group
+resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
+  name: 'default'
+  scope: resourceGroup()
+  properties: {
+    tags: {
+      persist: toLower(string(persist))
+      deployedBy: currentUserId
+    }
+  }
+}
 
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
@@ -77,7 +88,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   params: {
     location: location
     persist: persist
-    currentUserId: currentUserId
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
@@ -91,7 +101,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
-    additionalAcrResourceGroups: additionalAcrResourceGroups
+    acrPullResourceGroups: acrPullResourceGroups
     userAgentMinCount: 3
     userAgentMaxCount: 9
   }
@@ -103,15 +113,14 @@ output aksClusterName string = mgmtCluster.outputs.aksClusterName
 //   M A E S T R O
 //
 
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer && maestroInfraResourceGroup != '') {
-  name: 'maestro-consumer-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup()
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer) {
+  name: 'maestro-consumer'
   params: {
     maestroServerManagedIdentityPrincipalId: filter(
       mgmtCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-consumer'
     )[0].uamiPrincipalID
-    maestroInfraResourceGroup: maestroInfraResourceGroup
+    maestroInfraResourceGroup: regionalResourceGroup
     maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name) ? resourceGroup().name : ''
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     maestroKeyVaultName: maestroKeyVaultName
@@ -132,7 +141,7 @@ var externalDnsManagedIdentityPrincipalId = filter(
 
 module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
   name: guid(regionalDNSSubdomain, mgmtCluster.name, 'external-dns')
-  scope: resourceGroup(regionalZoneResourceGroup)
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     zoneName: '${regionalDNSSubdomain}.${baseDNSZoneName}'
     zoneContributerManagedIdentityPrincipalId: externalDnsManagedIdentityPrincipalId

@@ -6,17 +6,15 @@ param subnetPrefix = '10.132.8.0/21'
 param podSubnetPrefix = '10.132.64.0/18'
 param enablePrivateCluster = false
 param aksClusterName = 'aro-hcp-mgmt-cluster'
-param additionalAcrResourceGroups = ['aro-hcp-dev']
 param aksKeyVaultName = take('aks-kv-mgmt-cluster-${uniqueString(currentUserId)}', 24)
 param aksEtcdKVEnableSoftDelete = false
 param persist = false
 param deployMaestroConsumer = false
 param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
-param maestroEventGridNamespacesName = '${maestroInfraResourceGroup}-eventgrid'
+param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
 
 param baseDNSZoneName = 'hcp.osadev.cloud'
-param regionalDNSSubdomain = 'reg-${take(uniqueString(currentUserId), 5)}'
 
 param workloadIdentities = items({
   maestro_wi: {
@@ -31,7 +29,8 @@ param workloadIdentities = items({
   }
 })
 
+param acrPullResourceGroups = [regionalResourceGroup, 'global']
+
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
-param maestroInfraResourceGroup = ''
-param regionalZoneResourceGroup = maestroInfraResourceGroup
+param regionalResourceGroup = ''

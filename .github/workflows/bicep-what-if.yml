@@ -1,6 +1,11 @@
 ---
 name: Bicep What If
-
+env:
+  REGION: westus3
+  REGIONAL_RESOURCEGROUP: aro-hcp-dev-westus3
+  SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
+  MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
+  ARO_HCP_IMAGE_ACR: arohcpdev
 on:
   pull_request:
     branches:
@@ -29,40 +34,49 @@ jobs:
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # TODO: We don't have `make` in the azure/cli task so a lot of this is duplicated in dev-infrastructure/Makefile
+      # we should run our own container or find a solution to bring them closer
       - name: 'Deployment What If'
         uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
         with:
           azcliversion: latest
           inlineScript: |
-            SC_RESOURCEGROUP="aro-hcp-dev"
-            MC_RESOURCEGROUP="aro-hcp-dev-mc"
-            REGION=westus3
             cd dev-infrastructure/
 
-            az group create -g "${SC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
-            az group create -g "${MC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
+            az group create -g "${SC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
+            az group create -g "${MC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
+            az group create -g "${REGIONAL_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
 
-            # AFEC feature flags
-            az deployment sub what-if \
-              --name "${GITHUB_RUN_ID}" \
-              --location "${REGION}" \
-              --template-file templates/feature-registration.bicep
-
-            # dev acr
+            # DNS
             az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
-              --resource-group "${SC_RESOURCEGROUP}" \
+              --name "dns-${GITHUB_RUN_ID}" \
+              --resource-group ${REGIONAL_RESOURCEGROUP} \
+              --template-file templates/dev-dns.bicep \
+              --parameters \
+                configurations/dev-dns.bicepparam
+
+            # ACR
+            az deployment group what-if \
+              --name "acr-${GITHUB_RUN_ID}" \
+              --resource-group "${REGIONAL_RESOURCEGROUP}" \
               --template-file templates/dev-acr.bicep \
               --parameters configurations/mvp-dev-acr.bicepparam
 
+            # region infra
+            az deployment group what-if \
+              --name "region-${GITHUB_RUN_ID}" \
+              --resource-group "${REGIONAL_RESOURCEGROUP}" \
+              --template-file templates/region.bicep \
+              --parameters configurations/mvp-region.bicepparam
+
             # service cluster
             az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
+              --name "svc-cluster-${GITHUB_RUN_ID}" \
               --resource-group "${SC_RESOURCEGROUP}" \
               --template-file templates/svc-cluster.bicep \
               --parameters configurations/mvp-svc-cluster.bicepparam \
               --parameters currentUserId="${GITHUB_ACTOR}" \
-              --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}"
+              --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
             # management cluster
             az deployment group what-if \
@@ -71,12 +85,4 @@ jobs:
               --template-file templates/mgmt-cluster.bicep \
               --parameters configurations/mvp-mgmt-cluster.bicepparam \
               --parameters currentUserId="${GITHUB_ACTOR}" \
-              --parameters maestroInfraResourceGroup="${SC_RESOURCEGROUP}" \
-              --parameters regionalZoneResourceGroup="${SC_RESOURCEGROUP}"
-
-            # acr role assignments
-            az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
-              --resource-group ${SC_RESOURCEGROUP} \
-              --template-file templates/dev-acr-roleassignments.bicep \
-              --parameters configurations/mvp-dev-acr-roleassignments.bicepparam
+              --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"

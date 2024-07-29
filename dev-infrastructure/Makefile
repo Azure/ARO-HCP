@@ -1,13 +1,11 @@
 SHELL = /bin/bash
 
-CURRENTUSER=$(shell az ad signed-in-user show -o json | jq -r '.id')
-LOCATION?=westus3
-RESOURCEGROUP?=aro-hcp-${AKSCONFIG}-$(USER)
-MAESTRO_INFRA_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
-DNS_RESOURCEGROUP?=aro-hcp-svc-cluster-$(USER)
-DEPLOYMENTNAME=$(RESOURCEGROUP)
-DEPLOYMENTNAMEACR=$(RESOURCEGROUP)-ACR
-ACRNAME?=devarochp$(shell echo $(CURRENTUSER) | sha256sum  | head -c 24) 
+CONFIG_PROFILE ?= dev
+include configurations/$(CONFIG_PROFILE).mk
+
+CURRENTUSER = $(shell az ad signed-in-user show | jq -r '.id')
+DEPLOYMENTNAME = $(RESOURCEGROUP)
+DEPLOYMENTNAMEREGION = $(REGIONAL_RESOURCEGROUP)-REGION
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -31,47 +29,72 @@ lint:
 	done
 .PHONY: lint
 
-feature-registration:
+feature-registration: # hardcoded to eastus as this is a subscription deployment, not a resource group
 	@az deployment sub create \
 		--name "feature-registration" \
+		--location eastus \
 		--template-file templates/feature-registration.bicep \
 		--confirm-with-what-if
 .PHONY: feature-registration
 
-rg: feature-registration
-	@az group create \
+rg:
+	az group create \
   		--name $(RESOURCEGROUP)  \
-  		--location $(LOCATION) \
+		--location $(REGION) \
 		--output none
 .PHONY: rg
 
+regionalRg:
+	@az group create \
+		--name $(REGIONAL_RESOURCEGROUP)  \
+		--location $(REGION) \
+		--output none
+.PHONY: regionalRg
+
+dns: regionalRg
+	az deployment group create \
+		--name "$(DEPLOYMENTNAMEREGION)-DNS" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file templates/dev-dns.bicep \
+		--confirm-with-what-if \
+		--parameters \
+			configurations/dev-dns.bicepparam \
+		--parameters \
+			currentUserId=$(CURRENTUSER)
+.PHONY: dns
+
 cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
+	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
+	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
 	@scripts/cleanup-orphaned-rolebindings.sh aro-hcp-dev
 .PHONY: cleanup-orphaned-rolebindings
 
-acr: rg
+acr: regionalRg
 	az deployment group create \
-		--name "$(DEPLOYMENTNAMEACR)" \
-		--resource-group $(RESOURCEGROUP) \
+		--name "$(DEPLOYMENTNAMEREGION)-ACR" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
 		--template-file templates/dev-acr.bicep \
 		--confirm-with-what-if \
 		--parameters \
 			configurations/dev-acr.bicepparam \
 		--parameters \
-			acrName=$(ACRNAME)
+			acrName=$(REGIONAL_ACR_NAME)
 .PHONY: acr
 
-acr-roleassignments:
+region: regionalRg
 	az deployment group create \
-		--name "$(DEPLOYMENTNAMEACR)" \
-		--resource-group $(RESOURCEGROUP) \
-		--template-file templates/dev-acr-roleassignments.bicep \
+		--name "$(DEPLOYMENTNAMEREGION)" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file templates/region.bicep \
 		--confirm-with-what-if \
 		--parameters \
-			acrName=$(ACRNAME)
+			configurations/region.bicepparam \
+		--parameters \
+			currentUserId=$(CURRENTUSER)
+.PHONY: region
 
-cluster: rg cleanup-orphaned-rolebindings
+cluster: rg cleanup-orphaned-rolebindings region dns acr
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
@@ -84,7 +107,7 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
+			regionalResourceGroup=$(REGIONAL_RESOURCEGROUP)
 .PHONY: cluster
 
 cluster-what-if: rg
@@ -99,7 +122,6 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			maestroInfraResourceGroup=$(MAESTRO_INFRA_RESOURCEGROUP)
 .PHONY: cluster-what-if
 
 aks.admin-access: rg
@@ -114,7 +136,7 @@ ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
 	@scripts/cs-current-user-pg-connect.sh $(RESOURCEGROUP) "cs-pg-"
-.PHONY: cs-current-user-pg-connect 
+.PHONY: cs-current-user-pg-connect
 
 cs-miwi-pg-connect: rg
 ifndef AKSCONFIG

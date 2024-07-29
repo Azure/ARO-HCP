@@ -1,21 +1,22 @@
 SHELL := /bin/bash
 
 AKSCONFIG ?= mgmt-cluster
-RESOURCEGROUP ?= aro-hcp-${AKSCONFIG}-$(USER)
+CONFIG_PROFILE ?= dev
+include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
+
 EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID ?= $(shell az identity show -g ${RESOURCEGROUP} -n external-dns --query clientId -o tsv)
-ZONE_RESOURCE_GROUP ?= $(shell az role assignment list --assignee ${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID} --all --query "[?roleDefinitionName == 'DNS Zone Contributor'].resourceGroup | [0]" -o tsv)
-ZONE_NAME ?= $(shell az network dns zone list -g ${ZONE_RESOURCE_GROUP} --query "[?zoneType=='Public'].name" -o tsv)
+ZONE_NAME ?= $(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv)
 AZURE_TENANT_ID ?= $(shell az account show --query tenantId --output tsv)
 AZURE_SUBSCRIPTION_ID ?= $(shell az account show --query id --output tsv)
 
-HO_IMAGE ?= devarohcp.azurecr.io/acm-d/rhtap-hypershift-operator:2c34df3
-EDO_IMAGE ?= devarohcp.azurecr.io/external-dns/external-dns:v0.14.2
+HO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d/rhtap-hypershift-operator:2c34df3
+EDO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/external-dns/external-dns:v0.14.2
 
 create-edo-azure-creds:
 	@echo '{' > deploy/overlays/dev/edo-azure-credentials.json
 	@echo '  "tenantId": "${AZURE_TENANT_ID}",' >> deploy/overlays/dev/edo-azure-credentials.json
 	@echo '  "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",' >> deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "resourceGroup": "${ZONE_RESOURCE_GROUP}",' >> deploy/overlays/dev/edo-azure-credentials.json
+	@echo '  "resourceGroup": "${REGIONAL_RESOURCEGROUP}",' >> deploy/overlays/dev/edo-azure-credentials.json
 	@echo '  "useWorkloadIdentityExtension": true,' >> deploy/overlays/dev/edo-azure-credentials.json
 	@echo '  "userAssignedIdentityID": "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}"' >> deploy/overlays/dev/edo-azure-credentials.json
 	@echo '}' >> deploy/overlays/dev/edo-azure-credentials.json
@@ -65,4 +66,4 @@ prepare-ho-manifests:
 	@echo "resources:" >> deploy/base/kustomization.yml
 	@find deploy/base -type f -name "*.yaml" ! -name "kustomization.yml" | sed 's/^deploy\/base\//  - /' >> deploy/base/kustomization.yml
 
-.PHONY: create-edo-azure-creds deploy unpack-ho-manifests
+.PHONY: create-edo-azure-creds create-edo-sa-patch create-domain-file create-txt-owner-id-file deploy unpack-ho-manifests

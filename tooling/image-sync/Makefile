@@ -1,6 +1,8 @@
 SHELL = /bin/bash
 COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
-ARO_HCP_BASE_IMAGE ?= devarohcp.azurecr.io
+CONFIG_PROFILE ?= dev
+include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
+ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_IMAGE_SYNC_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/image-sync/image-sync:$(COMMIT)
 
 image-sync:
