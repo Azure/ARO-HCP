@@ -5,6 +5,7 @@
     REGIONAL_RESOURCEGROUP: aro-hcp-dev-westus3
     SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
     MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
+    GLOBAL_RESOURCEGROUP: global
     ARO_HCP_IMAGE_ACR: arohcpdev
   on:
     pull_request:
@@ -40,7 +41,7 @@
           run: core.setFailed('Expected source repository to be Azure/ARO-HCP, re-create PR as a branch of Azure/ARO-HCP')
 
     deploy_update_infra:
-      if: github.event.pull_request.merged == true
+      #if: github.event.pull_request.merged == true
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -79,7 +80,7 @@
               # ACR
               az deployment group create \
                 --name "dev-acr-${GITHUB_RUN_ID}" \
-                --resource-group "global" \
+                --resource-group ${GLOBAL_RESOURCEGROUP} \
                 --template-file templates/dev-acr.bicep \
                 --parameters configurations/mvp-dev-acr.bicepparam
 
@@ -176,7 +177,7 @@
       outputs:
         service_cluster_name: ${{ steps.find_service_cluster.name }}
       env:
-        RESOURCEGROUP: ${{env.SC_RESOURCEGROUP}}
+        RESOURCEGROUP: aro-hcp-dev-westus3-sc
       steps:
         - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
           with:
@@ -249,7 +250,7 @@
       outputs:
         management_cluster_name: ${{ steps.find_management_cluster.name }}
       env:
-        RESOURCEGROUP: ${{env.MC_RESOURCEGROUP}}
+        RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
       steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
