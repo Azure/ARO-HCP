@@ -33,7 +33,7 @@ lint:
 
 feature-registration:
 	@az deployment sub create \
-		--name "feature-registration"
+		--name "feature-registration" \
 		--template-file templates/feature-registration.bicep \
 		--confirm-with-what-if
 .PHONY: feature-registration
