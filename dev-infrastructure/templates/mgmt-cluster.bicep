@@ -61,7 +61,7 @@ param maestroEventGridNamespacesName string
 param baseDNSZoneName string = ''
 
 @description('This is the region name in dev/staging/production')
-var regionalDNSSubdomain = empty(currentUserId) ? location : '${location}-${take(uniqueString(currentUserId), 5)}'
+param regionalDNSSubdomain string = empty(currentUserId) ? location : '${location}-${take(uniqueString(currentUserId), 5)}'
 
 @description('The resource group that hosts the regional zone')
 param regionalResourceGroup string
