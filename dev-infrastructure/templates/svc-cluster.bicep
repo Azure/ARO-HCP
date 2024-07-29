@@ -96,6 +96,18 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
+// Tags the resource group
+resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
+  name: 'default'
+  scope: resourceGroup()
+  properties: {
+    tags: {
+      persist: toLower(string(persist))
+      deployedBy: currentUserId
+    }
+  }
+}
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'svc-cluster'
   scope: resourceGroup()
@@ -105,7 +117,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
-    currentUserId: currentUserId
     enablePrivateCluster: enablePrivateCluster
     kubernetesVersion: kubernetesVersion
     deployIstio: true

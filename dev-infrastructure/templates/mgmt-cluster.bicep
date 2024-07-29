@@ -68,13 +68,24 @@ param regionalResourceGroup string
 
 func isValidMaestroConsumerName(input string) bool => length(input) <= 90 && contains(input, '[^a-zA-Z0-9_-]') == false
 
+// Tags the resource group
+resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
+  name: 'default'
+  scope: resourceGroup()
+  properties: {
+    tags: {
+      persist: toLower(string(persist))
+      deployedBy: currentUserId
+    }
+  }
+}
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'aks_base_cluster'
   scope: resourceGroup()
   params: {
     location: location
     persist: persist
-    currentUserId: currentUserId
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete

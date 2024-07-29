@@ -23,7 +23,6 @@ param location string
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
-param currentUserId string
 param enablePrivateCluster bool = true
 param kubernetesVersion string
 param deployIstio bool
@@ -139,18 +138,6 @@ var userAgentPool = [
 
 // if deployUserAgentPool is true, set agent profile to both pools, otherwise dont
 var agentProfile = deployUserAgentPool ? concat(systemAgentPool, userAgentPool) : systemAgentPool
-
-// Main
-// Tags the subscription
-resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
-  name: 'default'
-  properties: {
-    tags: {
-      persist: toLower(string(persist))
-      deployedBy: currentUserId
-    }
-  }
-}
 
 module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
   name: aksKeyVaultName
