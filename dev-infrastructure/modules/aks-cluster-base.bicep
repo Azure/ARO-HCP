@@ -32,6 +32,7 @@ param subnetPrefix string
 param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
+param disableLocalAccounts bool = true
 
 @maxLength(24)
 param aksKeyVaultName string
@@ -294,7 +295,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
       managed: true
       enableAzureRBAC: true
     }
-    disableLocalAccounts: true
+    disableLocalAccounts: disableLocalAccounts
     nodeResourceGroup: aksNodeResourceGroupName
     apiServerAccessProfile: {
       enablePrivateCluster: enablePrivateCluster
