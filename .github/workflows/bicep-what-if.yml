@@ -5,7 +5,7 @@ env:
   REGIONAL_RESOURCEGROUP: aro-hcp-dev-westus3
   SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
   MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
-  ARO_HCP_IMAGE_ACR: devarohcp
+  ARO_HCP_IMAGE_ACR: arohcpdev
 on:
   pull_request:
     branches:
@@ -49,29 +49,29 @@ jobs:
 
             # DNS
             az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
+              --name "dns-${GITHUB_RUN_ID}" \
               --resource-group ${REGIONAL_RESOURCEGROUP} \
               --template-file templates/dev-dns.bicep \
               --parameters \
                 configurations/dev-dns.bicepparam
 
-            # dev acr
+            # ACR
             az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
+              --name "acr-${GITHUB_RUN_ID}" \
               --resource-group "${REGIONAL_RESOURCEGROUP}" \
               --template-file templates/dev-acr.bicep \
               --parameters configurations/mvp-dev-acr.bicepparam
 
-            # maestro infra
+            # region infra
             az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
+              --name "region-${GITHUB_RUN_ID}" \
               --resource-group "${REGIONAL_RESOURCEGROUP}" \
               --template-file templates/region.bicep \
               --parameters configurations/mvp-region.bicepparam
 
             # service cluster
             az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
+              --name "svc-cluster-${GITHUB_RUN_ID}" \
               --resource-group "${SC_RESOURCEGROUP}" \
               --template-file templates/svc-cluster.bicep \
               --parameters configurations/mvp-svc-cluster.bicepparam \
@@ -87,9 +87,4 @@ jobs:
               --parameters currentUserId="${GITHUB_ACTOR}" \
               --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
-            # acr role assignments
-            az deployment group what-if \
-              --name "${GITHUB_RUN_ID}" \
-              --resource-group ${REGIONAL_RESOURCEGROUP} \
-              --template-file templates/dev-acr-roleassignments.bicep \
-              --parameters configurations/mvp-dev-acr-roleassignments.bicepparam
+  

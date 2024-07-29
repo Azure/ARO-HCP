@@ -11,7 +11,7 @@ param currentUserId string
 param aksClusterName string
 
 @description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
-param additionalAcrResourceGroups array = [regionalResourceGroup]
+param acrPullResourceGroups array = []
 
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
@@ -96,6 +96,9 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
+@description('Image sync ACR RG name')
+param imageSyncAcrResourceGroupNames array = []
+
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -128,7 +131,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
-    additionalAcrResourceGroups: additionalAcrResourceGroups
+    acrPullResourceGroups: acrPullResourceGroups
   }
 }
 
@@ -250,3 +253,26 @@ module imageServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bi
     svcCluster
   ]
 }
+
+resource imageSyncAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
+  for rg in imageSyncAcrResourceGroupNames: {
+    name: rg
+    scope: subscription()
+  }
+]
+
+var imageSyncManagedIdentityPrincipalId = filter(
+  svcCluster.outputs.userAssignedIdentities,
+  id => id.uamiName == 'image-sync'
+)[0].uamiPrincipalID
+
+module acrPushRole '../modules/acr-permissions.bicep' = [
+  for (_, i) in imageSyncAcrResourceGroupNames: {
+    name: guid(imageSyncAcrResourceGroups[i].id, resourceGroup().name, 'image-sync', 'push')
+    scope: imageSyncAcrResourceGroups[i]
+    params: {
+      principalId: imageSyncManagedIdentityPrincipalId.properties.principalId
+      grantPushAccess: true
+    }
+  }
+]

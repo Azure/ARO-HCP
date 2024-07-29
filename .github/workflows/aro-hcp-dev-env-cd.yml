@@ -5,7 +5,7 @@
     REGIONAL_RESOURCEGROUP: aro-hcp-dev-westus3
     SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
     MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
-    ARO_HCP_IMAGE_ACR: devarohcp
+    ARO_HCP_IMAGE_ACR: arohcpdev
   on:
     pull_request:
       branches:
@@ -76,16 +76,16 @@
                 --parameters \
                   configurations/dev-dns.bicepparam
 
-              # dev Azure Container Registry (ACR)
+              # ACR
               az deployment group create \
                 --name "dev-acr-${GITHUB_RUN_ID}" \
-                --resource-group "${REGIONAL_RESOURCEGROUP}" \
+                --resource-group "global" \
                 --template-file templates/dev-acr.bicep \
                 --parameters configurations/mvp-dev-acr.bicepparam
 
-              # maestro infra
+              # region infra
               az deployment group create \
-                --name "dev-acr-${GITHUB_RUN_ID}" \
+                --name "region-${GITHUB_RUN_ID}" \
                 --resource-group "${REGIONAL_RESOURCEGROUP}" \
                 --template-file templates/region.bicep \
                 --parameters configurations/mvp-region.bicepparam
@@ -113,13 +113,6 @@
               COSMOS_DB_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.cosmosDBName.value)
               SVC_KV_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.svcKeyVaultName.value)
 
-              # acr role assignments
-              az deployment group create \
-                --name "dev-acr-roleassignments-${GITHUB_RUN_ID}" \
-                --resource-group ${SC_RESOURCEGROUP} \
-                --template-file templates/dev-acr-roleassignments.bicep \
-                --parameters configurations/mvp-dev-acr-roleassignments.bicepparam
-
               # service cluster role assignments
               az deployment group create \
                 --name "svc-roleassigns-${GITHUB_RUN_ID}" \
@@ -128,6 +121,7 @@
                 --parameters aksClusterName=${SVC_CLUSTER_NAME} \
                 --parameters cosmosDBName=${COSMOS_DB_NAME} \
                 --parameters grantCosmosAccess=true \
+                --parameters kvNames='["${SVC_KV_NAME}"]' \
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
               # management cluster role assignments
@@ -138,14 +132,6 @@
                 --parameters aksClusterName=${MGMT_CLUSTER_NAME} \
                 --parameters cosmosDBName=${COSMOS_DB_NAME} \
                 --parameters grantCosmosAccess=false \
-                --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
-
-              # regional role assignments
-              az deployment group create \
-                --name "region-roleassigns-${GITHUB_RUN_ID}" \
-                --resource-group "${SC_RESOURCEGROUP}" \
-                --template-file templates/dev-region-roleassignments.bicep \
-                --parameters serviceKeyVaultName=${SVC_KV_NAME} \
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
     build_push_frontend:

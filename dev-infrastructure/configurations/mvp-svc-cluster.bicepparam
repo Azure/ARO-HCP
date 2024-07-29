@@ -8,7 +8,6 @@ param podSubnetPrefix = '10.128.64.0/18'
 param enablePrivateCluster = false
 param persist = true
 param aksClusterName = take('aro-hcp-svc-cluster-${uniqueString('svc-cluster')}', 63)
-param additionalAcrResourceGroups = ['aro-hcp-dev']
 param aksKeyVaultName = 'aks-kv-aro-hcp-dev-sc'
 param disableLocalAuth = false
 param deployFrontendCosmos = true
@@ -44,7 +43,14 @@ param workloadIdentities = items({
     namespace: 'cluster-service'
     serviceAccountName: 'clusters-service'
   }
+  image_sync_wi: {
+    uamiName: 'image-sync'
+    namespace: 'image-sync'
+    serviceAccountName: 'image-sync'
+  }
 })
+
+param acrPullResourceGroups = [regionalResourceGroup, 'global']
 
 // These parameters are always overridden in the Makefile
 param currentUserId = ''

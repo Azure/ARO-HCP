@@ -46,7 +46,7 @@ param dnsPrefix string = aksClusterName
 param systemOsDiskSizeGB int = 32
 param userOsDiskSizeGB int = 32
 
-param additionalAcrResourceGroups array = [resourceGroup().name]
+param acrPullResourceGroups array = [resourceGroup().name]
 
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
@@ -382,17 +382,15 @@ var acrPullRoleDefinitionId = subscriptionResourceId(
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 )
 
-var acrResourceGroups = union(additionalAcrResourceGroups, [resourceGroup().name])
-
 resource acrRg 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
-  for rg in acrResourceGroups: {
+  for rg in acrPullResourceGroups: {
     name: rg
     scope: subscription()
   }
 ]
 
 module acrPullRole 'acr-permissions.bicep' = [
-  for (_, i) in acrResourceGroups: {
+  for (_, i) in acrPullResourceGroups: {
     name: guid(acrRg[i].id, aksCluster.id, acrPullRoleDefinitionId)
     scope: acrRg[i]
     params: {

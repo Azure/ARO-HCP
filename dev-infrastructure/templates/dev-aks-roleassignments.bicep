@@ -3,6 +3,7 @@
 param aksClusterName string
 param grantCosmosAccess bool = false
 param cosmosDBName string
+param kvNames array = []
 param location string = resourceGroup().location
 param githubActionsPrincipalID string
 
@@ -17,6 +18,8 @@ var aksClusterRbacClusterAdminRoleId = subscriptionResourceId(
 // Grants Github Actions access to Cosmos data
 param cosmosRoleDefinitionId string = '00000000-0000-0000-0000-000000000002'
 var cosmosRoleAssignmentId = guid(cosmosRoleDefinitionId, githubActionsPrincipalID, cosmosDbAccount.id)
+
+// C O S M O S
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' existing = {
   name: aksClusterName
@@ -45,3 +48,16 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
     scope: cosmosDbAccount.id
   }
 }
+
+// K E Y V A U L T
+
+module keyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+  for name in kvNames: {
+    name: guid(name, 'ghci', 'read')
+    params: {
+      keyVaultName: name
+      roleName: 'Key Vault Secrets User'
+      managedIdentityPrincipalId: githubActionsPrincipalID
+    }
+  }
+]

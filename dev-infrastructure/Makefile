@@ -6,7 +6,6 @@ include configurations/$(CONFIG_PROFILE).mk
 CURRENTUSER = $(shell az ad signed-in-user show | jq -r '.id')
 DEPLOYMENTNAME = $(RESOURCEGROUP)
 DEPLOYMENTNAMEREGION = $(REGIONAL_RESOURCEGROUP)-REGION
-ACRNAME ?= devarochp$(shell echo $(CURRENTUSER) | sha256sum  | head -c 24)
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -80,18 +79,8 @@ acr: regionalRg
 		--parameters \
 			configurations/dev-acr.bicepparam \
 		--parameters \
-			acrName=$(ACRNAME)
+			acrName=$(REGIONAL_ACR_NAME)
 .PHONY: acr
-
-acr-roleassignments:
-	az deployment group create \
-		--name "$(DEPLOYMENTNAMEACR)" \
-		--resource-group $(RESOURCEGROUP) \
-		--template-file templates/dev-acr-roleassignments.bicep \
-		--confirm-with-what-if \
-		--parameters \
-			acrName=$(ACRNAME)
-.PHONY: acr-roleassignments
 
 region: regionalRg
 	az deployment group create \

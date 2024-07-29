@@ -11,7 +11,7 @@ param currentUserId string
 param aksClusterName string = 'aro-hcp-aks'
 
 @description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
-param additionalAcrResourceGroups array = [resourceGroup().name]
+param acrPullResourceGroups array = []
 
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
@@ -99,7 +99,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
-    additionalAcrResourceGroups: additionalAcrResourceGroups
+    acrPullResourceGroups: acrPullResourceGroups
     userAgentMinCount: 3
     userAgentMaxCount: 9
   }

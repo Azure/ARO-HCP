@@ -33,7 +33,7 @@ spec:
         - --azure-config-file=/etc/provider/credentials
         command:
         - /external-dns
-        image: devarohcp.azurecr.io/external-dns/external-dns:v0.14.2
+        image: arohcpdev.azurecr.io/external-dns/external-dns:v0.14.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 5
