@@ -99,6 +99,9 @@ param serviceKeyVaultPrivate bool = true
 @description('Image sync ACR RG name')
 param imageSyncAcrResourceGroupNames array = []
 
+@description('Allow local accounts login')
+param disableLocalAccounts bool = true
+
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -132,7 +135,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
     acrPullResourceGroups: acrPullResourceGroups
-    disableLocalAccounts: false
+    disableLocalAccounts: disableLocalAccounts
   }
 }
 
