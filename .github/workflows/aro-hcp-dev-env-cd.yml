@@ -95,6 +95,13 @@
               COSMOS_DB_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.cosmosDBName.value)
               SVC_KV_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.svcKeyVaultName.value)
 
+              # acr role assignments
+              az deployment group create \
+                --name "dev-acr-roleassignments-${GITHUB_RUN_ID}" \
+                --resource-group ${SC_RESOURCEGROUP} \
+                --template-file templates/dev-acr-roleassignments.bicep \
+                --parameters configurations/mvp-dev-acr-roleassignments.bicepparam
+
               # service cluster role assignments
               az deployment group create \
                 --name "svc-roleassigns-${GITHUB_RUN_ID}" \

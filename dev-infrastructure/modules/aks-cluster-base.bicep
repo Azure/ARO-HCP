@@ -404,7 +404,7 @@ resource acrRg 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
   }
 ]
 
-module acrPullRole 'acr-pull-permission.bicep' = [
+module acrPullRole 'acr-permissions.bicep' = [
   for (_, i) in acrResourceGroups: {
     name: guid(acrRg[i].id, aksCluster.id, acrPullRoleDefinitionId)
     scope: acrRg[i]
