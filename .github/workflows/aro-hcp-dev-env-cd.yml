@@ -251,7 +251,7 @@
       outputs:
         management_cluster_name: ${{ steps.find_management_cluster.name }}
       env:
-        RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
+        RESOURCEGROUP: ${{ env.MC_RESOURCEGROUP }}
       steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -267,12 +267,10 @@
       - name: 'Find management cluster'
         id: find_management_cluster
         uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
-        env:
-          RESOURCEGROUP: aro-hcp-dev-mc
         with:
           azcliversion: latest
           inlineScript: |
-            echo "name=$(az aks list --resource-group "${RESOURCEGROUP}" --output tsv --query "[?tags.clusterType == 'mgmt-cluster'].name | [0]")" >> $GITHUB_OUTPUT
+            echo "name=$(az aks list --resource-group "${MC_RESOURCEGROUP}" --output tsv --query "[?tags.clusterType == 'mgmt-cluster'].name | [0]")" >> $GITHUB_OUTPUT
 
       - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
 
