@@ -70,14 +70,6 @@
               az group create -g "${MC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
               az group create -g "${REGIONAL_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
 
-              # DNS
-              az deployment group create \
-                --name "${GITHUB_RUN_ID}" \
-                --resource-group ${REGIONAL_RESOURCEGROUP} \
-                --template-file templates/dev-dns.bicep \
-                --parameters \
-                  configurations/dev-dns.bicepparam
-
               # ACR
               az deployment group create \
                 --name "dev-acr-${GITHUB_RUN_ID}" \
