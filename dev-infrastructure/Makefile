@@ -51,18 +51,6 @@ regionalRg:
 		--output none
 .PHONY: regionalRg
 
-dns: regionalRg
-	az deployment group create \
-		--name "$(DEPLOYMENTNAMEREGION)-DNS" \
-		--resource-group $(REGIONAL_RESOURCEGROUP) \
-		--template-file templates/dev-dns.bicep \
-		--confirm-with-what-if \
-		--parameters \
-			configurations/dev-dns.bicepparam \
-		--parameters \
-			currentUserId=$(CURRENTUSER)
-.PHONY: dns
-
 cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
