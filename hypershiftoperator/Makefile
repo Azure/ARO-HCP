@@ -9,7 +9,7 @@ ZONE_NAME ?= $(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --que
 AZURE_TENANT_ID ?= $(shell az account show --query tenantId --output tsv)
 AZURE_SUBSCRIPTION_ID ?= $(shell az account show --query id --output tsv)
 
-HO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d/rhtap-hypershift-operator:2c34df3
+HO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d/rhtap-hypershift-operator:26b4fa3
 EDO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/external-dns/external-dns:v0.14.2
 
 create-edo-azure-creds:
