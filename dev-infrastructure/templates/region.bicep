@@ -75,3 +75,11 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
   }
 }
+
+//
+// M E T R I C S
+//
+
+module metricsInfra '../modules/metrics/Metrics.bicep' = {
+  name: 'metrics-infra'
+}

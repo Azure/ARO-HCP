@@ -48,6 +48,11 @@ param userOsDiskSizeGB int = 32
 
 param acrPullResourceGroups array = []
 
+// Metric Params 
+param azureMonitorWorkspaceResourceId string
+param metricLabelsAllowlist string = ''
+param metricAnnotationsAllowList string = ''
+
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -308,6 +313,15 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
         }
       }
     }
+    azureMonitorProfile: {
+      metrics: {
+        enabled: true
+        kubeStateMetrics: {
+          metricLabelsAllowlist: metricLabelsAllowlist
+          metricAnnotationsAllowList: metricAnnotationsAllowList
+        }
+      }
+    }
     kubernetesVersion: kubernetesVersion
     enableRBAC: true
     dnsPrefix: dnsPrefix
@@ -420,6 +434,16 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
     }
   }
 ]
+
+module aksMetrics '../modules/metrics/aks-azure-monitor-metrics.bicep' = {
+  name: 'aks-metrics-${aksClusterName}'
+  params: {
+    azureMonitorWorkspaceResourceId: azureMonitorWorkspaceResourceId
+    azureMonitorWorkspaceLocation: location
+    clusterResourceId: aksCluster.id
+    clusterLocation: aksCluster.location
+  }
+}
 
 // Outputs
 output userAssignedIdentities array = [

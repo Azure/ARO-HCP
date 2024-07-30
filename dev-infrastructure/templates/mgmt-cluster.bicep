@@ -86,6 +86,9 @@ param regionalDNSSubdomain string = empty(currentUserId)
 @description('The resource group that hosts the regional zone')
 param regionalResourceGroup string
 
+@description('The resource id of the regional Azure Monitor Workspace')
+param azureMonitorWorkspaceResourceId string
+
 func isValidMaestroConsumerName(input string) bool => length(input) <= 90 && contains(input, '[^a-zA-Z0-9_-]') == false
 
 // Tags the resource group
@@ -101,7 +104,7 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
 }
 
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
-  name: 'aks_base_cluster'
+  name: 'mgmt-cluster'
   scope: resourceGroup()
   params: {
     location: location
@@ -126,6 +129,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
+    azureMonitorWorkspaceResourceId: azureMonitorWorkspaceResourceId
   }
 }
 
