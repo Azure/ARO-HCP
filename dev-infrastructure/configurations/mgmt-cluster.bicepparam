@@ -8,7 +8,14 @@ param enablePrivateCluster = false
 param aksClusterName = 'aro-hcp-mgmt-cluster'
 param aksKeyVaultName = take('aks-kv-mgmt-cluster-${uniqueString(currentUserId)}', 24)
 param aksEtcdKVEnableSoftDelete = false
+param systemAgentMinCount = 2
+param systemAgentMaxCount = 3
+param systemAgentVMSize = 'Standard_D2s_v3'
+param userAgentMinCount = 2
+param userAgentMaxCount = 3
+param userAgentVMSize = 'Standard_D2s_v3'
 param persist = false
+
 param deployMaestroConsumer = false
 param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
 param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)

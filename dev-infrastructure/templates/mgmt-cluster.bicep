@@ -19,6 +19,24 @@ param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
 @description('VNET address prefix')
 param vnetAddressPrefix string
 
+@description('Min replicas for the worker nodes')
+param userAgentMinCount int = 2
+
+@description('Max replicas for the worker nodes')
+param userAgentMaxCount int = 3
+
+@description('VM instance type for the worker nodes')
+param userAgentVMSize string = 'Standard_D2s_v3'
+
+@description('Min replicas for the system nodes')
+param systemAgentMinCount int = 2
+
+@description('Max replicas for the system nodes')
+param systemAgentMaxCount int = 3
+
+@description('VM instance type for the system nodes')
+param systemAgentVMSize string = 'Standard_D2s_v3'
+
 @description('Subnet address prefix')
 param subnetPrefix string
 
@@ -102,8 +120,12 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
     acrPullResourceGroups: acrPullResourceGroups
-    userAgentMinCount: 3
-    userAgentMaxCount: 9
+    userAgentMinCount: userAgentMinCount
+    userAgentMaxCount: userAgentMaxCount
+    userAgentVMSize: userAgentVMSize
+    systemAgentMinCount: systemAgentMinCount
+    systemAgentMaxCount: systemAgentMaxCount
+    systemAgentVMSize: systemAgentVMSize
   }
 }
 
