@@ -486,18 +486,26 @@ The `service-kv-aro-hcp-dev` KV hosts to shared secrets for the creds file and t
   az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
   ```
 
+In case the `service-kv-aro-hcp-dev` KV gets recreated as part of a DEV environment recreation, the lost secrets can be replayed from the `aro-hcp-dev-global-kv` KV by ensuring you have `Secret Officer` permissions in the target KV and running
+
+```sh
+dev-infrastructure/scripts/import-kv.sh aro-hcp-dev-global-kv service-kv-aro-hcp-dev
+```
+
 ### Access integrated DEV environment
 
 The integrated DEV environment is hosted in `westus3` and consists of
 
-* the RG `aro-hcp-dev` containing the regional resources (DNS, Eventgrid, Postgres DBs, ...) and the AKS service cluster
-* the RG `aro-hcp-dev-mc` containing the AKS mgmt cluster
+* the RG `aro-hcp-dev-westus3` containing shared regional resources (regional DNS zone, Maestro Eventgrid, Maestro KV)
+* the RG `aro-hcp-dev-westus3-sc` the AKS service cluster and the resources required by the service components running on the SC (Postgres for Maestro Server, Postgres for Cluster Service, CosmosDB for RP, Service Key Vault, ...)
+* the RG `aro-hcp-dev-westus3-mc-1` containing the AKS mgmt cluster
+* the ACR `devarohcp` running in the `global` RG
 
 To access the SC run
 
 ```sh
-AKSCONFIG=svc-cluster RESOURCEGROUP=aro-hcp-dev make aks.admin-access # run one
-AKSCONFIG=svc-cluster RESOURCEGROUP=aro-hcp-dev make aks.kubeconfig
+AKSCONFIG=svc-cluster RESOURCEGROUP=aro-hcp-dev-westus3-sc make aks.admin-access # run one
+AKSCONFIG=svc-cluster RESOURCEGROUP=aro-hcp-dev-westus3-sc make aks.kubeconfig
 export KUBECONFIG=${HOME}/.kube/svc-cluster.kubeconfig
 kubectl get ns
 ```
@@ -505,8 +513,8 @@ kubectl get ns
 To access the MC run
 
 ```sh
-AKSCONFIG=mgmt-cluster RESOURCEGROUP=aro-hcp-dev-mc make aks.admin-access # run one
-AKSCONFIG=mgmt-cluster RESOURCEGROUP=aro-hcp-dev-mc make aks.kubeconfig
+AKSCONFIG=mgmt-cluster RESOURCEGROUP=aro-hcp-dev-westus3-mc-1 make aks.admin-access # run one
+AKSCONFIG=mgmt-cluster RESOURCEGROUP=aro-hcp-dev-westus3-mc-1 make aks.kubeconfig
 export KUBECONFIG=${HOME}/.kube/mgmt-cluster.kubeconfig
 kubectl get ns
 ```

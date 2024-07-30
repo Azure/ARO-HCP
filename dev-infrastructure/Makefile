@@ -67,7 +67,6 @@ cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
-	@scripts/cleanup-orphaned-rolebindings.sh aro-hcp-dev
 .PHONY: cleanup-orphaned-rolebindings
 
 acr: regionalRg
