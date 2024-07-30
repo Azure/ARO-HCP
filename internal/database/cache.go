@@ -30,8 +30,8 @@ func (c *Cache) DBConnectionTest(ctx context.Context) error {
 }
 
 func (c *Cache) GetClusterDoc(ctx context.Context, resourceID string, subscriptionID string) (*HCPOpenShiftClusterDocument, error) {
-	if _, ok := c.cluster[resourceID]; ok {
-		return c.cluster[resourceID], nil
+	if doc, ok := c.cluster[resourceID]; ok {
+		return doc, nil
 	}
 
 	return nil, ErrNotFound
@@ -48,8 +48,8 @@ func (c *Cache) DeleteClusterDoc(ctx context.Context, resourceID string, subscri
 }
 
 func (c *Cache) GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error) {
-	if _, ok := c.nodePool[resourceID]; ok {
-		return c.nodePool[resourceID], nil
+	if doc, ok := c.nodePool[resourceID]; ok {
+		return doc, nil
 	}
 
 	return nil, ErrNotFound
@@ -66,8 +66,8 @@ func (c *Cache) DeleteNodePoolDoc(ctx context.Context, resourceID string) error 
 }
 
 func (c *Cache) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
-	if _, ok := c.operation[operationID]; ok {
-		return c.operation[operationID], nil
+	if doc, ok := c.operation[operationID]; ok {
+		return doc, nil
 	}
 
 	return nil, ErrNotFound
@@ -84,8 +84,8 @@ func (c *Cache) DeleteOperationDoc(ctx context.Context, operationID string) erro
 }
 
 func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
-	if _, ok := c.subscription[subscriptionID]; ok {
-		return c.subscription[subscriptionID], nil
+	if doc, ok := c.subscription[subscriptionID]; ok {
+		return doc, nil
 	}
 
 	return nil, ErrNotFound
