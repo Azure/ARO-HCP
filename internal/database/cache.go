@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"strings"
 )
 
 var _ DBClient = &Cache{}
@@ -30,7 +31,10 @@ func (c *Cache) DBConnectionTest(ctx context.Context) error {
 }
 
 func (c *Cache) GetClusterDoc(ctx context.Context, resourceID string, subscriptionID string) (*HCPOpenShiftClusterDocument, error) {
-	if doc, ok := c.cluster[resourceID]; ok {
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(resourceID)
+
+	if doc, ok := c.cluster[key]; ok {
 		return doc, nil
 	}
 
@@ -38,17 +42,26 @@ func (c *Cache) GetClusterDoc(ctx context.Context, resourceID string, subscripti
 }
 
 func (c *Cache) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error {
-	c.cluster[doc.Key] = doc
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(doc.Key)
+
+	c.cluster[key] = doc
 	return nil
 }
 
 func (c *Cache) DeleteClusterDoc(ctx context.Context, resourceID string, subscriptionID string) error {
-	delete(c.cluster, resourceID)
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(resourceID)
+
+	delete(c.cluster, key)
 	return nil
 }
 
 func (c *Cache) GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error) {
-	if doc, ok := c.nodePool[resourceID]; ok {
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(resourceID)
+
+	if doc, ok := c.nodePool[key]; ok {
 		return doc, nil
 	}
 
@@ -56,17 +69,26 @@ func (c *Cache) GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoo
 }
 
 func (c *Cache) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error {
-	c.nodePool[doc.Key] = doc
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(doc.Key)
+
+	c.nodePool[key] = doc
 	return nil
 }
 
 func (c *Cache) DeleteNodePoolDoc(ctx context.Context, resourceID string) error {
-	delete(c.nodePool, resourceID)
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(resourceID)
+
+	delete(c.nodePool, key)
 	return nil
 }
 
 func (c *Cache) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
-	if doc, ok := c.operation[operationID]; ok {
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(operationID)
+
+	if doc, ok := c.operation[key]; ok {
 		return doc, nil
 	}
 
@@ -74,17 +96,26 @@ func (c *Cache) GetOperationDoc(ctx context.Context, operationID string) (*Opera
 }
 
 func (c *Cache) SetOperationDoc(ctx context.Context, doc *OperationDocument) error {
-	c.operation[doc.ID] = doc
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(doc.ID)
+
+	c.operation[key] = doc
 	return nil
 }
 
 func (c *Cache) DeleteOperationDoc(ctx context.Context, operationID string) error {
-	delete(c.operation, operationID)
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(operationID)
+
+	delete(c.operation, key)
 	return nil
 }
 
 func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
-	if doc, ok := c.subscription[subscriptionID]; ok {
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(subscriptionID)
+
+	if doc, ok := c.subscription[key]; ok {
 		return doc, nil
 	}
 
@@ -92,6 +123,9 @@ func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (
 }
 
 func (c *Cache) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
-	c.subscription[doc.PartitionKey] = doc
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(doc.PartitionKey)
+
+	c.subscription[key] = doc
 	return nil
 }

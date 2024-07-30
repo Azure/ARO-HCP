@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -112,6 +113,10 @@ func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) error {
 
 // GetClusterDoc retrieves a cluster document from async DB using resource ID
 func (d *CosmosDBClient) GetClusterDoc(ctx context.Context, resourceID string, subscriptionID string) (*HCPOpenShiftClusterDocument, error) {
+	// Make sure lookup keys are lowercase.
+	resourceID = strings.ToLower(resourceID)
+	subscriptionID = strings.ToLower(subscriptionID)
+
 	container, err := d.client.NewContainer(clustersContainer)
 	if err != nil {
 		return nil, err
@@ -148,6 +153,10 @@ func (d *CosmosDBClient) GetClusterDoc(ctx context.Context, resourceID string, s
 
 // SetClusterDoc creates/updates a cluster document in the async DB during cluster creation/patching
 func (d *CosmosDBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error {
+	// Make sure lookup keys are lowercase.
+	doc.Key = strings.ToLower(doc.Key)
+	doc.PartitionKey = strings.ToLower(doc.PartitionKey)
+
 	data, err := json.Marshal(doc)
 	if err != nil {
 		return err
@@ -168,6 +177,10 @@ func (d *CosmosDBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClu
 
 // DeleteClusterDoc removes a cluster document from the async DB using resource ID
 func (d *CosmosDBClient) DeleteClusterDoc(ctx context.Context, resourceID string, subscriptionID string) error {
+	// Make sure lookup keys are lowercase.
+	resourceID = strings.ToLower(resourceID)
+	subscriptionID = strings.ToLower(subscriptionID)
+
 	doc, err := d.GetClusterDoc(ctx, resourceID, subscriptionID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -204,6 +217,9 @@ func (d *CosmosDBClient) DeleteNodePoolDoc(ctx context.Context, resourceID strin
 // GetOperationDoc retrieves the asynchronous operation document for the given
 // operation ID from the "operations" container
 func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
+	// Make sure lookup keys are lowercase.
+	operationID = strings.ToLower(operationID)
+
 	container, err := d.client.NewContainer(operationsContainer)
 	if err != nil {
 		return nil, err
@@ -233,6 +249,9 @@ func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 // SetOperationDoc writes an asynchronous operation document to the "operations"
 // container
 func (d *CosmosDBClient) SetOperationDoc(ctx context.Context, doc *OperationDocument) error {
+	// Make sure lookup keys are lowercase.
+	doc.ID = strings.ToLower(doc.ID)
+
 	container, err := d.client.NewContainer(operationsContainer)
 	if err != nil {
 		return err
@@ -256,6 +275,9 @@ func (d *CosmosDBClient) SetOperationDoc(ctx context.Context, doc *OperationDocu
 // DeleteOperationDoc deletes the asynchronous operation document for the given
 // operation ID from the "operations" container
 func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID string) error {
+	// Make sure lookup keys are lowercase.
+	operationID = strings.ToLower(operationID)
+
 	container, err := d.client.NewContainer(operationsContainer)
 	if err != nil {
 		return err
@@ -278,6 +300,9 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
 func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
+	// Make sure lookup keys are lowercase.
+	subscriptionID = strings.ToLower(subscriptionID)
+
 	container, err := d.client.NewContainer(subsContainer)
 	if err != nil {
 		return nil, err
@@ -314,6 +339,9 @@ func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 
 // SetSubscriptionDoc creates/updates a subscription document in the async DB during cluster creation/patching
 func (d *CosmosDBClient) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
+	// Make sure lookup keys are lowercase.
+	doc.PartitionKey = strings.ToLower(doc.PartitionKey)
+
 	data, err := json.Marshal(doc)
 	if err != nil {
 		return err
