@@ -3,9 +3,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} mcr.microsoft.com/oss/go/microsof
 WORKDIR /app
 ADD . .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
-ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
-
-RUN make image-sync
+RUN CGO_ENABLED=1 go build -tags=containers_image_openpgp,requirefips .
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot@sha256:ef0dc582fc2a8dd34fbb41341a3a9a1aaa70d4542ff04ce4e33a641e52e4807e
 WORKDIR /
