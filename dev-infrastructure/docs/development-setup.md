@@ -193,19 +193,17 @@ To validate, have a look at the `aro-hcp` namespace on the service cluster.
 
 > Make sure your `KUBECONFIG` points to the management cluster!!!
 
-### Hypershift Operator and External DNS
-
-  ```bash
-  cd hypershiftoperator/
-  make deploy
-  ```
-
-> The installation fail first time because of the order resources are applied by kustomize. For now, run the command twice.
-
 ### ACM
 
   ```bash
   cd acm
+  make deploy
+  ```
+
+### Hypershift Operator and External DNS
+
+  ```bash
+  cd hypershiftoperator/
   make deploy
   ```
 
