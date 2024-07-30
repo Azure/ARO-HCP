@@ -7,7 +7,14 @@ param podSubnetPrefix = '10.132.64.0/18'
 param enablePrivateCluster = false
 param aksClusterName = take('aro-hcp-mgmt-cluster-${uniqueString('mgmt-cluster')}', 63)
 param aksKeyVaultName = 'aks-kv-aro-hcp-dev-mc-1'
+param systemAgentMinCount = 2
+param systemAgentMaxCount = 3
+param systemAgentVMSize = 'Standard_D2s_v3'
+param userAgentMinCount = 3
+param userAgentMaxCount = 9
+param userAgentVMSize = 'Standard_D2s_v3'
 param persist = true
+
 param deployMaestroConsumer = true
 param maestroKeyVaultName = 'maestro-kv-aro-hcp-dev'
 param maestroEventGridNamespacesName = 'maestro-eventgrid-aro-hcp-dev'
