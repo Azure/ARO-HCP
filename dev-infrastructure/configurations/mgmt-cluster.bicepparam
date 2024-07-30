@@ -38,6 +38,7 @@ param workloadIdentities = items({
 
 param acrPullResourceGroups = ['global']
 
-// This parameter is always overriden in the Makefile
+// These parameters are always overriden in the Makefile
 param currentUserId = ''
 param regionalResourceGroup = ''
+param azureMonitorWorkspaceResourceId = ''

@@ -94,6 +94,7 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
+			azureMonitorWorkspaceResourceId=$(shell az monitor account show --resource-group $(REGIONAL_RESOURCEGROUP) --name aro-hcp-monitor --query id -o tsv) \
 			regionalResourceGroup=$(REGIONAL_RESOURCEGROUP)
 .PHONY: cluster
 
