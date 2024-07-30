@@ -170,7 +170,7 @@
 
         - name: Build frontend container image
           env:
-            ARO_HCP_IMAGE_ACR: devarohcp
+            ARO_HCP_IMAGE_ACR: arohcpdev
           run: |
             cd image-sync/oc-mirror
             make image
@@ -186,10 +186,10 @@
         - name: Push image-sync container image
           if: github.event.pull_request.merged == true
           env:
-            ARO_HCP_IMAGE_ACR: devarohcp
+            ARO_HCP_IMAGE_ACR: arohcpdev
           run: |
             cd image-sync/oc-mirror/
-            az acr login --name devarohcp
+            az acr login --name arohcpdev
             make push
 
     deploy_to_service_cluster:
