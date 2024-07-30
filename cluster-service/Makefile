@@ -7,7 +7,7 @@ include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
 CONSUMER_NAME ?= $(shell az aks list --query "[?tags.clusterType == 'mgmt-cluster' && starts_with(resourceGroup, '$(REGIONAL_RESOURCEGROUP)')].resourceGroup" -o tsv)
 
 deploy:
-	DOMAIN=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv) && \
+	DOMAIN="${REGION}.${BASE_DOMAIN}" && \
 	sed -e "s/DOMAIN/$${DOMAIN}/g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
 	oc process --local -f deploy/openshift-templates/arohcp-namespace-template.yml \
 	  -p ISTIO_VERSION=asm-1-20 | oc apply -f -
