@@ -19,16 +19,16 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
-	sdk "github.com/openshift-online/ocm-sdk-go"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 type Frontend struct {
-	clusterServiceConfig ClusterServiceConfig
+	clusterServiceConfig ocm.ClusterServiceConfig
 	logger               *slog.Logger
 	listener             net.Listener
 	server               http.Server
@@ -39,24 +39,7 @@ type Frontend struct {
 	region               string
 }
 
-type ClusterServiceConfig struct {
-	// Conn is an ocm-sdk-go connection to Cluster Service
-	Conn *sdk.Connection
-
-	// ProvisionShardID sets the provision_shard_id property for all cluster requests to Cluster Service, which pins all
-	// cluster requests to Cluster Service to a specific shard during testing
-	ProvisionShardID *string
-
-	// ProvisionerNoOpProvision sets the provisioner_noop_provision property for all cluster requests to Cluster
-	// Service, which short-circuits the full provision flow during testing
-	ProvisionerNoOpProvision bool
-
-	// ProvisionerNoOpDeprovision sets the provisioner_noop_deprovision property for all cluster requests to Cluster
-	// Service, which short-circuits the full deprovision flow during testing
-	ProvisionerNoOpDeprovision bool
-}
-
-func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, region string, csCfg ClusterServiceConfig) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, region string, csCfg ocm.ClusterServiceConfig) *Frontend {
 	f := &Frontend{
 		clusterServiceConfig: csCfg,
 		logger:               logger,

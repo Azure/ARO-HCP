@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 type FrontendOpts struct {
@@ -106,7 +107,7 @@ func (opts *FrontendOpts) Run() error {
 		return err
 	}
 
-	csCfg := frontend.ClusterServiceConfig{
+	csCfg := ocm.ClusterServiceConfig{
 		Conn:                       conn,
 		ProvisionerNoOpProvision:   opts.clusterServiceNoopDeprovision,
 		ProvisionerNoOpDeprovision: opts.clusterServiceNoopDeprovision,
