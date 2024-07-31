@@ -273,6 +273,7 @@ module acrPushRole '../modules/acr-permissions.bicep' = [
     params: {
       principalId: imageSyncManagedIdentityPrincipalId
       grantPushAccess: true
+      acrResourceGroupid: imageSyncAcrResourceGroups[i].id
     }
   }
 ]
