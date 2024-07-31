@@ -15,7 +15,6 @@ import (
 const (
 	csCloudProvider    string = "azure"
 	csProductId        string = "aro"
-	resourceType       string = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 	csHypershifEnabled bool   = true
 	csMultiAzEnabled   bool   = true
 	csCCSEnabled       bool   = true
@@ -27,7 +26,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 	resourceGroupName := cluster.Azure().ResourceGroupName()
 	resourceName := cluster.Azure().ResourceName()
 	subID := cluster.Azure().SubscriptionID()
-	resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s", subID, resourceGroupName, resourceType, resourceName)
+	resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s", subID, resourceGroupName, api.ResourceType, resourceName)
 
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
@@ -36,7 +35,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 			Resource: arm.Resource{
 				ID:         resourceID,
 				Name:       resourceName,
-				Type:       resourceType,
+				Type:       api.ResourceType,
 				SystemData: systemData,
 			},
 		},
