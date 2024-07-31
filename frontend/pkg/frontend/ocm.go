@@ -287,8 +287,8 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 }
 
 // GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
-func (f *Frontend) GetCSCluster(clusterID string) (*cmv1.ClusterGetResponse, error) {
-	cluster, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Get().Send()
+func (csc *ClusterServiceConfig) GetCSCluster(clusterID string) (*cmv1.ClusterGetResponse, error) {
+	cluster, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Get().Send()
 	if err != nil {
 		return nil, err
 	}
@@ -296,8 +296,8 @@ func (f *Frontend) GetCSCluster(clusterID string) (*cmv1.ClusterGetResponse, err
 }
 
 // PostCSCluster creates and sends a POST request to create a cluster in Clusters Service
-func (f *Frontend) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.ClustersAddResponse, error) {
-	resp, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Add().Body(cluster).Send()
+func (csc *ClusterServiceConfig) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.ClustersAddResponse, error) {
+	resp, err := csc.Conn.ClustersMgmt().V1().Clusters().Add().Body(cluster).Send()
 	if err != nil {
 		return nil, err
 	}
@@ -305,8 +305,8 @@ func (f *Frontend) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.ClustersAddRespon
 }
 
 // UpdateCSCluster sends a POST request to update a cluster in Clusters Service
-func (f *Frontend) UpdateCSCluster(clusterID string, cluster *cmv1.Cluster) (*cmv1.ClusterUpdateResponse, error) {
-	resp, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Update().Body(cluster).Send()
+func (csc *ClusterServiceConfig) UpdateCSCluster(clusterID string, cluster *cmv1.Cluster) (*cmv1.ClusterUpdateResponse, error) {
+	resp, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Update().Body(cluster).Send()
 	if err != nil {
 		return nil, err
 	}
@@ -314,32 +314,32 @@ func (f *Frontend) UpdateCSCluster(clusterID string, cluster *cmv1.Cluster) (*cm
 }
 
 // DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
-func (f *Frontend) DeleteCSCluster(clusterID string) (*cmv1.ClusterDeleteResponse, error) {
-	resp, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Delete().Send()
+func (csc *ClusterServiceConfig) DeleteCSCluster(clusterID string) (*cmv1.ClusterDeleteResponse, error) {
+	resp, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Delete().Send()
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (f *Frontend) GetCSNodePool(clusterID, nodePoolID string) (*cmv1.NodePoolGetResponse, error) {
-	nodePoolGetResponse, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().NodePool(nodePoolID).Get().Send()
+func (csc *ClusterServiceConfig) GetCSNodePool(clusterID, nodePoolID string) (*cmv1.NodePoolGetResponse, error) {
+	nodePoolGetResponse, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().NodePool(nodePoolID).Get().Send()
 	if err != nil {
 		return nil, err
 	}
 	return nodePoolGetResponse, nil
 }
 
-func (f *Frontend) CreateCSNodePool(clusterID string, nodePool *cmv1.NodePool) (*cmv1.NodePoolsAddResponse, error) {
-	resp, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().Add().Body(nodePool).Send()
+func (csc *ClusterServiceConfig) CreateCSNodePool(clusterID string, nodePool *cmv1.NodePool) (*cmv1.NodePoolsAddResponse, error) {
+	resp, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().Add().Body(nodePool).Send()
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func (f *Frontend) DeleteCSNodePool(clusterID, nodePoolID string) (*cmv1.NodePoolDeleteResponse, error) {
-	resp, err := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().NodePool(nodePoolID).Delete().Send()
+func (csc *ClusterServiceConfig) DeleteCSNodePool(clusterID, nodePoolID string) (*cmv1.NodePoolDeleteResponse, error) {
+	resp, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().NodePool(nodePoolID).Delete().Send()
 	if err != nil {
 		return nil, err
 	}
