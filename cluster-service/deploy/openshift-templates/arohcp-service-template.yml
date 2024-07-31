@@ -90,7 +90,7 @@ parameters:
 
 - name: ENVIRONMENT
   description: Environment associated with this instance.
-  value: "aro-hcp-dev"
+  value: "aro-hcp-dev-westus3"
 
 - name: BACKPLANE_URL
   description: |-
