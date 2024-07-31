@@ -39,11 +39,11 @@ spec:
               configMapKeyRef:
                 name: frontend-config
                 key: DB_URL
-          - name: REGION
+          - name: LOCATION
             valueFrom:
               configMapKeyRef:
                 name: frontend-config
-                key: REGION
+                key: LOCATION
           ports:
             - containerPort: 8443
               protocol: TCP

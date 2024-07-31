@@ -27,8 +27,8 @@ type FrontendOpts struct {
 	clusterServiceNoopDeprovision bool
 	insecure                      bool
 
-	region string
-	port   int
+	location string
+	port     int
 
 	useCache   bool
 	cosmosName string
@@ -47,7 +47,7 @@ func NewRootCmd() *cobra.Command {
 	This command runs the ARO HCP Frontend. It communicates with Clusters Service and a CosmosDB
 
 	# Run ARO HCP Frontend locally to connect to a local Clusters Service at http://localhost:8000
-	./aro-hcp-frontend --cosmos-name ${DB_NAME} --cosmos-url ${DB_URL} --region ${REGION} \
+	./aro-hcp-frontend --cosmos-name ${DB_NAME} --cosmos-url ${DB_URL} --location ${LOCATION} \
 		--clusters-service-url "http://localhost:8000"
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -58,7 +58,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.useCache, "use-cache", false, "leverage a local cache instead of reaching out to a database")
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database url")
-	rootCmd.Flags().StringVar(&opts.region, "region", os.Getenv("REGION"), "Azure region")
+	rootCmd.Flags().StringVar(&opts.location, "location", os.Getenv("LOCATION"), "Azure location")
 	rootCmd.Flags().IntVar(&opts.port, "port", 8443, "port to listen on")
 
 	rootCmd.Flags().StringVar(&opts.clustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway.")
@@ -117,12 +117,12 @@ func (opts *FrontendOpts) Run() error {
 		csCfg.ProvisionShardID = api.Ptr(opts.clusterServiceProvisionShard)
 	}
 
-	if len(opts.region) == 0 {
-		return errors.New("region is required")
+	if len(opts.location) == 0 {
+		return errors.New("location is required")
 	}
-	logger.Info(fmt.Sprintf("Application running in region: %s", opts.region))
+	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	f := frontend.NewFrontend(logger, listener, prometheusEmitter, dbClient, opts.region, csCfg)
+	f := frontend.NewFrontend(logger, listener, prometheusEmitter, dbClient, opts.location, csCfg)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)

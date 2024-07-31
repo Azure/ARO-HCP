@@ -34,10 +34,10 @@ type Frontend struct {
 	ready                atomic.Value
 	done                 chan struct{}
 	metrics              Emitter
-	region               string
+	location             string
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, region string, csCfg ocm.ClusterServiceConfig) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csCfg ocm.ClusterServiceConfig) *Frontend {
 	f := &Frontend{
 		clusterServiceConfig: csCfg,
 		logger:               logger,
@@ -51,7 +51,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 		},
 		dbClient: dbClient,
 		done:     make(chan struct{}),
-		region:   region,
+		location: location,
 	}
 
 	f.server.Handler = f.routes()
@@ -684,7 +684,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	}
 
 	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
-		"region":         f.region,
+		"location":       f.location,
 		"subscriptionid": subscriptionID,
 		"state":          string(subscription.State),
 	})

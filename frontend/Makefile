@@ -12,11 +12,14 @@ ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 CLUSTER_NAME ?=
 DEPLOYMENTNAME=$(RESOURCEGROUP)
 
+# dev-infrastructure defines this as REGION
+LOCATION ?= ${REGION}
+
 frontend:
 	go build -o aro-hcp-frontend .
 
 run:
-	./aro-hcp-frontend --use-cache --region ${REGION} \
+	./aro-hcp-frontend --use-cache --location ${LOCATION} \
 		--clusters-service-url http://localhost:8000 \
 		--cluster-service-provision-shard 1 \
 		--cluster-service-noop-provision \
@@ -47,7 +50,7 @@ kustomize-update:
 		--from-literal=DB_URL="https://$${DB_NAME}.documents.azure.com:443/" \
 		--from-literal=FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
 		--from-literal=CURRENT_VERSION=${ARO_HCP_FRONTEND_IMAGE} \
-		--from-literal=REGION="${REGION}"
+		--from-literal=LOCATION="${LOCATION}"
 
 kustomize-deploy:
 	kubectl apply -k deploy/overlays/dev
@@ -65,13 +68,13 @@ deploy:
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
 		-p DB_NAME="$${DB_NAME}" \
-		-p REGION=${REGION}| oc apply -f -
+		-p LOCATION=${LOCATION}| oc apply -f -
 
 undeploy:
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="null" \
-		-p REGION="null" | oc delete -f -
+		-p LOCATION="null" | oc delete -f -
 
 deploy-private:
 	TMP_DEPLOY=$(shell mktemp);\
@@ -84,7 +87,7 @@ deploy-private:
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
 		-p DB_NAME="$${DB_NAME}" \
-		-p REGION=${REGION}> "$${TMP_DEPLOY}";\
+		-p LOCATION=${LOCATION}> "$${TMP_DEPLOY}";\
 	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl create -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 undeploy-private:
@@ -92,7 +95,7 @@ undeploy-private:
 	oc process -f ./deploy/aro-hcp-frontend.yml --local \
 		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
 		-p FRONTEND_MI_CLIENT_ID="null" \
-		-p REGION="null" > "$${TMP_DEPLOY}";\
+		-p LOCATION="null" > "$${TMP_DEPLOY}";\
 	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
 
 smoke-tests:
