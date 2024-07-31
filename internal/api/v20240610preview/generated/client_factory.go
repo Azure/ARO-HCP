@@ -35,9 +35,9 @@ func NewClientFactory(subscriptionID string, credential azcore.TokenCredential, 
 	}, nil
 }
 
-// NewHcpClusterVersionOperationsClient creates a new instance of HcpClusterVersionOperationsClient.
-func (c *ClientFactory) NewHcpClusterVersionOperationsClient() *HcpClusterVersionOperationsClient {
-	return &HcpClusterVersionOperationsClient{
+// NewHcpClusterVersionsClient creates a new instance of HcpClusterVersionsClient.
+func (c *ClientFactory) NewHcpClusterVersionsClient() *HcpClusterVersionsClient {
+	return &HcpClusterVersionsClient{
 		subscriptionID: c.subscriptionID,
 		internal: c.internal,
 	}

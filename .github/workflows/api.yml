@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@eff380dfbcf941bf8832e4acb788cebe13dfd758 # v4.0.2
         with:
-          node-version: 'v20.12.0'
+          node-version: 'v22.5.1'
 
       - name: Install dependencies
         run: npm ci

@@ -1,0 +1,769 @@
+import "@typespec/rest";
+import "@typespec/http";
+import "@azure-tools/typespec-azure-core";
+import "@azure-tools/typespec-azure-resource-manager";
+
+using TypeSpec.Rest;
+using TypeSpec.Http;
+using Azure.Core;
+using Azure.ResourceManager;
+
+namespace Microsoft.RedHatOpenShift;
+
+/*
+ * ===================================
+ *   HCP cluster core resources
+ * ===================================
+ */
+
+/** HCP cluster resource */
+model HcpOpenShiftClusterResource
+  is TrackedResource<HcpOpenShiftClusterProperties> {
+  /** Name of HCP cluster */
+  @pattern("^[a-zA-Z0-9-]{3,54}$")
+  @minLength(3)
+  @maxLength(54)
+  @key("hcpOpenShiftClusterName") // sets the alternative name for the name propery
+  @path
+  @segment("hcpOpenShiftClusters")
+  name: string;
+
+  ...ManagedServiceIdentityProperty;
+}
+
+// The NodePool needs to be TrackedResource for the following reasons:
+// - allow tags to be in place, which allows billing to use tags, important for workers
+// - allow nodepool to be tracked in the portal
+// - deleted when resource group is deleted
+// - allow cascade delete
+// more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
+@parentResource(HcpOpenShiftClusterResource)
+model HcpOpenShiftClusterNodePoolResource
+  is TrackedResource<NodePoolProperties> {
+  /** Name of HCP cluster */
+  //TODO: Figure out the correct length to put here
+  @pattern("^[a-zA-Z0-9-]{3,24}$")
+  @minLength(3)
+  @maxLength(24)
+  @key("nodePoolName")
+  @path
+  @segment("nodePools")
+  name: string;
+
+  ...ManagedServiceIdentityProperty;
+}
+
+/** HCP cluster properties */
+model HcpOpenShiftClusterProperties {
+  /** The status of the last operation. */
+  @visibility("read")
+  provisioningState?: ProvisioningState;
+
+  /** The cluster resource specification. */
+  spec?: ClusterSpec;
+}
+
+/** HCP patchable cluster properties */
+model HcpOpenShiftClusterPatchProperties {
+  /** The status of the last operation. */
+  @visibility("read")
+  provisioningState?: ProvisioningState;
+
+  /** The cluster resource specification. */
+  spec?: ClusterPatchSpec;
+}
+
+model ManagedServiceIdentityUpdate
+  is OptionalProperties<UpdateableProperties<Azure.ResourceManager.Foundations.ManagedServiceIdentity>>;
+
+model HcpOpenShiftClusterPatch
+  is OptionalProperties<UpdateableProperties<OmitProperties<
+    HcpOpenShiftClusterResource,
+    "name" | "properties" | "identity"
+  >>> {
+  /** HCP patchable cluster properties */
+  properties?: HcpOpenShiftClusterPatchProperties;
+
+  /** Managed service identity */
+  identity?: ManagedServiceIdentityUpdate;
+}
+
+model HcpOpenShiftClusterNodePoolPatch
+  is OptionalProperties<UpdateableProperties<OmitProperties<
+    HcpOpenShiftClusterNodePoolResource,
+    "name" | "properties" | "identity"
+  >>> {
+  /** Represents the patchable node pool properties */
+  properties?: NodePoolPatchProperties;
+
+  /** Managed Service Identity */
+  identity?: ManagedServiceIdentityUpdate;
+}
+
+/** The cluster resource specification */
+model ClusterSpec {
+  /** Version of the control plane components */
+  @visibility("create", "update")
+  version: VersionProfile;
+
+  /** Cluster DNS configuration */
+  dns?: DnsProfile;
+
+  /** Cluster network configuration */
+  @visibility("create", "read")
+  network?: NetworkProfile;
+
+  /** Shows the cluster web console information */
+  @visibility("read")
+  console: ConsoleProfile;
+
+  /** Shows the cluster API server profile */
+  @visibility("read")
+  api: ApiProfile;
+
+  /** Enable FIPS mode for the cluster
+   * When set to true, `etcdEncryption` must be set to true
+   */
+  @visibility("create", "read")
+  fips?: boolean = false;
+
+  /** Enables customer ETCD encryption, set during creation
+   * When set to true, `platform.etcdEncryptionSetId` must be set
+   */
+  @visibility("create", "read")
+  etcdEncryption?: boolean = false;
+
+  /** Disable user workload monitoring */
+  @visibility("create", "update")
+  disableUserWorkloadMonitoring?: boolean = false;
+
+  /** Openshift cluster proxy configuration */
+  @visibility("create", "update")
+  proxy?: ProxyProfile;
+
+  /** Azure platform configuration */
+  @visibility("create", "read")
+  platform?: PlatformProfile;
+
+  /** URL for the OIDC provider to be used for authentication
+   * to authenticate against user Azure cloud account
+   */
+  @visibility("read")
+  issuerUrl: string;
+
+  /** Configuration to override the openshift-oauth-apiserver inside cluster
+   *  This changes user login into the cluster to external provider
+   */
+  @visibility("create", "read")
+  externalAuth?: ExternalAuthConfigProfile;
+
+  /** Configures the cluster ingresses */
+  @visibility("create", "read")
+  @OpenAPI.extension("x-ms-identifiers", ["ip", "url", "visibility"])
+  ingress?: IngressProfile[];
+}
+
+/** The patchable cluster specification */
+model ClusterPatchSpec {
+  /** Version of the control plane components */
+  @visibility("update")
+  version?: VersionProfile;
+
+  /** Disable user workload monitoring */
+  @visibility("update")
+  disableUserWorkloadMonitoring?: boolean;
+
+  /** Openshift cluster proxy configuration */
+  @visibility("update")
+  proxy?: ProxyProfile;
+}
+
+/** The resource provisioning state. */
+@lroStatus
+union ProvisioningState {
+  string,
+  ResourceProvisioningState,
+
+  /** Non-terminal state indicating the resource has been accepted */
+  "Accepted",
+
+  /** Non-terminal state indicating the resource is deleting */
+  "Deleting",
+
+  /** Non-terminal state indicating the resource is provisioning */
+  "Provisioning",
+
+  /** Non-terminal state indicating the resource is updating */
+  "Updating",
+}
+
+/** Versions represents an OpenShift version. */
+model VersionProfile {
+  /** ID is the unique identifier of the version. */
+  @visibility("create", "update")
+  id: string;
+
+  /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
+  @visibility("create", "read")
+  channelGroup: string;
+
+  /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
+  @visibility("read")
+  availableUpgrades: string[];
+}
+
+/** DNS contains the DNS settings of the cluster */
+model DnsProfile {
+  /** BaseDomain is the base DNS domain of the cluster. */
+  @visibility("read")
+  baseDomain?: string;
+
+  /**  BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.
+   * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
+   * */
+  @visibility("create", "read")
+  @maxLength(15)
+  @pattern(
+    "^[a-z]([-a-z0-9]*[a-z0-9])?$",
+    "Alphanumerics, underscores, and hyphens.  Must start and end with an alphanumeric."
+  )
+  baseDomainPrefix?: string;
+}
+
+/** Network profile of the cluster */
+model NetworkProfile {
+  /** The main controller responsible for rendering the core networking components */
+  @visibility("create", "read")
+  networkType?: NetworkType = NetworkType.OVNKubernetes;
+
+  /** The CIDR of the pod IP addresses
+   * example: 10.128.0.0/14
+   */
+  @visibility("create", "read")
+  podCidr: string;
+
+  /** The CIDR block for assigned service IPs,
+   * example: 172.30.0.0/16
+   */
+  @visibility("create", "read")
+  serviceCidr: string;
+
+  /** from which to assign machine IP addresses,
+   * example: 10.0.0.0/16
+   */
+  @visibility("create", "read")
+  machineCidr: string;
+
+  /** Network host prefix which is defaulted to 23 if not specified. */
+  @visibility("create", "read")
+  hostPrefix?: int32 = 23;
+}
+
+/** The cluster network type */
+union NetworkType {
+  string,
+
+  /** THE OVN network plugin for the OpenShift cluster */
+  OVNKubernetes: "OVNKubernetes",
+
+  /** Other network plugins */
+  Other: "Other",
+}
+
+/** Configuration of the cluster web console */
+model ConsoleProfile {
+  /** The cluster web console URL endpoint */
+  @visibility("read")
+  url: string;
+}
+
+/** Information about the API of a cluster. */
+model ApiProfile {
+  /** URL endpoint for the API server */
+  @visibility("read")
+  url: string;
+
+  /** should the API server be accessible from the internet */
+  @visibility("create", "read")
+  visibility: Visibility;
+}
+
+/** The visibility of the API server */
+union Visibility {
+  string,
+
+  /** The API server is visible from the internet. */
+  public: "public",
+
+  /** The API server is not visible from the internet. */
+  private: "private",
+}
+
+/** OpenShift cluster proxy configuration */
+model ProxyProfile {
+  /** http proxy config */
+  httpProxy?: string;
+
+  /** https proxy config */
+  httpsProxy?: string;
+
+  /** no proxy config */
+  noProxy?: string;
+
+  /** The trusted CA for the proxy */
+  trustedCa?: string;
+}
+
+/** Azure specific configuration */
+model PlatformProfile {
+  /** Resource group to put cluster resources */
+  managedResourceGroup: string;
+
+  /** ResourceId for the subnet used by the control plane */
+  subnetId: SubnetResourceId;
+
+  /** The core outgoing configuration */
+  outboundType?: OutboundType = OutboundType.loadBalancer;
+
+  /** ResourceId for the network security group attached to the cluster subnet */
+  networkSecurityGroupId: NetworkSecurityGroupResourceId;
+
+  /** The id of the disk encryption set to be used for etcd.
+   * Configure this when `etcdEncryption` is set to true
+   * Is used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
+   */
+  etcdEncryptionSetId?: string;
+}
+
+scalar SubnetResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.Network/virtualNetworks/subnets",
+    }
+  ]>;
+
+scalar NetworkSecurityGroupResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.Network/networkSecurityGroups",
+    }
+  ]>;
+/** The outbound routing strategy used to provide your cluster egress to the internet. */
+union OutboundType {
+  string,
+
+  /** The load balancer configuration */
+  loadBalancer: "loadBalancer",
+}
+
+/*
+ * =======================================
+ *   End HCP cluster core resources
+ * =======================================
+ */
+
+/*
+ * =======================================
+ *  ExternalAuth resources
+ * =======================================
+ */
+
+/** External authentication configuration profile */
+model ExternalAuthConfigProfile {
+  /** This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster */
+  @visibility("create", "read")
+  enabled?: boolean = false;
+
+  /** This can only be set as a day-2 resource on a separate endpoint to provide a self-managed auth service */
+  @visibility("read")
+  @OpenAPI.extension("x-ms-identifiers", ["issuer", "clients", "claim"])
+  externalAuths: ExternalAuthProfile[];
+}
+
+/** External authentication profile */
+model ExternalAuthProfile {
+  /** Token Issuer profile */
+  issuer: TokenIssuerProfile;
+
+  /** External auth clients */
+  clients: ExternalAuthClientProfile[];
+
+  /** External auth claim */
+  claim: ExternalAuthClaimProfile;
+}
+
+/** Token issuer profile */
+model TokenIssuerProfile {
+  /** The URL of the token issuer */
+  url: string;
+
+  /** The audience of the token issuer */
+  audiences: string[];
+
+  /** The issuer of the token */
+  ca: string;
+}
+
+/** External auth client profile */
+model ExternalAuthClientProfile {
+  /** External auth client component */
+  component: ExternalAuthClientComponentProfile;
+
+  /** external auth client id */
+  id: string;
+
+  /** external auth client secret */
+  @secret
+  secret: string;
+
+  /** external auth client scopes */
+  extraScopes: string[];
+}
+
+/** External auth component profile */
+model ExternalAuthClientComponentProfile {
+  /** The name of the external auth client */
+  name: string;
+
+  /** The namespace of the external auth client */
+  authClientNamespace: string;
+}
+
+/** External auth claim profile */
+model ExternalAuthClaimProfile {
+  /** The claim mappings */
+  mappings: TokenClaimMappingsProfile;
+
+  /** The claim validation rules */
+  @OpenAPI.extension("x-ms-identifiers", ["claim", "requiredValue"])
+  validationRules: TokenClaimValidationRuleProfile[];
+}
+
+/** External auth claim mappings profile */
+model TokenClaimMappingsProfile {
+  /** The claim mappings username */
+  username: ClaimProfile;
+
+  /** The claim mappings groups */
+  groups: ClaimProfile;
+}
+
+/** External auth claim profile */
+model ClaimProfile {
+  /** Claim name of the external profile */
+  claim: string;
+
+  /** Prefix for the claim external profile */
+  prefix: string;
+
+  /** Prefix policy */
+  prefixPolicy: string;
+}
+
+/** External auth claim validation rule */
+model TokenClaimValidationRuleProfile {
+  /** Claim name for the validation profile */
+  claim: string;
+
+  /** Required value */
+  requiredValue: string;
+}
+
+/*
+ * =======================================
+ *  End ExternalAuth resources
+ * =======================================
+ */
+
+/*
+ * =======================================
+ *  Ingress resources
+ * =======================================
+ */
+
+/** Configuration of the cluster ingress */
+model IngressProfile {
+  /** The IP for the ingress */
+  @visibility("read")
+  ip: string;
+
+  /** The ingress url */
+  @visibility("read")
+  url: string;
+
+  /** The visibility of the ingress
+   * determines if the ingress is visible from the internet
+   */
+  @visibility("create", "read")
+  visibility: Visibility;
+}
+
+/*
+ * =======================================
+ *  End Ingress resources
+ * =======================================
+ */
+
+/*
+ * =======================================
+ *  NodePool resources
+ * =======================================
+ */
+
+/** Represents the node pool properties */
+model NodePoolProperties {
+  /** Provisioning state */
+  @visibility("read")
+  provisioningState?: ProvisioningState;
+
+  /** The node pool resource specification */
+  spec?: NodePoolSpec;
+}
+
+/** Represents the patchable node pool properties */
+model NodePoolPatchProperties {
+  /** Provisioning state */
+  @visibility("read")
+  provisioningState?: ResourceProvisioningState;
+
+  /** The node pool resource specification */
+  spec?: NodePoolPatchSpec;
+}
+
+/** taintKey is the k8s valid key of the taint type on the nodepool nodes
+ * The good example of the taint key is `node-role.kubernetes.io/master`
+ */
+@minLength(1)
+@maxLength(316)
+scalar taintKey extends string;
+
+/** taintValue is the k8s valid value of the taint type on the nodepool nodes
+ * The good example of the taint value is `NoSchedule`
+ */
+@minLength(1)
+@maxLength(63)
+scalar taintValue extends string;
+
+/** The taint effect the same as in K8s */
+union Effect {
+  string,
+
+  /** NoSchedule taint effect */
+  NoSchedule: "NoSchedule",
+
+  /** PreferNoSchedule taint effect */
+  PreferNoSchedule: "PreferNoSchedule",
+
+  /** NoExecute taint effect */
+  NoExecute: "NoExecute",
+}
+
+/** Worker node pool profile */
+model NodePoolSpec {
+  /** OpenShift version for the nodepool */
+  @visibility("create", "update")
+  version: VersionProfile;
+
+  /** Azure node pool platform configuration */
+  @visibility("create")
+  platform: NodePoolPlatformProfile;
+
+  /** The number of worker nodes, it cannot be used together with autoscaling */
+  @visibility("create", "update")
+  replicas?: int32;
+
+  /** Auto-repair */
+  @visibility("create", "read")
+  autoRepair?: boolean = false;
+
+  /** Representation of a autoscaling in a node pool. */
+  autoScaling?: NodePoolAutoScaling;
+
+  // This warning means to ensure good customer experience, to not create
+  // poorly defined types. However here the type literarly is the map<string, value>
+  /** K8s labels to propagate to the NodePool Nodes
+   * The good example of the label is `node-role.kubernetes.io/master: ""`
+   */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" ""
+  @visibility("create", "update")
+  @OpenAPI.extension("x-ms-identifiers", ["key", "value"])
+  labels?: Label[];
+
+  /** Taints for the nodes */
+  @visibility("create", "update")
+  @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
+  taints?: Taint[];
+
+  /*
+   * The Tuned API is defined here:
+   * - https://github.com/openshift/cluster-node-tuning-operator/blob/2c76314fb3cc8f12aef4a0dcd67ddc3677d5b54f/pkg/apis/tuned/v1/tuned_types.go
+   *
+   * The PerformanceProfile API is defined here:
+   * - https://github.com/openshift/cluster-node-tuning-operator/tree/b41042d42d4ba5bb2e99960248cf1d6ae4935018/pkg/apis/performanceprofile/v2
+   */
+  /** Tuning configs, TODO provide meaningful explanation
+   * TuningConfig is a list of references to ConfigMaps containing serialized
+   * Tuned resources to define the tuning configuration to be applied to
+   * nodes in the NodePool.
+   * Each ConfigMap must have a single key named "tuned" whose value is the
+   * JSON or YAML of a serialized Tuned or PerformanceProfile.
+   */
+  tuningConfigs?: string[];
+}
+
+/** Worker node pool profile */
+model NodePoolPatchSpec {
+  /** OpenShift version for the nodepool */
+  @visibility("update")
+  version?: VersionProfile;
+
+  /** The number of worker nodes, it cannot be used together with autoscaling */
+  @visibility("update")
+  replicas?: int32;
+
+  /** Representation of a autoscaling in a node pool. */
+  autoScaling?: NodePoolAutoScaling;
+
+  // This warning means to ensure good customer experience, to not create
+  // poorly defined types. However here the type literarly is the map<string, value>
+  /** K8s labels to propagate to the NodePool Nodes
+   * The good example of the label is `node-role.kubernetes.io/master: ""`
+   */
+  @visibility("update")
+  @OpenAPI.extension("x-ms-identifiers", ["key", "value"])
+  labels?: Label[];
+
+  /** Taints for the nodes */
+  @visibility("update")
+  @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
+  taints?: Taint[];
+
+  /*
+   * The Tuned API is defined here:
+   * - https://github.com/openshift/cluster-node-tuning-operator/blob/2c76314fb3cc8f12aef4a0dcd67ddc3677d5b54f/pkg/apis/tuned/v1/tuned_types.go
+   *
+   * The PerformanceProfile API is defined here:
+   * - https://github.com/openshift/cluster-node-tuning-operator/tree/b41042d42d4ba5bb2e99960248cf1d6ae4935018/pkg/apis/performanceprofile/v2
+   */
+  /** Tuning configs, TODO provide meaningful explanation
+   * TuningConfig is a list of references to ConfigMaps containing serialized
+   * Tuned resources to define the tuning configuration to be applied to
+   * nodes in the NodePool.
+   * Each ConfigMap must have a single key named "tuned" whose value is the
+   * JSON or YAML of a serialized Tuned or PerformanceProfile.
+   */
+  tuningConfigs?: string[];
+}
+
+/** Taint is controlling the node taint and its effects */
+model Taint {
+  /** The key of the taint
+   * The good example of the taint key is `node-role.kubernetes.io/master`
+   */
+  key?: taintKey;
+
+  /** The value of the taint
+   * The good example of the taint value is `NoSchedule`
+   */
+  value?: taintValue;
+
+  /** The effect of the taint
+   * The good example of the taint effect is `NoSchedule`
+   */
+  effect?: Effect;
+}
+
+/** Label represents the k8s label */
+// Key and value are both optional, so there is no need to redefine them for PATCH
+model Label {
+  /** The key of the label */
+  key?: string;
+
+  /** The value of the label */
+  value?: string;
+}
+
+/** Azure node pool platform configuration */
+model NodePoolPlatformProfile {
+  /** The resourceId for the subnet used by the workers */
+  subnetId?: string;
+
+  /** The VM size according to the documentation:
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
+  vmSize: string;
+
+  /** The OS disk size in GiB */
+  diskSizeGiB?: int32;
+
+  /** The type of the disk storage account
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+   */
+  diskStorageAccountType?: string;
+
+  /** The availability zone for the node pool.
+   * Please read the documentation to see which regions support availability zones
+   * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
+   */
+  availabilityZone?: string;
+
+  /** Whether the worker machines should be encrypted at host */
+  encryptionAtHost?: boolean;
+
+  /** Disk Encryption Set ID that will be used for encryption the Nodes disks
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
+   */
+  diskEncryptionSetId?: string;
+
+  /** Is the disk ephemeral */
+  ephemeralOsDisk?: boolean;
+}
+
+/** Node pool autoscaling */
+model NodePoolAutoScaling {
+  /** The minimum number of nodes in the node pool */
+  @minValue(0)
+  min?: int32;
+
+  /** The maximum number of nodes in the node pool */
+  @minValue(0)
+  max?: int32;
+}
+
+/*
+ * =======================================
+ * End NodePool resources
+ * =======================================
+ */
+
+/*
+ * =======================================
+ *   HCP cluster credentials
+ * =======================================
+ */
+
+/** HCP cluster credentials */
+model HcpOpenShiftClusterCredentials {
+  /** kubeadmin user name */
+  @visibility("read")
+  kubeadminUsername: string;
+
+  /** kube admin password */
+  @visibility("read")
+  @secret
+  kubeadminPassword: string;
+}
+
+/** HCP cluster admin kubeconfig */
+model HcpOpenShiftClusterKubeconfig {
+  /** The kubeconfig file */
+  @visibility("read")
+  @secret
+  kubeconfig: string;
+}
+
+/*
+ * =======================================
+ *   End HCP cluster credentials
+ * =======================================
+ */

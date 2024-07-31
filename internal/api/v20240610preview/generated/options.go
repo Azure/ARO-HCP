@@ -7,9 +7,8 @@
 
 package generated
 
-// HcpClusterVersionOperationsClientListOptions contains the optional parameters for the HcpClusterVersionOperationsClient.NewListPager
-// method.
-type HcpClusterVersionOperationsClientListOptions struct {
+// HcpClusterVersionsClientListOptions contains the optional parameters for the HcpClusterVersionsClient.NewListPager method.
+type HcpClusterVersionsClientListOptions struct {
 	// placeholder for future optional parameters
 }
 
