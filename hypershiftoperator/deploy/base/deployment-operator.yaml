@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    hypershift.openshift.io/install-cli-version: 'openshift/hypershift: 26b4fa32050c2a19adc8e6363193e29c6bf02bfa.
+    hypershift.openshift.io/install-cli-version: 'openshift/hypershift: 2c34df32f7297443bc12f2a52946b74f24c7bdaf.
       Latest supported OCP: 4.17.0'
   creationTimestamp: null
   name: operator
@@ -60,7 +60,7 @@ spec:
           value: 24h0m0s
         - name: MANAGED_SERVICE
           value: ARO-HCP
-        image: arohcpdev.azurecr.io/acm-d/rhtap-hypershift-operator:26b4fa3
+        image: arohcpdev.azurecr.io/acm-d/rhtap-hypershift-operator:2c34df3
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 5
@@ -113,7 +113,7 @@ spec:
         - init
         command:
         - /usr/bin/hypershift-operator
-        image: arohcpdev.azurecr.io/acm-d/rhtap-hypershift-operator:26b4fa3
+        image: arohcpdev.azurecr.io/acm-d/rhtap-hypershift-operator:2c34df3
         imagePullPolicy: IfNotPresent
         name: init-environment
         resources: {}
