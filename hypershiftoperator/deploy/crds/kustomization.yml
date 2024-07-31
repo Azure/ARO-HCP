@@ -25,6 +25,7 @@ resources:
   - customresourcedefinition-monitoring.coreos.com_servicemonitors.yaml
   - customresourcedefinition-clusterresourcesetbindings.addons.cluster.x-k8s.io.yaml
   - customresourcedefinition-azureclusters.infrastructure.cluster.x-k8s.io.yaml
+  - customresourcedefinition-ipaddressclaims.ipam.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremachinetemplates.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-kubevirtmachinetemplates.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-machinesets.cluster.x-k8s.io.yaml
@@ -44,6 +45,7 @@ resources:
   - customresourcedefinition-machinehealthchecks.cluster.x-k8s.io.yaml
   - customresourcedefinition-monitoring.coreos.com_podmonitors.yaml
   - customresourcedefinition-clusterresourcesets.addons.cluster.x-k8s.io.yaml
+  - customresourcedefinition-ipaddresses.ipam.cluster.x-k8s.io.yaml
   - customresourcedefinition-awsendpointservices.hypershift.openshift.io.yaml
   - customresourcedefinition-azureclustertemplates.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-awsclusterroleidentities.infrastructure.cluster.x-k8s.io.yaml
