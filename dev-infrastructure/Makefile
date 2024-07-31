@@ -81,7 +81,7 @@ region: regionalRg
 			currentUserId=$(CURRENTUSER)
 .PHONY: region
 
-cluster: rg cleanup-orphaned-rolebindings region dns acr
+cluster: rg cleanup-orphaned-rolebindings region acr
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
