@@ -395,6 +395,7 @@ module acrPullRole 'acr-permissions.bicep' = [
     scope: acrRg[i]
     params: {
       principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
+      acrResourceGroupid: acrRg[i].id
     }
   }
 ]

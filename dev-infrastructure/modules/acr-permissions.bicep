@@ -4,6 +4,9 @@ param principalId string
 @description('Whether to grant push access to the ACR')
 param grantPushAccess bool = false
 
+@description('ACR Namespace Resource Group Name')
+param acrResourceGroupid string
+
 var acrPullRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
@@ -15,7 +18,7 @@ var acrPushRoleDefinitionId = subscriptionResourceId(
 )
 
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!grantPushAccess) {
-  name: deployment().name
+  name: guid(acrResourceGroupid, principalId, acrPullRoleDefinitionId)
   properties: {
     principalId: principalId
     roleDefinitionId: acrPullRoleDefinitionId
@@ -24,7 +27,7 @@ resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (
 }
 
 resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPushAccess) {
-  name: deployment().name
+  name: guid(acrResourceGroupid, principalId, acrPushRoleDefinitionId)
   properties: {
     principalId: principalId
     roleDefinitionId: acrPushRoleDefinitionId
