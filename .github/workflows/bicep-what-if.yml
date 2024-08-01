@@ -59,7 +59,8 @@ jobs:
               --name "region-${GITHUB_RUN_ID}" \
               --resource-group "${REGIONAL_RESOURCEGROUP}" \
               --template-file templates/region.bicep \
-              --parameters configurations/mvp-region.bicepparam
+              --parameters configurations/mvp-region.bicepparam \
+              --parameters regionalDNSSubdomain="${REGION}"
 
             # service cluster
             az deployment group what-if \
