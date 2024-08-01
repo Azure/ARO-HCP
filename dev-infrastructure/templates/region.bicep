@@ -26,6 +26,8 @@ param baseDNSZoneName string
 @description('The resource group to deploy the base DNS zone to')
 param baseDNSZoneResourceGroup string = 'global'
 
+param regionalDNSSubdomain string = empty(currentUserId) ? location : '${location}-${take(uniqueString(currentUserId), 5)}'
+
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -41,8 +43,6 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
 //
 // R E G I O N A L   D N S   Z O N E
 //
-
-var regionalDNSSubdomain = empty(currentUserId) ? location : '${location}-${take(uniqueString(currentUserId), 5)}'
 
 resource regionalZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: '${regionalDNSSubdomain}.${baseDNSZoneName}'

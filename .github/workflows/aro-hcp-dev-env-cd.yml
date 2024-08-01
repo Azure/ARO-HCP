@@ -84,6 +84,7 @@
                 --template-file templates/region.bicep \
                 --parameters configurations/mvp-region.bicepparam \
                 --parameters currentUserId="${GITHUB_ACTOR}" \
+                --parameters regionalDNSSubdomain="${REGION}"
 
               # service cluster
               az deployment group create \
