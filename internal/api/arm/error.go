@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // CloudError codes
@@ -107,6 +109,21 @@ func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "    ")
 	_ = encoder.Encode(err)
+}
+
+func WriteResourceNotFoundError(w http.ResponseWriter, originalPath string) {
+	resource, err := arm.ParseResourceID(originalPath)
+	if err != nil {
+		// Unable to identify the resource from originalPath
+		WriteCloudError(w, NewCloudError(
+			http.StatusNotFound, CloudErrorCodeResourceNotFound, "",
+			"The resource was not found."))
+		return
+	}
+
+	WriteCloudError(w, NewCloudError(
+		http.StatusNotFound, CloudErrorCodeResourceGroupNotFound, "",
+		"The resource '%s/%s' under resource group '%s' was not found.", resource.ResourceType.Type, resource.Name, resource.ResourceGroupName))
 }
 
 // WriteInternalServerError writes an internal server error to the given ResponseWriter

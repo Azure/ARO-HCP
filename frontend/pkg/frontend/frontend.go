@@ -207,6 +207,9 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	writer.WriteHeader(http.StatusOK)
 }
 
+// ArmResourceRead implements the GET single resource API contract for ARM
+// * 200 If the resource exists
+// * 404 If the resource does not exist
 func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
@@ -230,7 +233,9 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing document not found for cluster: %s", resourceID))
-			writer.WriteHeader(http.StatusNoContent)
+
+			originalPath, _ := OriginalPathFromContext(ctx)
+			arm.WriteResourceNotFoundError(writer, originalPath)
 			return
 		} else {
 			f.logger.Error(err.Error())
@@ -242,7 +247,9 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	csCluster, err := f.clusterServiceConfig.GetCSCluster(doc.ClusterID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("cluster not found in clusters-service: %v", err))
-		writer.WriteHeader(http.StatusNoContent)
+
+		originalPath, _ := OriginalPathFromContext(ctx)
+		arm.WriteResourceNotFoundError(writer, originalPath)
 		return
 	}
 
@@ -348,9 +355,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			// PATCH request will not create a new cluster.
 			originalPath, _ := OriginalPathFromContext(ctx)
 			f.logger.Error("Resource not found")
-			arm.WriteError(
-				writer, http.StatusNotFound, arm.CloudErrorCodeNotFound,
-				originalPath, "Resource not found")
+			arm.WriteResourceNotFoundError(writer, originalPath)
 			return
 		}
 		versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
@@ -516,6 +521,10 @@ func (f *Frontend) ArmResourceUpdate(writer http.ResponseWriter, request *http.R
 	}
 }
 
+// ArmResourceDelete implements the deletion API contract for ARM
+// * 200 if a deletion is successful
+// * 202 if an asynchronous delete is initiated
+// * 204 if a well-formed request attempts to delete a nonexistent resource
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
@@ -572,7 +581,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	}
 	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
-	writer.WriteHeader(http.StatusAccepted)
+	// TODO: Eventually this will be an asynchronous delete and need to return a 202
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
@@ -598,7 +608,9 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subscriptionID))
-			writer.WriteHeader(http.StatusNotFound)
+
+			originalPath, _ := OriginalPathFromContext(ctx)
+			arm.WriteResourceNotFoundError(writer, originalPath)
 			return
 		} else {
 			f.logger.Error(err.Error())
@@ -1066,7 +1078,9 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing document not found for cluster %s when deleting node pool", clusterResourceID))
-			writer.WriteHeader(http.StatusNotFound)
+
+			originalPath, _ := OriginalPathFromContext(ctx)
+			arm.WriteResourceNotFoundError(writer, originalPath)
 			return
 		}
 		f.logger.Error(fmt.Sprintf("failed to fetch cluster document for %s when deleting node pool: %v", clusterResourceID, err))
