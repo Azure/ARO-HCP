@@ -203,8 +203,6 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
-
-	writer.WriteHeader(http.StatusOK)
 }
 
 // ArmResourceRead implements the GET single resource API contract for ARM
@@ -272,7 +270,6 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
-	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
@@ -409,16 +406,17 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		arm.WriteInternalServerError(writer)
 		return
 	}
-	_, err = writer.Write(resp)
-	if err != nil {
-		f.logger.Error(err.Error())
-	}
 
 	switch request.Method {
 	case http.MethodPut:
 		writer.WriteHeader(http.StatusCreated)
 	case http.MethodPatch:
 		writer.WriteHeader(http.StatusAccepted)
+	}
+
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
 	}
 }
 
@@ -626,7 +624,6 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	writer.WriteHeader(http.StatusOK)
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -952,14 +949,13 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	writer.WriteHeader(http.StatusCreated)
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	writer.WriteHeader(http.StatusCreated)
 }
 
 func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) {
@@ -1044,8 +1040,6 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
-
-	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Request) {
