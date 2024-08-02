@@ -235,7 +235,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           }
         ],
         "responses": {
@@ -282,7 +282,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           },
           {
             "name": "resource",
@@ -359,7 +359,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           },
           {
             "name": "properties",
@@ -433,7 +433,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           }
         ],
         "responses": {
@@ -497,7 +497,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           }
         ],
         "responses": {
@@ -546,7 +546,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           }
         ],
         "responses": {
@@ -595,7 +595,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           }
         ],
         "responses": {
@@ -642,17 +642,17 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "Name of HCP cluster *",
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 15,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           }
         ],
         "responses": {
@@ -699,17 +699,17 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "Name of HCP cluster *",
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 15,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           },
           {
             "name": "resource",
@@ -786,17 +786,17 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "Name of HCP cluster *",
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 15,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           },
           {
             "name": "properties",
@@ -870,17 +870,17 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 54,
-            "pattern": "^[a-zA-Z0-9-]{3,54}$"
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "Name of HCP cluster *",
             "required": true,
             "type": "string",
             "minLength": 3,
-            "maxLength": 24,
-            "pattern": "^[a-zA-Z0-9-]{3,24}$"
+            "maxLength": 15,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
           }
         ],
         "responses": {
