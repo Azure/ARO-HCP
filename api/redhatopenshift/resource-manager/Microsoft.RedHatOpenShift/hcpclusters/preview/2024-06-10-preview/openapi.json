@@ -3,7 +3,7 @@
   "info": {
     "title": "Azure Red Hat OpenShift Hosted Control Planes Service",
     "version": "2024-06-10-preview",
-    "description": "Microsoft.RedHatOpenshift Resource Provider management API.",
+    "description": "Microsoft.RedHatOpenShift Resource Provider management API.",
     "x-typespec-generated": [
       {
         "emitter": "@azure-tools/typespec-autorest"

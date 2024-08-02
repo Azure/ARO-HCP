@@ -8,7 +8,7 @@ using TypeSpec.Http;
 using TypeSpec.Versioning;
 using Azure.ResourceManager;
 
-/** Microsoft.RedHatOpenshift Resource Provider management API. */
+/** Microsoft.RedHatOpenShift Resource Provider management API. */
 @armProviderNamespace
 @service({
   title: "Azure Red Hat OpenShift Hosted Control Planes Service",

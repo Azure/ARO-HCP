@@ -15,7 +15,7 @@ const (
 	PatternSubscriptions    = "subscriptions/{" + PathSegmentSubscriptionID + "}"
 	PatternLocations        = "locations/{" + PageSegmentLocation + "}"
 	PatternProviders        = "providers/" + api.ResourceType
-	PatternNodepoolResource = "nodepools/{" + PathSegmentNodepoolName + "}"
+	PatternNodepoolResource = api.NodePoolResourceTypeName + "/{" + PathSegmentNodepoolName + "}"
 	PatternDeployments      = "deployments/{" + PathSegmentDeploymentName + "}"
 	PatternResourceGroups   = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
 	PatternResourceName     = "{" + PathSegmentResourceName + "}"
