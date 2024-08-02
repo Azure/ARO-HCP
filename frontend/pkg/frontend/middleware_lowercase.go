@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// This middleware helps comply with Azure OpenAPI Specifications Guidelines
+// MiddlewareLowercase helps comply with Azure OpenAPI Specifications Guidelines
 // around case sensitivity for resource IDs.  Specifically:
 //
 // OAPI012: Resource IDs must not be case sensitive
@@ -32,13 +32,9 @@ import (
 // The frontend uses ServeMux from Go's standard library (net/http), which
 // matches literal (that is, non-wildcarded) path segments case-sensitively.
 // For instance, in a resource ID, "subscriptions" and "resourcegroups" are
-// literal path segments and therefore are matched case-sensitvely.
-//
-// So this middleware saves the original path casing in the request context,
-// and then normalizes the casing for ServeMux by lowercasing it. At the same
-// time, when registering URL patterns with ServeMux in routes.go, we use the
-// helper function MuxPattern which also lowercases the path segments passed
-// to it to ensure their normalized casing agrees with this middleware.
+// literal path segments and therefore are matched case-sensitvely. So this
+// middleware saves the original path casing in the request context, and
+// then normalizes the casing for ServeMux by lowercasing it.
 //
 // When the resource ID, or parts of it, needs to be used in an HTTP response
 // (such as an error message), be sure to retrieve the original path from the
