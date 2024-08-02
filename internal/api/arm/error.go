@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // CloudError codes
@@ -112,7 +112,7 @@ func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 }
 
 func WriteResourceNotFoundError(w http.ResponseWriter, originalPath string) {
-	resource, err := arm.ParseResourceID(originalPath)
+	resource, err := azcorearm.ParseResourceID(originalPath)
 	if err != nil {
 		// Unable to identify the resource from originalPath
 		WriteCloudError(w, NewCloudError(
