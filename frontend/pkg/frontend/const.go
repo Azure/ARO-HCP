@@ -17,4 +17,7 @@ const (
 	PathSegmentDeploymentName    = "deploymentname"
 	PathSegmentActionName        = "actionname"
 	PathSegmentNodepoolName      = "nodepoolname"
+
+	HCPClusterResourceType = "hcpopenshiftclusters"
+	NodePoolResourceType   = "hcpopenshiftclusters/nodepools"
 )
