@@ -67,56 +67,56 @@ curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000?a
 
 List the Operations for the Provider
 ```bash
-curl -X GET "localhost:8443/providers/Microsoft.RedHatOpenshift/operations?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/providers/Microsoft.RedHatOpenShift/operations?api-version=2024-06-10-preview"
 ```
 
 List HcpOpenShiftVersions Resources by Location
 
 ```bash
-curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/locations/YOUR_LOCATION/providers/Microsoft.RedHatOpenshift/hcpOpenShiftVersions?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/locations/YOUR_LOCATION/providers/Microsoft.RedHatOpenShift/hcpOpenShiftVersions?api-version=2024-06-10-preview"
 ```
 
 List HcpOpenShiftClusterResource Resources by Subscription ID
 ```bash
-curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters?api-version=2024-06-10-preview"
 ```
 
 Get a HcpOpenShiftClusterResource
 ```bash
-curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview"
 ```
 
 Create or Update a HcpOpenShiftClusterResource
 ```bash
-curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview" \
+curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview" \
   -H "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"aro-hcp-local-testing\", \"createdByType\": \"User\", \"createdAt\": \"2024-06-06T19:26:56+00:00\"}" \
   --json @cluster.json
 ```
 
 Delete a HcpOpenShiftClusterResource
 ```bash
-curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview"
+curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview"
 ```
 
 Execute deployment preflight checks
 ```bash
-curl -X POST "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/deployments/YOUR_DEPLOYMENT_NAME/preflight?api-version=2020-06-01" --json preflight.json
+curl -X POST "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/deployments/YOUR_DEPLOYMENT_NAME/preflight?api-version=2020-06-01" --json preflight.json
 ```
 
 NodePool operations:
 
 Create nodepool
 ```bash
-curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/dev-test-cluster/nodepools/dev-nodepool?api-version=2024-06-10-preview" \
+curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodepools/dev-nodepool?api-version=2024-06-10-preview" \
   -H "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"aro-hcp-local-testing\", \"createdByType\": \"User\", \"createdAt\": \"2024-06-06T19:26:56+00:00\"}" --json @node_pool.json
 ```
 
 Get nodepool
 ```bash
-curl "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/dev-test-cluster/nodepools/dev-nodepool?api-version=2024-06-10-preview" 
+curl "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodepools/dev-nodepool?api-version=2024-06-10-preview"
 ```
 
 Delete nodepool
 ```bash
-curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/dev-test-cluster/nodepools/dev-nodepool?api-version=2024-06-10-preview" 
+curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodepools/dev-nodepool?api-version=2024-06-10-preview"
 ```

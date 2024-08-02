@@ -1,11 +1,11 @@
-# RedHatOpenshift HCP Clusters
+# RedHatOpenShift HCP Clusters
 
 > see https://aka.ms/autorest
 
 
-## This is the autorest configuration file for RedHatOpenshift HCP Clusters.
+## This is the autorest configuration file for RedHatOpenShift HCP Clusters.
 
-The service is hosted under Microsoft.RedHatOpenshift namespace but HCP is exposed
+The service is hosted under Microsoft.RedHatOpenShift namespace but HCP is exposed
 as a separarate set of resources, APIs and SDKs.
 
 ## Getting Started
