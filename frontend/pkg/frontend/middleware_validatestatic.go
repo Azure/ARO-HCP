@@ -6,62 +6,61 @@ package frontend
 import (
 	"net/http"
 	"regexp"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // Referenced in https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
-var rxResourceGroupName = regexp.MustCompile(`^[a-zA-Z0-9_()-][a-zA-Z0-9_().-]{0,87}[a-zA-Z0-9_()-]$`)
-var rxResourceName = regexp.MustCompile(`^[a-zA-Z0-9-]{3,24}$`)
+var rxHCPOpenShiftClusterResourceName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{2,53}$`)
+var rxNodePoolResourceName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{2,14}$`)
+
+var resourceTypeSubscription = "Microsoft.Resources/subscriptions"
 
 func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	const (
-		resourceTypeSubscription = "Microsoft.Resources/subscriptions"
-	)
 	// To conform with "OAPI012: Resource IDs must not be case sensitive"
 	// we need to use the original, non-lowercased resource ID components
 	// in response messages.
+	//TODO: Inspect the error instead of ignoring it
 	originalPath, _ := OriginalPathFromContext(r.Context())
-	resourceID, _ := azcorearm.ParseResourceID(originalPath)
-	resourceType, _ := azcorearm.ParseResourceType(originalPath)
+	resource, _ := azcorearm.ParseResourceID(originalPath)
 
-	if resourceID != nil {
-		if resourceID.SubscriptionID != "" {
-			if uuid.Validate(resourceID.SubscriptionID) != nil {
+	if resource != nil {
+		if resource.SubscriptionID != "" {
+			if uuid.Validate(resource.SubscriptionID) != nil {
 				arm.WriteError(w, http.StatusBadRequest,
 					arm.CloudErrorCodeInvalidSubscriptionID,
-					resourceID.String(),
+					resource.String(),
 					"The provided subscription identifier '%s' is malformed or invalid.",
-					resourceID.SubscriptionID)
+					resource.SubscriptionID)
 				return
 			}
 		}
 
 		// Skip static validation for subscription resources
-		if resourceType.String() != resourceTypeSubscription {
-			if resourceID.ResourceGroupName != "" {
-				if !rxResourceGroupName.MatchString(resourceID.ResourceGroupName) {
-					arm.WriteError(w, http.StatusBadRequest,
-						arm.CloudErrorInvalidResourceGroupName,
-						resourceID.String(),
-						"Resource group '%s' is invalid.",
-						resourceID.ResourceGroupName)
-					return
-				}
-			}
-
-			if resourceID.Name != "" {
-				if !rxResourceName.MatchString(resourceID.Name) {
+		if !strings.EqualFold(resource.ResourceType.String(), resourceTypeSubscription) {
+			switch strings.ToLower(resource.ResourceType.Type) {
+			case strings.ToLower(api.HCPOpenShiftClusterResourceTypeName):
+				if !rxHCPOpenShiftClusterResourceName.MatchString(resource.Name) {
 					arm.WriteError(w, http.StatusBadRequest,
 						arm.CloudErrorInvalidResourceName,
-						resourceID.String(),
-						"The Resource '%s/%s' under resource group '%s' is invalid.",
-						resourceID.ResourceType, resourceID.Name,
-						resourceID.ResourceGroupName)
-					return
+						resource.String(),
+						"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
+						resource.ResourceType, resource.Name,
+						resource.ResourceGroupName)
+				}
+			case strings.ToLower(api.HCPOpenShiftClusterResourceTypeName + "/" + api.NodePoolResourceTypeName):
+				if !rxNodePoolResourceName.MatchString(resource.Name) {
+					arm.WriteError(w, http.StatusBadRequest,
+						arm.CloudErrorInvalidResourceName,
+						resource.String(),
+						"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
+						resource.ResourceType, resource.Name,
+						resource.ResourceGroupName)
 				}
 			}
 		}

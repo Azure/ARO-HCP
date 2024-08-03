@@ -36,7 +36,7 @@ type DBClient interface {
 	GetClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*HCPOpenShiftClusterDocument, error)
 	SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error
 	// DeleteClusterDoc deletes an HCPOpenShiftClusterDocument from the database given the resourceID
-	// of a Microsoft.RedHatOpenshift/HcpOpenShiftClusters resource.
+	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource.
 	DeleteClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
 
 	GetNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*NodePoolDocument, error)

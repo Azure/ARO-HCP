@@ -48,7 +48,7 @@ func NewNodePoolsClient(subscriptionID string, credential azcore.TokenCredential
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - Name of HCP cluster
-//   - nodePoolName - Name of HCP cluster
+//   - nodePoolName - Name of HCP cluster *
 //   - resource - Resource create parameters.
 //   - options - NodePoolsClientBeginCreateOrUpdateOptions contains the optional parameters for the NodePoolsClient.BeginCreateOrUpdate
 //     method.
@@ -134,7 +134,7 @@ func (client *NodePoolsClient) createOrUpdateCreateRequest(ctx context.Context, 
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - Name of HCP cluster
-//   - nodePoolName - Name of HCP cluster
+//   - nodePoolName - Name of HCP cluster *
 //   - options - NodePoolsClientBeginDeleteOptions contains the optional parameters for the NodePoolsClient.BeginDelete method.
 func (client *NodePoolsClient) BeginDelete(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientBeginDeleteOptions) (*runtime.Poller[NodePoolsClientDeleteResponse], error) {
 	if options == nil || options.ResumeToken == "" {
@@ -215,7 +215,7 @@ func (client *NodePoolsClient) deleteCreateRequest(ctx context.Context, resource
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - Name of HCP cluster
-//   - nodePoolName - Name of HCP cluster
+//   - nodePoolName - Name of HCP cluster *
 //   - options - NodePoolsClientGetOptions contains the optional parameters for the NodePoolsClient.Get method.
 func (client *NodePoolsClient) Get(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientGetOptions) (NodePoolsClientGetResponse, error) {
 	var err error
@@ -349,7 +349,7 @@ func (client *NodePoolsClient) listByParentHandleResponse(resp *http.Response) (
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - Name of HCP cluster
-//   - nodePoolName - Name of HCP cluster
+//   - nodePoolName - Name of HCP cluster *
 //   - properties - The resource properties to be updated.
 //   - options - NodePoolsClientBeginUpdateOptions contains the optional parameters for the NodePoolsClient.BeginUpdate method.
 func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolPatch, options *NodePoolsClientBeginUpdateOptions) (*runtime.Poller[NodePoolsClientUpdateResponse], error) {
