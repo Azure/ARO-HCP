@@ -480,7 +480,7 @@ The `service-kv-aro-hcp-dev` KV hosts to shared secrets for the creds file and t
   az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
   ```
 
-* Azuer SP credentials in the format CS requires it (json format)
+* Azure SP credentials in the format CS requires it (json format)
 
   ```sh
   az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
