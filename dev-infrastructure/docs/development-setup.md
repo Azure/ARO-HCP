@@ -247,7 +247,9 @@ Run ./dev-infrastructure/local_CS.sh from the root of ARO-HCP repo where "uhc-cl
 
 Option 2: You can follow the below manual steps from the root of the CS repo on our system:
 
-1) Setup required config files
+1) Follow [Azure Credentials and Pull Secret for HCP creation](#azure-credentials-and-pull-secret-for-hcp-creation) to fetch `azure-creds.json`.
+
+2) Setup required config files
 
 ```bash
 # Setup the development.yml
@@ -330,7 +332,7 @@ instance_types:
 EOF
 ```
 
-2) Follow CS dev setup process:
+3) Follow CS dev setup process:
 
 ```bash
 # Build CS
@@ -343,10 +345,10 @@ make db/setup
 ./clusters-service init --config-file ./development.yml
 ```
 
-3) Start CS:
+4) Start CS:
 
 ```bash
-./clusters-service serve --config-file development.yml --demo-mode
+./clusters-service serve --config-file development.yml --runtime-mode aro-hcp --azure-auth-config-path azure-creds.json
 ```
 
 You now have a running, functioning local CS deployment
