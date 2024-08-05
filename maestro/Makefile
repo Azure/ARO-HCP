@@ -34,23 +34,22 @@ deploy-server:
 
 deploy-agent:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show \
-			-g ${RESOURCEGROUP} \
-			-n maestro-consumer \
-			--query clientId) && \
-	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	MAESTRO_KV_NAME=$(shell az keyvault list --query "[?starts_with(name, 'maestro-kv')].name" -g ${REGIONAL_RESOURCEGROUP} --output tsv) && \
-	EVENTGRID_CA_BASE64='$(shell cat ../dev-infrastructure/scripts/digicert-global-root-g3.crt | base64 | tr -d '\n')' && \
+		-g ${RESOURCEGROUP} \
+		-n maestro-consumer \
+		--query clientId -o tsv) && \
+	TENANT_ID=$(shell az account show --query tenantId -o tsv) && \
+	MAESTRO_KV_NAME=$(shell az keyvault list --query "[?starts_with(name, 'maestro-kv')].name" -g ${REGIONAL_RESOURCEGROUP} -o tsv) && \
 	EVENTGRID_HOSTNAME=$(shell az resource show --ids ${EVENTGRID_ID} --query properties.topicSpacesConfiguration.hostname -o tsv) && \
-	oc process --local -f deploy/openshift-templates/agent-template.yml \
-	  -p IMAGE_REGISTRY=quay.io \
-	  -p IMAGE_REPOSITORY=redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro \
-	  -p IMAGE_TAG=ae149df618cb0812d2072b20658a9cff84c087eb \
-	  -p MAESTRO_MI_CLIENT_ID=$${MAESTRO_MI_CLIENT_ID} \
-	  -p MAESTRO_KV_NAME=$${MAESTRO_KV_NAME} \
-	  -p MAESTRO_AGENT_CONSUMER_NAME=${CONSUMER_NAME} \
-	  -p EVENTGRID_CA_BASE64=$${EVENTGRID_CA_BASE64} \
-	  -p EVENTGRID_HOSTNAME=$${EVENTGRID_HOSTNAME} \
-	  -p AZURE_TENANT_ID=$${TENANT_ID} | oc apply -f -
+	helm upgrade --install maestro-agent deploy/helm/agent \
+		--create-namespace --namespace maestro \
+		--set consumerName=${CONSUMER_NAME} \
+		--set broker.host=$${EVENTGRID_HOSTNAME} \
+		--set credsKeyVault.name=$${MAESTRO_KV_NAME} \
+		--set credsKeyVault.secret=${CONSUMER_NAME} \
+		--set azure.clientId=$${MAESTRO_MI_CLIENT_ID} \
+		--set azure.tenantId=$${TENANT_ID} \
+		--set image.base=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro \
+		--set image.tag=ae149df618cb0812d2072b20658a9cff84c087eb
 
 register-agent:
 	./register-maestro-consumer.sh ${CONSUMER_NAME}
@@ -60,4 +59,4 @@ register-agent-job:
 	oc process --local -f deploy/openshift-templates/agent-registration.yml \
 	  -p MAESTRO_AGENT_CONSUMER_NAME=${CONSUMER_NAME} | oc apply -f -
 
-.PHONY: deploy-server
+.PHONY: deploy-server deploy-agent register-agent register-agent-job
