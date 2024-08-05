@@ -86,4 +86,4 @@ make db/setup
 ./clusters-service init --config-file ./development.yml
 
 # Start CS
-./clusters-service serve --config-file development.yml --demo-mode
+./clusters-service serve --config-file development.yml --runtime-mode demo

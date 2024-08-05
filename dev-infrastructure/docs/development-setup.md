@@ -346,7 +346,7 @@ make db/setup
 3) Start CS:
 
 ```bash
-./clusters-service serve --config-file development.yml --demo-mode
+./clusters-service serve --config-file development.yml --runtime-mode demo
 ```
 
 You now have a running, functioning local CS deployment
