@@ -1,0 +1,42 @@
+deployment:
+  replicas: 3
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1
+    memory: 1Gi
+broker:
+  host: ""
+  port: 8883
+istio:
+  revision: asm-1-20
+database:
+  containerizedDb: false
+  containerizedDbImage: docker.io/library/postgres:14.2
+  containerizedDbPvcCapacity: 512Mi
+  host: "maestro-db"
+  port: 5432
+  name: "maestro"
+  user: "maestro"
+  password: "TheBlurstOfTimes"
+  ssl: "disable"
+  maxOpenConnections: 50
+  debug: false
+maestro:
+  httpReadTimeout: 60s
+  httpWriteTimeout: 60s
+  labelMetricsInclusionDuration: 168h
+  httpBindPort: 8000
+  grpcBindPort: 8090
+  healthCheckBindPort: 8083
+  glog_v: 10
+azure:
+  clientId: ""
+  tenantId: ""
+image:
+  base: ""
+  tag: ""
+credsKeyVault:
+  name: ""
+  secret: "maestro-server"
