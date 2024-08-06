@@ -57,7 +57,7 @@ kubectl wait --for=jsonpath='{.status.phase}'=Succeeded csv multicluster-engine.
 # disable hypershift operator management and metrics on hypershift-addon
 # we only need it to manage ManagedCluster adoption
 wait_resource multicluster-engine addondeploymentconfigs hypershift-addon-deploy-config
-kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"}]}}'
+kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"},{"name":"autoImportDisabled","value": "true"}]}}'
 
 # tmp - override hypershift-addon to use
 kubectl apply -f deploy/mch/mce-overrides.yml -n multicluster-engine
