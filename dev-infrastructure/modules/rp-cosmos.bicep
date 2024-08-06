@@ -1,5 +1,6 @@
 // Constants
-param name string = '${resourceGroup().name}-rp-cosmos'
+// Maximum DB account name length is 44
+param name string = '${take(resourceGroup().name, 34)}-rp-cosmos'
 param disableLocalAuth bool = true
 
 // Passed Params and Overrides
