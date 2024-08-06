@@ -8,6 +8,6 @@
     {
         "op": "add",
         "path": "/spec/template/spec/containers/0/args/-",
-        "value": "quay.io/openshift-release-dev/ocp-v4.0-art-dev=arohcpdev.azurecr.io/openshift/release,quay.io/openshift-release-dev/ocp-release=arohcpdev.azurecr.io/openshift/release-images,registry.redhat.io/ubi8=evarohcp.azurecr.io/ubi8,registry.access.redhat.com/ubi8=arohcpdev.azurecr.io/ubi8"
+        "value": "quay.io/openshift-release-dev/ocp-v4.0-art-dev=arohcpdev.azurecr.io/openshift/release,quay.io/openshift-release-dev/ocp-release=arohcpdev.azurecr.io/openshift/release-images,registry.redhat.io/ubi8=arohcpdev.azurecr.io/ubi8,registry.access.redhat.com/ubi8=arohcpdev.azurecr.io/ubi8,registry.redhat.io/redhat=arohcpdev.azurecr.io/redhat"
     }
 ]
