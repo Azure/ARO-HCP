@@ -262,11 +262,6 @@
             sudo mv oc /usr/local/bin/oc
             chmod +x /usr/local/bin/oc
 
-        - uses: azure/setup-helm@v4.2.0
-          with:
-            version: 'v3.13.3'
-          id: install
-
         - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.2
           with:
             kubelogin-version: 'v0.1.3'
@@ -340,6 +335,10 @@
           curl -sfLo - https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.15.9/openshift-client-linux.tar.gz | tar xzf -
           sudo mv oc /usr/local/bin/oc
           chmod +x /usr/local/bin/oc
+
+      - uses: azure/setup-helm@v4.2.0
+        with:
+          version: 'v3.13.3'
 
       - name: 'Setup kubectl for management cluster'
         uses: azure/aks-set-context@37037e33d3a2fc08abe40c887d81c3f6e1eb93b9 # v4.0.0
