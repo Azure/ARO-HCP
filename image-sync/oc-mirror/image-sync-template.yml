@@ -98,15 +98,24 @@ objects:
         apiVersion: mirror.openshift.io/v1alpha2
         storageConfig:
           registry:
-            imageURL: ${TARGET_REGISTRY}/mirror/oc-mirror-metadata
+            imageURL: ${TARGET_REGISTRY}.azurecr.io/mirror/oc-mirror-metadata
             skipTLS: false
         mirror:
           platform:
             channels:
               - name: stable-4.16
+                minVersion: 4.16.0
+                maxVersion: 4.16.3
                 type: ocp
-                full: true
             graph: true
+          operators:
+            - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.16
+              targetCatalog: arohcpdev.azurecr.io/redhat/redhat-operator-index
+              skipDependencies: true
+          additionalImages:
+          - name: registry.redhat.io/redhat/certified-operator-index:v4.16
+          - name: registry.redhat.io/redhat/community-operator-index:v4.16
+          - name: registry.redhat.io/redhat/redhat-marketplace-index:v4.16
   - apiVersion: secrets-store.csi.x-k8s.io/v1
     kind: SecretProviderClass
     metadata:
