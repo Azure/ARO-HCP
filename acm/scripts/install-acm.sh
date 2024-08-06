@@ -57,7 +57,7 @@ kubectl wait --for=jsonpath='{.status.phase}'=Succeeded csv multicluster-engine.
 # disable hypershift operator management and metrics on hypershift-addon
 # we only need it to manage ManagedCluster adoption
 wait_resource multicluster-engine addondeploymentconfigs hypershift-addon-deploy-config
-kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"}]}}'
+kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"},{"name":"autoImportDisabled","value": "true"}]}}'
 
 # tmp - override hypershift-addon to use
 kubectl apply -f deploy/mch/mce-overrides.yml -n multicluster-engine
@@ -71,6 +71,13 @@ wait_resource crds manifestworks.work.open-cluster-management.io
 kubectl wait --for=condition=Established crds manifestworks.work.open-cluster-management.io --timeout=600s
 wait_resource crds managedclusters.cluster.open-cluster-management.io
 kubectl wait --for=condition=Established crds managedclusters.cluster.open-cluster-management.io --timeout=600s
+
+# config MCE addons to run in hosted mode
+# https://github.com/stolostron/hypershift-addon-operator/blob/2c2794d5b773dfb1e5210c804faf22747dc003be/docs/advanced/running_mce_acm_addons_hostedmode.md#configuring-the-hub-cluster
+kubectl apply -f deploy/mch/addondeployconfig.yaml -n multicluster-engine
+kubectl patch clustermanagementaddon work-manager --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
+kubectl patch clustermanagementaddon config-policy-controller --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
+kubectl patch clustermanagementaddon cert-policy-controller --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
 
 # apply klusterletconfig to enroll local cluster
 kubectl apply -f deploy/mch/klusterletconfig.yaml

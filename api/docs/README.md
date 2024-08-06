@@ -58,7 +58,7 @@ The typespec configuration is stored in the `tspconfig.yaml` file. The swagger A
 To do so, open terminal, switch to api directory and call the following command in a API directory with the `main.tsp`:
 
 ```bash
-cd 
+cd
 tsp compile ./api/redhatopenshift/HcpCluster/
 ```
 
@@ -74,7 +74,7 @@ To generate the example requests and responses, you can use the following comman
 ```bash
 export API_VERSION=2024-06-10-preview
 cd api/redhatopenshift/HcpCluster/examples/$API_VERSION
-oav generate-examples ../../../resource-manager/Microsoft.RedHatOpenshift/preview/$API_VERSION/openapi.json
+oav generate-examples ../../../resource-manager/Microsoft.RedHatOpenShift/preview/$API_VERSION/openapi.json
 ```
 
 ## Generating the api client

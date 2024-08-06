@@ -8,7 +8,7 @@ The idea of this repo is to provide means to create a development environment th
 
 ## Prerequisites
 
-* `az`, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version 1.30+
+* `az` version >= 2.60, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version >= 1.30, `helm`
 * `az login` with your Red Hat email
 * Register the needed [AFEC](https://aka.ms/afec) feature flags using `cd dev-infrastructure && make feature-registration
     * __NOTE:__ This will take awhile, you will have to wait until they're in a registered state.
@@ -247,7 +247,9 @@ Run ./dev-infrastructure/local_CS.sh from the root of ARO-HCP repo where "uhc-cl
 
 Option 2: You can follow the below manual steps from the root of the CS repo on our system:
 
-1) Setup required config files
+1) Follow [Azure Credentials and Pull Secret for HCP creation](#azure-credentials-and-pull-secret-for-hcp-creation) to fetch `azure-creds.json`.
+
+2) Setup required config files
 
 ```bash
 # Setup the development.yml
@@ -330,7 +332,7 @@ instance_types:
 EOF
 ```
 
-2) Follow CS dev setup process:
+3) Follow CS dev setup process:
 
 ```bash
 # Build CS
@@ -343,10 +345,10 @@ make db/setup
 ./clusters-service init --config-file ./development.yml
 ```
 
-3) Start CS:
+4) Start CS:
 
 ```bash
-./clusters-service serve --config-file development.yml --demo-mode
+./clusters-service serve --config-file development.yml --runtime-mode aro-hcp --azure-auth-config-path azure-creds.json
 ```
 
 You now have a running, functioning local CS deployment
@@ -464,7 +466,13 @@ Once logged in, verify the connection with `\conninfo`
 ### Azure Credentials and Pull Secret for HCP creation
 
 To test HCP creation, an Azure credentials file with clientId/clientSecret and a pull secret are required.
-The `service-kv-aro-hcp-dev` KV hosts to shared secrets for the creds file and the pull secrets, that can be used by the team for testing
+The `service-kv-aro-hcp-dev` KV hosts shared secrets for the creds file and the pull secrets, that can be used by the team for testing.
+
+Users require the `Key Vault Secrets User` role on the KV in order to read secrets:
+
+  ```sh
+  az role assignment create --role "Key Vault Secrets User" --assignee $(az ad signed-in-user show --query id -o tsv) --scope $(az keyvault show --name service-kv-aro-hcp-dev --query id -o tsv)
+  ```
 
 * Pull secrets that can pull from RH registries and the DEV ACR
 
@@ -478,7 +486,7 @@ The `service-kv-aro-hcp-dev` KV hosts to shared secrets for the creds file and t
   az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
   ```
 
-* Azuer SP credentials in the format CS requires it (json format)
+* Azure SP credentials in the format CS requires it (json format)
 
   ```sh
   az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json

@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"strings"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 var _ DBClient = &Cache{}
@@ -30,9 +32,9 @@ func (c *Cache) DBConnectionTest(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) GetClusterDoc(ctx context.Context, resourceID string, subscriptionID string) (*HCPOpenShiftClusterDocument, error) {
+func (c *Cache) GetClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*HCPOpenShiftClusterDocument, error) {
 	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(resourceID)
+	key := strings.ToLower(resourceID.String())
 
 	if doc, ok := c.cluster[key]; ok {
 		return doc, nil
@@ -49,17 +51,17 @@ func (c *Cache) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocum
 	return nil
 }
 
-func (c *Cache) DeleteClusterDoc(ctx context.Context, resourceID string, subscriptionID string) error {
+func (c *Cache) DeleteClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(resourceID)
+	key := strings.ToLower(resourceID.String())
 
 	delete(c.cluster, key)
 	return nil
 }
 
-func (c *Cache) GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error) {
+func (c *Cache) GetNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*NodePoolDocument, error) {
 	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(resourceID)
+	key := strings.ToLower(resourceID.String())
 
 	if doc, ok := c.nodePool[key]; ok {
 		return doc, nil
@@ -76,9 +78,9 @@ func (c *Cache) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error
 	return nil
 }
 
-func (c *Cache) DeleteNodePoolDoc(ctx context.Context, resourceID string) error {
+func (c *Cache) DeleteNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(resourceID)
+	key := strings.ToLower(resourceID.String())
 
 	delete(c.nodePool, key)
 	return nil

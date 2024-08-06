@@ -22,4 +22,4 @@ jobs:
       - name: yamllint
         uses: oxsecurity/megalinter/flavors/ci_light@v7
         env:
-          FILTER_REGEX_EXCLUDE: 'hypershiftoperator/deploy/base/|hypershiftoperator/deploy/crds/'
+          FILTER_REGEX_EXCLUDE: 'hypershiftoperator/deploy/base/|hypershiftoperator/deploy/crds/|maestro/deploy/helm/'

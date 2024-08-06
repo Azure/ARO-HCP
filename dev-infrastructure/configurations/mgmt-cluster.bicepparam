@@ -16,7 +16,7 @@ param userAgentMaxCount = 3
 param userAgentVMSize = 'Standard_D2s_v3'
 param persist = false
 
-param deployMaestroConsumer = false
+param deployMaestroConsumer = true
 param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
 param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
@@ -36,7 +36,7 @@ param workloadIdentities = items({
   }
 })
 
-param acrPullResourceGroups = [regionalResourceGroup, 'global']
+param acrPullResourceGroups = ['global']
 
 // This parameter is always overriden in the Makefile
 param currentUserId = ''

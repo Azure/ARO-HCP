@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -29,17 +31,17 @@ type DBClient interface {
 	// to be used, an error should be returned.
 	DBConnectionTest(ctx context.Context) error
 
-	// GetClusterDoc retrieves an HCPOpenShiftClusterDocument from the database given its resourceID and containing
-	// subscriptionID. ErrNotFound is returned if an associated HCPOpenShiftClusterDocument cannot be found.
-	GetClusterDoc(ctx context.Context, resourceID string, subscriptionID string) (*HCPOpenShiftClusterDocument, error)
+	// GetClusterDoc retrieves an HCPOpenShiftClusterDocument from the database given its resourceID.
+	// ErrNotFound is returned if an associated HCPOpenShiftClusterDocument cannot be found.
+	GetClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*HCPOpenShiftClusterDocument, error)
 	SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error
-	// DeleteClusterDoc deletes an HCPOpenShiftClusterDocument from the database given the resourceID and containing
-	// subscriptionID of a Microsoft.RedHatOpenshift/HcpOpenShiftClusters resource.
-	DeleteClusterDoc(ctx context.Context, resourceID string, subscriptionID string) error
+	// DeleteClusterDoc deletes an HCPOpenShiftClusterDocument from the database given the resourceID
+	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource.
+	DeleteClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
 
-	GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error)
+	GetNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*NodePoolDocument, error)
 	SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error
-	DeleteNodePoolDoc(ctx context.Context, resourceID string) error
+	DeleteNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	SetOperationDoc(ctx context.Context, doc *OperationDocument) error
@@ -112,10 +114,10 @@ func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) error {
 }
 
 // GetClusterDoc retrieves a cluster document from async DB using resource ID
-func (d *CosmosDBClient) GetClusterDoc(ctx context.Context, resourceID string, subscriptionID string) (*HCPOpenShiftClusterDocument, error) {
+func (d *CosmosDBClient) GetClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*HCPOpenShiftClusterDocument, error) {
 	// Make sure lookup keys are lowercase.
-	resourceID = strings.ToLower(resourceID)
-	subscriptionID = strings.ToLower(subscriptionID)
+	key := strings.ToLower(resourceID.String())
+	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
 	container, err := d.client.NewContainer(clustersContainer)
 	if err != nil {
@@ -125,10 +127,9 @@ func (d *CosmosDBClient) GetClusterDoc(ctx context.Context, resourceID string, s
 	query := "SELECT * FROM c WHERE c.key = @key"
 	opt := azcosmos.QueryOptions{
 		PageSizeHint:    1,
-		QueryParameters: []azcosmos.QueryParameter{{Name: "@key", Value: resourceID}},
+		QueryParameters: []azcosmos.QueryParameter{{Name: "@key", Value: key}},
 	}
 
-	pk := azcosmos.NewPartitionKeyString(subscriptionID)
 	queryPager := container.NewQueryItemsPager(query, pk, &opt)
 
 	var doc *HCPOpenShiftClusterDocument
@@ -176,12 +177,11 @@ func (d *CosmosDBClient) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClu
 }
 
 // DeleteClusterDoc removes a cluster document from the async DB using resource ID
-func (d *CosmosDBClient) DeleteClusterDoc(ctx context.Context, resourceID string, subscriptionID string) error {
+func (d *CosmosDBClient) DeleteClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	// Make sure lookup keys are lowercase.
-	resourceID = strings.ToLower(resourceID)
-	subscriptionID = strings.ToLower(subscriptionID)
+	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
-	doc, err := d.GetClusterDoc(ctx, resourceID, subscriptionID)
+	doc, err := d.GetClusterDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return nil
@@ -194,14 +194,14 @@ func (d *CosmosDBClient) DeleteClusterDoc(ctx context.Context, resourceID string
 		return err
 	}
 
-	_, err = container.DeleteItem(ctx, azcosmos.NewPartitionKeyString(subscriptionID), doc.ID, nil)
+	_, err = container.DeleteItem(ctx, pk, doc.ID, nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (d *CosmosDBClient) GetNodePoolDoc(ctx context.Context, resourceID string) (*NodePoolDocument, error) {
+func (d *CosmosDBClient) GetNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*NodePoolDocument, error) {
 	panic("implement me")
 }
 
@@ -210,7 +210,7 @@ func (d *CosmosDBClient) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocume
 }
 
 // DeleteNodePoolDoc removes a NodePool document from the DB using resource ID
-func (d *CosmosDBClient) DeleteNodePoolDoc(ctx context.Context, resourceID string) error {
+func (d *CosmosDBClient) DeleteNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	panic("implement me")
 }
 

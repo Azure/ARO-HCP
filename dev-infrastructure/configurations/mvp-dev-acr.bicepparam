@@ -1,5 +1,5 @@
 using '../templates/dev-acr.bicep'
 
 param acrName = 'arohcpdev'
-param acrSku = 'Standard'
+param acrSku = 'Premium'
 param location = 'westus3'

@@ -7,8 +7,8 @@ include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
 CONSUMER_NAME ?= $(shell az aks list --query "[?tags.clusterType == 'mgmt-cluster' && starts_with(resourceGroup, '$(REGIONAL_RESOURCEGROUP)')].resourceGroup" -o tsv)
 
 deploy:
-	DOMAIN=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv) && \
-	sed -e "s/DOMAIN/$${DOMAIN}/g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
+	ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
+	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
 	oc process --local -f deploy/openshift-templates/arohcp-namespace-template.yml \
 	  -p ISTIO_VERSION=asm-1-20 | oc apply -f -
 	kubectl apply -f deploy/istio.yml
@@ -26,10 +26,11 @@ deploy:
 	  -p CS_SERVICE_PRINCIPAL_CREDS_BASE64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
 	  -p IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}.azurecr.io \
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
-	  -p IMAGE_TAG=b1268cf | oc apply -f -
+	  -p IMAGE_TAG=6b9115f | oc apply -f -
 
+# for local development
 provision-shard:
-	@DOMAIN=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv) && \
-	sed -e "s/DOMAIN/$${DOMAIN}/g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/dev-provisioning-shards.yml
+	@ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
+	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/dev-provisioning-shards.yml
 
 .PHONY: deploy

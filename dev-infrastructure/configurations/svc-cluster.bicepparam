@@ -51,10 +51,10 @@ param workloadIdentities = items({
   }
 })
 
-param acrPullResourceGroups = [regionalResourceGroup, 'global']
-param imageSyncAcrResourceGroupNames = [regionalResourceGroup, 'global']
-param clustersServiceAcrResourceGroupNames = [regionalResourceGroup, 'global']
- 
+param acrPullResourceGroups = ['global']
+param imageSyncAcrResourceGroupNames = ['global']
+param clustersServiceAcrResourceGroupNames = ['global']
+
 // This parameter is always overriden in the Makefile
 param currentUserId = ''
 param regionalResourceGroup = ''

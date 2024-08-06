@@ -19,7 +19,7 @@ parameters:
   - name: DB_NAME
     description: Name of the Cosmos DB object in Azure
     value: "none"
-  - name: REGION
+  - name: LOCATION
     required: true
   - name: CLUSTERS_SERVICE_URL
     required: true
@@ -69,7 +69,7 @@ objects:
               imagePullPolicy: Always
               args: [
                 "--use-cache",
-                "--region", "${REGION}",
+                "--location", "${LOCATION}",
                 "--clusters-service-url", "${CLUSTERS_SERVICE_URL}"
               ]
               env:
@@ -77,8 +77,8 @@ objects:
                 value: ${DB_NAME}
               - name: DB_URL
                 value: "https://${DB_NAME}.documents.azure.com:443/"
-              - name: REGION
-                value: ${REGION}
+              - name: LOCATION
+                value: ${LOCATION}
               ports:
                 - containerPort: 8443
                   protocol: TCP
