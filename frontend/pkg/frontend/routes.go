@@ -48,11 +48,6 @@ func (f *Frontend) routes() *MiddlewareMux {
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
-	// TODO: determine where in the auth chain we should allow for this endpoint to be called by ARM
-	mux.HandleFunc(MuxPattern(http.MethodGet, PatternSubscriptions), f.ArmSubscriptionGet)
-	mux.HandleFunc(MuxPattern(http.MethodPut, PatternSubscriptions), f.ArmSubscriptionPut)
-
-	// Expose Prometheus metrics endpoint
 	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
 
 	// List endpoints
@@ -102,7 +97,20 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
 		postMuxMiddleware.HandlerFunc(f.DeleteNodePool))
 
-	// Exclude ARO-HCP API version validation for endpoints defined by ARM.
+	// Exclude ARO-HCP API version validation for the following endpoints defined by ARM.
+
+	// Subscription management endpoints
+	postMuxMiddleware = NewMiddleware(
+		MiddlewareResourceID,
+		MiddlewareLoggingPostMux)
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions),
+		postMuxMiddleware.HandlerFunc(f.ArmSubscriptionGet))
+	mux.Handle(
+		MuxPattern(http.MethodPut, PatternSubscriptions),
+		postMuxMiddleware.HandlerFunc(f.ArmSubscriptionPut))
+
+	// Deployment preflight endpoint
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareLoggingPostMux,
 		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
