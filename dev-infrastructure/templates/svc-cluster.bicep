@@ -99,6 +99,9 @@ param serviceKeyVaultPrivate bool = true
 @description('Image sync ACR RG name')
 param imageSyncAcrResourceGroupNames array = []
 
+@description('Clusters Service ACR RG names')
+param clustersServiceAcrResourceGroupNames array = []
+
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -277,3 +280,24 @@ module acrPushRole '../modules/acr-permissions.bicep' = [
     }
   }
 ]
+
+resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
+  for rg in clustersServiceAcrResourceGroupNames: {
+    name: rg
+    scope: subscription()
+  }
+]
+
+module acrContributorRole '../modules/acr-permissions.bicep' = [
+  for (_, i) in clustersServiceAcrResourceGroupNames: {
+    name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'contributor')
+    scope: clustersServiceAcrResourceGroups[i]
+    params: {
+      principalId: csManagedIdentityPrincipalId
+      grantContributorAccess: true
+      acrResourceGroupid: clustersServiceAcrResourceGroups[i].id
+    }
+  }
+]
+
+ 
