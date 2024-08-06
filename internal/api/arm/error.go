@@ -111,19 +111,10 @@ func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 	_ = encoder.Encode(err)
 }
 
-func WriteResourceNotFoundError(w http.ResponseWriter, originalPath string) {
-	resource, err := azcorearm.ParseResourceID(originalPath)
-	if err != nil {
-		// Unable to identify the resource from originalPath
-		WriteCloudError(w, NewCloudError(
-			http.StatusNotFound, CloudErrorCodeResourceNotFound, "",
-			"The resource was not found."))
-		return
-	}
-
+func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *azcorearm.ResourceID) {
 	WriteCloudError(w, NewCloudError(
 		http.StatusNotFound, CloudErrorCodeResourceGroupNotFound, "",
-		"The resource '%s/%s' under resource group '%s' was not found.", resource.ResourceType.Type, resource.Name, resource.ResourceGroupName))
+		"The resource '%s/%s' under resource group '%s' was not found.", resourceID.ResourceType.Type, resourceID.Name, resourceID.ResourceGroupName))
 }
 
 // WriteInternalServerError writes an internal server error to the given ResponseWriter
