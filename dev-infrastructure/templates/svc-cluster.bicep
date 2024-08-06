@@ -299,5 +299,3 @@ module acrContributorRole '../modules/acr-permissions.bicep' = [
     }
   }
 ]
-
- 

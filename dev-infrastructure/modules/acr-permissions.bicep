@@ -20,9 +20,9 @@ var acrPushRoleDefinitionId = subscriptionResourceId(
   '8311e382-0749-4cb8-b61a-304f252e45ec'
 )
 
-var contributorRoleDefinitionId =  subscriptionResourceId(
-'Microsoft.Authorization/roleDefinitions/',
-'b24988ac-6180-42a0-ab88-20f7382dd24c'
+var contributorRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions/',
+  'b24988ac-6180-42a0-ab88-20f7382dd24c'
 )
 
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!grantPushAccess) {
