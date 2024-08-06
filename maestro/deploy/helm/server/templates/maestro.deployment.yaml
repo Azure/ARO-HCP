@@ -12,7 +12,7 @@ spec:
   replicas: {{ .Values.deployment.replicas }}
   strategy:
     rollingUpdate:
-      maxSurge: 1
+      maxSurge: 0
       maxUnavailable: 1
     type: RollingUpdate
   template:
@@ -22,8 +22,9 @@ spec:
       annotations:
         checksum/credsstore: {{ include (print $.Template.BasePath "/maestro.secretproviderclass.yaml") . | sha256sum }}
         checksum/config: {{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum }}
+        checksum/db: {{ include (print $.Template.BasePath "/pg.secret.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: maestro
+      serviceAccountName: {{ .Values.maestro.serviceAccount }}
       volumes:
       - name: db
         secret:

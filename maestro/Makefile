@@ -30,7 +30,8 @@ deploy-server:
 		--set azure.tenantId=$${TENANT_ID} \
 		--set image.base=${MAESTRO_BASE_IMAGE} \
 		--set image.tag=${MAESTRO_TAG} \
-		--set database.containerizedDb=true
+		--set database.containerizedDb=true \
+		--set database.ssl=disable
 
 deploy-agent:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show \
