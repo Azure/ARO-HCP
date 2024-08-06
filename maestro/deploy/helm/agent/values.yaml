@@ -1,0 +1,14 @@
+broker:
+  host: ""
+  port: 8883
+azure:
+  clientId: ""
+  tenantId: ""
+image:
+  base: ""
+  tag: ""
+credsKeyVault:
+  name: ""
+  secret: ""
+consumerName: ""
+installAppliedManifestWorkCRD: false

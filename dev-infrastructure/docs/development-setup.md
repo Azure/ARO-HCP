@@ -8,7 +8,7 @@ The idea of this repo is to provide means to create a development environment th
 
 ## Prerequisites
 
-* `az`, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version 1.30+
+* `az` version >= 2.60, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version >= 1.30, `helm`
 * `az login` with your Red Hat email
 * Register the needed [AFEC](https://aka.ms/afec) feature flags using `cd dev-infrastructure && make feature-registration
     * __NOTE:__ This will take awhile, you will have to wait until they're in a registered state.
