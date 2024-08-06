@@ -154,7 +154,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 			SubscriptionID(resourceID.SubscriptionID).
 			TenantID(tenantID)).
 		Region(cmv1.NewCloudRegion().
-			ID(f.region)).
+			ID(f.location)).
 		CloudProvider(cmv1.NewCloudProvider().
 			ID(csCloudProvider)).
 		Product(cmv1.NewProduct().
