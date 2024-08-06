@@ -4,6 +4,9 @@ param principalId string
 @description('Whether to grant push access to the ACR')
 param grantPushAccess bool = false
 
+@description('Whether to grant contributor access to the ACR')
+param grantContributorAccess bool = false
+
 @description('ACR Namespace Resource Group Name')
 param acrResourceGroupid string
 
@@ -15,6 +18,11 @@ var acrPullRoleDefinitionId = subscriptionResourceId(
 var acrPushRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '8311e382-0749-4cb8-b61a-304f252e45ec'
+)
+
+var contributorRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions/',
+  'b24988ac-6180-42a0-ab88-20f7382dd24c'
 )
 
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!grantPushAccess) {
@@ -31,6 +39,15 @@ resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (
   properties: {
     principalId: principalId
     roleDefinitionId: acrPushRoleDefinitionId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource acrContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantContributorAccess) {
+  name: guid(acrResourceGroupid, principalId, contributorRoleDefinitionId)
+  properties: {
+    roleDefinitionId: contributorRoleDefinitionId
+    principalId: principalId
     principalType: 'ServicePrincipal'
   }
 }
