@@ -466,7 +466,13 @@ Once logged in, verify the connection with `\conninfo`
 ### Azure Credentials and Pull Secret for HCP creation
 
 To test HCP creation, an Azure credentials file with clientId/clientSecret and a pull secret are required.
-The `service-kv-aro-hcp-dev` KV hosts to shared secrets for the creds file and the pull secrets, that can be used by the team for testing
+The `service-kv-aro-hcp-dev` KV hosts shared secrets for the creds file and the pull secrets, that can be used by the team for testing.
+
+Users require the `Key Vault Secrets User` role on the KV in order to read secrets:
+
+  ```sh
+  az role assignment create --role "Key Vault Secrets User" --assignee $(az ad signed-in-user show --query id -o tsv) --scope $(az keyvault show --name service-kv-aro-hcp-dev --query id -o tsv)
+  ```
 
 * Pull secrets that can pull from RH registries and the DEV ACR
 
