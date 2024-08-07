@@ -60,15 +60,7 @@ The service cluster base configuration to use for development is `configurations
   AKSCONFIG=mgmt-cluster make cluster
   ```
 
-### Access private AKS clusters (deprecate this?)
-
-   ```bash
-   az aks command invoke --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --command "kubectl get ns"
-   ```
-
-   Docs: https://learn.microsoft.com/en-us/azure/aks/access-private-cluster?tabs=azure-cli
-
-### Access public AKS clusters
+### Access AKS clusters
 
    ```bash
    AKSCONFIG=svc-cluster make aks.admin-access  # one time
