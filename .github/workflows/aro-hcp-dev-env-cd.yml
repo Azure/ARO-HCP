@@ -299,6 +299,11 @@
             cd maestro/
             make deploy-server
 
+        - name: 'Deploy Image Sync - OC Mirror'
+          run: |
+            cd image-sync/oc-mirror
+            make deploy
+
     deploy_to_management_cluster:
       if: github.event.pull_request.merged == true
       needs:

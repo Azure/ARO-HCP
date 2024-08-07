@@ -22,6 +22,9 @@ parameters:
   - name: TARGET_REGISTRY
     description: "Name of the target registry"
     required: true
+  - name: PULL_SECRET_NAME
+    description: "Name of the pull secret in the KeyVault"
+    required: true
 
 objects:
   - apiVersion: v1
@@ -121,10 +124,6 @@ objects:
           - name: registry.redhat.io/redhat/certified-operator-index:v4.16
           - name: registry.redhat.io/redhat/community-operator-index:v4.16
           - name: registry.redhat.io/redhat/redhat-marketplace-index:v4.16
-          - name: registry.redhat.io/redhat/redhat-operator-index:v4.15
-          - name: registry.redhat.io/redhat/certified-operator-index:v4.15
-          - name: registry.redhat.io/redhat/community-operator-index:v4.15
-          - name: registry.redhat.io/redhat/redhat-marketplace-index:v4.15
           - name: registry.redhat.io/redhat/redhat-operator-index:v4.17
           - name: registry.redhat.io/redhat/certified-operator-index:v4.17
           - name: registry.redhat.io/redhat/community-operator-index:v4.17
@@ -142,7 +141,8 @@ objects:
         objects: |-
           array:
             - |
-              objectName: pull-secret
+              objectName: ${PULL_SECRET_NAME}
+              objectAlias: pull-secret
               objectType: secret
         tenantId: ${TENANT_ID}
         usePodIdentity: "false"

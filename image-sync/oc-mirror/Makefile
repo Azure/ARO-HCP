@@ -29,6 +29,7 @@ deploy:
 	 -p TENANT_ID=$${TENANT_ID} \
 	 -p KEYVAULT_NAME=service-kv-aro-hcp-dev \
 	 -p TARGET_REGISTRY=${ARO_HCP_IMAGE_ACR} \
-	 -p NAMESPACE=image-sync  -o yaml > generated.yml
+	 -p PULL_SECRET_NAME=pull-secret \
+	 -p NAMESPACE=image-sync  -o yaml | kubectl delete -f -
 
 .PHONY: image push build-push deploy
