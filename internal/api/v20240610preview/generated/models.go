@@ -66,8 +66,8 @@ type ClusterSpec struct {
 	// Enable FIPS mode for the cluster When set to true, etcdEncryption must be set to true
 	Fips *bool
 
-	// Configures the cluster ingresses
-	Ingress []*IngressProfile
+	// Configures the default cluster ingress
+	Ingress *IngressProfile
 
 	// Cluster network configuration
 	Network *NetworkProfile
@@ -360,13 +360,10 @@ type HcpOpenShiftVersionsProperties struct {
 	ProvisioningState *ResourceProvisioningState
 }
 
-// IngressProfile - Configuration of the cluster ingress
+// IngressProfile - Configuration of the default cluster ingress
 type IngressProfile struct {
 	// REQUIRED; The visibility of the ingress determines if the ingress is visible from the internet
 	Visibility *Visibility
-
-	// READ-ONLY; The IP for the ingress
-	IP *string
 
 	// READ-ONLY; The ingress url
 	URL *string

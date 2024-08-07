@@ -1116,11 +1116,8 @@
           ]
         },
         "ingress": {
-          "type": "array",
-          "description": "Configures the cluster ingresses",
-          "items": {
-            "$ref": "#/definitions/IngressProfile"
-          },
+          "$ref": "#/definitions/IngressProfile",
+          "description": "Configures the default cluster ingress",
           "x-ms-identifiers": [
             "ip",
             "url",
@@ -1579,13 +1576,8 @@
     },
     "IngressProfile": {
       "type": "object",
-      "description": "Configuration of the cluster ingress",
+      "description": "Configuration of the default cluster ingress",
       "properties": {
-        "ip": {
-          "type": "string",
-          "description": "The IP for the ingress",
-          "readOnly": true
-        },
         "url": {
           "type": "string",
           "description": "The ingress url",
@@ -1601,7 +1593,6 @@
         }
       },
       "required": [
-        "ip",
         "url",
         "visibility"
       ]

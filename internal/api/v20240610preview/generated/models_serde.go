@@ -1069,7 +1069,6 @@ func (h *HcpOpenShiftVersionsProperties) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type IngressProfile.
 func (i IngressProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "ip", i.IP)
 	populate(objectMap, "url", i.URL)
 	populate(objectMap, "visibility", i.Visibility)
 	return json.Marshal(objectMap)
@@ -1084,9 +1083,6 @@ func (i *IngressProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "ip":
-				err = unpopulate(val, "IP", &i.IP)
-			delete(rawMsg, key)
 		case "url":
 				err = unpopulate(val, "URL", &i.URL)
 			delete(rawMsg, key)
