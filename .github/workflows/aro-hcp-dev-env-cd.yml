@@ -93,6 +93,7 @@
                 --template-file templates/svc-cluster.bicep \
                 --parameters configurations/mvp-svc-cluster.bicepparam \
                 --parameters currentUserId="${GITHUB_ACTOR}" \
+                --parameters azureMonitorWorkspaceResourceId=$(az monitor account show --resource-group ${REGIONAL_RESOURCEGROUP} --name aro-hcp-monitor --query id -o tsv) \
                 --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
               # management cluster
@@ -102,6 +103,7 @@
                 --template-file templates/mgmt-cluster.bicep \
                 --parameters configurations/mvp-mgmt-cluster.bicepparam \
                 --parameters currentUserId="${GITHUB_ACTOR}" \
+                --parameters azureMonitorWorkspaceResourceId=$(az monitor account show --resource-group ${REGIONAL_RESOURCEGROUP} --name aro-hcp-monitor --query id -o tsv) \
                 --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
               MGMT_CLUSTER_NAME=$(az deployment group show --resource-group "${MC_RESOURCEGROUP}" --name "mgmt-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)

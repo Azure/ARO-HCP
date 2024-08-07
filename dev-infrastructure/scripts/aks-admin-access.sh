@@ -1,5 +1,5 @@
 #!/bin/sh
-set -ex
+set -e
 
 RESOURCEGROUP=$1
 CURRENTUSER_CLIENT_ID=$(az ad signed-in-user show -o json | jq -r '.id')
