@@ -22,6 +22,7 @@ const (
 	CloudErrorCodeUnsupportedMediaType   = "UnsupportedMediaType"
 	CloudErrorCodeNotFound               = "NotFound"
 	CloudErrorInvalidSubscriptionState   = "InvalidSubscriptionState"
+	CloudErrorCodeSubscriptionNotFound   = "SubscriptionNotFound"
 	CloudErrorCodeResourceNotFound       = "ResourceNotFound"
 	CloudErrorCodeResourceGroupNotFound  = "ResourceGroupNotFound"
 	CloudErrorCodeInvalidSubscriptionID  = "InvalidSubscriptionID"
@@ -112,9 +113,28 @@ func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 }
 
 func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *azcorearm.ResourceID) {
-	WriteCloudError(w, NewCloudError(
-		http.StatusNotFound, CloudErrorCodeResourceGroupNotFound, "",
-		"The resource '%s/%s' under resource group '%s' was not found.", resourceID.ResourceType.Type, resourceID.Name, resourceID.ResourceGroupName))
+	var code string
+	var message string
+
+	switch resourceID.ResourceType.String() {
+	case azcorearm.SubscriptionResourceType.String():
+		code = CloudErrorCodeSubscriptionNotFound
+		message = fmt.Sprintf(
+			"The subscription '%s' was not found.",
+			resourceID.SubscriptionID)
+	case azcorearm.ResourceGroupResourceType.String():
+		code = CloudErrorCodeResourceGroupNotFound
+		message = fmt.Sprintf(
+			"The resource group '%s' under subscription '%s' was not found.",
+			resourceID.ResourceGroupName, resourceID.SubscriptionID)
+	default:
+		code = CloudErrorCodeResourceNotFound
+		message = fmt.Sprintf(
+			"The resource '%s/%s' under resource group '%s' was not found.",
+			resourceID.ResourceType.Type, resourceID.Name, resourceID.ResourceGroupName)
+	}
+
+	WriteError(w, http.StatusNotFound, code, resourceID.String(), message)
 }
 
 // WriteInternalServerError writes an internal server error to the given ResponseWriter
