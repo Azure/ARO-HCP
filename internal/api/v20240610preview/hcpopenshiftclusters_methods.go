@@ -112,7 +112,6 @@ func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
 
 func newIngressProfile(from *api.IngressProfile) *generated.IngressProfile {
 	return &generated.IngressProfile{
-		IP:         api.Ptr(from.IP),
 		URL:        api.Ptr(from.URL),
 		Visibility: api.Ptr(generated.Visibility(from.Visibility)),
 	}
@@ -210,12 +209,12 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 					DisableUserWorkloadMonitoring: api.Ptr(from.Properties.Spec.DisableUserWorkloadMonitoring),
 					Proxy:                         newProxyProfile(&from.Properties.Spec.Proxy),
 					Platform:                      newPlatformProfile(&from.Properties.Spec.Platform),
+					Ingress:                       newIngressProfile(&from.Properties.Spec.Ingress),
 					IssuerURL:                     api.Ptr(from.Properties.Spec.IssuerURL),
 					ExternalAuth: &generated.ExternalAuthConfigProfile{
 						Enabled:       api.Ptr(from.Properties.Spec.ExternalAuth.Enabled),
 						ExternalAuths: make([]*generated.ExternalAuthProfile, len(from.Properties.Spec.ExternalAuth.ExternalAuths)),
 					},
-					Ingress: make([]*generated.IngressProfile, len(from.Properties.Spec.Ingress)),
 				},
 			},
 		},
@@ -238,10 +237,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 
 	for index, item := range from.Properties.Spec.ExternalAuth.ExternalAuths {
 		out.Properties.Spec.ExternalAuth.ExternalAuths[index] = newExternalAuthProfile(item)
-	}
-
-	for index, item := range from.Properties.Spec.Ingress {
-		out.Properties.Spec.Ingress[index] = newIngressProfile(item)
 	}
 
 	return out
@@ -326,11 +321,8 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 			if c.Properties.Spec.ExternalAuth != nil {
 				normalizeExternalAuthConfig(c.Properties.Spec.ExternalAuth, &out.Properties.Spec.ExternalAuth)
 			}
-			ingressSequence := api.DeleteNilsFromPtrSlice(c.Properties.Spec.Ingress)
-			out.Properties.Spec.Ingress = make([]*api.IngressProfile, len(ingressSequence))
-			for index, item := range ingressSequence {
-				out.Properties.Spec.Ingress[index] = &api.IngressProfile{}
-				normalizeIngress(item, out.Properties.Spec.Ingress[index])
+			if c.Properties.Spec.Ingress != nil {
+				normalizeIngress(c.Properties.Spec.Ingress, &out.Properties.Spec.Ingress)
 			}
 		}
 	}
@@ -588,9 +580,6 @@ func (p *IngressProfile) Normalize(out *api.IngressProfile) {
 }
 
 func normalizeIngress(p *generated.IngressProfile, out *api.IngressProfile) {
-	if p.IP != nil {
-		out.IP = *p.IP
-	}
 	if p.URL != nil {
 		out.URL = *p.URL
 	}

@@ -85,12 +85,9 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 					Enabled:       false,
 					ExternalAuths: []*configv1.OIDCProvider{},
 				},
-				Ingress: []*api.IngressProfile{
-					{
-						IP:         "", // TODO: Unsure if OCM will support this field
-						URL:        "",
-						Visibility: "",
-					},
+				Ingress: api.IngressProfile{
+					URL:        "",
+					Visibility: "",
 				},
 			},
 		},

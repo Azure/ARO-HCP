@@ -35,7 +35,7 @@ type ClusterSpec struct {
 	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"        validate:"required_for_put"`
 	IssuerURL                     string                    `json:"issuerUrl,omitempty"                     visibility:"read"               validate:"omitempty,url"`
 	ExternalAuth                  ExternalAuthConfigProfile `json:"externalAuth,omitempty"                  visibility:"read create"`
-	Ingress                       []*IngressProfile         `json:"ingressProfile,omitempty"                visibility:"read create"`
+	Ingress                       IngressProfile            `json:"ingressProfile,omitempty"                visibility:"read create"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -101,7 +101,6 @@ type ExternalAuthConfigProfile struct {
 
 // IngressProfile represents a cluster ingress configuration.
 type IngressProfile struct {
-	IP         string     `json:"ip,omitempty"         visibility:"read"        validate:"omitempty,ipv4"`
 	URL        string     `json:"url,omitempty"        visibility:"read"        validate:"omitempty,url"`
 	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"required_for_put,enum_visibility"`
 }
