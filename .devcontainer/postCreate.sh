@@ -12,7 +12,7 @@ git config --global core.editor "code --wait"
 source /usr/share/bash-completion/completions/git
 echo "source /usr/share/bash-completion/completions/git" >> ~/.bashrc
 
-npm ci
+cd api && npm ci
 
 # Install azure/oav for validation of openapi and swagger example generation
 # https://github.com/Azure/oav
