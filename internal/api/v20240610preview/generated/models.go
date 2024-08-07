@@ -44,6 +44,9 @@ type ClusterPatchSpec struct {
 
 // ClusterSpec - The cluster resource specification
 type ClusterSpec struct {
+	// REQUIRED; Configures the default cluster ingress
+	Ingress *IngressProfile
+
 	// REQUIRED; Version of the control plane components
 	Version *VersionProfile
 
@@ -65,9 +68,6 @@ type ClusterSpec struct {
 
 	// Enable FIPS mode for the cluster When set to true, etcdEncryption must be set to true
 	Fips *bool
-
-	// Configures the default cluster ingress
-	Ingress *IngressProfile
 
 	// Cluster network configuration
 	Network *NetworkProfile

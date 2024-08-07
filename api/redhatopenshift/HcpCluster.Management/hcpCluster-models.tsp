@@ -158,8 +158,8 @@ model ClusterSpec {
 
   /** Configures the default cluster ingress */
   @visibility("create", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["ip", "url", "visibility"])
-  ingress?: IngressProfile;
+  @OpenAPI.extension("x-ms-identifiers", ["url", "visibility"])
+  ingress: IngressProfile;
 }
 
 /** The patchable cluster specification */

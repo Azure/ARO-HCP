@@ -1119,7 +1119,6 @@
           "$ref": "#/definitions/IngressProfile",
           "description": "Configures the default cluster ingress",
           "x-ms-identifiers": [
-            "ip",
             "url",
             "visibility"
           ],
@@ -1133,7 +1132,8 @@
         "version",
         "console",
         "api",
-        "issuerUrl"
+        "issuerUrl",
+        "ingress"
       ]
     },
     "ConsoleProfile": {
