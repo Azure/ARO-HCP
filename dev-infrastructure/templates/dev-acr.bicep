@@ -43,7 +43,7 @@ resource acrPurgeTask 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' 
       os: 'Linux'
     }
     step: {
-      encodedTaskContent: base64('acr purge --ago 7d')
+      encodedTaskContent: base64('acr purge --filter "arohcpfrontend:.*" --keep 3 --ago 7d')
       type: 'EncodedTask'
     }
     timeout: 3600
