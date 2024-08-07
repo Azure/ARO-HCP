@@ -12,4 +12,3 @@ node_modules
 .idea
 env
 frontend/archive.tar.gz
-image-sync/oc-mirror/generated.yml
