@@ -7,6 +7,11 @@ CURRENTUSER = $(shell az ad signed-in-user show | jq -r '.id')
 DEPLOYMENTNAME = $(RESOURCEGROUP)
 DEPLOYMENTNAMEREGION = $(REGIONAL_RESOURCEGROUP)-REGION
 
+# Set SKIP_CONFIRM to a non-empty value to skip "what-if" confirmation prompts.
+ifndef SKIP_CONFIRM
+PROMPT_TO_CONFIRM = "--confirm-with-what-if"
+endif
+
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
@@ -34,7 +39,7 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		--name "feature-registration" \
 		--location eastus \
 		--template-file templates/feature-registration.bicep \
-		--confirm-with-what-if
+		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
 rg:
@@ -66,7 +71,7 @@ acr: regionalRg
 		--name "$(DEPLOYMENTNAMEREGION)-ACR" \
 		--resource-group $(REGIONAL_RESOURCEGROUP) \
 		--template-file templates/dev-acr.bicep \
-		--confirm-with-what-if \
+		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/dev-acr.bicepparam \
 		--parameters \
@@ -78,7 +83,7 @@ region: regionalRg
 		--name "$(DEPLOYMENTNAMEREGION)" \
 		--resource-group $(REGIONAL_RESOURCEGROUP) \
 		--template-file templates/region.bicep \
-		--confirm-with-what-if \
+		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/region.bicepparam \
 		--parameters \
@@ -93,7 +98,7 @@ endif
 		--name "$(DEPLOYMENTNAME)" \
 		--resource-group $(RESOURCEGROUP) \
 		--template-file templates/$(AKSCONFIG).bicep \
-		--confirm-with-what-if \
+		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
