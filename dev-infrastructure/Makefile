@@ -51,7 +51,7 @@ regionalRg:
 		az group create \
 			--name $(REGIONAL_RESOURCEGROUP)  \
 			--location $(REGION) \
-			--output none; \	
+			--output none; \
 	fi
 .PHONY: regionalRg
 
