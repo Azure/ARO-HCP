@@ -10,7 +10,7 @@ param maestroKeyVaultCertificateDomain string
 param location string
 
 module evengGridAccess './maestro-eventgrid-access.bicep' = {
-  name: '${deployment().name}-event-grid-access'
+  name: 'event-grid-access-${maestroConsumerName}'
   scope: resourceGroup(maestroInfraResourceGroup)
   params: {
     eventGridNamespaceName: maestroEventGridNamespaceName
