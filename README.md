@@ -33,10 +33,6 @@ On top of that, it sets up the Bicep CLI and the Azure CLI with the Bicep extens
 to simplify the development of infra code.
 
 Finally, the container also contains the nodejs and sets up the typespec which is needed for the ARM contract development, as it is now mandatory to have the typespec in the ARM templates.
-To enable the typespec extensions, which is not yet part of official extensions, once the vscode opens and the devcontainer is ready, you need to run the following command
-```bash
-tsp code install
-```
 
 If you are developing on MacOS you will need to install both docker cli (NOT docker desktop) and colima. There have been issues with the devcontainer working with vscode using podman desktop.
 
