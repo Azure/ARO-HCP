@@ -38,17 +38,21 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 .PHONY: feature-registration
 
 rg:
-	az group create \
-  		--name $(RESOURCEGROUP)  \
-		--location $(REGION) \
-		--output none
+	@if ! az group exists --name $(RESOURCEGROUP) -o none; then \
+        @az group create \
+            --name $(RESOURCEGROUP)  \
+            --location $(REGION) \
+            --output none; \
+    fi
 .PHONY: rg
 
 regionalRg:
-	@az group create \
-		--name $(REGIONAL_RESOURCEGROUP)  \
-		--location $(REGION) \
-		--output none
+	@if ! az group exists --name $(REGIONAL_RESOURCEGROUP) -o none; then \
+        @az group create \
+            --name $(REGIONAL_RESOURCEGROUP)  \
+            --location $(REGION) \
+            --output none; \
+    fi
 .PHONY: regionalRg
 
 cleanup-orphaned-rolebindings:
