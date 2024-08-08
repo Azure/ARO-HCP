@@ -9,5 +9,8 @@ param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24
 param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)
 param maestroEventGridMaxClientSessionsPerAuthName = 4
 
-// This parameter is always overriden in the Makefile
+// metrics
+param grafanaName = take('aro-hcp-grafana-${uniqueString(currentUserId)}', 23)
+
+// These parameters are always overriden in the Makefile
 param currentUserId = ''
