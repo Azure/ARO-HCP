@@ -52,53 +52,13 @@ kustomize-update:
 		--from-literal=CURRENT_VERSION=${ARO_HCP_FRONTEND_IMAGE} \
 		--from-literal=LOCATION="${LOCATION}"
 
-kustomize-deploy:
+deploy: kustomize-update
 	kubectl apply -k deploy/overlays/dev
 
-kustomize-undeploy:
-	kubectl delete -k deploy/overlays/dev
-
-deploy:
-	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
-			-g ${RESOURCEGROUP} \
-			-n ${DEPLOYMENTNAME} \
-			--query properties.outputs.frontend_mi_client_id.value);\
-	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name') DB_NAME=$${DB_NAME:-"none"};\
-	oc process -f ./deploy/aro-hcp-frontend.yml --local \
-		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
-		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
-		-p DB_NAME="$${DB_NAME}" \
-		-p LOCATION=${LOCATION}| oc apply -f -
-
 undeploy:
-	oc process -f ./deploy/aro-hcp-frontend.yml --local \
-		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
-		-p FRONTEND_MI_CLIENT_ID="null" \
-		-p LOCATION="null" | oc delete -f -
-
-deploy-private:
-	TMP_DEPLOY=$(shell mktemp);\
-	FRONTEND_MI_CLIENT_ID=$(shell az deployment group show \
-			-g ${RESOURCEGROUP} \
-			-n ${DEPLOYMENTNAME} \
-			--query properties.outputs.frontend_mi_client_id.value);\
-	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name' || echo "none");\
-	oc process -f ./deploy/aro-hcp-frontend.yml --local \
-		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
-		-p FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
-		-p DB_NAME="$${DB_NAME}" \
-		-p LOCATION=${LOCATION}> "$${TMP_DEPLOY}";\
-	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl create -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
-
-undeploy-private:
-	TMP_DEPLOY=$(shell mktemp);\
-	oc process -f ./deploy/aro-hcp-frontend.yml --local \
-		-p ARO_HCP_FRONTEND_IMAGE=${ARO_HCP_FRONTEND_IMAGE} \
-		-p FRONTEND_MI_CLIENT_ID="null" \
-		-p LOCATION="null" > "$${TMP_DEPLOY}";\
-	az aks command invoke --resource-group ${RESOURCEGROUP} --name ${CLUSTER_NAME} --command "kubectl delete -f $$(basename $${TMP_DEPLOY})" --file "$${TMP_DEPLOY}"
+	kubectl delete -k deploy/overlays/dev
 
 smoke-tests:
 	go test -v -count 1 ./utils/frontend_smoke_test.go
 
-.PHONY: frontend clean image deploy undeploy deploy-private undeploy-private
+.PHONY: frontend clean image deploy undeploy

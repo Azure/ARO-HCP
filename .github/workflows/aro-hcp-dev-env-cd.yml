@@ -288,8 +288,7 @@
         - name: 'Deploy Frontend'
           run: |
             cd frontend/
-            make kustomize-update
-            make kustomize-deploy
+            make deploy
 
         - name: 'Deploy Cluster Service'
           run: |
