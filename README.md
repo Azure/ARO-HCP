@@ -3,6 +3,8 @@
 # Description
 The RP for the ARO-HCP project.
 
+The components for HCP are each encpasulated in a top-level directory and each directory contains it's own makefile.
+
 ## Development setup
 
 For instructions on building out a dev environment for testing -- Review the [Dev Infrastructure](./dev-infrastructure/docs/development-setup.md) guide
