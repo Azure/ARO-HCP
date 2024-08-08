@@ -21,7 +21,7 @@ param maestroPostgresServerVersion = '15'
 param maestroPostgresServerStorageSizeGB = 32
 param deployMaestroPostgres = false
 
-param deployCsInfra = false
+param deployCsInfra = true
 param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 
 param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24)

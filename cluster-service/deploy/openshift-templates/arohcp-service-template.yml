@@ -362,9 +362,11 @@ objects:
       metadata:
         labels:
           app: clusters-service
+          azure.workload.identity/use: "true"
       spec:
         serviceAccount: clusters-service
         serviceAccountName: clusters-service
+        automountServiceAccountToken: true
         volumes:
         - name: service
           secret:
@@ -418,6 +420,8 @@ objects:
             mountPath: /secrets/rds
           - name: service
             mountPath: /secrets/service
+          - name: azure-credentials
+            mountPath: /secrets/azure-credentials
           command:
           - /usr/local/bin/clusters-service
           - init
@@ -426,10 +430,12 @@ objects:
           - --db-name=@/secrets/rds/db.name
           - --db-user=@/secrets/rds/db.user
           - --db-password=@/secrets/rds/db.password
-          - --db-disable-tls=true
+          - --db-disable-tls=false
+          - --db-auth-method=az-entra
           - --force-migration=${FORCE_MIGRATION}
           - --batch-processes-dry-run=${BATCH_PROCESSES_DRY_RUN}
           - --batch-processes=${BATCH_PROCESSES}
+          - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-config
         containers:
         - name: service
           image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
@@ -483,7 +489,8 @@ objects:
           - --db-name=@/secrets/rds/db.name
           - --db-user=@/secrets/rds/db.user
           - --db-password=@/secrets/rds/db.password
-          - --db-disable-tls=true
+          - --db-disable-tls=false
+          - --db-auth-method=az-entra
           - --gateway-url=${GATEWAY_URL}
           - --client-id=@/secrets/service/client.id
           - --client-secret=@/secrets/service/client.secret
