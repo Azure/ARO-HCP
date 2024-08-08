@@ -12,7 +12,7 @@ param systemAgentMinCount = 2
 param systemAgentMaxCount = 3
 param systemAgentVMSize = 'Standard_D2s_v3'
 param userAgentMinCount = 2
-param userAgentMaxCount = 3
+param userAgentMaxCount = 5
 param userAgentVMSize = 'Standard_D2s_v3'
 param persist = false
 
