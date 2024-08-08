@@ -366,7 +366,6 @@ objects:
       spec:
         serviceAccount: clusters-service
         serviceAccountName: clusters-service
-        automountServiceAccountToken: true
         volumes:
         - name: service
           secret:

@@ -3,7 +3,7 @@ AKSCONFIG ?= svc-cluster
 
 #IMAGE_REPOSITORY?=app-sre/uhc-clusters-service
 IMAGE_REPOSITORY?=cluster-service/uhc-clusters-service
-IMAGE_TAG?=1723136844
+IMAGE_TAG?=1723149695
 
 CONFIG_PROFILE ?= dev
 include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
@@ -19,7 +19,7 @@ deploy:
 
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
 		-p DB_HOST=$(shell az postgres flexible-server list --resource-group ${RESOURCEGROUP} --query "[?starts_with(name, 'cs-pg-')].fullyQualifiedDomainName" -o tsv) \
-		-p DB_NAME=cluster-service \
+		-p DB_NAME=clusters-service \
 		-p DB_USER=clusters-service \
 		-p DB_PASSWORD=fetched-at-runtime \
 	  	-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/tmp-provisioning-shard.yml)" | oc apply -f -
