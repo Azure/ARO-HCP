@@ -38,8 +38,8 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 .PHONY: feature-registration
 
 rg:
-	@if ! az group exists --name $(RESOURCEGROUP) -o none; then \
-		@az group create \
+	@if [ "$$(az group exists --name $(RESOURCEGROUP))" = "false" ]; then \
+		az group create \
 			--name $(RESOURCEGROUP)  \
 			--location $(REGION) \
 			--output none; \
@@ -47,11 +47,11 @@ rg:
 .PHONY: rg
 
 regionalRg:
-	@if ! az group exists --name $(REGIONAL_RESOURCEGROUP) -o none; then \
-		@az group create \
+	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
 			--name $(REGIONAL_RESOURCEGROUP)  \
 			--location $(REGION) \
-			--output none; \
+			--output none; \	
 	fi
 .PHONY: regionalRg
 
