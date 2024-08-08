@@ -32,11 +32,8 @@ The service cluster base configuration to use for development is `configurations
 
 * `deployCsInfra` - set to `true` if you want CS infra to be provisioned, e.g. if you want to develop on RP and run it towards an on-cluster CS
 
-  This includes a Postgres DB and access permissions to the DB and the service KeyVault
-
-* `deployMaestroInfra` - set to `true` if you want Maestro infra to be provisioned, e.g. if you want to develop on CS and run it towards an on-cluster Maestro
-
-  This includes an EventGrid Namespaces instance, a Postgres DB and access permissions for the Maestro Server
+  This includes a Postgres DB and access permissions to the DB and the service KeyVault, as well as the Maestro Server
+  and supporting infrastructure (EventGrid Namespaces instance, Postgres DB and necessary access permissions).
 
 * `persist` - if set to `true` the resourcegroup holding the cluster and the regional resources will not be deleted after a couple of days
 
@@ -50,7 +47,7 @@ Change those flags accordingly and then run the following command. Depending on 
 
 The service cluster base configuration to use for development is `configurations/mgmt-cluster.bicepparam`. This parameter file offers feature toggles as well.
 
-* `deployMaestroConsumer` - if set to `true` deploys the required infrastructure to run a Maestro Consumer (TODO find a better name for this flag because it does not deploy the consumer itself). For this to work, the Service Cluster needs to be deployed with `deployMaestroInfra: true`
+* `deployMaestroConsumer` - if set to `true` deploys the required infrastructure to run a Maestro Consumer (TODO find a better name for this flag because it does not deploy the consumer itself).
 
 * `persist` - if set to `true` the resourcegroup holding the cluster will not be deleted after a couple of days
 
@@ -460,11 +457,8 @@ Once logged in, verify the connection with `\conninfo`
 To test HCP creation, an Azure credentials file with clientId/clientSecret and a pull secret are required.
 The `service-kv-aro-hcp-dev` KV hosts shared secrets for the creds file and the pull secrets, that can be used by the team for testing.
 
-Users require the `Key Vault Secrets User` role on the KV in order to read secrets:
-
-  ```sh
-  az role assignment create --role "Key Vault Secrets User" --assignee $(az ad signed-in-user show --query id -o tsv) --scope $(az keyvault show --name service-kv-aro-hcp-dev --query id -o tsv)
-  ```
+Users require membership in the `aro-hcp-engineering` group to read secrets.  This group has been assigned the
+`Key Vault Secrets User` role on the `service-kv-aro-hcp-dev` KV.
 
 * Pull secrets that can pull from RH registries and the DEV ACR
 

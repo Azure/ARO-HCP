@@ -8,7 +8,6 @@ make db/teardown
 VAULTNAME=service-kv-aro-hcp-dev
 CURRENTUSER=$(az ad signed-in-user show --query id -o tsv)
 VAULTID=$(az keyvault show --name $VAULTNAME --query id -o tsv)
-az role assignment create --role "Key Vault Secrets User" --assignee $CURRENTUSER --scope $VAULTID -o none
 az keyvault secret show --vault-name $VAULTNAME --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
 
 # Setup the development.yml
