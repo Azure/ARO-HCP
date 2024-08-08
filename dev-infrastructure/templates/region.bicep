@@ -17,6 +17,9 @@ param maestroEventGridNamespacesName string
 @description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
 param maestroEventGridMaxClientSessionsPerAuthName int
 
+@description('A unique name for the managed Grafana instance')
+param managedGrafanaName string
+
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
@@ -82,4 +85,7 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
 
 module metricsInfra '../modules/metrics/Metrics.bicep' = {
   name: 'metrics-infra'
+  params: {
+    managedGrafanaName: managedGrafanaName
+  }
 }

@@ -1,6 +1,8 @@
 // This template is copied from https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/ARO-Pipelines?path=/metrics/infra/Templates/Metrics.bicep
 // Ideally this template is consumed from ACR.
 
+param managedGrafanaName string
+
 // api-version=2021-06-01-preview is the internal Microsoft API, and api-version=2021-06-03-preview is for external customer use.
 // The internal API version enables additional configurations options, including Geneva Metrics (MDM) stamp selection, and Geneva Metrics (MDM) ingestion configuration.
 // Internal Microsoft customers should use the internal API to be able to link their existing Geneva Metrics (MDM) accounts, or to create managed Geneva Metrics (MDM) accounts on the appropriate stamp.
@@ -11,7 +13,7 @@ resource monitor 'microsoft.monitor/accounts@2021-06-03-preview' = {
 }
 
 resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
-  name: 'aro-hcp-grafana'
+  name: managedGrafanaName
   location: resourceGroup().location
   sku: {
     name: 'Standard'
