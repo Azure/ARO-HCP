@@ -96,6 +96,7 @@ objects:
                   readOnly: true
                   volumeAttributes:
                     secretProviderClass: "ocmirror-pullsecret"
+              restartPolicy: Never
               serviceAccountName: image-sync
     status: {}
   - apiVersion: v1
