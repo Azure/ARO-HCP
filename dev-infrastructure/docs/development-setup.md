@@ -172,8 +172,7 @@ To validate, have a look at the `cluster-service` namespace.
 
   ```bash
   cd frontend/
-  make kustomize-update
-  make kustomize-deploy
+  make deploy
   ```
 
 To validate, have a look at the `aro-hcp` namespace on the service cluster.
