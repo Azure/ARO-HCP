@@ -4,8 +4,8 @@ param clusterResourceId string
 param clusterLocation string
 
 var clusterName = split(clusterResourceId, '/')[8]
-var dceName = 'MSProm-${azureMonitorWorkspaceLocation}-${clusterName}'
-var dcrName = 'MSProm-${azureMonitorWorkspaceLocation}-${clusterName}'
+var dceName = take('MSProm-${azureMonitorWorkspaceLocation}-${clusterName}', 44)
+var dcrName = take('MSProm-${azureMonitorWorkspaceLocation}-${clusterName}', 44)
 var dcraName = 'MSProm-${clusterLocation}-${clusterName}'
 var nodeRecordingRuleGroupPrefix = 'NodeRecordingRulesRuleGroup-'
 var nodeRecordingRuleGroupName = '${nodeRecordingRuleGroupPrefix}${clusterName}'
