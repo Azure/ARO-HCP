@@ -34,6 +34,17 @@ to simplify the development of infra code.
 
 Finally, the container also contains the nodejs and sets up the typespec which is needed for the ARM contract development, as it is now mandatory to have the typespec in the ARM templates.
 
+**Most importantly**, the container is set up to use the same user as the host machine, so you can use the same git config and ssh keys.
+It is implemented as a host mount in the `.devcontainer/devcontainer.json` file.
+
+```json
+"mounts": [
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
+],
+```
+
+### Note for Mac users
+
 If you are developing on MacOS you will need to install both docker cli (NOT docker desktop) and colima. There have been issues with the devcontainer working with vscode using podman desktop.
 
 ```bash
@@ -48,11 +59,3 @@ colima start --cpu 4 --memory 8 --vz-rosetta --vm-type=vz
 
 Then, rebuild and connect to the dev container: `cmd + shift + P` => `dev containers: rebuild container`
 
-**Most importantly**, the container is set up to use the same user as the host machine, so you can use the same git config and ssh keys.
-It is implemented as a host mount in the `.devcontainer/devcontainer.json` file.
-
-```json
-"mounts": [
-    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
-],
-```
