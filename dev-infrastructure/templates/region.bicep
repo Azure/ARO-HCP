@@ -30,6 +30,9 @@ param regionalDNSSubdomain string = empty(currentUserId)
   ? location
   : '${location}-${take(uniqueString(currentUserId), 5)}'
 
+@description('A unique resource name for the Azure Managed Grafana instance no longer than 23 characters.')
+param grafanaName string
+
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -82,4 +85,7 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
 
 module metricsInfra '../modules/metrics/Metrics.bicep' = {
   name: 'metrics-infra'
+  params: {
+    grafanaName: grafanaName
+  }
 }
