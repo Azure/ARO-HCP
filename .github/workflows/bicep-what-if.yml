@@ -5,6 +5,7 @@ env:
   REGIONAL_RESOURCEGROUP: aro-hcp-dev-westus3
   SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
   MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
+  GLOBAL_RESOURCEGROUP: global
   ARO_HCP_IMAGE_ACR: arohcpdev
 on:
   pull_request:
@@ -49,8 +50,8 @@ jobs:
 
             # ACR
             az deployment group what-if \
-              --name "acr-${GITHUB_RUN_ID}" \
-              --resource-group "${REGIONAL_RESOURCEGROUP}" \
+              --name "dev-acr-${GITHUB_RUN_ID}" \
+              --resource-group "${GLOBAL_RESOURCEGROUP}" \
               --template-file templates/dev-acr.bicep \
               --parameters configurations/mvp-dev-acr.bicepparam
 
