@@ -431,6 +431,7 @@ objects:
           - --db-password=@/secrets/rds/db.password
           - --db-disable-tls=false
           - --db-auth-method=az-entra
+          - --db-workload-id=${AZURE_CS_MI_CLIENT_ID}
           - --force-migration=${FORCE_MIGRATION}
           - --batch-processes-dry-run=${BATCH_PROCESSES_DRY_RUN}
           - --batch-processes=${BATCH_PROCESSES}
@@ -490,6 +491,7 @@ objects:
           - --db-password=@/secrets/rds/db.password
           - --db-disable-tls=false
           - --db-auth-method=az-entra
+          - --db-workload-id=${AZURE_CS_MI_CLIENT_ID}
           - --gateway-url=${GATEWAY_URL}
           - --client-id=@/secrets/service/client.id
           - --client-secret=@/secrets/service/client.secret
