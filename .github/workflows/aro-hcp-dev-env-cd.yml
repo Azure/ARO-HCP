@@ -41,7 +41,127 @@
           if: ${{ github.event.pull_request.head.repo.full_name != 'Azure/ARO-HCP' }}
           run: core.setFailed('Expected source repository to be Azure/ARO-HCP, re-create PR as a branch of Azure/ARO-HCP')
 
-    deploy_update_infra:
+    deploy_global_rg:
+      if: github.event.pull_request.merged == true
+      permissions:
+        id-token: 'write'
+        contents: 'read'
+      runs-on: 'ubuntu-latest'
+      steps:
+        - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+          with:
+            fetch-depth: 1
+
+        - name: 'Az CLI login'
+          uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+          with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+        - name: 'Deploy'
+          uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+          with:
+            azcliversion: latest
+            inlineScript: |
+              cd dev-infrastructure/
+
+              # ACR
+              az deployment group create \
+                --name "dev-acr-${GITHUB_RUN_ID}" \
+                --resource-group ${GLOBAL_RESOURCEGROUP} \
+                --template-file templates/dev-acr.bicep \
+                --parameters configurations/mvp-dev-acr.bicepparam
+
+    deploy_region_rg:
+      if: github.event.pull_request.merged == true
+      permissions:
+        id-token: 'write'
+        contents: 'read'
+      runs-on: 'ubuntu-latest'
+      steps:
+        - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+          with:
+            fetch-depth: 1
+
+        - name: 'Az CLI login'
+          uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+          with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+        - name: 'Deploy'
+          uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+          with:
+            azcliversion: latest
+            inlineScript: |
+              cd dev-infrastructure/
+
+              az group create -g "${REGIONAL_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
+
+              # region infra
+              az deployment group create \
+                --name "region-${GITHUB_RUN_ID}" \
+                --resource-group "${REGIONAL_RESOURCEGROUP}" \
+                --template-file templates/region.bicep \
+                --parameters configurations/mvp-region.bicepparam \
+                --parameters currentUserId="${GITHUB_ACTOR}" \
+                --parameters regionalDNSSubdomain="${REGION}"
+
+    deploy_service_cluster_rg:
+      if: github.event.pull_request.merged == true
+      permissions:
+        id-token: 'write'
+        contents: 'read'
+      runs-on: 'ubuntu-latest'
+      steps:
+        - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+          with:
+            fetch-depth: 1
+
+        - name: 'Az CLI login'
+          uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+          with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+        - name: 'Deploy'
+          uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+          with:
+            azcliversion: latest
+            inlineScript: |
+              cd dev-infrastructure/
+
+              az group create -g "${SC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
+
+              # service cluster
+              az deployment group create \
+                --name "svc-cluster-${GITHUB_RUN_ID}" \
+                --resource-group "${SC_RESOURCEGROUP}" \
+                --template-file templates/svc-cluster.bicep \
+                --parameters configurations/mvp-svc-cluster.bicepparam \
+                --parameters currentUserId="${GITHUB_ACTOR}" \
+                --parameters azureMonitorWorkspaceResourceId=$(az monitor account show --resource-group ${REGIONAL_RESOURCEGROUP} --name aro-hcp-monitor --query id -o tsv) \
+                --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
+
+              SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
+              COSMOS_DB_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.cosmosDBName.value)
+              SVC_KV_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.svcKeyVaultName.value)
+
+              # service cluster role assignments
+              az deployment group create \
+                --name "svc-roleassigns-${GITHUB_RUN_ID}" \
+                --resource-group "${SC_RESOURCEGROUP}" \
+                --template-file templates/dev-aks-roleassignments.bicep \
+                --parameters aksClusterName=${SVC_CLUSTER_NAME} \
+                --parameters cosmosDBName=${COSMOS_DB_NAME} \
+                --parameters grantCosmosAccess=true \
+                --parameters kvNames="['${SVC_KV_NAME}']" \
+                --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
+
+    deploy_management_cluster_rg:
       if: github.event.pull_request.merged == true
       permissions:
         id-token: 'write'
@@ -66,35 +186,7 @@
             inlineScript: |
               cd dev-infrastructure/
 
-              az group create -g "${SC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
-              az group create -g "${MC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
-              az group create -g "${REGIONAL_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
-
-              # ACR
-              az deployment group create \
-                --name "dev-acr-${GITHUB_RUN_ID}" \
-                --resource-group ${GLOBAL_RESOURCEGROUP} \
-                --template-file templates/dev-acr.bicep \
-                --parameters configurations/mvp-dev-acr.bicepparam
-
-              # region infra
-              az deployment group create \
-                --name "region-${GITHUB_RUN_ID}" \
-                --resource-group "${REGIONAL_RESOURCEGROUP}" \
-                --template-file templates/region.bicep \
-                --parameters configurations/mvp-region.bicepparam \
-                --parameters currentUserId="${GITHUB_ACTOR}" \
-                --parameters regionalDNSSubdomain="${REGION}"
-
-              # service cluster
-              az deployment group create \
-                --name "svc-cluster-${GITHUB_RUN_ID}" \
-                --resource-group "${SC_RESOURCEGROUP}" \
-                --template-file templates/svc-cluster.bicep \
-                --parameters configurations/mvp-svc-cluster.bicepparam \
-                --parameters currentUserId="${GITHUB_ACTOR}" \
-                --parameters azureMonitorWorkspaceResourceId=$(az monitor account show --resource-group ${REGIONAL_RESOURCEGROUP} --name aro-hcp-monitor --query id -o tsv) \
-                --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
+              az group create -g "${MC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
 
               # management cluster
               az deployment group create \
@@ -107,20 +199,6 @@
                 --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
               MGMT_CLUSTER_NAME=$(az deployment group show --resource-group "${MC_RESOURCEGROUP}" --name "mgmt-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
-              SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
-              COSMOS_DB_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.cosmosDBName.value)
-              SVC_KV_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.svcKeyVaultName.value)
-
-              # service cluster role assignments
-              az deployment group create \
-                --name "svc-roleassigns-${GITHUB_RUN_ID}" \
-                --resource-group "${SC_RESOURCEGROUP}" \
-                --template-file templates/dev-aks-roleassignments.bicep \
-                --parameters aksClusterName=${SVC_CLUSTER_NAME} \
-                --parameters cosmosDBName=${COSMOS_DB_NAME} \
-                --parameters grantCosmosAccess=true \
-                --parameters kvNames="['${SVC_KV_NAME}']" \
-                --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
               # management cluster role assignments
               az deployment group create \
@@ -136,6 +214,8 @@
       permissions:
         id-token: 'write'
         contents: 'read'
+      needs:
+        - deploy_global_rg
       runs-on: 'ubuntu-latest'
       steps:
         - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -166,6 +246,8 @@
       permissions:
         id-token: 'write'
         contents: 'read'
+      needs:
+        - deploy_global_rg
       runs-on: 'ubuntu-latest'
       steps:
         - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -226,7 +308,7 @@
       if: github.event.pull_request.merged == true
       needs:
         - build_push_frontend
-        - deploy_update_infra
+        - deploy_service_cluster_rg
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -308,7 +390,7 @@
     deploy_to_management_cluster:
       if: github.event.pull_request.merged == true
       needs:
-      - deploy_update_infra
+      - deploy_management_cluster_rg
       permissions:
         id-token: 'write'
         contents: 'read'
