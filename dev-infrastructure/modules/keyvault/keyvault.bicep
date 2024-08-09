@@ -14,7 +14,7 @@ param private bool
 // e.g. AKS KMS on a private KV will manage their own private endpoint setup in the nodepool RG
 param managedPrivateEndpoint bool = true
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
   location: location
   name: keyVaultName
   tags: {
@@ -26,7 +26,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enabledForDiskEncryption: false
     enabledForTemplateDeployment: false
     enableSoftDelete: enableSoftDelete
-    publicNetworkAccess: private ? 'disabled' : 'enabled'
+    publicNetworkAccess: private ? 'Disabled' : 'Enabled'
     sku: {
       name: 'standard'
       family: 'A'
@@ -41,7 +41,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
 
 var privateDnsZoneName = 'privatelink.vaultcore.azure.net'
 
-resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = if (managedPrivateEndpoint) {
+resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = if (managedPrivateEndpoint) {
   name: '${keyVaultName}-pe'
   location: location
   properties: {

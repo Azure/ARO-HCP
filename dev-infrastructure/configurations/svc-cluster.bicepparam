@@ -5,7 +5,6 @@ param istioVersion = ['asm-1-20']
 param vnetAddressPrefix = '10.128.0.0/14'
 param subnetPrefix = '10.128.8.0/21'
 param podSubnetPrefix = '10.128.64.0/18'
-param enablePrivateCluster = false
 param persist = false
 param aksClusterName = 'aro-hcp-svc-cluster'
 param aksKeyVaultName = take('aks-kv-svc-cluster-${uniqueString(currentUserId)}', 24)

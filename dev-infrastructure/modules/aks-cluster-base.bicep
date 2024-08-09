@@ -23,7 +23,6 @@ param location string
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
-param enablePrivateCluster bool = true
 param kubernetesVersion string
 param deployIstio bool
 param istioVersion array = ['asm-1-20']
@@ -48,7 +47,7 @@ param userOsDiskSizeGB int = 32
 
 param acrPullResourceGroups array = []
 
-// Metric Params 
+// Metric Params
 param azureMonitorWorkspaceResourceId string
 param metricLabelsAllowlist string = ''
 param metricAnnotationsAllowList string = ''
@@ -78,6 +77,7 @@ var systemAgentPool = [
     enableAutoScaling: true
     enableEncryptionAtHost: true
     enableFIPS: true
+    enableNodePublicIP: false
     kubeletDiskType: 'OS'
     osDiskType: 'Ephemeral'
     osDiskSizeGB: systemOsDiskSizeGB
@@ -98,6 +98,8 @@ var systemAgentPool = [
       '3'
     ]
     securityProfile: {
+      enableSecureBoot: false
+      enableVTPM: false
       sshAccess: 'Disabled'
     }
     nodeTaints: [
@@ -116,6 +118,7 @@ var userAgentPool = [
     enableAutoScaling: true
     enableEncryptionAtHost: true
     enableFIPS: true
+    enableNodePublicIP: false
     kubeletDiskType: 'OS'
     osDiskType: 'Ephemeral'
     osDiskSizeGB: userOsDiskSizeGB
@@ -136,6 +139,8 @@ var userAgentPool = [
       '3'
     ]
     securityProfile: {
+      enableSecureBoot: false
+      enableVTPM: false
       sshAccess: 'Disabled'
     }
   }
@@ -281,9 +286,14 @@ resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@
   }
 }
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-preview' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-preview' = {
   location: location
+  kind: 'Base'
   name: aksClusterName
+  sku: {
+    name: 'Base'
+    tier: 'Free'
+  }
   tags: {
     persist: toLower(string(persist))
     clusterType: clusterType
@@ -299,11 +309,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
       managed: true
       enableAzureRBAC: true
     }
-    disableLocalAccounts: true
-    nodeResourceGroup: aksNodeResourceGroupName
-    apiServerAccessProfile: {
-      enablePrivateCluster: enablePrivateCluster
-    }
     addonProfiles: {
       azureKeyvaultSecretsProvider: {
         enabled: true
@@ -313,28 +318,10 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
         }
       }
     }
-    azureMonitorProfile: {
-      metrics: {
-        enabled: true
-        kubeStateMetrics: {
-          metricLabelsAllowlist: metricLabelsAllowlist
-          metricAnnotationsAllowList: metricAnnotationsAllowList
-        }
-      }
-    }
-    kubernetesVersion: kubernetesVersion
-    enableRBAC: true
-    dnsPrefix: dnsPrefix
     agentPoolProfiles: agentProfile
-    networkProfile: {
-      networkDataplane: 'cilium'
-      networkPolicy: 'cilium'
-      networkPlugin: 'azure'
-      serviceCidr: serviceCidr
-      dnsServiceIP: dnsServiceIP
-    }
     autoScalerProfile: {
       'balance-similar-node-groups': 'false'
+      'daemonset-eviction-for-occupied-nodes': true
       'scan-interval': '10s'
       'scale-down-delay-after-add': '10m'
       'scale-down-delay-after-delete': '20s'
@@ -350,6 +337,39 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
       nodeOSUpgradeChannel: 'NodeImage'
       upgradeChannel: 'patch'
     }
+    azureMonitorProfile: {
+      metrics: {
+        enabled: true
+        kubeStateMetrics: {
+          metricLabelsAllowlist: metricLabelsAllowlist
+          metricAnnotationsAllowList: metricAnnotationsAllowList
+        }
+      }
+    }
+    disableLocalAccounts: true
+    dnsPrefix: dnsPrefix
+    enableRBAC: true
+    kubernetesVersion: kubernetesVersion
+    metricsProfile: {
+      costAnalysis: {
+        enabled: false
+      }
+    }
+    networkProfile: {
+      ipFamilies: ['IPv4']
+      loadBalancerSku: 'standard'
+      networkDataplane: 'cilium'
+      networkPolicy: 'cilium'
+      networkPlugin: 'azure'
+      podLinkLocalAccess: 'IMDS'
+      serviceCidr: serviceCidr
+      serviceCidrs: [serviceCidr]
+      dnsServiceIP: dnsServiceIP
+    }
+    nodeProvisioningProfile: {
+      mode: 'Manual'
+    }
+    nodeResourceGroup: aksNodeResourceGroupName
     oidcIssuerProfile: {
       enabled: true
     }
@@ -367,6 +387,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
         enabled: true
       }
     }
+    servicePrincipalProfile: {
+      clientId: 'msi'
+    }
     serviceMeshProfile: (deployIstio)
       ? {
           mode: 'Istio'
@@ -383,6 +406,19 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-03-02-previ
           }
         }
       : null
+    storageProfile: {
+      diskCSIDriver: {
+        enabled: true
+        version: 'v1'
+      }
+      fileCSIDriver: {
+        enabled: true
+      }
+      snapshotController: {
+        enabled: true
+      }
+    }
+    supportPlan: 'KubernetesOfficial'
   }
 }
 

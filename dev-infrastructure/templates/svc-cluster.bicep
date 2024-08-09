@@ -25,9 +25,6 @@ param subnetPrefix string
 @description('Specifies the address prefix of the subnet hosting the pods of the AKS cluster.')
 param podSubnetPrefix string
 
-@description('(Optional) boolean flag to configure public/private AKS Cluster')
-param enablePrivateCluster bool
-
 @description('Kuberentes version to use with AKS')
 param kubernetesVersion string
 
@@ -126,7 +123,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
-    enablePrivateCluster: enablePrivateCluster
     kubernetesVersion: kubernetesVersion
     deployIstio: true
     istioVersion: istioVersion
