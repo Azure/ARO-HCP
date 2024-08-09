@@ -9,7 +9,7 @@ param location string = resourceGroup().location
 @description('Service tier of the Azure Container Registry.')
 param acrSku string
 
-resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: acrName
   location: location
   sku: {
@@ -17,6 +17,7 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   }
   properties: {
     adminUserEnabled: false
+    anonymousPullEnabled: false
     // Premium-only feature
     // https://azure.microsoft.com/en-us/blog/azure-container-registry-mitigating-data-exfiltration-with-dedicated-data-endpoints/
     dataEndpointEnabled: false
@@ -25,6 +26,15 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
       // Data in Azure Container Registry is encrypted, just with an Azure-managed key.
       // https://learn.microsoft.com/en-us/azure/container-registry/tutorial-enable-customer-managed-keys#show-encryption-status
       status: 'disabled'
+    }
+    policies: {
+      azureADAuthenticationAsArmPolicy: {
+        status: 'enabled'
+      }
+      softDeletePolicy: {
+        retentionDays: 7
+        status: 'disabled'
+      }
     }
   }
 }
