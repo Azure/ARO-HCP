@@ -292,7 +292,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
   name: aksClusterName
   sku: {
     name: 'Base'
-    tier: 'Free'
+    tier: 'Standard'
   }
   tags: {
     persist: toLower(string(persist))
