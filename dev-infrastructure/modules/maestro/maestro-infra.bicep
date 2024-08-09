@@ -101,16 +101,20 @@ resource kvManagedIdentityRoleAssignment 'Microsoft.Authorization/roleAssignment
 //
 
 // create an event grid namespace with MQTT enabled
-resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2023-12-15-preview' = {
+resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' = {
   name: eventGridNamespaceName
   location: location
   sku: {
     name: 'Standard'
+    capacity: 1
   }
   properties: {
+    isZoneRedundant: true
+    minimumTlsVersionAllowed: '1.2'
     publicNetworkAccess: 'Enabled'
     topicSpacesConfiguration: {
       state: 'Enabled'
+      maximumSessionExpiryInHours: 1
       maximumClientSessionsPerAuthenticationName: maxClientSessionsPerAuthName
       clientAuthentication: {
         alternativeAuthenticationNameSources: [
