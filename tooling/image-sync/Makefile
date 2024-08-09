@@ -37,7 +37,7 @@ deploy:
 	 -p TENANT_ID=$${TENANT_ID} \
 	 -p KEYVAULT_NAME=service-kv-aro-hcp-dev \
 	 -p TARGET_REGISTRY=${ARO_HCP_IMAGE_ACR} \
-	 -p PULL_SECRET_NAME=pull-secret \
+	 -p PULL_SECRET_NAME=component-pull-secret \
 	 -p QUAY_BEARER_SECRET_NAME=bearer-secret \
 	 -p NAMESPACE=image-sync  -o yaml > deploy.yml
 
