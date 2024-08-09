@@ -1,4 +1,4 @@
-/* 
+/*
  * Registers AFEC feature flags.  This does not wait for registration to complete.
  */
 
