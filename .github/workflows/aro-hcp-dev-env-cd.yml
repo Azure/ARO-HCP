@@ -206,7 +206,6 @@
                 --resource-group "${MC_RESOURCEGROUP}" \
                 --template-file templates/dev-aks-roleassignments.bicep \
                 --parameters aksClusterName=${MGMT_CLUSTER_NAME} \
-                --parameters cosmosDBName=${COSMOS_DB_NAME} \
                 --parameters grantCosmosAccess=false \
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
@@ -278,6 +277,8 @@
       permissions:
         id-token: 'write'
         contents: 'read'
+      needs:
+        - deploy_global_rg
       runs-on: 'ubuntu-latest'
       steps:
         - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
