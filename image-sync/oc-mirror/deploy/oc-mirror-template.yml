@@ -7,7 +7,8 @@ metadata:
 parameters:
   - name: NAMESPACE
     required: true
-    value: aro-hcp
+  - name: SERVICE_ACCOUNT_NAME
+    required: true
   - name: OC_MIRROR_IMAGE
     required: true
   - name: OC_MIRROR_CLIENT_ID
@@ -27,17 +28,6 @@ parameters:
     required: true
 
 objects:
-  - apiVersion: v1
-    kind: Namespace
-    metadata:
-      name: ${NAMESPACE}
-  - apiVersion: v1
-    kind: ServiceAccount
-    metadata:
-      annotations:
-        azure.workload.identity/client-id: "${OC_MIRROR_CLIENT_ID}"
-      name: image-sync
-      namespace: ${NAMESPACE}
   - apiVersion: batch/v1
     kind: CronJob
     metadata:
@@ -97,7 +87,7 @@ objects:
                   volumeAttributes:
                     secretProviderClass: "ocmirror-pullsecret"
               restartPolicy: Never
-              serviceAccountName: image-sync
+              serviceAccountName: ${SERVICE_ACCOUNT_NAME}
     status: {}
   - apiVersion: v1
     kind: ConfigMap
