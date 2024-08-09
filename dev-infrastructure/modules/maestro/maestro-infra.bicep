@@ -110,7 +110,6 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' 
   }
   properties: {
     isZoneRedundant: true
-    minimumTlsVersionAllowed: '1.2'
     publicNetworkAccess: 'Enabled'
     topicSpacesConfiguration: {
       state: 'Enabled'
