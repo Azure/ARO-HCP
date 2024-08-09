@@ -2,7 +2,7 @@
 // dev AKS clusters. It should not be used in higher environments.
 param aksClusterName string
 param grantCosmosAccess bool = false
-param cosmosDBName string
+param cosmosDBName string = 'replaceme'
 param kvNames array = []
 param location string = resourceGroup().location
 param githubActionsPrincipalID string
