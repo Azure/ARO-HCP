@@ -206,7 +206,7 @@ func (c *HCPOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			out.Properties.Spec.Ingress = make([]*api.IngressProfile, len(ingressSequence))
 			for index, item := range ingressSequence {
 				out.Properties.Spec.Ingress[index] = &api.IngressProfile{}
-				normalizeIngress(*item, out.Properties.Spec.Ingress[index])
+				normalizeIngress(item, out.Properties.Spec.Ingress[index])
 			}
 		}
 	}
@@ -428,7 +428,7 @@ func normalizeExternalAuthConfig(p *ExternalAuthConfigProfile, out *api.External
 	}
 }
 
-func normalizeIngress(p IngressProfile, out *api.IngressProfile) {
+func normalizeIngress(p *IngressProfile, out *api.IngressProfile) {
 	if &p.IP != nil {
 		out.IP = p.IP
 	}
