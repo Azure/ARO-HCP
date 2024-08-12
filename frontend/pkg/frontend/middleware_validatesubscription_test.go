@@ -27,23 +27,23 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		cachedState   arm.RegistrationState
-		expectedState arm.RegistrationState
+		cachedState   arm.SubscriptionState
+		expectedState arm.SubscriptionState
 		httpMethod    string
 		requestPath   string
 		expectedError *arm.CloudError
 	}{
 		{
 			name:          "subscription is already registered",
-			cachedState:   arm.Registered,
-			expectedState: arm.Registered,
+			cachedState:   arm.SubscriptionStateRegistered,
+			expectedState: arm.SubscriptionStateRegistered,
 			httpMethod:    http.MethodGet,
 			requestPath:   defaultRequestPath,
 		},
 		{
 			name:        "subscription is missing from path",
+			cachedState: arm.SubscriptionStateRegistered,
 			httpMethod:  http.MethodGet,
-			cachedState: arm.Registered,
 			requestPath: "/resourceGroups/abc",
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusBadRequest,
@@ -67,12 +67,12 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		},
 		{
 			name:        "subscription is deleted",
-			cachedState: arm.Deleted,
+			cachedState: arm.SubscriptionStateDeleted,
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusBadRequest,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.Deleted),
+					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.SubscriptionStateDeleted),
 				},
 			},
 			httpMethod:  http.MethodGet,
@@ -80,7 +80,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		},
 		{
 			name:        "subscription is unregistered",
-			cachedState: arm.Unregistered,
+			cachedState: arm.SubscriptionStateUnregistered,
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusBadRequest,
 				CloudErrorBody: &arm.CloudErrorBody{
@@ -93,63 +93,63 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		},
 		{
 			name:          "subscription is suspended - GET is allowed",
-			cachedState:   arm.Suspended,
-			expectedState: arm.Suspended,
+			cachedState:   arm.SubscriptionStateSuspended,
+			expectedState: arm.SubscriptionStateSuspended,
 			httpMethod:    http.MethodGet,
 			requestPath:   defaultRequestPath,
 		},
 		{
 			name:          "subscription is warned - GET is allowed",
-			cachedState:   arm.Warned,
-			expectedState: arm.Warned,
+			cachedState:   arm.SubscriptionStateWarned,
+			expectedState: arm.SubscriptionStateWarned,
 			httpMethod:    http.MethodGet,
 			requestPath:   defaultRequestPath,
 		},
 		{
 			name:          "subscription is warned - DELETE is allowed",
-			cachedState:   arm.Warned,
-			expectedState: arm.Warned,
+			cachedState:   arm.SubscriptionStateWarned,
+			expectedState: arm.SubscriptionStateWarned,
 			httpMethod:    http.MethodDelete,
 			requestPath:   defaultRequestPath,
 		},
 		{
 			name:        "subscription is warned - PUT is not allowed",
-			cachedState: arm.Warned,
+			cachedState: arm.SubscriptionStateWarned,
 			httpMethod:  http.MethodPut,
+			requestPath: defaultRequestPath,
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.Warned),
+					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.SubscriptionStateWarned),
 				},
 			},
-			requestPath: defaultRequestPath,
 		},
 		{
 			name:        "subscription is suspended - POST is not allowed",
-			cachedState: arm.Suspended,
+			cachedState: arm.SubscriptionStateSuspended,
 			httpMethod:  http.MethodPost,
+			requestPath: defaultRequestPath,
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.Suspended),
+					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.SubscriptionStateSuspended),
 				},
 			},
-			requestPath: defaultRequestPath,
 		},
 		{
 			name:        "subscription is suspended - PATCH is not allowed",
-			cachedState: arm.Suspended,
+			cachedState: arm.SubscriptionStateSuspended,
 			httpMethod:  http.MethodPatch,
+			requestPath: defaultRequestPath,
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorInvalidSubscriptionState,
-					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.Suspended),
+					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.SubscriptionStateSuspended),
 				},
 			},
-			requestPath: defaultRequestPath,
 		},
 	}
 

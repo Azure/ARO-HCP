@@ -4,7 +4,7 @@ package arm
 // Licensed under the Apache License 2.0.
 
 type Subscription struct {
-	State            RegistrationState       `json:"state"`
+	State            SubscriptionState       `json:"state"`
 	RegistrationDate *string                 `json:"registrationDate,omitempty"`
 	Properties       *SubscriptionProperties `json:"properties,omitempty"`
 }
@@ -41,12 +41,12 @@ type AccountOwner struct {
 	Email *string `json:"-,omitempty"` // we don't need to nor want to serialize this field
 }
 
-type RegistrationState string
+type SubscriptionState string
 
 const (
-	Registered   RegistrationState = "Registered"
-	Unregistered RegistrationState = "Unregistered"
-	Warned       RegistrationState = "Warned"
-	Deleted      RegistrationState = "Deleted"
-	Suspended    RegistrationState = "Suspended"
+	SubscriptionStateRegistered   SubscriptionState = "Registered"
+	SubscriptionStateUnregistered SubscriptionState = "Unregistered"
+	SubscriptionStateWarned       SubscriptionState = "Warned"
+	SubscriptionStateDeleted      SubscriptionState = "Deleted"
+	SubscriptionStateSuspended    SubscriptionState = "Suspended"
 )
