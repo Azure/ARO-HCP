@@ -4,12 +4,12 @@ package arm
 // Licensed under the Apache License 2.0.
 
 type Subscription struct {
-	State            RegistrationState `json:"state"`
-	RegistrationDate *string           `json:"registrationDate,omitempty"`
-	Properties       *Properties       `json:"properties,omitempty"`
+	State            RegistrationState       `json:"state"`
+	RegistrationDate *string                 `json:"registrationDate,omitempty"`
+	Properties       *SubscriptionProperties `json:"properties,omitempty"`
 }
 
-type Properties struct {
+type SubscriptionProperties struct {
 	TenantId             *string              `json:"tenantId,omitempty"`
 	LocationPlacementId  *string              `json:"locationPlacementId,omitempty"`
 	QuotaId              *string              `json:"quotaId,omitempty"`
