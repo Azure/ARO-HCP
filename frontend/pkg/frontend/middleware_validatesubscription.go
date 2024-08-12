@@ -54,15 +54,15 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 	ctx := ContextWithSubscription(r.Context(), *sub.Subscription)
 	r = r.WithContext(ctx)
 	switch sub.Subscription.State {
-	case arm.Registered:
+	case arm.SubscriptionStateRegistered:
 		next(w, r)
-	case arm.Unregistered:
+	case arm.SubscriptionStateUnregistered:
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
 			subscriptionId)
-	case arm.Warned, arm.Suspended:
+	case arm.SubscriptionStateWarned, arm.SubscriptionStateSuspended:
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorInvalidSubscriptionState, "",
@@ -71,7 +71,7 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 			return
 		}
 		next(w, r)
-	case arm.Deleted:
+	case arm.SubscriptionStateDeleted:
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorInvalidSubscriptionState, "",

@@ -71,7 +71,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			subDoc: &database.SubscriptionDocument{
 				PartitionKey: "00000000-0000-0000-0000-000000000000",
 				Subscription: &arm.Subscription{
-					State:            "Registered",
+					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),
 					Properties:       nil,
 				},
@@ -129,7 +129,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Doc does not exist",
 			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
 			subscription: &arm.Subscription{
-				State:            "Registered",
+				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
@@ -140,14 +140,14 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Doc Exists",
 			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
 			subscription: &arm.Subscription{
-				State:            "Registered",
+				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			subDoc: &database.SubscriptionDocument{
 				PartitionKey: "00000000-0000-0000-0000-000000000000",
 				Subscription: &arm.Subscription{
-					State:            "Registered",
+					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),
 					Properties:       nil,
 				},
@@ -158,7 +158,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Invalid Subscription",
 			urlPath: "/subscriptions/oopsie-i-no-good0?api-version=2.0",
 			subscription: &arm.Subscription{
-				State:            "Registered",
+				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
