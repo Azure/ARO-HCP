@@ -4,27 +4,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-type version struct{}
+type AdminVersion struct {
+}
 
 // String returns the api-version parameter value for this API.
-func (v version) String() string {
+func (v AdminVersion) String() string {
 	return "admin"
 }
 
-var (
-	validate            = api.NewValidator()
-	clusterStructTagMap = api.NewStructTagMap[api.HCPOpenShiftCluster]()
-)
-
-func (v version) NewHCPOpenShiftCluster(cluster *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
-	return NewDefaultHCPOpenShiftCluster()
+func (v AdminVersion) NewHCPOpenShiftCluster(cluster *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
+	return v.NewHCPOpenShiftCluster(cluster)
 }
 
-func (v version) NewHCPOpenShiftClusterNodePool(cluster *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
-	return NewDefaultHCPOpenShiftClusterNodepool()
+func (v AdminVersion) NewHCPOpenShiftClusterNodePool(nodePool *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
+	return v.NewHCPOpenShiftClusterNodePool(nodePool)
 }
 
 func init() {
-
-	api.Register(version{})
+	api.Register(AdminVersion{})
 }
