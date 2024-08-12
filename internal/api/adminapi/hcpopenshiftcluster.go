@@ -202,11 +202,13 @@ func (c *HCPOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			if &c.Properties.Spec.ExternalAuth != nil {
 				normalizeExternalAuthConfig(&c.Properties.Spec.ExternalAuth, &out.Properties.Spec.ExternalAuth)
 			}
-			ingressSequence := api.DeleteNilsFromPtrSlice(c.Properties.Spec.Ingress)
-			out.Properties.Spec.Ingress = make([]*api.IngressProfile, len(ingressSequence))
-			for index, item := range ingressSequence {
-				out.Properties.Spec.Ingress[index] = &api.IngressProfile{}
-				normalizeIngress(item, out.Properties.Spec.Ingress[index])
+			if &c.Properties.Spec.Ingress != nil {
+				ingressSequence := &c.Properties.Spec.Ingress
+				out.Properties.Spec.Ingress = make([]*api.IngressProfile, len(*ingressSequence))
+				for index, item := range *ingressSequence {
+					out.Properties.Spec.Ingress[index] = &api.IngressProfile{}
+					normalizeIngress(item, out.Properties.Spec.Ingress[index])
+				}
 			}
 		}
 	}
