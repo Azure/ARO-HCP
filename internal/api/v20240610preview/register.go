@@ -4,9 +4,6 @@ package v20240610preview
 // Licensed under the Apache License 2.0.
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
@@ -23,14 +20,6 @@ var (
 	clusterStructTagMap = api.NewStructTagMap[api.HCPOpenShiftCluster]()
 )
 
-func EnumValidateTag[S ~string](values ...S) string {
-	s := make([]string, len(values))
-	for i, e := range values {
-		s[i] = string(e)
-	}
-	return fmt.Sprintf("oneof=%s", strings.Join(s, " "))
-}
-
 func init() {
 	// NOTE: If future versions of the API expand field visibility, such as
 	//       a field with @visibility("read","create") becoming updatable,
@@ -46,14 +35,14 @@ func init() {
 	api.Register(version{})
 
 	// Register enum type validations
-	validate.RegisterAlias("enum_actiontype", EnumValidateTag(generated.PossibleActionTypeValues()...))
-	validate.RegisterAlias("enum_createdbytype", EnumValidateTag(generated.PossibleCreatedByTypeValues()...))
-	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(generated.PossibleManagedServiceIdentityTypeValues()...))
-	validate.RegisterAlias("enum_networktype", EnumValidateTag(generated.PossibleNetworkTypeValues()...))
-	validate.RegisterAlias("enum_origin", EnumValidateTag(generated.PossibleOriginValues()...))
-	validate.RegisterAlias("enum_outboundtype", EnumValidateTag(generated.PossibleOutboundTypeValues()...))
-	validate.RegisterAlias("enum_provisioningstate", EnumValidateTag(generated.PossibleProvisioningStateValues()...))
-	validate.RegisterAlias("enum_resourceprovisioningstate", EnumValidateTag(generated.PossibleResourceProvisioningStateValues()...))
-	validate.RegisterAlias("enum_visibility", EnumValidateTag(generated.PossibleVisibilityValues()...))
-	validate.RegisterAlias("enum_effect", EnumValidateTag(generated.PossibleEffectValues()...))
+	validate.RegisterAlias("enum_actiontype", api.EnumValidateTag(generated.PossibleActionTypeValues()...))
+	validate.RegisterAlias("enum_createdbytype", api.EnumValidateTag(generated.PossibleCreatedByTypeValues()...))
+	validate.RegisterAlias("enum_managedserviceidentitytype", api.EnumValidateTag(generated.PossibleManagedServiceIdentityTypeValues()...))
+	validate.RegisterAlias("enum_networktype", api.EnumValidateTag(generated.PossibleNetworkTypeValues()...))
+	validate.RegisterAlias("enum_origin", api.EnumValidateTag(generated.PossibleOriginValues()...))
+	validate.RegisterAlias("enum_outboundtype", api.EnumValidateTag(generated.PossibleOutboundTypeValues()...))
+	validate.RegisterAlias("enum_provisioningstate", api.EnumValidateTag(generated.PossibleProvisioningStateValues()...))
+	validate.RegisterAlias("enum_resourceprovisioningstate", api.EnumValidateTag(generated.PossibleResourceProvisioningStateValues()...))
+	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
+	validate.RegisterAlias("enum_effect", api.EnumValidateTag(generated.PossibleEffectValues()...))
 }
