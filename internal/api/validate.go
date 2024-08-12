@@ -26,6 +26,17 @@ func GetJSONTagName(tag reflect.StructTag) string {
 	return fieldName
 }
 
+// EnumValidateTag generates a string suitable for use with the "validate"
+// struct tag. The intent is to convert a set of valid values for a string
+// subtype into a "oneof=" expression for the purpose of static validation.
+func EnumValidateTag[S ~string](values ...S) string {
+	s := make([]string, len(values))
+	for i, e := range values {
+		s[i] = string(e)
+	}
+	return fmt.Sprintf("oneof=%s", strings.Join(s, " "))
+}
+
 func NewValidator() *validator.Validate {
 	var err error
 
