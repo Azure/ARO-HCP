@@ -25,8 +25,8 @@ func TestPutSubscriptions(t *testing.T) {
 			action:     "Registering a subscription with provider",
 			method:     http.MethodPut,
 			resourceID: testSubResourceID,
-			payload:    strings.NewReader(fmt.Sprintf(`{"state":"Registered", "properties": { "tenantId": "%s"}}`, testSubscription)),
-			expect:     "{\"state\":\"Registered\",\"properties\":{\"tenantId\":\"00000000-0000-0000-0000-000000000000\"}}",
+			payload:    strings.NewReader(fmt.Sprintf(`{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "%s"}}`, testSubscription)),
+			expect:     "{\"state\":\"Registered\",\"registrationDate\":\"now\",\"properties\":{\"tenantId\":\"00000000-0000-0000-0000-000000000000\"}}",
 		},
 
 		smokeTest{
@@ -34,8 +34,8 @@ func TestPutSubscriptions(t *testing.T) {
 			action:     "Unregistering a subscription with provider",
 			method:     http.MethodPut,
 			resourceID: testSubResourceID,
-			payload:    strings.NewReader(fmt.Sprintf(`{"state":"Unregistered", "properties": { "tenantId": "%s"}}`, testSubscription)),
-			expect:     "{\"state\":\"Unregistered\",\"properties\":{\"tenantId\":\"00000000-0000-0000-0000-000000000000\"}}",
+			payload:    strings.NewReader(fmt.Sprintf(`{"state":"Unregistered", "registrationDate":"now", "properties": { "tenantId": "%s"}}`, testSubscription)),
+			expect:     "{\"state\":\"Unregistered\",\"registrationDate\":\"now\",\"properties\":{\"tenantId\":\"00000000-0000-0000-0000-000000000000\"}}",
 		},
 	}
 

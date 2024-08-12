@@ -648,6 +648,13 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return
 	}
 
+	cloudError := api.ValidateSubscription(&subscription)
+	if cloudError != nil {
+		f.logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	var doc *database.SubscriptionDocument
