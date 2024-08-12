@@ -24,24 +24,4 @@ push:
 	docker push ${ARO_HCP_IMAGE_SYNC_IMAGE}:${COMMIT}
 	docker push ${ARO_HCP_IMAGE_SYNC_IMAGE}:latest
 
-deploy:
-	AZURE_SYNC_MI_CLIENT_ID=$(shell az identity show \
-			-g ${RESOURCEGROUP} \
-			-n image-sync \
-			--query clientId) && \
-	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	oc process --local \
-	 -f deploy/image-sync-template.yml \
-	 -p COMPONENT_SYNC_IMAGE=arohcpdev.azurecr.io/image-sync/component-sync:latest \
-	 -p IMAGE_SYNC_CLIENT_ID=$${AZURE_SYNC_MI_CLIENT_ID} \
-	 -p TENANT_ID=$${TENANT_ID} \
-	 -p KEYVAULT_NAME=service-kv-aro-hcp-dev \
-	 -p TARGET_REGISTRY=${ARO_HCP_IMAGE_ACR} \
-	 -p PULL_SECRET_NAME=component-pull-secret \
-	 -p QUAY_BEARER_SECRET_NAME=bearer-secret \
-	 -p NAMESPACE=image-sync  -o yaml > deploy.yml
-
 .PHONY: image-sync clean image run deploy
-
-
-#| kubectl apply -f -
