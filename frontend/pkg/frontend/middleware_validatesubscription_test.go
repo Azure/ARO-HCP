@@ -163,7 +163,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 					PartitionKey: subscriptionId,
 					Subscription: &arm.Subscription{
 						State: tt.cachedState,
-						Properties: &arm.Properties{
+						Properties: &arm.SubscriptionProperties{
 							TenantId: &tenantId,
 						},
 					},

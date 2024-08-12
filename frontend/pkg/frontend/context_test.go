@@ -21,7 +21,7 @@ func TestTenantIDFromContext(t *testing.T) {
 		{
 			name: "Valid",
 			sub: arm.Subscription{
-				Properties: &arm.Properties{
+				Properties: &arm.SubscriptionProperties{
 					TenantId: stringPtr("tenant-id"),
 				},
 			},
