@@ -4,9 +4,9 @@ package arm
 // Licensed under the Apache License 2.0.
 
 type Subscription struct {
-	State            SubscriptionState       `json:"state"`
-	RegistrationDate *string                 `json:"registrationDate,omitempty"`
-	Properties       *SubscriptionProperties `json:"properties,omitempty"`
+	State            SubscriptionState       `json:"state"            validate:"required_for_put,enum_subscriptionstate"`
+	RegistrationDate *string                 `json:"registrationDate" validate:"required_for_put"`
+	Properties       *SubscriptionProperties `json:"properties"`
 }
 
 type SubscriptionProperties struct {

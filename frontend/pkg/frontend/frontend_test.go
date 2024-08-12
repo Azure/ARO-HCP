@@ -165,6 +165,37 @@ func TestSubscriptionsPUT(t *testing.T) {
 			subDoc:             nil,
 			expectedStatusCode: http.StatusBadRequest,
 		},
+		{
+			name:    "PUT Subscription - Missing State",
+			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
+			subscription: &arm.Subscription{
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
+			subDoc:             nil,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:    "PUT Subscription - Invalid State",
+			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
+			subscription: &arm.Subscription{
+				State:            "Bogus",
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
+			subDoc:             nil,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:    "PUT Subscription - Missing RegistrationDate",
+			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
+			subscription: &arm.Subscription{
+				State:      arm.SubscriptionStateRegistered,
+				Properties: nil,
+			},
+			subDoc:             nil,
+			expectedStatusCode: http.StatusBadRequest,
+		},
 	}
 
 	for _, test := range tests {

@@ -48,6 +48,14 @@ func NewValidator() *validator.Validate {
 		return GetJSONTagName(field.Tag)
 	})
 
+	// Register ARM-mandated enumeration types.
+	validate.RegisterAlias("enum_subscriptionstate", EnumValidateTag(
+		arm.SubscriptionStateRegistered,
+		arm.SubscriptionStateUnregistered,
+		arm.SubscriptionStateWarned,
+		arm.SubscriptionStateDeleted,
+		arm.SubscriptionStateSuspended))
+
 	// Use this for string fields specifying an ARO-HCP API version.
 	err = validate.RegisterValidation("api_version", func(fl validator.FieldLevel) bool {
 		field := fl.Field()
@@ -147,4 +155,30 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 	}
 
 	return errorDetails
+}
+
+// ValidateSubscription validates a subscription request payload.
+func ValidateSubscription(subscription *arm.Subscription) *arm.CloudError {
+	cloudError := arm.NewCloudError(
+		http.StatusBadRequest,
+		arm.CloudErrorCodeMultipleErrorsOccurred, "",
+		"Content validation failed on multiple fields")
+	cloudError.Details = make([]arm.CloudErrorBody, 0)
+
+	validate := NewValidator()
+	// There is no PATCH method for subscriptions, so assume PUT.
+	errorDetails := ValidateRequest(validate, http.MethodPut, subscription)
+	if errorDetails != nil {
+		cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
+
+	switch len(cloudError.Details) {
+	case 0:
+		cloudError = nil
+	case 1:
+		// Promote a single validation error out of details.
+		cloudError.CloudErrorBody = &cloudError.Details[0]
+	}
+
+	return cloudError
 }
