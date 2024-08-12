@@ -59,11 +59,6 @@ kubectl wait --for=jsonpath='{.status.phase}'=Succeeded csv multicluster-engine.
 wait_resource multicluster-engine addondeploymentconfigs hypershift-addon-deploy-config
 kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"},{"name":"autoImportDisabled","value": "true"}]}}'
 
-# tmp - override hypershift-addon to use
-kubectl apply -f deploy/mch/mce-overrides.yml -n multicluster-engine
-wait_resource mce multiclusterengine
-kubectl annotate mce multiclusterengine --overwrite installer.multicluster.openshift.io/image-overrides-configmap=mce-overrides
-
 # wait for MCE setup to finalize
 kubectl wait --for=condition=Established crds multiclusterengines.multicluster.openshift.io --timeout=600s
 kubectl rollout status -w deployment/multicluster-engine-operator -n multicluster-engine --timeout=600s
