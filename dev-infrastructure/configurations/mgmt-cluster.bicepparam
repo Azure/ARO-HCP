@@ -22,19 +22,6 @@ param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
 
 param baseDNSZoneName = 'hcp.osadev.cloud'
 
-param workloadIdentities = items({
-  maestro_wi: {
-    uamiName: 'maestro-consumer'
-    namespace: 'maestro'
-    serviceAccountName: 'maestro'
-  }
-  external_dns_wi: {
-    uamiName: 'external-dns'
-    namespace: 'hypershift'
-    serviceAccountName: 'external-dns'
-  }
-})
-
 param acrPullResourceGroups = ['global']
 
 // These parameters are always overriden in the Makefile

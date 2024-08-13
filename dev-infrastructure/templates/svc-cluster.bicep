@@ -45,9 +45,6 @@ param disableLocalAuth bool
 @description('Deploy ARO HCP RP Azure Cosmos DB if true')
 param deployFrontendCosmos bool
 
-@description('List of workload identities to create and their required values')
-param workloadIdentities array
-
 @description('The resourcegroup for regional infrastructure')
 param regionalResourceGroup string
 
@@ -130,7 +127,28 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
-    workloadIdentities: workloadIdentities
+    workloadIdentities: items({
+      frontend_wi: {
+        uamiName: 'frontend'
+        namespace: 'aro-hcp'
+        serviceAccountName: 'frontend'
+      }
+      maestro_wi: {
+        uamiName: 'maestro-server'
+        namespace: 'maestro'
+        serviceAccountName: 'maestro'
+      }
+      cs_wi: {
+        uamiName: 'clusters-service'
+        namespace: 'cluster-service'
+        serviceAccountName: 'clusters-service'
+      }
+      image_sync_wi: {
+        uamiName: 'image-sync'
+        namespace: 'image-sync'
+        serviceAccountName: 'image-sync'
+      }
+    })
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
     acrPullResourceGroups: acrPullResourceGroups
