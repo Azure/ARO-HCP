@@ -103,7 +103,6 @@ endif
 			configurations/$(AKSCONFIG).bicepparam \
 		--parameters \
 			currentUserId=$(CURRENTUSER) \
-			azureMonitorWorkspaceResourceId=$(shell az monitor account show --resource-group $(REGIONAL_RESOURCEGROUP) --name aro-hcp-monitor --query id -o tsv) \
 			regionalResourceGroup=$(REGIONAL_RESOURCEGROUP)
 .PHONY: cluster
 
@@ -155,6 +154,28 @@ ifndef AKSCONFIG
 endif
 	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "maestro-pg-" "maestro-server" "maestro" "maestro"
 .PHONY: maestro-miwi-pg-connect
+
+metrics-infra: regionalRg
+	 CURRENTUSER=$(CURRENTUSER) az deployment group create \
+		--name "metrics-infra" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file modules/metrics/metrics.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+		  globalResourceGroup=$(REGIONAL_RESOURCEGROUP) \
+		--parameters configurations/dev-metrics.bicepparam
+.PHONY: metrics-infra 
+
+enable-aks-metrics: metrics-infra
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	az aks update --enable-azure-monitor-metrics \
+	--resource-group $(RESOURCEGROUP) \
+	--name aro-hcp-$(AKSCONFIG) \
+	--azure-monitor-workspace-resource-id $(shell az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
+	--grafana-resource-id $(shell az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value)
+.PHONY: enable-aks-metrics
 
 aks.kubeconfig:
 ifndef AKSCONFIG
