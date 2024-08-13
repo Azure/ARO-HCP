@@ -133,7 +133,7 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
 				case "cidrv4":
-					message += " (must be a v4 CIDR address)"
+					message += " (must be a v4 CIDR range)"
 				case "ipv4":
 					message += " (must be an IPv4 address)"
 				case "url":
