@@ -384,6 +384,13 @@
             cd maestro/
             make deploy-server
 
+        - name: 'Register Maestro Agent'
+          env:
+            CONSUMER_NAME: ${{ env.MC_RESOURCEGROUP }}
+          run: |
+            cd maestro/
+            make register-agent
+
         - name: 'Deploy Image Sync - OC Mirror'
           run: |
             cd image-sync/oc-mirror
