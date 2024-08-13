@@ -57,9 +57,9 @@ ifeq ($(strip ${CONSUMER_NAME}),)
 	$(error "Must set CONSUMER_NAME")
 endif
 	@if ! kubectl get service maestro -n maestro > /dev/null 2>&1; then \
-        echo "Error: Service 'maestro' not found in namespace 'maestro'"; \
-        exit 1; \
-    fi
+		echo "Error: Service 'maestro' not found in namespace 'maestro'"; \
+		exit 1; \
+	fi
 	helm upgrade --install ${CONSUMER_NAME} deploy/helm/registration \
 		--namespace maestro \
 		--set consumerName=${CONSUMER_NAME}
