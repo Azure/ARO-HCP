@@ -12,11 +12,11 @@ git config --global core.editor "code --wait"
 source /usr/share/bash-completion/completions/git
 echo "source /usr/share/bash-completion/completions/git" >> ~/.bashrc
 
-cd api && npm ci
+cd typespec && npm ci
 
 # Install azure/oav for validation of openapi and swagger example generation
 # https://github.com/Azure/oav
-# TODO: if we need to, we should move this out of here and into `api/package.json`
+# TODO: if we need to, we should move this out of here and into `typespec/package.json`
 npm install -g oav@3.3.4
 
 # Install the golang-lint

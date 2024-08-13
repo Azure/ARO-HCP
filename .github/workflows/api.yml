@@ -9,9 +9,9 @@ on:
     branches:
       - main
     paths:
-      - 'api/**'
-      - 'api/package.json'
-      - 'api/package-lock.json'
+      - 'typespec/**'
+      - 'typespec/package.json'
+      - 'typespec/package-lock.json'
 
 jobs:
   typescript_api_spec_validation:
@@ -32,11 +32,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        working-directory: './api'
+        working-directory: './typespec'
 
       - name: make generate
         run: make generate
-        working-directory: './api'
+        working-directory: './typespec'
 
       - name: Check for Uncommitted Changes
         run: |

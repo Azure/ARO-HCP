@@ -23,7 +23,7 @@ If you have a fresh container, you need to run `tsp code install` to enable the 
 
 ## Typespec and azure libraries basics
 
-Typespec is a tool that is used to generate the swagger definition from the typespec service definition. It was introduced by Microsoft to make writing api definitions easier and add type definitions to the API definitions.
+Typespec is a tool that is used to generate the swagger definition from the typespec service definition. It was introduced by Microsoft to make writing API definitions easier and add type definitions to the API definitions.
 
 You can learn more about typespec in Microsoft documentation.
 Whereas the basics of typespec can be found in the [typespec document ation](https://typespec.io/docs/getting-started).
@@ -59,7 +59,7 @@ To do so, open terminal, switch to api directory and call the following command 
 
 ```bash
 cd
-tsp compile ./api/redhatopenshift/HcpCluster/
+tsp compile ./typespec/redhatopenshift/HcpCluster/
 ```
 
 Or you can use the submitted build task, that does exactly the same. The default shortcut is `Ctrl+Shift+B` or `Cmd+Shift+B`.
@@ -73,7 +73,7 @@ To generate the example requests and responses, you can use the following comman
 
 ```bash
 export API_VERSION=2024-06-10-preview
-cd api/redhatopenshift/HcpCluster/examples/$API_VERSION
+cd typespec/redhatopenshift/HcpCluster/examples/$API_VERSION
 oav generate-examples ../../../resource-manager/Microsoft.RedHatOpenShift/preview/$API_VERSION/openapi.json
 ```
 
@@ -83,10 +83,10 @@ The API client can be generated using the [autorest](https://github.com/Azure/au
 the devcontainer comes with the autorest installed. The usage is straightforward:
 
 ```bash
-autorest api/autorest-config.yaml
+autorest typespec/autorest-config.yaml
 ```
 
-The generated clients are stored in `api/generated`.
+The generated clients are stored in `typespec/generated`.
 
 **IMPORTANT**: When the new examples are generated, all files are changed. Please make sure to review the changes before committing them
 and commit only the changed parts. Otherwise it will result is a lot of unnecessary changes in the PR.
