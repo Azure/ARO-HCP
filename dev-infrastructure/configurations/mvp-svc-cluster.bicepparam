@@ -55,4 +55,3 @@ param clustersServiceAcrResourceGroupNames = ['global']
 // These parameters are always overridden in the Makefile
 param currentUserId = ''
 param regionalResourceGroup = ''
-param azureMonitorWorkspaceResourceId = ''

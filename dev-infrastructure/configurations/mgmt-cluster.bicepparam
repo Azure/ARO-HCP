@@ -40,4 +40,3 @@ param acrPullResourceGroups = ['global']
 // These parameters are always overriden in the Makefile
 param currentUserId = ''
 param regionalResourceGroup = ''
-param azureMonitorWorkspaceResourceId = ''

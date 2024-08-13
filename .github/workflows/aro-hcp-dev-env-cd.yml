@@ -109,6 +109,14 @@
                 --parameters currentUserId="${GITHUB_ACTOR}" \
                 --parameters regionalDNSSubdomain="${REGION}"
 
+              # metrics infrastructure
+              az deployment group create \
+                --name "metrics-infra-${GITHUB_RUN_ID}" \
+                --resource-group "${REGIONAL_RESOURCEGROUP}" \
+                --template-file modules/metrics/metrics.bicep \
+                --parameters configurations/mvp-metrics.bicepparam \
+                --parameters globalResourceGroup="${REGIONAL_RESOURCEGROUP}"
+
     deploy_service_cluster_rg:
       if: github.event.pull_request.merged == true
       permissions:
@@ -143,7 +151,6 @@
                 --template-file templates/svc-cluster.bicep \
                 --parameters configurations/mvp-svc-cluster.bicepparam \
                 --parameters currentUserId="${GITHUB_ACTOR}" \
-                --parameters azureMonitorWorkspaceResourceId=$(az monitor account show --resource-group ${REGIONAL_RESOURCEGROUP} --name aro-hcp-monitor --query id -o tsv) \
                 --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
               SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
@@ -160,6 +167,14 @@
                 --parameters grantCosmosAccess=true \
                 --parameters kvNames="['${SVC_KV_NAME}']" \
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
+
+              # enable aks metrics
+              AZ_MONITOR_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID} --output tsv --query properties.outputs.monitorId.value)
+              GRAFANA_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID} --output tsv --query properties.outputs.grafanaId.value)
+
+              az aks update --name "${SVC_CLUSTER_NAME}" --resource-group "${SC_RESOURCEGROUP}" \
+                --azure-monitor-workspace-resource-id "${AZ_MONITOR_RESOURCE_ID}" \
+                --grafana-resource-id "${GRAFANA_RESOURCE_ID}"
 
     deploy_management_cluster_rg:
       if: github.event.pull_request.merged == true
@@ -195,7 +210,6 @@
                 --template-file templates/mgmt-cluster.bicep \
                 --parameters configurations/mvp-mgmt-cluster.bicepparam \
                 --parameters currentUserId="${GITHUB_ACTOR}" \
-                --parameters azureMonitorWorkspaceResourceId=$(az monitor account show --resource-group ${REGIONAL_RESOURCEGROUP} --name aro-hcp-monitor --query id -o tsv) \
                 --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
               MGMT_CLUSTER_NAME=$(az deployment group show --resource-group "${MC_RESOURCEGROUP}" --name "mgmt-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
@@ -208,6 +222,14 @@
                 --parameters aksClusterName=${MGMT_CLUSTER_NAME} \
                 --parameters grantCosmosAccess=false \
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
+
+              # enable aks metrics
+              AZ_MONITOR_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID} --output tsv --query properties.outputs.monitorId.value)
+              GRAFANA_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID} --output tsv --query properties.outputs.grafanaId.value)
+
+              az aks update --name "${MGMT_CLUSTER_NAME}" --resource-group "${MC_RESOURCEGROUP}" \
+                --azure-monitor-workspace-resource-id "${AZ_MONITOR_RESOURCE_ID}" \
+                --grafana-resource-id "${GRAFANA_RESOURCE_ID}"
 
     build_push_frontend:
       permissions:

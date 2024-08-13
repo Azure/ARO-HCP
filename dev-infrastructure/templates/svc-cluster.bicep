@@ -99,9 +99,6 @@ param imageSyncAcrResourceGroupNames array = []
 @description('Clusters Service ACR RG names')
 param clustersServiceAcrResourceGroupNames array = []
 
-@description('The resource id of the regional Azure Monitor Workspace')
-param azureMonitorWorkspaceResourceId string
-
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -134,7 +131,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
     acrPullResourceGroups: acrPullResourceGroups
-    azureMonitorWorkspaceResourceId: azureMonitorWorkspaceResourceId
   }
 }
 
