@@ -27,29 +27,6 @@ param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24
 param serviceKeyVaultSoftDelete = false
 param serviceKeyVaultPrivate = false
 
-param workloadIdentities = items({
-  frontend_wi: {
-    uamiName: 'frontend'
-    namespace: 'aro-hcp'
-    serviceAccountName: 'frontend'
-  }
-  maestro_wi: {
-    uamiName: 'maestro-server'
-    namespace: 'maestro'
-    serviceAccountName: 'maestro'
-  }
-  cs_wi: {
-    uamiName: 'clusters-service'
-    namespace: 'cluster-service'
-    serviceAccountName: 'clusters-service'
-  }
-  image_sync_wi: {
-    uamiName: 'image-sync'
-    namespace: 'image-sync'
-    serviceAccountName: 'image-sync'
-  }
-})
-
 param acrPullResourceGroups = ['global']
 param imageSyncAcrResourceGroupNames = ['global']
 param clustersServiceAcrResourceGroupNames = ['global']

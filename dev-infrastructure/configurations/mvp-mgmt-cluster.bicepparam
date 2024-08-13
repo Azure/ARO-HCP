@@ -22,19 +22,6 @@ param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-dev.azure.com'
 param baseDNSZoneName = 'hcp.osadev.cloud'
 param regionalDNSSubdomain = 'westus3'
 
-param workloadIdentities = items({
-  maestro_wi: {
-    uamiName: 'maestro-consumer'
-    namespace: 'maestro'
-    serviceAccountName: 'maestro'
-  }
-  external_dns_wi: {
-    uamiName: 'external-dns'
-    namespace: 'hypershift'
-    serviceAccountName: 'external-dns'
-  }
-})
-
 param acrPullResourceGroups = [regionalResourceGroup, 'global']
 
 // These parameters are always overridden in the Makefile

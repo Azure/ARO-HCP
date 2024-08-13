@@ -53,9 +53,6 @@ param aksKeyVaultName string
 @description('Manage soft delete setting for AKS etcd key-value store')
 param aksEtcdKVEnableSoftDelete bool = true
 
-@description('List of workload identities to create and their required values')
-param workloadIdentities array
-
 @description('Deploys a Maestro Consumer to the management cluster if set to true.')
 param deployMaestroConsumer bool
 
@@ -115,7 +112,18 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'mgmt-cluster'
-    workloadIdentities: workloadIdentities
+    workloadIdentities: items({
+      maestro_wi: {
+        uamiName: 'maestro-consumer'
+        namespace: 'maestro'
+        serviceAccountName: 'maestro'
+      }
+      external_dns_wi: {
+        uamiName: 'external-dns'
+        namespace: 'hypershift'
+        serviceAccountName: 'external-dns'
+      }
+    })
     aksKeyVaultName: aksKeyVaultName
     deployUserAgentPool: true
     acrPullResourceGroups: acrPullResourceGroups
