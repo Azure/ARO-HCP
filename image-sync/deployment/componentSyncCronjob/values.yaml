@@ -1,0 +1,15 @@
+acrRegistryName: ""
+
+azureClientId: ""
+azureTenantId: ""
+
+componentSyncImage: ""
+componentSyncTag: ""
+
+credsBearerSecret: ""
+credsKeyVaultName: ""
+credsPullSecret: ""
+
+serviceAccountName: ""
+
+repositories: []

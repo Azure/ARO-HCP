@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: component-sync-config
+  namespace: {{.Release.Namespace}}
+data:
+  sync.yml: |
+    repositories:
+      {{- range .Values.repositories }}
+      - {{ . }}
+      {{- end }}
+    numberOfTags: 10
+    quaySecretfile: /etc/containers/quayio-auth.json
+    acrRegistry: {{ .Values.acrRegistryName }}.azurecr.io
+    tenantId: {{ .Values.azureTenantId }}

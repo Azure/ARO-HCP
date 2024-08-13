@@ -388,6 +388,11 @@
             cd image-sync/oc-mirror
             make deploy
 
+        - name: 'Deploy Image Sync - ComponentSync'
+          run: |
+            cd image-sync/deployment
+            make deploy
+
     deploy_to_management_cluster:
       if: github.event.pull_request.merged == true
       needs:
