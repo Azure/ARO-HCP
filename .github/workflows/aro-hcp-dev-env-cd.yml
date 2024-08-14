@@ -111,7 +111,7 @@
                 --parameters regionalDNSSubdomain="${REGION}"
 
     deploy_service_cluster_rg:
-      if: github.event.pull_request.merged == true
+      #if: github.event.pull_request.merged == true
       permissions:
         id-token: 'write'
         contents: 'read'
