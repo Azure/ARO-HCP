@@ -260,14 +260,14 @@ module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep
 //   I M A G E   S Y N C
 //
 
-var isManagedIdentityPrincipalId = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'image-sync')[0].uamiPrincipalID
+var imageSyncManagedIdentityPrincipalId = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'image-sync')[0].uamiPrincipalID
 
 module imageServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: guid(serviceKeyVaultName, 'imagesync', 'read')
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: isManagedIdentityPrincipalId
+    managedIdentityPrincipalId: imageSyncManagedIdentityPrincipalId
   }
   dependsOn: [
     serviceKeyVault
@@ -281,11 +281,6 @@ resource imageSyncAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-
     scope: subscription()
   }
 ]
-
-var imageSyncManagedIdentityPrincipalId = filter(
-  svcCluster.outputs.userAssignedIdentities,
-  id => id.uamiName == 'image-sync'
-)[0].uamiPrincipalID
 
 module acrPushRole '../modules/acr-permissions.bicep' = [
   for (_, i) in imageSyncAcrResourceGroupNames: {
