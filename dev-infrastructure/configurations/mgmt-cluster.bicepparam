@@ -1,6 +1,6 @@
 using '../templates/mgmt-cluster.bicep'
 
-param kubernetesVersion = '1.29.7'
+param kubernetesVersion = '1.30.3'
 param vnetAddressPrefix = '10.132.0.0/14'
 param subnetPrefix = '10.132.8.0/21'
 param podSubnetPrefix = '10.132.64.0/18'

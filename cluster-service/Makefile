@@ -10,7 +10,7 @@ deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
 	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
 	oc process --local -f deploy/openshift-templates/arohcp-namespace-template.yml \
-	  -p ISTIO_VERSION=asm-1-20 | oc apply -f -
+	  -p ISTIO_VERSION=asm-1-21 | oc apply -f -
 	kubectl apply -f deploy/istio.yml
 	oc process --local -f deploy/openshift-templates/arohcp-db-template.yml | oc apply -f -
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \

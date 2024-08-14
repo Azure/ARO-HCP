@@ -1,7 +1,7 @@
 using '../templates/svc-cluster.bicep'
 
-param kubernetesVersion = '1.29.7'
-param istioVersion = ['asm-1-20']
+param kubernetesVersion = '1.30.3'
+param istioVersion = ['asm-1-21']
 param vnetAddressPrefix = '10.128.0.0/14'
 param subnetPrefix = '10.128.8.0/21'
 param podSubnetPrefix = '10.128.64.0/18'
