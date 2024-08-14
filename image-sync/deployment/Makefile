@@ -29,7 +29,7 @@ deploy-component-sync:
 	--set componentSyncImage="arohcpdev.azurecr.io/image-sync/component-sync" \
 	--set componentSyncTag=latest \
 	--set credsBearerSecret=bearer-secret \
-	--set credsPullSecret=pull-secret \
+	--set credsPullSecret=component-pull-secret \
 	--set credsKeyVaultName=service-kv-aro-hcp-dev \
 	--set repositories=${REPOSITORIES_TO_SYNC}
 
