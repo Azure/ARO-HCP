@@ -112,6 +112,8 @@
 
     deploy_service_cluster_rg:
       if: github.event.pull_request.merged == true
+      needs:
+        - deploy_region_rg
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -164,6 +166,8 @@
 
     deploy_management_cluster_rg:
       if: github.event.pull_request.merged == true
+      needs:
+        - deploy_region_rg
       permissions:
         id-token: 'write'
         contents: 'read'
