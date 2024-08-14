@@ -28,6 +28,7 @@ param serviceKeyVaultPrivate = false
 
 param acrPullResourceGroups = ['global']
 param clustersServiceAcrResourceGroupNames = ['global']
+param imageSyncAcrResourceGroupNames = ['global']
 
 // These parameters are always overridden in the Makefile
 param currentUserId = ''
