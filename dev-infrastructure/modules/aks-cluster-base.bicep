@@ -247,14 +247,6 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
         service: 'Microsoft.Storage'
       }
     ]
-    delegations: [
-      {
-        name: 'AKS'
-        properties: {
-          serviceName: 'Microsoft.ContainerService/managedClusters'
-        }
-      }
-    ]
   }
   dependsOn: [
     aksNodeSubnet
