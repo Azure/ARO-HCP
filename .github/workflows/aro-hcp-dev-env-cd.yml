@@ -163,7 +163,7 @@
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
     deploy_management_cluster_rg:
-      if: github.event.pull_request.merged == true
+      #if: github.event.pull_request.merged == true
       permissions:
         id-token: 'write'
         contents: 'read'
