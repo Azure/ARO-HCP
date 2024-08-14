@@ -19,9 +19,28 @@ const (
 	csCCSEnabled       bool   = true
 )
 
+func convertListeningToVisibility(listening cmv1.ListeningMethod) (visibility api.Visibility) {
+	switch listening {
+	case cmv1.ListeningMethodExternal:
+		visibility = api.VisibilityPublic
+	case cmv1.ListeningMethodInternal:
+		visibility = api.VisibilityPrivate
+	}
+	return
+}
+
+func convertVisibilityToListening(visibility api.Visibility) (listening cmv1.ListeningMethod) {
+	switch visibility {
+	case api.VisibilityPublic:
+		listening = cmv1.ListeningMethodExternal
+	case api.VisibilityPrivate:
+		listening = cmv1.ListeningMethodInternal
+	}
+	return
+}
+
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cluster *cmv1.Cluster) (*api.HCPOpenShiftCluster, error) {
-
 	resourceGroupName := cluster.Azure().ResourceGroupName()
 	resourceName := cluster.Azure().ResourceName()
 	subID := cluster.Azure().SubscriptionID()
@@ -62,7 +81,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 				},
 				API: api.APIProfile{
 					URL:        cluster.API().URL(),
-					Visibility: api.Visibility(cluster.API().Listening()),
+					Visibility: convertListeningToVisibility(cluster.API().Listening()),
 				},
 				FIPS:                          cluster.FIPS(),
 				EtcdEncryption:                cluster.EtcdEncryption(),
@@ -146,7 +165,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 			URL(hcpCluster.Properties.Spec.Console.URL)).
 		API(cmv1.NewClusterAPI().
 			URL(hcpCluster.Properties.Spec.Console.URL).
-			Listening(cmv1.ListeningMethod(hcpCluster.Properties.Spec.API.Visibility))).
+			Listening(convertVisibilityToListening(hcpCluster.Properties.Spec.API.Visibility))).
 		FIPS(hcpCluster.Properties.Spec.FIPS).
 		EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption).
 		DisableUserWorkloadMonitoring(hcpCluster.Properties.Spec.DisableUserWorkloadMonitoring).
