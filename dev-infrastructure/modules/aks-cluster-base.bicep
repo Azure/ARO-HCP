@@ -25,7 +25,7 @@ param persist bool = false
 
 param kubernetesVersion string
 param deployIstio bool
-param istioVersion array = ['asm-1-20']
+param istioVersion array = ['asm-1-21']
 param vnetAddressPrefix string
 param subnetPrefix string
 param podSubnetPrefix string
