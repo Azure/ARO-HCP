@@ -310,6 +310,8 @@
       if: github.event.pull_request.merged == true
       needs:
         - build_push_frontend
+        - build_push_imagesync
+        - build_push_ocmirror
         - deploy_service_cluster_rg
       permissions:
         id-token: 'write'
@@ -391,12 +393,7 @@
             cd maestro/
             make register-agent
 
-        - name: 'Deploy Image Sync - OC Mirror'
-          run: |
-            cd image-sync/oc-mirror
-            make deploy
-
-        - name: 'Deploy Image Sync - ComponentSync'
+        - name: 'Deploy Image Sync'
           run: |
             cd image-sync/deployment
             make deploy

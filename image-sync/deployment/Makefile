@@ -33,7 +33,24 @@ deploy-component-sync:
 	--set credsKeyVaultName=service-kv-aro-hcp-dev \
 	--set repositories=${REPOSITORIES_TO_SYNC}
 
-deploy: deploy-shared deploy-component-sync
+deploy-oc-mirror:
+	AZURE_SYNC_MI_CLIENT_ID=$(shell az identity show \
+			-g ${RESOURCEGROUP} \
+			-n image-sync \
+			--query clientId) && \
+	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+	helm upgrade --force --install oc-mirror-cronjob ./ocmirrorCronjob \
+	--namespace ${NAMESPACE} --create-namespace \
+	--set serviceAccountName=image-sync \
+	--set azureClientId=$${AZURE_SYNC_MI_CLIENT_ID} \
+	--set acrRegistryName=${ARO_HCP_IMAGE_ACR} \
+	--set azureTenantId=$${TENANT_ID} \
+	--set ocmirrorImage="arohcpdev.azurecr.io/image-sync/ocmirror" \
+	--set ocmirrorTag=latest \
+	--set credsPullSecret=pull-secret \
+	--set credsKeyVaultName=service-kv-aro-hcp-dev
+
+deploy: deploy-shared deploy-component-sync deploy-oc-mirror
 
 undeploy-shared:
 	helm uninstall shared-resources --namespace ${NAMESPACE}
@@ -41,6 +58,9 @@ undeploy-shared:
 undeploy-component-sync:
 	helm uninstall component-sync-cronjob --namespace ${NAMESPACE}
 
-undeploy: undeploy-shared undeploy-component-sync
+undeploy-oc-mirror:
+	helm uninstall oc-mirror-cronjob --namespace ${NAMESPACE}
 
-.PHONY: deploy-component-sync deploy-shared undeploy-shared undeploy-component-sync
+undeploy: undeploy-shared undeploy-component-sync undeploy-oc-mirror
+
+.PHONY: deploy-component-sync deploy-shared deploy-oc-mirror undeploy-shared undeploy-component-sync undeploy-oc-mirror

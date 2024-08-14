@@ -16,21 +16,4 @@ push: image
 	docker push ${OC_MIRROR_IMAGE_TAGGED}
 	docker push ${OC_MIRROR_IMAGE}:latest
 
-deploy:
-	AZURE_SYNC_MI_CLIENT_ID=$(shell az identity show \
-			-g ${RESOURCEGROUP} \
-			-n image-sync \
-			--query clientId) && \
-	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	oc process --local \
-	 -f deploy/oc-mirror-template.yml \
-	 -p OC_MIRROR_IMAGE=arohcpdev.azurecr.io/image-sync/ocmirror:latest \
-	 -p OC_MIRROR_CLIENT_ID=$${AZURE_SYNC_MI_CLIENT_ID} \
-	 -p TENANT_ID=$${TENANT_ID} \
-	 -p KEYVAULT_NAME=service-kv-aro-hcp-dev \
-	 -p TARGET_REGISTRY=${ARO_HCP_IMAGE_ACR} \
-	 -p PULL_SECRET_NAME=pull-secret \
-	 -p SERVICE_ACCOUNT_NAME=image-sync \
-	 -p NAMESPACE=image-sync -o yaml | kubectl apply -f -
-
-.PHONY: image push build-push deploy
+.PHONY: image push build-push

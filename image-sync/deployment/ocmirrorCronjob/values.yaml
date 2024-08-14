@@ -1,0 +1,12 @@
+acrRegistryName: ""
+
+azureClientId: ""
+azureTenantId: ""
+
+ocmirrorImage: ""
+ocmirrorTag: ""
+
+credsKeyVaultName: ""
+credsPullSecret: ""
+
+serviceAccountName: ""
