@@ -112,7 +112,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
-func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenShiftCluster) (*cmv1.Cluster, error) {
+func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
@@ -148,46 +148,53 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		additionalProperties["provisioner_noop_deprovision"] = "true"
 	}
 
-	clusterBuilder := cmv1.NewCluster().
-		Name(hcpCluster.Name).
-		Flavour(cmv1.NewFlavour().
-			ID(hcpCluster.Type)).
-		Version(cmv1.NewVersion().
-			ID(hcpCluster.Properties.Spec.Version.ID).
-			ChannelGroup(hcpCluster.Properties.Spec.Version.ChannelGroup)).
-		Network(cmv1.NewNetwork().
-			Type(string(hcpCluster.Properties.Spec.Network.NetworkType)).
-			PodCIDR(hcpCluster.Properties.Spec.Network.PodCIDR).
-			ServiceCIDR(hcpCluster.Properties.Spec.Network.ServiceCIDR).
-			MachineCIDR(hcpCluster.Properties.Spec.Network.MachineCIDR).
-			HostPrefix(int(hcpCluster.Properties.Spec.Network.HostPrefix))).
-		Console(cmv1.NewClusterConsole().
-			URL(hcpCluster.Properties.Spec.Console.URL)).
-		API(cmv1.NewClusterAPI().
-			URL(hcpCluster.Properties.Spec.Console.URL).
-			Listening(convertVisibilityToListening(hcpCluster.Properties.Spec.API.Visibility))).
-		FIPS(hcpCluster.Properties.Spec.FIPS).
-		EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption).
+	clusterBuilder := cmv1.NewCluster()
+
+	// These attributes cannot be updated after cluster creation.
+	if !updating {
+		clusterBuilder = clusterBuilder.
+			Name(hcpCluster.Name).
+			Flavour(cmv1.NewFlavour().
+				ID(hcpCluster.Type)).
+			Region(cmv1.NewCloudRegion().
+				ID(f.location)).
+			CloudProvider(cmv1.NewCloudProvider().
+				ID(csCloudProvider)).
+			Azure(cmv1.NewAzure().
+				ManagedResourceGroupName(hcpCluster.Properties.Spec.Platform.ManagedResourceGroup).
+				ResourceGroupName(resourceID.ResourceGroupName).
+				SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
+				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID).
+				ResourceName(hcpCluster.Name).
+				SubscriptionID(resourceID.SubscriptionID).
+				TenantID(tenantID)).
+			Product(cmv1.NewProduct().
+				ID(csProductId)).
+			Hypershift(cmv1.NewHypershift().
+				Enabled(csHypershifEnabled)).
+			MultiAZ(csMultiAzEnabled).
+			CCS(cmv1.NewCCS().Enabled(csCCSEnabled)).
+			Version(cmv1.NewVersion().
+				ID(hcpCluster.Properties.Spec.Version.ID).
+				ChannelGroup(hcpCluster.Properties.Spec.Version.ChannelGroup)).
+			Network(cmv1.NewNetwork().
+				Type(string(hcpCluster.Properties.Spec.Network.NetworkType)).
+				PodCIDR(hcpCluster.Properties.Spec.Network.PodCIDR).
+				ServiceCIDR(hcpCluster.Properties.Spec.Network.ServiceCIDR).
+				MachineCIDR(hcpCluster.Properties.Spec.Network.MachineCIDR).
+				HostPrefix(int(hcpCluster.Properties.Spec.Network.HostPrefix))).
+			Console(cmv1.NewClusterConsole().
+				URL(hcpCluster.Properties.Spec.Console.URL)).
+			API(cmv1.NewClusterAPI().
+				URL(hcpCluster.Properties.Spec.Console.URL).
+				Listening(convertVisibilityToListening(hcpCluster.Properties.Spec.API.Visibility))).
+			FIPS(hcpCluster.Properties.Spec.FIPS).
+			EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption)
+	}
+
+	clusterBuilder = clusterBuilder.
 		DisableUserWorkloadMonitoring(hcpCluster.Properties.Spec.DisableUserWorkloadMonitoring).
 		AdditionalTrustBundle(hcpCluster.Properties.Spec.Proxy.TrustedCA).
-		Azure(cmv1.NewAzure().
-			ManagedResourceGroupName(hcpCluster.Properties.Spec.Platform.ManagedResourceGroup).
-			ResourceGroupName(resourceID.ResourceGroupName).
-			SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
-			NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID).
-			ResourceName(hcpCluster.Name).
-			SubscriptionID(resourceID.SubscriptionID).
-			TenantID(tenantID)).
-		Region(cmv1.NewCloudRegion().
-			ID(f.location)).
-		CloudProvider(cmv1.NewCloudProvider().
-			ID(csCloudProvider)).
-		Product(cmv1.NewProduct().
-			ID(csProductId)).
-		Hypershift(cmv1.NewHypershift().
-			Enabled(csHypershifEnabled)).
-		MultiAZ(csMultiAzEnabled).
-		CCS(cmv1.NewCCS().Enabled(csCCSEnabled)).
 		Properties(additionalProperties)
 
 	cluster, err := clusterBuilder.Build()

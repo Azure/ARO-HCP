@@ -399,7 +399,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedRequestCluster.Normalize(hcpCluster)
 
 	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
-	csCluster, err := f.BuildCSCluster(ctx, hcpCluster)
+	csCluster, err := f.BuildCSCluster(ctx, hcpCluster, updating)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
