@@ -21,7 +21,7 @@ deploy-server:
 	EVENTGRID_HOSTNAME=$(shell az resource show --ids ${EVENTGRID_ID} --query properties.topicSpacesConfiguration.hostname -o tsv) && \
 	ISTO_VERSION=$(shell az aks list --query "[?tags.clusterType == 'svc-cluster' && starts_with(resourceGroup, '${RESOURCEGROUP}')].serviceMeshProfile.istio.revisions[-1]" -o tsv) && \
 	kubectl create namespace maestro --dry-run=client -o json | kubectl apply -f - && \
-	kubectl label namespace maestro "istio.io/rev=$${ISTO_VERSION}" && \
+	kubectl label namespace maestro "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
 	helm upgrade --install maestro-server deploy/helm/server \
 		--namespace maestro \
 		--set broker.host=$${EVENTGRID_HOSTNAME} \
