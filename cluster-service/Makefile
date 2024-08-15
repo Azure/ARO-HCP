@@ -26,7 +26,7 @@ deploy:
 	  -p CS_SERVICE_PRINCIPAL_CREDS_BASE64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
 	  -p IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}.azurecr.io \
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
-	  -p IMAGE_TAG=6b9115f | oc apply -f -
+	  -p IMAGE_TAG=2256c75 | oc apply -f -
 
 # for local development
 provision-shard:
