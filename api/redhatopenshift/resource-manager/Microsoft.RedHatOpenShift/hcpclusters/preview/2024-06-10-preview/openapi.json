@@ -1002,13 +1002,6 @@
       "type": "object",
       "description": "The patchable cluster specification",
       "properties": {
-        "version": {
-          "$ref": "#/definitions/VersionProfileUpdate",
-          "description": "Version of the control plane components",
-          "x-ms-mutability": [
-            "update"
-          ]
-        },
         "disableUserWorkloadMonitoring": {
           "type": "boolean",
           "description": "Disable user workload monitoring",
@@ -1033,7 +1026,7 @@
           "$ref": "#/definitions/VersionProfile",
           "description": "Version of the control plane components",
           "x-ms-mutability": [
-            "update",
+            "read",
             "create"
           ]
         },
@@ -1445,6 +1438,11 @@
       "type": "object",
       "description": "HCP patchable cluster properties",
       "properties": {
+        "provisioningState": {
+          "$ref": "#/definitions/ProvisioningState",
+          "description": "The status of the last operation.",
+          "readOnly": true
+        },
         "spec": {
           "$ref": "#/definitions/ClusterPatchSpec",
           "description": "The cluster resource specification."
@@ -1706,6 +1704,11 @@
       "type": "object",
       "description": "Represents the patchable node pool properties",
       "properties": {
+        "provisioningState": {
+          "$ref": "#/definitions/Azure.ResourceManager.ResourceProvisioningState",
+          "description": "Provisioning state",
+          "readOnly": true
+        },
         "spec": {
           "$ref": "#/definitions/NodePoolPatchSpec",
           "description": "The node pool resource specification"
@@ -1716,13 +1719,6 @@
       "type": "object",
       "description": "Worker node pool profile",
       "properties": {
-        "version": {
-          "$ref": "#/definitions/VersionProfileUpdate",
-          "description": "OpenShift version for the nodepool",
-          "x-ms-mutability": [
-            "update"
-          ]
-        },
         "replicas": {
           "type": "integer",
           "format": "int32",
@@ -1838,7 +1834,7 @@
           "$ref": "#/definitions/VersionProfile",
           "description": "OpenShift version for the nodepool",
           "x-ms-mutability": [
-            "update",
+            "read",
             "create"
           ]
         },
@@ -2138,7 +2134,7 @@
           "type": "string",
           "description": "ID is the unique identifier of the version.",
           "x-ms-mutability": [
-            "update",
+            "read",
             "create"
           ]
         },
@@ -2164,20 +2160,6 @@
         "channelGroup",
         "availableUpgrades"
       ]
-    },
-    "VersionProfileUpdate": {
-      "type": "object",
-      "description": "Versions represents an OpenShift version.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "ID is the unique identifier of the version.",
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
-        }
-      }
     },
     "Visibility": {
       "type": "string",

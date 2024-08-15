@@ -37,9 +37,6 @@ type ClusterPatchSpec struct {
 
 	// Openshift cluster proxy configuration
 	Proxy *ProxyProfile
-
-	// Version of the control plane components
-	Version *VersionProfileUpdate
 }
 
 // ClusterSpec - The cluster resource specification
@@ -274,6 +271,9 @@ type HcpOpenShiftClusterPatch struct {
 type HcpOpenShiftClusterPatchProperties struct {
 	// The cluster resource specification.
 	Spec *ClusterPatchSpec
+
+	// READ-ONLY; The status of the last operation.
+	ProvisioningState *ProvisioningState
 }
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
@@ -426,6 +426,9 @@ type NodePoolAutoScaling struct {
 type NodePoolPatchProperties struct {
 	// The node pool resource specification
 	Spec *NodePoolPatchSpec
+
+	// READ-ONLY; Provisioning state
+	ProvisioningState *ResourceProvisioningState
 }
 
 // NodePoolPatchSpec - Worker node pool profile
@@ -447,9 +450,6 @@ type NodePoolPatchSpec struct {
 // in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
 // or PerformanceProfile.
 	TuningConfigs []*string
-
-	// OpenShift version for the nodepool
-	Version *VersionProfileUpdate
 }
 
 // NodePoolPlatformProfile - Azure node pool platform configuration
@@ -741,11 +741,5 @@ type VersionProfile struct {
 
 	// READ-ONLY; AvailableUpgrades is a list of version names the current version can be upgraded to.
 	AvailableUpgrades []*string
-}
-
-// VersionProfileUpdate - Versions represents an OpenShift version.
-type VersionProfileUpdate struct {
-	// ID is the unique identifier of the version.
-	ID *string
 }
 

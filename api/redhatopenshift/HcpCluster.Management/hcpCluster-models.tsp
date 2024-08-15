@@ -102,7 +102,7 @@ model HcpOpenShiftClusterNodePoolPatch
 /** The cluster resource specification */
 model ClusterSpec {
   /** Version of the control plane components */
-  @visibility("create", "update")
+  @visibility("create", "read")
   version: VersionProfile;
 
   /** Cluster DNS configuration */
@@ -159,10 +159,6 @@ model ClusterSpec {
 
 /** The patchable cluster specification */
 model ClusterPatchSpec {
-  /** Version of the control plane components */
-  @visibility("update")
-  version?: VersionProfile;
-
   /** Disable user workload monitoring */
   @visibility("update")
   disableUserWorkloadMonitoring?: boolean;
@@ -194,7 +190,7 @@ union ProvisioningState {
 /** Versions represents an OpenShift version. */
 model VersionProfile {
   /** ID is the unique identifier of the version. */
-  @visibility("create", "update")
+  @visibility("create", "read")
   id: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
@@ -526,7 +522,7 @@ union Effect {
 /** Worker node pool profile */
 model NodePoolSpec {
   /** OpenShift version for the nodepool */
-  @visibility("create", "update")
+  @visibility("create", "read")
   version: VersionProfile;
 
   /** Azure node pool platform configuration */
@@ -578,10 +574,6 @@ model NodePoolSpec {
 
 /** Worker node pool profile */
 model NodePoolPatchSpec {
-  /** OpenShift version for the nodepool */
-  @visibility("update")
-  version?: VersionProfile;
-
   /** The number of worker nodes, it cannot be used together with autoscaling */
   @visibility("update")
   replicas?: int32;
