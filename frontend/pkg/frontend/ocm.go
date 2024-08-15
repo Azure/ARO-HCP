@@ -105,7 +105,11 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 
 	// additionalProperties should be empty in production, it is configurable for development to pin to specific
 	// provision shards or instruct CS to skip the full provisioning/deprovisioning flow.
-	additionalProperties := map[string]string{}
+	additionalProperties := map[string]string{
+		// Enable the ARO HCP provisioner during development. For now, if not set a cluster will not progress past the
+		// installing state in CS.
+		"provisioner_hostedcluster_step_enabled": "true",
+	}
 	if f.clusterServiceConfig.ProvisionShardID != nil {
 		additionalProperties["provision_shard_id"] = *f.clusterServiceConfig.ProvisionShardID
 	}
