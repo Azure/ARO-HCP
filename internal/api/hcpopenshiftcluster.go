@@ -35,7 +35,6 @@ type ClusterSpec struct {
 	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"        validate:"required_for_put"`
 	IssuerURL                     string                    `json:"issuerUrl,omitempty"                     visibility:"read"               validate:"omitempty,url"`
 	ExternalAuth                  ExternalAuthConfigProfile `json:"externalAuth,omitempty"                  visibility:"read create"`
-	Ingress                       IngressProfile            `json:"ingress,omitempty"                       visibility:"read create"        validate:"required_for_put"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -97,12 +96,6 @@ type PlatformProfile struct {
 type ExternalAuthConfigProfile struct {
 	Enabled       bool                     `json:"enabled,omitempty"       visibility:"read create"`
 	ExternalAuths []*configv1.OIDCProvider `json:"externalAuths,omitempty" visibility:"read"`
-}
-
-// IngressProfile represents a cluster ingress configuration.
-type IngressProfile struct {
-	URL        string     `json:"url,omitempty"        visibility:"read"        validate:"omitempty,url"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"required_for_put,enum_visibility"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.

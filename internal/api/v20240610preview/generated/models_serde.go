@@ -131,7 +131,6 @@ func (c ClusterSpec) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "etcdEncryption", c.EtcdEncryption)
 	populate(objectMap, "externalAuth", c.ExternalAuth)
 	populate(objectMap, "fips", c.Fips)
-	populate(objectMap, "ingress", c.Ingress)
 	populate(objectMap, "issuerUrl", c.IssuerURL)
 	populate(objectMap, "network", c.Network)
 	populate(objectMap, "platform", c.Platform)
@@ -169,9 +168,6 @@ func (c *ClusterSpec) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "fips":
 				err = unpopulate(val, "Fips", &c.Fips)
-			delete(rawMsg, key)
-		case "ingress":
-				err = unpopulate(val, "Ingress", &c.Ingress)
 			delete(rawMsg, key)
 		case "issuerUrl":
 				err = unpopulate(val, "IssuerURL", &c.IssuerURL)
@@ -1061,39 +1057,6 @@ func (h *HcpOpenShiftVersionsProperties) UnmarshalJSON(data []byte) error {
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type IngressProfile.
-func (i IngressProfile) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "url", i.URL)
-	populate(objectMap, "visibility", i.Visibility)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type IngressProfile.
-func (i *IngressProfile) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", i, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "url":
-				err = unpopulate(val, "URL", &i.URL)
-			delete(rawMsg, key)
-		case "visibility":
-				err = unpopulate(val, "Visibility", &i.Visibility)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", i, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", i, err)
 		}
 	}
 	return nil
