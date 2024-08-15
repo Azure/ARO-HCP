@@ -22,7 +22,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 }
 
 type NodePoolSpec struct {
-	Version       VersionProfile          `json:"version,omitempty" visibility:"read create update" validate:"required_for_put"`
+	Version       VersionProfile          `json:"version,omitempty" visibility:"read create" validate:"required_for_put"`
 	Platform      NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create" validate:"required_for_put"`
 	Replicas      int32                   `json:"replicas,omitempty" visibility:"read create update"`
 	AutoRepair    bool                    `json:"autoRepair,omitempty" visibility:"read create"`

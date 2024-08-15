@@ -23,7 +23,7 @@ type HCPOpenShiftClusterProperties struct {
 
 // ClusterSpec represents a high level cluster configuration.
 type ClusterSpec struct {
-	Version                       VersionProfile            `json:"version,omitempty"                       visibility:"read create update" validate:"required_for_put"`
+	Version                       VersionProfile            `json:"version,omitempty"                       visibility:"read create"        validate:"required_for_put"`
 	DNS                           DNSProfile                `json:"dns,omitempty"                           visibility:"read create update"`
 	Network                       NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
 	Console                       ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
@@ -39,8 +39,8 @@ type ClusterSpec struct {
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID                string   `json:"id,omitempty"                visibility:"read create update" validate:"required_for_put"`
-	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create"        validate:"required_for_put"`
+	ID                string   `json:"id,omitempty"                visibility:"read create" validate:"required_for_put"`
+	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create" validate:"required_for_put"`
 	AvailableUpgrades []string `json:"availableUpgrades,omitempty" visibility:"read"`
 }
 

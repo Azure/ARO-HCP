@@ -89,7 +89,6 @@ func (c ClusterPatchSpec) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "disableUserWorkloadMonitoring", c.DisableUserWorkloadMonitoring)
 	populate(objectMap, "proxy", c.Proxy)
-	populate(objectMap, "version", c.Version)
 	return json.Marshal(objectMap)
 }
 
@@ -107,9 +106,6 @@ func (c *ClusterPatchSpec) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "proxy":
 				err = unpopulate(val, "Proxy", &c.Proxy)
-			delete(rawMsg, key)
-		case "version":
-				err = unpopulate(val, "Version", &c.Version)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
@@ -802,6 +798,7 @@ func (h *HcpOpenShiftClusterPatch) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterPatchProperties.
 func (h HcpOpenShiftClusterPatchProperties) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "provisioningState", h.ProvisioningState)
 	populate(objectMap, "spec", h.Spec)
 	return json.Marshal(objectMap)
 }
@@ -815,6 +812,9 @@ func (h *HcpOpenShiftClusterPatchProperties) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "provisioningState":
+				err = unpopulate(val, "ProvisioningState", &h.ProvisioningState)
+			delete(rawMsg, key)
 		case "spec":
 				err = unpopulate(val, "Spec", &h.Spec)
 			delete(rawMsg, key)
@@ -1250,6 +1250,7 @@ func (n *NodePoolAutoScaling) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type NodePoolPatchProperties.
 func (n NodePoolPatchProperties) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "provisioningState", n.ProvisioningState)
 	populate(objectMap, "spec", n.Spec)
 	return json.Marshal(objectMap)
 }
@@ -1263,6 +1264,9 @@ func (n *NodePoolPatchProperties) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "provisioningState":
+				err = unpopulate(val, "ProvisioningState", &n.ProvisioningState)
+			delete(rawMsg, key)
 		case "spec":
 				err = unpopulate(val, "Spec", &n.Spec)
 			delete(rawMsg, key)
@@ -1284,7 +1288,6 @@ func (n NodePoolPatchSpec) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "replicas", n.Replicas)
 	populate(objectMap, "taints", n.Taints)
 	populate(objectMap, "tuningConfigs", n.TuningConfigs)
-	populate(objectMap, "version", n.Version)
 	return json.Marshal(objectMap)
 }
 
@@ -1311,9 +1314,6 @@ func (n *NodePoolPatchSpec) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "tuningConfigs":
 				err = unpopulate(val, "TuningConfigs", &n.TuningConfigs)
-			delete(rawMsg, key)
-		case "version":
-				err = unpopulate(val, "Version", &n.Version)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -2054,35 +2054,6 @@ func (v *VersionProfile) UnmarshalJSON(data []byte) error {
 		case "channelGroup":
 				err = unpopulate(val, "ChannelGroup", &v.ChannelGroup)
 			delete(rawMsg, key)
-		case "id":
-				err = unpopulate(val, "ID", &v.ID)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", v, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", v, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type VersionProfileUpdate.
-func (v VersionProfileUpdate) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "id", v.ID)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type VersionProfileUpdate.
-func (v *VersionProfileUpdate) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", v, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
 		case "id":
 				err = unpopulate(val, "ID", &v.ID)
 			delete(rawMsg, key)
