@@ -202,16 +202,89 @@ func (d *CosmosDBClient) DeleteClusterDoc(ctx context.Context, resourceID *azcor
 }
 
 func (d *CosmosDBClient) GetNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*NodePoolDocument, error) {
-	panic("implement me")
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(resourceID.String())
+	pk := azcosmos.NewPartitionKeyString(resourceID.SubscriptionID)
+
+	container, err := d.client.NewContainer(nodePoolsContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	query := "SELECT * FROM c WHERE c.key = @key"
+	opt := azcosmos.QueryOptions{
+		PageSizeHint:    1,
+		QueryParameters: []azcosmos.QueryParameter{{Name: "@key", Value: key}},
+	}
+
+	queryPager := container.NewQueryItemsPager(query, pk, &opt)
+
+	var doc *NodePoolDocument
+	for queryPager.More() {
+		queryResponse, err := queryPager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, item := range queryResponse.Items {
+			err = json.Unmarshal(item, &doc)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if doc != nil {
+		return doc, nil
+	}
+	return nil, ErrNotFound
 }
 
 func (d *CosmosDBClient) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error {
-	panic("implement me")
+	// Make sure lookup keys are lowercase.
+	doc.Key = strings.ToLower(doc.Key)
+	doc.PartitionKey = strings.ToLower(doc.PartitionKey)
+
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+
+	container, err := d.client.NewContainer(nodePoolsContainer)
+	if err != nil {
+		return err
+	}
+
+	_, err = container.UpsertItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DeleteNodePoolDoc removes a NodePool document from the DB using resource ID
 func (d *CosmosDBClient) DeleteNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
-	panic("implement me")
+	// Make sure lookup keys are lowercase.
+	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
+
+	doc, err := d.GetNodePoolDoc(ctx, resourceID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil
+		}
+		return fmt.Errorf("while attempting to delete the nodepool, failed to get nodepool document: %w", err)
+	}
+
+	container, err := d.client.NewContainer(nodePoolsContainer)
+	if err != nil {
+		return err
+	}
+
+	_, err = container.DeleteItem(ctx, pk, doc.ID, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetOperationDoc retrieves the asynchronous operation document for the given
