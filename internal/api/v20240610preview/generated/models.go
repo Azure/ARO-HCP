@@ -44,9 +44,6 @@ type ClusterPatchSpec struct {
 
 // ClusterSpec - The cluster resource specification
 type ClusterSpec struct {
-	// REQUIRED; Configures the default cluster ingress
-	Ingress *IngressProfile
-
 	// REQUIRED; Version of the control plane components
 	Version *VersionProfile
 
@@ -358,15 +355,6 @@ type HcpOpenShiftVersionsProperties struct {
 
 	// READ-ONLY; The provisioning state of the resource.
 	ProvisioningState *ResourceProvisioningState
-}
-
-// IngressProfile - Configuration of the default cluster ingress
-type IngressProfile struct {
-	// REQUIRED; The visibility of the ingress determines if the ingress is visible from the internet
-	Visibility *Visibility
-
-	// READ-ONLY; The ingress url
-	URL *string
 }
 
 // Label represents the k8s label

@@ -80,9 +80,6 @@ func CreateJSONFile() error {
 				},
 				IssuerURL:    "",
 				ExternalAuth: api.ExternalAuthConfigProfile{},
-				Ingress: api.IngressProfile{
-					Visibility: api.Visibility("public"),
-				},
 			},
 		},
 	}

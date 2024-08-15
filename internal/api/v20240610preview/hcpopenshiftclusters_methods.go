@@ -49,10 +49,6 @@ type ExternalAuthConfigProfile struct {
 	generated.ExternalAuthConfigProfile
 }
 
-type IngressProfile struct {
-	generated.IngressProfile
-}
-
 func newVersionProfile(from *api.VersionProfile) *generated.VersionProfile {
 	return &generated.VersionProfile{
 		ID:                api.Ptr(from.ID),
@@ -107,13 +103,6 @@ func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
 		OutboundType:           api.Ptr(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID: api.Ptr(from.NetworkSecurityGroupID),
 		EtcdEncryptionSetID:    api.Ptr(from.EtcdEncryptionSetID),
-	}
-}
-
-func newIngressProfile(from *api.IngressProfile) *generated.IngressProfile {
-	return &generated.IngressProfile{
-		URL:        api.Ptr(from.URL),
-		Visibility: api.Ptr(generated.Visibility(from.Visibility)),
 	}
 }
 
@@ -209,7 +198,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 					DisableUserWorkloadMonitoring: api.Ptr(from.Properties.Spec.DisableUserWorkloadMonitoring),
 					Proxy:                         newProxyProfile(&from.Properties.Spec.Proxy),
 					Platform:                      newPlatformProfile(&from.Properties.Spec.Platform),
-					Ingress:                       newIngressProfile(&from.Properties.Spec.Ingress),
 					IssuerURL:                     api.Ptr(from.Properties.Spec.IssuerURL),
 					ExternalAuth: &generated.ExternalAuthConfigProfile{
 						Enabled:       api.Ptr(from.Properties.Spec.ExternalAuth.Enabled),
@@ -320,9 +308,6 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.Spec.ExternalAuth != nil {
 				normalizeExternalAuthConfig(c.Properties.Spec.ExternalAuth, &out.Properties.Spec.ExternalAuth)
-			}
-			if c.Properties.Spec.Ingress != nil {
-				normalizeIngress(c.Properties.Spec.Ingress, &out.Properties.Spec.Ingress)
 			}
 		}
 	}
@@ -572,18 +557,5 @@ func normalizeExternalAuthConfig(p *generated.ExternalAuthConfigProfile, out *ap
 		}
 
 		out.ExternalAuths = append(out.ExternalAuths, provider)
-	}
-}
-
-func (p *IngressProfile) Normalize(out *api.IngressProfile) {
-	normalizeIngress(&p.IngressProfile, out)
-}
-
-func normalizeIngress(p *generated.IngressProfile, out *api.IngressProfile) {
-	if p.URL != nil {
-		out.URL = *p.URL
-	}
-	if p.Visibility != nil {
-		out.Visibility = api.Visibility(*p.Visibility)
 	}
 }

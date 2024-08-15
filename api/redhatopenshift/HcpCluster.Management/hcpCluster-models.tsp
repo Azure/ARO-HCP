@@ -155,11 +155,6 @@ model ClusterSpec {
    */
   @visibility("create", "read")
   externalAuth?: ExternalAuthConfigProfile;
-
-  /** Configures the default cluster ingress */
-  @visibility("create", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["url", "visibility"])
-  ingress: IngressProfile;
 }
 
 /** The patchable cluster specification */
@@ -471,31 +466,6 @@ model TokenClaimValidationRuleProfile {
 /*
  * =======================================
  *  End ExternalAuth resources
- * =======================================
- */
-
-/*
- * =======================================
- *  Ingress resources
- * =======================================
- */
-
-/** Configuration of the default cluster ingress */
-model IngressProfile {
-  /** The ingress url */
-  @visibility("read")
-  url: string;
-
-  /** The visibility of the ingress
-   * determines if the ingress is visible from the internet
-   */
-  @visibility("create", "read")
-  visibility: Visibility;
-}
-
-/*
- * =======================================
- *  End Ingress resources
  * =======================================
  */
 
