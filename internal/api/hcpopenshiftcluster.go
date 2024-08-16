@@ -47,7 +47,7 @@ type VersionProfile struct {
 // DNSProfile represents the DNS configuration of the cluster.
 type DNSProfile struct {
 	BaseDomain       string `json:"baseDomain,omitempty"       visibility:"read"`
-	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create"`
+	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create" validate:"omitempty,dns_rfc1035_label"`
 }
 
 // NetworkProfile represents a cluster network configuration.

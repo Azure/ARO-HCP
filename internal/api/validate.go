@@ -134,6 +134,8 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
 				case "cidrv4":
 					message += " (must be a v4 CIDR range)"
+				case "dns_rfc1035_label":
+					message += " (must be a valid DNS RFC 1035 label)"
 				case "ipv4":
 					message += " (must be an IPv4 address)"
 				case "url":
