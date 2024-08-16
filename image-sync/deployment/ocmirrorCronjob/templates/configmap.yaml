@@ -13,6 +13,8 @@ data:
         skipTLS: false
     mirror:
       platform:
+        architectures:
+          - multi
         channels:
           - name: stable-4.16
             minVersion: 4.16.0
