@@ -151,6 +151,11 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 
 	clusterBuilder := cmv1.NewCluster()
 
+	// FIXME HcpOpenShiftCluster attributes not being passed:
+	//       PlatformProfile.OutboundType        (no CS equivalent?)
+	//       PlatformProfile.EtcdEncryptionSetID (no CS equivalent?)
+	//       ExternalAuth                        (TODO, complicated)
+
 	// These attributes cannot be updated after cluster creation.
 	if !updating {
 		clusterBuilder = clusterBuilder.
@@ -162,13 +167,13 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 			CloudProvider(cmv1.NewCloudProvider().
 				ID(csCloudProvider)).
 			Azure(cmv1.NewAzure().
-				ManagedResourceGroupName(hcpCluster.Properties.Spec.Platform.ManagedResourceGroup).
-				ResourceGroupName(resourceID.ResourceGroupName).
-				SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
-				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID).
-				ResourceName(hcpCluster.Name).
+				TenantID(tenantID).
 				SubscriptionID(resourceID.SubscriptionID).
-				TenantID(tenantID)).
+				ResourceGroupName(resourceID.ResourceGroupName).
+				ResourceName(hcpCluster.Name).
+				ManagedResourceGroupName(hcpCluster.Properties.Spec.Platform.ManagedResourceGroup).
+				SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
+				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID)).
 			Product(cmv1.NewProduct().
 				ID(csProductId)).
 			Hypershift(cmv1.NewHypershift().
@@ -184,17 +189,38 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 				ServiceCIDR(hcpCluster.Properties.Spec.Network.ServiceCIDR).
 				MachineCIDR(hcpCluster.Properties.Spec.Network.MachineCIDR).
 				HostPrefix(int(hcpCluster.Properties.Spec.Network.HostPrefix))).
-			Console(cmv1.NewClusterConsole().
-				URL(hcpCluster.Properties.Spec.Console.URL)).
 			API(cmv1.NewClusterAPI().
-				URL(hcpCluster.Properties.Spec.Console.URL).
 				Listening(convertVisibilityToListening(hcpCluster.Properties.Spec.API.Visibility))).
 			FIPS(hcpCluster.Properties.Spec.FIPS).
 			EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption)
+
+		// Cluster Service rejects an empty DomainPrefix string.
+		if hcpCluster.Properties.Spec.DNS.BaseDomainPrefix != "" {
+			clusterBuilder = clusterBuilder.
+				DomainPrefix(hcpCluster.Properties.Spec.DNS.BaseDomainPrefix)
+		}
+	}
+
+	proxyBuilder := cmv1.NewProxy()
+	// Cluster Service allows an empty HTTPProxy on PATCH but not PUT.
+	if updating || hcpCluster.Properties.Spec.Proxy.HTTPProxy != "" {
+		proxyBuilder = proxyBuilder.
+			HTTPProxy(hcpCluster.Properties.Spec.Proxy.HTTPProxy)
+	}
+	// Cluster Service allows an empty HTTPSProxy on PATCH but not PUT.
+	if updating || hcpCluster.Properties.Spec.Proxy.HTTPSProxy != "" {
+		proxyBuilder = proxyBuilder.
+			HTTPSProxy(hcpCluster.Properties.Spec.Proxy.HTTPSProxy)
+	}
+	// Cluster Service allows an empty HTTPSProxy on PATCH but not PUT.
+	if updating || hcpCluster.Properties.Spec.Proxy.NoProxy != "" {
+		proxyBuilder = proxyBuilder.
+			NoProxy(hcpCluster.Properties.Spec.Proxy.NoProxy)
 	}
 
 	clusterBuilder = clusterBuilder.
 		DisableUserWorkloadMonitoring(hcpCluster.Properties.Spec.DisableUserWorkloadMonitoring).
+		Proxy(proxyBuilder).
 		AdditionalTrustBundle(hcpCluster.Properties.Spec.Proxy.TrustedCA).
 		Properties(additionalProperties)
 
