@@ -232,15 +232,14 @@ objects:
   data:
     instance-types.yaml: |
       instance_types:
-        - id: m5.2xlarge
-          name: m5.2xlarge - General purpose
-          cloud_provider_id: aws
+        - id: Standard_D8s_v3
+          name: Standard_D8s_v3 - General purpose
+          cloud_provider_id: azure
           cpu_cores: 8
           memory: 34359738368
           category: general_purpose
-          size: 2xlarge
-          ccs_only: true
-          generic_name: standard-8
+          size: d8s_v3
+          generic_name: standard-d8s_v3
     cloud-regions.yaml: |
       cloud_regions:
         - id: ${REGION}
@@ -256,7 +255,8 @@ objects:
   data:
     instance-type-constraints.yaml: |
       instance_types:
-        - id: m5.2xlarge
+        - id: Standard_D8s_v3
+          ccs_only: true
           enabled: true
     cloud-region-constraints.yaml: |
       cloud_regions:
