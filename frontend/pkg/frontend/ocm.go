@@ -109,6 +109,15 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		// Enable the ARO HCP provisioner during development. For now, if not set a cluster will not progress past the
 		// installing state in CS.
 		"provisioner_hostedcluster_step_enabled": "true",
+		// Enable the provisioning of ACM's ManagedCluster CR associated to the ARO-HCP
+		// cluster during ARO-HCP Cluster provisioning. For now, if not set a cluster will not progress past the
+		// installing state in CS.
+		"provisioner_managedcluster_step_enabled": "true",
+
+		// Enable the provisioning and deprovisioning of ARO-HCP Node Pools. For now, if not set the provisioning
+		// and deprovisioning of day 2 ARO-HCP Node Pools will not be performed on the Management Cluster.
+		"np_provisioner_provision_enabled":   "true",
+		"np_provisioner_deprovision_enabled": "true",
 	}
 	if f.clusterServiceConfig.ProvisionShardID != nil {
 		additionalProperties["provision_shard_id"] = *f.clusterServiceConfig.ProvisionShardID
