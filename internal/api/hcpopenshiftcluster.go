@@ -75,10 +75,10 @@ type APIProfile struct {
 // ProxyProfile represents the cluster proxy configuration.
 // Visibility for the entire struct is "read create update".
 type ProxyProfile struct {
-	HTTPProxy  string `json:"httpProxy,omitempty"`
-	HTTPSProxy string `json:"httpsProxy,omitempty"`
+	HTTPProxy  string `json:"httpProxy,omitempty"  validate:"omitempty,url,startswith=http:"`
+	HTTPSProxy string `json:"httpsProxy,omitempty" validate:"omitempty,url"`
 	NoProxy    string `json:"noProxy,omitempty"`
-	TrustedCA  string `json:"trustedCa,omitempty"`
+	TrustedCA  string `json:"trustedCa,omitempty"  validate:"omitempty,pem_certificates"`
 }
 
 // PlatformProfile represents the Azure platform configuration.

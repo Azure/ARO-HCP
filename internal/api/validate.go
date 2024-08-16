@@ -4,6 +4,7 @@ package api
 // Licensed under the Apache License 2.0.
 
 import (
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -64,6 +65,18 @@ func NewValidator() *validator.Validate {
 		}
 		_, ok := Lookup(field.String())
 		return ok
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// Use this for string fields providing PEM encoded certificates.
+	err = validate.RegisterValidation("pem_certificates", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			panic("String type required for pem_certificates")
+		}
+		return x509.NewCertPool().AppendCertsFromPEM([]byte(field.String()))
 	})
 	if err != nil {
 		panic(err)
@@ -130,6 +143,8 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 				switch tag {
 				case "api_version": // custom tag
 					message = fmt.Sprintf("Unrecognized API version '%s'", fieldErr.Value())
+				case "pem_certificates": // custom tag
+					message += " (must provide PEM encoded certificates)"
 				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
 				case "cidrv4":
@@ -138,6 +153,8 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					message += " (must be a valid DNS RFC 1035 label)"
 				case "ipv4":
 					message += " (must be an IPv4 address)"
+				case "startswith":
+					message += fmt.Sprintf(" (must start with '%s')", fieldErr.Param())
 				case "url":
 					message += " (must be a URL)"
 				}
