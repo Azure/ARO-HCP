@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	csFlavourId        string = "osd-4" // managed cluster
 	csCloudProvider    string = "azure"
 	csProductId        string = "aro"
 	csHypershifEnabled bool   = true
@@ -155,7 +156,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		clusterBuilder = clusterBuilder.
 			Name(hcpCluster.Name).
 			Flavour(cmv1.NewFlavour().
-				ID(hcpCluster.Type)).
+				ID(csFlavourId)).
 			Region(cmv1.NewCloudRegion().
 				ID(f.location)).
 			CloudProvider(cmv1.NewCloudProvider().

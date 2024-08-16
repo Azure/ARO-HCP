@@ -45,11 +45,6 @@ func main() {
 // CreateJSONFile creates a base cluster JSON file for use with testing frontend to create clusters
 func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				Type: "osd-4",
-			},
-		},
 		Properties: api.HCPOpenShiftClusterProperties{
 			Spec: api.ClusterSpec{
 				Version: api.VersionProfile{
@@ -99,11 +94,6 @@ func CreateJSONFile() error {
 
 func CreateNodePool() error {
 	nodePool := api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				Type: "osd-4",
-			},
-		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			ProvisioningState: arm.ProvisioningState(""),
 			Spec: api.NodePoolSpec{
