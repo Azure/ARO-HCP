@@ -113,13 +113,14 @@ func CreateNodePool() error {
 				},
 				Platform: api.NodePoolPlatformProfile{
 					SubnetID:    "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
-					DiskSizeGiB: 4,
+					DiskSizeGiB: 30,
 
 					// VMSize should match configs/cloud-resources/instance-types.yaml
 					// and configs/cloud-resource-constraints/instance-type-constraints.yaml
 					// in CS config files.
-					VMSize:                 "Standard_D4as_v4",
-					DiskStorageAccountType: "Standard_LRS",
+					VMSize:                 "Standard_D8s_v3",
+					DiskStorageAccountType: "StandardSSD_LRS",
+					EphemeralOSDisk:        false,
 				},
 				Replicas: 2,
 			},
