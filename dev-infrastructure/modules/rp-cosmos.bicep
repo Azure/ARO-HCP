@@ -26,6 +26,9 @@ var containers = [
   {
     name: 'Billing'
   }
+  {
+    name: 'NodePools'
+  }
 ]
 
 param roleDefinitionId string = '00000000-0000-0000-0000-000000000002'
