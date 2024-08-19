@@ -10,10 +10,12 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/openshift-online/ocm-sdk-go v0.1.436
-	github.com/prometheus/client_golang v1.19.1
+	github.com/prometheus/client_golang v1.20.0
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
 )
+
+require github.com/klauspost/compress v1.17.9 // indirect
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
