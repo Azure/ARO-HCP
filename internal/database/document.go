@@ -8,7 +8,7 @@ type HCPOpenShiftClusterDocument struct {
 	Key          string          `json:"key,omitempty"`
 	PartitionKey string          `json:"partitionKey,omitempty"`
 	ClusterID    string          `json:"clusterId,omitempty"`
-	SystemData   *arm.SystemData `json:"systemData,omitempty"` // TODO: Should CS store this?
+	SystemData   *arm.SystemData `json:"systemData,omitempty"`
 
 	// Values provided by Cosmos after doc creation
 	ResourceID  string `json:"_rid,omitempty"`
@@ -24,7 +24,7 @@ type NodePoolDocument struct {
 	Key          string          `json:"key,omitempty"`
 	PartitionKey string          `json:"partitionKey,omitempty"`
 	NodePoolID   string          `json:"nodePoolId,omitempty"`
-	SystemData   *arm.SystemData `json:"systemData,omitempty"` // TODO: Should CS store this?
+	SystemData   *arm.SystemData `json:"systemData,omitempty"`
 
 	// Values provided by Cosmos after doc creation
 	ResourceID  string `json:"_rid,omitempty"`
