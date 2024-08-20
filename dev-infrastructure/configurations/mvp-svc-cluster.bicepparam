@@ -18,9 +18,11 @@ param maestroPostgresServerName = 'maestro-pg-aro-hcp-dev'
 param maestroPostgresServerVersion = '15'
 param maestroPostgresServerStorageSizeGB = 32
 param deployMaestroPostgres = false
+param maestroPostgresPrivate = false
 
 param deployCsInfra = false
 param csPostgresServerName = 'cs-pg-aro-hcp-dev'
+param clusterServicePostgresPrivate = false
 
 param serviceKeyVaultName = 'service-kv-aro-hcp-dev'
 param serviceKeyVaultSoftDelete = true

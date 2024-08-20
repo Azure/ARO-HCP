@@ -19,9 +19,11 @@ param maestroPostgresServerName = take('maestro-pg-${uniqueString(currentUserId)
 param maestroPostgresServerVersion = '15'
 param maestroPostgresServerStorageSizeGB = 32
 param deployMaestroPostgres = false
+param maestroPostgresPrivate = false
 
 param deployCsInfra = false
 param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
+param clusterServicePostgresPrivate = false
 
 param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24)
 param serviceKeyVaultSoftDelete = false

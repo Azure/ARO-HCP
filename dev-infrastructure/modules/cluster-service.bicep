@@ -13,6 +13,12 @@ param csDatabaseName string = 'clusters-service'
 @description('The name of the Postgres server for CS')
 param postgresServerName string
 
+param postgresServerPrivate bool
+
+param postgresPrivateEndpointSubnetId string = ''
+
+param postgresPrivateEndpointVnetId string = ''
+
 resource postgresAdminManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${postgresServerName}-db-admin-msi'
   location: location
@@ -58,6 +64,10 @@ module postgres 'postgres/postgres.bicep' = {
       startMinute: 12
     }
     storageSizeGB: 128
+    private: postgresServerPrivate
+    subnetId: postgresPrivateEndpointSubnetId
+    vnetId: postgresPrivateEndpointVnetId
+    managedPrivateEndpoint: true
   }
 }
 

@@ -68,8 +68,14 @@ param deployCsInfra bool
 @maxLength(60)
 param csPostgresServerName string
 
+@description('If true, make the CS Postgres instance private')
+param clusterServicePostgresPrivate bool = true
+
 @description('Deploy ARO HCP Maestro Postgres if true')
 param deployMaestroPostgres bool = true
+
+@description('If true, make the Maestro Postgres instance private')
+param maestroPostgresPrivate bool = true
 
 @description('The name of the Postgres server for Maestro')
 @maxLength(60)
@@ -191,6 +197,9 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
+    postgresPrivateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
+    postgresPrivateEndpointVnetId: svcCluster.outputs.aksVnetId
+    postgresServerPrivate: maestroPostgresPrivate
     maestroServerManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-server'
@@ -235,12 +244,18 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
   params: {
     location: location
     postgresServerName: csPostgresServerName
+    postgresPrivateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
+    postgresPrivateEndpointVnetId: svcCluster.outputs.aksVnetId
+    postgresServerPrivate: clusterServicePostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
     clusterServiceManagedIdentityName: filter(
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'clusters-service'
     )[0].uamiName
   }
+  dependsOn: [
+    maestroServer
+  ]
 }
 
 module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {

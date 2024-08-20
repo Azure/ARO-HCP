@@ -1,10 +1,11 @@
 /*
 This module creates a postgres flexible server, firewall rules, administrators, configurations, and databases.
-TODO: support for private endpoint
 */
 
 @description('The name of the Postgres server.')
 param name string
+
+param location string = resourceGroup().location
 
 param sku string = 'Standard_D2s_v3'
 param tier string = 'GeneralPurpose'
@@ -62,7 +63,15 @@ param storageSizeGB int
 
 param version string
 
-resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview' = {
+param private bool
+
+param managedPrivateEndpoint bool = true
+
+param subnetId string = ''
+
+param vnetId string = ''
+
+resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' = {
   name: name
   location: resourceGroup().location
   sku: {
@@ -74,6 +83,9 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview'
     administratorLoginPassword: ''
     version: version
     createMode: 'Default'
+    network: {
+      publicNetworkAccess: private ? 'Disabled' : 'Enabled'
+    }
     authConfig: {
       activeDirectoryAuth: 'Enabled'
       passwordAuth: 'Disabled'
@@ -97,15 +109,6 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview'
   }
 }
 
-resource postgres_firewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-03-01-preview' = {
-  name: '${name}-allow-all'
-  parent: postgres
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '255.255.255.255'
-  }
-}
-
 @batchSize(1)
 resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2023-03-01-preview' = [
   for admin in filter(databaseAdministrators, a => a.principalId != ''): {
@@ -116,7 +119,6 @@ resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrator
       principalType: admin.principalType
       tenantId: subscription().tenantId
     }
-    dependsOn: [postgres_firewall]
   }
 ]
 
@@ -148,3 +150,66 @@ resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@
 
 output hostname string = postgres.properties.fullyQualifiedDomainName
 output port int = 5432
+
+//
+//   P R I V A T E   E N D P O I N T
+//
+
+var privateDnsZoneName = 'privatelink.postgres.database.azure.com'
+
+resource postgresPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = if (managedPrivateEndpoint) {
+  name: '${name}-pe'
+  location: location
+  properties: {
+    privateLinkServiceConnections: [
+      {
+        name: '${name}-pe'
+        properties: {
+          groupIds: [
+            'postgresqlServer'
+          ]
+          privateLinkServiceId: postgres.id
+        }
+      }
+    ]
+    subnet: {
+      id: subnetId
+    }
+  }
+}
+
+resource postgresPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (managedPrivateEndpoint) {
+  name: privateDnsZoneName
+  location: 'global'
+  properties: {}
+}
+
+resource postgresPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (managedPrivateEndpoint) {
+  parent: postgresPrivateEndpointDnsZone
+  name: 'postgres'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnetId
+    }
+  }
+}
+
+resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = if (managedPrivateEndpoint) {
+  parent: postgresPrivateEndpoint
+  name: '${name}-dns-group'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config1'
+        properties: {
+          privateDnsZoneId: postgresPrivateEndpointDnsZone.id
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    postgresPrivateDnsZoneVnetLink
+  ]
+}
