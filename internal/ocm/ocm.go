@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 )
 
 type ClusterServiceConfig struct {
@@ -28,8 +28,8 @@ type ClusterServiceConfig struct {
 }
 
 // GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
-func (csc *ClusterServiceConfig) GetCSCluster(clusterID string) (*cmv1.Cluster, error) {
-	clusterGetResponse, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Get().Send()
+func (csc *ClusterServiceConfig) GetCSCluster(clusterID string) (*cmv2alpha1.Cluster, error) {
+	clusterGetResponse, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Cluster(clusterID).Get().Send()
 	if err != nil {
 		return nil, err
 	}
@@ -41,8 +41,8 @@ func (csc *ClusterServiceConfig) GetCSCluster(clusterID string) (*cmv1.Cluster, 
 }
 
 // PostCSCluster creates and sends a POST request to create a cluster in Clusters Service
-func (csc *ClusterServiceConfig) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
-	clustersAddResponse, err := csc.Conn.ClustersMgmt().V1().Clusters().Add().Body(cluster).Send()
+func (csc *ClusterServiceConfig) PostCSCluster(cluster *cmv2alpha1.Cluster) (*cmv2alpha1.Cluster, error) {
+	clustersAddResponse, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Add().Body(cluster).Send()
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +54,8 @@ func (csc *ClusterServiceConfig) PostCSCluster(cluster *cmv1.Cluster) (*cmv1.Clu
 }
 
 // UpdateCSCluster sends a POST request to update a cluster in Clusters Service
-func (csc *ClusterServiceConfig) UpdateCSCluster(clusterID string, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
-	clusterUpdateResponse, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Update().Body(cluster).Send()
+func (csc *ClusterServiceConfig) UpdateCSCluster(clusterID string, cluster *cmv2alpha1.Cluster) (*cmv2alpha1.Cluster, error) {
+	clusterUpdateResponse, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Cluster(clusterID).Update().Body(cluster).Send()
 	if err != nil {
 		return nil, err
 	}
@@ -68,12 +68,12 @@ func (csc *ClusterServiceConfig) UpdateCSCluster(clusterID string, cluster *cmv1
 
 // DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
 func (csc *ClusterServiceConfig) DeleteCSCluster(clusterID string) error {
-	_, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).Delete().Send()
+	_, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Cluster(clusterID).Delete().Send()
 	return err
 }
 
-func (csc *ClusterServiceConfig) GetCSNodePool(clusterID, nodePoolID string) (*cmv1.NodePool, error) {
-	nodePoolGetResponse, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().NodePool(nodePoolID).Get().Send()
+func (csc *ClusterServiceConfig) GetCSNodePool(clusterID, nodePoolID string) (*cmv2alpha1.NodePool, error) {
+	nodePoolGetResponse, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Cluster(clusterID).NodePools().NodePool(nodePoolID).Get().Send()
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +84,8 @@ func (csc *ClusterServiceConfig) GetCSNodePool(clusterID, nodePoolID string) (*c
 	return nodePool, nil
 }
 
-func (csc *ClusterServiceConfig) CreateCSNodePool(clusterID string, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
-	nodePoolsAddResponse, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().Add().Body(nodePool).Send()
+func (csc *ClusterServiceConfig) CreateCSNodePool(clusterID string, nodePool *cmv2alpha1.NodePool) (*cmv2alpha1.NodePool, error) {
+	nodePoolsAddResponse, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Cluster(clusterID).NodePools().Add().Body(nodePool).Send()
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +97,6 @@ func (csc *ClusterServiceConfig) CreateCSNodePool(clusterID string, nodePool *cm
 }
 
 func (csc *ClusterServiceConfig) DeleteCSNodePool(clusterID, nodePoolID string) error {
-	_, err := csc.Conn.ClustersMgmt().V1().Clusters().Cluster(clusterID).NodePools().NodePool(nodePoolID).Delete().Send()
+	_, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Cluster(clusterID).NodePools().NodePool(nodePoolID).Delete().Send()
 	return err
 }

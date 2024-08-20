@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -152,7 +152,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 
 	// Create the request with initial parameters:
-	clustersRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().List().Search(query)
+	clustersRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V2alpha1().Clusters().List().Search(query)
 	clustersRequest.Size(pageSize)
 	clustersRequest.Page(pageNumber)
 
@@ -816,8 +816,8 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	if csCluster.State() == cmv1.ClusterStateUninstalling {
-		f.logger.Error(fmt.Sprintf("failed to create nodepool for cluster %s as it is in %v state", clusterResourceID, cmv1.ClusterStateUninstalling))
+	if csCluster.State() == cmv2alpha1.ClusterStateUninstalling {
+		f.logger.Error(fmt.Sprintf("failed to create nodepool for cluster %s as it is in %v state", clusterResourceID, cmv2alpha1.ClusterStateUninstalling))
 		arm.WriteInternalServerError(writer)
 		return
 	}

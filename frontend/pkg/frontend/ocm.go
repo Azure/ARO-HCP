@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -20,28 +20,28 @@ const (
 	csCCSEnabled       bool   = true
 )
 
-func convertListeningToVisibility(listening cmv1.ListeningMethod) (visibility api.Visibility) {
+func convertListeningToVisibility(listening cmv2alpha1.ListeningMethod) (visibility api.Visibility) {
 	switch listening {
-	case cmv1.ListeningMethodExternal:
+	case cmv2alpha1.ListeningMethodExternal:
 		visibility = api.VisibilityPublic
-	case cmv1.ListeningMethodInternal:
+	case cmv2alpha1.ListeningMethodInternal:
 		visibility = api.VisibilityPrivate
 	}
 	return
 }
 
-func convertVisibilityToListening(visibility api.Visibility) (listening cmv1.ListeningMethod) {
+func convertVisibilityToListening(visibility api.Visibility) (listening cmv2alpha1.ListeningMethod) {
 	switch visibility {
 	case api.VisibilityPublic:
-		listening = cmv1.ListeningMethodExternal
+		listening = cmv2alpha1.ListeningMethodExternal
 	case api.VisibilityPrivate:
-		listening = cmv1.ListeningMethodInternal
+		listening = cmv2alpha1.ListeningMethodInternal
 	}
 	return
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cluster *cmv1.Cluster) (*api.HCPOpenShiftCluster, error) {
+func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cluster *cmv2alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	resourceGroupName := cluster.Azure().ResourceGroupName()
 	resourceName := cluster.Azure().ResourceName()
 	subID := cluster.Azure().SubscriptionID()
@@ -113,7 +113,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
-func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
+func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv2alpha1.Cluster, error) {
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
@@ -149,7 +149,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		additionalProperties["provisioner_noop_deprovision"] = "true"
 	}
 
-	clusterBuilder := cmv1.NewCluster()
+	clusterBuilder := cmv2alpha1.NewCluster()
 
 	// FIXME HcpOpenShiftCluster attributes not being passed:
 	//       PlatformProfile.OutboundType        (no CS equivalent?)
@@ -160,13 +160,13 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 	if !updating {
 		clusterBuilder = clusterBuilder.
 			Name(hcpCluster.Name).
-			Flavour(cmv1.NewFlavour().
+			Flavour(cmv2alpha1.NewFlavour().
 				ID(csFlavourId)).
-			Region(cmv1.NewCloudRegion().
+			Region(cmv2alpha1.NewCloudRegion().
 				ID(f.location)).
-			CloudProvider(cmv1.NewCloudProvider().
+			CloudProvider(cmv2alpha1.NewCloudProvider().
 				ID(csCloudProvider)).
-			Azure(cmv1.NewAzure().
+			Azure(cmv2alpha1.NewAzure().
 				TenantID(tenantID).
 				SubscriptionID(resourceID.SubscriptionID).
 				ResourceGroupName(resourceID.ResourceGroupName).
@@ -174,22 +174,22 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 				ManagedResourceGroupName(hcpCluster.Properties.Spec.Platform.ManagedResourceGroup).
 				SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
 				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID)).
-			Product(cmv1.NewProduct().
+			Product(cmv2alpha1.NewProduct().
 				ID(csProductId)).
-			Hypershift(cmv1.NewHypershift().
+			Hypershift(cmv2alpha1.NewHypershift().
 				Enabled(csHypershifEnabled)).
 			MultiAZ(csMultiAzEnabled).
-			CCS(cmv1.NewCCS().Enabled(csCCSEnabled)).
-			Version(cmv1.NewVersion().
+			CCS(cmv2alpha1.NewCCS().Enabled(csCCSEnabled)).
+			Version(cmv2alpha1.NewVersion().
 				ID(hcpCluster.Properties.Spec.Version.ID).
 				ChannelGroup(hcpCluster.Properties.Spec.Version.ChannelGroup)).
-			Network(cmv1.NewNetwork().
+			Network(cmv2alpha1.NewNetwork().
 				Type(string(hcpCluster.Properties.Spec.Network.NetworkType)).
 				PodCIDR(hcpCluster.Properties.Spec.Network.PodCIDR).
 				ServiceCIDR(hcpCluster.Properties.Spec.Network.ServiceCIDR).
 				MachineCIDR(hcpCluster.Properties.Spec.Network.MachineCIDR).
 				HostPrefix(int(hcpCluster.Properties.Spec.Network.HostPrefix))).
-			API(cmv1.NewClusterAPI().
+			API(cmv2alpha1.NewClusterAPI().
 				Listening(convertVisibilityToListening(hcpCluster.Properties.Spec.API.Visibility))).
 			FIPS(hcpCluster.Properties.Spec.FIPS).
 			EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption)
@@ -201,7 +201,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		}
 	}
 
-	proxyBuilder := cmv1.NewProxy()
+	proxyBuilder := cmv2alpha1.NewProxy()
 	// Cluster Service allows an empty HTTPProxy on PATCH but not PUT.
 	if updating || hcpCluster.Properties.Spec.Proxy.HTTPProxy != "" {
 		proxyBuilder = proxyBuilder.
@@ -232,7 +232,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 }
 
 // ConvertCStoNodepool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
-func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.SystemData, np *cmv1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.SystemData, np *cmv2alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
@@ -291,15 +291,15 @@ func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.Syst
 }
 
 // BuildCSNodepool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object
-func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShiftClusterNodePool) (*cmv1.NodePool, error) {
-	azureNodepool := cmv1.NewAzureNodePool().
+func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShiftClusterNodePool) (*cmv2alpha1.NodePool, error) {
+	azureNodepool := cmv2alpha1.NewAzureNodePool().
 		VMSize(nodepool.Properties.Spec.Platform.VMSize).
 		ResourceName(nodepool.Name).
 		EphemeralOSDiskEnabled(nodepool.Properties.Spec.Platform.EphemeralOSDisk).
 		OSDiskSizeGibibytes(int(nodepool.Properties.Spec.Platform.DiskSizeGiB)).
 		OSDiskStorageAccountType(nodepool.Properties.Spec.Platform.DiskStorageAccountType)
 
-	npBuilder := cmv1.NewNodePool().
+	npBuilder := cmv2alpha1.NewNodePool().
 		AutoRepair(nodepool.Properties.Spec.AutoRepair).
 		Labels(nodepool.Properties.Spec.Labels)
 
@@ -307,7 +307,7 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 	if nodepool.Properties.Spec.Replicas != 0 {
 		npBuilder.Replicas(int(nodepool.Properties.Spec.Replicas))
 	} else {
-		npBuilder.Autoscaling(cmv1.NewNodePoolAutoscaling().
+		npBuilder.Autoscaling(cmv2alpha1.NewNodePoolAutoscaling().
 			MinReplica(int(nodepool.Properties.Spec.Autoscaling.Min)).
 			MaxReplica(int(nodepool.Properties.Spec.Autoscaling.Max)))
 	}
@@ -315,7 +315,7 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 	npBuilder.
 		Subnet(nodepool.Properties.Spec.Platform.SubnetID).
 		TuningConfigs(nodepool.Properties.Spec.TuningConfigs...).
-		Version(cmv1.NewVersion().
+		Version(cmv2alpha1.NewVersion().
 			ID(nodepool.Properties.Spec.Version.ID).
 			ChannelGroup(nodepool.Properties.Spec.Version.ChannelGroup).
 			AvailableUpgrades(nodepool.Properties.Spec.Version.AvailableUpgrades...)).
@@ -323,7 +323,7 @@ func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShi
 		ID(nodepool.Name)
 
 	for _, t := range nodepool.Properties.Spec.Taints {
-		npBuilder = npBuilder.Taints(cmv1.NewTaint().
+		npBuilder = npBuilder.Taints(cmv2alpha1.NewTaint().
 			Effect(string(t.Effect)).
 			Key(t.Key).
 			Value(t.Value))
