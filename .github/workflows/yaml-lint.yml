@@ -20,6 +20,6 @@ jobs:
           fetch-depth: 1
 
       - name: yamllint
-        uses: oxsecurity/megalinter/flavors/ci_light@v7
+        uses: oxsecurity/megalinter/flavors/ci_light@v8
         env:
           FILTER_REGEX_EXCLUDE: 'hypershiftoperator/deploy/base/|hypershiftoperator/deploy/crds/|maestro/deploy/helm/'
