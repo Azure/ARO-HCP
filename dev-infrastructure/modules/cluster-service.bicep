@@ -15,9 +15,9 @@ param postgresServerName string
 
 param postgresServerPrivate bool
 
-param postgresPrivateEndpointSubnetId string = ''
+param privateEndpointSubnetId string = ''
 
-param postgresPrivateEndpointVnetId string = ''
+param privateEndpointVnetId string = ''
 
 resource postgresAdminManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${postgresServerName}-db-admin-msi'
@@ -65,8 +65,8 @@ module postgres 'postgres/postgres.bicep' = {
     }
     storageSizeGB: 128
     private: postgresServerPrivate
-    subnetId: postgresPrivateEndpointSubnetId
-    vnetId: postgresPrivateEndpointVnetId
+    subnetId: privateEndpointSubnetId
+    vnetId: privateEndpointVnetId
     managedPrivateEndpoint: true
   }
 }

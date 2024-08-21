@@ -197,8 +197,8 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
-    postgresPrivateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
-    postgresPrivateEndpointVnetId: svcCluster.outputs.aksVnetId
+    privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
+    privateEndpointVnetId: svcCluster.outputs.aksVnetId
     postgresServerPrivate: maestroPostgresPrivate
     maestroServerManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
@@ -244,8 +244,8 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
   params: {
     location: location
     postgresServerName: csPostgresServerName
-    postgresPrivateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
-    postgresPrivateEndpointVnetId: svcCluster.outputs.aksVnetId
+    privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
+    privateEndpointVnetId: svcCluster.outputs.aksVnetId
     postgresServerPrivate: clusterServicePostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
     clusterServiceManagedIdentityName: filter(

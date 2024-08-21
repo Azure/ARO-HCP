@@ -43,9 +43,9 @@ param postgresServerStorageSizeGB int
 
 param postgresServerPrivate bool
 
-param postgresPrivateEndpointSubnetId string = ''
+param privateEndpointSubnetId string = ''
 
-param postgresPrivateEndpointVnetId string = ''
+param privateEndpointVnetId string = ''
 
 @description('The name of the database to create for Maestro')
 param maestroDatabaseName string = 'maestro'
@@ -106,8 +106,8 @@ module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
     }
     storageSizeGB: postgresServerStorageSizeGB
     private: postgresServerPrivate
-    subnetId: postgresPrivateEndpointSubnetId
-    vnetId: postgresPrivateEndpointVnetId
+    subnetId: privateEndpointSubnetId
+    vnetId: privateEndpointVnetId
     managedPrivateEndpoint: true
   }
 }
