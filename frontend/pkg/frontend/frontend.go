@@ -83,14 +83,7 @@ func (f *Frontend) Join() {
 	<-f.done
 }
 
-func (f *Frontend) CheckReady(ctx context.Context) bool {
-	// Verify the DB is available and accessible
-	if err := f.dbClient.DBConnectionTest(ctx); err != nil {
-		f.logger.Error(fmt.Sprintf("Database test failed: %v", err))
-		return false
-	}
-	f.logger.Debug("Database check completed")
-
+func (f *Frontend) CheckReady() bool {
 	return f.ready.Load().(bool)
 }
 
@@ -104,12 +97,17 @@ func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 	var healthStatus float64
 
-	if f.CheckReady(request.Context()) {
+	dbConErr := f.dbClient.DBConnectionTest(request.Context())
+	if f.CheckReady() == false {
+		writer.WriteHeader(http.StatusInternalServerError)
+		healthStatus = 0.0
+	} else if dbConErr != nil {
+		writer.WriteHeader(http.StatusOK)
+		f.logger.Error(fmt.Sprintf("Database test failed: %v", dbConErr))
+		healthStatus = 0.5
+	} else {
 		writer.WriteHeader(http.StatusOK)
 		healthStatus = 1.0
-	} else {
-		arm.WriteInternalServerError(writer)
-		healthStatus = 0.0
 	}
 
 	f.metrics.EmitGauge("frontend_health", healthStatus, map[string]string{

@@ -17,7 +17,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-func TestReadiness(t *testing.T) {
+func TestLiveness(t *testing.T) {
 	tests := []struct {
 		name               string
 		ready              bool
