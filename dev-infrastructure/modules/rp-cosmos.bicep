@@ -21,13 +21,10 @@ var containers = [
     partitionKeyPaths: ['/id']
   }
   {
-    name: 'Clusters'
+    name: 'Resources'
   }
   {
     name: 'Billing'
-  }
-  {
-    name: 'NodePools'
   }
 ]
 

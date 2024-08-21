@@ -227,7 +227,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
 
-	doc, err := f.dbClient.GetClusterDoc(ctx, resourceID)
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing document not found for cluster: %s", resourceID))
@@ -308,7 +308,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 
-	doc, err := f.dbClient.GetClusterDoc(ctx, resourceID)
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
 		arm.WriteInternalServerError(writer)
@@ -368,7 +368,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 
-		doc = &database.HCPOpenShiftClusterDocument{
+		doc = &database.ResourceDocument{
 			ID:           uuid.New().String(),
 			Key:          resourceID.String(),
 			PartitionKey: resourceID.SubscriptionID,
@@ -439,7 +439,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 
 	if docUpdated {
-		err = f.dbClient.SetClusterDoc(ctx, doc)
+		err = f.dbClient.SetResourceDoc(ctx, doc)
 		if err != nil {
 			f.logger.Error(fmt.Sprintf("failed to upsert document for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
@@ -486,8 +486,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
 
-	var doc *database.HCPOpenShiftClusterDocument
-	doc, err = f.dbClient.GetClusterDoc(ctx, resourceID)
+	var doc *database.ResourceDocument
+	doc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
@@ -507,7 +507,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.dbClient.DeleteClusterDoc(ctx, resourceID)
+	err = f.dbClient.DeleteResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
@@ -800,7 +800,7 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	clusterDoc, err := f.dbClient.GetClusterDoc(ctx, clusterResourceID)
+	clusterDoc, err := f.dbClient.GetResourceDoc(ctx, clusterResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing document not found for cluster %s when creating node pool", clusterResourceID))
@@ -825,12 +825,12 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	nodePoolDoc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID)
+	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("creating nodepool document for %s", nodePoolResourceID))
 
-			nodePoolDoc = &database.NodePoolDocument{
+			nodePoolDoc = &database.ResourceDocument{
 				ID:           uuid.New().String(),
 				Key:          nodePoolResourceID.String(),
 				PartitionKey: subscriptionID,
@@ -887,7 +887,7 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	err = f.dbClient.SetNodePoolDoc(ctx, nodePoolDoc)
+	err = f.dbClient.SetResourceDoc(ctx, nodePoolDoc)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to create nodepool document for resource %s: %v", nodePoolResourceID, err))
 		arm.WriteInternalServerError(writer)
@@ -938,7 +938,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	nodePoolDoc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID)
+	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("existing node pool document not found for node pool: %s on GET node pool by name", nodePoolResourceID))
@@ -1005,7 +1005,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	doc, err := f.dbClient.GetNodePoolDoc(ctx, nodePoolResourceID)
+	doc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("nodepool document cannot be deleted -- nodepool document not found for %s", nodePoolResourceID))
@@ -1025,7 +1025,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	err = f.dbClient.DeleteNodePoolDoc(ctx, nodePoolResourceID)
+	err = f.dbClient.DeleteResourceDoc(ctx, nodePoolResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Error(fmt.Sprintf("nodepool document cannot be deleted -- nodepool document not found for %s", nodePoolResourceID))
