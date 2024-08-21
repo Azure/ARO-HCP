@@ -12,8 +12,7 @@ var _ DBClient = &Cache{}
 // Cache is a simple DBClient that allows us to perform simple tests without needing a real CosmosDB. For production,
 // use CosmosDBClient instead. Call NewCache() to initialize a Cache correctly.
 type Cache struct {
-	cluster      map[string]*HCPOpenShiftClusterDocument
-	nodePool     map[string]*NodePoolDocument
+	resource     map[string]*ResourceDocument
 	operation    map[string]*OperationDocument
 	subscription map[string]*SubscriptionDocument
 }
@@ -22,8 +21,7 @@ type Cache struct {
 // NewCosmosDBConfig instead.
 func NewCache() DBClient {
 	return &Cache{
-		cluster:      make(map[string]*HCPOpenShiftClusterDocument),
-		nodePool:     make(map[string]*NodePoolDocument),
+		resource:     make(map[string]*ResourceDocument),
 		subscription: make(map[string]*SubscriptionDocument),
 	}
 }
@@ -32,57 +30,30 @@ func (c *Cache) DBConnectionTest(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) GetClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*HCPOpenShiftClusterDocument, error) {
+func (c *Cache) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(resourceID.String())
 
-	if doc, ok := c.cluster[key]; ok {
+	if doc, ok := c.resource[key]; ok {
 		return doc, nil
 	}
 
 	return nil, ErrNotFound
 }
 
-func (c *Cache) SetClusterDoc(ctx context.Context, doc *HCPOpenShiftClusterDocument) error {
+func (c *Cache) SetResourceDoc(ctx context.Context, doc *ResourceDocument) error {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(doc.Key)
 
-	c.cluster[key] = doc
+	c.resource[key] = doc
 	return nil
 }
 
-func (c *Cache) DeleteClusterDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
+func (c *Cache) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(resourceID.String())
 
-	delete(c.cluster, key)
-	return nil
-}
-
-func (c *Cache) GetNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*NodePoolDocument, error) {
-	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(resourceID.String())
-
-	if doc, ok := c.nodePool[key]; ok {
-		return doc, nil
-	}
-
-	return nil, ErrNotFound
-}
-
-func (c *Cache) SetNodePoolDoc(ctx context.Context, doc *NodePoolDocument) error {
-	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(doc.Key)
-
-	c.nodePool[key] = doc
-	return nil
-}
-
-func (c *Cache) DeleteNodePoolDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
-	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(resourceID.String())
-
-	delete(c.nodePool, key)
+	delete(c.resource, key)
 	return nil
 }
 

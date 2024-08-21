@@ -5,24 +5,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-// HCPOpenShiftClusterDocument represents an HCP OpenShift cluster document.
-type HCPOpenShiftClusterDocument struct {
-	ID           string          `json:"id,omitempty"`
-	Key          string          `json:"key,omitempty"`
-	PartitionKey string          `json:"partitionKey,omitempty"`
-	InternalID   ocm.InternalID  `json:"internalId,omitempty"`
-	SystemData   *arm.SystemData `json:"systemData,omitempty"`
-
-	// Values provided by Cosmos after doc creation
-	ResourceID  string `json:"_rid,omitempty"`
-	Self        string `json:"_self,omitempty"`
-	ETag        string `json:"_etag,omitempty"`
-	Attachments string `json:"_attachments,omitempty"`
-	Timestamp   int    `json:"_ts,omitempty"`
-}
-
-// NodePoolDocument represents an HCP OpenShift NodePool document.
-type NodePoolDocument struct {
+// ResourceDocument captures the mapping of an Azure resource ID
+// to an internal resource ID (the OCM API path), as well as any
+// ARM-specific metadata for the resource.
+type ResourceDocument struct {
 	ID           string          `json:"id,omitempty"`
 	Key          string          `json:"key,omitempty"`
 	PartitionKey string          `json:"partitionKey,omitempty"`
