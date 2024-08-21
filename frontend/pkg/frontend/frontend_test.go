@@ -198,12 +198,13 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 	}
 
+	pe := NewPrometheusEmitter()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			f := &Frontend{
 				dbClient: database.NewCache(),
 				logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-				metrics:  NewPrometheusEmitter(),
+				metrics:  pe,
 			}
 
 			body, err := json.Marshal(&test.subscription)
