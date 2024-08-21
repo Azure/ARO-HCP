@@ -98,7 +98,7 @@ func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 	var healthStatus float64
 
 	dbConErr := f.dbClient.DBConnectionTest(request.Context())
-	if f.CheckReady() == false {
+	if !f.CheckReady() {
 		writer.WriteHeader(http.StatusInternalServerError)
 		healthStatus = 0.0
 	} else if dbConErr != nil {
