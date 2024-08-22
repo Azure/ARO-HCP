@@ -109,8 +109,17 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
   }
 }
 
+resource postgres_allow_azure_firewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-01-preview' = {
+  name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
+  parent: postgres
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'
+  }
+}
+
 @batchSize(1)
-resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2023-03-01-preview' = [
+resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2023-12-01-preview' = [
   for admin in filter(databaseAdministrators, a => a.principalId != ''): {
     name: admin.principalId
     parent: postgres
@@ -119,11 +128,12 @@ resource postgres_admin 'Microsoft.DBforPostgreSQL/flexibleServers/administrator
       principalType: admin.principalType
       tenantId: subscription().tenantId
     }
+    dependsOn: [postgres_allow_azure_firewall]
   }
 ]
 
 @batchSize(1)
-resource postgres_config 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2023-03-01-preview' = [
+resource postgres_config 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2023-12-01-preview' = [
   for config in configurations: {
     name: config.source
     parent: postgres
@@ -136,7 +146,7 @@ resource postgres_config 'Microsoft.DBforPostgreSQL/flexibleServers/configuratio
 ]
 
 @batchSize(1)
-resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-03-01-preview' = [
+resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-12-01-preview' = [
   for database in databases: {
     name: database.name
     parent: postgres
@@ -176,12 +186,18 @@ resource postgresPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01'
       id: subnetId
     }
   }
+  dependsOn: [
+    postgres_database
+  ]
 }
 
 resource postgresPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (managedPrivateEndpoint) {
   name: privateDnsZoneName
   location: 'global'
   properties: {}
+  dependsOn: [
+    postgresPrivateEndpoint
+  ]
 }
 
 resource postgresPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (managedPrivateEndpoint) {
