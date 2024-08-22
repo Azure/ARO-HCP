@@ -172,8 +172,8 @@
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
               # enable aks metrics
-              AZ_MONITOR_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID} --output tsv --query properties.outputs.monitorId.value)
-              GRAFANA_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID} --output tsv --query properties.outputs.grafanaId.value)
+              AZ_MONITOR_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.monitorId.value)
+              GRAFANA_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.grafanaId.value)
 
               az aks update --name "${SVC_CLUSTER_NAME}" --resource-group "${SC_RESOURCEGROUP}" \
                 --azure-monitor-workspace-resource-id "${AZ_MONITOR_RESOURCE_ID}" \
@@ -229,8 +229,8 @@
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
               # enable aks metrics
-              AZ_MONITOR_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID} --output tsv --query properties.outputs.monitorId.value)
-              GRAFANA_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID} --output tsv --query properties.outputs.grafanaId.value)
+              AZ_MONITOR_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.monitorId.value)
+              GRAFANA_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.grafanaId.value)
 
               az aks update --name "${MGMT_CLUSTER_NAME}" --resource-group "${MC_RESOURCEGROUP}" \
                 --azure-monitor-workspace-resource-id "${AZ_MONITOR_RESOURCE_ID}" \
