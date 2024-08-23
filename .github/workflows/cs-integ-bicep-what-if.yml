@@ -13,8 +13,8 @@ on:
     paths:
       - 'dev-infrastructure/**/*.bicep'
       - 'dev-infrastructure/**/*.bicepparam'
-      - '.github/workflows/bicep-what-if.yml'
-      - '.github/workflows/aro-hcp-dev-env-cd.yml'
+      - '.github/workflows/cs-integ-bicep-what-if.yml'
+      - '.github/workflows/cs-integration-env-cd.yml'
 
 jobs:
   what-if:
