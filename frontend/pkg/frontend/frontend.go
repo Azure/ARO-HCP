@@ -335,6 +335,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 		hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 
+		// Do not set the TrackedResource.Tags field here. We need
+		// the Tags map to remain nil so we can see if the request
+		// body included a new set of resource tags.
+
 		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
@@ -426,6 +430,16 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	// Record the latest system data values from ARM, if present.
 	if systemData != nil {
 		doc.SystemData = systemData
+		docUpdated = true
+	}
+
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if hcpCluster.TrackedResource.Tags != nil {
+		doc.Tags = hcpCluster.TrackedResource.Tags
 		docUpdated = true
 	}
 
@@ -910,6 +924,10 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 		hcpNodePool := ConvertCStoNodePool(nodePoolResourceID, csNodePool)
 
+		// Do not set the TrackedResource.Tags field here. We need
+		// the Tags map to remain nil so we can see if the request
+		// body included a new set of resource tags.
+
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
@@ -1001,6 +1019,16 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	// Record the latest system data values from ARM, if present.
 	if systemData != nil {
 		nodePoolDoc.SystemData = systemData
+		docUpdated = true
+	}
+
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if hcpNodePool.TrackedResource.Tags != nil {
+		nodePoolDoc.Tags = hcpNodePool.TrackedResource.Tags
 		docUpdated = true
 	}
 
