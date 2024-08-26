@@ -794,7 +794,7 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 
 	clusterResourceID := nodePoolResourceID.Parent
 	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %s", nodePoolResourceID))
+		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -820,7 +820,7 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	if csCluster.State() == cmv2alpha1.ClusterStateUninstalling {
-		f.logger.Error(fmt.Sprintf("failed to create nodepool for cluster %s as it is in %v state", clusterResourceID, cmv2alpha1.ClusterStateUninstalling))
+		f.logger.Error(fmt.Sprintf("failed to create node pool for cluster %s as it is in %v state", clusterResourceID, cmv2alpha1.ClusterStateUninstalling))
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -828,7 +828,7 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Info(fmt.Sprintf("creating nodepool document for %s", nodePoolResourceID))
+			f.logger.Info(fmt.Sprintf("creating node pool document for %s", nodePoolResourceID))
 
 			nodePoolDoc = &database.ResourceDocument{
 				ID:           uuid.New().String(),
@@ -862,11 +862,11 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
-	nodePoolName := request.PathValue(PathSegmentNodepoolName)
+	nodePoolName := request.PathValue(PathSegmentNodePoolName)
 	f.logger.Info(fmt.Sprintf("nodePoolName: %v", nodePoolName))
 
 	apiNodePool := buildInternalNodePool(versionedNodePool, nodePoolName)
-	newCsNodePool, err := f.BuildCSNodepool(ctx, apiNodePool)
+	newCsNodePool, err := f.BuildCSNodePool(ctx, apiNodePool)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -889,7 +889,7 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 
 	err = f.dbClient.SetResourceDoc(ctx, nodePoolDoc)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to create nodepool document for resource %s: %v", nodePoolResourceID, err))
+		f.logger.Error(fmt.Sprintf("failed to create node pool document for resource %s: %v", nodePoolResourceID, err))
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -933,7 +933,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 
 	clusterResourceID := nodePoolResourceID.Parent
 	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %s", nodePoolResourceID))
+		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -958,7 +958,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	aroNodePool, err := f.ConvertCStoNodepool(ctx, nodePoolDoc.SystemData, nodePool)
+	aroNodePool, err := f.ConvertCStoNodePool(ctx, nodePoolDoc.SystemData, nodePool)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1000,7 +1000,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 
 	clusterResourceID := nodePoolResourceID.Parent
 	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for nodepool %s", nodePoolResourceID))
+		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -1008,19 +1008,19 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	doc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("nodepool document cannot be deleted -- nodepool document not found for %s", nodePoolResourceID))
+			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- node pool document not found for %s", nodePoolResourceID))
 			writer.WriteHeader(http.StatusNoContent)
 			return
 		}
 
-		f.logger.Error(fmt.Sprintf("failed to fetch nodepool document for %s: %v", nodePoolResourceID, err))
+		f.logger.Error(fmt.Sprintf("failed to fetch node pool document for %s: %v", nodePoolResourceID, err))
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	err = f.clusterServiceConfig.DeleteCSNodePool(doc.InternalID)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to delete nodepool %s: %v", nodePoolResourceID, err))
+		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", nodePoolResourceID, err))
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -1028,7 +1028,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	err = f.dbClient.DeleteResourceDoc(ctx, nodePoolResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("nodepool document cannot be deleted -- nodepool document not found for %s", nodePoolResourceID))
+			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- node pool document not found for %s", nodePoolResourceID))
 			writer.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -1038,13 +1038,13 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("nodepool document deleted for resource %s", nodePoolResourceID))
+	f.logger.Info(fmt.Sprintf("node pool document deleted for resource %s", nodePoolResourceID))
 
 	writer.WriteHeader(http.StatusAccepted)
 }
 
 func buildInternalNodePool(versionedNodePool api.VersionedHCPOpenShiftClusterNodePool, nodePoolName string) *api.HCPOpenShiftClusterNodePool {
-	apiNodePool := api.NewDefaultHCPOpenShiftClusterNodepool()
+	apiNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
 	versionedNodePool.Normalize(apiNodePool)
 	apiNodePool.Name = nodePoolName
 

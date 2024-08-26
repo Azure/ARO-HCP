@@ -171,7 +171,7 @@ func newNodePoolTaint(from *api.Taint) *generated.Taint {
 
 func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
-		from = api.NewDefaultHCPOpenShiftClusterNodepool()
+		from = api.NewDefaultHCPOpenShiftClusterNodePool()
 	}
 
 	out := &HcpOpenShiftClusterNodePoolResource{

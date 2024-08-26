@@ -58,7 +58,7 @@ type Taint struct {
 	Value  string `json:"value,omitempty"`
 }
 
-func NewDefaultHCPOpenShiftClusterNodepool() *HCPOpenShiftClusterNodePool {
+func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Spec: NodePoolSpec{},

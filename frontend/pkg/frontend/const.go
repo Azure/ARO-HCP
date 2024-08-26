@@ -16,5 +16,5 @@ const (
 	PathSegmentResourceName      = "resourcename"
 	PathSegmentDeploymentName    = "deploymentname"
 	PathSegmentActionName        = "actionname"
-	PathSegmentNodepoolName      = "nodepoolname"
+	PathSegmentNodePoolName      = "nodepoolname"
 )
