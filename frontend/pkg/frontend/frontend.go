@@ -164,12 +164,11 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	systemData := &arm.SystemData{}
 	var hcpCluster *api.HCPOpenShiftCluster
 	var versionedHcpClusters []*api.VersionedHCPOpenShiftCluster
 	clusters := clustersListResponse.Items().Slice()
 	for _, cluster := range clusters {
-		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
+		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(cluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -247,7 +246,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(doc.SystemData, csCluster)
+	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(csCluster)
 	if err != nil {
 		// Should never happen currently
 		f.logger.Error(err.Error())
@@ -336,7 +335,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 
-		hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(doc.SystemData, csCluster)
+		hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(csCluster)
 		if err != nil {
 			// Should never happen currently
 			f.logger.Error(err.Error())
@@ -866,7 +865,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		hcpNodePool, err := f.ConvertCStoNodePool(ctx, nodePoolDoc.SystemData, csNodePool)
+		hcpNodePool, err := f.ConvertCStoNodePool(ctx, csNodePool)
 		if err != nil {
 			// Should never happen currently
 			f.logger.Error(err.Error())
@@ -1039,7 +1038,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	aroNodePool, err := f.ConvertCStoNodePool(ctx, nodePoolDoc.SystemData, nodePool)
+	aroNodePool, err := f.ConvertCStoNodePool(ctx, nodePool)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

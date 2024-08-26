@@ -41,7 +41,7 @@ func convertVisibilityToListening(visibility api.Visibility) (listening cmv2alph
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cluster *cmv2alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
+func (f *Frontend) ConvertCStoHCPOpenShiftCluster(cluster *cmv2alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	resourceGroupName := cluster.Azure().ResourceGroupName()
 	resourceName := cluster.Azure().ResourceName()
 	subID := cluster.Azure().SubscriptionID()
@@ -50,12 +50,10 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Location: cluster.Region().ID(),
-			Tags:     nil, // TODO: OCM should support cluster.Azure().Tags(),
 			Resource: arm.Resource{
-				ID:         resourceID,
-				Name:       resourceName,
-				Type:       api.ResourceType,
-				SystemData: systemData,
+				ID:   resourceID,
+				Name: resourceName,
+				Type: api.ResourceType,
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
@@ -231,8 +229,8 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 	return cluster, nil
 }
 
-// ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
-func (f *Frontend) ConvertCStoNodePool(ctx context.Context, systemData *arm.SystemData, np *cmv2alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+// ConvertCStoNodepool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
+func (f *Frontend) ConvertCStoNodePool(ctx context.Context, np *cmv2alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
@@ -241,10 +239,9 @@ func (f *Frontend) ConvertCStoNodePool(ctx context.Context, systemData *arm.Syst
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
-				ID:         resourceID.String(),
-				Name:       resourceID.Name,
-				Type:       resourceID.ResourceType.String(),
-				SystemData: systemData,
+				ID:   resourceID.String(),
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
 			},
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
