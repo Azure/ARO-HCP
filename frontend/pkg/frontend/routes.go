@@ -15,7 +15,7 @@ const (
 	PatternSubscriptions    = "subscriptions/{" + PathSegmentSubscriptionID + "}"
 	PatternLocations        = "locations/{" + PageSegmentLocation + "}"
 	PatternProviders        = "providers/" + api.ResourceType
-	PatternNodepoolResource = api.NodePoolResourceTypeName + "/{" + PathSegmentNodepoolName + "}"
+	PatternNodePoolResource = api.NodePoolResourceTypeName + "/{" + PathSegmentNodePoolName + "}"
 	PatternDeployments      = "deployments/{" + PathSegmentDeploymentName + "}"
 	PatternResourceGroups   = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
 	PatternResourceName     = "{" + PathSegmentResourceName + "}"
@@ -88,13 +88,13 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodePoolResource),
 		postMuxMiddleware.HandlerFunc(f.GetNodePool))
 	mux.Handle(
-		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodePoolResource),
 		postMuxMiddleware.HandlerFunc(f.CreateNodePool))
 	mux.Handle(
-		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodepoolResource),
+		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodePoolResource),
 		postMuxMiddleware.HandlerFunc(f.DeleteNodePool))
 
 	// Exclude ARO-HCP API version validation for the following endpoints defined by ARM.

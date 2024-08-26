@@ -231,8 +231,8 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 	return cluster, nil
 }
 
-// ConvertCStoNodepool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
-func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.SystemData, np *cmv2alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+// ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
+func (f *Frontend) ConvertCStoNodePool(ctx context.Context, systemData *arm.SystemData, np *cmv2alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
@@ -290,39 +290,39 @@ func (f *Frontend) ConvertCStoNodepool(ctx context.Context, systemData *arm.Syst
 	return nodePool, nil
 }
 
-// BuildCSNodepool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object
-func (f *Frontend) BuildCSNodepool(ctx context.Context, nodepool *api.HCPOpenShiftClusterNodePool) (*cmv2alpha1.NodePool, error) {
-	azureNodepool := cmv2alpha1.NewAzureNodePool().
-		VMSize(nodepool.Properties.Spec.Platform.VMSize).
-		ResourceName(nodepool.Name).
-		EphemeralOSDiskEnabled(nodepool.Properties.Spec.Platform.EphemeralOSDisk).
-		OSDiskSizeGibibytes(int(nodepool.Properties.Spec.Platform.DiskSizeGiB)).
-		OSDiskStorageAccountType(nodepool.Properties.Spec.Platform.DiskStorageAccountType)
+// BuildCSNodePool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object
+func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool) (*cmv2alpha1.NodePool, error) {
+	azureNodePool := cmv2alpha1.NewAzureNodePool().
+		VMSize(nodePool.Properties.Spec.Platform.VMSize).
+		ResourceName(nodePool.Name).
+		EphemeralOSDiskEnabled(nodePool.Properties.Spec.Platform.EphemeralOSDisk).
+		OSDiskSizeGibibytes(int(nodePool.Properties.Spec.Platform.DiskSizeGiB)).
+		OSDiskStorageAccountType(nodePool.Properties.Spec.Platform.DiskStorageAccountType)
 
 	npBuilder := cmv2alpha1.NewNodePool().
-		AutoRepair(nodepool.Properties.Spec.AutoRepair).
-		Labels(nodepool.Properties.Spec.Labels)
+		AutoRepair(nodePool.Properties.Spec.AutoRepair).
+		Labels(nodePool.Properties.Spec.Labels)
 
 	// from CS API: "Only one of 'replicas' and 'autoscaling' can be provided.
-	if nodepool.Properties.Spec.Replicas != 0 {
-		npBuilder.Replicas(int(nodepool.Properties.Spec.Replicas))
+	if nodePool.Properties.Spec.Replicas != 0 {
+		npBuilder.Replicas(int(nodePool.Properties.Spec.Replicas))
 	} else {
 		npBuilder.Autoscaling(cmv2alpha1.NewNodePoolAutoscaling().
-			MinReplica(int(nodepool.Properties.Spec.Autoscaling.Min)).
-			MaxReplica(int(nodepool.Properties.Spec.Autoscaling.Max)))
+			MinReplica(int(nodePool.Properties.Spec.Autoscaling.Min)).
+			MaxReplica(int(nodePool.Properties.Spec.Autoscaling.Max)))
 	}
 
 	npBuilder.
-		Subnet(nodepool.Properties.Spec.Platform.SubnetID).
-		TuningConfigs(nodepool.Properties.Spec.TuningConfigs...).
+		Subnet(nodePool.Properties.Spec.Platform.SubnetID).
+		TuningConfigs(nodePool.Properties.Spec.TuningConfigs...).
 		Version(cmv2alpha1.NewVersion().
-			ID(nodepool.Properties.Spec.Version.ID).
-			ChannelGroup(nodepool.Properties.Spec.Version.ChannelGroup).
-			AvailableUpgrades(nodepool.Properties.Spec.Version.AvailableUpgrades...)).
-		AzureNodePool(azureNodepool).
-		ID(nodepool.Name)
+			ID(nodePool.Properties.Spec.Version.ID).
+			ChannelGroup(nodePool.Properties.Spec.Version.ChannelGroup).
+			AvailableUpgrades(nodePool.Properties.Spec.Version.AvailableUpgrades...)).
+		AzureNodePool(azureNodePool).
+		ID(nodePool.Name)
 
-	for _, t := range nodepool.Properties.Spec.Taints {
+	for _, t := range nodePool.Properties.Spec.Taints {
 		npBuilder = npBuilder.Taints(cmv2alpha1.NewTaint().
 			Effect(string(t.Effect)).
 			Key(t.Key).
