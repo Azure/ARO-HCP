@@ -28,7 +28,7 @@ parameters:
   value: "5m"
 
 - name: RUNTIME_MODE
-  description: Sets the runtime configuration mode for CS
+  description: Sets the runtime configuration mode for CS.
   value: "aro-hcp"
 
 - name: DEFAULT_EXPIRATION
@@ -85,7 +85,7 @@ parameters:
   value: "http://127.0.0.1:9090"
 
 - name: CLIENT_SCOPES
-  description: Level of access that an app can request to a resource
+  description: Level of access that an app can request to a resource.
   value: "openid"
 
 - name: ENVIRONMENT
@@ -123,7 +123,7 @@ parameters:
   value: "i1.devshift.org" # Note: this is defaulted to a commercial value. This should be overriden in fedramp app-interface
 
 - name: BATCH_PROCESSES_DRY_RUN
-  description: Signals batch processes step to run in dry run
+  description: Signals batch processes step to run in dry run.
   value: "true"
 
 - name: BATCH_PROCESSES
@@ -220,13 +220,41 @@ parameters:
 - name: REGION
   value: "westus3"
 - name: CS_SERVICE_PRINCIPAL_CREDS_BASE64
-  description: Base64 encoded service principal credentials for CS. This is temporary for P1
+  description: Base64 encoded service principal credentials for CS. This is temporary for P1.
   required: true
 - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
   description: The client id of the first party application identity.
   value: ""
+- name: SERVICE_KEYVAULT_NAME
+  description: The name of the Key Vault containing keys, secrets and certificates used to support services running on the service cluster.
+  value: ""
+- name: TENANT_ID
+  description: The Tenant ID of service cluster.
+  value: ""
+- name: FPA_CERT_NAME
+  description: The name of the secret that contains the first party application certificate bundle.
 
 objects:
+
+- apiVersion: secrets-store.csi.x-k8s.io/v1
+  kind: SecretProviderClass
+  metadata:
+    name: cs-keyvault
+    namespace: ${NAMESPACE}
+  spec:
+    parameters:
+      clientID: ${AZURE_CS_MI_CLIENT_ID}
+      cloudName: AzurePublicCloud
+      keyvaultName: ${SERVICE_KEYVAULT_NAME}
+      objects: |-
+        array:
+          - |
+            objectName: ${FPA_CERT_NAME}
+            objectType: secret
+            objectAlias: firstPartyApplicationCertificateBundle
+      tenantId: ${TENANT_ID}
+      usePodIdentity: "false"
+    provider: azure
 
 - apiVersion: v1
   kind: ConfigMap
@@ -413,6 +441,12 @@ objects:
         - name: azure-credentials
           secret:
             secretName: azure-credentials
+        - name: keyvault
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: cs-keyvault
         initContainers:
         - name: init
           image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
@@ -469,6 +503,9 @@ objects:
             subPath: cloud-region-constraints.yaml
           - name: azure-credentials
             mountPath: /secrets/azure-credentials
+          - name: keyvault
+            mountPath: "/secrets/keyvault"
+            readOnly: true
           env:
           - name: NAMESPACE
             valueFrom:
@@ -518,6 +555,7 @@ objects:
           - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
           - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-config
           - --azure-first-party-application-client-id=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID}
+          - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
           livenessProbe:
             httpGet:
               path: /api/clusters_mgmt/v1
