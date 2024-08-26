@@ -5,6 +5,8 @@ CONFIG_PROFILE ?= dev
 include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
 
 CONSUMER_NAME ?= $(shell az aks list --query "[?tags.clusterType == 'mgmt-cluster' && starts_with(resourceGroup, '$(REGIONAL_RESOURCEGROUP)')].resourceGroup" -o tsv)
+KEYVAULT_NAME ?= $(shell az keyvault list --query "[?starts_with(name, 'service-kv')].name" -g ${RESOURCEGROUP} --output tsv)
+FPA_CERT_NAME ?= firstPartyMock
 
 deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
@@ -20,12 +22,17 @@ deploy:
 			-n clusters-service \
 			--query clientId) && \
 	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
+	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+	KEYVAULT_NAME=$(shell az keyvault list --query "[?starts_with(name, 'service-kv')].name" -g ${REGIONAL_RESOURCEGROUP} --output tsv) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
 	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
+	  -p TENANT_ID=$${TENANT_ID} \
 	  -p REGION=${REGION} \
+	  -p SERVICE_KEYVAULT_NAME=${KEYVAULT_NAME} \
 	  -p CS_SERVICE_PRINCIPAL_CREDS_BASE64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
 	  -p IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}.azurecr.io \
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
+	  -p FPA_CERT_NAME=${FPA_CERT_NAME} \
 	  -p IMAGE_TAG=2256c75 | oc apply -f -
 
 deploy-integ:
