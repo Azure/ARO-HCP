@@ -57,7 +57,7 @@ func (csc *ClusterServiceConfig) PostCSCluster(cluster *cmv2alpha1.Cluster) (*cm
 	return cluster, nil
 }
 
-// UpdateCSCluster sends a POST request to update a cluster in Clusters Service
+// UpdateCSCluster sends a PATCH request to update a cluster in Clusters Service
 func (csc *ClusterServiceConfig) UpdateCSCluster(internalID InternalID, cluster *cmv2alpha1.Cluster) (*cmv2alpha1.Cluster, error) {
 	client, ok := internalID.GetClusterClient(csc.Conn)
 	if !ok {
@@ -84,6 +84,7 @@ func (csc *ClusterServiceConfig) DeleteCSCluster(internalID InternalID) error {
 	return err
 }
 
+// GetCSNodePool creates and sends a GET request to fetch a node pool from Clusters Service
 func (csc *ClusterServiceConfig) GetCSNodePool(internalID InternalID) (*cmv2alpha1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
@@ -100,7 +101,8 @@ func (csc *ClusterServiceConfig) GetCSNodePool(internalID InternalID) (*cmv2alph
 	return nodePool, nil
 }
 
-func (csc *ClusterServiceConfig) CreateCSNodePool(clusterInternalID InternalID, nodePool *cmv2alpha1.NodePool) (*cmv2alpha1.NodePool, error) {
+// PostCSNodePool creates and sends a POST request to create a node pool in Clusters Service
+func (csc *ClusterServiceConfig) PostCSNodePool(clusterInternalID InternalID, nodePool *cmv2alpha1.NodePool) (*cmv2alpha1.NodePool, error) {
 	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
@@ -116,6 +118,24 @@ func (csc *ClusterServiceConfig) CreateCSNodePool(clusterInternalID InternalID, 
 	return nodePool, nil
 }
 
+// UpdateCSNodePool sends a PATCH request to update a node pool in Clusters Service
+func (csc *ClusterServiceConfig) UpdateCSNodePool(internalID InternalID, nodePool *cmv2alpha1.NodePool) (*cmv2alpha1.NodePool, error) {
+	client, ok := internalID.GetNodePoolClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
+	}
+	nodePoolUpdateResponse, err := client.Update().Body(nodePool).Send()
+	if err != nil {
+		return nil, err
+	}
+	nodePool, ok = nodePoolUpdateResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return nodePool, nil
+}
+
+// DeleteCSNodePool creates and sends a DELETE request to delete a node pool from Clusters Service
 func (csc *ClusterServiceConfig) DeleteCSNodePool(internalID InternalID) error {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {

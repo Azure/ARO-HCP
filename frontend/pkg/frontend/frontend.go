@@ -766,7 +766,21 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	arm.WriteDeploymentPreflightResponse(writer, preflightErrors)
 }
 
-func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) {
+	var err error
+
+	// This handles both PUT and PATCH requests. PATCH requests will
+	// never create a new resource. The only other notable difference
+	// is the target struct that request bodies are overlayed onto:
+	//
+	// PUT requests overlay the request body onto a default resource
+	// struct, which only has API-specified non-zero default values.
+	// This means all required properties must be specified in the
+	// request body, whether creating or updating a resource.
+	//
+	// PATCH requests overlay the request body onto a resource struct
+	// that represents an existing resource to be updated.
+
 	ctx := request.Context()
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -776,14 +790,14 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	systemData, err := SystemDataFromContext(ctx)
+	nodePoolResourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	nodePoolResourceID, err := ResourceIDFromContext(ctx)
+	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -799,7 +813,6 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 	clusterDoc, err := f.dbClient.GetResourceDoc(ctx, clusterResourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
@@ -826,21 +839,71 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Info(fmt.Sprintf("creating node pool document for %s", nodePoolResourceID))
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", nodePoolResourceID, err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
-			nodePoolDoc = &database.ResourceDocument{
-				ID:           uuid.New().String(),
-				Key:          nodePoolResourceID.String(),
-				PartitionKey: subscriptionID,
-				SystemData:   systemData,
-			}
-		} else {
-			f.logger.Error(fmt.Sprintf("failed to fetch node pool document for %s: %v", nodePoolResourceID, err))
+	var updating = (nodePoolDoc != nil)
+	var docUpdated bool // whether to upsert the doc
+
+	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
+	var versionedRequestNodePool api.VersionedHCPOpenShiftClusterNodePool
+	var successStatusCode int
+
+	if updating {
+		// Note that because we found a database document for the cluster,
+		// we expect Cluster Service to return us a node pool object.
+		//
+		// No special treatment here for "not found" errors. A "not found"
+		// error indicates the database has gotten out of sync and so it's
+		// appropriate to fail.
+		csNodePool, err := f.clusterServiceConfig.GetCSNodePool(nodePoolDoc.InternalID)
+		if err != nil {
+			f.logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", nodePoolResourceID, err))
 			arm.WriteInternalServerError(writer)
 			return
 		}
+
+		hcpNodePool, err := f.ConvertCStoNodePool(ctx, nodePoolDoc.SystemData, csNodePool)
+		if err != nil {
+			// Should never happen currently
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
+		switch request.Method {
+		case http.MethodPut:
+			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			successStatusCode = http.StatusOK
+		case http.MethodPatch:
+			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			successStatusCode = http.StatusAccepted
+		}
+	} else {
+		switch request.Method {
+		case http.MethodPut:
+			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			successStatusCode = http.StatusCreated
+		case http.MethodPatch:
+			// PATCH requests never create a new resource.
+			f.logger.Error("Resource not found")
+			arm.WriteResourceNotFoundError(writer, nodePoolResourceID)
+			return
+		}
+
+		nodePoolDoc = &database.ResourceDocument{
+			ID:           uuid.New().String(),
+			Key:          nodePoolResourceID.String(),
+			PartitionKey: nodePoolResourceID.SubscriptionID,
+		}
+		docUpdated = true
 	}
 
 	body, err := BodyFromContext(ctx)
@@ -849,67 +912,84 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
-	if err = json.Unmarshal(body, versionedNodePool); err != nil {
+	if err = json.Unmarshal(body, versionedRequestNodePool); err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteCloudError(writer, arm.NewUnmarshalCloudError(err))
 		return
 	}
 
-	versionedCurrentNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
-	if cloudError := versionedNodePool.ValidateStatic(versionedCurrentNodePool, false, request.Method); cloudError != nil {
+	cloudError := versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, updating, request.Method)
+	if cloudError != nil {
 		f.logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
-	nodePoolName := request.PathValue(PathSegmentNodePoolName)
-	f.logger.Info(fmt.Sprintf("nodePoolName: %v", nodePoolName))
 
-	apiNodePool := buildInternalNodePool(versionedNodePool, nodePoolName)
-	newCsNodePool, err := f.BuildCSNodePool(ctx, apiNodePool, false)
+	hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
+	versionedRequestNodePool.Normalize(hcpNodePool)
+
+	hcpNodePool.Name = request.PathValue(PathSegmentNodePoolName)
+	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	csNodePool, err := f.clusterServiceConfig.CreateCSNodePool(clusterDoc.InternalID, newCsNodePool)
+	if updating {
+		f.logger.Info(fmt.Sprintf("updating resource %s", nodePoolResourceID))
+		_, err = f.clusterServiceConfig.UpdateCSNodePool(nodePoolDoc.InternalID, csNodePool)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+	} else {
+		f.logger.Info(fmt.Sprintf("creating resource %s", nodePoolResourceID))
+		csNodePool, err = f.clusterServiceConfig.PostCSNodePool(clusterDoc.InternalID, csNodePool)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		nodePoolDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		docUpdated = true
+	}
+
+	// Record the latest system data values from ARM, if present.
+	if systemData != nil {
+		nodePoolDoc.SystemData = systemData
+		docUpdated = true
+	}
+
+	if docUpdated {
+		err = f.dbClient.SetResourceDoc(ctx, nodePoolDoc)
+		if err != nil {
+			f.logger.Error(fmt.Sprintf("failed to upsert document for %s: %v", nodePoolResourceID, err))
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		f.logger.Info(fmt.Sprintf("document upserted for %s", nodePoolResourceID))
+	}
+
+	resp, err := json.Marshal(versionedRequestNodePool)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	nodePoolDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	writer.WriteHeader(successStatusCode)
 
-	err = f.dbClient.SetResourceDoc(ctx, nodePoolDoc)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to create node pool document for resource %s: %v", nodePoolResourceID, err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("node pool document created for %s", nodePoolResourceID))
-
-	resp, err := json.Marshal(versionedNodePool)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	writer.WriteHeader(http.StatusCreated)
 	_, err = writer.Write(resp)
 	if err != nil {
 		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
 	}
 }
 
@@ -1042,14 +1122,6 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	f.logger.Info(fmt.Sprintf("node pool document deleted for resource %s", nodePoolResourceID))
 
 	writer.WriteHeader(http.StatusAccepted)
-}
-
-func buildInternalNodePool(versionedNodePool api.VersionedHCPOpenShiftClusterNodePool, nodePoolName string) *api.HCPOpenShiftClusterNodePool {
-	apiNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
-	versionedNodePool.Normalize(apiNodePool)
-	apiNodePool.Name = nodePoolName
-
-	return apiNodePool
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
