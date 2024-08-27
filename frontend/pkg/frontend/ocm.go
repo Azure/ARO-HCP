@@ -291,17 +291,35 @@ func (f *Frontend) ConvertCStoNodePool(ctx context.Context, systemData *arm.Syst
 }
 
 // BuildCSNodePool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object
-func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool) (*cmv2alpha1.NodePool, error) {
-	azureNodePool := cmv2alpha1.NewAzureNodePool().
-		VMSize(nodePool.Properties.Spec.Platform.VMSize).
-		ResourceName(nodePool.Name).
-		EphemeralOSDiskEnabled(nodePool.Properties.Spec.Platform.EphemeralOSDisk).
-		OSDiskSizeGibibytes(int(nodePool.Properties.Spec.Platform.DiskSizeGiB)).
-		OSDiskStorageAccountType(nodePool.Properties.Spec.Platform.DiskStorageAccountType)
+func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*cmv2alpha1.NodePool, error) {
+	npBuilder := cmv2alpha1.NewNodePool()
 
-	npBuilder := cmv2alpha1.NewNodePool().
-		AutoRepair(nodePool.Properties.Spec.AutoRepair).
-		Labels(nodePool.Properties.Spec.Labels)
+	// FIXME HCPOpenShiftClusterNodePool attributes not being passed:
+	//       PlatformProfile.EncryptionAtHost    (no CS equivalent?)
+	//       PlatformProfile.DiskEncryptionSetID (no CS equivalent?)
+
+	// These attributes cannot be updated after node pool creation.
+	if !updating {
+		npBuilder = npBuilder.
+			ID(nodePool.Name).
+			Version(cmv2alpha1.NewVersion().
+				ID(nodePool.Properties.Spec.Version.ID).
+				ChannelGroup(nodePool.Properties.Spec.Version.ChannelGroup).
+				AvailableUpgrades(nodePool.Properties.Spec.Version.AvailableUpgrades...)).
+			Subnet(nodePool.Properties.Spec.Platform.SubnetID).
+			AzureNodePool(cmv2alpha1.NewAzureNodePool().
+				ResourceName(nodePool.Name).
+				VMSize(nodePool.Properties.Spec.Platform.VMSize).
+				OSDiskSizeGibibytes(int(nodePool.Properties.Spec.Platform.DiskSizeGiB)).
+				OSDiskStorageAccountType(nodePool.Properties.Spec.Platform.DiskStorageAccountType).
+				EphemeralOSDiskEnabled(nodePool.Properties.Spec.Platform.EphemeralOSDisk)).
+			AvailabilityZone(nodePool.Properties.Spec.Platform.AvailabilityZone).
+			AutoRepair(nodePool.Properties.Spec.AutoRepair)
+	}
+
+	npBuilder = npBuilder.
+		Labels(nodePool.Properties.Spec.Labels).
+		TuningConfigs(nodePool.Properties.Spec.TuningConfigs...)
 
 	// from CS API: "Only one of 'replicas' and 'autoscaling' can be provided.
 	if nodePool.Properties.Spec.Replicas != 0 {
@@ -311,16 +329,6 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			MinReplica(int(nodePool.Properties.Spec.Autoscaling.Min)).
 			MaxReplica(int(nodePool.Properties.Spec.Autoscaling.Max)))
 	}
-
-	npBuilder.
-		Subnet(nodePool.Properties.Spec.Platform.SubnetID).
-		TuningConfigs(nodePool.Properties.Spec.TuningConfigs...).
-		Version(cmv2alpha1.NewVersion().
-			ID(nodePool.Properties.Spec.Version.ID).
-			ChannelGroup(nodePool.Properties.Spec.Version.ChannelGroup).
-			AvailableUpgrades(nodePool.Properties.Spec.Version.AvailableUpgrades...)).
-		AzureNodePool(azureNodePool).
-		ID(nodePool.Name)
 
 	for _, t := range nodePool.Properties.Spec.Taints {
 		npBuilder = npBuilder.Taints(cmv2alpha1.NewTaint().

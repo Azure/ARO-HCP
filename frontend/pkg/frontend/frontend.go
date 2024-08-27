@@ -867,7 +867,7 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 	f.logger.Info(fmt.Sprintf("nodePoolName: %v", nodePoolName))
 
 	apiNodePool := buildInternalNodePool(versionedNodePool, nodePoolName)
-	newCsNodePool, err := f.BuildCSNodePool(ctx, apiNodePool)
+	newCsNodePool, err := f.BuildCSNodePool(ctx, apiNodePool, false)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
