@@ -32,7 +32,7 @@ type VersionedHCPOpenShiftClusterList struct {
 
 type VersionedHCPOpenShiftClusterNodePool interface {
 	Normalize(*HCPOpenShiftClusterNodePool)
-	ValidateStatic() *arm.CloudError
+	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError
 }
 
 type Version interface {

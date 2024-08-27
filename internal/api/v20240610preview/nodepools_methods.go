@@ -1,6 +1,8 @@
 package v20240610preview
 
 import (
+	"net/http"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -128,9 +130,42 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 }
 
-func (h *HcpOpenShiftClusterNodePoolResource) ValidateStatic() *arm.CloudError {
-	//TODO implement me
-	return nil
+func (h *HcpOpenShiftClusterNodePoolResource) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError {
+	var normalized api.HCPOpenShiftClusterNodePool
+	var errorDetails []arm.CloudErrorBody
+
+	cloudError := arm.NewCloudError(
+		http.StatusBadRequest,
+		arm.CloudErrorCodeMultipleErrorsOccurred, "",
+		"Content validation filed on multiple fields")
+	cloudError.Details = make([]arm.CloudErrorBody, 0)
+
+	// Pass the embedded HcpOpenShiftClusterNodePoolResource so
+	// the struct field names match the nodePoolStructTagMap keys.
+	errorDetails = api.ValidateVisibility(
+		h.HcpOpenShiftClusterNodePoolResource,
+		current.(*HcpOpenShiftClusterNodePoolResource).HcpOpenShiftClusterNodePoolResource,
+		nodePoolStructTagMap, updating)
+	if errorDetails != nil {
+		cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
+
+	h.Normalize(&normalized)
+
+	errorDetails = api.ValidateRequest(validate, method, &normalized)
+	if errorDetails != nil {
+		cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
+
+	switch len(cloudError.Details) {
+	case 0:
+		cloudError = nil
+	case 1:
+		// Promote a single validation error out of details.
+		cloudError.CloudErrorBody = &cloudError.Details[0]
+	}
+
+	return cloudError
 }
 
 type NodePoolPlatformProfile struct {
