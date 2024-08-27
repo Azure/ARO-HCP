@@ -796,12 +796,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	hcpNodePool, err := f.ConvertCStoNodePool(ctx, csNodePool)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	hcpNodePool := ConvertCStoNodePool(resourceID, csNodePool)
 
 	versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
 	resp, err := json.Marshal(versionedNodePool)
@@ -917,13 +912,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		hcpNodePool, err := f.ConvertCStoNodePool(ctx, csNodePool)
-		if err != nil {
-			// Should never happen currently
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+		hcpNodePool := ConvertCStoNodePool(nodePoolResourceID, csNodePool)
 
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
 		switch request.Method {

@@ -225,13 +225,8 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 	return cluster, nil
 }
 
-// ConvertCStoNodepool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
-func (f *Frontend) ConvertCStoNodePool(ctx context.Context, np *cmv2alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
-	}
-
+// ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
+func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv2alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -280,7 +275,7 @@ func (f *Frontend) ConvertCStoNodePool(ctx context.Context, np *cmv2alpha1.NodeP
 	}
 	nodePool.Properties.Spec.Taints = taints
 
-	return nodePool, nil
+	return nodePool
 }
 
 // BuildCSNodePool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object
