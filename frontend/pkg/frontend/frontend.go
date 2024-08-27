@@ -491,12 +491,11 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
-			return
 		} else {
 			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
-			return
 		}
+		return
 	}
 
 	err = f.clusterServiceConfig.DeleteCSCluster(doc.InternalID)
@@ -511,13 +510,13 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
-			return
 		} else {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
-			return
 		}
+		return
 	}
+
 	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
 	// TODO: Eventually this will be an asynchronous delete and need to return a 202
@@ -765,6 +764,66 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	arm.WriteDeploymentPreflightResponse(writer, preflightErrors)
 }
 
+func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: GetNodePool", versionedInterface))
+
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			f.logger.Error(fmt.Sprintf("existing document not found for node pool: %s", resourceID))
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	csNodePool, err := f.clusterServiceConfig.GetCSNodePool(doc.InternalID)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("node pool not found in clusters-service: %v", err))
+		writer.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	hcpNodePool, err := f.ConvertCStoNodePool(ctx, csNodePool)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+	resp, err := json.Marshal(versionedNodePool)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = writer.Write(resp)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
+}
+
 func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
@@ -992,73 +1051,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 }
 
-func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePoolResourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("%s: GetNodePools", versionedInterface))
-
-	clusterResourceID := nodePoolResourceID.Parent
-	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("existing node pool document not found for node pool: %s on GET node pool by name", nodePoolResourceID))
-			writer.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePool, err := f.clusterServiceConfig.GetCSNodePool(nodePoolDoc.InternalID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("node pool not found in clusters-service: %v", err))
-		writer.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	aroNodePool, err := f.ConvertCStoNodePool(ctx, nodePool)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(aroNodePool)
-	resp, err := json.Marshal(versionedNodePool)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	_, err = writer.Write(resp)
-	if err != nil {
-		f.logger.Error(err.Error())
-	}
-}
-
 func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
@@ -1069,7 +1061,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	nodePoolResourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1078,47 +1070,38 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 
 	f.logger.Info(fmt.Sprintf("%s: DeleteNodePool", versionedInterface))
 
-	clusterResourceID := nodePoolResourceID.Parent
-	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	doc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- node pool document not found for %s", nodePoolResourceID))
+			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
-			return
+		} else {
+			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
+			arm.WriteInternalServerError(writer)
 		}
-
-		f.logger.Error(fmt.Sprintf("failed to fetch node pool document for %s: %v", nodePoolResourceID, err))
-		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	err = f.clusterServiceConfig.DeleteCSNodePool(doc.InternalID)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", nodePoolResourceID, err))
+		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", resourceID, err))
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	err = f.dbClient.DeleteResourceDoc(ctx, nodePoolResourceID)
+	err = f.dbClient.DeleteResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- node pool document not found for %s", nodePoolResourceID))
+			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
-			return
+		} else {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
 		}
-
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("node pool document deleted for resource %s", nodePoolResourceID))
+	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
 	writer.WriteHeader(http.StatusAccepted)
 }
