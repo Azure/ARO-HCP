@@ -857,7 +857,8 @@ func (f *Frontend) CreateNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	if cloudError := versionedNodePool.ValidateStatic(); cloudError != nil {
+	versionedCurrentNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+	if cloudError := versionedNodePool.ValidateStatic(versionedCurrentNodePool, false, request.Method); cloudError != nil {
 		f.logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
