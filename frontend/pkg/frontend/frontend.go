@@ -514,20 +514,6 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.dbClient.DeleteResourceDoc(ctx, resourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
-			writer.WriteHeader(http.StatusNoContent)
-		} else {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-		}
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
-
 	// TODO: Eventually this will be an asynchronous delete and need to return a 202
 	writer.WriteHeader(http.StatusOK)
 }
@@ -1045,20 +1031,6 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	err = f.dbClient.DeleteResourceDoc(ctx, resourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- document not found for %s", resourceID))
-			writer.WriteHeader(http.StatusNoContent)
-		} else {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-		}
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
 	writer.WriteHeader(http.StatusAccepted)
 }
