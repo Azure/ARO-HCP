@@ -33,7 +33,7 @@ type NodePoolSpec struct {
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
-// Visibility for the entire struct is "read".
+// Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
 	SubnetID               string `json:"subnetId,omitempty"`
 	VMSize                 string `json:"vmSize,omitempty" validate:"required_for_put"`
@@ -46,7 +46,7 @@ type NodePoolPlatformProfile struct {
 }
 
 // NodePoolAutoscaling represents a node pool autoscaling configuration.
-// Visibility for the entire struct is "read".
+// Visibility for the entire struct is "read create update".
 type NodePoolAutoscaling struct {
 	Min int32 `json:"min,omitempty" validate:"required_for_put"`
 	Max int32 `json:"max,omitempty" validate:"required_for_put"`
