@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -251,16 +252,14 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
-
-	versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-	resp, err := json.Marshal(versionedResource)
+	responseBody, err := marshalCSCluster(csCluster, doc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-	_, err = writer.Write(resp)
+
+	_, err = writer.Write(responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -400,7 +399,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	if updating {
 		f.logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		_, err = f.clusterServiceConfig.UpdateCSCluster(doc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceConfig.UpdateCSCluster(doc.InternalID, csCluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -440,7 +439,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		f.logger.Info(fmt.Sprintf("document upserted for %s", resourceID))
 	}
 
-	resp, err := json.Marshal(versionedRequestCluster)
+	responseBody, err := marshalCSCluster(csCluster, doc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -449,7 +448,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	writer.WriteHeader(successStatusCode)
 
-	_, err = writer.Write(resp)
+	_, err = writer.Write(responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -796,17 +795,14 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	hcpNodePool := ConvertCStoNodePool(resourceID, csNodePool)
-
-	versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-	resp, err := json.Marshal(versionedNodePool)
+	responseBody, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	_, err = writer.Write(resp)
+	_, err = writer.Write(responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -978,7 +974,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	if updating {
 		f.logger.Info(fmt.Sprintf("updating resource %s", nodePoolResourceID))
-		_, err = f.clusterServiceConfig.UpdateCSNodePool(nodePoolDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceConfig.UpdateCSNodePool(nodePoolDoc.InternalID, csNodePool)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1018,7 +1014,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		f.logger.Info(fmt.Sprintf("document upserted for %s", nodePoolResourceID))
 	}
 
-	resp, err := json.Marshal(versionedRequestNodePool)
+	responseBody, err := marshalCSNodePool(csNodePool, nodePoolDoc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1027,7 +1023,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	writer.WriteHeader(successStatusCode)
 
-	_, err = writer.Write(resp)
+	_, err = writer.Write(responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -1086,6 +1082,36 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
 	writer.WriteHeader(http.StatusAccepted)
+}
+
+// marshalCSCluster renders a CS Cluster object in JSON format, applying
+// the necessary conversions for the API version of the request.
+func marshalCSCluster(csCluster *cmv2alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+	resourceID, err := azcorearm.ParseResourceID(doc.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
+	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
+
+	return json.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
+}
+
+// marshalCSNodePool renders a CS NodePool object in JSON format, applying
+// the necessary conversions for the API version of the request.
+func marshalCSNodePool(csNodePool *cmv2alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+	resourceID, err := azcorearm.ParseResourceID(doc.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	hcpNodePool := ConvertCStoNodePool(resourceID, csNodePool)
+	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
+	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
+
+	return json.Marshal(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
