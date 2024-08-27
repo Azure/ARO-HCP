@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 
@@ -168,13 +169,17 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	var versionedHcpClusters []*api.VersionedHCPOpenShiftCluster
 	clusters := clustersListResponse.Items().Slice()
 	for _, cluster := range clusters {
-		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(cluster)
+		// FIXME Temporary, until we have a real ResourceID to pass.
+		resourceID, err := azcorearm.ParseResourceID(fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
+			subscriptionId, resourceGroupName, api.ResourceType,
+			cluster.Azure().ResourceName()))
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-
+		hcpCluster = ConvertCStoHCPOpenShiftCluster(resourceID, cluster)
 		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 		versionedHcpClusters = append(versionedHcpClusters, &versionedResource)
 	}
@@ -246,13 +251,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(csCluster)
-	if err != nil {
-		// Should never happen currently
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 
 	versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 	resp, err := json.Marshal(versionedResource)
@@ -335,13 +334,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 
-		hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(csCluster)
-		if err != nil {
-			// Should never happen currently
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+		hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 
 		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
 		switch request.Method {

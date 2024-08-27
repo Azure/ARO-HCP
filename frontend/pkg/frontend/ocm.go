@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -41,19 +42,14 @@ func convertVisibilityToListening(visibility api.Visibility) (listening cmv2alph
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func (f *Frontend) ConvertCStoHCPOpenShiftCluster(cluster *cmv2alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
-	resourceGroupName := cluster.Azure().ResourceGroupName()
-	resourceName := cluster.Azure().ResourceName()
-	subID := cluster.Azure().SubscriptionID()
-	resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s", subID, resourceGroupName, api.ResourceType, resourceName)
-
+func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *cmv2alpha1.Cluster) *api.HCPOpenShiftCluster {
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Location: cluster.Region().ID(),
 			Resource: arm.Resource{
-				ID:   resourceID,
-				Name: resourceName,
-				Type: api.ResourceType,
+				ID:   resourceID.String(),
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
@@ -107,7 +103,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(cluster *cmv2alpha1.Cluster) (
 		},
 	}
 
-	return hcpcluster, nil
+	return hcpcluster
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
