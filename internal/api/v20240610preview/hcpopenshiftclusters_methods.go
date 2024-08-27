@@ -183,7 +183,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			Name:     api.Ptr(from.Resource.Name),
 			Type:     api.Ptr(from.Resource.Type),
 			Location: api.Ptr(from.TrackedResource.Location),
-			Tags:     map[string]*string{},
+			Tags:     api.StringMapToStringPtrMap(from.TrackedResource.Tags),
 			// FIXME Skipping ManagedServiceIdentity
 			Properties: &generated.HcpOpenShiftClusterProperties{
 				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
@@ -217,10 +217,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			LastModifiedByType: api.Ptr(generated.CreatedByType(from.Resource.SystemData.LastModifiedByType)),
 			LastModifiedAt:     from.Resource.SystemData.LastModifiedAt,
 		}
-	}
-
-	for key, val := range from.TrackedResource.Tags {
-		out.Tags[key] = api.Ptr(val)
 	}
 
 	for index, item := range from.Properties.Spec.ExternalAuth.ExternalAuths {
@@ -262,12 +258,7 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 	if c.Location != nil {
 		out.TrackedResource.Location = *c.Location
 	}
-	out.Tags = make(map[string]string)
-	for k, v := range c.Tags {
-		if v != nil {
-			out.Tags[k] = *v
-		}
-	}
+	out.Tags = api.StringPtrMapToStringMap(c.Tags)
 	if c.Properties != nil {
 		if c.Properties.ProvisioningState != nil {
 			out.Properties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)

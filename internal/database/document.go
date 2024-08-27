@@ -9,11 +9,12 @@ import (
 // to an internal resource ID (the OCM API path), as well as any
 // ARM-specific metadata for the resource.
 type ResourceDocument struct {
-	ID           string          `json:"id,omitempty"`
-	Key          string          `json:"key,omitempty"`
-	PartitionKey string          `json:"partitionKey,omitempty"`
-	InternalID   ocm.InternalID  `json:"internalId,omitempty"`
-	SystemData   *arm.SystemData `json:"systemData,omitempty"`
+	ID           string            `json:"id,omitempty"`
+	Key          string            `json:"key,omitempty"`
+	PartitionKey string            `json:"partitionKey,omitempty"`
+	InternalID   ocm.InternalID    `json:"internalId,omitempty"`
+	SystemData   *arm.SystemData   `json:"systemData,omitempty"`
+	Tags         map[string]string `json:"tags,omitempty"`
 
 	// Values provided by Cosmos after doc creation
 	ResourceID  string `json:"_rid,omitempty"`

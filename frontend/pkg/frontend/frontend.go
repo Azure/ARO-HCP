@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 
@@ -164,18 +166,21 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	systemData := &arm.SystemData{}
 	var hcpCluster *api.HCPOpenShiftCluster
 	var versionedHcpClusters []*api.VersionedHCPOpenShiftCluster
 	clusters := clustersListResponse.Items().Slice()
 	for _, cluster := range clusters {
-		hcpCluster, err = f.ConvertCStoHCPOpenShiftCluster(systemData, cluster)
+		// FIXME Temporary, until we have a real ResourceID to pass.
+		resourceID, err := azcorearm.ParseResourceID(fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
+			subscriptionId, resourceGroupName, api.ResourceType,
+			cluster.Azure().ResourceName()))
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-
+		hcpCluster = ConvertCStoHCPOpenShiftCluster(resourceID, cluster)
 		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 		versionedHcpClusters = append(versionedHcpClusters, &versionedResource)
 	}
@@ -247,22 +252,14 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(doc.SystemData, csCluster)
+	responseBody, err := marshalCSCluster(csCluster, doc, versionedInterface)
 	if err != nil {
-		// Should never happen currently
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-	resp, err := json.Marshal(versionedResource)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	_, err = writer.Write(resp)
+	_, err = writer.Write(responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -336,13 +333,11 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 
-		hcpCluster, err := f.ConvertCStoHCPOpenShiftCluster(doc.SystemData, csCluster)
-		if err != nil {
-			// Should never happen currently
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+		hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+
+		// Do not set the TrackedResource.Tags field here. We need
+		// the Tags map to remain nil so we can see if the request
+		// body included a new set of resource tags.
 
 		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
 		switch request.Method {
@@ -408,7 +403,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	if updating {
 		f.logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		_, err = f.clusterServiceConfig.UpdateCSCluster(doc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceConfig.UpdateCSCluster(doc.InternalID, csCluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -438,6 +433,16 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		docUpdated = true
 	}
 
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if hcpCluster.TrackedResource.Tags != nil {
+		doc.Tags = hcpCluster.TrackedResource.Tags
+		docUpdated = true
+	}
+
 	if docUpdated {
 		err = f.dbClient.SetResourceDoc(ctx, doc)
 		if err != nil {
@@ -448,7 +453,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		f.logger.Info(fmt.Sprintf("document upserted for %s", resourceID))
 	}
 
-	resp, err := json.Marshal(versionedRequestCluster)
+	responseBody, err := marshalCSCluster(csCluster, doc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -457,7 +462,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	writer.WriteHeader(successStatusCode)
 
-	_, err = writer.Write(resp)
+	_, err = writer.Write(responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -492,12 +497,11 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
-			return
 		} else {
 			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
-			return
 		}
+		return
 	}
 
 	err = f.clusterServiceConfig.DeleteCSCluster(doc.InternalID)
@@ -512,13 +516,13 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
-			return
 		} else {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
-			return
 		}
+		return
 	}
+
 	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
 	// TODO: Eventually this will be an asynchronous delete and need to return a 202
@@ -766,6 +770,58 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	arm.WriteDeploymentPreflightResponse(writer, preflightErrors)
 }
 
+func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: GetNodePool", versionedInterface))
+
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			f.logger.Error(fmt.Sprintf("existing document not found for node pool: %s", resourceID))
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	csNodePool, err := f.clusterServiceConfig.GetCSNodePool(doc.InternalID)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("node pool not found in clusters-service: %v", err))
+		writer.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	responseBody, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = writer.Write(responseBody)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
+}
+
 func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
@@ -866,13 +922,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		hcpNodePool, err := f.ConvertCStoNodePool(ctx, nodePoolDoc.SystemData, csNodePool)
-		if err != nil {
-			// Should never happen currently
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+		hcpNodePool := ConvertCStoNodePool(nodePoolResourceID, csNodePool)
+
+		// Do not set the TrackedResource.Tags field here. We need
+		// the Tags map to remain nil so we can see if the request
+		// body included a new set of resource tags.
 
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
 		switch request.Method {
@@ -938,7 +992,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	if updating {
 		f.logger.Info(fmt.Sprintf("updating resource %s", nodePoolResourceID))
-		_, err = f.clusterServiceConfig.UpdateCSNodePool(nodePoolDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceConfig.UpdateCSNodePool(nodePoolDoc.InternalID, csNodePool)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -968,6 +1022,16 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		docUpdated = true
 	}
 
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if hcpNodePool.TrackedResource.Tags != nil {
+		nodePoolDoc.Tags = hcpNodePool.TrackedResource.Tags
+		docUpdated = true
+	}
+
 	if docUpdated {
 		err = f.dbClient.SetResourceDoc(ctx, nodePoolDoc)
 		if err != nil {
@@ -978,7 +1042,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		f.logger.Info(fmt.Sprintf("document upserted for %s", nodePoolResourceID))
 	}
 
-	resp, err := json.Marshal(versionedRequestNodePool)
+	responseBody, err := marshalCSNodePool(csNodePool, nodePoolDoc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -987,74 +1051,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	writer.WriteHeader(successStatusCode)
 
-	_, err = writer.Write(resp)
-	if err != nil {
-		f.logger.Error(err.Error())
-	}
-}
-
-func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePoolResourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("%s: GetNodePools", versionedInterface))
-
-	clusterResourceID := nodePoolResourceID.Parent
-	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("existing node pool document not found for node pool: %s on GET node pool by name", nodePoolResourceID))
-			writer.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePool, err := f.clusterServiceConfig.GetCSNodePool(nodePoolDoc.InternalID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("node pool not found in clusters-service: %v", err))
-		writer.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	aroNodePool, err := f.ConvertCStoNodePool(ctx, nodePoolDoc.SystemData, nodePool)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(aroNodePool)
-	resp, err := json.Marshal(versionedNodePool)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	_, err = writer.Write(resp)
+	_, err = writer.Write(responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -1070,7 +1067,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	nodePoolResourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1079,49 +1076,70 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 
 	f.logger.Info(fmt.Sprintf("%s: DeleteNodePool", versionedInterface))
 
-	clusterResourceID := nodePoolResourceID.Parent
-	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	doc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- node pool document not found for %s", nodePoolResourceID))
+			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
-			return
+		} else {
+			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
+			arm.WriteInternalServerError(writer)
 		}
-
-		f.logger.Error(fmt.Sprintf("failed to fetch node pool document for %s: %v", nodePoolResourceID, err))
-		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	err = f.clusterServiceConfig.DeleteCSNodePool(doc.InternalID)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", nodePoolResourceID, err))
+		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", resourceID, err))
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	err = f.dbClient.DeleteResourceDoc(ctx, nodePoolResourceID)
+	err = f.dbClient.DeleteResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- node pool document not found for %s", nodePoolResourceID))
+			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
-			return
+		} else {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
 		}
-
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("node pool document deleted for resource %s", nodePoolResourceID))
+	f.logger.Info(fmt.Sprintf("document deleted for resource %s", resourceID))
 
 	writer.WriteHeader(http.StatusAccepted)
+}
+
+// marshalCSCluster renders a CS Cluster object in JSON format, applying
+// the necessary conversions for the API version of the request.
+func marshalCSCluster(csCluster *cmv2alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+	resourceID, err := azcorearm.ParseResourceID(doc.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
+	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
+
+	return json.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
+}
+
+// marshalCSNodePool renders a CS NodePool object in JSON format, applying
+// the necessary conversions for the API version of the request.
+func marshalCSNodePool(csNodePool *cmv2alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+	resourceID, err := azcorearm.ParseResourceID(doc.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	hcpNodePool := ConvertCStoNodePool(resourceID, csNodePool)
+	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
+	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
+
+	return json.Marshal(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {

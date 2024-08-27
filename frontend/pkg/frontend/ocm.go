@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -41,21 +42,14 @@ func convertVisibilityToListening(visibility api.Visibility) (listening cmv2alph
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cluster *cmv2alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
-	resourceGroupName := cluster.Azure().ResourceGroupName()
-	resourceName := cluster.Azure().ResourceName()
-	subID := cluster.Azure().SubscriptionID()
-	resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s", subID, resourceGroupName, api.ResourceType, resourceName)
-
+func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *cmv2alpha1.Cluster) *api.HCPOpenShiftCluster {
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Location: cluster.Region().ID(),
-			Tags:     nil, // TODO: OCM should support cluster.Azure().Tags(),
 			Resource: arm.Resource{
-				ID:         resourceID,
-				Name:       resourceName,
-				Type:       api.ResourceType,
-				SystemData: systemData,
+				ID:   resourceID.String(),
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
@@ -109,7 +103,7 @@ func (f *Frontend) ConvertCStoHCPOpenShiftCluster(systemData *arm.SystemData, cl
 		},
 	}
 
-	return hcpcluster, nil
+	return hcpcluster
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
@@ -232,19 +226,13 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 }
 
 // ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
-func (f *Frontend) ConvertCStoNodePool(ctx context.Context, systemData *arm.SystemData, np *cmv2alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
-	}
-
+func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv2alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
-				ID:         resourceID.String(),
-				Name:       resourceID.Name,
-				Type:       resourceID.ResourceType.String(),
-				SystemData: systemData,
+				ID:   resourceID.String(),
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
 			},
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
@@ -287,7 +275,7 @@ func (f *Frontend) ConvertCStoNodePool(ctx context.Context, systemData *arm.Syst
 	}
 	nodePool.Properties.Spec.Taints = taints
 
-	return nodePool, nil
+	return nodePool
 }
 
 // BuildCSNodePool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object

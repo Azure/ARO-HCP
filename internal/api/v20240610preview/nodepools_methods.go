@@ -43,12 +43,7 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 	if h.Location != nil {
 		out.TrackedResource.Location = *h.Location
 	}
-	out.Tags = make(map[string]string)
-	for k, v := range h.Tags {
-		if v != nil {
-			out.Tags[k] = *v
-		}
-	}
+	out.Tags = api.StringPtrMapToStringMap(h.Tags)
 	if h.Properties != nil {
 		if h.Properties.ProvisioningState != nil {
 			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
@@ -214,8 +209,8 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 			ID:       api.Ptr(from.Resource.ID),
 			Name:     api.Ptr(from.Resource.Name),
 			Type:     api.Ptr(from.Resource.Type),
-			Location: api.Ptr(from.Location),
-			Tags:     map[string]*string{},
+			Location: api.Ptr(from.TrackedResource.Location),
+			Tags:     api.StringMapToStringPtrMap(from.TrackedResource.Tags),
 			Properties: &generated.NodePoolProperties{
 				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Spec: &generated.NodePoolSpec{
@@ -241,10 +236,6 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 			LastModifiedByType: api.Ptr(generated.CreatedByType(from.Resource.SystemData.LastModifiedByType)),
 			LastModifiedAt:     from.Resource.SystemData.LastModifiedAt,
 		}
-	}
-
-	for k, v := range from.TrackedResource.Tags {
-		out.Tags[k] = api.Ptr(v)
 	}
 
 	for k, v := range from.Properties.Spec.Labels {

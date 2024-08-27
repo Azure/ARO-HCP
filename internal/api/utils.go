@@ -35,3 +35,31 @@ func StringPtrSliceToStringSlice(s []*string) []string {
 	}
 	return out
 }
+
+// StringMapToStringPtrMap converts a map of strings to a map of string pointers.
+func StringMapToStringPtrMap(m map[string]string) map[string]*string {
+	// Preserve nil in case it matters.
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]*string, len(m))
+	for key, val := range m {
+		out[key] = Ptr(val)
+	}
+	return out
+}
+
+// StringPtrMapToStringMap converts a map of string pointers to a map of strings.
+func StringPtrMapToStringMap(m map[string]*string) map[string]string {
+	// Preserve nil in case it matters.
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for key, val := range m {
+		if val != nil {
+			out[key] = *val
+		}
+	}
+	return out
+}
