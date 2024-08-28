@@ -425,6 +425,10 @@
           run: |
             cd image-sync/deployment
             make deploy
+        - name: 'Deploy Prometheus Config'
+          run: |
+            cd metrics/
+            make deploy-config
 
     deploy_to_management_cluster:
       if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'

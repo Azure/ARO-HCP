@@ -1,3 +1,32 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: cluster-service
+spec:
+  selector:
+    matchLabels:
+      app: clusters-service
+  portLevelMtls:
+    8080:
+      mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics
+  namespace: cluster-service
+spec:
+  action: "ALLOW"
+  rules:
+    - to:
+      - operation:
+          paths: ["/metrics"]
+          methods: ["GET"]
+          ports: ["8080"]
+  selector:
+    matchLabels:
+      app: "clusters-service"
 ---
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
