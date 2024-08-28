@@ -1,0 +1,82 @@
+---
+name: CS Integration Bicep What If
+env:
+  REGION: westus3
+  REGIONAL_RESOURCEGROUP: cs-integ-westus3
+  SC_RESOURCEGROUP: cs-integ-westus3-sc
+  MC_RESOURCEGROUP: cs-integ-westus3-mc-1
+  ARO_HCP_IMAGE_ACR: arohcpdev
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'dev-infrastructure/**/*.bicep'
+      - 'dev-infrastructure/**/*.bicepparam'
+      - '.github/workflows/cs-integ-bicep-what-if.yml'
+      - '.github/workflows/cs-integration-env-cd.yml'
+
+jobs:
+  what-if:
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 1
+
+      - name: 'Az CLI login'
+        uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+        with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # TODO: We don't have `make` in the azure/cli task so a lot of this is duplicated in dev-infrastructure/Makefile
+      # we should run our own container or find a solution to bring them closer
+      - name: 'Deployment What If'
+        uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+        with:
+          azcliversion: latest
+          inlineScript: |
+            cd dev-infrastructure/
+
+            az group create -g "${SC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
+            az group create -g "${MC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
+            az group create -g "${REGIONAL_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
+
+            # region infra
+            az deployment group what-if \
+              --name "region-${GITHUB_RUN_ID}" \
+              --resource-group "${REGIONAL_RESOURCEGROUP}" \
+              --template-file templates/region.bicep \
+              --parameters configurations/cs-integ-region.bicepparam \
+              --parameters regionalDNSSubdomain="${REGION}"
+
+            # service cluster
+            az deployment group what-if \
+              --name "svc-cluster-${GITHUB_RUN_ID}" \
+              --resource-group "${SC_RESOURCEGROUP}" \
+              --template-file templates/svc-cluster.bicep \
+              --parameters configurations/cs-integ-svc-cluster.bicepparam \
+              --parameters currentUserId="${GITHUB_ACTOR}" \
+              --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
+
+            # management cluster
+            az deployment group what-if \
+              --name "mgmt-cluster-${GITHUB_RUN_ID}" \
+              --resource-group "${MC_RESOURCEGROUP}" \
+              --template-file templates/mgmt-cluster.bicep \
+              --parameters configurations/cs-integ-mgmt-cluster.bicepparam \
+              --parameters currentUserId="${GITHUB_ACTOR}" \
+              --parameters regionalResourceGroup="${REGIONAL_RESOURCEGROUP}"
+
+            # metrics infrastructure
+            az deployment group what-if \
+              --name "metrics-infra-${GITHUB_RUN_ID}" \
+              --resource-group "${REGIONAL_RESOURCEGROUP}" \
+              --template-file modules/metrics/metrics.bicep \
+              --parameters configurations/cs-integ-metrics.bicepparam \
+              --parameters globalResourceGroup="${REGIONAL_RESOURCEGROUP}"
