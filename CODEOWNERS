@@ -1,6 +1,6 @@
-* @bennerv @jharrington22 @mjlshen @tonytheleg @ulrichschlueter @zgalor
-/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @tonytheleg @ulrichschlueter @weinong @whober0521
-/image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @tonytheleg @ulrichschlueter @weinong @whober0521
-/api/ @bennerv @mbarnes @mjlshen @tonytheleg
-/frontend/ @bennerv @mbarnes @mjlshen @tonytheleg
-/internal/ @bennerv @mbarnes @mjlshen @tonytheleg
+* @bennerv @jharrington22 @mjlshen @ulrichschlueter @zgalor
+/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @ulrichschlueter @weinong @whober0521
+/image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @ulrichschlueter @weinong @whober0521
+/api/ @bennerv @mbarnes @mjlshen 
+/frontend/ @bennerv @mbarnes @mjlshen 
+/internal/ @bennerv @mbarnes @mjlshen 
