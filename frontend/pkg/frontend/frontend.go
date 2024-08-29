@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -53,7 +54,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 		},
 		dbClient: dbClient,
 		done:     make(chan struct{}),
-		location: location,
+		location: strings.ToLower(location),
 	}
 
 	f.server.Handler = f.routes()
