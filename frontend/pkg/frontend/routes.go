@@ -13,7 +13,7 @@ import (
 
 const (
 	PatternSubscriptions    = "subscriptions/{" + PathSegmentSubscriptionID + "}"
-	PatternLocations        = "locations/{" + PageSegmentLocation + "}"
+	PatternLocations        = "locations/{" + PathSegmentLocation + "}"
 	PatternProviders        = "providers/" + api.ResourceType
 	PatternNodePoolResource = api.NodePoolResourceTypeName + "/{" + PathSegmentNodePoolName + "}"
 	PatternDeployments      = "deployments/{" + PathSegmentDeploymentName + "}"
