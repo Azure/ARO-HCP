@@ -46,12 +46,10 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
 // R E G I O N A L   D N S   Z O N E
 //
 
-
 resource baseDNSZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: '${baseDNSZoneName}'
   location: 'global'
 }
-
 
 resource regionalZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: '${regionalDNSSubdomain}.${baseDNSZoneName}'
