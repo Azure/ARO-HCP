@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -42,7 +41,7 @@ func convertVisibilityToListening(visibility api.Visibility) (listening cmv2alph
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *cmv2alpha1.Cluster) *api.HCPOpenShiftCluster {
+func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv2alpha1.Cluster) *api.HCPOpenShiftCluster {
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Location: cluster.Region().ID(),
@@ -226,7 +225,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 }
 
 // ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
-func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv2alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
+func ConvertCStoNodePool(resourceID *arm.ResourceID, np *cmv2alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{

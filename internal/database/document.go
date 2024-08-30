@@ -10,7 +10,7 @@ import (
 // ARM-specific metadata for the resource.
 type ResourceDocument struct {
 	ID           string            `json:"id,omitempty"`
-	Key          string            `json:"key,omitempty"`
+	Key          *arm.ResourceID   `json:"key,omitempty"`
 	PartitionKey string            `json:"partitionKey,omitempty"`
 	InternalID   ocm.InternalID    `json:"internalId,omitempty"`
 	SystemData   *arm.SystemData   `json:"systemData,omitempty"`
@@ -31,7 +31,7 @@ type OperationDocument struct {
 	// Request is the type of operation requested; one of Create, Update or Delete
 	Request string `json:"request,omitempty"`
 	// ExternalID is the Azure resource ID of the cluster or node pool
-	ExternalID string `json:"externalId,omitempty"`
+	ExternalID *arm.ResourceID `json:"externalId,omitempty"`
 	// InternalID is the Cluster Service resource identifier in the form of a URL path
 	// "/cluster/{cluster_id}" or "/cluster/{cluster_id}/node_pools/{node_pool_id}"
 	InternalID string `json:"internalId,omitempty"`

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 var _ DBClient = &Cache{}
@@ -30,7 +30,7 @@ func (c *Cache) DBConnectionTest(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
+func (c *Cache) GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) (*ResourceDocument, error) {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(resourceID.String())
 
@@ -43,13 +43,13 @@ func (c *Cache) GetResourceDoc(ctx context.Context, resourceID *azcorearm.Resour
 
 func (c *Cache) SetResourceDoc(ctx context.Context, doc *ResourceDocument) error {
 	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(doc.Key)
+	key := strings.ToLower(doc.Key.String())
 
 	c.resource[key] = doc
 	return nil
 }
 
-func (c *Cache) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
+func (c *Cache) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(resourceID.String())
 

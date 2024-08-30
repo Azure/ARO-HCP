@@ -112,7 +112,7 @@ func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 	_ = encoder.Encode(err)
 }
 
-func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *azcorearm.ResourceID) {
+func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *ResourceID) {
 	var code string
 	var message string
 

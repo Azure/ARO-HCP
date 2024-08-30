@@ -99,7 +99,7 @@ func TestMiddlewareResourceID(t *testing.T) {
 			resourceTypes := []string{}
 			for resourceID != nil {
 				resourceTypes = append(resourceTypes, resourceID.ResourceType.String())
-				resourceID = resourceID.Parent
+				resourceID = resourceID.GetParent()
 			}
 
 			if !reflect.DeepEqual(resourceTypes, tt.resourceTypes) {

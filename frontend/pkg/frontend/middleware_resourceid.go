@@ -33,7 +33,7 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 
 	resourceID, err := azcorearm.ParseResourceID(originalPath)
 	if err == nil {
-		ctx := ContextWithResourceID(r.Context(), resourceID)
+		ctx := ContextWithResourceID(r.Context(), &arm.ResourceID{ResourceID: *resourceID})
 		r = r.WithContext(ctx)
 	} else {
 		logger.Warn(fmt.Sprintf("Failed to parse '%s' as resource ID: %v", originalPath, err))
