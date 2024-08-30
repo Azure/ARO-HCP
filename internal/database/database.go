@@ -110,8 +110,7 @@ func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) error {
 
 // GetResourceDoc retrieves a resource document from the "resources" DB using resource ID
 func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
-	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(resourceID.String())
+	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
 	container, err := d.client.NewContainer(resourcesContainer)
@@ -119,10 +118,10 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 		return nil, err
 	}
 
-	query := "SELECT * FROM c WHERE c.key = @key"
+	query := "SELECT * FROM c WHERE STRINGEQUALS(c.key, @key, true)"
 	opt := azcosmos.QueryOptions{
 		PageSizeHint:    1,
-		QueryParameters: []azcosmos.QueryParameter{{Name: "@key", Value: key}},
+		QueryParameters: []azcosmos.QueryParameter{{Name: "@key", Value: resourceID.String()}},
 	}
 
 	queryPager := container.NewQueryItemsPager(query, pk, &opt)
@@ -142,10 +141,10 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 		}
 	}
 	if doc != nil {
-		// Replace the lowercased key field from Cosmos with the given
-		// resource ID, which typically comes from the URL. This helps
-		// preserve the casing of the resource group and resource name
-		// from the URL to meet RPC requirements:
+		// Replace the key field from Cosmos with the given resourceID,
+		// which typically comes from the URL. This helps preserve the
+		// casing of the resource group and resource name from the URL
+		// to meet RPC requirements:
 		//
 		// Put Resource | Arguments
 		//
@@ -164,8 +163,7 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 
 // SetResourceDoc creates/updates a resource document in the "resources" DB during resource creation/patching
 func (d *CosmosDBClient) SetResourceDoc(ctx context.Context, doc *ResourceDocument) error {
-	// Make sure lookup keys are lowercase.
-	doc.Key = strings.ToLower(doc.Key)
+	// Make sure partition key is lowercase.
 	doc.PartitionKey = strings.ToLower(doc.PartitionKey)
 
 	data, err := json.Marshal(doc)
@@ -188,7 +186,7 @@ func (d *CosmosDBClient) SetResourceDoc(ctx context.Context, doc *ResourceDocume
 
 // DeleteResourceDoc removes a resource document from the "resources" DB using resource ID
 func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
-	// Make sure lookup keys are lowercase.
+	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
 	doc, err := d.GetResourceDoc(ctx, resourceID)
