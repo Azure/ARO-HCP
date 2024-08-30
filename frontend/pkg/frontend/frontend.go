@@ -171,7 +171,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	clusters := clustersListResponse.Items().Slice()
 	for _, cluster := range clusters {
 		// FIXME Temporary, until we have a real ResourceID to pass.
-		resourceID, err := azcorearm.ParseResourceID(fmt.Sprintf(
+		azcoreResourceID, err := azcorearm.ParseResourceID(fmt.Sprintf(
 			"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
 			subscriptionId, resourceGroupName, api.ResourceType,
 			cluster.Azure().ResourceName()))
@@ -180,6 +180,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			arm.WriteInternalServerError(writer)
 			return
 		}
+		resourceID := &arm.ResourceID{ResourceID: *azcoreResourceID}
 		hcpCluster = ConvertCStoHCPOpenShiftCluster(resourceID, cluster)
 		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 		versionedHcpClusters = append(versionedHcpClusters, &versionedResource)
@@ -365,7 +366,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 		doc = &database.ResourceDocument{
 			ID:           uuid.New().String(),
-			Key:          resourceID.String(),
+			Key:          resourceID,
 			PartitionKey: resourceID.SubscriptionID,
 		}
 		docUpdated = true
@@ -862,7 +863,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	f.logger.Info(fmt.Sprintf("%s: CreateNodePool", versionedInterface))
 
-	clusterResourceID := nodePoolResourceID.Parent
+	clusterResourceID := nodePoolResourceID.GetParent()
 	if clusterResourceID == nil {
 		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
 		arm.WriteInternalServerError(writer)
@@ -954,7 +955,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 		nodePoolDoc = &database.ResourceDocument{
 			ID:           uuid.New().String(),
-			Key:          nodePoolResourceID.String(),
+			Key:          nodePoolResourceID,
 			PartitionKey: nodePoolResourceID.SubscriptionID,
 		}
 		docUpdated = true
@@ -1115,12 +1116,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *cmv2alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	resourceID, err := azcorearm.ParseResourceID(doc.Key)
-	if err != nil {
-		return nil, err
-	}
-
-	hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.Key, csCluster)
 	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
 
@@ -1130,12 +1126,7 @@ func marshalCSCluster(csCluster *cmv2alpha1.Cluster, doc *database.ResourceDocum
 // marshalCSNodePool renders a CS NodePool object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSNodePool(csNodePool *cmv2alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	resourceID, err := azcorearm.ParseResourceID(doc.Key)
-	if err != nil {
-		return nil, err
-	}
-
-	hcpNodePool := ConvertCStoNodePool(resourceID, csNodePool)
+	hcpNodePool := ConvertCStoNodePool(doc.Key, csNodePool)
 	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
 

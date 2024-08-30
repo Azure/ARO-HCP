@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"strings"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
@@ -32,11 +32,11 @@ type DBClient interface {
 
 	// GetResourceDoc retrieves a ResourceDocument from the database given its resourceID.
 	// ErrNotFound is returned if an associated ResourceDocument cannot be found.
-	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error)
+	GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) (*ResourceDocument, error)
 	SetResourceDoc(ctx context.Context, doc *ResourceDocument) error
 	// DeleteResourceDoc deletes a ResourceDocument from the database given the resourceID
 	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource or NodePools child resource.
-	DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
+	DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	SetOperationDoc(ctx context.Context, doc *OperationDocument) error
@@ -109,7 +109,7 @@ func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) error {
 }
 
 // GetResourceDoc retrieves a resource document from the "resources" DB using resource ID
-func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
+func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) (*ResourceDocument, error) {
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
@@ -155,7 +155,7 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 		// normalize or return a toupper or tolower form of the resource
 		// group or resource name. The resource group name and resource
 		// name must come from the URL and not the request body.
-		doc.Key = resourceID.String()
+		doc.Key = resourceID
 		return doc, nil
 	}
 	return nil, ErrNotFound
@@ -185,7 +185,7 @@ func (d *CosmosDBClient) SetResourceDoc(ctx context.Context, doc *ResourceDocume
 }
 
 // DeleteResourceDoc removes a resource document from the "resources" DB using resource ID
-func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
+func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error {
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
