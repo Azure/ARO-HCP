@@ -52,6 +52,7 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 						"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
 						resource.ResourceType, resource.Name,
 						resource.ResourceGroupName)
+					return
 				}
 			case strings.ToLower(api.HCPOpenShiftClusterResourceTypeName + "/" + api.NodePoolResourceTypeName):
 				if !rxNodePoolResourceName.MatchString(resource.Name) {
@@ -61,6 +62,7 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 						"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
 						resource.ResourceType, resource.Name,
 						resource.ResourceGroupName)
+					return
 				}
 			}
 		}
