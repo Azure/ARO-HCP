@@ -26,7 +26,7 @@ func UnmarshalDeploymentPreflight(data []byte) (*DeploymentPreflight, *CloudErro
 	deploymentPreflight := &DeploymentPreflight{}
 	err := json.Unmarshal(data, deploymentPreflight)
 	if err != nil {
-		cloudError := NewUnmarshalCloudError(err)
+		cloudError := NewInvalidRequestContentError(err)
 		// Status code for preflight content errors must always be OK.
 		cloudError.StatusCode = http.StatusOK
 		return nil, cloudError

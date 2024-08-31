@@ -380,7 +380,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 	if err = json.Unmarshal(body, versionedRequestCluster); err != nil {
 		f.logger.Error(err.Error())
-		arm.WriteCloudError(writer, arm.NewUnmarshalCloudError(err))
+		arm.WriteInvalidRequestContentError(writer, err)
 		return
 	}
 
@@ -596,7 +596,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	err = json.Unmarshal(body, &subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
-		arm.WriteCloudError(writer, arm.NewUnmarshalCloudError(err))
+		arm.WriteInvalidRequestContentError(writer, err)
 		return
 	}
 
@@ -689,7 +689,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		resource := &arm.DeploymentPreflightResource{}
 		err = json.Unmarshal(raw, resource)
 		if err != nil {
-			cloudError = arm.NewUnmarshalCloudError(err)
+			cloudError = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
 			f.logger.Warn(cloudError.Message)
 		}
@@ -969,7 +969,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 	if err = json.Unmarshal(body, versionedRequestNodePool); err != nil {
 		f.logger.Error(err.Error())
-		arm.WriteCloudError(writer, arm.NewUnmarshalCloudError(err))
+		arm.WriteInvalidRequestContentError(writer, err)
 		return
 	}
 

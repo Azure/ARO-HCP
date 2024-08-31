@@ -112,7 +112,21 @@ func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 	_ = encoder.Encode(err)
 }
 
-func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *ResourceID) {
+// NewInternalServerError creates a CloudError for an internal server error
+func NewInternalServerError() *CloudError {
+	return NewCloudError(
+		http.StatusInternalServerError,
+		CloudErrorCodeInternalServerError, "",
+		"Internal server error.")
+}
+
+// WriteInternalServerError writes an internal server error to the given ResponseWriter
+func WriteInternalServerError(w http.ResponseWriter) {
+	WriteCloudError(w, NewInternalServerError())
+}
+
+// NewResourceNotFoundError creates a CloudError for a nonexistent resource error
+func NewResourceNotFoundError(resourceID *ResourceID) *CloudError {
 	var code string
 	var message string
 
@@ -134,19 +148,16 @@ func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *ResourceID) {
 			resourceID.ResourceType.Type, resourceID.Name, resourceID.ResourceGroupName)
 	}
 
-	WriteError(w, http.StatusNotFound, code, resourceID.String(), message)
+	return NewCloudError(http.StatusNotFound, code, resourceID.String(), message)
 }
 
-// WriteInternalServerError writes an internal server error to the given ResponseWriter
-func WriteInternalServerError(w http.ResponseWriter) {
-	WriteError(
-		w, http.StatusInternalServerError,
-		CloudErrorCodeInternalServerError, "",
-		"Internal server error.")
+// WriteResourceNotFoundError writes a nonexistent resource error to the given ResponseWriter
+func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *ResourceID) {
+	WriteCloudError(w, NewResourceNotFoundError(resourceID))
 }
 
-// NewUnmarshalCloudError creates an appropriate CloudError for JSON unmarshaling errors
-func NewUnmarshalCloudError(err error) *CloudError {
+// NewInvalidRequestContentError creates a CloudError for an invalid request content error
+func NewInvalidRequestContentError(err error) *CloudError {
 	const message = "The request content was invalid and could not be deserialized: %q"
 
 	switch err := err.(type) {
@@ -163,4 +174,9 @@ func NewUnmarshalCloudError(err error) *CloudError {
 			CloudErrorCodeInvalidRequestContent,
 			"", message, err)
 	}
+}
+
+// WriteInvalidRequestContentError writes an invalid request content error to the given ResponseWriter
+func WriteInvalidRequestContentError(w http.ResponseWriter, err error) {
+	WriteCloudError(w, NewInvalidRequestContentError(err))
 }
