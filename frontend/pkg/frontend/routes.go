@@ -96,7 +96,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
-		postMuxMiddleware.HandlerFunc(f.GetNodePool))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
