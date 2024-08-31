@@ -4,6 +4,7 @@ package ocm
 // Licensed under the Apache License 2.0.
 
 import (
+	"context"
 	"fmt"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
@@ -28,12 +29,12 @@ type ClusterServiceConfig struct {
 }
 
 // GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
-func (csc *ClusterServiceConfig) GetCSCluster(internalID InternalID) (*cmv2alpha1.Cluster, error) {
+func (csc *ClusterServiceConfig) GetCSCluster(ctx context.Context, internalID InternalID) (*cmv2alpha1.Cluster, error) {
 	client, ok := internalID.GetClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
-	clusterGetResponse, err := client.Get().Send()
+	clusterGetResponse, err := client.Get().SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +46,8 @@ func (csc *ClusterServiceConfig) GetCSCluster(internalID InternalID) (*cmv2alpha
 }
 
 // PostCSCluster creates and sends a POST request to create a cluster in Clusters Service
-func (csc *ClusterServiceConfig) PostCSCluster(cluster *cmv2alpha1.Cluster) (*cmv2alpha1.Cluster, error) {
-	clustersAddResponse, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Add().Body(cluster).Send()
+func (csc *ClusterServiceConfig) PostCSCluster(ctx context.Context, cluster *cmv2alpha1.Cluster) (*cmv2alpha1.Cluster, error) {
+	clustersAddResponse, err := csc.Conn.ClustersMgmt().V2alpha1().Clusters().Add().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -58,12 +59,12 @@ func (csc *ClusterServiceConfig) PostCSCluster(cluster *cmv2alpha1.Cluster) (*cm
 }
 
 // UpdateCSCluster sends a PATCH request to update a cluster in Clusters Service
-func (csc *ClusterServiceConfig) UpdateCSCluster(internalID InternalID, cluster *cmv2alpha1.Cluster) (*cmv2alpha1.Cluster, error) {
+func (csc *ClusterServiceConfig) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *cmv2alpha1.Cluster) (*cmv2alpha1.Cluster, error) {
 	client, ok := internalID.GetClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
-	clusterUpdateResponse, err := client.Update().Body(cluster).Send()
+	clusterUpdateResponse, err := client.Update().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -75,22 +76,22 @@ func (csc *ClusterServiceConfig) UpdateCSCluster(internalID InternalID, cluster 
 }
 
 // DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
-func (csc *ClusterServiceConfig) DeleteCSCluster(internalID InternalID) error {
+func (csc *ClusterServiceConfig) DeleteCSCluster(ctx context.Context, internalID InternalID) error {
 	client, ok := internalID.GetClusterClient(csc.Conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
-	_, err := client.Delete().Send()
+	_, err := client.Delete().SendContext(ctx)
 	return err
 }
 
 // GetCSNodePool creates and sends a GET request to fetch a node pool from Clusters Service
-func (csc *ClusterServiceConfig) GetCSNodePool(internalID InternalID) (*cmv2alpha1.NodePool, error) {
+func (csc *ClusterServiceConfig) GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv2alpha1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
-	nodePoolGetResponse, err := client.Get().Send()
+	nodePoolGetResponse, err := client.Get().SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -102,12 +103,12 @@ func (csc *ClusterServiceConfig) GetCSNodePool(internalID InternalID) (*cmv2alph
 }
 
 // PostCSNodePool creates and sends a POST request to create a node pool in Clusters Service
-func (csc *ClusterServiceConfig) PostCSNodePool(clusterInternalID InternalID, nodePool *cmv2alpha1.NodePool) (*cmv2alpha1.NodePool, error) {
+func (csc *ClusterServiceConfig) PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv2alpha1.NodePool) (*cmv2alpha1.NodePool, error) {
 	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
 	}
-	nodePoolsAddResponse, err := client.NodePools().Add().Body(nodePool).Send()
+	nodePoolsAddResponse, err := client.NodePools().Add().Body(nodePool).SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -119,12 +120,12 @@ func (csc *ClusterServiceConfig) PostCSNodePool(clusterInternalID InternalID, no
 }
 
 // UpdateCSNodePool sends a PATCH request to update a node pool in Clusters Service
-func (csc *ClusterServiceConfig) UpdateCSNodePool(internalID InternalID, nodePool *cmv2alpha1.NodePool) (*cmv2alpha1.NodePool, error) {
+func (csc *ClusterServiceConfig) UpdateCSNodePool(ctx context.Context, internalID InternalID, nodePool *cmv2alpha1.NodePool) (*cmv2alpha1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
-	nodePoolUpdateResponse, err := client.Update().Body(nodePool).Send()
+	nodePoolUpdateResponse, err := client.Update().Body(nodePool).SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -136,11 +137,11 @@ func (csc *ClusterServiceConfig) UpdateCSNodePool(internalID InternalID, nodePoo
 }
 
 // DeleteCSNodePool creates and sends a DELETE request to delete a node pool from Clusters Service
-func (csc *ClusterServiceConfig) DeleteCSNodePool(internalID InternalID) error {
+func (csc *ClusterServiceConfig) DeleteCSNodePool(ctx context.Context, internalID InternalID) error {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
-	_, err := client.Delete().Send()
+	_, err := client.Delete().SendContext(ctx)
 	return err
 }

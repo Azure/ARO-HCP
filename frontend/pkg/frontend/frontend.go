@@ -159,7 +159,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	clustersRequest.Page(pageNumber)
 
 	// Send the initial request:
-	clustersListResponse, err := clustersRequest.Send()
+	clustersListResponse, err := clustersRequest.SendContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -246,7 +246,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	csCluster, err := f.clusterServiceConfig.GetCSCluster(doc.InternalID)
+	csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("cluster not found in clusters-service: %v", err))
 		arm.WriteResourceNotFoundError(writer, resourceID)
@@ -327,7 +327,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// No special treatment here for "not found" errors. A "not found"
 		// error indicates the database has gotten out of sync and so it's
 		// appropriate to fail.
-		csCluster, err := f.clusterServiceConfig.GetCSCluster(doc.InternalID)
+		csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, doc.InternalID)
 		if err != nil {
 			f.logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
@@ -404,7 +404,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	if updating {
 		f.logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceConfig.UpdateCSCluster(doc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceConfig.UpdateCSCluster(ctx, doc.InternalID, csCluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -412,7 +412,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	} else {
 		f.logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		csCluster, err = f.clusterServiceConfig.PostCSCluster(csCluster)
+		csCluster, err = f.clusterServiceConfig.PostCSCluster(ctx, csCluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -505,7 +505,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.clusterServiceConfig.DeleteCSCluster(doc.InternalID)
+	err = f.clusterServiceConfig.DeleteCSCluster(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to delete cluster %s: %v", resourceID, err))
 		arm.WriteInternalServerError(writer)
@@ -803,7 +803,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	csNodePool, err := f.clusterServiceConfig.GetCSNodePool(doc.InternalID)
+	csNodePool, err := f.clusterServiceConfig.GetCSNodePool(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("node pool not found in clusters-service: %v", err))
 		writer.WriteHeader(http.StatusNoContent)
@@ -882,7 +882,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	csCluster, err := f.clusterServiceConfig.GetCSCluster(clusterDoc.InternalID)
+	csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, clusterDoc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", clusterResourceID, err))
 		arm.WriteInternalServerError(writer)
@@ -916,7 +916,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// No special treatment here for "not found" errors. A "not found"
 		// error indicates the database has gotten out of sync and so it's
 		// appropriate to fail.
-		csNodePool, err := f.clusterServiceConfig.GetCSNodePool(nodePoolDoc.InternalID)
+		csNodePool, err := f.clusterServiceConfig.GetCSNodePool(ctx, nodePoolDoc.InternalID)
 		if err != nil {
 			f.logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", nodePoolResourceID, err))
 			arm.WriteInternalServerError(writer)
@@ -993,7 +993,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	if updating {
 		f.logger.Info(fmt.Sprintf("updating resource %s", nodePoolResourceID))
-		csNodePool, err = f.clusterServiceConfig.UpdateCSNodePool(nodePoolDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceConfig.UpdateCSNodePool(ctx, nodePoolDoc.InternalID, csNodePool)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1001,7 +1001,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	} else {
 		f.logger.Info(fmt.Sprintf("creating resource %s", nodePoolResourceID))
-		csNodePool, err = f.clusterServiceConfig.PostCSNodePool(clusterDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceConfig.PostCSNodePool(ctx, clusterDoc.InternalID, csNodePool)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1089,7 +1089,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	err = f.clusterServiceConfig.DeleteCSNodePool(doc.InternalID)
+	err = f.clusterServiceConfig.DeleteCSNodePool(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", resourceID, err))
 		arm.WriteInternalServerError(writer)
