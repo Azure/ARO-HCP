@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	ProviderNamespace                   = "Microsoft.RedHatOpenShift"
-	ProviderNamespaceDisplay            = "Azure Red Hat OpenShift"
-	ResourceType                        = ProviderNamespace + "/" + HCPOpenShiftClusterResourceTypeName
-	HCPOpenShiftClusterResourceTypeName = "hcpOpenShiftClusters"
-	NodePoolResourceTypeName            = "nodePools"
-	ResourceTypeDisplay                 = "Hosted Control Plane (HCP) OpenShift Clusters"
+	ProviderNamespace        = "Microsoft.RedHatOpenShift"
+	ProviderNamespaceDisplay = "Azure Red Hat OpenShift"
+	ResourceType             = ProviderNamespace + "/" + ClusterResourceTypeName
+	ClusterResourceTypeName  = "hcpOpenShiftClusters"
+	NodePoolResourceTypeName = "nodePools"
+	ResourceTypeDisplay      = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
 type VersionedHCPOpenShiftCluster interface {
