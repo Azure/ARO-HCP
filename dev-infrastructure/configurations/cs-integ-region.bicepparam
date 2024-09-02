@@ -3,7 +3,7 @@ using '../templates/region.bicep'
 param persist = true
 
 // dns
-param baseDNSZoneName = 'hcp.osadev.cloud'
+param baseDNSZoneName = 'hcp.csinteg.cloud'
 param baseDNSZoneResourceGroup = 'cs-integ-global'
 
 // maestro
