@@ -12,14 +12,21 @@ import (
 )
 
 const (
-	PatternSubscriptions  = "subscriptions/{" + PathSegmentSubscriptionID + "}"
-	PatternLocations      = "locations/{" + PathSegmentLocation + "}"
+	WildcardActionName        = "{" + PathSegmentActionName + "}"
+	WildcardDeploymentName    = "{" + PathSegmentDeploymentName + "}"
+	WildcardLocation          = "{" + PathSegmentLocation + "}"
+	WildcardNodePoolName      = "{" + PathSegmentNodePoolName + "}"
+	WildcardResourceGroupName = "{" + PathSegmentResourceGroupName + "}"
+	WildcardResourceName      = "{" + PathSegmentResourceName + "}"
+	WildcardSubscriptionID    = "{" + PathSegmentSubscriptionID + "}"
+
+	PatternSubscriptions  = "subscriptions/" + WildcardSubscriptionID
+	PatternLocations      = "locations/" + WildcardLocation
 	PatternProviders      = "providers/" + api.ProviderNamespace
-	PatternClusters       = api.ClusterResourceTypeName + "/{" + PathSegmentResourceName + "}"
-	PatternNodePools      = api.NodePoolResourceTypeName + "/{" + PathSegmentNodePoolName + "}"
-	PatternDeployments    = "deployments/{" + PathSegmentDeploymentName + "}"
-	PatternResourceGroups = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
-	PatternActionName     = "{" + PathSegmentActionName + "}"
+	PatternClusters       = api.ClusterResourceTypeName + "/" + WildcardResourceName
+	PatternNodePools      = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
+	PatternDeployments    = "deployments/" + WildcardDeploymentName
+	PatternResourceGroups = "resourcegroups/" + WildcardResourceGroupName
 )
 
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
@@ -85,7 +92,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternActionName),
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, WildcardActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
