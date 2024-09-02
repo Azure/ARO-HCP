@@ -267,6 +267,19 @@ module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep
   ]
 }
 
+module csServiceKeyVaultCertAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(serviceKeyVaultName, 'cs', 'cert', 'read')
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets Officer'
+    managedIdentityPrincipalId: csManagedIdentityPrincipalId
+  }
+  dependsOn: [
+    serviceKeyVault
+    svcCluster
+  ]
+}
+
 //
 //   I M A G E   S Y N C
 //
