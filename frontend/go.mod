@@ -9,7 +9,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.14.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/openshift-online/ocm-sdk-go v0.1.436
+	github.com/openshift-online/ocm-sdk-go v0.1.438
 	github.com/prometheus/client_golang v1.20.2
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
