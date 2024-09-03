@@ -132,7 +132,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	var query string
 	subscriptionId := request.PathValue(PathSegmentSubscriptionID)
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	location := request.PathValue(PageSegmentLocation)
+	location := request.PathValue(PathSegmentLocation)
 
 	switch {
 	case resourceGroupName != "":

@@ -10,11 +10,11 @@ const (
 	APIVersionKey = "api-version"
 
 	// Wildcard path segment names for request multiplexing, must be lowercase as we lowercase the request URL pattern when registering handlers
-	PageSegmentLocation          = "location"
-	PathSegmentSubscriptionID    = "subscriptionid"
+	PathSegmentActionName        = "actionname"
+	PathSegmentDeploymentName    = "deploymentname"
+	PathSegmentLocation          = "location"
+	PathSegmentNodePoolName      = "nodepoolname"
 	PathSegmentResourceGroupName = "resourcegroupname"
 	PathSegmentResourceName      = "resourcename"
-	PathSegmentDeploymentName    = "deploymentname"
-	PathSegmentActionName        = "actionname"
-	PathSegmentNodePoolName      = "nodepoolname"
+	PathSegmentSubscriptionID    = "subscriptionid"
 )

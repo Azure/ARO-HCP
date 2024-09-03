@@ -12,14 +12,21 @@ import (
 )
 
 const (
-	PatternSubscriptions    = "subscriptions/{" + PathSegmentSubscriptionID + "}"
-	PatternLocations        = "locations/{" + PageSegmentLocation + "}"
-	PatternProviders        = "providers/" + api.ResourceType
-	PatternNodePoolResource = api.NodePoolResourceTypeName + "/{" + PathSegmentNodePoolName + "}"
-	PatternDeployments      = "deployments/{" + PathSegmentDeploymentName + "}"
-	PatternResourceGroups   = "resourcegroups/{" + PathSegmentResourceGroupName + "}"
-	PatternResourceName     = "{" + PathSegmentResourceName + "}"
-	PatternActionName       = "{" + PathSegmentActionName + "}"
+	WildcardActionName        = "{" + PathSegmentActionName + "}"
+	WildcardDeploymentName    = "{" + PathSegmentDeploymentName + "}"
+	WildcardLocation          = "{" + PathSegmentLocation + "}"
+	WildcardNodePoolName      = "{" + PathSegmentNodePoolName + "}"
+	WildcardResourceGroupName = "{" + PathSegmentResourceGroupName + "}"
+	WildcardResourceName      = "{" + PathSegmentResourceName + "}"
+	WildcardSubscriptionID    = "{" + PathSegmentSubscriptionID + "}"
+
+	PatternSubscriptions  = "subscriptions/" + WildcardSubscriptionID
+	PatternLocations      = "locations/" + WildcardLocation
+	PatternProviders      = "providers/" + api.ProviderNamespace
+	PatternClusters       = api.ClusterResourceTypeName + "/" + WildcardResourceName
+	PatternNodePools      = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
+	PatternDeployments    = "deployments/" + WildcardDeploymentName
+	PatternResourceGroups = "resourcegroups/" + WildcardResourceGroupName
 )
 
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
@@ -56,13 +63,13 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareValidateAPIVersion,
 		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
 	// Resource ID endpoints
@@ -73,31 +80,31 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareValidateAPIVersion,
 		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
-		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
-		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
 	mux.Handle(
-		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName),
+		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternActionName),
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, WildcardActionName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodePoolResource),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.GetNodePool))
 	mux.Handle(
-		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodePoolResource),
+		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
 	mux.Handle(
-		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodePoolResource),
+		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
 	mux.Handle(
-		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternResourceName, PatternNodePoolResource),
+		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.DeleteNodePool))
 
 	// Exclude ARO-HCP API version validation for the following endpoints defined by ARM.
