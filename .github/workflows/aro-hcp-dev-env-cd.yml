@@ -61,7 +61,7 @@
               subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - name: 'Deploy'
-          uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+          uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
             azcliversion: latest
             inlineScript: |
@@ -93,7 +93,7 @@
               subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - name: 'Deploy'
-          uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+          uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
             azcliversion: latest
             inlineScript: |
@@ -139,7 +139,7 @@
               subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - name: 'Deploy'
-          uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+          uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
             azcliversion: latest
             inlineScript: |
@@ -200,7 +200,7 @@
               subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - name: 'Deploy or Update'
-          uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+          uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
             azcliversion: latest
             inlineScript: |
@@ -361,7 +361,7 @@
 
         - name: 'Find service cluster'
           id: find_service_cluster
-          uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+          uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
             azcliversion: latest
             inlineScript: |
@@ -448,7 +448,7 @@
 
       - name: 'Find management cluster'
         id: find_management_cluster
-        uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+        uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
         with:
           azcliversion: latest
           inlineScript: |
