@@ -37,7 +37,7 @@ jobs:
       # TODO: We don't have `make` in the azure/cli task so a lot of this is duplicated in dev-infrastructure/Makefile
       # we should run our own container or find a solution to bring them closer
       - name: 'Deployment What If'
-        uses: azure/cli@965c8d7571d2231a54e321ddd07f7b10317f34d9 # v2.0.0
+        uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
         with:
           azcliversion: latest
           inlineScript: |
