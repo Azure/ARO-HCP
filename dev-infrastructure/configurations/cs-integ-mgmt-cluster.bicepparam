@@ -19,7 +19,7 @@ param maestroKeyVaultName = 'maestro-kv-cs-integ'
 param maestroEventGridNamespacesName = 'maestro-eventgrid-cs-integ'
 param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-dev.azure.com'
 
-param baseDNSZoneName = 'hcp.osadev.cloud'
+param baseDNSZoneName = 'hcp.csinteg.cloud'
 param regionalDNSSubdomain = 'westus3'
 
 param acrPullResourceGroups = [regionalResourceGroup, 'global']
