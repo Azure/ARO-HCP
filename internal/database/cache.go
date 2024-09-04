@@ -22,6 +22,7 @@ type Cache struct {
 func NewCache() DBClient {
 	return &Cache{
 		resource:     make(map[string]*ResourceDocument),
+		operation:    make(map[string]*OperationDocument),
 		subscription: make(map[string]*SubscriptionDocument),
 	}
 }
