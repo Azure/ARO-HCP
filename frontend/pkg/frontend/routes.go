@@ -55,7 +55,6 @@ func (f *Frontend) routes() *MiddlewareMux {
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
-	mux.Handle(MuxPattern(http.MethodGet, "metrics"), promhttp.Handler())
 
 	// List endpoints
 	postMuxMiddleware := NewMiddleware(
@@ -127,6 +126,13 @@ func (f *Frontend) routes() *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
 		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))
+
+	return mux
+}
+
+func (f *Frontend) metricsRoutes() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	return mux
 }

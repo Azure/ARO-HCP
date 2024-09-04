@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -33,7 +34,9 @@ type Frontend struct {
 	clusterServiceConfig ocm.ClusterServiceConfig
 	logger               *slog.Logger
 	listener             net.Listener
+	metricsListener      net.Listener
 	server               http.Server
+	metricsServer        http.Server
 	dbClient             database.DBClient
 	ready                atomic.Value
 	done                 chan struct{}
@@ -41,13 +44,20 @@ type Frontend struct {
 	location             string
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csCfg ocm.ClusterServiceConfig) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csCfg ocm.ClusterServiceConfig) *Frontend {
 	f := &Frontend{
 		clusterServiceConfig: csCfg,
 		logger:               logger,
 		listener:             listener,
+		metricsListener:      metricsListener,
 		metrics:              emitter,
 		server: http.Server{
+			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
+			BaseContext: func(net.Listener) context.Context {
+				return ContextWithLogger(context.Background(), logger)
+			},
+		},
+		metricsServer: http.Server{
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
 				return ContextWithLogger(context.Background(), logger)
@@ -59,6 +69,7 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, emitter Emitter, db
 	}
 
 	f.server.Handler = f.routes()
+	f.metricsServer.Handler = f.metricsRoutes()
 
 	return f
 }
@@ -69,13 +80,23 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 			<-stop
 			f.ready.Store(false)
 			_ = f.server.Shutdown(ctx)
+			_ = f.metricsServer.Shutdown(ctx)
 		}()
 	}
 
 	f.logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
+	f.logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 	f.ready.Store(true)
 
-	if err := f.server.Serve(f.listener); !errors.Is(err, http.ErrServerClosed) {
+	errs, ctx := errgroup.WithContext(ctx)
+	errs.Go(func() error {
+		return f.server.Serve(f.listener)
+	})
+	errs.Go(func() error {
+		return f.metricsServer.Serve(f.metricsListener)
+	})
+
+	if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
 		f.logger.Error(err.Error())
 		os.Exit(1)
 	}
