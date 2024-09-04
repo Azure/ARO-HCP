@@ -39,7 +39,7 @@ jobs:
       - name: 'Deployment What If'
         uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
         with:
-          azcliversion: latest
+          azcliversion: 2.63.0
           inlineScript: |
             cd dev-infrastructure/
 
