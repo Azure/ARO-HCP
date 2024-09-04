@@ -148,7 +148,7 @@ func NewResourceNotFoundError(resourceID *ResourceID) *CloudError {
 			resourceID.ResourceType.Type, resourceID.Name, resourceID.ResourceGroupName)
 	}
 
-	return NewCloudError(http.StatusNotFound, code, resourceID.String(), message)
+	return NewCloudError(http.StatusNotFound, code, resourceID.String(), "%s", message)
 }
 
 // WriteResourceNotFoundError writes a nonexistent resource error to the given ResponseWriter
