@@ -7,6 +7,7 @@
     MC_RESOURCEGROUP: cs-integ-westus3-mc-1
     ARO_HCP_IMAGE_ACR: arohcpdev
   on:
+    workflow_dispatch:
     pull_request:
       branches:
         - main
@@ -42,7 +43,7 @@
           run: core.setFailed('Expected source repository to be Azure/ARO-HCP, re-create PR as a branch of Azure/ARO-HCP')
 
     deploy_region_rg:
-      if: github.event.pull_request.merged == true
+      if: github.event.pull_request.merged == true  || github.event_name == 'workflow_dispatch'
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -86,7 +87,7 @@
                 --parameters globalResourceGroup="${REGIONAL_RESOURCEGROUP}"
 
     deploy_service_cluster_rg:
-      if: github.event.pull_request.merged == true
+      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       needs:
         - deploy_region_rg
       permissions:
@@ -147,7 +148,7 @@
                 --grafana-resource-id "${GRAFANA_RESOURCE_ID}"
 
     deploy_management_cluster_rg:
-      if: github.event.pull_request.merged == true
+      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       needs:
         - deploy_region_rg
       permissions:
@@ -204,7 +205,7 @@
                 --grafana-resource-id "${GRAFANA_RESOURCE_ID}"
 
     deploy_to_service_cluster:
-      if: github.event.pull_request.merged == true
+      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       needs:
         - deploy_service_cluster_rg
       permissions:
@@ -283,7 +284,7 @@
             make register-agent
 
     deploy_to_management_cluster:
-      if: github.event.pull_request.merged == true
+      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       needs:
       - deploy_management_cluster_rg
       permissions:
