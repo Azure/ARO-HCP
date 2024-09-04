@@ -65,7 +65,7 @@
         - name: 'Deploy'
           uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
-            azcliversion: latest
+            azcliversion: 2.63.0
             inlineScript: |
               cd dev-infrastructure/
 
@@ -97,7 +97,7 @@
         - name: 'Deploy'
           uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
-            azcliversion: latest
+            azcliversion: 2.63.0
             inlineScript: |
               cd dev-infrastructure/
 
@@ -143,7 +143,7 @@
         - name: 'Deploy'
           uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
-            azcliversion: latest
+            azcliversion: 2.63.0
             inlineScript: |
               cd dev-infrastructure/
 
@@ -204,7 +204,7 @@
         - name: 'Deploy or Update'
           uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
-            azcliversion: latest
+            azcliversion: 2.63.0
             inlineScript: |
               cd dev-infrastructure/
 
@@ -365,7 +365,7 @@
           id: find_service_cluster
           uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
           with:
-            azcliversion: latest
+            azcliversion: 2.63.0
             inlineScript: |
               echo "name=$(az aks list --resource-group "${SC_RESOURCEGROUP}" --output tsv --query "[?tags.clusterType == 'svc-cluster'].name | [0]")" >> $GITHUB_OUTPUT
 
@@ -452,7 +452,7 @@
         id: find_management_cluster
         uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
         with:
-          azcliversion: latest
+          azcliversion: 2.63.0
           inlineScript: |
             echo "name=$(az aks list --resource-group "${MC_RESOURCEGROUP}" --output tsv --query "[?tags.clusterType == 'mgmt-cluster'].name | [0]")" >> $GITHUB_OUTPUT
 
