@@ -37,6 +37,7 @@
 
   jobs:
     is_running_on_fork:
+      if: github.event_name != 'workflow_dispatch'
       runs-on: ubuntu-latest
       steps:
         - name: Fail if PR submitted from fork
