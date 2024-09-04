@@ -1,8 +1,6 @@
 module github.com/Azure/ARO-HCP/frontend
 
-go 1.22.0
-
-toolchain go1.22.2
+go 1.23.0
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
