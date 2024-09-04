@@ -1072,6 +1072,136 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	writer.WriteHeader(http.StatusAccepted)
 }
 
+func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: OperationResult", versionedInterface))
+
+	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			f.logger.Error(fmt.Sprintf("operation '%s' not found", resourceID))
+			writer.WriteHeader(http.StatusNotFound)
+		} else {
+			f.logger.Error(err.Error())
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Validate the identity retrieving the operation result is the
+	// same identity that triggered the operation. Return 404 if not.
+	if !f.OperationIsVisible(request, doc) {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if !doc.Status.IsTerminal() {
+		f.AddLocationHeader(writer, request, doc)
+		writer.WriteHeader(http.StatusAccepted)
+		return
+	}
+
+	// The response henceforth should be exactly as though the operation
+	// completed synchronously.
+
+	var successStatusCode int
+
+	switch doc.Request {
+	case database.OperationRequestCreate:
+		successStatusCode = http.StatusCreated
+	case database.OperationRequestUpdate:
+		successStatusCode = http.StatusOK
+	case database.OperationRequestDelete:
+		// XXX Ideally, deletion of Azure resources should never fail.
+		//     In the event of failure, it's unclear what to do here.
+		writer.WriteHeader(http.StatusNoContent)
+		return
+	default:
+		f.logger.Error(fmt.Sprintf("Unhandled request type: %s", doc.Request))
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	responseBody, cloudError := f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
+	if cloudError != nil {
+		writer.WriteHeader(cloudError.StatusCode)
+		return
+	}
+
+	writer.WriteHeader(successStatusCode)
+
+	_, err = writer.Write(responseBody)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	f.logger.Info(fmt.Sprintf("%s: OperationStatus", versionedInterface))
+
+	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			f.logger.Error(fmt.Sprintf("operation '%s' not found", resourceID))
+			writer.WriteHeader(http.StatusNotFound)
+		} else {
+			f.logger.Error(err.Error())
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Validate the identity retrieving the operation result is the
+	// same identity that triggered the operation. Return 404 if not.
+	if !f.OperationIsVisible(request, doc) {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	responseBody, err := json.Marshal(doc.ToStatus())
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = writer.Write(responseBody)
+	if err != nil {
+		f.logger.Error(err.Error())
+	}
+}
+
 func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
 	var responseBody []byte
 

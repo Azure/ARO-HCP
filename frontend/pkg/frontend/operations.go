@@ -4,9 +4,11 @@ package frontend
 // Licensed under the Apache License 2.0.
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -132,4 +134,31 @@ func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Requ
 	}
 
 	return nil
+}
+
+// OperationIsVisible returns true if the request is being called from the same
+// tenant and subscription that the operation originated in.
+func (f *Frontend) OperationIsVisible(request *http.Request, doc *database.OperationDocument) bool {
+	var visible = true
+
+	tenantID := request.Header.Get(arm.HeaderNameHomeTenantID)
+	clientID := request.Header.Get(arm.HeaderNameClientObjectID)
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+
+	if doc.TenantID != "" && !strings.EqualFold(tenantID, doc.TenantID) {
+		f.logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, doc.ID))
+		visible = false
+	}
+
+	if doc.ClientID != "" && !strings.EqualFold(clientID, doc.ClientID) {
+		f.logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, doc.ID))
+		visible = false
+	}
+
+	if !strings.EqualFold(subscriptionID, doc.OperationID.SubscriptionID) {
+		f.logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, doc.ID))
+		visible = false
+	}
+
+	return visible
 }
