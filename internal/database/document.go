@@ -72,6 +72,23 @@ type OperationDocument struct {
 	Timestamp   int    `json:"_ts,omitempty"`
 }
 
+// ToStatus converts an OperationDocument to the ARM operation status format.
+func (doc *OperationDocument) ToStatus() *arm.Operation {
+	operation := &arm.Operation{
+		ID:        doc.OperationID,
+		Name:      doc.OperationID.Name,
+		Status:    doc.Status,
+		StartTime: &doc.StartTime,
+		Error:     doc.Error,
+	}
+
+	if doc.Status.IsTerminal() {
+		operation.EndTime = &doc.LastTransitionTime
+	}
+
+	return operation
+}
+
 // SubscriptionDocument represents an Azure Subscription document.
 type SubscriptionDocument struct {
 	ID           string            `json:"id,omitempty"`
