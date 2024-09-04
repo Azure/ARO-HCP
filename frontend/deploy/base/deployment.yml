@@ -47,6 +47,8 @@ spec:
           ports:
             - containerPort: 8443
               protocol: TCP
+            - containerPort: 8081
+              protocol: TCP
           resources:
             limits:
               memory: 1Gi

@@ -27,8 +27,9 @@ type FrontendOpts struct {
 	clusterServiceNoopDeprovision bool
 	insecure                      bool
 
-	location string
-	port     int
+	location    string
+	metricsPort int
+	port        int
 
 	useCache   bool
 	cosmosName string
@@ -60,6 +61,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database url")
 	rootCmd.Flags().StringVar(&opts.location, "location", os.Getenv("LOCATION"), "Azure location")
 	rootCmd.Flags().IntVar(&opts.port, "port", 8443, "port to listen on")
+	rootCmd.Flags().IntVar(&opts.metricsPort, "metrics-port", 8081, "port to serve metrics on")
 
 	rootCmd.Flags().StringVar(&opts.clustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway.")
 	rootCmd.Flags().BoolVar(&opts.insecure, "insecure", false, "Skip validating TLS for clusters-service.")
@@ -98,6 +100,11 @@ func (opts *FrontendOpts) Run() error {
 		return err
 	}
 
+	metricsListener, err := net.Listen("tcp4", fmt.Sprintf(":%d", opts.metricsPort))
+	if err != nil {
+		return err
+	}
+
 	// Initialize Clusters Service Client
 	conn, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(opts.clustersServiceURL).
@@ -122,7 +129,7 @@ func (opts *FrontendOpts) Run() error {
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	f := frontend.NewFrontend(logger, listener, prometheusEmitter, dbClient, opts.location, csCfg)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheusEmitter, dbClient, opts.location, csCfg)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
