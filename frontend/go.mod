@@ -1,8 +1,8 @@
 module github.com/Azure/ARO-HCP/frontend
 
-go 1.22.0
+go 1.23.0
 
-toolchain go1.22.2
+toolchain go1.23.0
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
@@ -15,8 +15,6 @@ require (
 	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
 	golang.org/x/sync v0.8.0
 )
-
-require github.com/klauspost/compress v1.17.9 // indirect
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
@@ -41,6 +39,7 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
