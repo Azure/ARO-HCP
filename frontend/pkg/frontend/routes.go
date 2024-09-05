@@ -16,17 +16,20 @@ const (
 	WildcardDeploymentName    = "{" + PathSegmentDeploymentName + "}"
 	WildcardLocation          = "{" + PathSegmentLocation + "}"
 	WildcardNodePoolName      = "{" + PathSegmentNodePoolName + "}"
+	WildcardOperationID       = "{" + PathSegmentOperationID + "}"
 	WildcardResourceGroupName = "{" + PathSegmentResourceGroupName + "}"
 	WildcardResourceName      = "{" + PathSegmentResourceName + "}"
 	WildcardSubscriptionID    = "{" + PathSegmentSubscriptionID + "}"
 
-	PatternSubscriptions  = "subscriptions/" + WildcardSubscriptionID
-	PatternLocations      = "locations/" + WildcardLocation
-	PatternProviders      = "providers/" + api.ProviderNamespace
-	PatternClusters       = api.ClusterResourceTypeName + "/" + WildcardResourceName
-	PatternNodePools      = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
-	PatternDeployments    = "deployments/" + WildcardDeploymentName
-	PatternResourceGroups = "resourcegroups/" + WildcardResourceGroupName
+	PatternSubscriptions    = "subscriptions/" + WildcardSubscriptionID
+	PatternLocations        = "locations/" + WildcardLocation
+	PatternProviders        = "providers/" + api.ProviderNamespace
+	PatternClusters         = api.ClusterResourceTypeName + "/" + WildcardResourceName
+	PatternNodePools        = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
+	PatternDeployments      = "deployments/" + WildcardDeploymentName
+	PatternResourceGroups   = "resourcegroups/" + WildcardResourceGroupName
+	PatternOperationResults = api.OperationResultResourceTypeName + "/" + WildcardOperationID
+	PatternOperationsStatus = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
 )
 
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
@@ -105,6 +108,19 @@ func (f *Frontend) routes() *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.DeleteNodePool))
+
+	// Operation endpoints
+	postMuxMiddleware = NewMiddleware(
+		MiddlewareResourceID,
+		MiddlewareLoggingPostMux,
+		MiddlewareValidateAPIVersion,
+		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationResults),
+		postMuxMiddleware.HandlerFunc(f.OperationResult))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationsStatus),
+		postMuxMiddleware.HandlerFunc(f.OperationStatus))
 
 	// Exclude ARO-HCP API version validation for the following endpoints defined by ARM.
 

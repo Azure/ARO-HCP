@@ -1,6 +1,8 @@
 package database
 
 import (
+	"time"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -24,29 +26,43 @@ type ResourceDocument struct {
 	Timestamp   int    `json:"_ts,omitempty"`
 }
 
+type OperationRequest string
+
+const (
+	OperationRequestCreate OperationRequest = "Create"
+	OperationRequestUpdate OperationRequest = "Update"
+	OperationRequestDelete OperationRequest = "Delete"
+)
+
 // OperationDocument tracks an asynchronous operation.
 type OperationDocument struct {
-	// ID is the operation ID as exposed by the "operationStatuses" endpoint
+	// ID is the operation's unique identifier
 	ID string `json:"id,omitempty"`
-	// Request is the type of operation requested; one of Create, Update or Delete
-	Request string `json:"request,omitempty"`
+	// TenantID is the tenant ID of the client that requested the operation
+	TenantID string `json:"tenantId,omitempty"`
+	// ClientID is the object ID of the client that requested the operation
+	ClientID string `json:"clientId,omitempty"`
+	// Request is the type of asynchronous operation requested
+	Request OperationRequest `json:"request,omitempty"`
 	// ExternalID is the Azure resource ID of the cluster or node pool
 	ExternalID *arm.ResourceID `json:"externalId,omitempty"`
 	// InternalID is the Cluster Service resource identifier in the form of a URL path
-	// "/cluster/{cluster_id}" or "/cluster/{cluster_id}/node_pools/{node_pool_id}"
-	InternalID string `json:"internalId,omitempty"`
+	InternalID ocm.InternalID `json:"internalId,omitempty"`
+	// OperationID is the Azure resource ID of the operation's status
+	OperationID *arm.ResourceID `json:"operationId,omitempty"`
 	// NotificationURI is provided by the Azure-AsyncNotificationUri header if the
 	// Async Operation Callbacks ARM feature is enabled
 	NotificationURI string `json:"notificationUri,omitempty"`
 
-	// LastTransitionTime is the timestamp of the most recent state change
-	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
-	// State is the cluster or node pool state as reported by Cluster Service
-	State string `json:"state,omitempty"`
-	// Details is a description or error message as reported by Cluster Service
-	Details string `json:"details,omitempty"`
-	// Terminal indicates if the operation has reached a terminal provisioning state
-	Terminal bool `json:"terminal,omitempty"`
+	// StartTime marks the start of the operation
+	StartTime time.Time `json:"startTime,omitempty"`
+	// LastTransitionTime marks the most recent state change
+	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty"`
+	// Status is the current operation status, using the same set of values
+	// as the resource's provisioning state
+	Status arm.ProvisioningState `json:"status,omitempty"`
+	// Error is an OData error, present when Status is "Failed" or "Canceled"
+	Error *arm.CloudError `json:"error,omitempty"`
 
 	// Values provided by Cosmos after doc creation
 	ResourceID  string `json:"_rid,omitempty"`
@@ -54,6 +70,23 @@ type OperationDocument struct {
 	ETag        string `json:"_etag,omitempty"`
 	Attachments string `json:"_attachments,omitempty"`
 	Timestamp   int    `json:"_ts,omitempty"`
+}
+
+// ToStatus converts an OperationDocument to the ARM operation status format.
+func (doc *OperationDocument) ToStatus() *arm.Operation {
+	operation := &arm.Operation{
+		ID:        doc.OperationID,
+		Name:      doc.OperationID.Name,
+		Status:    doc.Status,
+		StartTime: &doc.StartTime,
+		Error:     doc.Error,
+	}
+
+	if doc.Status.IsTerminal() {
+		operation.EndTime = &doc.LastTransitionTime
+	}
+
+	return operation
 }
 
 // SubscriptionDocument represents an Azure Subscription document.

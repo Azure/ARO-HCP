@@ -129,9 +129,19 @@ const (
 	ProvisioningStateFailed    ProvisioningState = "Failed"
 	ProvisioningStateCanceled  ProvisioningState = "Canceled"
 
-	// Non-terminal states (TBD, these are from ARO-RP)
+	// Non-terminal states, defined by ARO-HCP
 	ProvisioningStateAccepted     ProvisioningState = "Accepted"
 	ProvisioningStateDeleting     ProvisioningState = "Deleting"
 	ProvisioningStateProvisioning ProvisioningState = "Provisioning"
 	ProvisioningStateUpdating     ProvisioningState = "Updating"
 )
+
+// IsTerminal returns true if the state is terminal.
+func (s ProvisioningState) IsTerminal() bool {
+	switch s {
+	case ProvisioningStateSucceeded, ProvisioningStateFailed, ProvisioningStateCanceled:
+		return true
+	default:
+		return false
+	}
+}

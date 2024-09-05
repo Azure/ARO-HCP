@@ -71,6 +71,16 @@ func TestMiddlewareResourceID(t *testing.T) {
 				"Microsoft.Resources/tenants",
 			},
 		},
+		{
+			name: "operation status",
+			path: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/LOCATIONS/eastus/HCPOPERATIONSSTATUS/11111111-1111-1111-1111-111111111111",
+			resourceTypes: []string{
+				"MICROSOFT.REDHATOPENSHIFT/LOCATIONS/HCPOPERATIONSSTATUS",
+				"MICROSOFT.REDHATOPENSHIFT/LOCATIONS",
+				"Microsoft.Resources/subscriptions",
+				"Microsoft.Resources/tenants",
+			},
+		},
 	}
 
 	for _, tt := range tests {
