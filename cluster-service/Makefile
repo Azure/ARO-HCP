@@ -23,7 +23,6 @@ deploy:
 			--query clientId) && \
 	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	KEYVAULT_NAME=$(shell az keyvault list --query "[?starts_with(name, 'service-kv')].name" -g ${REGIONAL_RESOURCEGROUP} --output tsv) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
 	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
 	  -p TENANT_ID=$${TENANT_ID} \
@@ -44,3 +43,8 @@ provision-shard:
 	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/dev-provisioning-shards.yml
 
 .PHONY: deploy deploy-integ provision-shard
+
+copy-fpc:
+	@FPC_SECRET=$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name ${FPA_CERT_NAME} --query "value" -o tsv) && \
+ 	../dev-infrastructure/scripts/kv-add-secret.sh ${KEYVAULT_NAME} ${RESOURCEGROUP} ${FPA_CERT_NAME} $${FPC_SECRET}
+.PHONY: copy-fpc
