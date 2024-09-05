@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: aro-hcp-frontend
+    port: metrics
+  name: aro-hcp-frontend-metrics
+spec:
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+    name: metrics
+  selector:
+    app: aro-hcp-frontend

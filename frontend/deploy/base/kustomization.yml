@@ -4,3 +4,7 @@ resources:
 - serviceaccount.yml
 - deployment.yml
 - service.yml
+- metrics.service.yml
+- allow-metrics.authorizationpolicy.yml
+- peerauthentication.yml
+- servicemonitor.yml

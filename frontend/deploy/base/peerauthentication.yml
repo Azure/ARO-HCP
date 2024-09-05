@@ -1,0 +1,12 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: aro-hcp
+spec:
+  selector:
+    matchLabels:
+      app: aro-hcp-frontend
+  portLevelMtls:
+    "8081":
+      mode: PERMISSIVE
