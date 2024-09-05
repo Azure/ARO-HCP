@@ -307,7 +307,7 @@ model ProxyProfile {
 /** Azure specific configuration */
 model PlatformProfile {
   /** Resource group to put cluster resources */
-  managedResourceGroup: string;
+  managedResourceGroup?: string;
 
   /** ResourceId for the subnet used by the control plane */
   subnetId: SubnetResourceId;

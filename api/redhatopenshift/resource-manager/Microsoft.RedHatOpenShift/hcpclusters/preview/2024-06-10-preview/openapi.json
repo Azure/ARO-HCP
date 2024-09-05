@@ -1952,7 +1952,6 @@
         }
       },
       "required": [
-        "managedResourceGroup",
         "subnetId",
         "networkSecurityGroupId"
       ]
