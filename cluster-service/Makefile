@@ -28,9 +28,12 @@ deploy:
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
 	  -p IMAGE_TAG=2256c75 | oc apply -f -
 
+deploy-integ:
+	oc process --local -f deploy/integration/cluster-service-namespace.yaml | oc apply -f -
+
 # for local development
 provision-shard:
 	@ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
 	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/dev-provisioning-shards.yml
 
-.PHONY: deploy
+.PHONY: deploy deploy-integ provision-shard

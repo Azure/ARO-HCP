@@ -1,0 +1,50 @@
+---
+apiVersion: v1
+kind: Template
+metadata:
+  name: cluster-service-admin
+objects:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: cluster-service-admin
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: cluster-service-mgmt
+      namespace: cluster-service-admin
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: namespace-admin
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - namespace
+      verbs:
+      - "*"
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: cluster-service-admin
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: admin
+    subjects:
+    - kind: ServiceAccount
+      name: cluster-service-mgmt
+      namespace: cluster-service-admin
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: cluster-service-namespace-admin
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: namespace-admin
+    subjects:
+    - kind: ServiceAccount
+      name: cluster-service-mgmt
+      namespace: cluster-service-admin
