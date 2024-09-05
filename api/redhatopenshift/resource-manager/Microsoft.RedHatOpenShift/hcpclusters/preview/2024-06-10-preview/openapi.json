@@ -1992,7 +1992,6 @@
         }
       },
       "required": [
-        "managedResourceGroup",
         "subnetId",
         "networkSecurityGroupId"
       ]

@@ -586,9 +586,6 @@ type OperationListResult struct {
 
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
-	// REQUIRED; Resource group to put cluster resources
-	ManagedResourceGroup *string
-
 	// REQUIRED; ResourceId for the network security group attached to the cluster subnet
 	NetworkSecurityGroupID *string
 
@@ -598,6 +595,9 @@ type PlatformProfile struct {
 	// The id of the disk encryption set to be used for etcd. Configure this when etcdEncryption is set to true Is used the
 // https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
 	EtcdEncryptionSetID *string
+
+	// Resource group to put cluster resources
+	ManagedResourceGroup *string
 
 	// The core outgoing configuration
 	OutboundType *OutboundType
