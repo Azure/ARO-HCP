@@ -32,7 +32,7 @@ deploy:
 	  -p IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}.azurecr.io \
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
 	  -p FPA_CERT_NAME=${FPA_CERT_NAME} \
-	  -p IMAGE_TAG=2256c75 | oc apply -f -
+	  -p IMAGE_TAG=1c6873c | oc apply -f -
 
 deploy-integ:
 	oc process --local -f deploy/integration/cluster-service-namespace.yaml | oc apply -f -

@@ -551,6 +551,7 @@ objects:
           - --cloud-region-config=/configs/cloud-resources/cloud-regions.yaml
           - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
           - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-config
+          - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
           livenessProbe:
             httpGet:
               path: /api/clusters_mgmt/v1
