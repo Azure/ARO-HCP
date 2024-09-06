@@ -13,7 +13,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
-func (a *Admin) AdminResourceList(writer http.ResponseWriter, request *http.Request) {
+func (a *Admin) AdminClustersListFromCS(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -24,17 +24,14 @@ func (a *Admin) AdminResourceList(writer http.ResponseWriter, request *http.Requ
 	}
 
 	var query string
-	subscriptionId := request.PathValue(PathSegmentSubscriptionID)
-	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	location := request.PathValue(PathSegmentLocation)
+	clusterID := request.URL.Query().Get("id")
+	clusterName := request.URL.Query().Get("name")
 
 	switch {
-	case resourceGroupName != "":
-		query = fmt.Sprintf("azure.resource_group_name='%s'", resourceGroupName)
-	case location != "":
-		query = fmt.Sprintf("region.id='%s'", location)
-	case subscriptionId != "" && location == "" && resourceGroupName == "":
-		query = fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
+	case clusterName != "":
+		query = fmt.Sprintf("name='%s'", clusterName)
+	case clusterID != "":
+		query = fmt.Sprintf("id='%s'", clusterID)
 	}
 
 	pageSize := 10
@@ -67,7 +64,7 @@ func (a *Admin) AdminResourceList(writer http.ResponseWriter, request *http.Requ
 		// FIXME Temporary, until we have a real ResourceID to pass.
 		azcoreResourceID, err := azcorearm.ParseResourceID(fmt.Sprintf(
 			"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
-			subscriptionId, resourceGroupName, api.ResourceType,
+			cluster.Azure().SubscriptionID(), cluster.Azure().ResourceGroupName(), api.ResourceType,
 			cluster.Azure().ResourceName()))
 		if err != nil {
 			a.logger.Error(err.Error())
