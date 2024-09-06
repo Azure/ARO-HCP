@@ -19,6 +19,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
   name: clusterName
 }
 
+@batchSize(1)
 resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
   for i in range(0, 20): {
     parent: uami
