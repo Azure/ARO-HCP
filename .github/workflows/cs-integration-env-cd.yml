@@ -140,6 +140,13 @@
                 --parameters kvNames="['${SVC_KV_NAME}']" \
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
+              # CS Integration MSI
+              az deployment group create \
+                --name "cs-integ-msi-${GITHUB_RUN_ID}" \
+                --resource-group "${SC_RESOURCEGROUP}" \
+                --template-file templates/cs-integration-msi.bicep \
+                --parameters configurations/cs-integ-msi.bicepparam
+
               # enable aks metrics
               AZ_MONITOR_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.monitorId.value)
               GRAFANA_RESOURCE_ID=$(az deployment group show --resource-group "${REGIONAL_RESOURCEGROUP}" --name "metrics-infra-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.grafanaId.value)
