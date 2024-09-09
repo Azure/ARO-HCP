@@ -95,6 +95,7 @@ spec:
         - --enable-jwt=false
         - --enable-https=false
         - --enable-grpc-server=true
+        - --disable-grpc-tls=true
         - --server-hostname=
         - --http-server-bindport={{ .Values.maestro.httpBindPort }}
         - --grpc-server-bindport={{ .Values.maestro.grpcBindPort }}
