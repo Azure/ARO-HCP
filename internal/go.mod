@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.0.3
-	github.com/go-playground/validator/v10 v10.22.0
+	github.com/go-playground/validator/v10 v10.22.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/openshift-online/ocm-sdk-go v0.1.438
