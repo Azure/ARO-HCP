@@ -18,7 +18,7 @@ type HCPOpenShiftClusterNodePool struct {
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
 	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read" validate:"omitempty,enum_provisioningstate"`
-	Spec              NodePoolSpec          `json:"spec,omitempty" visibility:"read,create,update" validate:"required_for_put"`
+	Spec              NodePoolSpec          `json:"spec,omitempty" visibility:"read create update" validate:"required_for_put"`
 }
 
 type NodePoolSpec struct {
