@@ -1,29 +1,18 @@
 package main
 
 import (
-	"context"
-	"log/slog"
-	"net"
+	"fmt"
+	"log"
 	"os"
 
+	"github.com/Azure/ARO-HCP/admin/cmd"
 	"github.com/Azure/ARO-HCP/admin/pkg/admin"
 )
 
 func main() {
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
-	listener, err := net.Listen("tcp", ":8443")
-
-	if err != nil {
-		panic(err)
+	if err := cmd.NewRootCmd().Execute(); err != nil {
+		log.Println(fmt.Errorf("%s error: %v", admin.ProgramName, err))
+		os.Exit(1)
 	}
-
-	// Initialize the Admin server
-	admin := admin.NewAdmin(logger, listener, "us-east")
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	admin.Run(ctx, nil)
 }

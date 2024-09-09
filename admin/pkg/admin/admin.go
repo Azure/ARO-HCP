@@ -61,3 +61,7 @@ func (a *Admin) Run(ctx context.Context, stop <-chan struct{}) {
 
 	close(a.done)
 }
+
+func (a *Admin) Join() {
+	<-a.done
+}
