@@ -9,9 +9,10 @@ param aksKeyVaultName = 'aks-kv-cs-integ-mc-1'
 param systemAgentMinCount = 2
 param systemAgentMaxCount = 3
 param systemAgentVMSize = 'Standard_D2s_v3'
-param userAgentMinCount = 3
-param userAgentMaxCount = 9
+param userAgentMinCount = 1
+param userAgentMaxCount = 3
 param userAgentVMSize = 'Standard_D2s_v3'
+param userAgentPoolAZCount = 3
 param persist = true
 
 param deployMaestroConsumer = true

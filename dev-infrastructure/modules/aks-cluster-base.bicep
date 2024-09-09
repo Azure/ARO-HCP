@@ -10,9 +10,10 @@ param systemAgentVMSize string = 'Standard_D2s_v3'
 
 // User agentpool spec (Worker)
 param deployUserAgentPool bool = false
-param userAgentMinCount int = 2
+param userAgentMinCount int = 1
 param userAgentMaxCount int = 3
 param userAgentVMSize string = 'Standard_D2s_v3'
+param userAgentPoolAZCount int = 3
 
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
@@ -103,9 +104,8 @@ var systemAgentPool = [
   }
 ]
 
-var userAgentPool = [
-  {
-    name: 'user'
+var userAgentPool = [for i in range(0, userAgentPoolAZCount): {
+    name: 'user-${(i + 1)}'
     osType: 'Linux'
     osSKU: 'AzureLinux'
     mode: 'User'
@@ -129,9 +129,7 @@ var userAgentPool = [
     podSubnetID: aksPodSubnet.id
     maxPods: 250
     availabilityZones: [
-      '1'
-      '2'
-      '3'
+      '${(i + 1)}'
     ]
     securityProfile: {
       enableSecureBoot: false
@@ -315,7 +313,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
     }
     agentPoolProfiles: agentProfile
     autoScalerProfile: {
-      'balance-similar-node-groups': 'false'
+      'balance-similar-node-groups': 'true'
       'daemonset-eviction-for-occupied-nodes': true
       'scan-interval': '10s'
       'scale-down-delay-after-add': '10m'
