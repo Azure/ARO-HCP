@@ -43,6 +43,8 @@ prepare-ho-manifests:
 	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_prometheusrules.yaml
 	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_podmonitors.yaml
 	curl https://raw.githubusercontent.com/openshift/api/master/route/v1/zz_generated.crd-manifests/routes-Default.crd.yaml -o deploy/base/customresourcedefinition-routes-default.crd.yaml
+	# Currently the hypershift install render command prints an error out to stdout if there is no available kubeconfig
+	# TODO: Get a fix into the hypershift install render command so we don't have to do this
 	@podman run -it --rm ${HO_IMAGE} install render \
 		--hypershift-image ${HO_IMAGE} \
 		--enable-conversion-webhook=false \
@@ -51,7 +53,9 @@ prepare-ho-manifests:
 		--external-dns-domain-filter \$$\(DOMAIN\) \
 		--external-dns-image ${EDO_IMAGE} \
 		--external-dns-txt-owner-id \$$\(TXT_OWNER_ID\) \
-		--managed-service ARO-HCP | ./kubectl-slice -f - -o deploy/base
+		--managed-service ARO-HCP \
+		| tail -n +2 \
+		| ./kubectl-slice -f - -o deploy/base
 	@rm deploy/crds/*
 	@mkdir -p deploy/crds
 	@mv deploy/base/customresourcedefinition*.yaml deploy/crds

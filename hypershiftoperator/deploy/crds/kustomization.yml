@@ -22,6 +22,7 @@ resources:
   - customresourcedefinition-clustersizingconfigurations.scheduling.hypershift.openshift.io.yaml
   - customresourcedefinition-ibmpowervsclusters.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-monitoring.coreos.com_servicemonitors.yaml
+  - customresourcedefinition-clusterresourcesetbindings.addons.cluster.x-k8s.io.yaml
   - customresourcedefinition-azureclusters.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-ipaddressclaims.ipam.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremachinetemplates.infrastructure.cluster.x-k8s.io.yaml
