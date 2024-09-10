@@ -3,8 +3,8 @@ kind: Kustomization
 resources:
 - serviceaccount.yml
 - deployment.yml
-- service.yml
-- metrics.service.yml
+- networking.yml
+- metrics.networking.yml
 - allow-metrics.authorizationpolicy.yml
 - peerauthentication.yml
 - servicemonitor.yml
