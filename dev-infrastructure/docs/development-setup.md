@@ -43,6 +43,11 @@ Change those flags accordingly and then run the following command. Depending on 
   AKSCONFIG=svc-cluster make cluster
   ```
 
+Enable metrics for the svc-cluster
+   ```bash
+  AKSCONFIG=svc-cluster make enable-aks-metrics
+   ```
+
 ### Create a Management Cluster
 
 The service cluster base configuration to use for development is `configurations/mgmt-cluster.bicepparam`. This parameter file offers feature toggles as well.
@@ -55,6 +60,11 @@ The service cluster base configuration to use for development is `configurations
 
   ```bash
   AKSCONFIG=mgmt-cluster make cluster
+  ```
+
+Enable metrics for the mgmt-cluster
+  ```bash
+  AKSCONFIG=mgmt-cluster make enable-aks-metrics
   ```
 
 ### Access AKS clusters
