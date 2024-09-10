@@ -153,7 +153,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       }
     })
     aksKeyVaultName: aksKeyVaultName
-    deployUserAgentPool: true
     acrPullResourceGroups: acrPullResourceGroups
   }
 }

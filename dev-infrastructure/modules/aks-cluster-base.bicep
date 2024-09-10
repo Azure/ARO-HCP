@@ -9,10 +9,10 @@ param systemAgentMaxCount int = 3
 param systemAgentVMSize string = 'Standard_D2s_v3'
 
 // User agentpool spec (Worker)
-param deployUserAgentPool bool = false
-param userAgentMinCount int = 2
+param userAgentMinCount int = 1
 param userAgentMaxCount int = 3
 param userAgentVMSize string = 'Standard_D2s_v3'
+param userAgentPoolAZCount int = 3
 
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
@@ -61,88 +61,6 @@ var networkContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
 )
-
-var systemAgentPool = [
-  {
-    name: 'system'
-    osType: 'Linux'
-    osSKU: 'AzureLinux'
-    mode: 'System'
-    orchestratorVersion: kubernetesVersion
-    enableAutoScaling: true
-    enableEncryptionAtHost: true
-    enableFIPS: true
-    enableNodePublicIP: false
-    kubeletDiskType: 'OS'
-    osDiskType: 'Ephemeral'
-    osDiskSizeGB: systemOsDiskSizeGB
-    count: systemAgentMinCount
-    minCount: systemAgentMinCount
-    maxCount: systemAgentMaxCount
-    vmSize: systemAgentVMSize
-    type: 'VirtualMachineScaleSets'
-    upgradeSettings: {
-      maxSurge: '10%'
-    }
-    vnetSubnetID: aksNodeSubnet.id
-    podSubnetID: aksPodSubnet.id
-    maxPods: 100
-    availabilityZones: [
-      '1'
-      '2'
-      '3'
-    ]
-    securityProfile: {
-      enableSecureBoot: false
-      enableVTPM: false
-      sshAccess: 'Disabled'
-    }
-    nodeTaints: [
-      'CriticalAddonsOnly=true:NoSchedule'
-    ]
-  }
-]
-
-var userAgentPool = [
-  {
-    name: 'user'
-    osType: 'Linux'
-    osSKU: 'AzureLinux'
-    mode: 'User'
-    orchestratorVersion: kubernetesVersion
-    enableAutoScaling: true
-    enableEncryptionAtHost: true
-    enableFIPS: true
-    enableNodePublicIP: false
-    kubeletDiskType: 'OS'
-    osDiskType: 'Ephemeral'
-    osDiskSizeGB: userOsDiskSizeGB
-    count: userAgentMinCount
-    minCount: userAgentMinCount
-    maxCount: userAgentMaxCount
-    vmSize: userAgentVMSize
-    type: 'VirtualMachineScaleSets'
-    upgradeSettings: {
-      maxSurge: '10%'
-    }
-    vnetSubnetID: aksNodeSubnet.id
-    podSubnetID: aksPodSubnet.id
-    maxPods: 250
-    availabilityZones: [
-      '1'
-      '2'
-      '3'
-    ]
-    securityProfile: {
-      enableSecureBoot: false
-      enableVTPM: false
-      sshAccess: 'Disabled'
-    }
-  }
-]
-
-// if deployUserAgentPool is true, set agent profile to both pools, otherwise dont
-var agentProfile = deployUserAgentPool ? concat(systemAgentPool, userAgentPool) : systemAgentPool
 
 module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
   name: aksKeyVaultName
@@ -313,9 +231,8 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
         }
       }
     }
-    agentPoolProfiles: agentProfile
     autoScalerProfile: {
-      'balance-similar-node-groups': 'false'
+      'balance-similar-node-groups': 'true'
       'daemonset-eviction-for-occupied-nodes': true
       'scan-interval': '10s'
       'scale-down-delay-after-add': '10m'
@@ -407,6 +324,87 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
     supportPlan: 'KubernetesOfficial'
   }
 }
+
+resource systemPool 'Microsoft.ContainerService/managedClusters/agentPools@2024-04-02-preview' = {
+  parent: aksCluster
+  name: 'system'
+  properties: {
+    osType: 'Linux'
+    osSKU: 'AzureLinux'
+    mode: 'System'
+    orchestratorVersion: kubernetesVersion
+    enableAutoScaling: true
+    enableEncryptionAtHost: true
+    enableFIPS: true
+    enableNodePublicIP: false
+    kubeletDiskType: 'OS'
+    osDiskType: 'Ephemeral'
+    osDiskSizeGB: systemOsDiskSizeGB
+    count: systemAgentMinCount
+    minCount: systemAgentMinCount
+    maxCount: systemAgentMaxCount
+    vmSize: systemAgentVMSize
+    type: 'VirtualMachineScaleSets'
+    upgradeSettings: {
+      maxSurge: '10%'
+    }
+    vnetSubnetID: aksNodeSubnet.id
+    podSubnetID: aksPodSubnet.id
+    maxPods: 100
+    availabilityZones: [
+      '1'
+      '2'
+      '3'
+    ]
+    securityProfile: {
+      enableSecureBoot: false
+      enableVTPM: false
+      sshAccess: 'Disabled'
+    }
+    nodeTaints: [
+      'CriticalAddonsOnly=true:NoSchedule'
+    ]
+  }
+}
+
+resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-04-02-preview' = [
+  for i in range(0, userAgentPoolAZCount): {
+    parent: aksCluster
+    name: 'user${take(string(i+1), 8)}'
+    properties: {
+      osType: 'Linux'
+      osSKU: 'AzureLinux'
+      mode: 'User'
+      orchestratorVersion: kubernetesVersion
+      enableAutoScaling: true
+      enableEncryptionAtHost: true
+      enableFIPS: true
+      enableNodePublicIP: false
+      kubeletDiskType: 'OS'
+      osDiskType: 'Ephemeral'
+      osDiskSizeGB: userOsDiskSizeGB
+      count: userAgentMinCount
+      minCount: userAgentMinCount
+      maxCount: userAgentMaxCount
+      vmSize: userAgentVMSize
+      type: 'VirtualMachineScaleSets'
+      upgradeSettings: {
+        maxSurge: '10%'
+      }
+      vnetSubnetID: aksNodeSubnet.id
+      podSubnetID: aksPodSubnet.id
+      maxPods: 250
+      availabilityZones: [
+        '${(i + 1)}'
+      ]
+      securityProfile: {
+        enableSecureBoot: false
+        enableVTPM: false
+        sshAccess: 'Disabled'
+      }
+    }
+  }
+]
 
 //
 // ACR Pull Permissions on the own resource group and the resource groups provided
