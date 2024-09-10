@@ -19,6 +19,7 @@ resources:
   - rolebinding-prometheus.yaml
   - clusterrolebinding-external-dns.yaml
   - namespace-hypershift.yaml
+  - -.yaml
   - service-operator.yaml
   - rolebinding-hypershift-operator.yaml
   - deployment-external-dns.yaml

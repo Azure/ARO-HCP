@@ -10,7 +10,6 @@ resources:
   - customresourcedefinition-agentmachines.capi-provider.agent-install.openshift.io.yaml
   - customresourcedefinition-awsmachinetemplates.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremanagedcontrolplanes.infrastructure.cluster.x-k8s.io.yaml
-  - customresourcedefinition-rosamachinepools.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-awsclusterstaticidentities.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremachines.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-openstackfloatingippools.infrastructure.cluster.x-k8s.io.yaml
@@ -23,7 +22,6 @@ resources:
   - customresourcedefinition-clustersizingconfigurations.scheduling.hypershift.openshift.io.yaml
   - customresourcedefinition-ibmpowervsclusters.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-monitoring.coreos.com_servicemonitors.yaml
-  - customresourcedefinition-clusterresourcesetbindings.addons.cluster.x-k8s.io.yaml
   - customresourcedefinition-azureclusters.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-ipaddressclaims.ipam.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremachinetemplates.infrastructure.cluster.x-k8s.io.yaml
@@ -40,7 +38,6 @@ resources:
   - customresourcedefinition-azureclusteridentities.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-nodepools.hypershift.openshift.io.yaml
   - customresourcedefinition-agentmachinetemplates.capi-provider.agent-install.openshift.io.yaml
-  - customresourcedefinition-awsmanagedclusters.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-ibmpowervsclustertemplates.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-machinehealthchecks.cluster.x-k8s.io.yaml
   - customresourcedefinition-monitoring.coreos.com_podmonitors.yaml
@@ -63,9 +60,6 @@ resources:
   - customresourcedefinition-hostedcontrolplanes.hypershift.openshift.io.yaml
   - customresourcedefinition-awsmachinepools.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremanagedclusters.infrastructure.cluster.x-k8s.io.yaml
-  - customresourcedefinition-awsmanagedmachinepools.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-clusterclasses.cluster.x-k8s.io.yaml
-  - customresourcedefinition-awsfargateprofiles.infrastructure.cluster.x-k8s.io.yaml
-  - customresourcedefinition-rosaclusters.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-azuremanagedclustertemplates.infrastructure.cluster.x-k8s.io.yaml
   - customresourcedefinition-certificatesigningrequestapprovals.hypershift.openshift.io.yaml
