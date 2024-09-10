@@ -54,3 +54,11 @@ objects:
     - kind: ServiceAccount
       name: cluster-service-mgmt
       namespace: cluster-service-admin
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: cluster-service-mgmt-token
+      annotations:
+        kubernetes.io/service-account.name: cluster-service-mgmt
+      namespace: ${NAMESPACE}
+    type: kubernetes.io/service-account-token
