@@ -19,6 +19,10 @@ deploy:
 			-g ${RESOURCEGROUP} \
 			-n clusters-service \
 			--query clientId) && \
+	AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$(shell az ad app list \
+			--display-name aro-hcp-dev-first-party \
+			--query '[*]'.appId \
+			-o tsv) && \ 
 	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
 	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
@@ -26,7 +30,8 @@ deploy:
 	  -p CS_SERVICE_PRINCIPAL_CREDS_BASE64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
 	  -p IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}.azurecr.io \
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
-	  -p IMAGE_TAG=2256c75 | oc apply -f -
+	  -p AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
+	  -p IMAGE_TAG=3482df9 | oc apply -f -
 
 deploy-integ:
 	oc process --local -f deploy/integration/cluster-service-namespace.yaml | oc apply -f -
