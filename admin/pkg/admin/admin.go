@@ -35,7 +35,7 @@ func NewAdmin(logger *slog.Logger, listener net.Listener, location string) *Admi
 	a.server = http.Server{
 		Handler: a.adminRoutes(), // Separate function for setting up ServeMux
 		BaseContext: func(net.Listener) context.Context {
-			return context.WithValue(context.Background(), "logger", logger)
+			return ContextWithLogger(context.Background(), logger)
 		},
 	}
 
@@ -65,3 +65,15 @@ func (a *Admin) Run(ctx context.Context, stop <-chan struct{}) {
 func (a *Admin) Join() {
 	<-a.done
 }
+
+func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context {
+	return context.WithValue(ctx, contextKeyLogger, logger)
+}
+
+type contextKey int
+
+const (
+	// Keys for request-scoped data in http.Request contexts
+	contextKeyOriginalPath contextKey = iota
+	contextKeyLogger
+)
