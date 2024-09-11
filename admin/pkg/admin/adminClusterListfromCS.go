@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,23 +15,19 @@ import (
 func (a *Admin) AdminClustersListFromCS(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		a.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	apiVersion := request.URL.Query().Get(APIVersionKey)
+	versionedInterface, _ := api.Lookup(apiVersion)
 
-	var query string
-	clusterID := request.URL.Query().Get("id")
-	clusterName := request.URL.Query().Get("name")
+	/* 	var query string
+	   	clusterID := request.URL.Query().Get("id")
+	   	clusterName := request.URL.Query().Get("name")
 
-	switch {
-	case clusterName != "":
-		query = fmt.Sprintf("name='%s'", clusterName)
-	case clusterID != "":
-		query = fmt.Sprintf("id='%s'", clusterID)
-	}
+	   	switch {
+	   	case clusterName != "":
+	   		query = fmt.Sprintf("name='%s'", clusterName)
+	   	case clusterID != "":
+	   		query = fmt.Sprintf("id='%s'", clusterID)
+	   	} */
 
 	pageSize := 10
 	pageNumber := 1
@@ -44,8 +39,7 @@ func (a *Admin) AdminClustersListFromCS(writer http.ResponseWriter, request *htt
 		pageSize, _ = strconv.Atoi(sizeStr)
 	}
 
-	// Create the request with initial parameters:
-	clustersRequest := a.clusterServiceConfig.Conn.ClustersMgmt().V2alpha1().Clusters().List().Search(query)
+	clustersRequest := a.clusterServiceConfig.Conn.ClustersMgmt().V2alpha1().Clusters().List()
 	clustersRequest.Size(pageSize)
 	clustersRequest.Page(pageNumber)
 
@@ -102,45 +96,6 @@ func (a *Admin) AdminClustersListFromCS(writer http.ResponseWriter, request *htt
 	}
 }
 
-func VersionFromContext(ctx context.Context) (api.Version, error) {
-	version, ok := ctx.Value(contextKeyVersion).(api.Version)
-	if !ok {
-		err := &ContextError{
-			got: version,
-		}
-		return version, err
-	}
-	return version, nil
-}
-
-func ContextWithVersion(ctx context.Context, version api.Version) context.Context {
-	return context.WithValue(ctx, contextKeyVersion, version)
-}
-
-func (c *ContextError) Error() string {
-	return fmt.Sprintf(
-		"error retrieving value from context, value obtained was '%v' and type obtained was '%T'",
-		c.got,
-		c.got)
-}
-
-type contextKey int
-type ContextError struct {
-	got any
-}
-
-const (
-	// Keys for request-scoped data in http.Request contexts
-	contextKeyOriginalPath contextKey = iota
-	contextKeyBody
-	contextKeyLogger
-	contextKeyVersion
-	contextKeyResourceID
-	contextKeyCorrelationData
-	contextKeySystemData
-	contextKeySubscription
-)
-
 func buildNextLink(basePath string, queryParams url.Values, nextPage, pageSize int) string {
 	// Clone the existing query parameters
 	newParams := make(url.Values)
@@ -154,19 +109,4 @@ func buildNextLink(basePath string, queryParams url.Values, nextPage, pageSize i
 	// Construct the next link URL
 	nextLink := basePath + "?" + newParams.Encode()
 	return nextLink
-}
-
-func (a *Admin) HandleVersionedAPI(next http.HandlerFunc) http.HandlerFunc {
-	return func(writer http.ResponseWriter, r *http.Request) {
-
-		var apiRegistry = map[string]api.Version{}
-		apiVersion := r.URL.Query().Get(APIVersionKey)
-		version, exists := apiRegistry[apiVersion]
-		if !exists {
-			http.Error(writer, "Unsupported or missing API version", http.StatusBadRequest)
-			return
-		}
-		ctx := ContextWithVersion(r.Context(), version)
-		next.ServeHTTP(writer, r.WithContext(ctx))
-	}
 }
