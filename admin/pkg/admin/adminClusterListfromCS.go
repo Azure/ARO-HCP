@@ -113,6 +113,10 @@ func VersionFromContext(ctx context.Context) (api.Version, error) {
 	return version, nil
 }
 
+func ContextWithVersion(ctx context.Context, version api.Version) context.Context {
+	return context.WithValue(ctx, contextKeyVersion, version)
+}
+
 func (c *ContextError) Error() string {
 	return fmt.Sprintf(
 		"error retrieving value from context, value obtained was '%v' and type obtained was '%T'",
@@ -150,4 +154,19 @@ func buildNextLink(basePath string, queryParams url.Values, nextPage, pageSize i
 	// Construct the next link URL
 	nextLink := basePath + "?" + newParams.Encode()
 	return nextLink
+}
+
+func (a *Admin) HandleVersionedAPI(next http.HandlerFunc) http.HandlerFunc {
+	return func(writer http.ResponseWriter, r *http.Request) {
+
+		var apiRegistry = map[string]api.Version{}
+		apiVersion := r.URL.Query().Get(APIVersionKey)
+		version, exists := apiRegistry[apiVersion]
+		if !exists {
+			http.Error(writer, "Unsupported or missing API version", http.StatusBadRequest)
+			return
+		}
+		ctx := ContextWithVersion(r.Context(), version)
+		next.ServeHTTP(writer, r.WithContext(ctx))
+	}
 }
