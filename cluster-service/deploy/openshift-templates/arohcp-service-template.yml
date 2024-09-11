@@ -222,6 +222,11 @@ parameters:
 - name: CS_SERVICE_PRINCIPAL_CREDS_BASE64
   description: Base64 encoded service principal credentials for CS. This is temporary for P1
   required: true
+- name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
+  description: |-
+    The client id of the first party application identity.
+  value: "fc4c229d-7c1c-4f84-a4fc-eef14d762327"
+
 objects:
 
 - apiVersion: v1
@@ -513,6 +518,7 @@ objects:
           - --cloud-region-config=/configs/cloud-resources/cloud-regions.yaml
           - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
           - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-config
+          - --azure_fpa_client_id=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID}
           livenessProbe:
             httpGet:
               path: /api/clusters_mgmt/v1
