@@ -7,9 +7,10 @@ import (
 	"net/url"
 	"strconv"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 func (a *Admin) AdminClustersListFromCS(writer http.ResponseWriter, request *http.Request) {

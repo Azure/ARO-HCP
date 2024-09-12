@@ -11,11 +11,12 @@ import (
 	"runtime/debug"
 	"syscall"
 
+	sdk "github.com/openshift-online/ocm-sdk-go"
+	"github.com/spf13/cobra"
+
 	"github.com/Azure/ARO-HCP/admin/pkg/admin"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/ocm"
-	sdk "github.com/openshift-online/ocm-sdk-go"
-	"github.com/spf13/cobra"
 )
 
 type AdminOpts struct {
