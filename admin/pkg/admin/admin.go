@@ -23,12 +23,13 @@ type Admin struct {
 	ready                atomic.Bool
 }
 
-func NewAdmin(logger *slog.Logger, listener net.Listener, location string) *Admin {
+func NewAdmin(logger *slog.Logger, listener net.Listener, location string, csCfg ocm.ClusterServiceConfig) *Admin {
 	a := &Admin{
-		logger:   logger,
-		listener: listener,
-		location: strings.ToLower(location),
-		done:     make(chan struct{}),
+		clusterServiceConfig: csCfg,
+		logger:               logger,
+		listener:             listener,
+		location:             strings.ToLower(location),
+		done:                 make(chan struct{}),
 	}
 
 	// Set up http.Server and routes via the separate routes() function

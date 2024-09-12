@@ -40,7 +40,7 @@ func (a *Admin) AdminClustersListFromCS(writer http.ResponseWriter, request *htt
 		pageSize, _ = strconv.Atoi(sizeStr)
 	}
 
-	clustersRequest := a.clusterServiceConfig.Conn.ClustersMgmt().V2alpha1().Clusters().List()
+	clustersRequest := a.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().List()
 	clustersRequest.Size(pageSize)
 	clustersRequest.Page(pageNumber)
 

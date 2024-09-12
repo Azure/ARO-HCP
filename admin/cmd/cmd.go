@@ -94,7 +94,7 @@ func (opts *AdminOpts) Run() error {
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	adm := admin.NewAdmin(logger, listener, opts.location)
+	adm := admin.NewAdmin(logger, listener, opts.location, csCfg)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)

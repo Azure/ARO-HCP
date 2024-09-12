@@ -1,14 +1,14 @@
 package admin
 
 import (
-	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv2alpha1.Cluster) *api.HCPOpenShiftCluster {
+func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv1.Cluster) *api.HCPOpenShiftCluster {
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Location: cluster.Region().ID(),
@@ -72,11 +72,11 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv2alp
 	return hcpcluster
 }
 
-func convertListeningToVisibility(listening cmv2alpha1.ListeningMethod) (visibility api.Visibility) {
+func convertListeningToVisibility(listening cmv1.ListeningMethod) (visibility api.Visibility) {
 	switch listening {
-	case cmv2alpha1.ListeningMethodExternal:
+	case cmv1.ListeningMethodExternal:
 		visibility = api.VisibilityPublic
-	case cmv2alpha1.ListeningMethodInternal:
+	case cmv1.ListeningMethodInternal:
 		visibility = api.VisibilityPrivate
 	}
 	return
