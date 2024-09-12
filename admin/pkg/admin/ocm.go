@@ -1,10 +1,11 @@
 package admin
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
 	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv2alpha1.Cluster) *api.HCPOpenShiftCluster {
