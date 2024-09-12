@@ -20,7 +20,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
-	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 	"golang.org/x/sync/errgroup"
 
@@ -177,7 +177,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 
 	// Create the request with initial parameters:
-	clustersRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V2alpha1().Clusters().List().Search(query)
+	clustersRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().List().Search(query)
 	clustersRequest.Size(pageSize)
 	clustersRequest.Page(pageNumber)
 
@@ -843,8 +843,8 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	if csCluster.State() == cmv2alpha1.ClusterStateUninstalling {
-		f.logger.Error(fmt.Sprintf("failed to create node pool for cluster %s as it is in %v state", clusterResourceID, cmv2alpha1.ClusterStateUninstalling))
+	if csCluster.State() == cmv1.ClusterStateUninstalling {
+		f.logger.Error(fmt.Sprintf("failed to create node pool for cluster %s as it is in %v state", clusterResourceID, cmv1.ClusterStateUninstalling))
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -1217,7 +1217,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 	}
 
 	switch doc.InternalID.Kind() {
-	case cmv2alpha1.ClusterKind:
+	case cmv1.ClusterKind:
 		csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, doc.InternalID)
 		if err != nil {
 			f.logger.Error(err.Error())
@@ -1233,7 +1233,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 			return nil, arm.NewInternalServerError()
 		}
 
-	case cmv2alpha1.NodePoolKind:
+	case cmv1.NodePoolKind:
 		csNodePool, err := f.clusterServiceConfig.GetCSNodePool(ctx, doc.InternalID)
 		if err != nil {
 			f.logger.Error(err.Error())
@@ -1259,7 +1259,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func marshalCSCluster(csCluster *cmv2alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
 	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.Key, csCluster)
 	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
@@ -1269,7 +1269,7 @@ func marshalCSCluster(csCluster *cmv2alpha1.Cluster, doc *database.ResourceDocum
 
 // marshalCSNodePool renders a CS NodePool object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func marshalCSNodePool(csNodePool *cmv2alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
 	hcpNodePool := ConvertCStoNodePool(doc.Key, csNodePool)
 	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
