@@ -8,7 +8,7 @@ EVENTGRID_ID = $(shell az resource list -g ${REGIONAL_RESOURCEGROUP} --resource-
 
 
 MAESTRO_BASE_IMAGE ?= quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-MAESTRO_TAG ?= d034b129d4b75b90050486772cd9fe58aca64f89
+MAESTRO_TAG ?= ea066c250a002f0cc458711945165591bc9f6d3f
 
 deploy-server:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show \
