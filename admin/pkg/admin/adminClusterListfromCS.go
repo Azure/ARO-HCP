@@ -19,17 +19,6 @@ func (a *Admin) AdminClustersListFromCS(writer http.ResponseWriter, request *htt
 	apiVersion := request.URL.Query().Get(APIVersionKey)
 	versionedInterface, _ := api.Lookup(apiVersion)
 
-	/* 	var query string
-	   	clusterID := request.URL.Query().Get("id")
-	   	clusterName := request.URL.Query().Get("name")
-
-	   	switch {
-	   	case clusterName != "":
-	   		query = fmt.Sprintf("name='%s'", clusterName)
-	   	case clusterID != "":
-	   		query = fmt.Sprintf("id='%s'", clusterID)
-	   	} */
-
 	pageSize := 10
 	pageNumber := 1
 
