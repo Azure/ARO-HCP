@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"testing"
 
-	cmv2alpha1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v2alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
 
 type FakeTransport struct{}
@@ -32,15 +32,15 @@ func TestInternalID(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:      "parse v2alpha1 cluster",
-			path:      "/api/clusters_mgmt/v2alpha1/clusters/abc",
-			kind:      cmv2alpha1.ClusterKind,
+			name:      "parse v1 cluster",
+			path:      "/api/clusters_mgmt/v1/clusters/abc",
+			kind:      cmv1.ClusterKind,
 			expectErr: false,
 		},
 		{
-			name:      "parse v2alpha1 node pool",
-			path:      "/api/clusters_mgmt/v2alpha1/clusters/abc/node_pools/def",
-			kind:      cmv2alpha1.NodePoolKind,
+			name:      "parse v1 node pool",
+			path:      "/api/clusters_mgmt/v1/clusters/abc/node_pools/def",
+			kind:      cmv1.NodePoolKind,
 			expectErr: false,
 		},
 	}
@@ -74,7 +74,7 @@ func TestInternalID(t *testing.T) {
 			if _, ok := internalID.GetClusterClient(transport); !ok {
 				t.Errorf("failed to get cluster client")
 			}
-			if kind == cmv2alpha1.NodePoolKind {
+			if kind == cmv1.NodePoolKind {
 				if _, ok := internalID.GetNodePoolClient(transport); !ok {
 					t.Errorf("failed to get node pool client")
 				}
