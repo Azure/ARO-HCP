@@ -18,7 +18,6 @@ import (
 	"sync/atomic"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -1266,61 +1265,6 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
-	var responseBody []byte
-
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("resource document not found for %s", resourceID))
-			return nil, arm.NewResourceNotFoundError(resourceID)
-		} else {
-			f.logger.Error(fmt.Sprintf("failed to fetch resource document for %s: %v", resourceID, err))
-			return nil, arm.NewInternalServerError()
-		}
-	}
-
-	switch doc.InternalID.Kind() {
-	case cmv1.ClusterKind:
-		csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, doc.InternalID)
-		if err != nil {
-			f.logger.Error(err.Error())
-			var ocmError *ocmerrors.Error
-			if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-				return nil, arm.NewResourceNotFoundError(resourceID)
-			}
-			return nil, arm.NewInternalServerError()
-		}
-		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
-		if err != nil {
-			f.logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-	case cmv1.NodePoolKind:
-		csNodePool, err := f.clusterServiceConfig.GetCSNodePool(ctx, doc.InternalID)
-		if err != nil {
-			f.logger.Error(err.Error())
-			var ocmError *ocmerrors.Error
-			if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-				return nil, arm.NewResourceNotFoundError(resourceID)
-			}
-			return nil, arm.NewInternalServerError()
-		}
-		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
-		if err != nil {
-			f.logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-	default:
-		f.logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", doc.InternalID))
-		return nil, arm.NewInternalServerError()
-	}
-
-	return responseBody, nil
-}
-
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
@@ -1329,16 +1273,6 @@ func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, v
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
 
 	return json.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
-}
-
-// marshalCSNodePool renders a CS NodePool object in JSON format, applying
-// the necessary conversions for the API version of the request.
-func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpNodePool := ConvertCStoNodePool(doc.Key, csNodePool)
-	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
-	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
-
-	return json.Marshal(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
