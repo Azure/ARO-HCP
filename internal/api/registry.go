@@ -53,6 +53,7 @@ func Register(version Version) {
 }
 
 func Lookup(key string) (version Version, ok bool) {
+	fmt.Println(apiRegistry)
 	version, ok = apiRegistry[key]
 	return
 }
