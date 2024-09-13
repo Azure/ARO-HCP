@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+data:
+  DB_NAME: '{{ .Values.configMap.databaseName }}'
+  DB_URL: '{{ .Values.configMap.databaseUrl }}'
+  FRONTEND_MI_CLIENT_ID: '{{ .Values.configMap.frontendMiClientId }}'
+  CURRENT_VERSION: '{{ .Values.configMap.currentVersion }}'
+  LOCATION: '{{ .Values.configMap.location }}'
