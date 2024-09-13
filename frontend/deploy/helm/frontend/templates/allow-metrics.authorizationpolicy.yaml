@@ -2,7 +2,6 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-metrics
-  namespace: aro-hcp
 spec:
   action: "ALLOW"
   rules:

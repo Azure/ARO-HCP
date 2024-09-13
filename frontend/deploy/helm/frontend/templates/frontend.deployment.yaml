@@ -25,7 +25,7 @@ spec:
       serviceAccountName: frontend
       containers:
         - name: aro-hcp-frontend
-          image: IMAGE_NAME
+          image: '{{ .Values.deployment.imageName }}'
           imagePullPolicy: Always
           args: ["--clusters-service-url", "http://clusters-service.cluster-service.svc.cluster.local:8000"]
           env:

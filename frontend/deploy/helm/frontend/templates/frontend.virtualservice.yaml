@@ -1,0 +1,17 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: aro-hcp-vs-frontend
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - aro-hcp-gateway-external
+  http:
+    - match:
+        - port: 80
+      route:
+        - destination:
+            host: aro-hcp-frontend
+            port:
+              number: 8443

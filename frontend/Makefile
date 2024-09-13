@@ -38,25 +38,28 @@ image:
 push: image
 	docker push ${ARO_HCP_FRONTEND_IMAGE}
 
-kustomize-update:
-	pushd deploy/overlays/dev;\
+deploy: 
 	FRONTEND_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend \
 			--query clientId);\
 	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name') DB_NAME=$${DB_NAME:-"none"};\
-	kustomize edit set configmap frontend-config \
-		--from-literal=DB_NAME="$${DB_NAME}" \
-		--from-literal=DB_URL="https://$${DB_NAME}.documents.azure.com:443/" \
-		--from-literal=FRONTEND_MI_CLIENT_ID="$${FRONTEND_MI_CLIENT_ID}" \
-		--from-literal=CURRENT_VERSION=${ARO_HCP_FRONTEND_IMAGE} \
-		--from-literal=LOCATION="${LOCATION}"
-
-deploy: kustomize-update
-	kubectl apply -k deploy/overlays/dev
+	ISTO_VERSION=$(shell az aks list --query "[?tags.clusterType == 'svc-cluster' && starts_with(resourceGroup, '${RESOURCEGROUP}')].serviceMeshProfile.istio.revisions[-1]" -o tsv) && \
+	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
+	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
+	helm upgrade --install aro-hcp-dev \
+		deploy/helm/frontend/ \
+		--set configMap.databaseName=$${DB_NAME} \
+		--set configMap.databaseUrl="https://$${DB_NAME}.documents.azure.com:443/" \
+		--set configMap.frontendMiClientId="$${FRONTEND_MI_CLIENT_ID}" \
+		--set serviceAccount.workloadIdentityClientId="$${FRONTEND_MI_CLIENT_ID}" \
+		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE} \
+		--set configMap.location=${LOCATION} \
+		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE} \
+		--namespace aro-hcp
 
 undeploy:
-	kubectl delete -k deploy/overlays/dev
+	helm uninstall aro-hcp-dev --namespace aro-hcp
 
 smoke-tests:
 	go test -v -count 1 ./utils/frontend_smoke_test.go

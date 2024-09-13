@@ -378,7 +378,7 @@
             sudo mv oc /usr/local/bin/oc
             chmod +x /usr/local/bin/oc
 
-        # Used to deploy Maestro Server
+        # Used to deploy Maestro Server, Frontend
         - uses: azure/setup-helm@v4.2.0
           with:
             version: 'v3.13.3'

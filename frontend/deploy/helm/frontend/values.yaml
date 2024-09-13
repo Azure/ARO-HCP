@@ -1,0 +1,10 @@
+configMap:
+  databaseUrl: ""
+  frontendMiClientId: ""
+  currentVersion: ""
+  databaseName: ""
+  location: ""
+deployment:
+  imageName: ""
+serviceAccount:
+  workloadIdentityClientId: ""
