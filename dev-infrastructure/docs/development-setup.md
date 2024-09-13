@@ -263,35 +263,43 @@ make -C $the_aro_hcp_dir/cluster-service provision-shard > provision_shards.conf
 kubectl port-forward svc/maestro 8001:8000 -n maestro
 kubectl port-forward svc/maestro-grpc 8090 -n maestro
 
-# ... or update provision shards config with new shard manually
+# Alternatively, update provision shards config with new shard manually
 cat <<EOF > ./provision_shards.config
 provision_shards:
 - id: 1
-  hypershift_config: |
-    apiVersion: v1
-    kind: Config
-    clusters:
-    - name: default
-      cluster:
-        server: https://api.hs-sc-81qmsevf0.dksu.i1.devshift.org:6443
-    users:
-    - name: default
-      user:
-        token: ${HYPERSHIFT_INTEGRATION_TOKEN}
-    contexts:
-    - name: default
-      context:
-        cluster: default
-        user: default
-    current-context: default
+  maestro_config: |
+    {
+      "rest_api_config": {
+        "url": "http://localhost:8001"
+      },
+      "grpc_api_config": {
+        "url": "localhost:8090"
+      },
+      "consumer_name": "<<maestro_consumer_name>>"
+    }
   status: active
+  azure_base_domain: "<azure_resource_id_of_your_azure_dns_domain>"
+  management_cluster_id: local-cluster
   region: westus3
   cloud_provider: azure
   topology: dedicated
 EOF
 
-# Enable the westus3 region in cloud region constraints config
-yq -i '.cloud_regions |= map(select(.id == "westus3").enabled = true)' configs/cloud-resource-constraints/cloud-region-constraints.yaml
+# Enable the westus3 region in cloud region config
+
+cat <<EOF>> ./configs/cloud-resources/cloud-regions.yaml
+  - id: westus3
+    cloud_provider_id: azure
+    display_name: West US 3
+    supports_multi_az: true
+EOF
+
+cat <<EOF>> ./configs/cloud-resources/cloud-regions-constraints.yaml
+  - id: westus3
+    enabled: true
+    govcloud: false
+    ccs_only: true
+EOF
 
 # you can verify the region change with the below
 yq '.cloud_regions[] | select(.id == "westus3")' configs/cloud-resource-constraints/cloud-region-constraints.yaml
@@ -363,9 +371,16 @@ ocm login --url=http://localhost:8000 --use-auth-code
 
 ```bash
 NAME="<INSERT-NAME-HERE>"
+RESOURCENAME="<INSERT-NAME>"
+SUBSCRIPTION="<INSERT-NAME>"
+RESOURCEGROUPNAME="<INSERT-NAME>"
+TENANTID="<INSERT-NAME>"
+MANAGEDRGNAME="<INSERT-NAME>"
+SUBNETRESOURCEID="<INSERT-NAME>"
+$NSG="<INSERT-NAME>"
 cat <<EOF > cluster-test.json
 {
-  "name": "$YOURNAME-aro-hcp",
+  "name": "$NAME-aro-hcp",
   "product": {
     "id": "aro"
   },
@@ -380,19 +395,19 @@ cat <<EOF > cluster-test.json
   },
   "multi_az": true,
   "azure": {
-    "resource_name": "$YOURNAME-test-name",
-    "subscription_id": "00000000-0000-0000-0000-000000000000",
-    "resource_group_name": "$YOURNAME-test-rg",
-    "tenant_id": "$YOURNAME-test-tenant",
-    "managed_resource_group_name": "$YOURNAME-test-mrg",
-    "subnet_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/$YOURNAME-test-rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/mySubnet",
-    "network_security_group_resource_id":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/$YOURNAME-test-rg/providers/Microsoft.Network/networkSecurityGroups/myNSG"
+    "resource_name": "$RESOURCENAME",
+    "subscription_id": "$SUBSCRIPTION",
+    "resource_group_name": "$RESOURCEGROUPNAME",
+    "tenant_id": "$TENANTID",
+    "managed_resource_group_name": "$MANAGEDRGNAME",
+    "subnet_resource_id": "$SUBNETRESOURCEID",
+    "network_security_group_resource_id":"$NSG"
   },
   "properties": {
     "provision_shard_id": "1"
   },
   "version": {
-    "id": "openshift-v4.15.11"
+    "id": "openshift-v4.16.0"
   }
 }
 EOF
