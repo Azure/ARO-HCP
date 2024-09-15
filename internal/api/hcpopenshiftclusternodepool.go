@@ -24,9 +24,9 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 type NodePoolSpec struct {
 	Version       VersionProfile          `json:"version,omitempty" visibility:"read create"`
 	Platform      NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create"`
-	Replicas      int32                   `json:"replicas,omitempty" visibility:"read create update"`
+	Replicas      int32                   `json:"replicas,omitempty" visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
 	AutoRepair    bool                    `json:"autoRepair,omitempty" visibility:"read create"`
-	AutoScaling   NodePoolAutoScaling     `json:"autoScaling,omitempty" visibility:"read create update"`
+	AutoScaling   *NodePoolAutoScaling    `json:"autoScaling,omitempty" visibility:"read create update"`
 	Labels        map[string]string       `json:"labels,omitempty" visibility:"read create update"`
 	Taints        []*Taint                `json:"taints,omitempty" visibility:"read create update"`
 	TuningConfigs []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
@@ -48,8 +48,8 @@ type NodePoolPlatformProfile struct {
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
 type NodePoolAutoScaling struct {
-	Min int32 `json:"min,omitempty"`
-	Max int32 `json:"max,omitempty"`
+	Min int32 `json:"min,omitempty" validate:"min=0"`
+	Max int32 `json:"max,omitempty" validate:"min=0,gtefield=Min"`
 }
 
 type Taint struct {

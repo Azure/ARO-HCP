@@ -185,10 +185,16 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 }
 
 func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) *generated.NodePoolAutoScaling {
-	return &generated.NodePoolAutoScaling{
-		Max: api.Ptr(from.Max),
-		Min: api.Ptr(from.Min),
+	var autoScaling *generated.NodePoolAutoScaling
+
+	if from != nil {
+		autoScaling = &generated.NodePoolAutoScaling{
+			Max: api.Ptr(from.Max),
+			Min: api.Ptr(from.Min),
+		}
 	}
+
+	return autoScaling
 }
 
 func newNodePoolTaint(from *api.Taint) *generated.Taint {
@@ -217,7 +223,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 					Platform:      newNodePoolPlatformProfile(&from.Properties.Spec.Platform),
 					Version:       newVersionProfile(&from.Properties.Spec.Version),
 					AutoRepair:    api.Ptr(from.Properties.Spec.AutoRepair),
-					AutoScaling:   newNodePoolAutoScaling(&from.Properties.Spec.AutoScaling),
+					AutoScaling:   newNodePoolAutoScaling(from.Properties.Spec.AutoScaling),
 					Labels:        []*generated.Label{},
 					Replicas:      api.Ptr(from.Properties.Spec.Replicas),
 					Taints:        make([]*generated.Taint, len(from.Properties.Spec.Taints)),
