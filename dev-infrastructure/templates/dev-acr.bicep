@@ -9,6 +9,23 @@ param location string = resourceGroup().location
 @description('Service tier of the Azure Container Registry.')
 param acrSku string
 
+@description('KeyVault secret name with the password used to log into quay.')
+#disable-next-line secure-secrets-in-params
+param passwordSecretIdentifier string = 'quay-password'
+
+@description('KeyVault secret name with the username used to log into quay.')
+#disable-next-line secure-secrets-in-params
+param usernameSecretIdentifier string = 'quay-username'
+
+@description('List of quay repositories to cache in the Azure Container Registry.')
+param quayRepositoriesToCache array = []
+
+@description('Name of the global key vault.')
+param globalKeyVaultName string = ''
+
+// Get the environment name from the environment() function to retrieve key vault dns suffix
+var env = environment()
+
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: acrName
   location: location
@@ -53,7 +70,13 @@ resource acrPurgeTask 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' 
       os: 'Linux'
     }
     step: {
-      encodedTaskContent: base64('acr purge --filter "arohcpfrontend:.*" --keep 3 --ago 7d')
+      encodedTaskContent: base64('''
+version: v1.1.0
+steps: 
+  - cmd: acr purge --filter "arohcpfrontend:.*" --keep 3 --ago 7d
+    disableWorkingDirectoryOverride: true
+    timeout: 3600
+''')
       type: 'EncodedTask'
     }
     timeout: 3600
@@ -70,3 +93,91 @@ resource acrPurgeTask 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' 
 
 @description('Login server property for later use')
 output loginServer string = acrResource.properties.loginServer
+
+resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2023-01-01-preview' = if (length(quayRepositoriesToCache) > 0) {
+  name: 'quayPullCredential'
+  parent: acrResource
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    authCredentials: [
+      {
+        name: 'Credential1'
+        passwordSecretIdentifier: 'https://${globalKeyVaultName}${env.suffixes.keyvaultDns}/secrets/${passwordSecretIdentifier}'
+        usernameSecretIdentifier: 'https://${globalKeyVaultName}${env.suffixes.keyvaultDns}/secrets/${usernameSecretIdentifier}'
+      }
+    ]
+    loginServer: 'quay.io'
+  }
+}
+
+resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01-preview' = [
+  for repo in quayRepositoriesToCache: {
+    name: repo.ruleName
+    parent: acrResource
+    properties: {
+      credentialSetResourceId: pullCredential.id
+      sourceRepository: repo.sourceRepo
+      targetRepository: repo.targetRepo
+    }
+  }
+]
+
+resource globalKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: globalKeyVaultName
+}
+
+resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (length(quayRepositoriesToCache) > 0) {
+  scope: globalKeyVault
+  name: guid(globalKeyVault.id, 'quayPullSecrets', 'read')
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions/',
+      '4633458b-17de-408a-b874-0445c86b69e6'
+    )
+    principalId: pullCredential.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource purgeCached 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' = [
+  for repo in quayRepositoriesToCache: {
+    name: '${repo.ruleName}-purge'
+    location: location
+    parent: acrResource
+    properties: {
+      agentConfiguration: {
+        cpu: 2
+      }
+      platform: {
+        architecture: 'amd64'
+        os: 'Linux'
+      }
+      step: {
+        encodedTaskContent: base64(format(
+          '''
+version: v1.1.0
+steps: 
+  - cmd: acr purge --filter "{0}" --keep {1} --ago {2}
+    disableWorkingDirectoryOverride: true
+    timeout: 3600
+''',
+          repo.purgeFilter,
+          repo.imagesToKeep,
+          repo.purgeAfter
+        ))
+        type: 'EncodedTask'
+      }
+      timeout: 3600
+      trigger: {
+        timerTriggers: [
+          {
+            name: 'daily'
+            schedule: '0 * * * *'
+          }
+        ]
+      }
+    }
+  }
+]
