@@ -138,7 +138,11 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 			// Try to add a corrective suggestion to the message.
 			tag := fieldErr.Tag()
 			if strings.HasPrefix(tag, "enum_") {
-				message += fmt.Sprintf(" (must be one of: %s)", fieldErr.Param())
+				if len(strings.Split(fieldErr.Param(), " ")) == 1 {
+					message += fmt.Sprintf(" (must be %s)", fieldErr.Param())
+				} else {
+					message += fmt.Sprintf(" (must be one of: %s)", fieldErr.Param())
+				}
 			} else {
 				switch tag {
 				case "api_version": // custom tag
