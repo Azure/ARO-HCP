@@ -17,7 +17,7 @@ type HCPOpenShiftClusterNodePool struct {
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read" validate:"omitempty,enum_provisioningstate"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
 	Spec              NodePoolSpec          `json:"spec,omitempty" visibility:"read create update"`
 }
 
