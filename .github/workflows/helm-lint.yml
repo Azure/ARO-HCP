@@ -1,0 +1,55 @@
+---
+# Helm chart lint
+# More info at https://github.com/helm/chart-testing-action
+name: Lint Helm Charts
+
+on: pull_request
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4.2.0
+        with:
+          version: v3.13.3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          check-latest: true
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.6.1
+
+      - name: Collect chart directories
+        id: collect-chart-dirs
+        run: |
+          # Find all parent directories of directories containing 'Chart.yaml', output via csv without the leading './'
+          CHART_DIRS=$(find . -type f -name 'Chart.yaml' -printf '%h\n' |sed 's|^\./||' | xargs -I {} dirname {} | sort -u | tr '\n' ',' | sed 's/,$//' )
+          echo "found charts in the following directories ${CHART_DIRS}"
+          echo "CHART_DIRS=$CHART_DIRS" >> "$GITHUB_ENV"
+
+      - name: Run chart-testing (list-changed)
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --chart-dirs=${CHART_DIRS} --target-branch ${{ github.event.repository.default_branch }})
+          if [[ -n "$changed" ]]; then
+            echo "changed=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run chart-testing (lint)
+        id: lint-helm
+        if: env.changed == 'true'
+        run: |
+          echo "Running helm linter on charts in the following directories: $CHART_DIRS"
+          ct lint \
+            --chart-dirs=$CHART_DIRS \
+            --all \
+            --validate-maintainers=false \
+            --target-branch ${{ github.event.repository.default_branch }}
