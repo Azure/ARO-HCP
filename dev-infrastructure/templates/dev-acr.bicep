@@ -122,7 +122,7 @@ resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01
 resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
   for (repo, i) in quayRepositoriesToCache: {
     scope: keyVault
-    name: guid(keyVault.id, 'quayPullSecrets', 'read')
+    name: guid(keyVault.id, 'quayPullSecrets', 'read', repo.ruleName)
     properties: {
       roleDefinitionId: subscriptionResourceId(
         'Microsoft.Authorization/roleDefinitions/',
