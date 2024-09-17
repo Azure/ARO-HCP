@@ -252,16 +252,22 @@ func ConvertCStoNodePool(resourceID *arm.ResourceID, np *cmv1.NodePool) *api.HCP
 					DiskEncryptionSetID:    "", // TODO: Not implemented in OCM
 					EphemeralOSDisk:        np.AzureNodePool().EphemeralOSDiskEnabled(),
 				},
-				Replicas:   int32(np.Replicas()),
-				AutoRepair: np.AutoRepair(),
-				Autoscaling: api.NodePoolAutoscaling{
-					Min: int32(np.Autoscaling().MinReplica()),
-					Max: int32(np.Autoscaling().MaxReplica()),
-				},
+				AutoRepair:    np.AutoRepair(),
 				Labels:        np.Labels(),
 				TuningConfigs: np.TuningConfigs(),
 			},
 		},
+	}
+
+	if replicas, ok := np.GetReplicas(); ok {
+		nodePool.Properties.Spec.Replicas = int32(replicas)
+	}
+
+	if autoscaling, ok := np.GetAutoscaling(); ok {
+		nodePool.Properties.Spec.AutoScaling = &api.NodePoolAutoScaling{
+			Min: int32(autoscaling.MinReplica()),
+			Max: int32(autoscaling.MaxReplica()),
+		}
 	}
 
 	taints := make([]*api.Taint, len(np.Taints()))
@@ -308,13 +314,12 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		Labels(nodePool.Properties.Spec.Labels).
 		TuningConfigs(nodePool.Properties.Spec.TuningConfigs...)
 
-	// from CS API: "Only one of 'replicas' and 'autoscaling' can be provided.
-	if nodePool.Properties.Spec.Replicas != 0 {
-		npBuilder.Replicas(int(nodePool.Properties.Spec.Replicas))
-	} else {
+	if nodePool.Properties.Spec.AutoScaling != nil {
 		npBuilder.Autoscaling(cmv1.NewNodePoolAutoscaling().
-			MinReplica(int(nodePool.Properties.Spec.Autoscaling.Min)).
-			MaxReplica(int(nodePool.Properties.Spec.Autoscaling.Max)))
+			MinReplica(int(nodePool.Properties.Spec.AutoScaling.Min)).
+			MaxReplica(int(nodePool.Properties.Spec.AutoScaling.Max)))
+	} else {
+		npBuilder.Replicas(int(nodePool.Properties.Spec.Replicas))
 	}
 
 	for _, t := range nodePool.Properties.Spec.Taints {

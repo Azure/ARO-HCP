@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"unicode"
 
 	validator "github.com/go-playground/validator/v10"
 
@@ -134,7 +135,7 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 	switch err := err.(type) {
 	case validator.ValidationErrors:
 		for _, fieldErr := range err {
-			message := fmt.Sprintf("Invalid value '%s' for field '%s'", fieldErr.Value(), fieldErr.Field())
+			message := fmt.Sprintf("Invalid value '%v' for field '%s'", fieldErr.Value(), fieldErr.Field())
 			// Try to add a corrective suggestion to the message.
 			tag := fieldErr.Tag()
 			if strings.HasPrefix(tag, "enum_") {
@@ -155,8 +156,33 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					message += " (must be a v4 CIDR range)"
 				case "dns_rfc1035_label":
 					message += " (must be a valid DNS RFC 1035 label)"
+				case "excluded_with":
+					// We want to print the JSON name for the field
+					// referenced in the parameter, but FieldError does
+					// not provide access to the parent reflect.Type from
+					// which we could look it up. So approximate the JSON
+					// name by lowercasing the first letter.
+					field2 := []byte(fieldErr.Param())
+					field2[0] = byte(unicode.ToLower(rune(field2[0])))
+					zero := reflect.Zero(fieldErr.Type()).Interface()
+					message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, field2)
+				case "gtefield":
+					// We want to print the JSON name for the field
+					// referenced in the parameter, but FieldError does
+					// not provide access to the parent reflect.Type from
+					// which we could look it up. So approximate the JSON
+					// name by lowercasing the first letter.
+					field2 := []byte(fieldErr.Param())
+					field2[0] = byte(unicode.ToLower(rune(field2[0])))
+					message += fmt.Sprintf(" (must be at least the value of '%s')", field2)
 				case "ipv4":
 					message += " (must be an IPv4 address)"
+				case "min":
+					if fieldErr.Param() == "0" {
+						message += " (must be non-negative)"
+					} else {
+						message += fmt.Sprintf(" (must be at least %s)", fieldErr.Param())
+					}
 				case "startswith":
 					message += fmt.Sprintf(" (must start with '%s')", fieldErr.Param())
 				case "url":
