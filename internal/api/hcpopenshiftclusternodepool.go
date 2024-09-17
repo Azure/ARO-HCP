@@ -26,7 +26,7 @@ type NodePoolSpec struct {
 	Platform      NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create"`
 	Replicas      int32                   `json:"replicas,omitempty" visibility:"read create update"`
 	AutoRepair    bool                    `json:"autoRepair,omitempty" visibility:"read create"`
-	Autoscaling   NodePoolAutoscaling     `json:"autoScaling,omitempty" visibility:"read create update"`
+	AutoScaling   NodePoolAutoScaling     `json:"autoScaling,omitempty" visibility:"read create update"`
 	Labels        map[string]string       `json:"labels,omitempty" visibility:"read create update"`
 	Taints        []*Taint                `json:"taints,omitempty" visibility:"read create update"`
 	TuningConfigs []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
@@ -45,9 +45,9 @@ type NodePoolPlatformProfile struct {
 	EphemeralOSDisk        bool   `json:"ephemeralOsDisk,omitempty"`
 }
 
-// NodePoolAutoscaling represents a node pool autoscaling configuration.
+// NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
-type NodePoolAutoscaling struct {
+type NodePoolAutoScaling struct {
 	Min int32 `json:"min,omitempty"`
 	Max int32 `json:"max,omitempty"`
 }

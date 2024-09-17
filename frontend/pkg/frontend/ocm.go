@@ -254,7 +254,7 @@ func ConvertCStoNodePool(resourceID *arm.ResourceID, np *cmv1.NodePool) *api.HCP
 				},
 				Replicas:   int32(np.Replicas()),
 				AutoRepair: np.AutoRepair(),
-				Autoscaling: api.NodePoolAutoscaling{
+				AutoScaling: api.NodePoolAutoScaling{
 					Min: int32(np.Autoscaling().MinReplica()),
 					Max: int32(np.Autoscaling().MaxReplica()),
 				},
@@ -313,8 +313,8 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		npBuilder.Replicas(int(nodePool.Properties.Spec.Replicas))
 	} else {
 		npBuilder.Autoscaling(cmv1.NewNodePoolAutoscaling().
-			MinReplica(int(nodePool.Properties.Spec.Autoscaling.Min)).
-			MaxReplica(int(nodePool.Properties.Spec.Autoscaling.Max)))
+			MinReplica(int(nodePool.Properties.Spec.AutoScaling.Min)).
+			MaxReplica(int(nodePool.Properties.Spec.AutoScaling.Max)))
 	}
 
 	for _, t := range nodePool.Properties.Spec.Taints {

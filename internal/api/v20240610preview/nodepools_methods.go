@@ -64,10 +64,10 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 		}
 		if h.Properties.Spec.AutoScaling != nil {
 			if h.Properties.Spec.AutoScaling.Max != nil {
-				out.Properties.Spec.Autoscaling.Max = *h.Properties.Spec.AutoScaling.Max
+				out.Properties.Spec.AutoScaling.Max = *h.Properties.Spec.AutoScaling.Max
 			}
 			if h.Properties.Spec.AutoScaling.Min != nil {
-				out.Properties.Spec.Autoscaling.Min = *h.Properties.Spec.AutoScaling.Min
+				out.Properties.Spec.AutoScaling.Min = *h.Properties.Spec.AutoScaling.Min
 			}
 		}
 		out.Properties.Spec.Labels = make(map[string]string)
@@ -184,7 +184,7 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 	}
 }
 
-func newNodePoolAutoscaling(from *api.NodePoolAutoscaling) *generated.NodePoolAutoScaling {
+func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) *generated.NodePoolAutoScaling {
 	return &generated.NodePoolAutoScaling{
 		Max: api.Ptr(from.Max),
 		Min: api.Ptr(from.Min),
@@ -217,7 +217,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 					Platform:      newNodePoolPlatformProfile(&from.Properties.Spec.Platform),
 					Version:       newVersionProfile(&from.Properties.Spec.Version),
 					AutoRepair:    api.Ptr(from.Properties.Spec.AutoRepair),
-					AutoScaling:   newNodePoolAutoscaling(&from.Properties.Spec.Autoscaling),
+					AutoScaling:   newNodePoolAutoScaling(&from.Properties.Spec.AutoScaling),
 					Labels:        []*generated.Label{},
 					Replicas:      api.Ptr(from.Properties.Spec.Replicas),
 					Taints:        make([]*generated.Taint, len(from.Properties.Spec.Taints)),
