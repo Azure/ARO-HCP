@@ -51,6 +51,20 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 		return
 	}
 
+	// For subscription-scoped requests, ARM will provide the tenant ID
+	// in a "x-ms-home-tenant-id" header. But in test environments this
+	// header may not be present, in which case we can try to fudge it
+	// from the SubscriptionDocument.
+	if r.Header.Get(arm.HeaderNameHomeTenantID) == "" {
+		if sub.Subscription != nil &&
+			sub.Subscription.Properties != nil &&
+			sub.Subscription.Properties.TenantId != nil {
+			r.Header.Set(
+				arm.HeaderNameHomeTenantID,
+				*sub.Subscription.Properties.TenantId)
+		}
+	}
+
 	ctx := ContextWithSubscription(r.Context(), *sub.Subscription)
 	r = r.WithContext(ctx)
 	switch sub.Subscription.State {

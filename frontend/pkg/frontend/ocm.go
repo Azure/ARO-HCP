@@ -2,7 +2,6 @@ package frontend
 
 import (
 	"context"
-	"fmt"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -106,16 +105,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv1.Cl
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
-func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not get parsed resource ID: %w", err)
-	}
-	tenantID, err := TenantIDFromContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not get tenant ID: %w", err)
-	}
-
+func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
 	// additionalProperties should be empty in production, it is configurable for development to pin to specific
 	// provision shards or instruct CS to skip the full provisioning/deprovisioning flow.
 	additionalProperties := map[string]string{
@@ -217,11 +207,7 @@ func (f *Frontend) BuildCSCluster(ctx context.Context, hcpCluster *api.HCPOpenSh
 		AdditionalTrustBundle(hcpCluster.Properties.Spec.Proxy.TrustedCA).
 		Properties(additionalProperties)
 
-	cluster, err := clusterBuilder.Build()
-	if err != nil {
-		return nil, err
-	}
-	return cluster, nil
+	return clusterBuilder.Build()
 }
 
 // ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
