@@ -21,10 +21,11 @@ param usernameSecretIdentifier string = 'quay-username'
 param quayRepositoriesToCache array = []
 
 @description('Name of the global key vault.')
-param globalKeyVaultName string = ''
+param keyVaultName string = ''
 
-// Get the environment name from the environment() function to retrieve key vault dns suffix
-var env = environment()
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+}
 
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: acrName
@@ -104,8 +105,8 @@ resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2
     authCredentials: [
       {
         name: 'Credential1'
-        passwordSecretIdentifier: 'https://${globalKeyVaultName}${env.suffixes.keyvaultDns}/secrets/${passwordSecretIdentifier}'
-        usernameSecretIdentifier: 'https://${globalKeyVaultName}${env.suffixes.keyvaultDns}/secrets/${usernameSecretIdentifier}'
+        passwordSecretIdentifier: 'https://${keyVault.properties.vaultUri}/secrets/${passwordSecretIdentifier}'
+        usernameSecretIdentifier: 'https://${keyVault.properties.vaultUri}/secrets/${usernameSecretIdentifier}'
       }
     ]
     loginServer: 'quay.io'
@@ -124,13 +125,9 @@ resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01
   }
 ]
 
-resource globalKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: globalKeyVaultName
-}
-
 resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (length(quayRepositoriesToCache) > 0) {
-  scope: globalKeyVault
-  name: guid(globalKeyVault.id, 'quayPullSecrets', 'read')
+  scope: keyVault
+  name: guid(keyVault.id, 'quayPullSecrets', 'read')
   properties: {
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions/',

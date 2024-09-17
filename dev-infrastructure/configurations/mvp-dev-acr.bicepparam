@@ -23,4 +23,4 @@ param quayRepositoriesToCache = [
   }
 ]
 
-param globalKeyVaultName = 'aro-hcp-dev-global-kv'
+param keyVaultName = 'aro-hcp-dev-global-kv'
