@@ -12,6 +12,8 @@ param quayRepositoriesToCache = [
     purgeFilter: 'quay.io/openshift-release-dev/.*:.*'
     purgeAfter: '2d'
     imagesToKeep: 1
+    userIdentifier: 'quay-username'
+    passwordIdentifier: 'quay-password'
   }
   {
     ruleName: 'csSandboxImages'
@@ -20,6 +22,8 @@ param quayRepositoriesToCache = [
     purgeFilter: 'quay.io/app-sre/ocm-clusters-service-sandbox:.*'
     purgeAfter: '2d'
     imagesToKeep: 1
+    userIdentifier: 'quay-componentsync-username'
+    passwordIdentifier: 'quay-componentsync-password'
   }
 ]
 
