@@ -14,7 +14,7 @@ param quayRepositoriesToCache = [
     imagesToKeep: 1
   }
   {
-    ruleName: 'quayDevImages'
+    ruleName: 'csSandboxImages'
     sourceRepo: 'quay.io/app-sre/ocm-clusters-service-sandbox'
     targetRepo: 'app-sre/ocm-clusters-service-sandbox'
     purgeFilter: 'quay.io/app-sre/ocm-clusters-service-sandbox:.*'
