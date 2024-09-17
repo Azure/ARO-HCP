@@ -290,7 +290,7 @@
           run: |
             cd maestro/
             make register-agent
-        
+
         - name: 'Deploy Cluster Service Namespace Management'
           run: |
             cd cluster-service/
