@@ -105,8 +105,8 @@ resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2
     authCredentials: [
       {
         name: 'Credential1'
-        passwordSecretIdentifier: '${keyVault.properties.vaultUri}/secrets/${passwordSecretIdentifier}'
-        usernameSecretIdentifier: '${keyVault.properties.vaultUri}/secrets/${usernameSecretIdentifier}'
+        passwordSecretIdentifier: '${keyVault.properties.vaultUri}secrets/${passwordSecretIdentifier}'
+        usernameSecretIdentifier: '${keyVault.properties.vaultUri}secrets/${usernameSecretIdentifier}'
       }
     ]
     loginServer: 'quay.io'
