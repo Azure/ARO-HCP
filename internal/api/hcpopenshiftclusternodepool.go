@@ -17,13 +17,13 @@ type HCPOpenShiftClusterNodePool struct {
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read" validate:"omitempty,enum_provisioningstate"`
-	Spec              NodePoolSpec          `json:"spec,omitempty" visibility:"read create update" validate:"required_for_put"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
+	Spec              NodePoolSpec          `json:"spec,omitempty" visibility:"read create update"`
 }
 
 type NodePoolSpec struct {
-	Version       VersionProfile          `json:"version,omitempty" visibility:"read create" validate:"required_for_put"`
-	Platform      NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create" validate:"required_for_put"`
+	Version       VersionProfile          `json:"version,omitempty" visibility:"read create"`
+	Platform      NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create"`
 	Replicas      int32                   `json:"replicas,omitempty" visibility:"read create update"`
 	AutoRepair    bool                    `json:"autoRepair,omitempty" visibility:"read create"`
 	Autoscaling   NodePoolAutoscaling     `json:"autoScaling,omitempty" visibility:"read create update"`
@@ -48,8 +48,8 @@ type NodePoolPlatformProfile struct {
 // NodePoolAutoscaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
 type NodePoolAutoscaling struct {
-	Min int32 `json:"min,omitempty" validate:"required_for_put"`
-	Max int32 `json:"max,omitempty" validate:"required_for_put"`
+	Min int32 `json:"min,omitempty"`
+	Max int32 `json:"max,omitempty"`
 }
 
 type Taint struct {

@@ -17,23 +17,23 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"               validate:"omitempty,enum_provisioningstate"`
-	Spec              ClusterSpec           `json:"spec,omitempty"              visibility:"read create update" validate:"required_for_put"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
+	Spec              ClusterSpec           `json:"spec,omitempty"              visibility:"read create update"`
 }
 
 // ClusterSpec represents a high level cluster configuration.
 type ClusterSpec struct {
-	Version                       VersionProfile            `json:"version,omitempty"                       visibility:"read create"        validate:"required_for_put"`
+	Version                       VersionProfile            `json:"version,omitempty"                       visibility:"read create"`
 	DNS                           DNSProfile                `json:"dns,omitempty"                           visibility:"read create update"`
 	Network                       NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
 	Console                       ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
-	API                           APIProfile                `json:"api,omitempty"                           visibility:"read create"        validate:"required_for_put"`
+	API                           APIProfile                `json:"api,omitempty"                           visibility:"read create"`
 	FIPS                          bool                      `json:"fips,omitempty"                          visibility:"read create"`
 	EtcdEncryption                bool                      `json:"etcdEncryption,omitempty"                visibility:"read create"`
 	DisableUserWorkloadMonitoring bool                      `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
 	Proxy                         ProxyProfile              `json:"proxy,omitempty"                         visibility:"read create update"`
-	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"        validate:"required_for_put"`
-	IssuerURL                     string                    `json:"issuerUrl,omitempty"                     visibility:"read"               validate:"omitempty,url"`
+	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"`
+	IssuerURL                     string                    `json:"issuerUrl,omitempty"                     visibility:"read"`
 	ExternalAuth                  ExternalAuthConfigProfile `json:"externalAuth,omitempty"                  visibility:"read create"`
 }
 
@@ -63,12 +63,12 @@ type NetworkProfile struct {
 // ConsoleProfile represents a cluster web console configuration.
 // Visibility for the entire struct is "read".
 type ConsoleProfile struct {
-	URL string `json:"url,omitempty" validate:"omitempty,url"`
+	URL string `json:"url,omitempty"`
 }
 
 // APIProfile represents a cluster API server configuration.
 type APIProfile struct {
-	URL        string     `json:"url,omitempty"        visibility:"read"        validate:"omitempty,url"`
+	URL        string     `json:"url,omitempty"        visibility:"read"`
 	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"required_for_put,enum_visibility"`
 }
 
