@@ -152,20 +152,3 @@ func SubscriptionFromContext(ctx context.Context) (arm.Subscription, error) {
 	}
 	return sub, nil
 }
-
-func TenantIDFromContext(ctx context.Context) (string, error) {
-	sub, ok := ctx.Value(contextKeySubscription).(arm.Subscription)
-	if !ok {
-		return "", &ContextError{
-			got: sub,
-		}
-	}
-
-	if sub.Properties == nil || sub.Properties.TenantId == nil {
-		return "", &ContextError{
-			got: sub,
-		}
-	}
-
-	return *sub.Properties.TenantId, nil
-}
