@@ -291,6 +291,11 @@
             cd maestro/
             make register-agent
 
+        - name: 'Deploy Cluster Service Namespace Management'
+          run: |
+            cd cluster-service/
+            make deploy-integ
+
     deploy_to_management_cluster:
       if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       needs:
