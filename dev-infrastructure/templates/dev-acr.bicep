@@ -9,14 +9,6 @@ param location string = resourceGroup().location
 @description('Service tier of the Azure Container Registry.')
 param acrSku string
 
-@description('KeyVault secret name with the password used to log into quay.')
-#disable-next-line secure-secrets-in-params
-param passwordSecretIdentifier string = 'quay-password'
-
-@description('KeyVault secret name with the username used to log into quay.')
-#disable-next-line secure-secrets-in-params
-param usernameSecretIdentifier string = 'quay-username'
-
 @description('List of quay repositories to cache in the Azure Container Registry.')
 param quayRepositoriesToCache array = []
 
@@ -84,7 +76,7 @@ steps:
     trigger: {
       timerTriggers: [
         {
-          name: 'weekly'
+          name: 'daily'
           schedule: '0 0 * * *'
         }
       ]
@@ -95,48 +87,52 @@ steps:
 @description('Login server property for later use')
 output loginServer string = acrResource.properties.loginServer
 
-resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2023-01-01-preview' = if (length(quayRepositoriesToCache) > 0) {
-  name: 'quayPullCredential'
-  parent: acrResource
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    authCredentials: [
-      {
-        name: 'Credential1'
-        passwordSecretIdentifier: '${keyVault.properties.vaultUri}secrets/${passwordSecretIdentifier}'
-        usernameSecretIdentifier: '${keyVault.properties.vaultUri}secrets/${usernameSecretIdentifier}'
-      }
-    ]
-    loginServer: 'quay.io'
-  }
-}
-
-resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01-preview' = [
+resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2023-01-01-preview' = [
   for repo in quayRepositoriesToCache: {
     name: repo.ruleName
     parent: acrResource
+    identity: {
+      type: 'SystemAssigned'
+    }
     properties: {
-      credentialSetResourceId: pullCredential.id
+      authCredentials: [
+        {
+          name: 'Credential1'
+          passwordSecretIdentifier: '${keyVault.properties.vaultUri}secrets/${repo.passwordIdentifier}'
+          usernameSecretIdentifier: '${keyVault.properties.vaultUri}secrets/${repo.userIdentifier}'
+        }
+      ]
+      loginServer: 'quay.io'
+    }
+  }
+]
+
+resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01-preview' = [
+  for (repo, i) in quayRepositoriesToCache: {
+    name: repo.ruleName
+    parent: acrResource
+    properties: {
+      credentialSetResourceId: pullCredential[i].id
       sourceRepository: repo.sourceRepo
       targetRepository: repo.targetRepo
     }
   }
 ]
 
-resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (length(quayRepositoriesToCache) > 0) {
-  scope: keyVault
-  name: guid(keyVault.id, 'quayPullSecrets', 'read')
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions/',
-      '4633458b-17de-408a-b874-0445c86b69e6'
-    )
-    principalId: pullCredential.identity.principalId
-    principalType: 'ServicePrincipal'
+resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for (repo, i) in quayRepositoriesToCache: {
+    scope: keyVault
+    name: guid(keyVault.id, 'quayPullSecrets', 'read', repo.ruleName)
+    properties: {
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions/',
+        '4633458b-17de-408a-b874-0445c86b69e6'
+      )
+      principalId: pullCredential[i].identity.principalId
+      principalType: 'ServicePrincipal'
+    }
   }
-}
+]
 
 resource purgeCached 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' = [
   for repo in quayRepositoriesToCache: {
@@ -171,7 +167,7 @@ steps:
         timerTriggers: [
           {
             name: 'daily'
-            schedule: '0 * * * *'
+            schedule: '0 0 * * *'
           }
         ]
       }
