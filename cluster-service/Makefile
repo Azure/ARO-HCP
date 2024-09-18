@@ -24,7 +24,7 @@ deploy:
 	AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$(shell az ad app list \
 			--display-name aro-hcp-dev-first-party \
 			--query '[*]'.appId \
-			-o tsv) && \ 
+			-o tsv) && \
 	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
