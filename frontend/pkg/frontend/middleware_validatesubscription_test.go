@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -190,22 +189,22 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			}
 
 			middleware.MiddlewareValidateSubscriptionState(writer, request, next)
-			sub, err := SubscriptionFromContext(request.Context())
-			if err != nil {
-				if tt.expectedError != nil {
-					var actualError *arm.CloudError
-					body, _ := io.ReadAll(http.MaxBytesReader(writer, writer.Result().Body, 4*megabyte))
-					_ = json.Unmarshal(body, &actualError)
-					if (writer.Result().StatusCode != tt.expectedError.StatusCode) || actualError.Code != tt.expectedError.Code || actualError.Message != tt.expectedError.Message {
-						t.Errorf("unexpected CloudError, wanted %v, got %v", tt.expectedError, actualError)
-					}
-				} else {
-					t.Errorf("expected CloudError, wanted %v, got %v", tt.expectedError, err)
-				}
-			}
 
-			if !reflect.DeepEqual(sub.State, tt.expectedState) {
-				t.Error(cmp.Diff(sub.State, tt.expectedState))
+			if tt.expectedError != nil {
+				var actualError *arm.CloudError
+				body, _ := io.ReadAll(http.MaxBytesReader(writer, writer.Result().Body, 4*megabyte))
+				_ = json.Unmarshal(body, &actualError)
+				if (writer.Result().StatusCode != tt.expectedError.StatusCode) || actualError.Code != tt.expectedError.Code || actualError.Message != tt.expectedError.Message {
+					t.Errorf("unexpected CloudError, wanted %v, got %v", tt.expectedError, actualError)
+				}
+			} else {
+				doc, err := dbClient.GetSubscriptionDoc(request.Context(), subscriptionId)
+				if err != nil {
+					t.Fatal(err.Error())
+				}
+				if doc.Subscription.State != tt.expectedState {
+					t.Error(cmp.Diff(doc.Subscription.State, tt.expectedState))
+				}
 			}
 		})
 	}

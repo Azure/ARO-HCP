@@ -31,7 +31,6 @@ const (
 	contextKeyResourceID
 	contextKeyCorrelationData
 	contextKeySystemData
-	contextKeySubscription
 )
 
 func ContextWithOriginalPath(ctx context.Context, originalPath string) context.Context {
@@ -137,18 +136,4 @@ func SystemDataFromContext(ctx context.Context) (*arm.SystemData, error) {
 		return systemData, err
 	}
 	return systemData, nil
-}
-
-func ContextWithSubscription(ctx context.Context, subscription arm.Subscription) context.Context {
-	return context.WithValue(ctx, contextKeySubscription, subscription)
-}
-
-func SubscriptionFromContext(ctx context.Context) (arm.Subscription, error) {
-	sub, ok := ctx.Value(contextKeySubscription).(arm.Subscription)
-	if !ok {
-		return arm.Subscription{}, &ContextError{
-			got: sub,
-		}
-	}
-	return sub, nil
 }
