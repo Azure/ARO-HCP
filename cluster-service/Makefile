@@ -37,7 +37,7 @@ deploy:
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
 	  -p AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
 	  -p FPA_CERT_NAME=${FPA_CERT_NAME} \
-	  -p IMAGE_TAG=3482df9 | oc apply -f -
+	  -p IMAGE_TAG=9da687c | oc apply -f -
 
 deploy-integ:
 	oc process --local -f deploy/integration/cluster-service-namespace.yaml | oc apply -f -

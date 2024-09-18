@@ -360,6 +360,16 @@ objects:
               min_version: 4.11.0
 
 - apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: azure-runtime-config
+  data:
+    config.json: |
+      {
+        "cloudEnvironment": "AzurePublicCloud"
+      }
+
+- apiVersion: v1
   kind: ServiceAccount
   metadata:
     name: clusters-service
@@ -434,6 +444,9 @@ objects:
         - name: config
           configMap:
             name: clusters-service
+        - name: azure-runtime-config
+          configMap:
+            name: azure-runtime-config
         - name: mixin-pull-secret
           secret:
             secretName: hive-ci-global-pull-secret
@@ -506,6 +519,8 @@ objects:
           - name: keyvault
             mountPath: "/secrets/keyvault"
             readOnly: true
+          - name: azure-runtime-config
+            mountPath: /configs/azure-runtime-config
           env:
           - name: NAMESPACE
             valueFrom:
@@ -556,6 +571,7 @@ objects:
           - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-config
           - --azure-first-party-application-client-id=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID}
           - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
+          - --azure-runtime-config-path=/configs/azure-runtime-config/config.json
           livenessProbe:
             httpGet:
               path: /api/clusters_mgmt/v1
