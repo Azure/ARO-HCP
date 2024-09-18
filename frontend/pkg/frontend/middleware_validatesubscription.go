@@ -65,8 +65,6 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 		}
 	}
 
-	ctx := ContextWithSubscription(r.Context(), *sub.Subscription)
-	r = r.WithContext(ctx)
 	switch sub.Subscription.State {
 	case arm.SubscriptionStateRegistered:
 		next(w, r)
