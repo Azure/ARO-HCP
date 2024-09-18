@@ -76,7 +76,7 @@ steps:
     trigger: {
       timerTriggers: [
         {
-          name: 'weekly'
+          name: 'daily'
           schedule: '0 0 * * *'
         }
       ]
@@ -167,7 +167,7 @@ steps:
         timerTriggers: [
           {
             name: 'daily'
-            schedule: '0 * * * *'
+            schedule: '0 0 * * *'
           }
         ]
       }
