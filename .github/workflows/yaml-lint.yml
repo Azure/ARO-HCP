@@ -1,7 +1,7 @@
 ---
 # MegaLinter GitHub Action configuration file
 # More info at https://oxsecurity.github.io/megalinter
-name: mega-linter-yaml
+name: mega-linter
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: mega-linter-yaml
+    name: mega-linter
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: yamllint
+      - name: Linters
         uses: oxsecurity/megalinter/flavors/ci_light@v8
         env:
           FILTER_REGEX_EXCLUDE: 'hypershiftoperator/deploy/base/|hypershiftoperator/deploy/crds/|maestro/deploy/helm/'
