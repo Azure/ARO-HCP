@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -56,6 +58,23 @@ func (c *Cache) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceI
 
 	delete(c.resource, key)
 	return nil
+}
+
+func (c *Cache) ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, resourceType *azcorearm.ResourceType, pageSizeHint int32, continuationToken *string) ([]*ResourceDocument, *string, error) {
+	var resourceList []*ResourceDocument
+
+	// Make sure key prefix is lowercase.
+	prefixString := strings.ToLower(prefix.String() + "/")
+
+	for key, doc := range c.resource {
+		if strings.HasPrefix(key, prefixString) {
+			if resourceType == nil || strings.EqualFold(resourceType.String(), doc.Key.ResourceType.String()) {
+				resourceList = append(resourceList, doc)
+			}
+		}
+	}
+
+	return resourceList, nil, nil
 }
 
 func (c *Cache) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
