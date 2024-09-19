@@ -9,9 +9,6 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -82,7 +79,6 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 }
 
 func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Request, operationRequest database.OperationRequest, internalID ocm.InternalID) error {
-	now := time.Now().UTC()
 	ctx := request.Context()
 
 	resourceID, err := ResourceIDFromContext(ctx)
@@ -90,28 +86,23 @@ func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Requ
 		return err
 	}
 
+	doc := database.NewOperationDocument(operationRequest)
+
 	operationID, err := arm.ParseResourceID(path.Join("/",
 		"subscriptions", resourceID.SubscriptionID,
 		"providers", api.ProviderNamespace,
 		"locations", f.location,
-		api.OperationStatusResourceTypeName, uuid.New().String()))
+		api.OperationStatusResourceTypeName, doc.ID))
 	if err != nil {
 		return err
 	}
 
-	doc := &database.OperationDocument{
-		ID:                 operationID.Name,
-		TenantID:           request.Header.Get(arm.HeaderNameHomeTenantID),
-		ClientID:           request.Header.Get(arm.HeaderNameClientObjectID),
-		Request:            operationRequest,
-		ExternalID:         resourceID,
-		InternalID:         internalID,
-		OperationID:        operationID,
-		NotificationURI:    request.Header.Get(arm.HeaderNameAsyncNotificationURI),
-		StartTime:          now,
-		LastTransitionTime: now,
-		Status:             arm.ProvisioningStateAccepted,
-	}
+	doc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
+	doc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
+	doc.ExternalID = resourceID
+	doc.InternalID = internalID
+	doc.OperationID = operationID
+	doc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 
 	err = f.dbClient.SetOperationDoc(ctx, doc)
 	if err != nil {

@@ -244,9 +244,6 @@ func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 // SetOperationDoc writes an asynchronous operation document to the "operations"
 // container
 func (d *CosmosDBClient) SetOperationDoc(ctx context.Context, doc *OperationDocument) error {
-	// Make sure lookup keys are lowercase.
-	doc.ID = strings.ToLower(doc.ID)
-
 	container, err := d.client.NewContainer(operationsContainer)
 	if err != nil {
 		return err
@@ -334,7 +331,7 @@ func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 
 // SetSubscriptionDoc creates/updates a subscription document in the async DB during cluster creation/patching
 func (d *CosmosDBClient) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
-	// Make sure lookup keys are lowercase.
+	// Make sure partition key is lowercase.
 	doc.PartitionKey = strings.ToLower(doc.PartitionKey)
 
 	data, err := json.Marshal(doc)
