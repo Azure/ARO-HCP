@@ -69,6 +69,11 @@ func (id *InternalID) UnmarshalText(text []byte) error {
 	return id.validate()
 }
 
+// ID returns the last path element of the resource described by InternalID.
+func (id *InternalID) ID() string {
+	return path.Base(id.path)
+}
+
 // Kind returns the kind of resource described by InternalID, currently
 // limited to "Cluster" and "NodePool".
 func (id *InternalID) Kind() string {
