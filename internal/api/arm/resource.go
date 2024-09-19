@@ -15,6 +15,15 @@ type ResourceID struct {
 	azcorearm.ResourceID
 }
 
+// ParseResourceID parses a string to an instance of ResourceID.
+func ParseResourceID(id string) (*ResourceID, error) {
+	newId, err := azcorearm.ParseResourceID(id)
+	if err != nil {
+		return nil, err
+	}
+	return &ResourceID{ResourceID: *newId}, nil
+}
+
 // GetParent returns the parent resource ID, if any. Handles the
 // type-casting necessary to access the parent as a wrapper type.
 func (id *ResourceID) GetParent() *ResourceID {

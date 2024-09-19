@@ -18,7 +18,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
@@ -194,7 +193,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	clusters := clustersListResponse.Items().Slice()
 	for _, cluster := range clusters {
 		// FIXME Temporary, until we have a real ResourceID to pass.
-		azcoreResourceID, err := azcorearm.ParseResourceID(fmt.Sprintf(
+		resourceID, err := arm.ParseResourceID(fmt.Sprintf(
 			"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
 			subscriptionId, resourceGroupName, api.ResourceType,
 			cluster.Azure().ResourceName()))
@@ -203,7 +202,6 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		resourceID := &arm.ResourceID{ResourceID: *azcoreResourceID}
 		hcpCluster = ConvertCStoHCPOpenShiftCluster(resourceID, cluster)
 		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 		versionedHcpClusters = append(versionedHcpClusters, &versionedResource)

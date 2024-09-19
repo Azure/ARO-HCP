@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -31,9 +29,9 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 		originalPath = r.URL.Path
 	}
 
-	resourceID, err := azcorearm.ParseResourceID(originalPath)
+	resourceID, err := arm.ParseResourceID(originalPath)
 	if err == nil {
-		ctx := ContextWithResourceID(r.Context(), &arm.ResourceID{ResourceID: *resourceID})
+		ctx := ContextWithResourceID(r.Context(), resourceID)
 		r = r.WithContext(ctx)
 	} else {
 		logger.Warn(fmt.Sprintf("Failed to parse '%s' as resource ID: %v", originalPath, err))
