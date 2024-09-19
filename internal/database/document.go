@@ -1,7 +1,10 @@
 package database
 
 import (
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -24,6 +27,14 @@ type ResourceDocument struct {
 	ETag        string `json:"_etag,omitempty"`
 	Attachments string `json:"_attachments,omitempty"`
 	Timestamp   int    `json:"_ts,omitempty"`
+}
+
+func NewResourceDocument(resourceID *arm.ResourceID) *ResourceDocument {
+	return &ResourceDocument{
+		ID:           uuid.New().String(),
+		Key:          resourceID,
+		PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+	}
 }
 
 type OperationRequest string
@@ -72,6 +83,18 @@ type OperationDocument struct {
 	Timestamp   int    `json:"_ts,omitempty"`
 }
 
+func NewOperationDocument(request OperationRequest) *OperationDocument {
+	now := time.Now().UTC()
+
+	return &OperationDocument{
+		ID:                 uuid.New().String(),
+		Request:            request,
+		StartTime:          now,
+		LastTransitionTime: now,
+		Status:             arm.ProvisioningStateAccepted,
+	}
+}
+
 // ToStatus converts an OperationDocument to the ARM operation status format.
 func (doc *OperationDocument) ToStatus() *arm.Operation {
 	operation := &arm.Operation{
@@ -101,4 +124,12 @@ type SubscriptionDocument struct {
 	ETag        string `json:"_etag,omitempty"`
 	Attachments string `json:"_attachments,omitempty"`
 	Timestamp   int    `json:"_ts,omitempty"`
+}
+
+func NewSubscriptionDocument(subscriptionID string, subscription *arm.Subscription) *SubscriptionDocument {
+	return &SubscriptionDocument{
+		ID:           uuid.New().String(),
+		PartitionKey: strings.ToLower(subscriptionID),
+		Subscription: subscription,
+	}
 }

@@ -18,7 +18,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/google/uuid"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 	"golang.org/x/sync/errgroup"
@@ -369,11 +368,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 
-		doc = &database.ResourceDocument{
-			ID:           uuid.New().String(),
-			Key:          resourceID,
-			PartitionKey: resourceID.SubscriptionID,
-		}
+		doc = database.NewResourceDocument(resourceID)
 		docUpdated = true
 	}
 
@@ -504,8 +499,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
 
-	var doc *database.ResourceDocument
-	doc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
@@ -618,11 +612,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subscriptionID))
-			doc = &database.SubscriptionDocument{
-				ID:           uuid.New().String(),
-				PartitionKey: subscriptionID,
-				Subscription: &subscription,
-			}
+			doc = database.NewSubscriptionDocument(subscriptionID, &subscription)
 		} else {
 			f.logger.Error("failed to fetch document for %s: %v", subscriptionID, err)
 			arm.WriteInternalServerError(writer)
@@ -910,11 +900,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		nodePoolDoc = &database.ResourceDocument{
-			ID:           uuid.New().String(),
-			Key:          nodePoolResourceID,
-			PartitionKey: nodePoolResourceID.SubscriptionID,
-		}
+		nodePoolDoc = database.NewResourceDocument(nodePoolResourceID)
 		docUpdated = true
 	}
 
