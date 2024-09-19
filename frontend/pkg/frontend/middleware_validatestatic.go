@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strings"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -27,7 +26,7 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 	// in response messages.
 	//TODO: Inspect the error instead of ignoring it
 	originalPath, _ := OriginalPathFromContext(r.Context())
-	resource, _ := azcorearm.ParseResourceID(originalPath)
+	resource, _ := arm.ParseResourceID(originalPath)
 
 	if resource != nil {
 		if resource.SubscriptionID != "" {

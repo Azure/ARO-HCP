@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -91,7 +90,7 @@ func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Requ
 		return err
 	}
 
-	azcoreOperationID, err := azcorearm.ParseResourceID(path.Join("/",
+	operationID, err := arm.ParseResourceID(path.Join("/",
 		"subscriptions", resourceID.SubscriptionID,
 		"providers", api.ProviderNamespace,
 		"locations", f.location,
@@ -101,13 +100,13 @@ func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Requ
 	}
 
 	doc := &database.OperationDocument{
-		ID:                 azcoreOperationID.Name,
+		ID:                 operationID.Name,
 		TenantID:           request.Header.Get(arm.HeaderNameHomeTenantID),
 		ClientID:           request.Header.Get(arm.HeaderNameClientObjectID),
 		Request:            operationRequest,
 		ExternalID:         resourceID,
 		InternalID:         internalID,
-		OperationID:        &arm.ResourceID{ResourceID: *azcoreOperationID},
+		OperationID:        operationID,
 		NotificationURI:    request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		StartTime:          now,
 		LastTransitionTime: now,
