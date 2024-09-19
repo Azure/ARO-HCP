@@ -22,6 +22,7 @@ func TestInternalID(t *testing.T) {
 	tests := []struct {
 		name      string
 		path      string
+		id        string
 		kind      string
 		expectErr bool
 	}{
@@ -34,12 +35,14 @@ func TestInternalID(t *testing.T) {
 		{
 			name:      "parse v1 cluster",
 			path:      "/api/clusters_mgmt/v1/clusters/abc",
+			id:        "abc",
 			kind:      cmv1.ClusterKind,
 			expectErr: false,
 		},
 		{
 			name:      "parse v1 node pool",
 			path:      "/api/clusters_mgmt/v1/clusters/abc/node_pools/def",
+			id:        "def",
 			kind:      cmv1.NodePoolKind,
 			expectErr: false,
 		},
@@ -58,6 +61,11 @@ func TestInternalID(t *testing.T) {
 			if tt.expectErr {
 				t.Error("expected unmarshaling to fail")
 				return
+			}
+
+			id := internalID.ID()
+			if id != tt.id {
+				t.Errorf("expected id '%s', got '%s'", tt.id, id)
 			}
 
 			kind := internalID.Kind()
