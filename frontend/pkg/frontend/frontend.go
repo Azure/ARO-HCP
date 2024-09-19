@@ -153,13 +153,10 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	var query string
 	subscriptionId := request.PathValue(PathSegmentSubscriptionID)
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	location := request.PathValue(PathSegmentLocation)
 
 	switch {
 	case resourceGroupName != "":
 		query = fmt.Sprintf("azure.resource_group_name='%s'", resourceGroupName)
-	case location != "":
-		query = fmt.Sprintf("region.id='%s'", location)
 	case subscriptionId != "" && location == "" && resourceGroupName == "":
 		query = fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
 	}

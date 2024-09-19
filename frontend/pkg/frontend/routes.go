@@ -68,9 +68,6 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternLocations, PatternProviders, api.ClusterResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
-	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
