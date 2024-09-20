@@ -231,6 +231,46 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
         }
       }
     }
+    agentPoolProfiles: [
+      {
+        name: 'system'
+        osType: 'Linux'
+        osSKU: 'AzureLinux'
+        mode: 'System'
+        orchestratorVersion: kubernetesVersion
+        enableAutoScaling: true
+        enableEncryptionAtHost: true
+        enableFIPS: true
+        enableNodePublicIP: false
+        kubeletDiskType: 'OS'
+        osDiskType: 'Ephemeral'
+        osDiskSizeGB: systemOsDiskSizeGB
+        count: systemAgentMinCount
+        minCount: systemAgentMinCount
+        maxCount: systemAgentMaxCount
+        vmSize: systemAgentVMSize
+        type: 'VirtualMachineScaleSets'
+        upgradeSettings: {
+          maxSurge: '10%'
+        }
+        vnetSubnetID: aksNodeSubnet.id
+        podSubnetID: aksPodSubnet.id
+        maxPods: 100
+        availabilityZones: [
+          '1'
+          '2'
+          '3'
+        ]
+        securityProfile: {
+          enableSecureBoot: false
+          enableVTPM: false
+          sshAccess: 'Disabled'
+        }
+        nodeTaints: [
+          'CriticalAddonsOnly=true:NoSchedule'
+        ]
+      }
+    ]
     autoScalerProfile: {
       'balance-similar-node-groups': 'true'
       'daemonset-eviction-for-occupied-nodes': true
@@ -322,48 +362,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
       }
     }
     supportPlan: 'KubernetesOfficial'
-  }
-}
-
-resource systemPool 'Microsoft.ContainerService/managedClusters/agentPools@2024-04-02-preview' = {
-  parent: aksCluster
-  name: 'system'
-  properties: {
-    osType: 'Linux'
-    osSKU: 'AzureLinux'
-    mode: 'System'
-    orchestratorVersion: kubernetesVersion
-    enableAutoScaling: true
-    enableEncryptionAtHost: true
-    enableFIPS: true
-    enableNodePublicIP: false
-    kubeletDiskType: 'OS'
-    osDiskType: 'Ephemeral'
-    osDiskSizeGB: systemOsDiskSizeGB
-    count: systemAgentMinCount
-    minCount: systemAgentMinCount
-    maxCount: systemAgentMaxCount
-    vmSize: systemAgentVMSize
-    type: 'VirtualMachineScaleSets'
-    upgradeSettings: {
-      maxSurge: '10%'
-    }
-    vnetSubnetID: aksNodeSubnet.id
-    podSubnetID: aksPodSubnet.id
-    maxPods: 100
-    availabilityZones: [
-      '1'
-      '2'
-      '3'
-    ]
-    securityProfile: {
-      enableSecureBoot: false
-      enableVTPM: false
-      sshAccess: 'Disabled'
-    }
-    nodeTaints: [
-      'CriticalAddonsOnly=true:NoSchedule'
-    ]
   }
 }
 
