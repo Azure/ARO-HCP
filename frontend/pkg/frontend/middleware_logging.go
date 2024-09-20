@@ -143,7 +143,7 @@ func getLogAttrs(correlationData *arm.CorrelationData, r *http.Request) []slog.A
 	wholePath := subscriptionID != "" && resourceGroup != "" && resourceName != ""
 	if wholePath {
 		format := "/subscriptions/%s/resourcegroups/%s/providers/%s/%s"
-		resource_id := fmt.Sprintf(format, subscriptionID, resourceGroup, api.ResourceType, resourceName)
+		resource_id := fmt.Sprintf(format, subscriptionID, resourceGroup, api.ClusterResourceType, resourceName)
 		attrs = append(attrs, slog.String("resource_id", resource_id))
 	}
 
