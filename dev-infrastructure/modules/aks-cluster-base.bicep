@@ -393,7 +393,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       }
       vnetSubnetID: aksNodeSubnet.id
       podSubnetID: aksPodSubnet.id
-      maxPods: 225
+      maxPods: 250
       availabilityZones: [
         '${(i + 1)}'
       ]
