@@ -6,6 +6,7 @@ include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
 CONSUMER_NAME ?= $(shell az aks list --query "[?tags.clusterType == 'mgmt-cluster' && starts_with(resourceGroup, '$(REGIONAL_RESOURCEGROUP)')].resourceGroup" -o tsv)
 EVENTGRID_ID = $(shell az resource list -g ${REGIONAL_RESOURCEGROUP} --resource-type "Microsoft.EventGrid/namespaces" --query "[].id" -o tsv)
 
+RESTRICT_ISTIO_INGRESS ?= true
 
 MAESTRO_BASE_IMAGE ?= quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
 MAESTRO_TAG ?= ea066c250a002f0cc458711945165591bc9f6d3f
@@ -28,6 +29,7 @@ deploy-server:
 		--set credsKeyVault.name=$${MAESTRO_KV_NAME} \
 		--set azure.clientId=$${MAESTRO_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
+		--set istio.restrictIngress=${RESTRICT_ISTIO_INGRESS} \
 		--set image.base=${MAESTRO_BASE_IMAGE} \
 		--set image.tag=${MAESTRO_TAG} \
 		--set database.containerizedDb=true \

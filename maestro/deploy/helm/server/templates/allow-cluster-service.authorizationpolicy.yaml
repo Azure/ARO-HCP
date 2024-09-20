@@ -6,14 +6,19 @@ metadata:
 spec:
   action: "ALLOW"
   rules:
-    - from:
-      - source:
-          principals: ["cluster.local/ns/{{ .Values.clusterService.namespace }}/sa/{{ .Values.clusterService.serviceAccount }}"]
-      to:
+    - to:
       - operation:
           ports:
             - "{{ .Values.maestro.httpBindPort }}"
             - "{{ .Values.maestro.grpcBindPort }}"
+      from:
+      - source:
+          principals:
+            {{- if .Values.istio.restrictIngress }}
+            - "cluster.local/ns/{{ .Values.clusterService.namespace }}/sa/{{ .Values.clusterService.serviceAccount }}"
+            {{- else }}
+            - "*"
+            {{- end }}
   selector:
     matchLabels:
       app: "maestro"

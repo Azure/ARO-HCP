@@ -282,7 +282,7 @@
         - name: 'Deploy Maestro Server'
           run: |
             cd maestro/
-            make deploy-server
+            RESTRICT_ISTIO_INGRESS=false make deploy-server
 
         - name: 'Register Maestro Agent'
           env:

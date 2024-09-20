@@ -33,6 +33,8 @@ maestro:
 clusterService:
   namespace: cluster-service
   serviceAccount: clusters-service
+istio:
+  restrictIngress: true
 azure:
   clientId: ""
   tenantId: ""
