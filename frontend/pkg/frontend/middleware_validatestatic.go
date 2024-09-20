@@ -43,7 +43,7 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 		// Skip static validation for subscription resources
 		if !strings.EqualFold(resource.ResourceType.String(), resourceTypeSubscription) {
 			switch strings.ToLower(resource.ResourceType.Type) {
-			case strings.ToLower(api.ClusterResourceTypeName):
+			case strings.ToLower(api.ClusterResourceType.Type):
 				if !rxHCPOpenShiftClusterResourceName.MatchString(resource.Name) {
 					arm.WriteError(w, http.StatusBadRequest,
 						arm.CloudErrorInvalidResourceName,
@@ -53,7 +53,7 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 						resource.ResourceGroupName)
 					return
 				}
-			case strings.ToLower(api.ClusterResourceTypeName + "/" + api.NodePoolResourceTypeName):
+			case strings.ToLower(api.NodePoolResourceType.Type):
 				if !rxNodePoolResourceName.MatchString(resource.Name) {
 					arm.WriteError(w, http.StatusBadRequest,
 						arm.CloudErrorInvalidResourceName,

@@ -6,6 +6,8 @@ package api
 import (
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -16,8 +18,12 @@ const (
 	NodePoolResourceTypeName        = "nodePools"
 	OperationResultResourceTypeName = "hcpOperationResults"
 	OperationStatusResourceTypeName = "hcpOperationsStatus"
-	ResourceType                    = ProviderNamespace + "/" + ClusterResourceTypeName
 	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
+)
+
+var (
+	ClusterResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	NodePoolResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
 )
 
 type VersionedHCPOpenShiftCluster interface {

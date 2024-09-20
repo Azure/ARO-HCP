@@ -157,7 +157,7 @@ func Test_getLogAttrs(t *testing.T) {
 						"/subscriptions/%s/resourcegroups/%s/providers/%s/%s",
 						fakeSubscriptionId,
 						fakeResourceGroupName,
-						api.ResourceType,
+						api.ClusterResourceType,
 						fakeResourceName)),
 			),
 			setReqPathValue: func(req *http.Request) {

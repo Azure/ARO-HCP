@@ -195,7 +195,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		// FIXME Temporary, until we have a real ResourceID to pass.
 		resourceID, err := arm.ParseResourceID(fmt.Sprintf(
 			"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
-			subscriptionId, resourceGroupName, api.ResourceType,
+			subscriptionId, resourceGroupName, api.ClusterResourceType,
 			cluster.Azure().ResourceName()))
 		if err != nil {
 			f.logger.Error(err.Error())
