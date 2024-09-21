@@ -12,7 +12,6 @@ import (
 	"maps"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -150,75 +149,105 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	var query string
-	subscriptionId := request.PathValue(PathSegmentSubscriptionID)
+	f.logger.Info(fmt.Sprintf("%s: ArmResourceList", versionedInterface))
+
+	var pageSizeHint int32 = 20
+	var continuationToken *string
+	var pagedResponse arm.PagedResponse
+
+	// The Resource Provider Contract implies $top is only honored when
+	// following a "nextLink" after the initial collection GET request.
+	// So only check for it when the URL includes a $skipToken.
+	urlQuery := request.URL.Query()
+	if urlQuery.Has("$skipToken") {
+		continuationToken = api.Ptr(urlQuery.Get("$skipToken"))
+		top, err := strconv.ParseInt(urlQuery.Get("$top"), 10, 32)
+		if err == nil && top > 0 {
+			pageSizeHint = int32(top)
+		}
+	}
+
+	// FIXME We may want to cap pageSizeHint. If we get a large enough
+	//       $top argument (and there's enough actual clusters to reach
+	//       that), we could potentially hit the 8MB response size limit.
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	location := request.PathValue(PathSegmentLocation)
 
-	switch {
-	case resourceGroupName != "":
-		query = fmt.Sprintf("azure.resource_group_name='%s'", resourceGroupName)
-	case location != "":
-		query = fmt.Sprintf("region.id='%s'", location)
-	case subscriptionId != "" && location == "" && resourceGroupName == "":
-		query = fmt.Sprintf("azure.subscription_id='%s'", subscriptionId)
+	// Even though the bulk of the list content comes from Cluster Service,
+	// we start by querying Cosmos DB because its continuation token meets
+	// the requirements of a skipToken for ARM pagination. We then query
+	// Cluster Service for the exact set of IDs returned by Cosmos.
+
+	prefixString := "/subscriptions/" + subscriptionID
+	if resourceGroupName != "" {
+		prefixString += "/resourceGroups/" + resourceGroupName
 	}
-
-	pageSize := 10
-	pageNumber := 1
-
-	if pageStr := request.URL.Query().Get("page"); pageStr != "" {
-		pageNumber, _ = strconv.Atoi(pageStr)
-	}
-	if sizeStr := request.URL.Query().Get("size"); sizeStr != "" {
-		pageSize, _ = strconv.Atoi(sizeStr)
-	}
-
-	// Create the request with initial parameters:
-	clustersRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().List().Search(query)
-	clustersRequest.Size(pageSize)
-	clustersRequest.Page(pageNumber)
-
-	// Send the initial request:
-	clustersListResponse, err := clustersRequest.SendContext(ctx)
+	prefix, err := arm.ParseResourceID(prefixString)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var hcpCluster *api.HCPOpenShiftCluster
-	var versionedHcpClusters []*api.VersionedHCPOpenShiftCluster
-	clusters := clustersListResponse.Items().Slice()
-	for _, cluster := range clusters {
-		// FIXME Temporary, until we have a real ResourceID to pass.
-		resourceID, err := arm.ParseResourceID(fmt.Sprintf(
-			"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
-			subscriptionId, resourceGroupName, api.ClusterResourceType,
-			cluster.Azure().ResourceName()))
+	documentList, continuationToken, err := f.dbClient.ListResourceDocs(ctx, prefix, &api.ClusterResourceType, pageSizeHint, continuationToken)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Build a map of cluster documents by Cluster Service cluster ID.
+	documentMap := make(map[string]*database.ResourceDocument)
+	for _, doc := range documentList {
+		documentMap[doc.InternalID.ID()] = doc
+	}
+
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(documentMap))
+	for key := range documentMap {
+		queryIDs = append(queryIDs, "'"+key+"'")
+	}
+	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	f.logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	listRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().List().Search(query)
+
+	// XXX This SHOULD avoid dealing with pagination from Cluster Service.
+	//     As far I can tell, uhc-cluster-service does not impose its own
+	//     limit on the page size. Further testing is needed to verify.
+	listRequest.Size(len(documentMap))
+
+	listResponse, err := listRequest.SendContext(ctx)
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	for _, csCluster := range listResponse.Items().Slice() {
+		if doc, ok := documentMap[csCluster.ID()]; ok {
+			value, err := marshalCSCluster(csCluster, doc, versionedInterface)
+			if err != nil {
+				f.logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+	}
+
+	if continuationToken != nil {
+		err = pagedResponse.SetNextLink(request.Referer(), *continuationToken)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		hcpCluster = ConvertCStoHCPOpenShiftCluster(resourceID, cluster)
-		versionedResource := versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-		versionedHcpClusters = append(versionedHcpClusters, &versionedResource)
 	}
 
-	// Check if there are more pages to fetch and set NextLink if applicable:
-	var nextLink string
-	if clustersListResponse.Size() >= pageSize {
-		nextPage := pageNumber + 1
-		nextLink = buildNextLink(request.URL.Path, request.URL.Query(), nextPage, pageSize)
-	}
-
-	result := api.VersionedHCPOpenShiftClusterList{
-		Value:    versionedHcpClusters,
-		NextLink: &nextLink,
-	}
-
-	resp, err := json.Marshal(result)
+	resp, err := json.Marshal(pagedResponse)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1315,20 +1344,4 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 		}
 	}
 	return featureMap
-}
-
-// Function to build the NextLink URL with pagination parameters
-func buildNextLink(basePath string, queryParams url.Values, nextPage, pageSize int) string {
-	// Clone the existing query parameters
-	newParams := make(url.Values)
-	for key, values := range queryParams {
-		newParams[key] = values
-	}
-
-	newParams.Set("page", strconv.Itoa(nextPage))
-	newParams.Set("size", strconv.Itoa(pageSize))
-
-	// Construct the next link URL
-	nextLink := basePath + "?" + newParams.Encode()
-	return nextLink
 }

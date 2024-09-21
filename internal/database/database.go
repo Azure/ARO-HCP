@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -37,6 +38,7 @@ type DBClient interface {
 	// DeleteResourceDoc deletes a ResourceDocument from the database given the resourceID
 	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource or NodePools child resource.
 	DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error
+	ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, resourceType *azcorearm.ResourceType, pageSizeHint int32, continuationToken *string) ([]*ResourceDocument, *string, error)
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	SetOperationDoc(ctx context.Context, doc *OperationDocument) error
@@ -207,6 +209,60 @@ func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.
 		return err
 	}
 	return nil
+}
+
+func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, resourceType *azcorearm.ResourceType, pageSizeHint int32, continuationToken *string) ([]*ResourceDocument, *string, error) {
+	// Make sure partition key is lowercase.
+	pk := azcosmos.NewPartitionKeyString(strings.ToLower(prefix.SubscriptionID))
+
+	container, err := d.client.NewContainer(resourcesContainer)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	query := "SELECT * FROM c WHERE STARTSWITH(c.key, @prefix, true)"
+	opt := azcosmos.QueryOptions{
+		PageSizeHint:      pageSizeHint,
+		ContinuationToken: continuationToken,
+		QueryParameters: []azcosmos.QueryParameter{
+			{
+				Name:  "@prefix",
+				Value: prefix.String() + "/",
+			},
+		},
+	}
+
+	var response azcosmos.QueryItemsResponse
+	resourceDocs := make([]*ResourceDocument, 0, pageSizeHint)
+
+	// Loop until we fill the pre-allocated resourceDocs slice,
+	// or until we run out of items from the resources container.
+	for opt.PageSizeHint > 0 {
+		response, err = container.NewQueryItemsPager(query, pk, &opt).NextPage(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, item := range response.Items {
+			var doc ResourceDocument
+			err = json.Unmarshal(item, &doc)
+			if err != nil {
+				return nil, nil, err
+			}
+			if resourceType == nil || strings.EqualFold(resourceType.String(), doc.Key.ResourceType.String()) {
+				resourceDocs = append(resourceDocs, &doc)
+			}
+		}
+
+		if response.ContinuationToken == nil {
+			break
+		}
+
+		opt.PageSizeHint = int32(cap(resourceDocs) - len(resourceDocs))
+		opt.ContinuationToken = response.ContinuationToken
+	}
+
+	return resourceDocs, response.ContinuationToken, nil
 }
 
 // GetOperationDoc retrieves the asynchronous operation document for the given

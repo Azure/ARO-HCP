@@ -31,13 +31,6 @@ type VersionedHCPOpenShiftCluster interface {
 	ValidateStatic(current VersionedHCPOpenShiftCluster, updating bool, method string) *arm.CloudError
 }
 
-type VersionedHCPOpenShiftClusterList struct {
-	Value []*VersionedHCPOpenShiftCluster
-
-	// The link to the next page of items
-	NextLink *string
-}
-
 type VersionedHCPOpenShiftClusterNodePool interface {
 	Normalize(*HCPOpenShiftClusterNodePool)
 	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError
