@@ -38,7 +38,12 @@ deploy:
 	  -p IMAGE_TAG=9da687c | oc apply -f -
 
 deploy-integ:
-	oc process --local -f deploy/integration/cluster-service-namespace.yaml | oc apply -f -
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
+			-g ${RESOURCEGROUP} \
+			-n clusters-service \
+			--query clientId) && \
+	oc process --local -f deploy/integration/cluster-service-namespace.yaml \
+	-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
 
 # for local development
 provision-shard:

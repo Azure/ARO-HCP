@@ -8,6 +8,9 @@ parameters:
   description: The namespace to create
   required: true
   value: cluster-service-admin
+- name: CLIENT_ID
+  description: The Azure Client ID used for federation
+  required: true
 
 objects:
   - apiVersion: v1
@@ -62,3 +65,10 @@ objects:
         kubernetes.io/service-account.name: cluster-service-mgmt
       namespace: ${NAMESPACE}
     type: kubernetes.io/service-account-token
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: cluster-service-config
+      namespace: ${NAMESPACE}
+    data:
+      cs-client-id: ${CLIENT_ID}
