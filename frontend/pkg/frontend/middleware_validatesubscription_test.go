@@ -157,7 +157,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			dbClient := database.NewCache()
 
 			if tt.cachedState != "" {
-				if err := dbClient.SetSubscriptionDoc(context.Background(), &database.SubscriptionDocument{
+				if err := dbClient.CreateSubscriptionDoc(context.Background(), &database.SubscriptionDocument{
 					BaseDocument: database.BaseDocument{
 						ID: subscriptionId,
 					},

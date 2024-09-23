@@ -41,20 +41,22 @@ type DBClient interface {
 	// GetResourceDoc retrieves a ResourceDocument from the database given its resourceID.
 	// ErrNotFound is returned if an associated ResourceDocument cannot be found.
 	GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) (*ResourceDocument, error)
-	SetResourceDoc(ctx context.Context, doc *ResourceDocument) error
+	CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error
+	UpdateResourceDoc(ctx context.Context, resourceID *arm.ResourceID, callback func(*ResourceDocument) bool) (bool, error)
 	// DeleteResourceDoc deletes a ResourceDocument from the database given the resourceID
 	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource or NodePools child resource.
 	DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error
 	ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, resourceType *azcorearm.ResourceType, pageSizeHint int32, continuationToken *string) ([]*ResourceDocument, *string, error)
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
-	SetOperationDoc(ctx context.Context, doc *OperationDocument) error
+	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
 	DeleteOperationDoc(ctx context.Context, operationID string) error
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
 	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error)
-	SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error
+	CreateSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error
+	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error)
 }
 
 var _ DBClient = &CosmosDBClient{}
@@ -135,8 +137,8 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *arm.Res
 	return nil, ErrNotFound
 }
 
-// SetResourceDoc creates/updates a resource document in the "resources" DB during resource creation/patching
-func (d *CosmosDBClient) SetResourceDoc(ctx context.Context, doc *ResourceDocument) error {
+// CreateResourceDoc creates a resource document in the "resources" DB during resource creation
+func (d *CosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {
 	// Make sure partition key is lowercase.
 	doc.PartitionKey = strings.ToLower(doc.PartitionKey)
 
@@ -150,12 +152,61 @@ func (d *CosmosDBClient) SetResourceDoc(ctx context.Context, doc *ResourceDocume
 		return err
 	}
 
-	_, err = container.UpsertItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
+	_, err = container.CreateItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// UpdateResourceDoc updates a resource document by first fetching the document and passing it to
+// the provided callback for modifications to be applied. It then attempts to replace the existing
+// document with the modified document and an "etag" precondition. Upon a precondition failure the
+// function repeats for a limited number of times before giving up.
+//
+// The callback function should return true if modifications were applied, signaling to proceed
+// with the document replacement. The boolean return value reflects this: returning true if the
+// document was sucessfully replaced, or false with or without an error to indicate no change.
+func (d *CosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *arm.ResourceID, callback func(*ResourceDocument) bool) (bool, error) {
+	// Make sure partition key is lowercase.
+	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
+
+	container, err := d.client.NewContainer(resourcesContainer)
+	if err != nil {
+		return false, err
+	}
+
+	options := &azcosmos.ItemOptions{}
+
+	for try := 0; try < 5; try++ {
+		var doc *ResourceDocument
+		var data []byte
+
+		doc, err = d.GetResourceDoc(ctx, resourceID)
+		if err != nil {
+			return false, err
+		}
+
+		if !callback(doc) {
+			return false, nil
+		}
+
+		data, err = json.Marshal(doc)
+		if err != nil {
+			return false, err
+		}
+
+		options.IfMatchEtag = &doc.ETag
+		_, err = container.ReplaceItem(ctx, pk, doc.ID, data, options)
+
+		var responseError *azcore.ResponseError
+		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
+			return (err == nil), err
+		}
+	}
+
+	return false, err
 }
 
 // DeleteResourceDoc removes a resource document from the "resources" DB using resource ID
@@ -266,9 +317,9 @@ func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 	return doc, nil
 }
 
-// SetOperationDoc writes an asynchronous operation document to the "operations"
+// CreateOperationDoc writes an asynchronous operation document to the "operations"
 // container
-func (d *CosmosDBClient) SetOperationDoc(ctx context.Context, doc *OperationDocument) error {
+func (d *CosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationDocument) error {
 	container, err := d.client.NewContainer(operationsContainer)
 	if err != nil {
 		return err
@@ -281,7 +332,7 @@ func (d *CosmosDBClient) SetOperationDoc(ctx context.Context, doc *OperationDocu
 		return err
 	}
 
-	_, err = container.UpsertItem(ctx, pk, data, nil)
+	_, err = container.CreateItem(ctx, pk, data, nil)
 	if err != nil {
 		return err
 	}
@@ -338,8 +389,8 @@ func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 	return doc, nil
 }
 
-// SetSubscriptionDoc creates/updates a subscription document in the async DB during cluster creation/patching
-func (d *CosmosDBClient) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
+// CreateSubscriptionDoc creates/updates a subscription document in the async DB during cluster creation/patching
+func (d *CosmosDBClient) CreateSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
 	// Make sure lookup keys are lowercase.
 	doc.ID = strings.ToLower(doc.ID)
 
@@ -355,9 +406,56 @@ func (d *CosmosDBClient) SetSubscriptionDoc(ctx context.Context, doc *Subscripti
 		return err
 	}
 
-	_, err = container.UpsertItem(ctx, pk, data, nil)
+	_, err = container.CreateItem(ctx, pk, data, nil)
+
+	return err
+}
+
+// UpdateSubscriptionDoc updates a subscription document by first fetching the document and
+// passing it to the provided callback for modifications to be applied. It then attempts to
+// replace the existing document with the modified document and an "etag" precondition. Upon
+// a precondition failure the function repeats for a limited number of times before giving up.
+//
+// The callback function should return true if modifications were applied, signaling to proceed
+// with the document replacement. The boolean return value reflects this: returning true if the
+// document was successfully replaced, or false with or without an error to indicate no change.
+func (d *CosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error) {
+	// Make sure partition key is lowercase.
+	pk := azcosmos.NewPartitionKeyString(strings.ToLower(subscriptionID))
+
+	container, err := d.client.NewContainer(subsContainer)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return nil
+
+	options := &azcosmos.ItemOptions{}
+
+	for try := 0; try < 5; try++ {
+		var doc *SubscriptionDocument
+		var data []byte
+
+		doc, err = d.GetSubscriptionDoc(ctx, subscriptionID)
+		if err != nil {
+			return false, err
+		}
+
+		if !callback(doc) {
+			return false, nil
+		}
+
+		data, err = json.Marshal(doc)
+		if err != nil {
+			return false, err
+		}
+
+		options.IfMatchEtag = &doc.ETag
+		_, err = container.ReplaceItem(ctx, pk, doc.ID, data, options)
+
+		var responseError *azcore.ResponseError
+		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
+			return (err == nil), err
+		}
+	}
+
+	return false, err
 }
