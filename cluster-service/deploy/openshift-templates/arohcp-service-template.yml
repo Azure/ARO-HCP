@@ -363,6 +363,7 @@ objects:
   kind: ConfigMap
   metadata:
     name: azure-runtime-config
+    namespace: ${NAMESPACE}
   data:
     config.json: |
       {
