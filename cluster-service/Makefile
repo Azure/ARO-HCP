@@ -25,6 +25,8 @@ deploy:
 	AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} && \
 	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account list --query "[?starts_with(name, 'arohcpoidc')].primaryEndpoints.blob" -g ${REGIONAL_RESOURCEGROUP} -o tsv) && \
+	OIDC_WEB_ENDPOINT=$(shell az storage account list --query "[?starts_with(name, 'arohcpoidc')].primaryEndpoints.web" -g ${REGIONAL_RESOURCEGROUP} -o tsv) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
 	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
 	  -p TENANT_ID=$${TENANT_ID} \
