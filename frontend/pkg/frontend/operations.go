@@ -104,7 +104,7 @@ func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Requ
 	doc.OperationID = operationID
 	doc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 
-	err = f.dbClient.SetOperationDoc(ctx, doc)
+	err = f.dbClient.CreateOperationDoc(ctx, doc)
 	if err != nil {
 		return err
 	}

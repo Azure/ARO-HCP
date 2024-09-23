@@ -96,7 +96,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			}
 
 			if test.subDoc != nil {
-				err := f.dbClient.SetSubscriptionDoc(context.TODO(), test.subDoc)
+				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), test.subDoc)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -216,7 +216,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			}
 
 			if test.subDoc != nil {
-				err := f.dbClient.SetSubscriptionDoc(context.TODO(), test.subDoc)
+				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), test.subDoc)
 				if err != nil {
 					t.Fatal(err)
 				}

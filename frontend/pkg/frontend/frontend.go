@@ -352,7 +352,6 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 
 	var updating = (doc != nil)
-	var docUpdated bool // whether to upsert the doc
 	var operationRequest database.OperationRequest
 
 	var versionedCurrentCluster api.VersionedHCPOpenShiftCluster
@@ -408,7 +407,6 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 
 		doc = database.NewResourceDocument(resourceID)
-		docUpdated = true
 	}
 
 	body, err := BodyFromContext(ctx)
@@ -464,33 +462,51 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		docUpdated = true
 	}
 
-	// Record the latest system data values from ARM, if present.
-	if systemData != nil {
-		doc.SystemData = systemData
-		docUpdated = true
+	// This is called directly when creating a resource, and indirectly from
+	// within a retry loop when updating a resource.
+	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
+		var docUpdated bool
+
+		// Record the latest system data values from ARM, if present.
+		if systemData != nil {
+			doc.SystemData = systemData
+			docUpdated = true
+		}
+
+		// Here the difference between a nil map and an empty map is significant.
+		// If the Tags map is nil, that means it was omitted from the request body,
+		// so we leave any existing tags alone. If the Tags map is non-nil, even if
+		// empty, that means it was specified in the request body and should fully
+		// replace any existing tags.
+		if hcpCluster.TrackedResource.Tags != nil {
+			doc.Tags = hcpCluster.TrackedResource.Tags
+			docUpdated = true
+		}
+
+		return docUpdated
 	}
 
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if hcpCluster.TrackedResource.Tags != nil {
-		doc.Tags = hcpCluster.TrackedResource.Tags
-		docUpdated = true
-	}
-
-	if docUpdated {
-		err = f.dbClient.SetResourceDoc(ctx, doc)
+	if !updating {
+		updateResourceMetadata(doc)
+		err = f.dbClient.CreateResourceDoc(ctx, doc)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to upsert document for %s: %v", resourceID, err))
+			f.logger.Error(fmt.Sprintf("failed to create document for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		f.logger.Info(fmt.Sprintf("document upserted for %s", resourceID))
+		f.logger.Info(fmt.Sprintf("document created for %s", resourceID))
+	} else {
+		updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, updateResourceMetadata)
+		if err != nil {
+			f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", resourceID, err))
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		if updated {
+			f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
+		}
 	}
 
 	err = f.StartOperation(writer, request, operationRequest, doc.InternalID)
@@ -646,30 +662,39 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	var doc *database.SubscriptionDocument
-	doc, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Info(fmt.Sprintf("existing document not found for subscription - creating one for %s", subscriptionID))
-			doc = database.NewSubscriptionDocument(subscriptionID, &subscription)
-		} else {
-			f.logger.Error("failed to fetch document for %s: %v", subscriptionID, err)
+	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	if errors.Is(err, database.ErrNotFound) {
+		doc := database.NewSubscriptionDocument(subscriptionID, &subscription)
+		err = f.dbClient.CreateSubscriptionDoc(ctx, doc)
+		if err != nil {
+			f.logger.Error("failed to create document for subscription %s: %v", subscriptionID, err)
 			arm.WriteInternalServerError(writer)
 			return
 		}
+		f.logger.Info(fmt.Sprintf("created document for subscription %s", subscriptionID))
+	} else if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", subscriptionID, err))
+		arm.WriteInternalServerError(writer)
+		return
 	} else {
-		f.logger.Info(fmt.Sprintf("existing document found for subscription - will update document for subscription %s", subscriptionID))
-		doc.Subscription = &subscription
+		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(doc *database.SubscriptionDocument) bool {
+			doc.Subscription = &subscription
 
-		messages := getSubscriptionDifferences(doc.Subscription, &subscription)
-		for _, message := range messages {
-			f.logger.Info(message)
+			messages := getSubscriptionDifferences(doc.Subscription, &subscription)
+			for _, message := range messages {
+				f.logger.Info(message)
+			}
+
+			return len(messages) > 0
+		})
+		if err != nil {
+			f.logger.Error("failed to update document for subscription %s: %v", subscriptionID, err)
+			arm.WriteInternalServerError(writer)
+			return
 		}
-	}
-
-	err = f.dbClient.SetSubscriptionDoc(ctx, doc)
-	if err != nil {
-		f.logger.Error("failed to create document for subscription %s: %v", subscriptionID, err)
+		if updated {
+			f.logger.Info(fmt.Sprintf("updated document for subscription %s", subscriptionID))
+		}
 	}
 
 	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
@@ -884,7 +909,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	var updating = (nodePoolDoc != nil)
-	var docUpdated bool // whether to upsert the doc
 	var operationRequest database.OperationRequest
 
 	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
@@ -940,7 +964,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 
 		nodePoolDoc = database.NewResourceDocument(nodePoolResourceID)
-		docUpdated = true
 	}
 
 	body, err := BodyFromContext(ctx)
@@ -996,33 +1019,51 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		docUpdated = true
 	}
 
-	// Record the latest system data values from ARM, if present.
-	if systemData != nil {
-		nodePoolDoc.SystemData = systemData
-		docUpdated = true
+	// This is called directly when creating a resource, and indirectly from
+	// within a retry loop when updating a resource.
+	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
+		var docUpdated bool
+
+		// Record the latest system data values from ARM, if present.
+		if systemData != nil {
+			nodePoolDoc.SystemData = systemData
+			docUpdated = true
+		}
+
+		// Here the difference between a nil map and an empty map is significant.
+		// If the Tags map is nil, that means it was omitted from the request body,
+		// so we leave any existing tags alone. If the Tags map is non-nil, even if
+		// empty, that means it was specified in the request body and should fully
+		// replace any existing tags.
+		if hcpNodePool.TrackedResource.Tags != nil {
+			nodePoolDoc.Tags = hcpNodePool.TrackedResource.Tags
+			docUpdated = true
+		}
+
+		return docUpdated
 	}
 
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if hcpNodePool.TrackedResource.Tags != nil {
-		nodePoolDoc.Tags = hcpNodePool.TrackedResource.Tags
-		docUpdated = true
-	}
-
-	if docUpdated {
-		err = f.dbClient.SetResourceDoc(ctx, nodePoolDoc)
+	if !updating {
+		updateResourceMetadata(nodePoolDoc)
+		err = f.dbClient.CreateResourceDoc(ctx, nodePoolDoc)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to upsert document for %s: %v", nodePoolResourceID, err))
+			f.logger.Error(fmt.Sprintf("failed to create document for %s: %v", nodePoolResourceID, err))
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		f.logger.Info(fmt.Sprintf("document upserted for %s", nodePoolResourceID))
+		f.logger.Info(fmt.Sprintf("document created for %s", nodePoolResourceID))
+	} else {
+		updated, err := f.dbClient.UpdateResourceDoc(ctx, nodePoolResourceID, updateResourceMetadata)
+		if err != nil {
+			f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", nodePoolResourceID, err))
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		if updated {
+			f.logger.Info(fmt.Sprintf("document updated for %s", nodePoolResourceID))
+		}
 	}
 
 	err = f.StartOperation(writer, request, operationRequest, nodePoolDoc.InternalID)

@@ -47,12 +47,23 @@ func (c *Cache) GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) 
 	return nil, ErrNotFound
 }
 
-func (c *Cache) SetResourceDoc(ctx context.Context, doc *ResourceDocument) error {
+func (c *Cache) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(doc.Key.String())
 
 	c.resource[key] = doc
 	return nil
+}
+
+func (c *Cache) UpdateResourceDoc(ctx context.Context, resourceID *arm.ResourceID, callback func(*ResourceDocument) bool) (bool, error) {
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(resourceID.String())
+
+	if doc, ok := c.resource[key]; ok {
+		return callback(doc), nil
+	}
+
+	return false, ErrNotFound
 }
 
 func (c *Cache) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error {
@@ -91,7 +102,7 @@ func (c *Cache) GetOperationDoc(ctx context.Context, operationID string) (*Opera
 	return nil, ErrNotFound
 }
 
-func (c *Cache) SetOperationDoc(ctx context.Context, doc *OperationDocument) error {
+func (c *Cache) CreateOperationDoc(ctx context.Context, doc *OperationDocument) error {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(doc.ID)
 
@@ -118,10 +129,21 @@ func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (
 	return nil, ErrNotFound
 }
 
-func (c *Cache) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
+func (c *Cache) CreateSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(doc.ID)
 
 	c.subscription[key] = doc
 	return nil
+}
+
+func (c *Cache) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error) {
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(subscriptionID)
+
+	if doc, ok := c.subscription[key]; ok {
+		return callback(doc), nil
+	}
+
+	return false, ErrNotFound
 }
