@@ -1,6 +1,3 @@
-@description('The location for the resources')
-param location string = resourceGroup().location
-
 @description('The format string for the namespace')
 param namespaceFormatString string
 
@@ -10,8 +7,7 @@ param clusterServiceManagedIdentityName string
 @description('The name of the cluster to integrate with')
 param clusterName string
 
-resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  location: location
+resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: clusterServiceManagedIdentityName
 }
 
@@ -21,7 +17,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
 
 @batchSize(1)
 resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
-  for i in range(0, 20): {
+  for i in range(0, 19): {
     parent: uami
     name: 'fedcred-${i}'
     properties: {
