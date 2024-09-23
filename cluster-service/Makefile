@@ -53,6 +53,5 @@ provision-shard:
 .PHONY: deploy deploy-integ provision-shard
 
 copy-fpc:
-	@FPC_SECRET=$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name ${FPA_CERT_NAME} --query "value" -o tsv) && \
- 	../dev-infrastructure/scripts/kv-add-secret.sh ${KEYVAULT_NAME} ${RESOURCEGROUP} ${FPA_CERT_NAME} $${FPC_SECRET}
+	../dev-infrastructure/scripts/kv-copy-cert.sh service-kv-aro-hcp-dev ${RESOURCEGROUP} ${FPA_CERT_NAME} ${KEYVAULT_NAME}
 .PHONY: copy-fpc
