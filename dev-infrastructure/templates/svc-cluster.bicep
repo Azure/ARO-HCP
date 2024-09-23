@@ -99,8 +99,19 @@ param serviceKeyVaultPrivate bool = true
 @description('Image sync ACR RG name')
 param imageSyncAcrResourceGroupNames array = []
 
+@description('OIDC Storage Account name')
+param oidcStorageAccountName string
+
+@description('OIDC Storage Account SKU')
+param oidcStorageAccountSku string = 'Standard_ZRS'
+
 @description('Clusters Service ACR RG names')
 param clustersServiceAcrResourceGroupNames array = []
+
+@description('MSI that will be used to run the deploymentScript')
+param aroDevopsMsiId string
+
+var clusterServiceMIName = 'clusters-service'
 
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
@@ -142,7 +153,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         serviceAccountName: 'maestro'
       }
       cs_wi: {
-        uamiName: 'clusters-service'
+        uamiName: clusterServiceMIName
         namespace: 'cluster-service'
         serviceAccountName: 'clusters-service'
       }
@@ -231,7 +242,7 @@ output svcKeyVaultName string = serviceKeyVault.outputs.kvName
 
 var csManagedIdentityPrincipalId = filter(
   svcCluster.outputs.userAssignedIdentities,
-  id => id.uamiName == 'clusters-service'
+  id => id.uamiName == clusterServiceMIName
 )[0].uamiPrincipalID
 
 module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
@@ -243,13 +254,11 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     postgresServerPrivate: clusterServicePostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
-    clusterServiceManagedIdentityName: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'clusters-service'
-    )[0].uamiName
+    clusterServiceManagedIdentityName: clusterServiceMIName
   }
   dependsOn: [
     maestroServer
+    svcCluster
   ]
 }
 
@@ -325,3 +334,20 @@ module acrContributorRole '../modules/acr-permissions.bicep' = [
     }
   }
 ]
+
+// oidc
+
+module oidc '../modules/oidc/main.bicep' = {
+  name: 'oidc'
+  params: {
+    location: location
+    storageAccountName: oidcStorageAccountName
+    rpMsiName: clusterServiceMIName
+    skuName: oidcStorageAccountSku
+    aroDevopsMsiId: aroDevopsMsiId
+    deploymentScriptLocation: location
+  }
+  dependsOn: [
+    svcCluster
+  ]
+}
