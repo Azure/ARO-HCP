@@ -159,7 +159,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 			if tt.cachedState != "" {
 				if err := dbClient.SetSubscriptionDoc(context.Background(), &database.SubscriptionDocument{
-					PartitionKey: subscriptionId,
+					ID: subscriptionId,
 					Subscription: &arm.Subscription{
 						State: tt.cachedState,
 						Properties: &arm.SubscriptionProperties{

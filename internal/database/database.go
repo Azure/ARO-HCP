@@ -353,51 +353,42 @@ func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 		return nil, err
 	}
 
-	query := "SELECT * FROM c WHERE c.partitionKey = @partitionKey"
-	opt := azcosmos.QueryOptions{
-		PageSizeHint:    1,
-		QueryParameters: []azcosmos.QueryParameter{{Name: "@partitionKey", Value: subscriptionID}},
-	}
-
 	pk := azcosmos.NewPartitionKeyString(subscriptionID)
-	queryPager := container.NewQueryItemsPager(query, pk, &opt)
+
+	response, err := container.ReadItem(ctx, pk, subscriptionID, nil)
+	if isResponseError(err, http.StatusNotFound) {
+		return nil, ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
 
 	var doc *SubscriptionDocument
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
+	err = json.Unmarshal(response.Value, &doc)
+	if err != nil {
+		return nil, err
+	}
 
-		for _, item := range queryResponse.Items {
-			err = json.Unmarshal(item, &doc)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	if doc != nil {
-		return doc, nil
-	}
-	return nil, ErrNotFound
+	return doc, nil
 }
 
 // SetSubscriptionDoc creates/updates a subscription document in the async DB during cluster creation/patching
 func (d *CosmosDBClient) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
-	// Make sure partition key is lowercase.
-	doc.PartitionKey = strings.ToLower(doc.PartitionKey)
-
-	data, err := json.Marshal(doc)
-	if err != nil {
-		return err
-	}
+	// Make sure lookup keys are lowercase.
+	doc.ID = strings.ToLower(doc.ID)
 
 	container, err := d.client.NewContainer(subsContainer)
 	if err != nil {
 		return err
 	}
 
-	_, err = container.UpsertItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
+	pk := azcosmos.NewPartitionKeyString(doc.ID)
+
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return err
+	}
+
+	_, err = container.UpsertItem(ctx, pk, data, nil)
 	if err != nil {
 		return err
 	}

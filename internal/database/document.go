@@ -115,7 +115,6 @@ func (doc *OperationDocument) ToStatus() *arm.Operation {
 // SubscriptionDocument represents an Azure Subscription document.
 type SubscriptionDocument struct {
 	ID           string            `json:"id,omitempty"`
-	PartitionKey string            `json:"partitionKey,omitempty"`
 	Subscription *arm.Subscription `json:"subscription,omitempty"`
 
 	// Values provided by Cosmos after doc creation
@@ -128,8 +127,7 @@ type SubscriptionDocument struct {
 
 func NewSubscriptionDocument(subscriptionID string, subscription *arm.Subscription) *SubscriptionDocument {
 	return &SubscriptionDocument{
-		ID:           uuid.New().String(),
-		PartitionKey: strings.ToLower(subscriptionID),
+		ID:           strings.ToLower(subscriptionID),
 		Subscription: subscription,
 	}
 }

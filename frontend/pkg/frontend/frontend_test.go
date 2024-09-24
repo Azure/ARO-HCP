@@ -69,7 +69,7 @@ func TestSubscriptionsGET(t *testing.T) {
 		{
 			name: "GET Subscription - Doc Exists",
 			subDoc: &database.SubscriptionDocument{
-				PartitionKey: "00000000-0000-0000-0000-000000000000",
+				ID: "00000000-0000-0000-0000-000000000000",
 				Subscription: &arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),
@@ -145,7 +145,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				Properties:       nil,
 			},
 			subDoc: &database.SubscriptionDocument{
-				PartitionKey: "00000000-0000-0000-0000-000000000000",
+				ID: "00000000-0000-0000-0000-000000000000",
 				Subscription: &arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),

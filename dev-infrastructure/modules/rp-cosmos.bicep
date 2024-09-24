@@ -14,6 +14,7 @@ param uamiPrincipalId string
 var containers = [
   {
     name: 'Subscriptions'
+    partitionKeyPaths: ['/id']
   }
   {
     name: 'Operations'
