@@ -76,8 +76,7 @@
                 --resource-group "${REGIONAL_RESOURCEGROUP}" \
                 --template-file templates/region.bicep \
                 --parameters configurations/cs-integ-region.bicepparam \
-                --parameters currentUserId="${GITHUB_ACTOR}" \
-                --parameters regionalDNSSubdomain="${REGION}"
+                --parameters currentUserId="${GITHUB_ACTOR}"
 
               # metrics infrastructure
               az deployment group create \
