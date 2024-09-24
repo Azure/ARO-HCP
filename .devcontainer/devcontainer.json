@@ -1,5 +1,5 @@
 {
-    "image": "mcr.microsoft.com/vscode/devcontainers/go:1.22",
+    "image": "mcr.microsoft.com/vscode/devcontainers/go:1.23",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -37,6 +37,6 @@
     "mounts": [
         "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
     ],
-    
+
     "postCreateCommand": "./.devcontainer/postCreate.sh"
 }
