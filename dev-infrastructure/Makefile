@@ -66,19 +66,42 @@ cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
 .PHONY: cleanup-orphaned-rolebindings
 
-first-party-identity: # hardcoded name, since there should be only one in the global RG
+create-first-party-identity:
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
+			-g ${RESOURCEGROUP} \
+			-n clusters-service \
+			--query clientId) && \
 	az deployment group create \
 		--name "aro-hcp-dev-first-party" \
 		--resource-group $(RESOURCEGROUP) \
 		--template-file templates/first-party-identity.bicep $(PROMPT_TO_CONFIRM) \
 		--parameters configurations/mvp-first-party.bicepparam
-	APPLICATION_NAME=aro-hcp-dev-first-party \
-	KEY_VAULT_NAME=service-kv-aro-hcp-dev \
-	CERTIFICATE_NAME=firstPartyMock \
+	az deployment group create \
+		--name "aro-hcp-dev-first-party-kv-access" \
+		--resource-group $(RESOURCEGROUP) \
+		--template-file templates/first-party-kv-access.bicep $(PROMPT_TO_CONFIRM) \
+		--parameters configurations/mvp-first-party-access.bicepparam \
+		--parameters csManagedIdentityPrincipalId=$${AZURE_CS_MI_CLIENT_ID}
+	APPLICATION_NAME=aro-dev-first-party \
+	KEY_VAULT_NAME=aro-hcp-dev-global-kv \
+	CERTIFICATE_NAME=firstPartyCert \
 	ROLE_DEFINITION_NAME=dev-first-party-mock \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
-.PHONY: first-party-identity
+.PHONY: create-first-party-identity
+
+assign-first-party-kv-role:
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
+			-g ${REGIONAL_RESOURCEGROUP} \
+			-n clusters-service \
+			--query clientId)
+	az deployment group create \
+		--name "aro-hcp-dev-first-party-kv-access" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file templates/first-party-kv-access.bicep $(PROMPT_TO_CONFIRM) \
+		--parameters configurations/first-party-access.bicepparam \
+		--parameters csManagedIdentityPrincipalId=$${AZURE_CS_MI_CLIENT_ID}
+.PHONY: assign-first-party-kv-role
 
 acr: regionalRg
 	az deployment group create \

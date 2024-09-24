@@ -1,5 +1,5 @@
-@description('The name of the global key vault')
-param globalKeyVaultName string
+@description('The name of the key vault')
+param keyVaultName string
 
 @description('UTC now')
 param now string = utcNow('F')
@@ -10,12 +10,15 @@ param location string = resourceGroup().location
 @description('Name of the Key Vault Certificate Officer Managed Identity')
 param kvCertOfficerManagedIdentityName string
 
+@description('Global resource group name')
+param globalResourceGroupName string = 'global'
+
 //
 // C E R T I F I C A T E   O F F I C E R   M S I
 //
 
 resource kv 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: globalKeyVaultName
+  name: keyVaultName
 }
 
 resource kvCertOfficerManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -54,7 +57,7 @@ resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01
   }
   properties: {
     azPowerShellVersion: '7.5.0'
-    arguments: ' -VaultName ${globalKeyVaultName} -IssuerName "Self" -CertName "firstPartyMock" -SubjectName "CN=firstpartymock.hcp.osadev.cloud" -DnsNames "firstpartymock.hcp.osadev.cloud"'
+    arguments: ' -VaultName ${keyVaultName} -IssuerName "Self" -CertName "firstPartyCert" -SubjectName "CN=firstparty.hcp.osadev.cloud" -DnsNames "firstparty.hcp.osadev.cloud"'
     scriptContent: loadTextContent('../scripts/key-vault-cert.ps1')
     forceUpdateTag: now
     cleanupPreference: 'Always'
@@ -85,8 +88,7 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
     ]
     assignableScopes: [
       subscription().id
-      subscriptionResourceId('Microsoft.Resources/resourceGroups/', 'global')
-      subscriptionResourceId('Microsoft.Resources/resourceGroups/', 'aro-hcp-dev-westus3-sc')
+      subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
     ]
   }
 }
