@@ -19,12 +19,6 @@ cd api && npm ci
 # TODO: if we need to, we should move this out of here and into `api/package.json`
 npm install -g oav@3.3.4
 
-# Install the golang-lint
-# binary will be $(go env GOPATH)/bin/golangci-lint
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
-
-golangci-lint --version
-
 # Setup the welcome screen
 echo "cat .devcontainer/motd" >> ~/.bashrc
 echo "cat .devcontainer/motd" >> ~/.zshrc
