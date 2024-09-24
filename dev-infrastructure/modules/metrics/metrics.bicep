@@ -12,7 +12,7 @@ param msiName string = take('metrics-admin-${uniqueString(currentUserId)}', 4)
 param grafanaName string = take('aro-hcp-grafana-${uniqueString(currentUserId)}', 23)
 
 var grafanaAdmin = {
-  principalId: '366b619c-e72e-4278-8aaf-9af7851c601f' // aro-hcp-engineering
+  principalId: '6b6d3adf-8476-4727-9812-20ffdef2b85c' // aro-hcp-engineering-App Developer
   principalType: 'group'
 }
 
