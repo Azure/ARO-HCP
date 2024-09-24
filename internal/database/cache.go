@@ -117,7 +117,7 @@ func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (
 
 func (c *Cache) SetSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
 	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(doc.PartitionKey)
+	key := strings.ToLower(doc.ID)
 
 	c.subscription[key] = doc
 	return nil
