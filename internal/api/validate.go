@@ -117,7 +117,7 @@ func NewValidator() *validator.Validate {
 }
 
 type validateContext struct {
-	// Fields must be exported so valdator can access.
+	// Fields must be exported so validator can access.
 	Method   string
 	Resource any
 }
