@@ -90,6 +90,9 @@ param maestroPostgresServerStorageSizeGB int
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
 
+@description('The name of the service keyvault resource group')
+param serviceKeyVaultResourceGroup string = resourceGroup().name
+
 @description('Soft delete setting for service keyvault')
 param serviceKeyVaultSoftDelete bool = true
 
@@ -213,6 +216,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
 
 module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
   name: 'service-keyvault'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     location: location
     keyVaultName: serviceKeyVaultName
