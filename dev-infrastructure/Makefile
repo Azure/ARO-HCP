@@ -96,8 +96,8 @@ assign-first-party-kv-role:
 			-n cluster-service \
 			--query clientId)
 	az deployment group create \
-		--name "aro-hcp-dev-first-party-kv-access" \
-		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--name "first-party-kv-access-$${CURRENTUSER}" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--template-file templates/first-party-kv-access.bicep $(PROMPT_TO_CONFIRM) \
 		--parameters configurations/first-party-access.bicepparam \
 		--parameters csManagedIdentityPrincipalId=$${AZURE_CS_MI_CLIENT_ID}
