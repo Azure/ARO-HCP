@@ -69,7 +69,7 @@ cleanup-orphaned-rolebindings:
 create-first-party-identity:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
-			-n clusters-service \
+			-n cluster-service \
 			--query clientId) && \
 	az deployment group create \
 		--name "aro-hcp-dev-first-party" \
@@ -93,7 +93,7 @@ create-first-party-identity:
 assign-first-party-kv-role:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
 			-g ${REGIONAL_RESOURCEGROUP} \
-			-n clusters-service \
+			-n cluster-service \
 			--query clientId)
 	az deployment group create \
 		--name "aro-hcp-dev-first-party-kv-access" \
