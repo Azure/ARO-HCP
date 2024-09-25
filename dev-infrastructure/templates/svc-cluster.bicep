@@ -218,8 +218,17 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: serviceKeyVaultName
     private: serviceKeyVaultPrivate
     enableSoftDelete: serviceKeyVaultSoftDelete
+  }
+}
+
+module serviceKeyVaultPrivateEndpoint '../modules/keyvault/keyvault-private-endpoint.bicep' = {
+  name: 'service-keyvault-pe'
+  params: {
+    location: location
+    keyVaultName: serviceKeyVaultName
     subnetId: svcCluster.outputs.aksNodeSubnetId
     vnetId: svcCluster.outputs.aksVnetId
+    keyVaultId: serviceKeyVault.outputs.kvId
   }
 }
 
