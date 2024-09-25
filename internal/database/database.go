@@ -25,6 +25,11 @@ const (
 
 var ErrNotFound = errors.New("DocumentNotFound")
 
+func isResponseError(err error, statusCode int) bool {
+	var responseError *azcore.ResponseError
+	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
+}
+
 // DBClient is a document store for frontend to perform required CRUD operations against
 type DBClient interface {
 	// DBConnectionTest is used to health check the database. If the database is not reachable or otherwise not ready
@@ -279,12 +284,9 @@ func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 	pk := azcosmos.NewPartitionKeyString(operationID)
 
 	response, err := container.ReadItem(ctx, pk, operationID, nil)
-	if err != nil {
-		var responseErr *azcore.ResponseError
-		errors.As(err, &responseErr)
-		if responseErr.StatusCode == http.StatusNotFound {
-			return nil, ErrNotFound
-		}
+	if isResponseError(err, http.StatusNotFound) {
+		return nil, ErrNotFound
+	} else if err != nil {
 		return nil, err
 	}
 
@@ -334,16 +336,11 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 	pk := azcosmos.NewPartitionKeyString(operationID)
 
 	_, err = container.DeleteItem(ctx, pk, operationID, nil)
-	if err != nil {
-		var responseErr *azcore.ResponseError
-		errors.As(err, &responseErr)
-		if responseErr.StatusCode == http.StatusNotFound {
-			return ErrNotFound
-		}
-		return err
+	if isResponseError(err, http.StatusNotFound) {
+		return ErrNotFound
 	}
 
-	return nil
+	return err
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
