@@ -6,6 +6,8 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	configv1 "github.com/openshift/api/config/v1"
 
+	"github.com/google/uuid"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -154,7 +156,7 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, h
 				SubscriptionID(resourceID.SubscriptionID).
 				ResourceGroupName(resourceID.ResourceGroupName).
 				ResourceName(hcpCluster.Name).
-				ManagedResourceGroupName(hcpCluster.Properties.Spec.Platform.ManagedResourceGroup).
+				ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
 				SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
 				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID)).
 			Product(cmv1.NewProduct().
@@ -208,6 +210,22 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, h
 		Properties(additionalProperties)
 
 	return clusterBuilder.Build()
+}
+
+// ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
+// If the field is empty a default is generated.
+func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string {
+	if hcpCluster.Properties.Spec.Platform.ManagedResourceGroup != "" {
+		return hcpCluster.Properties.Spec.Platform.ManagedResourceGroup
+	}
+	var clusterName string
+	if len(hcpCluster.Name) >= 45 {
+		clusterName = (hcpCluster.Name)[:45]
+	} else {
+		clusterName = hcpCluster.Name
+	}
+
+	return "arohcp-" + clusterName + "-" + uuid.New().String()
 }
 
 // ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
