@@ -24,8 +24,7 @@ param deployCsInfra = false
 param csPostgresServerName = 'cs-pg-cs-integ'
 param clusterServicePostgresPrivate = false
 
-param serviceKeyVaultName = 'aro-hcp-dev-svc-kv'
-param serviceKeyVaultResourceGroup = 'global'
+param serviceKeyVaultName = 'service-kv-cs-integ'
 param serviceKeyVaultSoftDelete = true
 param serviceKeyVaultPrivate = false
 
