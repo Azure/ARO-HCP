@@ -1,11 +1,16 @@
+@description('Location of the endpoint.')
 param location string
 
+@description('Name of the key vault to create this endpoint for.')
 param keyVaultName string
 
-param subnetId string = ''
+@description('ID of the subnet to create the private endpoint in.')
+param subnetId string
 
-param vnetId string = ''
+@description('ID of the vnet, needs to correlated with subnetId.')
+param vnetId string
 
+@description('ID of the key vault.')
 param keyVaultId string
 
 //
