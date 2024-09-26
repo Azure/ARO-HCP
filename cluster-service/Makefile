@@ -5,7 +5,7 @@ CONFIG_PROFILE ?= dev
 include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
 
 CONSUMER_NAME ?= $(shell az aks list --query "[?tags.clusterType == 'mgmt-cluster' && starts_with(resourceGroup, '$(REGIONAL_RESOURCEGROUP)')].resourceGroup" -o tsv)
-KEYVAULT_NAME ?= $(shell az keyvault list --query "[?starts_with(name, 'service-kv')].name" -g ${RESOURCEGROUP} --output tsv)
+KEYVAULT_NAME ?= $(shell az keyvault list --query "[?starts_with(name, 'service-kv')].name" -g ${SVC_KV_RESOURCEGROUP} --output tsv)
 FPA_CERT_NAME ?= firstPartyMock
 AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID ?= "ccf5339c-61d1-402f-9c9b-d463670191f9"
 
