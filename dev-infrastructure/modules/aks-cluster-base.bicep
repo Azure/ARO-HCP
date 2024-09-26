@@ -70,6 +70,8 @@ module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
     // todo: change for higher environments
     private: false
     enableSoftDelete: aksEtcdKVEnableSoftDelete
+    // AKS managed private endpoints on its own when the etcd KV is private
+    managedPrivateEndpoint: false
   }
 }
 
