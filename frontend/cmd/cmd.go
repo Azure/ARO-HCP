@@ -10,6 +10,10 @@ import (
 	"runtime/debug"
 	"syscall"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/spf13/cobra"
 
@@ -88,8 +92,33 @@ func (opts *FrontendOpts) Run() error {
 	if !opts.useCache {
 		var err error
 
-		dbConfig := database.NewCosmosDBConfig(opts.cosmosName, opts.cosmosURL)
-		dbClient, err = database.NewCosmosDBClient(dbConfig)
+		azcoreClientOptions := azcore.ClientOptions{
+			// FIXME Cloud should be determined by other means.
+			Cloud: cloud.AzurePublic,
+		}
+
+		credential, err := azidentity.NewDefaultAzureCredential(
+			&azidentity.DefaultAzureCredentialOptions{
+				ClientOptions: azcoreClientOptions,
+			})
+		if err != nil {
+			return err
+		}
+
+		cosmosClient, err := azcosmos.NewClient(opts.cosmosURL, credential,
+			&azcosmos.ClientOptions{
+				ClientOptions: azcoreClientOptions,
+			})
+		if err != nil {
+			return err
+		}
+
+		cosmosDatabaseClient, err := cosmosClient.NewDatabase(opts.cosmosName)
+		if err != nil {
+			return err
+		}
+
+		dbClient, err = database.NewCosmosDBClient(cosmosDatabaseClient)
 		if err != nil {
 			return fmt.Errorf("creating the database client failed: %v", err)
 		}
