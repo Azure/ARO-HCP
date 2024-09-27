@@ -25,8 +25,9 @@ param deployCsInfra = false
 param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 param clusterServicePostgresPrivate = false
 
-param serviceKeyVaultName = take('service-kv-${uniqueString(currentUserId)}', 24)
-param serviceKeyVaultSoftDelete = false
+param serviceKeyVaultName = 'aro-hcp-dev-svc-kv'
+param serviceKeyVaultResourceGroup = 'global'
+param serviceKeyVaultSoftDelete = true
 param serviceKeyVaultPrivate = false
 
 param acrPullResourceGroups = ['global']

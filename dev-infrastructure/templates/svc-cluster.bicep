@@ -90,6 +90,9 @@ param maestroPostgresServerStorageSizeGB int
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
 
+@description('The name of the resourcegroup for the service keyvault')
+param serviceKeyVaultResourceGroup string = resourceGroup().name
+
 @description('Soft delete setting for service keyvault')
 param serviceKeyVaultSoftDelete bool = true
 
@@ -224,17 +227,25 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
 
 module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
   name: 'service-keyvault'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     location: location
     keyVaultName: serviceKeyVaultName
     private: serviceKeyVaultPrivate
     enableSoftDelete: serviceKeyVaultSoftDelete
-    subnetId: svcCluster.outputs.aksNodeSubnetId
-    vnetId: svcCluster.outputs.aksVnetId
   }
 }
 
-output svcKeyVaultName string = serviceKeyVault.outputs.kvName
+module serviceKeyVaultPrivateEndpoint '../modules/keyvault/keyvault-private-endpoint.bicep' = {
+  name: 'service-keyvault-pe'
+  params: {
+    location: location
+    keyVaultName: serviceKeyVaultName
+    subnetId: svcCluster.outputs.aksNodeSubnetId
+    vnetId: svcCluster.outputs.aksVnetId
+    keyVaultId: serviceKeyVault.outputs.kvId
+  }
+}
 
 //
 //   C L U S T E R   S E R V I C E
@@ -264,6 +275,7 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
 
 module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: guid(serviceKeyVaultName, 'cs', 'read')
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
@@ -286,6 +298,7 @@ var imageSyncManagedIdentityPrincipalId = filter(
 
 module imageServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: guid(serviceKeyVaultName, 'imagesync', 'read')
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
