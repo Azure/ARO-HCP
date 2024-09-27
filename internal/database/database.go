@@ -13,7 +13,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -63,47 +62,12 @@ var _ DBClient = &CosmosDBClient{}
 // CosmosDBClient defines the needed values to perform CRUD operations against the async DB
 type CosmosDBClient struct {
 	client *azcosmos.DatabaseClient
-	config *CosmosDBConfig
-}
-
-// CosmosDBConfig stores database and client configuration data
-type CosmosDBConfig struct {
-	DBName        string
-	DBUrl         string
-	ClientOptions *azidentity.DefaultAzureCredentialOptions
-}
-
-// NewCosmosDBConfig configures database configuration values for access
-func NewCosmosDBConfig(dbName, dbURL string) *CosmosDBConfig {
-	opt := &azidentity.DefaultAzureCredentialOptions{}
-	c := &CosmosDBConfig{
-		DBName:        dbName,
-		DBUrl:         dbURL,
-		ClientOptions: opt,
-	}
-	return c
 }
 
 // NewCosmosDBClient instantiates a Cosmos DatabaseClient targeting Frontends async DB
-func NewCosmosDBClient(config *CosmosDBConfig) (DBClient, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(config.ClientOptions)
-	if err != nil {
-		return nil, err
-	}
-
+func NewCosmosDBClient(databaseClient *azcosmos.DatabaseClient) (DBClient, error) {
 	d := &CosmosDBClient{
-		config: config,
-	}
-
-	client, err := azcosmos.NewClient(d.config.DBUrl, cred, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// This only fails if the database ID is empty.
-	d.client, err = client.NewDatabase(config.DBName)
-	if err != nil {
-		return nil, err
+		client: databaseClient,
 	}
 
 	return d, nil
