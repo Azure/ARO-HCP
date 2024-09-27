@@ -118,7 +118,7 @@ func (opts *FrontendOpts) Run() error {
 			return err
 		}
 
-		dbClient, err = database.NewCosmosDBClient(cosmosDatabaseClient)
+		dbClient, err = database.NewCosmosDBClient(context.Background(), cosmosDatabaseClient)
 		if err != nil {
 			return fmt.Errorf("creating the database client failed: %v", err)
 		}

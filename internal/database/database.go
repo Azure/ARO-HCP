@@ -23,6 +23,7 @@ const (
 	subsContainer       = "Subscriptions"
 	billingContainer    = "Billing"
 	operationsContainer = "Operations"
+	locksContainer      = "Locks"
 )
 
 var ErrNotFound = errors.New("DocumentNotFound")
@@ -37,6 +38,9 @@ type DBClient interface {
 	// DBConnectionTest is used to health check the database. If the database is not reachable or otherwise not ready
 	// to be used, an error should be returned.
 	DBConnectionTest(ctx context.Context) error
+
+	// GetLockClient returns a LockClient, or nil if the DBClient does not support a LockClient.
+	GetLockClient() *LockClient
 
 	// GetResourceDoc retrieves a ResourceDocument from the database given its resourceID.
 	// ErrNotFound is returned if an associated ResourceDocument cannot be found.
@@ -63,16 +67,23 @@ var _ DBClient = &CosmosDBClient{}
 
 // CosmosDBClient defines the needed values to perform CRUD operations against the async DB
 type CosmosDBClient struct {
-	client *azcosmos.DatabaseClient
+	client     *azcosmos.DatabaseClient
+	lockClient *LockClient
 }
 
 // NewCosmosDBClient instantiates a Cosmos DatabaseClient targeting Frontends async DB
-func NewCosmosDBClient(databaseClient *azcosmos.DatabaseClient) (DBClient, error) {
-	d := &CosmosDBClient{
-		client: databaseClient,
+func NewCosmosDBClient(ctx context.Context, databaseClient *azcosmos.DatabaseClient) (DBClient, error) {
+	// DatabaseClient.NewContainer only fails if the container ID is empty.
+	lockContainerClient, _ := databaseClient.NewContainer(locksContainer)
+	lockClient, err := NewLockClient(ctx, lockContainerClient)
+	if err != nil {
+		return nil, err
 	}
 
-	return d, nil
+	return &CosmosDBClient{
+		client:     databaseClient,
+		lockClient: lockClient,
+	}, nil
 }
 
 // DBConnectionTest checks the async database is accessible on startup
@@ -82,6 +93,10 @@ func (d *CosmosDBClient) DBConnectionTest(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (d *CosmosDBClient) GetLockClient() *LockClient {
+	return d.lockClient
 }
 
 // GetResourceDoc retrieves a resource document from the "resources" DB using resource ID

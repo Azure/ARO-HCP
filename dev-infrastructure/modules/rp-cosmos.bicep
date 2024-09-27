@@ -27,6 +27,11 @@ var containers = [
   {
     name: 'Billing'
   }
+  {
+    name: 'Locks'
+    defaultTtl: 10
+    partitionKeyPaths: ['/id']
+  }
 ]
 
 param roleDefinitionId string = '00000000-0000-0000-0000-000000000002'
