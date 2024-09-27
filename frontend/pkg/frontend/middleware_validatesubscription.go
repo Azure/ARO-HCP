@@ -6,8 +6,8 @@ package frontend
 import (
 	"net/http"
 
+	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 const (
@@ -16,19 +16,24 @@ const (
 	SubscriptionMissingMessage           = "The request is missing required parameter '%s'."
 )
 
-type SubscriptionStateMuxValidator struct {
-	dbClient database.DBClient
-}
-
-func NewSubscriptionStateMuxValidator(dbClient database.DBClient) *SubscriptionStateMuxValidator {
-	return &SubscriptionStateMuxValidator{
-		dbClient: dbClient,
-	}
-}
-
 // MiddlewareValidateSubscriptionState validates the state of the subscription as outlined by
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/subscription-lifecycle-api-reference.md
-func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	ctx := r.Context()
+
+	logger, err := LoggerFromContext(ctx)
+	if err != nil {
+		config.DefaultLogger().Error(err.Error())
+		arm.WriteInternalServerError(w)
+		return
+	}
+
+	dbClient, err := DBClientFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(w)
+	}
+
 	subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 	if subscriptionId == "" {
 		arm.WriteError(
@@ -41,7 +46,7 @@ func (s *SubscriptionStateMuxValidator) MiddlewareValidateSubscriptionState(w ht
 
 	// TODO: Ideally, we don't want to have to hit the database in this middleware
 	// Currently, we are using the database to retrieve the subscription's tenantID and state
-	sub, err := s.dbClient.GetSubscriptionDoc(r.Context(), subscriptionId)
+	sub, err := dbClient.GetSubscriptionDoc(ctx, subscriptionId)
 	if err != nil {
 		arm.WriteError(
 			w, http.StatusBadRequest,

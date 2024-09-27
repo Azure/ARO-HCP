@@ -40,8 +40,6 @@ func MuxPattern(method string, segments ...string) string {
 }
 
 func (f *Frontend) routes() *MiddlewareMux {
-	subscriptionStateMuxValidator := NewSubscriptionStateMuxValidator(f.dbClient)
-
 	// Setup metrics middleware
 	metricsMiddleware := MetricsMiddleware{dbClient: f.dbClient, Emitter: f.metrics}
 
@@ -63,7 +61,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
-		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
+		MiddlewareValidateSubscriptionState)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
@@ -77,7 +75,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
-		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
+		MiddlewareValidateSubscriptionState)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
@@ -111,7 +109,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
-		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
+		MiddlewareValidateSubscriptionState)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationResults),
 		postMuxMiddleware.HandlerFunc(f.OperationResult))
@@ -135,7 +133,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 	// Deployment preflight endpoint
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareLoggingPostMux,
-		subscriptionStateMuxValidator.MiddlewareValidateSubscriptionState)
+		MiddlewareValidateSubscriptionState)
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
 		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))

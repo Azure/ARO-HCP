@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type ContextError struct {
@@ -28,6 +29,7 @@ const (
 	contextKeyBody
 	contextKeyLogger
 	contextKeyVersion
+	contextKeyDBClient
 	contextKeyResourceID
 	contextKeyCorrelationData
 	contextKeySystemData
@@ -91,6 +93,21 @@ func VersionFromContext(ctx context.Context) (api.Version, error) {
 		return version, err
 	}
 	return version, nil
+}
+
+func ContextWithDBClient(ctx context.Context, dbClient database.DBClient) context.Context {
+	return context.WithValue(ctx, contextKeyDBClient, dbClient)
+}
+
+func DBClientFromContext(ctx context.Context) (database.DBClient, error) {
+	dbClient, ok := ctx.Value(contextKeyDBClient).(database.DBClient)
+	if !ok {
+		err := &ContextError{
+			got: dbClient,
+		}
+		return dbClient, err
+	}
+	return dbClient, nil
 }
 
 func ContextWithResourceID(ctx context.Context, resourceID *arm.ResourceID) context.Context {
