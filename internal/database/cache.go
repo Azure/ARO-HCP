@@ -36,6 +36,10 @@ func (c *Cache) DBConnectionTest(ctx context.Context) error {
 	return nil
 }
 
+func (c *Cache) GetLockClient() *LockClient {
+	return nil
+}
+
 func (c *Cache) GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) (*ResourceDocument, error) {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(resourceID.String())
