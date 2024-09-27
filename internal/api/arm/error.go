@@ -20,6 +20,7 @@ const (
 	CloudErrorCodeInvalidResourceType    = "InvalidResourceType"
 	CloudErrorCodeMultipleErrorsOccurred = "MultipleErrorsOccurred"
 	CloudErrorCodeUnsupportedMediaType   = "UnsupportedMediaType"
+	CloudErrorCodeConflict               = "Conflict"
 	CloudErrorCodeNotFound               = "NotFound"
 	CloudErrorInvalidSubscriptionState   = "InvalidSubscriptionState"
 	CloudErrorCodeSubscriptionNotFound   = "SubscriptionNotFound"
