@@ -237,7 +237,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
         osType: 'Linux'
         osSKU: 'AzureLinux'
         mode: 'System'
-        orchestratorVersion: kubernetesVersion
         enableAutoScaling: true
         enableEncryptionAtHost: true
         enableFIPS: true
@@ -373,7 +372,6 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       osType: 'Linux'
       osSKU: 'AzureLinux'
       mode: 'User'
-      orchestratorVersion: kubernetesVersion
       enableAutoScaling: true
       enableEncryptionAtHost: true
       enableFIPS: true
