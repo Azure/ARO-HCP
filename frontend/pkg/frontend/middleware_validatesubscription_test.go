@@ -155,7 +155,6 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dbClient := database.NewCache()
-			middleware := NewSubscriptionStateMuxValidator(dbClient)
 
 			if tt.cachedState != "" {
 				if err := dbClient.SetSubscriptionDoc(context.Background(), &database.SubscriptionDocument{
@@ -181,7 +180,9 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			}
 
 			// Add a logger to the context so parsing errors will be logged.
-			ctx := ContextWithLogger(request.Context(), slog.Default())
+			ctx := request.Context()
+			ctx = ContextWithLogger(ctx, slog.Default())
+			ctx = ContextWithDBClient(ctx, dbClient)
 			request = request.WithContext(ctx)
 			next := func(w http.ResponseWriter, r *http.Request) {
 				request = r // capture modified request
@@ -190,7 +191,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 			}
 
-			middleware.MiddlewareValidateSubscriptionState(writer, request, next)
+			MiddlewareValidateSubscriptionState(writer, request, next)
 
 			if tt.expectedError != nil {
 				var actualError *arm.CloudError

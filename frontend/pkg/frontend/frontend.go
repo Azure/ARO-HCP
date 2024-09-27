@@ -51,7 +51,10 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net
 		server: http.Server{
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
-				return ContextWithLogger(context.Background(), logger)
+				ctx := context.Background()
+				ctx = ContextWithLogger(ctx, logger)
+				ctx = ContextWithDBClient(ctx, dbClient)
+				return ctx
 			},
 		},
 		metricsServer: http.Server{
