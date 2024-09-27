@@ -104,7 +104,10 @@ func TestSubscriptionsGET(t *testing.T) {
 
 			ts := httptest.NewServer(f.routes())
 			ts.Config.BaseContext = func(net.Listener) context.Context {
-				return ContextWithLogger(context.Background(), f.logger)
+				ctx := context.Background()
+				ctx = ContextWithLogger(ctx, f.logger)
+				ctx = ContextWithDBClient(ctx, f.dbClient)
+				return ctx
 			}
 
 			rs, err := ts.Client().Get(ts.URL + "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0")
@@ -224,7 +227,10 @@ func TestSubscriptionsPUT(t *testing.T) {
 
 			ts := httptest.NewServer(f.routes())
 			ts.Config.BaseContext = func(net.Listener) context.Context {
-				return ContextWithLogger(context.Background(), f.logger)
+				ctx := context.Background()
+				ctx = ContextWithLogger(ctx, f.logger)
+				ctx = ContextWithDBClient(ctx, f.dbClient)
+				return ctx
 			}
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))

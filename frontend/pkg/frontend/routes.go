@@ -75,6 +75,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
+		MiddlewareLockSubscription,
 		MiddlewareValidateSubscriptionState)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
@@ -122,7 +123,8 @@ func (f *Frontend) routes() *MiddlewareMux {
 	// Subscription management endpoints
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
-		MiddlewareLoggingPostMux)
+		MiddlewareLoggingPostMux,
+		MiddlewareLockSubscription)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(f.ArmSubscriptionGet))
