@@ -1,14 +1,14 @@
 @description('Location of the endpoint.')
 param location string
 
-@description('Name of the key vault to create this endpoint for.')
-param keyVaultName string
-
 @description('ID of the subnet to create the private endpoint in.')
 param subnetId string
 
 @description('ID of the vnet, needs to correlated with subnetId.')
 param vnetId string
+
+@description('Name of the key vault to create this endpoint for.')
+param keyVaultName string
 
 @description('ID of the key vault.')
 param keyVaultId string
@@ -48,7 +48,7 @@ resource keyVaultPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-
 
 resource keyVaultPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
   parent: keyVaultPrivateEndpointDnsZone
-  name: uniqueString(keyVaultId)
+  name: uniqueString('keyvault-${uniqueString(vnetId)}')
   location: 'global'
   properties: {
     registrationEnabled: false

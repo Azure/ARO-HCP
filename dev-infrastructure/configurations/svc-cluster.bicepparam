@@ -27,7 +27,7 @@ param clusterServicePostgresPrivate = false
 
 param serviceKeyVaultName = 'aro-hcp-dev-svc-kv'
 param serviceKeyVaultResourceGroup = 'global'
-param serviceKeyVaultSoftDelete = false
+param serviceKeyVaultSoftDelete = true
 param serviceKeyVaultPrivate = false
 
 param acrPullResourceGroups = ['global']
