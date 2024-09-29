@@ -44,6 +44,11 @@ spec:
               configMapKeyRef:
                 name: frontend-config
                 key: LOCATION
+          - name: AZURE_SDK_GO_LOGGING
+            valueFrom:
+              configMapKeyRef:
+                name: frontend-config
+                key: AZURE_SDK_GO_LOGGING
           ports:
             - containerPort: 8443
               protocol: TCP

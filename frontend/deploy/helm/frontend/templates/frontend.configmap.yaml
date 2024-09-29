@@ -8,3 +8,4 @@ data:
   FRONTEND_MI_CLIENT_ID: '{{ .Values.configMap.frontendMiClientId }}'
   CURRENT_VERSION: '{{ .Values.configMap.currentVersion }}'
   LOCATION: '{{ .Values.configMap.location }}'
+  AZURE_SDK_GO_LOGGING: ''

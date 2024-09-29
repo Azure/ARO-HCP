@@ -12,6 +12,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	sdk "github.com/openshift-online/ocm-sdk-go"
@@ -83,6 +84,11 @@ func NewRootCmd() *cobra.Command {
 func (opts *FrontendOpts) Run() error {
 	logger := config.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version()))
+
+	// Log SDK events by setting AZURE_SDK_GO_LOGGING="all"
+	azlog.SetListener(func(event azlog.Event, message string) {
+		logger.Info(message, "event", event)
+	})
 
 	// Init prometheus emitter
 	prometheusEmitter := frontend.NewPrometheusEmitter()
