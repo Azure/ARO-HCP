@@ -10,4 +10,7 @@ mirror:
       - name: stable-4.16
         type: ocp
         full: true
+      - name: stable-4.17
+        type: ocp
+        full: true
     graph: true
