@@ -76,32 +76,13 @@ create-first-party-identity:
 		--resource-group $(RESOURCEGROUP) \
 		--template-file templates/first-party-identity.bicep $(PROMPT_TO_CONFIRM) \
 		--parameters configurations/mvp-first-party.bicepparam
-	az deployment group create \
-		--name "aro-hcp-dev-first-party-kv-access" \
-		--resource-group $(RESOURCEGROUP) \
-		--template-file templates/first-party-kv-access.bicep $(PROMPT_TO_CONFIRM) \
-		--parameters configurations/mvp-first-party-access.bicepparam \
-		--parameters csManagedIdentityPrincipalId=$${AZURE_CS_MI_CLIENT_ID}
 	APPLICATION_NAME=aro-dev-first-party \
-	KEY_VAULT_NAME=aro-hcp-dev-global-kv \
+	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
 	CERTIFICATE_NAME=firstPartyCert \
 	ROLE_DEFINITION_NAME=dev-first-party-mock \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 .PHONY: create-first-party-identity
-
-assign-first-party-kv-role:
-	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
-			-g ${REGIONAL_RESOURCEGROUP} \
-			-n cluster-service \
-			--query clientId)
-	az deployment group create \
-		--name "first-party-kv-access-$${CURRENTUSER}" \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/first-party-kv-access.bicep $(PROMPT_TO_CONFIRM) \
-		--parameters configurations/first-party-access.bicepparam \
-		--parameters csManagedIdentityPrincipalId=$${AZURE_CS_MI_CLIENT_ID}
-.PHONY: assign-first-party-kv-role
 
 acr: regionalRg
 	az deployment group create \
