@@ -3,7 +3,8 @@
 param aksClusterName string
 param grantCosmosAccess bool = false
 param cosmosDBName string = 'replaceme'
-param kvNames array = []
+param sharedKvNames array = []
+param sharedKvResourceGroup string
 param location string = resourceGroup().location
 param githubActionsPrincipalID string
 
@@ -52,8 +53,9 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
 // K E Y V A U L T
 
 module keyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for name in kvNames: {
+  for name in sharedKvNames: {
     name: guid(name, 'ghci', 'read')
+    scope: resourceGroup(sharedKvResourceGroup)
     params: {
       keyVaultName: name
       roleName: 'Key Vault Secrets User'

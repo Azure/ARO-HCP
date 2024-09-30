@@ -126,7 +126,7 @@
 
               SVC_CLUSTER_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.aksClusterName.value)
               COSMOS_DB_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.cosmosDBName.value)
-              SVC_KV_NAME=$(az deployment group show --resource-group "${SC_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.svcKeyVaultName.value)
+              SVC_KV_NAME=$(az deployment group show --resource-group "${GLOBAL_RESOURCEGROUP}" --name "svc-cluster-${GITHUB_RUN_ID}" --output tsv --query properties.outputs.svcKeyVaultName.value)
 
               # service cluster role assignments
               az deployment group create \
@@ -136,7 +136,8 @@
                 --parameters aksClusterName=${SVC_CLUSTER_NAME} \
                 --parameters cosmosDBName=${COSMOS_DB_NAME} \
                 --parameters grantCosmosAccess=true \
-                --parameters kvNames="['${SVC_KV_NAME}']" \
+                --parameters sharedKvNames="['${SVC_KV_NAME}']" \
+                --parameters sharedKvResourceGroup="${GLOBAL_RESOURCEGROUP}" \
                 --parameters githubActionsPrincipalID=${{ secrets.GHA_PRINCIPAL_ID }}
 
               # CS Integration MSI
