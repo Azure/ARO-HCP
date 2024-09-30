@@ -20,6 +20,11 @@ var acrPushRoleDefinitionId = subscriptionResourceId(
   '8311e382-0749-4cb8-b61a-304f252e45ec'
 )
 
+var acrDeleteRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'c2f4ef07-c644-48eb-af81-4b1b4947fb11'
+)
+
 var contributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   'b24988ac-6180-42a0-ab88-20f7382dd24c'
@@ -39,6 +44,15 @@ resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (
   properties: {
     principalId: principalId
     roleDefinitionId: acrPushRoleDefinitionId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPushAccess) {
+  name: guid(acrResourceGroupid, principalId, acrDeleteRoleDefinitionId)
+  properties: {
+    principalId: principalId
+    roleDefinitionId: acrDeleteRoleDefinitionId
     principalType: 'ServicePrincipal'
   }
 }
