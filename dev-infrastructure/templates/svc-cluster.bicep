@@ -237,6 +237,8 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
+output svcKeyVaultName string = serviceKeyVault.outputs.kvName
+
 module serviceKeyVaultPrivateEndpoint '../modules/keyvault/keyvault-private-endpoint.bicep' = {
   name: 'service-keyvault-pe'
   params: {
