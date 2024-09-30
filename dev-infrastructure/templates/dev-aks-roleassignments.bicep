@@ -4,7 +4,7 @@ param aksClusterName string
 param grantCosmosAccess bool = false
 param cosmosDBName string = 'replaceme'
 param sharedKvNames array = []
-param sharedKvResourceGroup string
+param sharedKvResourceGroup string = 'global'
 param location string = resourceGroup().location
 param githubActionsPrincipalID string
 
