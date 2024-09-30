@@ -114,6 +114,14 @@ param clustersServiceAcrResourceGroupNames array = []
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
+@description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
+param baseDNSZoneName string = ''
+
+@description('This is the region name in dev/staging/production')
+param regionalDNSSubdomain string = empty(currentUserId)
+  ? location
+  : '${location}-${take(uniqueString(currentUserId), 5)}'
+
 var clusterServiceMIName = 'clusters-service'
 
 // Tags the resource group
@@ -285,6 +293,15 @@ module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep
     serviceKeyVault
     svcCluster
   ]
+}
+
+module csDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
+  name: guid(regionalDNSSubdomain, svcCluster.name, 'cs')
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: '${regionalDNSSubdomain}.${baseDNSZoneName}'
+    zoneContributerManagedIdentityPrincipalId: csManagedIdentityPrincipalId
+  }
 }
 
 //

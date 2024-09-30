@@ -36,6 +36,9 @@ param imageSyncAcrResourceGroupNames = ['global']
 param oidcStorageAccountName = 'arohcpoidccsinteg'
 param aroDevopsMsiId = '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops'
 
+param baseDNSZoneName = 'hcp.osadev.cloud'
+param regionalDNSSubdomain = 'westus3-cs'
+
 // These parameters are always overridden in the Makefile
 param currentUserId = ''
 param regionalResourceGroup = ''
