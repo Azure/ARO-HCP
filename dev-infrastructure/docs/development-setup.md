@@ -485,33 +485,33 @@ Once logged in, verify the connection with `\conninfo`
 ### Azure Credentials and Pull Secret for HCP creation
 
 To test HCP creation, an Azure credentials file with clientId/clientSecret and a pull secret are required.
-The `service-kv-aro-hcp-dev` KV hosts shared secrets for the creds file and the pull secrets, that can be used by the team for testing.
+The `aro-hcp-dev-svc-kv` KV hosts shared secrets for the creds file and the pull secrets, that can be used by the team for testing.
 
 Users require membership in the `aro-hcp-engineering` group to read secrets.  This group has been assigned the
-`Key Vault Secrets User` role on the `service-kv-aro-hcp-dev` KV.
+`Key Vault Secrets User` role on the `aro-hcp-dev-svc-kv` KV.
 
 * Pull secrets that can pull from RH registries and the DEV ACR
 
   ```sh
-  az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-pull-secret" | jq .value -r > pull-secret.json
+  az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-pull-secret" | jq .value -r > pull-secret.json
   ````
 
 * Azure SP credentials in the format Hypershift Operator requires it (line format)
 
   ```sh
-  az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
+  az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
   ```
 
 * Azure SP credentials in the format CS requires it (json format)
 
   ```sh
-  az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
+  az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
   ```
 
-In case the `service-kv-aro-hcp-dev` KV gets recreated as part of a DEV environment recreation, the lost secrets can be replayed from the `aro-hcp-dev-global-kv` KV by ensuring you have `Secret Officer` permissions in the target KV and running
+In case the `aro-hcp-dev-svc-kv` KV gets recreated as part of a DEV environment recreation, the lost secrets can be replayed from the `aro-hcp-dev-global-kv` KV by ensuring you have `Secret Officer` permissions in the target KV and running
 
 ```sh
-dev-infrastructure/scripts/import-kv.sh aro-hcp-dev-global-kv service-kv-aro-hcp-dev
+dev-infrastructure/scripts/import-kv.sh aro-hcp-dev-global-kv aro-hcp-dev-svc-kv
 ```
 
 ### Access integrated DEV environment

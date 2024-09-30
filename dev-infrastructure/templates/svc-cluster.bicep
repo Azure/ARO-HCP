@@ -233,6 +233,7 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: serviceKeyVaultName
     private: serviceKeyVaultPrivate
     enableSoftDelete: serviceKeyVaultSoftDelete
+    purpose: 'service'
   }
 }
 

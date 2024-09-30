@@ -70,6 +70,7 @@ module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
     // todo: change for higher environments
     private: false
     enableSoftDelete: aksEtcdKVEnableSoftDelete
+    purpose: 'etcd-encryption'
   }
 }
 
