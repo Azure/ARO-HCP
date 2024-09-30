@@ -37,6 +37,8 @@ param clustersServiceAcrResourceGroupNames = ['global']
 param oidcStorageAccountName = take('arohcpoidcdev${uniqueString(currentUserId)}', 24)
 param aroDevopsMsiId = '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops'
 
+param baseDNSZoneName = 'hcp.osadev.cloud'
+
 // These parameters are always overriden in the Makefile
 param currentUserId = ''
 param regionalResourceGroup = ''
