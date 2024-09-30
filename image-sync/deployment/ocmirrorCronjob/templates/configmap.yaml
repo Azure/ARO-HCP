@@ -20,6 +20,10 @@ data:
             minVersion: 4.16.0
             maxVersion: 4.16.3
             type: ocp
+          - name: stable-4.17
+            minVersion: 4.17.0
+            maxVersion: 4.17.3
+            type: ocp
         graph: true
       additionalImages:
       - name: registry.redhat.io/redhat/redhat-operator-index:v4.16
