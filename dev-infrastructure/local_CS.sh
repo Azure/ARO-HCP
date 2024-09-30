@@ -5,7 +5,7 @@ cd ../uhc-clusters-service/
 make db/teardown
 
 # Obtain Azure credentials from keyvault
-VAULTNAME=service-kv-aro-hcp-dev
+VAULTNAME=aro-hcp-dev-svc-kv
 az keyvault secret show --vault-name $VAULTNAME --name "aro-hcp-dev-pull-secret" | jq .value -r > pull-secret.json
 az keyvault secret show --vault-name $VAULTNAME --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
 az keyvault secret show --vault-name $VAULTNAME --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json

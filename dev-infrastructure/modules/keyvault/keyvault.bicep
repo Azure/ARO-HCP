@@ -10,11 +10,15 @@ param enableSoftDelete bool
 @description('Toggle to make the keyvault private.')
 param private bool
 
+@description('Purpose of the keyvault.')
+param purpose string
+
 resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
   location: location
   name: keyVaultName
   tags: {
     resourceGroup: resourceGroup().name
+    aroHCPPurpose: purpose
   }
   properties: {
     enableRbacAuthorization: true
