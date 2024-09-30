@@ -5,6 +5,7 @@
     REGIONAL_RESOURCEGROUP: cs-integ-westus3
     SC_RESOURCEGROUP: cs-integ-westus3-sc
     MC_RESOURCEGROUP: cs-integ-westus3-mc-1
+    GLOBAL_RESOURCEGROUP: global
     ARO_HCP_IMAGE_ACR: arohcpdev
   on:
     workflow_dispatch:
