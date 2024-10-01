@@ -53,8 +53,3 @@ provision-shard:
 	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/dev-provisioning-shards.yml
 
 .PHONY: deploy deploy-integ provision-shard
-
-copy-fpc:
-	@FPC_SECRET=$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name ${FPA_CERT_NAME} --query "value" -o tsv) && \
- 	../dev-infrastructure/scripts/kv-add-secret.sh ${KEYVAULT_NAME} ${RESOURCEGROUP} ${FPA_CERT_NAME} $${FPC_SECRET}
-.PHONY: copy-fpc

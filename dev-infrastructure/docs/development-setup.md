@@ -171,12 +171,7 @@ To access the HTTP and GRPC endpoints of maestro, run
 
 ### Cluster Service
 
-To make use of the first party certificate it is needed to copy the cert into the service-kv.
-   ```bash
-   cd cluster-service/
-   make copy-fpc
-   ```
-Then deploy CS:
+Deploy CS:
    ```bash
    cd cluster-service/
    make deploy
