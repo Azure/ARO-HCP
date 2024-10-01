@@ -66,6 +66,24 @@ cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
 .PHONY: cleanup-orphaned-rolebindings
 
+create-first-party-identity:
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
+			-g ${RESOURCEGROUP} \
+			-n clusters-service \
+			--query clientId) && \
+	az deployment group create \
+		--name "aro-hcp-dev-first-party" \
+		--resource-group $(RESOURCEGROUP) \
+		--template-file templates/first-party-identity.bicep $(PROMPT_TO_CONFIRM) \
+		--parameters configurations/mvp-first-party.bicepparam
+	APPLICATION_NAME=aro-dev-first-party \
+	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+	CERTIFICATE_NAME=firstPartyCert \
+	ROLE_DEFINITION_NAME=dev-first-party-mock \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh
+.PHONY: create-first-party-identity
+
 acr: regionalRg
 	az deployment group create \
 		--name "$(DEPLOYMENTNAMEREGION)-ACR" \
