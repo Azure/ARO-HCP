@@ -6,6 +6,8 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	configv1 "github.com/openshift/api/config/v1"
 
+	"github.com/google/uuid"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -104,6 +106,22 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv1.Cl
 	return hcpcluster
 }
 
+// ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
+// If the field is empty a default is generated.
+func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string {
+	if hcpCluster.Properties.Spec.Platform.ManagedResourceGroup != "" {
+		return hcpCluster.Properties.Spec.Platform.ManagedResourceGroup
+	}
+	var clusterName string
+	if len(hcpCluster.Name) >= 45 {
+		clusterName = (hcpCluster.Name)[:45]
+	} else {
+		clusterName = hcpCluster.Name
+	}
+
+	return "arohcp-" + clusterName + "-" + uuid.New().String()
+}
+
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
 func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
 	// additionalProperties should be empty in production, it is configurable for development to pin to specific
@@ -154,7 +172,7 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, h
 				SubscriptionID(resourceID.SubscriptionID).
 				ResourceGroupName(resourceID.ResourceGroupName).
 				ResourceName(hcpCluster.Name).
-				ManagedResourceGroupName(hcpCluster.Properties.Spec.Platform.ManagedResourceGroup).
+				ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
 				SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
 				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID)).
 			Product(cmv1.NewProduct().
