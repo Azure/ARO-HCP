@@ -89,6 +89,7 @@ create-mock-identities:
 	APPLICATION_NAME=aro-dev-msi-mock \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
 	CERTIFICATE_NAME=msiMockCert \
+	ROLE_DEFINITION_NAME=Contributor \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 .PHONY: create-mock-identities
