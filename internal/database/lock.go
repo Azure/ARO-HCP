@@ -135,7 +135,7 @@ func (c *LockClient) TryAcquireLock(ctx context.Context, id string) (*azcosmos.I
 		EnableContentResponseOnWrite: true,
 	}
 	response, err := c.containerClient.CreateItem(ctx, pk, data, options)
-	if isResponseError(err, http.StatusPreconditionFailed) {
+	if isResponseError(err, http.StatusConflict) {
 		return nil, nil // lock already acquired by someone else
 	} else if err != nil {
 		return nil, err
