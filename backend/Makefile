@@ -33,4 +33,27 @@ image:
 push: image
 	docker push ${ARO_HCP_BACKEND_IMAGE}
 
-.PHONY: backend run clean image push
+deploy:
+	BACKEND_MI_CLIENT_ID=$(shell az identity show \
+			-g ${RESOURCEGROUP} \
+			-n backend \
+			--query clientId);\
+	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name') DB_NAME=$${DB_NAME:-"none"};\
+	ISTO_VERSION=$(shell az aks list --query "[?tags.clusterType == 'svc-cluster' && starts_with(resourceGroup, '${RESOURCEGROUP}')].serviceMeshProfile.istio.revisions[-1]" -o tsv) && \
+	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
+	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
+	helm upgrade --install aro-hcp-backend-dev \
+		deploy/helm/backend/ \
+		--set configMap.databaseName=$${DB_NAME} \
+		--set configMap.databaseUrl="https://$${DB_NAME}.documents.azure.com:443/" \
+		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
+		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
+		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE} \
+		--set configMap.location=${LOCATION} \
+		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE} \
+		--namespace aro-hcp
+
+undeploy:
+	helm uninstall aro-hcp-backend-dev --namespace aro-hcp
+
+.PHONY: backend run clean image push deploy undeploy

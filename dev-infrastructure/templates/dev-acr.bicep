@@ -69,6 +69,9 @@ steps:
   - cmd: acr purge --filter "arohcpfrontend:.*" --keep 3 --ago 7d
     disableWorkingDirectoryOverride: true
     timeout: 3600
+  - cmd: acr purge --filter "arohcpbackend:.*" --keep 3 --ago 7d
+    disableWorkingDirectoryOverride: true
+    timeout: 3600
 ''')
       type: 'EncodedTask'
     }

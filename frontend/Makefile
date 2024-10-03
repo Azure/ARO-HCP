@@ -47,7 +47,7 @@ deploy:
 	ISTO_VERSION=$(shell az aks list --query "[?tags.clusterType == 'svc-cluster' && starts_with(resourceGroup, '${RESOURCEGROUP}')].serviceMeshProfile.istio.revisions[-1]" -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
-	helm upgrade --install aro-hcp-dev \
+	helm upgrade --install aro-hcp-frontend-dev \
 		deploy/helm/frontend/ \
 		--set configMap.databaseName=$${DB_NAME} \
 		--set configMap.databaseUrl="https://$${DB_NAME}.documents.azure.com:443/" \
@@ -59,7 +59,7 @@ deploy:
 		--namespace aro-hcp
 
 undeploy:
-	helm uninstall aro-hcp-dev --namespace aro-hcp
+	helm uninstall aro-hcp-frontend-dev --namespace aro-hcp
 
 smoke-tests:
 	go test -v -count 1 ./utils/frontend_smoke_test.go

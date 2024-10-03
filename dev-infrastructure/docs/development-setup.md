@@ -127,10 +127,17 @@ Deploy CS:
 
 To validate, have a look at the `cluster-service` namespace.
 
-### Frontend
+### Resource Provider
+
+The ARO-HCP resource provider consists of independent frontend and backend components.
 
   ```bash
   cd frontend/
+  make deploy
+  ```
+
+  ```bash
+  cd backend/
   make deploy
   ```
 

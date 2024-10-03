@@ -45,7 +45,9 @@ spec:
   rules:
     - from:
       - source:
-          principals: ["cluster.local/ns/aro-hcp/sa/frontend"]
+          principals:
+            - "cluster.local/ns/aro-hcp/sa/frontend"
+            - "cluster.local/ns/aro-hcp/sa/backend"
       to:
       - operation:
           ports:

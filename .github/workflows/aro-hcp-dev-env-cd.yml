@@ -18,6 +18,7 @@
         - 'dev-infrastructure/**/*.bicepparam'
         - 'dev-infrastructure/configurations/*'
         - 'frontend/**'
+        - 'backend/**'
         - 'cluster-service/**'
         - 'internal/**'
         - 'maestro/**'
@@ -275,6 +276,36 @@
             az acr login --name ${ARO_HCP_IMAGE_ACR}
             make push
 
+    build_push_backend:
+      permissions:
+        id-token: 'write'
+        contents: 'read'
+      runs-on: 'ubuntu-latest'
+      steps:
+        - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+          with:
+            fetch-depth: 1
+
+        - name: Build backend container image
+          run: |
+            cd backend/
+            make image
+
+        - name: 'Az CLI login'
+          if: github.event.pull_request.merged == true
+          uses: azure/login@v2
+          with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+        - name: Push backend container image
+          if: github.event.pull_request.merged == true
+          run: |
+            cd backend/
+            az acr login --name ${ARO_HCP_IMAGE_ACR}
+            make push
+
     build_push_ocmirror:
       permissions:
         id-token: 'write'
@@ -343,6 +374,7 @@
       if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       needs:
         - build_push_frontend
+        - build_push_backend
         - build_push_imagesync
         - build_push_ocmirror
         - deploy_service_cluster_rg
@@ -407,6 +439,11 @@
         - name: 'Deploy Frontend'
           run: |
             cd frontend/
+            make deploy
+
+        - name: 'Deploy Backend'
+          run: |
+            cd backend/
             make deploy
 
         - name: 'Deploy Cluster Service'

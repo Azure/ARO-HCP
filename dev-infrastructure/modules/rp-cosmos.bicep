@@ -7,8 +7,7 @@ param disableLocalAuth bool = true
 param location string
 param aksNodeSubnetId string
 param vnetId string
-param userAssignedMI string
-param uamiPrincipalId string
+param userAssignedMIs array
 
 // Local Params
 var containers = [
@@ -35,16 +34,13 @@ var containers = [
 ]
 
 param roleDefinitionId string = '00000000-0000-0000-0000-000000000002'
-var roleAssignmentId = guid(roleDefinitionId, uamiPrincipalId, cosmosDbAccount.id)
 
 // Main
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
   kind: 'GlobalDocumentDB'
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${userAssignedMI}': {}
-    }
+    userAssignedIdentities: toObject(userAssignedMIs, uami => uami.uamiID, val => {})
   }
   name: name
   location: location
@@ -194,14 +190,16 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
   }
 ]
 
-resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
-  name: roleAssignmentId
-  parent: cosmosDbAccount
-  properties: {
-    roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${roleDefinitionId}'
-    principalId: uamiPrincipalId
-    scope: cosmosDbAccount.id
+resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = [
+  for uami in userAssignedMIs: {
+    name: guid(roleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
+    parent: cosmosDbAccount
+    properties: {
+      roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${roleDefinitionId}'
+      principalId: uami.uamiPrincipalID
+      scope: cosmosDbAccount.id
+    }
   }
-}
+]
 
 output cosmosDBName string = name
