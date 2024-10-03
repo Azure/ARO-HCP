@@ -4,6 +4,7 @@ toolchain go1.23.0
 
 use (
 	./frontend
+	./backend
 	./internal
 	./tooling/image-sync
 	./tooling/templatize
