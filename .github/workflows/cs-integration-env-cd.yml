@@ -18,6 +18,7 @@
         - 'dev-infrastructure/**/*.bicepparam'
         - 'dev-infrastructure/configurations/*'
         - 'frontend/**'
+        - 'backend/**'
         - 'cluster-service/**'
         - 'internal/**'
         - 'maestro/**'
@@ -284,6 +285,11 @@
         - name: 'Deploy Frontend'
           run: |
             cd frontend/
+            make deploy
+
+        - name: 'Deploy Backend'
+          run: |
+            cd backend/
             make deploy
 
         - name: 'Deploy Maestro Server'

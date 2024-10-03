@@ -158,6 +158,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         namespace: 'aro-hcp'
         serviceAccountName: 'frontend'
       }
+      backend_wi: {
+        uamiName: 'backend'
+        namespace: 'aro-hcp'
+        serviceAccountName: 'backend'
+      }
       maestro_wi: {
         uamiName: 'maestro-server'
         namespace: 'maestro'
@@ -181,6 +186,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
 var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]
+var backendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'backend')[0]
 
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   name: 'rp_cosmos_db'
@@ -190,8 +196,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
     aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
     vnetId: svcCluster.outputs.aksVnetId
     disableLocalAuth: disableLocalAuth
-    userAssignedMI: frontendMI.uamiID
-    uamiPrincipalId: frontendMI.uamiPrincipalID
+    userAssignedMIs: [frontendMI, backendMI]
   }
 }
 

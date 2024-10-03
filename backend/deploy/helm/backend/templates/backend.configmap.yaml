@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  DB_NAME: '{{ .Values.configMap.databaseName }}'
+  DB_URL: '{{ .Values.configMap.databaseUrl }}'
+  BACKEND_MI_CLIENT_ID: '{{ .Values.configMap.backendMiClientId }}'
+  CURRENT_VERSION: '{{ .Values.configMap.currentVersion }}'
+  LOCATION: '{{ .Values.configMap.location }}'

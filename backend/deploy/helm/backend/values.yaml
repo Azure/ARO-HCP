@@ -1,0 +1,10 @@
+configMap:
+  location: ""
+  currentVersion: ""
+  backendMiClientId: ""
+  databaseUrl: ""
+  databaseName: ""
+deployment:
+  imageName: ""
+serviceAccount:
+  workloadIdentityClientId: ""

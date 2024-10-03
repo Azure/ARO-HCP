@@ -1,7 +1,7 @@
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
-  name: allow-metrics-frontend
+  name: allow-metrics-backend
 spec:
   action: "ALLOW"
   rules:
@@ -12,4 +12,4 @@ spec:
           ports: ["8081"]
   selector:
     matchLabels:
-      app: "aro-hcp-frontend"
+      app: "aro-hcp-backend"
