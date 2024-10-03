@@ -1,5 +1,6 @@
 **/*.swp
 aro-hcp-frontend
+aro-hcp-backend
 localsecrets
 secrets
 node_modules
@@ -11,5 +12,5 @@ node_modules
 .DS_Store
 .idea
 env
-frontend/archive.tar.gz
+*/archive.tar.gz
 tooling/bin
