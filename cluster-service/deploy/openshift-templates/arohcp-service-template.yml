@@ -252,6 +252,14 @@ parameters:
   value: ""
 - name: OIDC_ISSUER_BASE_URL
   description: "OIDC base issuer URL, e.g. https://<storage-account>.z1.web.core.windows.net/"
+- name: AZURE_ARM_HELPER_IDENTITY_CLIENT_ID
+  description: The client id of the service principal that represents the ARM Helper Identity.
+  value: ""
+- name: AZURE_ARM_HELPER_IDENTITY_CERT_NAME
+  description: The name of the secret that contains the ARM Helper Indentity certificate bundle.
+  value: ""
+- name: AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID
+  description: The principal id of the service principal that represents the mock first party application identity
   value: ""
 - name: AZURE_MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME
   description: The name of the secret that contains the mock managed identities certificate bundle.
@@ -284,6 +292,10 @@ objects:
             objectName: ${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME}
             objectType: secret
             objectAlias: mockMiServicePrincipalCertificateBundle
+          - |
+            objectName: ${AZURE_ARM_HELPER_IDENTITY_CERT_NAME}
+            objectType: secret
+            objectAlias: armHelperIndentityCertificateBundle
       tenantId: ${TENANT_ID}
       usePodIdentity: "false"
     provider: azure
@@ -705,6 +717,9 @@ objects:
           - --azure-mi-mock-service-principal-certificate-bundle-path=/secrets/keyvault/mockMiServicePrincipalCertificateBundle
           - --azure-mi-mock-service-principal-client-id=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID}
           - --azure-mi-mock-service-principal-principal-id=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID}
+          - --azure-arm-helper-identity-certificate-bundle-path=/secrets/keyvault/armHelperIndentityCertificateBundle
+          - --azure-arm-helper-identity-client-id=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID}
+          - --azure-arm-helper-mock-fpa-principal-id=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID}
           livenessProbe:
             httpGet:
               path: /api/clusters_mgmt/v1
