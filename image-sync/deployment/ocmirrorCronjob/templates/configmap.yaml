@@ -15,6 +15,7 @@ data:
       platform:
         architectures:
           - multi
+          - amd64
         channels:
           - name: stable-4.16
             minVersion: 4.16.0
