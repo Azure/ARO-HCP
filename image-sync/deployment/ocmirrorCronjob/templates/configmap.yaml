@@ -22,7 +22,7 @@ data:
             type: ocp
           - name: stable-4.17
             minVersion: 4.17.0
-            maxVersion: 4.17.3
+            maxVersion: 4.17.0
             type: ocp
         graph: true
       additionalImages:
