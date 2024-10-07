@@ -79,6 +79,10 @@ create-mock-identities:
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 
+	app_id=$(shell az ad sp list --display-name aro-dev-first-party --query "[].appId" -o tsv) && \
+	subscription_id=$(shell az account show --query id --output tsv) && \
+	az role assignment create --role Contributor --assignee $${app_id} --scope "/subscriptions/$${subscription_id}"
+
 	APPLICATION_NAME=aro-dev-arm-helper \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
 	CERTIFICATE_NAME=armHelperCert \
