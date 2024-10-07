@@ -405,6 +405,7 @@ objects:
       metadata:
         labels:
           app: clusters-service
+          azure.workload.identity/use: "true"
       spec:
         serviceAccount: clusters-service
         serviceAccountName: clusters-service
