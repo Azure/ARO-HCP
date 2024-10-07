@@ -10,7 +10,7 @@ param keyVaultName string
 @description('Global resource group name')
 param globalResourceGroupName string = 'global'
 
-module scriptMsi '../modules/keyvault/identiy-script-msi.bicep' = {
+module scriptMsi '../modules/keyvault/identity-script-msi.bicep' = {
   name: 'script-msi'
   params: {
     location: location
