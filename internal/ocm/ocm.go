@@ -169,3 +169,97 @@ func (csc *ClusterServiceClient) DeleteCSNodePool(ctx context.Context, internalI
 	_, err := client.Delete().SendContext(ctx)
 	return err
 }
+
+type MockClusterServiceClient struct {
+	clusters  map[InternalID](*cmv1.Cluster)
+	nodePools map[InternalID](*cmv1.NodePool)
+}
+
+func (mcsc *MockClusterServiceClient) GetConn() *sdk.Connection { panic("GetConn not implemented") }
+func (mcsc *MockClusterServiceClient) GetProvisionShardID() *string {
+	panic("GetProvisionShardID not implemented")
+}
+func (mcsc *MockClusterServiceClient) GetProvisionerNoOpProvision() bool {
+	panic("GetProvisionerNoOpProvision not implemented")
+}
+func (mcsc *MockClusterServiceClient) GetProvisionerNoOpDeprovision() bool {
+	panic("GetProvisionerNoOpDeprovision not implemented")
+}
+
+func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*cmv1.Cluster, error) {
+	cluster, ok := mcsc.clusters[internalID]
+
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return cluster, nil
+}
+
+func (mcsc *MockClusterServiceClient) PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
+	internalID, err := NewInternalID(cluster.HREF())
+	if err != nil {
+		return nil, err
+	}
+	mcsc.clusters[internalID] = cluster
+	return cluster, nil
+}
+
+func (mcsc *MockClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
+
+	_, ok := mcsc.clusters[internalID]
+	if !ok {
+		return nil, fmt.Errorf("Not Found")
+	}
+
+	mcsc.clusters[internalID] = cluster
+	return cluster, nil
+
+}
+
+func (mcsc *MockClusterServiceClient) DeleteCSCluster(ctx context.Context, internalID InternalID) error {
+	_, ok := mcsc.clusters[internalID]
+
+	if !ok {
+		return fmt.Errorf("Not Found")
+	}
+	delete(mcsc.clusters, internalID)
+	return nil
+}
+
+func (mcsc *MockClusterServiceClient) GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
+	nodePool, ok := mcsc.nodePools[internalID]
+
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return nodePool, nil
+
+}
+
+func (mcsc *MockClusterServiceClient) PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
+	internalID, err := NewInternalID(nodePool.HREF())
+	if err != nil {
+		return nil, err
+	}
+	mcsc.nodePools[internalID] = nodePool
+	return nodePool, nil
+}
+
+func (mcsc *MockClusterServiceClient) UpdateCSNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
+	_, ok := mcsc.nodePools[internalID]
+	if !ok {
+		return nil, fmt.Errorf("Not Found")
+	}
+	mcsc.nodePools[internalID] = nodePool
+	return nodePool, nil
+}
+
+func (mcsc *MockClusterServiceClient) DeleteCSNodePool(ctx context.Context, internalID InternalID) error {
+	_, ok := mcsc.nodePools[internalID]
+
+	if !ok {
+		return fmt.Errorf("Not Found")
+	}
+	delete(mcsc.nodePools, internalID)
+	return nil
+}
