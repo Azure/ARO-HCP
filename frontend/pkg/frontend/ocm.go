@@ -140,13 +140,13 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, h
 		"np_provisioner_provision_enabled":   "true",
 		"np_provisioner_deprovision_enabled": "true",
 	}
-	if f.clusterServiceConfig.ProvisionShardID != nil {
-		additionalProperties["provision_shard_id"] = *f.clusterServiceConfig.ProvisionShardID
+	if f.clusterServiceClient.GetProvisionShardID() != nil {
+		additionalProperties["provision_shard_id"] = *f.clusterServiceClient.GetProvisionShardID()
 	}
-	if f.clusterServiceConfig.ProvisionerNoOpProvision {
+	if f.clusterServiceClient.GetProvisionerNoOpProvision() {
 		additionalProperties["provisioner_noop_provision"] = "true"
 	}
-	if f.clusterServiceConfig.ProvisionerNoOpDeprovision {
+	if f.clusterServiceClient.GetProvisionerNoOpDeprovision() {
 		additionalProperties["provisioner_noop_deprovision"] = "true"
 	}
 

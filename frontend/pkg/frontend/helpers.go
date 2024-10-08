@@ -33,7 +33,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 
 	switch doc.InternalID.Kind() {
 	case cmv1.ClusterKind:
-		csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, doc.InternalID)
+		csCluster, err := f.clusterServiceClient.GetCSCluster(ctx, doc.InternalID)
 		if err != nil {
 			f.logger.Error(err.Error())
 			var ocmError *ocmerrors.Error
@@ -49,7 +49,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 		}
 
 	case cmv1.NodePoolKind:
-		csNodePool, err := f.clusterServiceConfig.GetCSNodePool(ctx, doc.InternalID)
+		csNodePool, err := f.clusterServiceClient.GetCSNodePool(ctx, doc.InternalID)
 		if err != nil {
 			f.logger.Error(err.Error())
 			var ocmError *ocmerrors.Error

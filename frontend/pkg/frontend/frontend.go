@@ -27,7 +27,7 @@ import (
 )
 
 type Frontend struct {
-	clusterServiceConfig ocm.ClusterServiceConfig
+	clusterServiceClient ocm.ClusterServiceClientSpec
 	logger               *slog.Logger
 	listener             net.Listener
 	metricsListener      net.Listener
@@ -40,9 +40,9 @@ type Frontend struct {
 	location             string
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csCfg ocm.ClusterServiceConfig) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csClient ocm.ClusterServiceClientSpec) *Frontend {
 	f := &Frontend{
-		clusterServiceConfig: csCfg,
+		clusterServiceClient: csClient,
 		logger:               logger,
 		listener:             listener,
 		metricsListener:      metricsListener,
@@ -214,7 +214,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
 	f.logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
 
-	listRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().List().Search(query)
+	listRequest := f.clusterServiceClient.GetConn().ClustersMgmt().V1().Clusters().List().Search(query)
 
 	// XXX This SHOULD avoid dealing with pagination from Cluster Service.
 	//     As far I can tell, uhc-cluster-service does not impose its own
@@ -364,7 +364,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// No special treatment here for "not found" errors. A "not found"
 		// error indicates the database has gotten out of sync and so it's
 		// appropriate to fail.
-		csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, doc.InternalID)
+		csCluster, err := f.clusterServiceClient.GetCSCluster(ctx, doc.InternalID)
 		if err != nil {
 			f.logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
@@ -440,7 +440,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	if updating {
 		f.logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceConfig.UpdateCSCluster(ctx, doc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceClient.UpdateCSCluster(ctx, doc.InternalID, csCluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -448,7 +448,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	} else {
 		f.logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		csCluster, err = f.clusterServiceConfig.PostCSCluster(ctx, csCluster)
+		csCluster, err = f.clusterServiceClient.PostCSCluster(ctx, csCluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -565,7 +565,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.clusterServiceConfig.DeleteCSCluster(ctx, doc.InternalID)
+	err = f.clusterServiceClient.DeleteCSCluster(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to delete cluster %s: %v", resourceID, err))
 		arm.WriteInternalServerError(writer)

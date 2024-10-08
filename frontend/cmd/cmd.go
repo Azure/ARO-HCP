@@ -143,14 +143,14 @@ func (opts *FrontendOpts) Run() error {
 		return err
 	}
 
-	csCfg := ocm.ClusterServiceConfig{
+	csClient := ocm.ClusterServiceClient{
 		Conn:                       conn,
 		ProvisionerNoOpProvision:   opts.clusterServiceNoopDeprovision,
 		ProvisionerNoOpDeprovision: opts.clusterServiceNoopDeprovision,
 	}
 
 	if opts.clusterServiceProvisionShard != "" {
-		csCfg.ProvisionShardID = api.Ptr(opts.clusterServiceProvisionShard)
+		csClient.ProvisionShardID = api.Ptr(opts.clusterServiceProvisionShard)
 	}
 
 	if len(opts.location) == 0 {
@@ -158,7 +158,7 @@ func (opts *FrontendOpts) Run() error {
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheusEmitter, dbClient, opts.location, csCfg)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheusEmitter, dbClient, opts.location, &csClient)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
