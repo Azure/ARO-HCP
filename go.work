@@ -6,4 +6,5 @@ use (
 	./frontend
 	./internal
 	./tooling/image-sync
+	./tooling/templatize
 )
