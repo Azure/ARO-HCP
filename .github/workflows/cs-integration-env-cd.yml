@@ -51,7 +51,7 @@
         contents: 'read'
       runs-on: 'ubuntu-latest'
       steps:
-        - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+        - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
           with:
             fetch-depth: 1
 
@@ -96,7 +96,7 @@
         contents: 'read'
       runs-on: 'ubuntu-latest'
       steps:
-        - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+        - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
           with:
             fetch-depth: 1
 
@@ -168,7 +168,7 @@
         contents: 'read'
       runs-on: 'ubuntu-latest'
       steps:
-        - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+        - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
           with:
             fetch-depth: 1
 
@@ -232,7 +232,7 @@
       env:
         RESOURCEGROUP: cs-integ-westus3-sc
       steps:
-        - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+        - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
           with:
             fetch-depth: 1
 
@@ -314,7 +314,7 @@
       outputs:
         management_cluster_name: ${{ steps.find_management_cluster.name }}
       steps:
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           fetch-depth: 1
 
