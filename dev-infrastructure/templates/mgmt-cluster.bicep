@@ -59,6 +59,15 @@ param aksKeyVaultName string
 @description('Manage soft delete setting for AKS etcd key-value store')
 param aksEtcdKVEnableSoftDelete bool = true
 
+@description('The name of the hypershift namespace.')
+param hypershiftNamespace string
+
+@description('The name of the external DNS managed identity.')
+param externalDNSManagedIdentityName string
+
+@description('The name of the external DNS service account.')
+param externalDNSServiceAccountName string
+
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
@@ -140,9 +149,9 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
         serviceAccountName: 'maestro'
       }
       external_dns_wi: {
-        uamiName: 'external-dns'
-        namespace: 'hypershift'
-        serviceAccountName: 'external-dns'
+        uamiName: externalDNSManagedIdentityName
+        namespace: hypershiftNamespace
+        serviceAccountName: externalDNSServiceAccountName
       }
     })
     aksKeyVaultName: aksKeyVaultName
@@ -188,11 +197,11 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
 
 var externalDnsManagedIdentityPrincipalId = filter(
   mgmtCluster.outputs.userAssignedIdentities,
-  id => id.uamiName == 'external-dns'
+  id => id.uamiName == externalDNSManagedIdentityName
 )[0].uamiPrincipalID
 
 module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
-  name: guid(regionalDNSZoneName, mgmtCluster.name, 'external-dns')
+  name: guid(regionalDNSZoneName, mgmtCluster.name, externalDNSManagedIdentityName)
   scope: resourceGroup(regionalResourceGroup)
   params: {
     zoneName: regionalDNSZoneName

@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: install-hypershift
+  namespace: '{{ .Release.Namespace }}'
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  # set deadline to 30min
+  activeDeadlineSeconds: 1800
+  backoffLimit: 1
+  template:
+    spec:
+      containers:
+        - name: install
+          image: "{{ .Values.image }}:{{ .Values.imageTag }}"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              hypershift install \
+                --enable-conversion-webhook=false \
+                --managed-service ARO-HCP \
+                --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
+                --registry-overrides "{{ .Values.registryOverrides }}" \
+                --hypershift-image {{ .Values.image }}:{{ .Values.imageTag }} \
+                --platform-monitoring=None \
+                {{ .Values.additionalArgs }}
+      restartPolicy: Never
+      serviceAccountName: hypershift-installer

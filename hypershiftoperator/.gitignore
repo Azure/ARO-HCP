@@ -1,7 +1,1 @@
-kubectl-slice
-edo-azure-credentials.json
-domain.txt
-patch-serviceaccount-external-dns.json
-test
-deploy/overlays/dev/txt_owner_id.txt
 config.mk
