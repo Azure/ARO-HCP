@@ -1,6 +1,7 @@
 * @bennerv @jharrington22 @mjlshen @ulrichschlueter @zgalor
 /dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @ulrichschlueter @weinong @whober0521
 /image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @ulrichschlueter @weinong @whober0521
-/api/ @bennerv @mbarnes @mjlshen 
-/frontend/ @bennerv @mbarnes @mjlshen 
-/internal/ @bennerv @mbarnes @mjlshen 
+/api/ @bennerv @mbarnes @mjlshen
+/frontend/ @bennerv @mbarnes @mjlshen
+/internal/ @bennerv @mbarnes @mjlshen
+/tooling/ @bennerv @geoberle @janboll @weinong @whober0521
