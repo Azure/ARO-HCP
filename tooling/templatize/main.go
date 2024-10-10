@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/config"
@@ -27,88 +26,100 @@ type GenerationOptions struct {
 
 func (opts *GenerationOptions) Validate() error {
 	var errs []error
-	err := opts.validateFileExists("config-file", opts.ConfigFile)
+	err := opts.validateFileAvailability("config-file", opts.ConfigFile)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	err = opts.validateFileExists("input", opts.Input)
+	err = opts.validateFileAvailability("input", opts.Input)
 	if err != nil {
 		errs = append(errs, err)
-	}
-	if len(opts.DeployEnv) == 0 {
-		errs = append(errs, fmt.Errorf("parameter region is missing"))
-	}
-	if len(opts.Region) == 0 {
-		errs = append(errs, fmt.Errorf("parameter deploy-env is missing"))
 	}
 
 	// validate cloud
-	if len(opts.Cloud) == 0 {
-		errs = append(errs, fmt.Errorf("parameter cloud is missing"))
-	} else {
-		clouds := []string{"public", "fairfax"}
-		found := false
-		for _, c := range clouds {
-			if c == opts.Cloud {
-				found = true
-				break
-			}
-		}
-		if !found {
-			errs = append(errs, fmt.Errorf("parameter cloud must be one of %v", clouds))
+	clouds := []string{"public", "fairfax"}
+	found := false
+	for _, c := range clouds {
+		if c == opts.Cloud {
+			found = true
+			break
 		}
 	}
+	if !found {
+		errs = append(errs, fmt.Errorf("parameter cloud must be one of %v", clouds))
+	}
+
 	return errors.NewAggregate(errs)
 }
 
-func (opts *GenerationOptions) validateFileExists(param, path string) error {
-	if len(path) == 0 {
-		return fmt.Errorf("parameter %s is missing", param)
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return fmt.Errorf("file %s for parameter %s does not exist", path, param)
+func (opts *GenerationOptions) validateFileAvailability(param, path string) error {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("file %s for parameter %s does not exist", path, param)
+		} else if os.IsPermission(err) {
+			return fmt.Errorf("no read permission for file %s", path)
+		} else {
+			return err
+		}
 	}
 	return nil
 }
 
-func BindGenerationOptions(opts *GenerationOptions, flags *pflag.FlagSet) {
-	flags.StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
-	flags.StringVar(&opts.Input, "input", opts.Input, "input file path")
-	flags.StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud")
-	flags.StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
-	flags.StringVar(&opts.Region, "region", opts.Region, "resources location")
-	flags.StringVar(&opts.User, "user", opts.User, "unique user name")
-}
-
 func main() {
-	cmd := &cobra.Command{}
-
 	opts := DefaultGenerationOptions()
-	BindGenerationOptions(opts, cmd.Flags())
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if err := opts.Validate(); err != nil {
-			return err
-		}
+	cmd := &cobra.Command{
+		Use:   "templatize",
+		Short: "templatize",
+		Long:  "templatize",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := opts.Validate(); err != nil {
+				return err
+			}
 
-		println("Config:", opts.ConfigFile)
-		println("Input:", opts.Input)
-		println("Cloud:", opts.Cloud)
-		println("Deployment Env:", opts.DeployEnv)
-		println("Region:", opts.Region)
-		println("User:", opts.User)
+			println("Config:", opts.ConfigFile)
+			println("Input:", opts.Input)
+			println("Cloud:", opts.Cloud)
+			println("Deployment Env:", opts.DeployEnv)
+			println("Region:", opts.Region)
+			println("User:", opts.User)
 
-		// TODO: implement templatize tooling
-		cfg := config.NewConfigProvider(opts.ConfigFile, opts.Region, opts.User)
-		vars, err := cfg.GetVariables(cmd.Context(), opts.Cloud, opts.DeployEnv)
-		if err != nil {
-			return err
-		}
-		// print the vars
-		for k, v := range vars {
-			println(k, v)
-		}
+			// TODO: implement templatize tooling
+			cfg := config.NewConfigProvider(opts.ConfigFile, opts.Region, opts.User)
+			vars, err := cfg.GetVariables(cmd.Context(), opts.Cloud, opts.DeployEnv)
+			if err != nil {
+				return err
+			}
+			// print the vars
+			for k, v := range vars {
+				println(k, v)
+			}
 
-		return nil
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
+	cmd.Flags().StringVar(&opts.Input, "input", opts.Input, "input file path")
+	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax)")
+	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
+	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "resources location")
+	cmd.Flags().StringVar(&opts.User, "user", opts.User, "unique user name")
+
+	if err := cmd.MarkFlagFilename("config-file"); err != nil {
+		log.Fatalf("Error marking flag 'config-file': %v", err)
+	}
+	if err := cmd.MarkFlagRequired("config-file"); err != nil {
+		log.Fatalf("Error marking flag 'config-file' as required: %v", err)
+	}
+	if err := cmd.MarkFlagFilename("input"); err != nil {
+		log.Fatalf("Error marking flag 'input': %v", err)
+	}
+	if err := cmd.MarkFlagRequired("cloud"); err != nil {
+		log.Fatalf("Error marking flag 'cloud' as required: %v", err)
+	}
+	if err := cmd.MarkFlagRequired("deploy-env"); err != nil {
+		log.Fatalf("Error marking flag 'deploy-env' as required: %v", err)
+	}
+	if err := cmd.MarkFlagRequired("region"); err != nil {
+		log.Fatalf("Error marking flag 'region' as required: %v", err)
 	}
 
 	if err := cmd.Execute(); err != nil {
