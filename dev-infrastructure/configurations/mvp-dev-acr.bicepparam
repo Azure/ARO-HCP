@@ -9,9 +9,6 @@ param quayRepositoriesToCache = [
     ruleName: 'openshiftReleaseDev'
     sourceRepo: 'quay.io/openshift-release-dev/*'
     targetRepo: 'openshift-release-dev/*'
-    purgeFilter: 'quay.io/openshift-release-dev/.*:.*'
-    purgeAfter: '2d'
-    imagesToKeep: 1
     userIdentifier: 'quay-username'
     passwordIdentifier: 'quay-password'
   }
@@ -19,11 +16,29 @@ param quayRepositoriesToCache = [
     ruleName: 'csSandboxImages'
     sourceRepo: 'quay.io/app-sre/ocm-clusters-service-sandbox'
     targetRepo: 'app-sre/ocm-clusters-service-sandbox'
+    userIdentifier: 'quay-componentsync-username'
+    passwordIdentifier: 'quay-componentsync-password'
+  }
+]
+
+param purgeJobs = [
+  {
+    name: 'ocm-clusters-service-sandbox-purge'
     purgeFilter: 'quay.io/app-sre/ocm-clusters-service-sandbox:.*'
     purgeAfter: '2d'
     imagesToKeep: 1
-    userIdentifier: 'quay-componentsync-username'
-    passwordIdentifier: 'quay-componentsync-password'
+  }
+  {
+    name: 'openshift-release-dev-purge'
+    purgeFilter: 'quay.io/openshift-release-dev/.*:.*'
+    purgeAfter: '2d'
+    imagesToKeep: 1
+  }
+  {
+    name: 'arohcpfrontend-purge'
+    purgeFilter: 'arohcpfrontend:.*'
+    purgeAfter: '7d'
+    imagesToKeep: 3
   }
 ]
 
