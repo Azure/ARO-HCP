@@ -15,7 +15,7 @@ func TestConfigProvider(t *testing.T) {
 	configProvider := NewConfigProvider("testdata/config.yaml", region, user)
 	ctx := context.Background()
 
-	variables, err := configProvider.GetVariables(ctx, "public", "int", region)
+	variables, err := configProvider.GetVariables(ctx, "public", "int")
 	assert.NoError(t, err)
 	assert.NotNil(t, variables)
 
