@@ -1,5 +1,8 @@
 defaults:
-  region_resourcegroup: hcp-underlay-{{ .region }}
+  tenantId: "72f988bf-86f1-41af-91ab-2d7cd011db47"
+  region_eventgrid_namespace: maestro-eventgrid-{{ .region }}
+  aks_name: aro-hcp-aks
+  maestro_msi: "maestro-server"
 clouds:
   fairfax:
     defaults:
@@ -9,6 +12,7 @@ clouds:
       dev:
         defaults:
           region_resourcegroup: hcp-underlay-{{ .user }}-{{ .region }}
+          region_maestro_keyvault: maestro-kv-{{ .user }}-{{ .region }}
           svc_resourcegroup: hcp-underlay-{{ .user }}-{{ .region }}-svc
           maestro_helm_chart: ../maestro/deploy/helm/server
           maestro_image: aro-hcp-dev.azurecr.io/maestro-server:the-new-one

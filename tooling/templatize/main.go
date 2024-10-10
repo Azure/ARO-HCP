@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"html/template"
 	"log"
 	"os"
+	"path"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -18,6 +22,7 @@ func DefaultGenerationOptions() *GenerationOptions {
 type GenerationOptions struct {
 	ConfigFile string
 	Input      string
+	Output     string
 	Cloud      string
 	DeployEnv  string
 	Region     string
@@ -82,22 +87,12 @@ func main() {
 			println("Region:", opts.Region)
 			println("User:", opts.User)
 
-			// TODO: implement templatize tooling
-			cfg := config.NewConfigProvider(opts.ConfigFile, opts.Region, opts.User)
-			vars, err := cfg.GetVariables(cmd.Context(), opts.Cloud, opts.DeployEnv)
-			if err != nil {
-				return err
-			}
-			// print the vars
-			for k, v := range vars {
-				println(k, v)
-			}
-
-			return nil
+			return opts.ExecuteTemplate(cmd.Context())
 		},
 	}
 	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
 	cmd.Flags().StringVar(&opts.Input, "input", opts.Input, "input file path")
+	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file path")
 	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax)")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "resources location")
@@ -112,6 +107,15 @@ func main() {
 	if err := cmd.MarkFlagFilename("input"); err != nil {
 		log.Fatalf("Error marking flag 'input': %v", err)
 	}
+	if err := cmd.MarkFlagRequired("input"); err != nil {
+		log.Fatalf("Error marking flag 'input' as required: %v", err)
+	}
+	if err := cmd.MarkFlagFilename("output"); err != nil {
+		log.Fatalf("Error marking flag 'input': %v", err)
+	}
+	if err := cmd.MarkFlagRequired("output"); err != nil {
+		log.Fatalf("Error marking flag 'output' as required: %v", err)
+	}
 	if err := cmd.MarkFlagRequired("cloud"); err != nil {
 		log.Fatalf("Error marking flag 'cloud' as required: %v", err)
 	}
@@ -125,4 +129,35 @@ func main() {
 	if err := cmd.Execute(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func (opts *GenerationOptions) ExecuteTemplate(ctx context.Context) error {
+	cfg := config.NewConfigProvider(opts.ConfigFile, opts.Region, opts.User)
+	vars, err := cfg.GetVariables(ctx, opts.Cloud, opts.DeployEnv)
+	if err != nil {
+		return err
+	}
+	// print the vars
+	for k, v := range vars {
+		println(k, v)
+	}
+
+	fileName := filepath.Base(opts.Input)
+
+	if err := os.MkdirAll(opts.Output, os.ModePerm); err != nil {
+		return err
+	}
+
+	output, err := os.Create(path.Join(opts.Output, fileName))
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+
+	tmpl, err := template.New(fileName).ParseFiles(opts.Input)
+	if err != nil {
+		return err
+	}
+
+	return tmpl.ExecuteTemplate(output, fileName, vars)
 }

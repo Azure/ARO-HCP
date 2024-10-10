@@ -12,7 +12,7 @@ func TestConfigProvider(t *testing.T) {
 	region := "uksouth"
 	user := "chiac"
 
-	configProvider := NewConfigProvider("testdata/config.yaml", region, user)
+	configProvider := NewConfigProvider("../testdata/config.yaml", region, user)
 	ctx := context.Background()
 
 	variables, err := configProvider.GetVariables(ctx, "public", "int")
