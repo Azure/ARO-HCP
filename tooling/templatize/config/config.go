@@ -17,7 +17,7 @@ func NewConfigProvider(config, region, user string) *configProviderImpl {
 }
 
 // get the variables toke effect finally for cloud/deployEnv/region
-func (cp *configProviderImpl) GetVariables(ctx context.Context, cloud, deployEnv, region string) (Variables, error) {
+func (cp *configProviderImpl) GetVariables(ctx context.Context, cloud, deployEnv string) (Variables, error) {
 	variableOverrides, err := cp.loadConfig()
 	variables := Variables{}
 
@@ -35,7 +35,7 @@ func (cp *configProviderImpl) GetVariables(ctx context.Context, cloud, deployEnv
 					variables[k] = v
 				}
 
-				if regionOverride, ok := deployEnvOverride.Overrides[region]; ok {
+				if regionOverride, ok := deployEnvOverride.Overrides[cp.region]; ok {
 					for k, v := range regionOverride {
 						variables[k] = v
 					}
