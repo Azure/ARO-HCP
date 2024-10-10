@@ -7,3 +7,7 @@ Input: input.sh
 Region: taiwan
 User: chiac
 ```
+
+## [Config](config)
+- Retrieve values from a single configuration file according to the cloud, environment, and region.
+- Replace `region` and `user` values.
