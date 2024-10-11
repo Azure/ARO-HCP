@@ -1,5 +1,6 @@
 defaults:
   tenantId: "72f988bf-86f1-41af-91ab-2d7cd011db47"
+  region_resourcegroup: hcp-underlay-{{ .region }}
   region_eventgrid_namespace: maestro-eventgrid-{{ .region }}
   aks_name: aro-hcp-aks
   maestro_msi: "maestro-server"
