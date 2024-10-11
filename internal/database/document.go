@@ -37,11 +37,13 @@ func newBaseDocument() BaseDocument {
 type ResourceDocument struct {
 	BaseDocument
 
-	Key          *arm.ResourceID   `json:"key,omitempty"`
-	PartitionKey string            `json:"partitionKey,omitempty"`
-	InternalID   ocm.InternalID    `json:"internalId,omitempty"`
-	SystemData   *arm.SystemData   `json:"systemData,omitempty"`
-	Tags         map[string]string `json:"tags,omitempty"`
+	Key               *arm.ResourceID       `json:"key,omitempty"`
+	PartitionKey      string                `json:"partitionKey,omitempty"`
+	InternalID        ocm.InternalID        `json:"internalId,omitempty"`
+	ActiveOperationID string                `json:"activeOperationId,omitempty"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"`
+	SystemData        *arm.SystemData       `json:"systemData,omitempty"`
+	Tags              map[string]string     `json:"tags,omitempty"`
 }
 
 func NewResourceDocument(resourceID *arm.ResourceID) *ResourceDocument {

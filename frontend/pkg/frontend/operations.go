@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 // AddAsyncOperationHeader adds an "Azure-AsyncOperation" header to the ResponseWriter
@@ -78,52 +77,47 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 	writer.Header().Set("Location", u.String())
 }
 
-func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Request, operationRequest database.OperationRequest, internalID ocm.InternalID) error {
+func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Request, resourceDoc *database.ResourceDocument, operationRequest database.OperationRequest) (*database.OperationDocument, error) {
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	doc := database.NewOperationDocument(operationRequest)
+	operationDoc := database.NewOperationDocument(operationRequest)
 
 	operationID, err := arm.ParseResourceID(path.Join("/",
-		"subscriptions", resourceID.SubscriptionID,
+		"subscriptions", resourceDoc.Key.SubscriptionID,
 		"providers", api.ProviderNamespace,
 		"locations", f.location,
-		api.OperationStatusResourceTypeName, doc.ID))
+		api.OperationStatusResourceTypeName, operationDoc.ID))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	doc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	doc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	doc.ExternalID = resourceID
-	doc.InternalID = internalID
-	doc.OperationID = operationID
-	doc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+	operationDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
+	operationDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
+	operationDoc.ExternalID = resourceDoc.Key
+	operationDoc.InternalID = resourceDoc.InternalID
+	operationDoc.OperationID = operationID
+	operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 
-	err = f.dbClient.CreateOperationDoc(ctx, doc)
+	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// If ARM passed a notification URI, acknowledge it.
-	if doc.NotificationURI != "" {
+	if operationDoc.NotificationURI != "" {
 		writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
 	}
 
 	// Add callback header(s) based on the request method.
 	switch request.Method {
 	case http.MethodDelete, http.MethodPatch:
-		f.AddLocationHeader(writer, request, doc)
+		f.AddLocationHeader(writer, request, operationDoc)
 		fallthrough
 	case http.MethodPut:
-		f.AddAsyncOperationHeader(writer, request, doc)
+		f.AddAsyncOperationHeader(writer, request, operationDoc)
 	}
 
-	return nil
+	return operationDoc, nil
 }
 
 // OperationIsVisible returns true if the request is being called from the same

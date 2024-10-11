@@ -463,15 +463,22 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	}
 
+	operationDoc, err := f.StartOperation(writer, request, doc, operationRequest)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	// This is called directly when creating a resource, and indirectly from
 	// within a retry loop when updating a resource.
 	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
-		var docUpdated bool
+		doc.ActiveOperationID = operationDoc.ID
+		doc.ProvisioningState = operationDoc.Status
 
 		// Record the latest system data values from ARM, if present.
 		if systemData != nil {
 			doc.SystemData = systemData
-			docUpdated = true
 		}
 
 		// Here the difference between a nil map and an empty map is significant.
@@ -481,10 +488,9 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// replace any existing tags.
 		if hcpCluster.TrackedResource.Tags != nil {
 			doc.Tags = hcpCluster.TrackedResource.Tags
-			docUpdated = true
 		}
 
-		return docUpdated
+		return true
 	}
 
 	if !updating {
@@ -506,13 +512,6 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		if updated {
 			f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
-	}
-
-	err = f.StartOperation(writer, request, operationRequest, doc.InternalID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
-		arm.WriteInternalServerError(writer)
-		return
 	}
 
 	responseBody, err := marshalCSCluster(csCluster, doc, versionedInterface)
@@ -572,11 +571,25 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.StartOperation(writer, request, database.OperationRequestDelete, doc.InternalID)
+	operationDoc, err := f.StartOperation(writer, request, doc, database.OperationRequestDelete)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
 		arm.WriteInternalServerError(writer)
 		return
+	}
+
+	updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, func(doc *database.ResourceDocument) bool {
+		doc.ActiveOperationID = operationDoc.ID
+		doc.ProvisioningState = operationDoc.Status
+		return true
+	})
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", resourceID, err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	if updated {
+		f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 	}
 
 	writer.WriteHeader(http.StatusAccepted)
@@ -885,6 +898,7 @@ func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, v
 	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.Key, csCluster)
 	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
+	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
 
 	return json.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
 }

@@ -210,15 +210,22 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	}
 
+	operationDoc, err := f.StartOperation(writer, request, nodePoolDoc, operationRequest)
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	// This is called directly when creating a resource, and indirectly from
 	// within a retry loop when updating a resource.
 	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
-		var docUpdated bool
+		doc.ActiveOperationID = operationDoc.ID
+		doc.ProvisioningState = operationDoc.Status
 
 		// Record the latest system data values from ARM, if present.
 		if systemData != nil {
 			doc.SystemData = systemData
-			docUpdated = true
 		}
 
 		// Here the difference between a nil map and an empty map is significant.
@@ -228,10 +235,9 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// replace any existing tags.
 		if hcpNodePool.TrackedResource.Tags != nil {
 			doc.Tags = hcpNodePool.TrackedResource.Tags
-			docUpdated = true
 		}
 
-		return docUpdated
+		return true
 	}
 
 	if !updating {
@@ -253,13 +259,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		if updated {
 			f.logger.Info(fmt.Sprintf("document updated for %s", nodePoolResourceID))
 		}
-	}
-
-	err = f.StartOperation(writer, request, operationRequest, nodePoolDoc.InternalID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
-		arm.WriteInternalServerError(writer)
-		return
 	}
 
 	responseBody, err := marshalCSNodePool(csNodePool, nodePoolDoc, versionedInterface)
@@ -315,11 +314,25 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	err = f.StartOperation(writer, request, database.OperationRequestDelete, doc.InternalID)
+	operationDoc, err := f.StartOperation(writer, request, doc, database.OperationRequestDelete)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
 		arm.WriteInternalServerError(writer)
 		return
+	}
+
+	updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, func(doc *database.ResourceDocument) bool {
+		doc.ActiveOperationID = operationDoc.ID
+		doc.ProvisioningState = operationDoc.Status
+		return true
+	})
+	if err != nil {
+		f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", resourceID, err))
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	if updated {
+		f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 	}
 
 	writer.WriteHeader(http.StatusAccepted)
@@ -331,6 +344,7 @@ func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument
 	hcpNodePool := ConvertCStoNodePool(doc.Key, csNodePool)
 	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
+	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
 
 	return json.Marshal(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }
