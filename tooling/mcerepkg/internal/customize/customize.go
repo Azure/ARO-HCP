@@ -14,9 +14,9 @@ var (
 	imageRegistryParamName   = "imageRegistry"
 )
 
-type CustomerFunc func(unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error)
+type Customizer func(unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error)
 
-var customizerFuncs = []CustomerFunc{
+var customizerFuncs = []Customizer{
 	parameterizeNamespace,
 	parameterizeRoleBindingSubjectsNamespace,
 	parameterizeClusterRoleBindingSubjectsNamespace,
