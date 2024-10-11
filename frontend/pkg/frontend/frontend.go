@@ -678,12 +678,12 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return
 	} else {
 		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(doc *database.SubscriptionDocument) bool {
-			doc.Subscription = &subscription
-
 			messages := getSubscriptionDifferences(doc.Subscription, &subscription)
 			for _, message := range messages {
 				f.logger.Info(message)
 			}
+
+			doc.Subscription = &subscription
 
 			return len(messages) > 0
 		})
