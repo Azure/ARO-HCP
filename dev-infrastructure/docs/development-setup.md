@@ -22,6 +22,16 @@ There are a few variants to chose from when creating an AKS cluster:
 
 When creating a cluster, also supporting infrastructure is created, e.g. managed identities, permissions, databases, keyvaults, ...
 
+### Grant yourself Key Vault access
+
+In order to access shared Service Principle credentials you need access to the Key Vault. To grant yourself access, run
+
+```bash
+az role assignment create --role "Key Vault Secrets User" --assignee $(az ad signed-in-user show --query id -o tsv) --scope $(az keyvault show --name service-kv-aro-hcp-dev --query id -o tsv)
+```
+
+Note: you only need to run this once. Re-runing it wont hurt, but it will not change anything.
+
 ### Create a Service Cluster
 
 The service cluster base configuration to use for development is `configurations/svc-cluster.bicepparam`. Depending on the personal requirements this file offers some features toggles for the main features of the service cluster and the regional resources.
