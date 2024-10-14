@@ -139,7 +139,7 @@ func (opts *GenerationOptions) ExecuteTemplate(ctx context.Context) error {
 	}
 	// print the vars
 	for k, v := range vars {
-		println(k, v)
+		fmt.Println(k, v)
 	}
 
 	fileName := filepath.Base(opts.Input)
