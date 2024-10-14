@@ -1,18 +1,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
-	"path"
-	"path/filepath"
-	"text/template"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/config"
 )
 
 func DefaultGenerationOptions() *GenerationOptions {
@@ -129,35 +123,4 @@ func main() {
 	if err := cmd.Execute(); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func (opts *GenerationOptions) ExecuteTemplate(ctx context.Context) error {
-	cfg := config.NewConfigProvider(opts.ConfigFile, opts.Region, opts.User)
-	vars, err := cfg.GetVariables(ctx, opts.Cloud, opts.DeployEnv)
-	if err != nil {
-		return err
-	}
-	// print the vars
-	for k, v := range vars {
-		fmt.Println(k, v)
-	}
-
-	fileName := filepath.Base(opts.Input)
-
-	if err := os.MkdirAll(opts.Output, os.ModePerm); err != nil {
-		return err
-	}
-
-	output, err := os.Create(path.Join(opts.Output, fileName))
-	if err != nil {
-		return err
-	}
-	defer output.Close()
-
-	tmpl, err := template.New(fileName).ParseFiles(opts.Input)
-	if err != nil {
-		return err
-	}
-
-	return tmpl.ExecuteTemplate(output, fileName, vars)
 }
