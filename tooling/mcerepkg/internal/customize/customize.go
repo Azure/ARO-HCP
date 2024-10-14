@@ -25,19 +25,6 @@ var customizerFuncs = []Customizer{
 	annotationCleaner,
 }
 
-func SanityCheck(objects []unstructured.Unstructured) error {
-	deploymentFound := false
-	for _, obj := range objects {
-		if isOperatorDeployment(obj) {
-			deploymentFound = true
-		}
-	}
-	if !deploymentFound {
-		return fmt.Errorf("no operator deployment found in the bundle")
-	}
-	return nil
-}
-
 func CustomizeManifests(objects []unstructured.Unstructured) ([]unstructured.Unstructured, map[string]interface{}, error) {
 	parameters := make(map[string]string)
 	customizedManifests := make([]unstructured.Unstructured, len(objects))
@@ -142,8 +129,4 @@ func parameterizeDeployment(obj unstructured.Unstructured) (unstructured.Unstruc
 func annotationCleaner(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
 	obj.SetAnnotations(nil)
 	return obj, nil, nil
-}
-
-func isOperatorDeployment(obj unstructured.Unstructured) bool {
-	return obj.GroupVersionKind() == deployGVK && obj.GetName() == "multicluster-engine-operator"
 }

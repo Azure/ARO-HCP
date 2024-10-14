@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/mcerepkg/internal/olm"
 
 	"github.com/google/go-containerregistry/pkg/crane"
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -64,6 +64,7 @@ func buildChart(outputDir string, mceOlmBundle string, scaffoldDir string) error
 	if err != nil {
 		return err
 	}
+	customize.SanityCheck(olmManifests)
 
 	// load scaffolding manifests
 	scaffoldManifests, err := customize.LoadScaffoldTemplates(scaffoldDir)

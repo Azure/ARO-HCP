@@ -6,6 +6,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func convertUnstructured(from unstructured.Unstructured, to interface{}) error {
@@ -49,4 +50,14 @@ func makeNestedMap(flatMap map[string]string) map[string]interface{} {
 	}
 
 	return nestedMap
+}
+
+var deployGVK = schema.GroupVersionKind{
+	Group:   "apps",
+	Version: "v1",
+	Kind:    "Deployment",
+}
+
+func isOperatorDeployment(obj unstructured.Unstructured) bool {
+	return obj.GroupVersionKind() == deployGVK && obj.GetName() == "multicluster-engine-operator"
 }
