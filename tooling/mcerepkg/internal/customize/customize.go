@@ -54,9 +54,9 @@ func parameterizeNamespace(obj unstructured.Unstructured) (unstructured.Unstruct
 }
 
 func parameterizeRoleBindingSubjectsNamespace(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
-	if obj.GetKind() == "RoleBinding" {
+	if isRoleBinding(obj) {
 		roleBinding := &rbacv1.RoleBinding{}
-		err := convertUnstructured(obj, roleBinding)
+		err := convertFromUnstructured(obj, roleBinding)
 		if err != nil {
 			return unstructured.Unstructured{}, map[string]string{}, fmt.Errorf("failed to convert unstructured object to RoleBinding: %v", err)
 		}
@@ -72,9 +72,9 @@ func parameterizeRoleBindingSubjectsNamespace(obj unstructured.Unstructured) (un
 }
 
 func parameterizeClusterRoleBindingSubjectsNamespace(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
-	if obj.GetKind() == "ClusterRoleBinding" {
+	if isClusterRoleBinding(obj) {
 		clusterRoleBinding := &rbacv1.ClusterRoleBinding{}
-		err := convertUnstructured(obj, clusterRoleBinding)
+		err := convertFromUnstructured(obj, clusterRoleBinding)
 		if err != nil {
 			return unstructured.Unstructured{}, nil, fmt.Errorf("failed to convert unstructured object to ClusterRoleBinding: %v", err)
 		}
@@ -92,14 +92,14 @@ func parameterizeClusterRoleBindingSubjectsNamespace(obj unstructured.Unstructur
 func parameterizeOperandsImageRegistries(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
 	if isOperatorDeployment(obj) {
 		deployment := &appsv1.Deployment{}
-		err := convertUnstructured(obj, deployment)
+		err := convertFromUnstructured(obj, deployment)
 		if err != nil {
 			return unstructured.Unstructured{}, nil, fmt.Errorf("failed to convert unstructured object to Deployment: %v", err)
 		}
 		for c, container := range deployment.Spec.Template.Spec.Containers {
 			for e, env := range container.Env {
-				if strings.HasPrefix(env.Name, operandImageEnvVarPrefix) {
-					deployment.Spec.Template.Spec.Containers[c].Env[e].Value = parameterizeImageRegistry(container.Image, imageRegistryParamName)
+				if isOperandImageEnvVar(env.Name) {
+					deployment.Spec.Template.Spec.Containers[c].Env[e].Value = parameterizeImageRegistry(env.Value, imageRegistryParamName)
 				}
 			}
 		}
@@ -109,10 +109,14 @@ func parameterizeOperandsImageRegistries(obj unstructured.Unstructured) (unstruc
 	return obj, nil, nil
 }
 
+func isOperandImageEnvVar(envVarName string) bool {
+	return strings.HasPrefix(envVarName, operandImageEnvVarPrefix)
+}
+
 func parameterizeDeployment(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
-	if obj.GroupVersionKind() == deployGVK {
+	if isDeployment(obj) {
 		deployment := &appsv1.Deployment{}
-		err := convertUnstructured(obj, deployment)
+		err := convertFromUnstructured(obj, deployment)
 		if err != nil {
 			return unstructured.Unstructured{}, nil, fmt.Errorf("failed to convert unstructured object to Deployment: %v", err)
 		}

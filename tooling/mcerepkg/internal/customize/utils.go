@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func convertUnstructured(from unstructured.Unstructured, to interface{}) error {
+func convertFromUnstructured(from unstructured.Unstructured, to interface{}) error {
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(from.Object, to)
 }
 
@@ -52,12 +53,31 @@ func makeNestedMap(flatMap map[string]string) map[string]interface{} {
 	return nestedMap
 }
 
-var deployGVK = schema.GroupVersionKind{
-	Group:   "apps",
-	Version: "v1",
-	Kind:    "Deployment",
+var (
+	deploymentGVK             = appsv1.SchemeGroupVersion.WithKind("Deployment")
+	roleBindingGVK            = rbacv1.SchemeGroupVersion.WithKind("RoleBinding")
+	clusterRoleBindingGVK     = rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding")
+	mceOperatorDeploymentName = "multicluster-engine-operator"
+)
+
+func isDeployment(obj unstructured.Unstructured) bool {
+	return obj.GroupVersionKind() == deploymentGVK
 }
 
 func isOperatorDeployment(obj unstructured.Unstructured) bool {
-	return obj.GroupVersionKind() == deployGVK && obj.GetName() == "multicluster-engine-operator"
+	return isDeployment(obj) && obj.GetName() == mceOperatorDeploymentName
+}
+
+func isRoleBinding(obj unstructured.Unstructured) bool {
+	return obj.GroupVersionKind() == roleBindingGVK
+}
+
+func isClusterRoleBinding(obj unstructured.Unstructured) bool {
+	return obj.GroupVersionKind() == clusterRoleBindingGVK
+}
+
+func deploymentFromUnstructured(obj unstructured.Unstructured) (*appsv1.Deployment, error) {
+	deployment := &appsv1.Deployment{}
+	err := convertFromUnstructured(obj, deployment)
+	return deployment, err
 }

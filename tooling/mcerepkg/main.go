@@ -64,7 +64,12 @@ func buildChart(outputDir string, mceOlmBundle string, scaffoldDir string) error
 	if err != nil {
 		return err
 	}
-	customize.SanityCheck(olmManifests)
+
+	// sanity check manifests
+	err = customize.SanityCheck(olmManifests)
+	if err != nil {
+		return fmt.Errorf("failed sanity checks on manifests: %v", err)
+	}
 
 	// load scaffolding manifests
 	scaffoldManifests, err := customize.LoadScaffoldTemplates(scaffoldDir)
