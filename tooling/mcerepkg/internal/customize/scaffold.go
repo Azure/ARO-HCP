@@ -14,7 +14,7 @@ func LoadScaffoldTemplates(scaffoldDir string) ([]unstructured.Unstructured, err
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && filepath.Ext(path) == ".yaml" {
+		if !info.IsDir() && (filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml") {
 			fileContent, err := os.ReadFile(path)
 			if err != nil {
 				return err
