@@ -207,6 +207,7 @@ func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internal
 
 func (mcsc *MockClusterServiceClient) PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
 	href := GenerateClusterHREF(cluster.Name())
+	// Adding the HREF to correspond with what the full client does when crating the body
 	clusterBuilder := cmv1.NewCluster()
 	enrichedCluster, err := clusterBuilder.Copy(cluster).HREF(href).Build()
 	if err != nil {
@@ -254,6 +255,7 @@ func (mcsc *MockClusterServiceClient) GetCSNodePool(ctx context.Context, interna
 
 func (mcsc *MockClusterServiceClient) PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
 	href := GenerateNodePoolHREF(clusterInternalID.path, nodePool.ID())
+	// Adding the HREF to correspond with what the full client does when crating the body
 	npBuilder := cmv1.NewNodePool()
 	enrichedNodePool, err := npBuilder.Copy(nodePool).HREF(href).Build()
 	if err != nil {
