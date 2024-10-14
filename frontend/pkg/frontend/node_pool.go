@@ -179,7 +179,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	hcpNodePool.Name = request.PathValue(PathSegmentNodePoolName)
 	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
-
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -218,7 +217,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 		// Record the latest system data values from ARM, if present.
 		if systemData != nil {
-			nodePoolDoc.SystemData = systemData
+			doc.SystemData = systemData
 			docUpdated = true
 		}
 
@@ -228,7 +227,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// empty, that means it was specified in the request body and should fully
 		// replace any existing tags.
 		if hcpNodePool.TrackedResource.Tags != nil {
-			nodePoolDoc.Tags = hcpNodePool.TrackedResource.Tags
+			doc.Tags = hcpNodePool.TrackedResource.Tags
 			docUpdated = true
 		}
 
