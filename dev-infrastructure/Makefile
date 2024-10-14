@@ -60,6 +60,16 @@ regionalRg:
 	fi
 .PHONY: regionalRg
 
+
+imagesyncRg:
+	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
+			--name $(IMAGE_SYNC_RESOURCEGROUP)  \
+			--location $(REGION) \
+			--output none; \
+	fi
+.PHONY: imagesyncRg
+
 cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
@@ -97,6 +107,15 @@ create-mock-identities:
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 .PHONY: create-mock-identities
+
+image-sync: imagesyncRg
+	az deployment group create \
+		--name "image-sync" \
+		--resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
+		--template-file templates/image-sync.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/image-sync.bicepparam
 
 acr: regionalRg
 	az deployment group create \
