@@ -58,11 +58,11 @@ func buildChart(outputDir string, mceOlmBundle string, scaffoldDir string) error
 	// load OLM bundle manifests
 	img, err := crane.Load(mceOlmBundle)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load OLM bundle image: %v", err)
 	}
 	olmManifests, reg, err := olm.ExtractOLMBundleImage(ctx, img)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to extract OLM bundle image: %v", err)
 	}
 
 	// sanity check manifests
@@ -74,13 +74,13 @@ func buildChart(outputDir string, mceOlmBundle string, scaffoldDir string) error
 	// load scaffolding manifests
 	scaffoldManifests, err := customize.LoadScaffoldTemplates(scaffoldDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load scaffold templates: %v", err)
 	}
 
 	// customize manifests
 	customizedManifests, values, err := customize.CustomizeManifests(append(olmManifests, scaffoldManifests...))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to customize manifests: %v", err)
 	}
 
 	// build chart
@@ -131,7 +131,7 @@ func buildChart(outputDir string, mceOlmBundle string, scaffoldDir string) error
 	// store chart
 	err = chartutil.SaveDir(mceChart, outputDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to save chart to directory: %v", err)
 	}
 
 	return nil
