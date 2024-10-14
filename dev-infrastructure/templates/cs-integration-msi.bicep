@@ -25,7 +25,7 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
         'api://AzureADTokenExchange'
       ]
       issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
-      subject: 'system:serviceaccount:${format(namespaceFormatString, i)}:cluster-service'
+      subject: 'system:serviceaccount:${format(namespaceFormatString, i)}:clusters-service'
     }
   }
 ]
