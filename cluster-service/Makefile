@@ -37,7 +37,7 @@ deploy:
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
 	  -p AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
 	  -p FPA_CERT_NAME=${FPA_CERT_NAME} \
-	  -p IMAGE_TAG=b16f630 | oc apply -f -
+	  -p IMAGE_TAG=cf23767 | oc apply -f -
 
 deploy-integ:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
