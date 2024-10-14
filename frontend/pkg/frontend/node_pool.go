@@ -179,6 +179,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	hcpNodePool.Name = request.PathValue(PathSegmentNodePoolName)
 	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
+
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

@@ -175,15 +175,25 @@ type MockClusterServiceClient struct {
 	nodePools map[InternalID](*cmv1.NodePool)
 }
 
+// NewCache initializes a new Cache to allow for simple tests without needing a real CosmosDB. For production, use
+// NewCosmosDBConfig instead.
+func NewMockClusterServiceClient() MockClusterServiceClient {
+	return MockClusterServiceClient{
+		clusters:  make(map[InternalID]*cmv1.Cluster),
+		nodePools: make(map[InternalID]*cmv1.NodePool),
+	}
+}
+
 func (mcsc *MockClusterServiceClient) GetConn() *sdk.Connection { panic("GetConn not implemented") }
 func (mcsc *MockClusterServiceClient) GetProvisionShardID() *string {
-	panic("GetProvisionShardID not implemented")
+	mockProvisionShardID := "mock-client"
+	return &mockProvisionShardID
 }
 func (mcsc *MockClusterServiceClient) GetProvisionerNoOpProvision() bool {
-	panic("GetProvisionerNoOpProvision not implemented")
+	return false
 }
 func (mcsc *MockClusterServiceClient) GetProvisionerNoOpDeprovision() bool {
-	panic("GetProvisionerNoOpDeprovision not implemented")
+	return false
 }
 
 func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*cmv1.Cluster, error) {
@@ -196,12 +206,18 @@ func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internal
 }
 
 func (mcsc *MockClusterServiceClient) PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
-	internalID, err := NewInternalID(cluster.HREF())
+	href := GenerateClusterHREF(cluster.Name())
+	clusterBuilder := cmv1.NewCluster()
+	enrichedCluster, err := clusterBuilder.Copy(cluster).HREF(href).Build()
 	if err != nil {
 		return nil, err
 	}
-	mcsc.clusters[internalID] = cluster
-	return cluster, nil
+	internalID, err := NewInternalID(href)
+	if err != nil {
+		return nil, err
+	}
+	mcsc.clusters[internalID] = enrichedCluster
+	return enrichedCluster, nil
 }
 
 func (mcsc *MockClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
@@ -237,12 +253,19 @@ func (mcsc *MockClusterServiceClient) GetCSNodePool(ctx context.Context, interna
 }
 
 func (mcsc *MockClusterServiceClient) PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
-	internalID, err := NewInternalID(nodePool.HREF())
+	href := GenerateNodePoolHREF(clusterInternalID.path, nodePool.ID())
+	npBuilder := cmv1.NewNodePool()
+	enrichedNodePool, err := npBuilder.Copy(nodePool).HREF(href).Build()
 	if err != nil {
 		return nil, err
 	}
-	mcsc.nodePools[internalID] = nodePool
-	return nodePool, nil
+
+	internalID, err := NewInternalID(href)
+	if err != nil {
+		return nil, err
+	}
+	mcsc.nodePools[internalID] = enrichedNodePool
+	return enrichedNodePool, nil
 }
 
 func (mcsc *MockClusterServiceClient) UpdateCSNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
