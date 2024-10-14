@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"net/http"
 	"strings"
 
@@ -48,6 +49,11 @@ func isResponseError(err error, statusCode int) bool {
 	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
 }
 
+type DBClientIterator interface {
+	Items(ctx context.Context) iter.Seq[[]byte]
+	GetError() error
+}
+
 // DBClient is a document store for frontend to perform required CRUD operations against
 type DBClient interface {
 	// DBConnectionTest is used to health check the database. If the database is not reachable or otherwise not ready
@@ -71,6 +77,7 @@ type DBClient interface {
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	DeleteOperationDoc(ctx context.Context, operationID string) error
+	ListAllOperationDocs(ctx context.Context) DBClientIterator
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
 	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
@@ -419,6 +426,11 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 	}
 
 	return nil
+}
+
+func (d *CosmosDBClient) ListAllOperationDocs(ctx context.Context) DBClientIterator {
+	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
+	return NewQueryItemsIterator(d.operations.NewQueryItemsPager("SELECT * FROM c", pk, nil))
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
