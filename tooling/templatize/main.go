@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
+	"text/template"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/errors"
