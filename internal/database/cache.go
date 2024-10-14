@@ -5,6 +5,8 @@ package database
 
 import (
 	"context"
+	"encoding/json"
+	"iter"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -20,6 +22,34 @@ type Cache struct {
 	resource     map[string]*ResourceDocument
 	operation    map[string]*OperationDocument
 	subscription map[string]*SubscriptionDocument
+}
+
+type operationCacheIterator struct {
+	operation map[string]*OperationDocument
+	err       error
+}
+
+func (iter operationCacheIterator) Items(ctx context.Context) iter.Seq[[]byte] {
+	return func(yield func([]byte) bool) {
+		for _, doc := range iter.operation {
+			// Marshalling the document struct only to immediately unmarshal
+			// it back to a document struct is a little silly but this is to
+			// conform to the DBClientIterator interface.
+			item, err := json.Marshal(doc)
+			if err != nil {
+				iter.err = err
+				return
+			}
+
+			if !yield(item) {
+				return
+			}
+		}
+	}
+}
+
+func (iter operationCacheIterator) GetError() error {
+	return iter.err
 }
 
 // NewCache initializes a new Cache to allow for simple tests without needing a real CosmosDB. For production, use
@@ -131,6 +161,10 @@ func (c *Cache) DeleteOperationDoc(ctx context.Context, operationID string) erro
 
 	delete(c.operation, key)
 	return nil
+}
+
+func (c *Cache) ListAllOperationDocs(ctx context.Context) DBClientIterator {
+	return operationCacheIterator{operation: c.operation}
 }
 
 func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
