@@ -34,7 +34,7 @@ var (
 )
 
 func main() {
-	cmd.Flags().StringVarP(&mceBundle, "mce-bundle", "b", "", "MCE OLM bundle")
+	cmd.Flags().StringVarP(&mceBundle, "mce-bundle", "b", "", "MCE OLM bundle image tgz")
 	cmd.Flags().StringVarP(&scaffoldDir, "scaffold-dir", "s", "", "Directory containing additional templates to be added to the generated Helm Chart")
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", "", "Output directory for the generated Helm Chart")
 	err := cmd.MarkFlagRequired("mce-bundle")
@@ -56,7 +56,7 @@ func buildChart(outputDir string, mceOlmBundle string, scaffoldDir string) error
 	ctx := context.Background()
 
 	// load OLM bundle manifests
-	img, err := crane.Pull(mceOlmBundle)
+	img, err := crane.Load(mceOlmBundle)
 	if err != nil {
 		return err
 	}
