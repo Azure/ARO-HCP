@@ -69,6 +69,7 @@ type DBClient interface {
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
+	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	DeleteOperationDoc(ctx context.Context, operationID string) error
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
@@ -353,6 +354,55 @@ func (d *CosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 	}
 
 	return nil
+}
+
+// UpdateOperationDoc updates an operation document by first fetching the document and
+// passing it to the provided callback for modifications to be applied. It then attempts to
+// replace the existing document with the modified document and an "etag" precondition. Upon
+// a precondition failure the function repeats for a limited number of times before giving up.
+//
+// The callback function should return true if modifications were applied, signaling to proceed
+// with the document replacement. The boolean return value reflects this: returning true if the
+// document was successfully replaced, or false with or without an error to indicate no change.
+func (d *CosmosDBClient) UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error) {
+	var err error
+
+	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
+
+	options := &azcosmos.ItemOptions{}
+
+	for try := 0; try < 5; try++ {
+		var doc *OperationDocument
+		var data []byte
+
+		doc, err = d.GetOperationDoc(ctx, operationID)
+		if err != nil {
+			return false, err
+		}
+
+		if !callback(doc) {
+			return false, nil
+		}
+
+		data, err = json.Marshal(doc)
+		if err != nil {
+			return false, fmt.Errorf("failed to marshal Operations container item for '%s': %w", operationID, err)
+		}
+
+		options.IfMatchEtag = &doc.ETag
+		_, err = d.operations.ReplaceItem(ctx, pk, doc.ID, data, options)
+		if err == nil {
+			return true, nil
+		}
+
+		var responseError *azcore.ResponseError
+		err = fmt.Errorf("failed to replace Operations container item for '%s': %w", operationID, err)
+		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
+			return false, err
+		}
+	}
+
+	return false, err
 }
 
 // DeleteOperationDoc deletes the asynchronous operation document for the given

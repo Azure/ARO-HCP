@@ -114,6 +114,17 @@ func (c *Cache) CreateOperationDoc(ctx context.Context, doc *OperationDocument) 
 	return nil
 }
 
+func (c *Cache) UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error) {
+	// Make sure lookup keys are lowercase.
+	key := strings.ToLower(operationID)
+
+	if doc, ok := c.operation[key]; ok {
+		return callback(doc), nil
+	}
+
+	return false, ErrNotFound
+}
+
 func (c *Cache) DeleteOperationDoc(ctx context.Context, operationID string) error {
 	// Make sure lookup keys are lowercase.
 	key := strings.ToLower(operationID)
