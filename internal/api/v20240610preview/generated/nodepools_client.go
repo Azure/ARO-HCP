@@ -10,19 +10,20 @@ package generated
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/url"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"net/http"
-	"net/url"
-	"strings"
 )
 
 // NodePoolsClient contains the methods for the NodePools group.
 // Don't use this type directly, use NewNodePoolsClient() instead.
 type NodePoolsClient struct {
-	internal *arm.Client
+	internal       *arm.Client
 	subscriptionID string
 }
 
@@ -37,7 +38,7 @@ func NewNodePoolsClient(subscriptionID string, credential azcore.TokenCredential
 	}
 	client := &NodePoolsClient{
 		subscriptionID: subscriptionID,
-	internal: cl,
+		internal:       cl,
 	}
 	return client, nil
 }
@@ -60,7 +61,7 @@ func (client *NodePoolsClient) BeginCreateOrUpdate(ctx context.Context, resource
 		}
 		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[NodePoolsClientCreateOrUpdateResponse]{
 			FinalStateVia: runtime.FinalStateViaAzureAsyncOp,
-			Tracer: client.internal.Tracer(),
+			Tracer:        client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
@@ -123,8 +124,8 @@ func (client *NodePoolsClient) createOrUpdateCreateRequest(ctx context.Context, 
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, resource); err != nil {
-	return nil, err
-}
+		return nil, err
+	}
 	return req, nil
 }
 
@@ -144,7 +145,7 @@ func (client *NodePoolsClient) BeginDelete(ctx context.Context, resourceGroupNam
 		}
 		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[NodePoolsClientDeleteResponse]{
 			FinalStateVia: runtime.FinalStateViaLocation,
-			Tracer: client.internal.Tracer(),
+			Tracer:        client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
@@ -285,13 +286,13 @@ func (client *NodePoolsClient) getHandleResponse(resp *http.Response) (NodePools
 //   - hcpOpenShiftClusterName - Name of HCP cluster
 //   - options - NodePoolsClientListByParentOptions contains the optional parameters for the NodePoolsClient.NewListByParentPager
 //     method.
-func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) (*runtime.Pager[NodePoolsClientListByParentResponse]) {
+func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) *runtime.Pager[NodePoolsClientListByParentResponse] {
 	return runtime.NewPager(runtime.PagingHandler[NodePoolsClientListByParentResponse]{
 		More: func(page NodePoolsClientListByParentResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
 		Fetcher: func(ctx context.Context, page *NodePoolsClientListByParentResponse) (NodePoolsClientListByParentResponse, error) {
-		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "NodePoolsClient.NewListByParentPager")
+			ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "NodePoolsClient.NewListByParentPager")
 			nextLink := ""
 			if page != nil {
 				nextLink = *page.NextLink
@@ -303,7 +304,7 @@ func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hc
 				return NodePoolsClientListByParentResponse{}, err
 			}
 			return client.listByParentHandleResponse(resp)
-			},
+		},
 		Tracer: client.internal.Tracer(),
 	})
 }
@@ -360,7 +361,7 @@ func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupNam
 		}
 		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[NodePoolsClientUpdateResponse]{
 			FinalStateVia: runtime.FinalStateViaLocation,
-			Tracer: client.internal.Tracer(),
+			Tracer:        client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
@@ -423,8 +424,7 @@ func (client *NodePoolsClient) updateCreateRequest(ctx context.Context, resource
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, properties); err != nil {
-	return nil, err
-}
+		return nil, err
+	}
 	return req, nil
 }
-

@@ -1,3 +1,4 @@
+include ./.bingo/Variables.mk
 SHELL = /bin/bash
 
 # This build tag is currently leveraged by tooling/image-sync
@@ -18,12 +19,7 @@ MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v --build-tags=$(GOTAGS) $(MODULES)
 
-.PHONY: all clean lint test
+fmt: $(GOIMPORTS)
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 
-GOLANGCI_LINT_BIN := golangci-lint
-GOLANGCI_LINT_VER := $(shell cat .github/workflows/ci-go.yml | grep [[:space:]]version: | sed 's/.*version: //')
-GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
-
-$(GOLANGCI_LINT): # Setup a repo-local golangci-lint in $(GOLANGCI_LINT)
-	$(shell curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TOOLS_BIN_DIR) $(GOLANGCI_LINT_VER))
-	$(shell mv $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN) $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN)-$(GOLANGCI_LINT_VER))
+.PHONY: all clean lint test fmt

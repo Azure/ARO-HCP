@@ -8,9 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/config"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/config"
 )
 
 func DefaultGenerationOptions() *RawGenerationOptions {
