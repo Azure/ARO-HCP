@@ -57,7 +57,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusBadRequest,
 				CloudErrorBody: &arm.CloudErrorBody{
-					Code:    arm.CloudErrorInvalidSubscriptionState,
+					Code:    arm.CloudErrorCodeInvalidSubscriptionState,
 					Message: fmt.Sprintf(UnregisteredSubscriptionStateMessage, subscriptionId),
 				},
 			},
@@ -70,7 +70,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusBadRequest,
 				CloudErrorBody: &arm.CloudErrorBody{
-					Code:    arm.CloudErrorInvalidSubscriptionState,
+					Code:    arm.CloudErrorCodeInvalidSubscriptionState,
 					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.SubscriptionStateDeleted),
 				},
 			},
@@ -83,7 +83,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusBadRequest,
 				CloudErrorBody: &arm.CloudErrorBody{
-					Code:    arm.CloudErrorInvalidSubscriptionState,
+					Code:    arm.CloudErrorCodeInvalidSubscriptionState,
 					Message: fmt.Sprintf(UnregisteredSubscriptionStateMessage, subscriptionId),
 				},
 			},
@@ -119,7 +119,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
-					Code:    arm.CloudErrorInvalidSubscriptionState,
+					Code:    arm.CloudErrorCodeInvalidSubscriptionState,
 					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.SubscriptionStateWarned),
 				},
 			},
@@ -132,7 +132,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
-					Code:    arm.CloudErrorInvalidSubscriptionState,
+					Code:    arm.CloudErrorCodeInvalidSubscriptionState,
 					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.SubscriptionStateSuspended),
 				},
 			},
@@ -145,7 +145,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			expectedError: &arm.CloudError{
 				StatusCode: http.StatusConflict,
 				CloudErrorBody: &arm.CloudErrorBody{
-					Code:    arm.CloudErrorInvalidSubscriptionState,
+					Code:    arm.CloudErrorCodeInvalidSubscriptionState,
 					Message: fmt.Sprintf(InvalidSubscriptionStateMessage, arm.SubscriptionStateSuspended),
 				},
 			},

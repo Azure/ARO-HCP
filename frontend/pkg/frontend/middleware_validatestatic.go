@@ -46,7 +46,7 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 			case strings.ToLower(api.ClusterResourceType.Type):
 				if !rxHCPOpenShiftClusterResourceName.MatchString(resource.Name) {
 					arm.WriteError(w, http.StatusBadRequest,
-						arm.CloudErrorInvalidResourceName,
+						arm.CloudErrorCodeInvalidResourceName,
 						resource.String(),
 						"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
 						resource.ResourceType, resource.Name,
@@ -56,7 +56,7 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 			case strings.ToLower(api.NodePoolResourceType.Type):
 				if !rxNodePoolResourceName.MatchString(resource.Name) {
 					arm.WriteError(w, http.StatusBadRequest,
-						arm.CloudErrorInvalidResourceName,
+						arm.CloudErrorCodeInvalidResourceName,
 						resource.String(),
 						"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
 						resource.ResourceType, resource.Name,
