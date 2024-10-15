@@ -345,7 +345,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -497,7 +497,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		updateResourceMetadata(doc)
 		err = f.dbClient.CreateResourceDoc(ctx, doc)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to create document for %s: %v", resourceID, err))
+			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -505,7 +505,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	} else {
 		updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, updateResourceMetadata)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", resourceID, err))
+			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -555,10 +555,9 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Info(fmt.Sprintf("cluster document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
 		} else {
-			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
+			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 		}
 		return
@@ -584,7 +583,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return true
 	})
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", resourceID, err))
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -623,15 +622,13 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
+		f.logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("document not found for subscription %s", subscriptionID))
 			arm.WriteResourceNotFoundError(writer, resourceID)
-			return
 		} else {
-			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
-			return
 		}
+		return
 	}
 
 	resp, err := json.Marshal(&doc.Subscription)
@@ -679,13 +676,13 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		doc := database.NewSubscriptionDocument(subscriptionID, &subscription)
 		err = f.dbClient.CreateSubscriptionDoc(ctx, doc)
 		if err != nil {
-			f.logger.Error("failed to create document for subscription %s: %v", subscriptionID, err)
+			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 		f.logger.Info(fmt.Sprintf("created document for subscription %s", subscriptionID))
 	} else if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", subscriptionID, err))
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	} else {
@@ -700,7 +697,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			return len(messages) > 0
 		})
 		if err != nil {
-			f.logger.Error("failed to update document for subscription %s: %v", subscriptionID, err)
+			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -862,11 +859,10 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
 	if err != nil {
+		f.logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("operation '%s' not found", resourceID))
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
-			f.logger.Error(err.Error())
 			writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -960,11 +956,10 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
 	if err != nil {
+		f.logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("operation '%s' not found", resourceID))
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
-			f.logger.Error(err.Error())
 			writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return

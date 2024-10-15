@@ -41,7 +41,7 @@ const (
 	operationsPartitionKey = "workaround"
 )
 
-var ErrNotFound = errors.New("DocumentNotFound")
+var ErrNotFound = errors.New("not found")
 
 func isResponseError(err error, statusCode int) bool {
 	var responseError *azcore.ResponseError
@@ -142,13 +142,13 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *arm.Res
 	for queryPager.More() {
 		queryResponse, err := queryPager.NextPage(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to advance page while querying Resources container for '%s': %w", resourceID, err)
 		}
 
 		for _, item := range queryResponse.Items {
 			err = json.Unmarshal(item, &doc)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", resourceID, err)
 			}
 		}
 	}
@@ -170,7 +170,7 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *arm.Res
 		doc.Key = resourceID
 		return doc, nil
 	}
-	return nil, ErrNotFound
+	return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, ErrNotFound)
 }
 
 // CreateResourceDoc creates a resource document in the "resources" DB during resource creation
@@ -180,12 +180,12 @@ func (d *CosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 
 	data, err := json.Marshal(doc)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.Key, err)
 	}
 
 	_, err = d.resources.CreateItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.Key, err)
 	}
 
 	return nil
@@ -222,15 +222,19 @@ func (d *CosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *arm.
 
 		data, err = json.Marshal(doc)
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("failed to marshal Resources container item for '%s': %w", resourceID, err)
 		}
 
 		options.IfMatchEtag = &doc.ETag
 		_, err = d.resources.ReplaceItem(ctx, pk, doc.ID, data, options)
+		if err == nil {
+			return true, nil
+		}
 
 		var responseError *azcore.ResponseError
+		err = fmt.Errorf("failed to replace Resources container item for '%s': %w", resourceID, err)
 		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
-			return (err == nil), err
+			return false, err
 		}
 	}
 
@@ -247,12 +251,12 @@ func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.
 		if errors.Is(err, ErrNotFound) {
 			return nil
 		}
-		return fmt.Errorf("while attempting to delete the resource, failed to get resource document: %w", err)
+		return err
 	}
 
 	_, err = d.resources.DeleteItem(ctx, pk, doc.ID, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete Resources container item for '%s': %w", resourceID, err)
 	}
 	return nil
 }
@@ -283,14 +287,14 @@ func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *arm.Resou
 
 		response, err = d.resources.NewQueryItemsPager(query, pk, &opt).NextPage(ctx)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("failed to advance page while querying Resources container for items with a key prefix of '%s': %w", prefix, err)
 		}
 
 		for _, item := range response.Items {
 			var doc ResourceDocument
 			err = json.Unmarshal(item, &doc)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("failed to unmarshal item while querying Resources container for items with a key prefix of '%s': %w", prefix, err)
 			}
 			if resourceType == nil || strings.EqualFold(resourceType.String(), doc.Key.ResourceType.String()) {
 				resourceDocs = append(resourceDocs, &doc)
@@ -317,16 +321,17 @@ func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 
 	response, err := d.operations.ReadItem(ctx, pk, operationID, nil)
-	if isResponseError(err, http.StatusNotFound) {
-		return nil, ErrNotFound
-	} else if err != nil {
-		return nil, err
+	if err != nil {
+		if isResponseError(err, http.StatusNotFound) {
+			err = ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to read Operations container item for '%s': %w", operationID, err)
 	}
 
 	var doc *OperationDocument
 	err = json.Unmarshal(response.Value, &doc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal Operations container item for '%s': %w", operationID, err)
 	}
 
 	return doc, nil
@@ -339,12 +344,12 @@ func (d *CosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 
 	data, err := json.Marshal(doc)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal Operations container item for '%s': %w", doc.ID, err)
 	}
 
 	_, err = d.operations.CreateItem(ctx, pk, data, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create Operations container item for '%s': %w", doc.ID, err)
 	}
 
 	return nil
@@ -359,11 +364,11 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 
 	_, err := d.operations.DeleteItem(ctx, pk, operationID, nil)
-	if isResponseError(err, http.StatusNotFound) {
-		return ErrNotFound
+	if err != nil && !isResponseError(err, http.StatusNotFound) {
+		return fmt.Errorf("failed to delete Operations container item for '%s': %w", operationID, err)
 	}
 
-	return err
+	return nil
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
@@ -374,16 +379,17 @@ func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 	pk := azcosmos.NewPartitionKeyString(subscriptionID)
 
 	response, err := d.subscriptions.ReadItem(ctx, pk, subscriptionID, nil)
-	if isResponseError(err, http.StatusNotFound) {
-		return nil, ErrNotFound
-	} else if err != nil {
-		return nil, err
+	if err != nil {
+		if isResponseError(err, http.StatusNotFound) {
+			err = ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to read Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
 	var doc *SubscriptionDocument
 	err = json.Unmarshal(response.Value, &doc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
 	return doc, nil
@@ -398,12 +404,15 @@ func (d *CosmosDBClient) CreateSubscriptionDoc(ctx context.Context, doc *Subscri
 
 	data, err := json.Marshal(doc)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", doc.ID, err)
 	}
 
 	_, err = d.subscriptions.CreateItem(ctx, pk, data, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create Subscriptions container item for '%s': %w", doc.ID, err)
+	}
 
-	return err
+	return nil
 }
 
 // UpdateSubscriptionDoc updates a subscription document by first fetching the document and
@@ -437,15 +446,19 @@ func (d *CosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 
 		data, err = json.Marshal(doc)
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", subscriptionID, err)
 		}
 
 		options.IfMatchEtag = &doc.ETag
 		_, err = d.subscriptions.ReplaceItem(ctx, pk, doc.ID, data, options)
+		if err == nil {
+			return true, nil
+		}
 
 		var responseError *azcore.ResponseError
+		err = fmt.Errorf("failed to replace Subscriptions container item for '%s': %w", subscriptionID, err)
 		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
-			return (err == nil), err
+			return false, err
 		}
 	}
 
