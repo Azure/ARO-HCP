@@ -2,11 +2,14 @@ package config
 
 import (
 	"bytes"
-	"context"
 	"text/template"
 
 	"gopkg.in/yaml.v3"
 )
+
+type Provider interface {
+	GetVariables(cloud, deployEnv string) (Variables, error)
+}
 
 func NewConfigProvider(config, region, user string) *configProviderImpl {
 	return &configProviderImpl{
@@ -17,7 +20,7 @@ func NewConfigProvider(config, region, user string) *configProviderImpl {
 }
 
 // get the variables toke effect finally for cloud/deployEnv/region
-func (cp *configProviderImpl) GetVariables(ctx context.Context, cloud, deployEnv string) (Variables, error) {
+func (cp *configProviderImpl) GetVariables(cloud, deployEnv string) (Variables, error) {
 	variableOverrides, err := cp.loadConfig()
 	variables := Variables{}
 

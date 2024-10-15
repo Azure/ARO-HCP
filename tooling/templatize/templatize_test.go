@@ -1,24 +1,98 @@
 package main
 
 import (
-	"context"
+	"bytes"
+	"io"
+	"path/filepath"
 	"testing"
+	"testing/fstest"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/config"
+	"github.com/Azure/ARO-HCP/tooling/templatize/testutil"
 )
 
-func TestExecuteTemplate(t *testing.T) {
-	opts := DefaultGenerationOptions()
-	ctx := context.Background()
+func TestRawOptions(t *testing.T) {
+	tmpdir := t.TempDir()
+	opts := &RawGenerationOptions{
+		ConfigFile: "./testdata/config.yaml",
+		Input:      "./testdata/helm.sh",
+		Output:     tmpdir,
+		Cloud:      "fairfax",
+		DeployEnv:  "prod",
+		Region:     "uksouth",
+	}
 
-	// No config, input and output files
-	err := opts.ExecuteTemplate(ctx)
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "no such file or directory")
-
-	opts.ConfigFile = "testdata/config.yaml"
-	opts.Input = "testdata/helm.sh"
-	opts.Output = "output"
-	err = opts.ExecuteTemplate(ctx)
-	assert.NoError(t, err)
+	assert.NoError(t, executeTemplate(opts))
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "helm.sh"))
 }
+
+func TestExecuteTemplate(t *testing.T) {
+	for _, testCase := range []struct {
+		name   string
+		config config.Variables
+		input  string
+
+		expected      string
+		expectedError bool
+	}{
+		{
+			name: "happy case generates a file",
+			config: config.Variables{
+				"region_maestro_keyvault":    "kv",
+				"region_eventgrid_namespace": "ns",
+			},
+			input: `param maestroKeyVaultName = '{{index . "region_maestro_keyvault"}}'
+param maestroEventGridNamespacesName = '{{index . "region_eventgrid_namespace"}}'
+param maestroEventGridMaxClientSessionsPerAuthName = 4`,
+			expected: `param maestroKeyVaultName = 'kv'
+param maestroEventGridNamespacesName = 'ns'
+param maestroEventGridMaxClientSessionsPerAuthName = 4`,
+		},
+		{
+			name: "referencing unset variable errors", // TODO: this does not error today, just gets an empty string, this is not the UX we want
+			config: config.Variables{
+				"region_maestro_keyvault": "kv",
+			},
+			input: `param maestroKeyVaultName = '{{index . "region_maestro_keyvault"}}'
+param maestroEventGridNamespacesName = '{{index . "region_eventgrid_namespace"}}'
+param maestroEventGridMaxClientSessionsPerAuthName = 4`,
+			expected: `param maestroKeyVaultName = 'kv'
+param maestroEventGridNamespacesName = ''
+param maestroEventGridMaxClientSessionsPerAuthName = 4`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			output := &bytes.Buffer{}
+			opts := GenerationOptions{
+				completedGenerationOptions: &completedGenerationOptions{
+					Config:    testCase.config,
+					Input:     fstest.MapFS{"test": &fstest.MapFile{Data: []byte(testCase.input)}},
+					InputFile: "test",
+					Output:    &nopCloser{Writer: output},
+				},
+			}
+			err := opts.ExecuteTemplate()
+			if testCase.expectedError {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			if diff := cmp.Diff(output.String(), testCase.expected); diff != "" {
+				t.Errorf("unexpected output (-want, +got): %s", diff)
+			}
+		})
+	}
+}
+
+type nopCloser struct {
+	io.Writer
+}
+
+func (n nopCloser) Close() error {
+	return nil
+}
+
+var _ io.WriteCloser = &nopCloser{}
