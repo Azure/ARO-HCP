@@ -65,6 +65,20 @@ jobs:
               --template-file templates/dev-acr.bicep \
               --parameters configurations/mvp-dev-acr.bicepparam
 
+            # OCP ACR
+            az deployment group what-if \
+              --name "dev-ocp-acr-${GITHUB_RUN_ID}" \
+              --resource-group ${GLOBAL_RESOURCEGROUP} \
+              --template-file templates/dev-acr.bicep \
+              --parameters configurations/mvp-dev-ocp-acr.bicepparam
+
+            # SVC ACR
+            az deployment group what-if \
+              --name "dev-svc-acr-${GITHUB_RUN_ID}" \
+              --resource-group ${GLOBAL_RESOURCEGROUP} \
+              --template-file templates/dev-acr.bicep \
+              --parameters configurations/mvp-dev-svc-acr.bicepparam
+
             # region infra
             az deployment group what-if \
               --name "region-${GITHUB_RUN_ID}" \

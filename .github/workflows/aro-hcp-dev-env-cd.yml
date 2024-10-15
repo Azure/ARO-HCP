@@ -78,6 +78,21 @@
                 --template-file templates/dev-acr.bicep \
                 --parameters configurations/mvp-dev-acr.bicepparam
 
+              # OCP ACR
+              az deployment group create \
+                --name "dev-ocp-acr-${GITHUB_RUN_ID}" \
+                --resource-group ${GLOBAL_RESOURCEGROUP} \
+                --template-file templates/dev-acr.bicep \
+                --parameters configurations/mvp-dev-ocp-acr.bicepparam
+
+              # SVC ACR
+              az deployment group create \
+                --name "dev-svc-acr-${GITHUB_RUN_ID}" \
+                --resource-group ${GLOBAL_RESOURCEGROUP} \
+                --template-file templates/dev-acr.bicep \
+                --parameters configurations/mvp-dev-svc-acr.bicepparam
+
+
     deploy_image_sync_rg:
       if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       permissions:
