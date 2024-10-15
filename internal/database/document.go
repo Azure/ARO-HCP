@@ -89,7 +89,7 @@ type OperationDocument struct {
 	// as the resource's provisioning state
 	Status arm.ProvisioningState `json:"status,omitempty"`
 	// Error is an OData error, present when Status is "Failed" or "Canceled"
-	Error *arm.CloudError `json:"error,omitempty"`
+	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
 func NewOperationDocument(request OperationRequest) *OperationDocument {

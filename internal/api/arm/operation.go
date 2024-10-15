@@ -17,6 +17,6 @@ type Operation struct {
 	EndTime         *time.Time        `json:"endTime,omitempty"`
 	PercentComplete float64           `json:"percentComplete,omitempty"`
 	Properties      json.RawMessage   `json:"peroperties,omitempty"`
-	Error           *CloudError       `json:"error,omitempty"`
+	Error           *CloudErrorBody   `json:"error,omitempty"`
 	Operations      []Operation       `json:"operations,omitempty"`
 }
