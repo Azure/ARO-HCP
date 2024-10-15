@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -13,9 +12,8 @@ func TestConfigProvider(t *testing.T) {
 	user := "chiac"
 
 	configProvider := NewConfigProvider("../testdata/config.yaml", region, user)
-	ctx := context.Background()
 
-	variables, err := configProvider.GetVariables(ctx, "public", "int")
+	variables, err := configProvider.GetVariables("public", "int")
 	assert.NoError(t, err)
 	assert.NotNil(t, variables)
 

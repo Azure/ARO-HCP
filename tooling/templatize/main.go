@@ -2,18 +2,40 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/config"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-func DefaultGenerationOptions() *GenerationOptions {
-	return &GenerationOptions{}
+func DefaultGenerationOptions() *RawGenerationOptions {
+	return &RawGenerationOptions{}
 }
 
-type GenerationOptions struct {
+func BindGenerationOptions(opts *RawGenerationOptions, cmd *cobra.Command) error {
+	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
+	cmd.Flags().StringVar(&opts.Input, "input", opts.Input, "input file path")
+	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file directory")
+	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax)")
+	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
+	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "resources location")
+	cmd.Flags().StringVar(&opts.User, "user", opts.User, "unique user name")
+
+	for _, flag := range []string{"config-file", "input", "output"} {
+		if err := cmd.MarkFlagFilename("config-file"); err != nil {
+			return fmt.Errorf("failed to mark flag %q as a file: %w", flag, err)
+		}
+	}
+	return nil
+}
+
+// RawGenerationOptions holds input values.
+type RawGenerationOptions struct {
 	ConfigFile string
 	Input      string
 	Output     string
@@ -23,44 +45,70 @@ type GenerationOptions struct {
 	User       string
 }
 
-func (opts *GenerationOptions) Validate() error {
-	var errs []error
-	err := opts.validateFileAvailability("config-file", opts.ConfigFile)
-	if err != nil {
-		errs = append(errs, err)
-	}
-	err = opts.validateFileAvailability("input", opts.Input)
-	if err != nil {
-		errs = append(errs, err)
+func (o *RawGenerationOptions) Validate() (*ValidatedGenerationOptions, error) {
+	validClouds := sets.NewString("public", "fairfax")
+	if !validClouds.Has(o.Cloud) {
+		return nil, fmt.Errorf("invalid cloud %s, must be one of %v", o.Cloud, validClouds.List())
 	}
 
-	// validate cloud
-	clouds := []string{"public", "fairfax"}
-	found := false
-	for _, c := range clouds {
-		if c == opts.Cloud {
-			found = true
-			break
-		}
-	}
-	if !found {
-		errs = append(errs, fmt.Errorf("parameter cloud must be one of %v", clouds))
-	}
+	// TODO: validate the environments, ensure a user is not passed for prod, etc
 
-	return errors.NewAggregate(errs)
+	return &ValidatedGenerationOptions{
+		validatedGenerationOptions: &validatedGenerationOptions{
+			RawGenerationOptions: o,
+		},
+	}, nil
 }
 
-func (opts *GenerationOptions) validateFileAvailability(param, path string) error {
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("file %s for parameter %s does not exist", path, param)
-		} else if os.IsPermission(err) {
-			return fmt.Errorf("no read permission for file %s", path)
-		} else {
-			return err
-		}
+// validatedGenerationOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
+type validatedGenerationOptions struct {
+	*RawGenerationOptions
+}
+
+type ValidatedGenerationOptions struct {
+	// Embed a private pointer that cannot be instantiated outside of this package.
+	*validatedGenerationOptions
+}
+
+func (o *ValidatedGenerationOptions) Complete() (*GenerationOptions, error) {
+	cfg := config.NewConfigProvider(o.ConfigFile, o.Region, o.User)
+	vars, err := cfg.GetVariables(o.Cloud, o.DeployEnv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get variables for cloud %s: %w", o.Cloud, err)
 	}
-	return nil
+
+	inputFile := filepath.Base(o.Input)
+
+	if err := os.MkdirAll(o.Output, os.ModePerm); err != nil {
+		return nil, fmt.Errorf("failed to create output directory %s: %w", o.Output, err)
+	}
+
+	output, err := os.Create(filepath.Join(o.Output, inputFile))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create output file %s: %w", o.Input, err)
+	}
+
+	return &GenerationOptions{
+		completedGenerationOptions: &completedGenerationOptions{
+			Config:    vars,
+			Input:     os.DirFS(filepath.Dir(o.Input)),
+			InputFile: inputFile,
+			Output:    output,
+		},
+	}, nil
+}
+
+// completedGenerationOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
+type completedGenerationOptions struct {
+	Config    config.Variables
+	Input     fs.FS
+	InputFile string
+	Output    io.WriteCloser
+}
+
+type GenerationOptions struct {
+	// Embed a private pointer that cannot be instantiated outside of this package.
+	*completedGenerationOptions
 }
 
 func main() {
@@ -70,57 +118,33 @@ func main() {
 		Short: "templatize",
 		Long:  "templatize",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := opts.Validate(); err != nil {
-				return err
-			}
-
-			println("Config:", opts.ConfigFile)
-			println("Input:", opts.Input)
-			println("Cloud:", opts.Cloud)
-			println("Deployment Env:", opts.DeployEnv)
-			println("Region:", opts.Region)
-			println("User:", opts.User)
-
-			return opts.ExecuteTemplate(cmd.Context())
+			return executeTemplate(opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
-	cmd.Flags().StringVar(&opts.Input, "input", opts.Input, "input file path")
-	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file path")
-	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax)")
-	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
-	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "resources location")
-	cmd.Flags().StringVar(&opts.User, "user", opts.User, "unique user name")
-
-	if err := cmd.MarkFlagFilename("config-file"); err != nil {
-		log.Fatalf("Error marking flag 'config-file': %v", err)
-	}
-	if err := cmd.MarkFlagRequired("config-file"); err != nil {
-		log.Fatalf("Error marking flag 'config-file' as required: %v", err)
-	}
-	if err := cmd.MarkFlagFilename("input"); err != nil {
-		log.Fatalf("Error marking flag 'input': %v", err)
-	}
-	if err := cmd.MarkFlagRequired("input"); err != nil {
-		log.Fatalf("Error marking flag 'input' as required: %v", err)
-	}
-	if err := cmd.MarkFlagFilename("output"); err != nil {
-		log.Fatalf("Error marking flag 'input': %v", err)
-	}
-	if err := cmd.MarkFlagRequired("output"); err != nil {
-		log.Fatalf("Error marking flag 'output' as required: %v", err)
-	}
-	if err := cmd.MarkFlagRequired("cloud"); err != nil {
-		log.Fatalf("Error marking flag 'cloud' as required: %v", err)
-	}
-	if err := cmd.MarkFlagRequired("deploy-env"); err != nil {
-		log.Fatalf("Error marking flag 'deploy-env' as required: %v", err)
-	}
-	if err := cmd.MarkFlagRequired("region"); err != nil {
-		log.Fatalf("Error marking flag 'region' as required: %v", err)
+	if err := BindGenerationOptions(opts, cmd); err != nil {
+		log.Fatal(err)
 	}
 
 	if err := cmd.Execute(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func executeTemplate(opts *RawGenerationOptions) error {
+	println("Config:", opts.ConfigFile)
+	println("Input:", opts.Input)
+	println("Cloud:", opts.Cloud)
+	println("Deployment Env:", opts.DeployEnv)
+	println("Region:", opts.Region)
+	println("User:", opts.User)
+
+	validated, err := opts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.ExecuteTemplate()
 }
