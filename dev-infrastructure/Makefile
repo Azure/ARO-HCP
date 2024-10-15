@@ -117,18 +117,6 @@ image-sync: imagesyncRg
 		--parameters \
 			configurations/mvp-image-sync.bicepparam
 
-acr: regionalRg
-	az deployment group create \
-		--name "$(DEPLOYMENTNAMEREGION)-ACR" \
-		--resource-group $(REGIONAL_RESOURCEGROUP) \
-		--template-file templates/dev-acr.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/dev-acr.bicepparam \
-		--parameters \
-			acrName=$(REGIONAL_ACR_NAME)
-.PHONY: acr
-
 region: regionalRg
 	az deployment group create \
 		--name "$(DEPLOYMENTNAMEREGION)" \
@@ -141,7 +129,7 @@ region: regionalRg
 			currentUserId=$(CURRENTUSER)
 .PHONY: region
 
-cluster: rg cleanup-orphaned-rolebindings region acr
+cluster: rg cleanup-orphaned-rolebindings region
 ifndef AKSCONFIG
 	$(error "Must set AKSCONFIG")
 endif
