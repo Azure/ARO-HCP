@@ -67,12 +67,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	clusterDoc, err := f.dbClient.GetResourceDoc(ctx, clusterResourceID)
 	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("existing document not found for cluster %s when creating node pool", clusterResourceID))
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		f.logger.Error(fmt.Sprintf("failed to fetch cluster document for %s when creating node pool: %v", clusterResourceID, err))
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -92,7 +87,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", nodePoolResourceID, err))
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -244,7 +239,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		updateResourceMetadata(nodePoolDoc)
 		err = f.dbClient.CreateResourceDoc(ctx, nodePoolDoc)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to create document for %s: %v", nodePoolResourceID, err))
+			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -252,7 +247,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	} else {
 		updated, err := f.dbClient.UpdateResourceDoc(ctx, nodePoolResourceID, updateResourceMetadata)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", nodePoolResourceID, err))
+			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -298,10 +293,9 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- document not found for %s", resourceID))
 			writer.WriteHeader(http.StatusNoContent)
 		} else {
-			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
+			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 		}
 		return
@@ -327,7 +321,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return true
 	})
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", resourceID, err))
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}

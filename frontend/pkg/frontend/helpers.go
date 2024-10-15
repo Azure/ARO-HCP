@@ -22,11 +22,10 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
+		f.logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("resource document not found for %s", resourceID))
 			return nil, arm.NewResourceNotFoundError(resourceID)
 		} else {
-			f.logger.Error(fmt.Sprintf("failed to fetch resource document for %s: %v", resourceID, err))
 			return nil, arm.NewInternalServerError()
 		}
 	}
