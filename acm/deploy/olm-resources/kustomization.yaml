@@ -1,5 +1,0 @@
-resources:
-- mce-catalogsource.yaml
-- mch-catalogsource.yaml
-- subscription.yaml
-- operatorgroup.yaml
