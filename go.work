@@ -8,4 +8,5 @@ use (
 	./internal
 	./tooling/image-sync
 	./tooling/templatize
+	./tooling/mcerepkg
 )
