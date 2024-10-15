@@ -50,7 +50,7 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		arm.WriteError(
 			w, http.StatusBadRequest,
-			arm.CloudErrorInvalidSubscriptionState, "",
+			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
 			subscriptionId)
 		return
@@ -76,13 +76,13 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 	case arm.SubscriptionStateUnregistered:
 		arm.WriteError(
 			w, http.StatusBadRequest,
-			arm.CloudErrorInvalidSubscriptionState, "",
+			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
 			subscriptionId)
 	case arm.SubscriptionStateWarned, arm.SubscriptionStateSuspended:
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 			arm.WriteError(w, http.StatusConflict,
-				arm.CloudErrorInvalidSubscriptionState, "",
+				arm.CloudErrorCodeInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
 				sub.Subscription.State)
 			return
@@ -91,7 +91,7 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 	case arm.SubscriptionStateDeleted:
 		arm.WriteError(
 			w, http.StatusBadRequest,
-			arm.CloudErrorInvalidSubscriptionState, "",
+			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
 			sub.Subscription.State)
 	}

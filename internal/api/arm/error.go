@@ -13,22 +13,22 @@ import (
 
 // CloudError codes
 const (
-	CloudErrorCodeInternalServerError    = "InternalServerError"
-	CloudErrorCodeInvalidParameter       = "InvalidParameter"
-	CloudErrorCodeInvalidRequestContent  = "InvalidRequestContent"
-	CloudErrorCodeInvalidResource        = "InvalidResource"
-	CloudErrorCodeInvalidResourceType    = "InvalidResourceType"
-	CloudErrorCodeMultipleErrorsOccurred = "MultipleErrorsOccurred"
-	CloudErrorCodeUnsupportedMediaType   = "UnsupportedMediaType"
-	CloudErrorCodeConflict               = "Conflict"
-	CloudErrorCodeNotFound               = "NotFound"
-	CloudErrorInvalidSubscriptionState   = "InvalidSubscriptionState"
-	CloudErrorCodeSubscriptionNotFound   = "SubscriptionNotFound"
-	CloudErrorCodeResourceNotFound       = "ResourceNotFound"
-	CloudErrorCodeResourceGroupNotFound  = "ResourceGroupNotFound"
-	CloudErrorCodeInvalidSubscriptionID  = "InvalidSubscriptionID"
-	CloudErrorInvalidResourceName        = "InvalidResourceName"
-	CloudErrorInvalidResourceGroupName   = "InvalidResourceGroupName"
+	CloudErrorCodeInternalServerError      = "InternalServerError"
+	CloudErrorCodeInvalidParameter         = "InvalidParameter"
+	CloudErrorCodeInvalidRequestContent    = "InvalidRequestContent"
+	CloudErrorCodeInvalidResource          = "InvalidResource"
+	CloudErrorCodeInvalidResourceType      = "InvalidResourceType"
+	CloudErrorCodeMultipleErrorsOccurred   = "MultipleErrorsOccurred"
+	CloudErrorCodeUnsupportedMediaType     = "UnsupportedMediaType"
+	CloudErrorCodeConflict                 = "Conflict"
+	CloudErrorCodeNotFound                 = "NotFound"
+	CloudErrorCodeInvalidSubscriptionState = "InvalidSubscriptionState"
+	CloudErrorCodeSubscriptionNotFound     = "SubscriptionNotFound"
+	CloudErrorCodeResourceNotFound         = "ResourceNotFound"
+	CloudErrorCodeResourceGroupNotFound    = "ResourceGroupNotFound"
+	CloudErrorCodeInvalidSubscriptionID    = "InvalidSubscriptionID"
+	CloudErrorCodeInvalidResourceName      = "InvalidResourceName"
+	CloudErrorCodeInvalidResourceGroupName = "InvalidResourceGroupName"
 )
 
 // CloudError represents a complete resource provider error.
