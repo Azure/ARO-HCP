@@ -1,0 +1,10 @@
+apiVersion: v2
+appVersion: 2.7.0
+description: A Helm chart to configure the multicluster-engine for ARO HCP
+keywords:
+- mce
+- multicluster-engine
+- multiclusterengine
+name: multicluster-engine-local-cluster
+type: application
+version: 0.1.0

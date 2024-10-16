@@ -1,0 +1,9 @@
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: AddOnDeploymentConfig
+metadata:
+  name: addon-hosted-config
+  namespace: multicluster-engine
+spec:
+  customizedVariables:
+    - name: managedKubeConfigSecret
+      value: external-managed-kubeconfig

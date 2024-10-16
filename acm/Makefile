@@ -12,15 +12,18 @@ REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d-mce
 MCE_OPERATOR_BUNDLE_FILE = mce-operator-bundle.tgz
 HELM_BASE_DIR = deploy/helm
 MCE_CHART_DIR = ${HELM_BASE_DIR}/multicluster-engine
+MCE_CONFIG_DIR = ${HELM_BASE_DIR}/multicluster-engine-config
 MCE_NS = multicluster-engine
+POLICY_HELM_REPO = https://github.com/stolostron/mce-install-kube.git
 
 deploy:
 	@kubectl create namespace ${MCE_NS} --dry-run=client -o json | kubectl apply -f -
 	helm upgrade --install --wait \
-		mce deploy/helm/multicluster-engine \
+		mce ${MCE_CHART_DIR} \
 		--namespace ${MCE_NS} \
 		--set imageRegistry=${REGISTRY}
-	helm upgrade --install mce-config deploy/helm/multicluster-engine-config \
+	helm upgrade --install --wait \
+		mce-local-cluster ${MCE_CONFIG_DIR} \
 		--namespace ${MCE_NS}
 
 helm-chart:
@@ -32,5 +35,15 @@ helm-chart:
 		-o ${HELM_BASE_DIR} -s scaffold \
 		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
+
+	@echo "Cloning remote mce-install-kube repository..."
+	TMP_DIR=$$(mktemp -d) && \
+    @git clone ${POLICY_HELM_REPO} $$TMP_DIR && \
+    @cp -r $$TMP_DIR/policy ${HELM_BASE_DIR}/policy && \
+    @rm -rf $$TMP_DIR
+    @echo "Helm chart imported successfully."
+
+import-chart:
+
 
 .PHONY: deploy helm-chart
