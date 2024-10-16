@@ -31,7 +31,7 @@ var (
 	mceBundle   string
 	outputDir   string
 	scaffoldDir string
-	sourceLink      string
+	sourceLink  string
 )
 
 func main() {
