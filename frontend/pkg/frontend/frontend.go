@@ -18,7 +18,6 @@ import (
 	"sync/atomic"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -28,7 +27,7 @@ import (
 )
 
 type Frontend struct {
-	clusterServiceConfig ocm.ClusterServiceConfig
+	clusterServiceClient ocm.ClusterServiceClientSpec
 	logger               *slog.Logger
 	listener             net.Listener
 	metricsListener      net.Listener
@@ -41,9 +40,9 @@ type Frontend struct {
 	location             string
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csCfg ocm.ClusterServiceConfig) *Frontend {
+func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csClient ocm.ClusterServiceClientSpec) *Frontend {
 	f := &Frontend{
-		clusterServiceConfig: csCfg,
+		clusterServiceClient: csClient,
 		logger:               logger,
 		listener:             listener,
 		metricsListener:      metricsListener,
@@ -215,7 +214,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
 	f.logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
 
-	listRequest := f.clusterServiceConfig.Conn.ClustersMgmt().V1().Clusters().List().Search(query)
+	listRequest := f.clusterServiceClient.GetConn().ClustersMgmt().V1().Clusters().List().Search(query)
 
 	// XXX This SHOULD avoid dealing with pagination from Cluster Service.
 	//     As far I can tell, uhc-cluster-service does not impose its own
@@ -365,7 +364,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// No special treatment here for "not found" errors. A "not found"
 		// error indicates the database has gotten out of sync and so it's
 		// appropriate to fail.
-		csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, doc.InternalID)
+		csCluster, err := f.clusterServiceClient.GetCSCluster(ctx, doc.InternalID)
 		if err != nil {
 			f.logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
@@ -441,7 +440,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	if updating {
 		f.logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceConfig.UpdateCSCluster(ctx, doc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceClient.UpdateCSCluster(ctx, doc.InternalID, csCluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -449,7 +448,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	} else {
 		f.logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		csCluster, err = f.clusterServiceConfig.PostCSCluster(ctx, csCluster)
+		csCluster, err = f.clusterServiceClient.PostCSCluster(ctx, csCluster)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -566,7 +565,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.clusterServiceConfig.DeleteCSCluster(ctx, doc.InternalID)
+	err = f.clusterServiceClient.DeleteCSCluster(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to delete cluster %s: %v", resourceID, err))
 		arm.WriteInternalServerError(writer)
@@ -829,272 +828,13 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	arm.WriteDeploymentPreflightResponse(writer, preflightErrors)
 }
 
-func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) {
-	var err error
-
-	// This handles both PUT and PATCH requests. PATCH requests will
-	// never create a new resource. The only other notable difference
-	// is the target struct that request bodies are overlayed onto:
-	//
-	// PUT requests overlay the request body onto a default resource
-	// struct, which only has API-specified non-zero default values.
-	// This means all required properties must be specified in the
-	// request body, whether creating or updating a resource.
-	//
-	// PATCH requests overlay the request body onto a resource struct
-	// that represents an existing resource to be updated.
-
+func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePoolResourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	systemData, err := SystemDataFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("%s: CreateNodePool", versionedInterface))
-
-	clusterResourceID := nodePoolResourceID.GetParent()
-	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	clusterDoc, err := f.dbClient.GetResourceDoc(ctx, clusterResourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("existing document not found for cluster %s when creating node pool", clusterResourceID))
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		f.logger.Error(fmt.Sprintf("failed to fetch cluster document for %s when creating node pool: %v", clusterResourceID, err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, clusterDoc.InternalID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", clusterResourceID, err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	if csCluster.State() == cmv1.ClusterStateUninstalling {
-		f.logger.Error(fmt.Sprintf("failed to create node pool for cluster %s as it is in %v state", clusterResourceID, cmv1.ClusterStateUninstalling))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", nodePoolResourceID, err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	var updating = (nodePoolDoc != nil)
-	var operationRequest database.OperationRequest
-
-	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
-	var versionedRequestNodePool api.VersionedHCPOpenShiftClusterNodePool
-	var successStatusCode int
-
-	if updating {
-		// Note that because we found a database document for the cluster,
-		// we expect Cluster Service to return us a node pool object.
-		//
-		// No special treatment here for "not found" errors. A "not found"
-		// error indicates the database has gotten out of sync and so it's
-		// appropriate to fail.
-		csNodePool, err := f.clusterServiceConfig.GetCSNodePool(ctx, nodePoolDoc.InternalID)
-		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", nodePoolResourceID, err))
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		hcpNodePool := ConvertCStoNodePool(nodePoolResourceID, csNodePool)
-
-		// Do not set the TrackedResource.Tags field here. We need
-		// the Tags map to remain nil so we can see if the request
-		// body included a new set of resource tags.
-
-		operationRequest = database.OperationRequestUpdate
-
-		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
-		switch request.Method {
-		case http.MethodPut:
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
-			successStatusCode = http.StatusOK
-		case http.MethodPatch:
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-			successStatusCode = http.StatusAccepted
-		}
-	} else {
-		operationRequest = database.OperationRequestCreate
-
-		switch request.Method {
-		case http.MethodPut:
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
-			successStatusCode = http.StatusCreated
-		case http.MethodPatch:
-			// PATCH requests never create a new resource.
-			f.logger.Error("Resource not found")
-			arm.WriteResourceNotFoundError(writer, nodePoolResourceID)
-			return
-		}
-
-		nodePoolDoc = database.NewResourceDocument(nodePoolResourceID)
-	}
-
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if err = json.Unmarshal(body, versionedRequestNodePool); err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInvalidRequestContentError(writer, err)
-		return
-	}
-
-	cloudError := versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, updating, request.Method)
-	if cloudError != nil {
-		f.logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
-		return
-	}
-
-	hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
-	versionedRequestNodePool.Normalize(hcpNodePool)
-
-	hcpNodePool.Name = request.PathValue(PathSegmentNodePoolName)
-	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	if updating {
-		f.logger.Info(fmt.Sprintf("updating resource %s", nodePoolResourceID))
-		csNodePool, err = f.clusterServiceConfig.UpdateCSNodePool(ctx, nodePoolDoc.InternalID, csNodePool)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-	} else {
-		f.logger.Info(fmt.Sprintf("creating resource %s", nodePoolResourceID))
-		csNodePool, err = f.clusterServiceConfig.PostCSNodePool(ctx, clusterDoc.InternalID, csNodePool)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		nodePoolDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-	}
-
-	// This is called directly when creating a resource, and indirectly from
-	// within a retry loop when updating a resource.
-	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
-		var docUpdated bool
-
-		// Record the latest system data values from ARM, if present.
-		if systemData != nil {
-			doc.SystemData = systemData
-			docUpdated = true
-		}
-
-		// Here the difference between a nil map and an empty map is significant.
-		// If the Tags map is nil, that means it was omitted from the request body,
-		// so we leave any existing tags alone. If the Tags map is non-nil, even if
-		// empty, that means it was specified in the request body and should fully
-		// replace any existing tags.
-		if hcpNodePool.TrackedResource.Tags != nil {
-			doc.Tags = hcpNodePool.TrackedResource.Tags
-			docUpdated = true
-		}
-
-		return docUpdated
-	}
-
-	if !updating {
-		updateResourceMetadata(nodePoolDoc)
-		err = f.dbClient.CreateResourceDoc(ctx, nodePoolDoc)
-		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to create document for %s: %v", nodePoolResourceID, err))
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		f.logger.Info(fmt.Sprintf("document created for %s", nodePoolResourceID))
-	} else {
-		updated, err := f.dbClient.UpdateResourceDoc(ctx, nodePoolResourceID, updateResourceMetadata)
-		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to update document for %s: %v", nodePoolResourceID, err))
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		if updated {
-			f.logger.Info(fmt.Sprintf("document updated for %s", nodePoolResourceID))
-		}
-	}
-
-	err = f.StartOperation(writer, request, operationRequest, nodePoolDoc.InternalID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	responseBody, err := marshalCSNodePool(csNodePool, nodePoolDoc, versionedInterface)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	writer.WriteHeader(successStatusCode)
-
-	_, err = writer.Write(responseBody)
-	if err != nil {
-		f.logger.Error(err.Error())
-	}
-}
-
-func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -1105,35 +845,84 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: DeleteNodePool", versionedInterface))
+	f.logger.Info(fmt.Sprintf("%s: OperationStatus", versionedInterface))
 
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("node pool document cannot be deleted -- document not found for %s", resourceID))
-			writer.WriteHeader(http.StatusNoContent)
+			f.logger.Error(fmt.Sprintf("operation '%s' not found", resourceID))
+			writer.WriteHeader(http.StatusNotFound)
 		} else {
-			f.logger.Error(fmt.Sprintf("failed to fetch document for %s: %v", resourceID, err))
-			arm.WriteInternalServerError(writer)
+			f.logger.Error(err.Error())
+			writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
 	}
 
-	err = f.clusterServiceConfig.DeleteCSNodePool(ctx, doc.InternalID)
+	// Validate the identity retrieving the operation result is the
+	// same identity that triggered the operation. Return 404 if not.
+	if !f.OperationIsVisible(request, doc) {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	responseBody, err := json.Marshal(doc.ToStatus())
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", resourceID, err))
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	err = f.StartOperation(writer, request, database.OperationRequestDelete, doc.InternalID)
+	_, err = writer.Write(responseBody)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
-		arm.WriteInternalServerError(writer)
-		return
+		f.logger.Error(err.Error())
+	}
+}
+
+// marshalCSCluster renders a CS Cluster object in JSON format, applying
+// the necessary conversions for the API version of the request.
+func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.Key, csCluster)
+	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
+	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
+
+	return json.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
+}
+
+func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
+	var messages []string
+
+	if oldSub.State != newSub.State {
+		messages = append(messages, fmt.Sprintf("Subscription state changed from %s to %s", oldSub.State, newSub.State))
 	}
 
-	writer.WriteHeader(http.StatusAccepted)
+	if oldSub.Properties != nil && newSub.Properties != nil {
+		if oldSub.Properties.TenantId != nil && newSub.Properties.TenantId != nil &&
+			*oldSub.Properties.TenantId != *newSub.Properties.TenantId {
+			messages = append(messages, fmt.Sprintf("Subscription tenantId changed from %s to %s", *oldSub.Properties.TenantId, *newSub.Properties.TenantId))
+		}
+
+		if oldSub.Properties.RegisteredFeatures != nil && newSub.Properties.RegisteredFeatures != nil {
+			oldFeatures := featuresMap(oldSub.Properties.RegisteredFeatures)
+			newFeatures := featuresMap(newSub.Properties.RegisteredFeatures)
+
+			for featureName, oldState := range oldFeatures {
+				newState, exists := newFeatures[featureName]
+				if !exists {
+					messages = append(messages, fmt.Sprintf("Feature %s removed", featureName))
+				} else if oldState != newState {
+					messages = append(messages, fmt.Sprintf("Feature %s state changed from %s to %s", featureName, oldState, newState))
+				}
+			}
+			for featureName, newState := range newFeatures {
+				if _, exists := oldFeatures[featureName]; !exists {
+					messages = append(messages, fmt.Sprintf("Feature %s added with state %s", featureName, newState))
+				}
+			}
+		}
+	}
+
+	return messages
 }
 
 func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Request) {
@@ -1213,168 +1002,6 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
-}
-
-func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("%s: OperationStatus", versionedInterface))
-
-	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("operation '%s' not found", resourceID))
-			writer.WriteHeader(http.StatusNotFound)
-		} else {
-			f.logger.Error(err.Error())
-			writer.WriteHeader(http.StatusInternalServerError)
-		}
-		return
-	}
-
-	// Validate the identity retrieving the operation result is the
-	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, doc) {
-		writer.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	responseBody, err := json.Marshal(doc.ToStatus())
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	_, err = writer.Write(responseBody)
-	if err != nil {
-		f.logger.Error(err.Error())
-	}
-}
-
-func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
-	var responseBody []byte
-
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			f.logger.Error(fmt.Sprintf("resource document not found for %s", resourceID))
-			return nil, arm.NewResourceNotFoundError(resourceID)
-		} else {
-			f.logger.Error(fmt.Sprintf("failed to fetch resource document for %s: %v", resourceID, err))
-			return nil, arm.NewInternalServerError()
-		}
-	}
-
-	switch doc.InternalID.Kind() {
-	case cmv1.ClusterKind:
-		csCluster, err := f.clusterServiceConfig.GetCSCluster(ctx, doc.InternalID)
-		if err != nil {
-			f.logger.Error(err.Error())
-			var ocmError *ocmerrors.Error
-			if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-				return nil, arm.NewResourceNotFoundError(resourceID)
-			}
-			return nil, arm.NewInternalServerError()
-		}
-		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
-		if err != nil {
-			f.logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-	case cmv1.NodePoolKind:
-		csNodePool, err := f.clusterServiceConfig.GetCSNodePool(ctx, doc.InternalID)
-		if err != nil {
-			f.logger.Error(err.Error())
-			var ocmError *ocmerrors.Error
-			if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-				return nil, arm.NewResourceNotFoundError(resourceID)
-			}
-			return nil, arm.NewInternalServerError()
-		}
-		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
-		if err != nil {
-			f.logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-	default:
-		f.logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", doc.InternalID))
-		return nil, arm.NewInternalServerError()
-	}
-
-	return responseBody, nil
-}
-
-// marshalCSCluster renders a CS Cluster object in JSON format, applying
-// the necessary conversions for the API version of the request.
-func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.Key, csCluster)
-	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
-	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
-
-	return json.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
-}
-
-// marshalCSNodePool renders a CS NodePool object in JSON format, applying
-// the necessary conversions for the API version of the request.
-func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpNodePool := ConvertCStoNodePool(doc.Key, csNodePool)
-	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
-	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
-
-	return json.Marshal(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
-}
-
-func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
-	var messages []string
-
-	if oldSub.State != newSub.State {
-		messages = append(messages, fmt.Sprintf("Subscription state changed from %s to %s", oldSub.State, newSub.State))
-	}
-
-	if oldSub.Properties != nil && newSub.Properties != nil {
-		if oldSub.Properties.TenantId != nil && newSub.Properties.TenantId != nil &&
-			*oldSub.Properties.TenantId != *newSub.Properties.TenantId {
-			messages = append(messages, fmt.Sprintf("Subscription tenantId changed from %s to %s", *oldSub.Properties.TenantId, *newSub.Properties.TenantId))
-		}
-
-		if oldSub.Properties.RegisteredFeatures != nil && newSub.Properties.RegisteredFeatures != nil {
-			oldFeatures := featuresMap(oldSub.Properties.RegisteredFeatures)
-			newFeatures := featuresMap(newSub.Properties.RegisteredFeatures)
-
-			for featureName, oldState := range oldFeatures {
-				newState, exists := newFeatures[featureName]
-				if !exists {
-					messages = append(messages, fmt.Sprintf("Feature %s removed", featureName))
-				} else if oldState != newState {
-					messages = append(messages, fmt.Sprintf("Feature %s state changed from %s to %s", featureName, oldState, newState))
-				}
-			}
-			for featureName, newState := range newFeatures {
-				if _, exists := oldFeatures[featureName]; !exists {
-					messages = append(messages, fmt.Sprintf("Feature %s added with state %s", featureName, newState))
-				}
-			}
-		}
-	}
-
-	return messages
 }
 
 func featuresMap(features *[]arm.Feature) map[string]string {

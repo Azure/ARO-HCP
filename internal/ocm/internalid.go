@@ -18,6 +18,14 @@ const (
 	v1NodePoolPattern = v1ClusterPattern + "/node_pools/*"
 )
 
+func GenerateClusterHREF(clusterName string) string {
+	return v1Pattern + "/clusters/" + clusterName
+}
+
+func GenerateNodePoolHREF(clusterPath string, nodePoolName string) string {
+	return clusterPath + "/node_pools/" + nodePoolName
+}
+
 // InternalID represents a Cluster Service resource.
 type InternalID struct {
 	path string
