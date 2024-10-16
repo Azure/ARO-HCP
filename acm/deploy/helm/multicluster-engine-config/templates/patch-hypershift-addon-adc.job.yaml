@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+    name: patch-hypershift-addon-adc
+    namespace: '{{ .Release.Namespace }}'
+spec:
+    activeDeadlineSeconds: 1800
+    backoffLimit: 3
+    template:
+        spec:
+            containers:
+                - command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      echo "Waiting for AddonDeploymentConfig 'hypershift-addon-deploy-config' to exist..."
+                      until kubectl get AddonDeploymentConfig hypershift-addon-deploy-config; do
+                        sleep 5
+                      done
+                      echo "AddonDeploymentConfig 'hypershift-addon-deploy-config' found. Patching..."
+                      kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"},{"name":"autoImportDisabled","value": "true"},{"name":"aroHcp","value": "true"}]}}'
+                      echo "Patch applied successfully."
+                  image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+                  name: patch-hypershift-addon-deploy-config-adc
+            restartPolicy: Never
+            serviceAccountName: multicluster-engine-operator
+    ttlSecondsAfterFinished: 60

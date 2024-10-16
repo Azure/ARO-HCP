@@ -38,10 +38,12 @@ helm-chart:
 
 	@echo "Cloning remote mce-install-kube repository..."
 	TMP_DIR=$$(mktemp -d) && \
-    @git clone ${POLICY_HELM_REPO} $$TMP_DIR && \
-    @cp -r $$TMP_DIR/policy ${HELM_BASE_DIR}/policy && \
-    @rm -rf $$TMP_DIR
-    @echo "Helm chart imported successfully."
+	git clone ${POLICY_HELM_REPO} $$TMP_DIR && \
+	rm -rf ${MCE_CONFIG_DIR}/charts && \
+	mkdir -p ${MCE_CONFIG_DIR}/charts && \
+	cp -r $$TMP_DIR/policy ${MCE_CONFIG_DIR}/charts && \
+	rm -rf $$TMP_DIR
+	@echo "Helm chart imported successfully."
 
 import-chart:
 

@@ -1,0 +1,131 @@
+# Copyright Contributors to the Open Cluster Management project
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: open-cluster-management:klusterlet-addon-controller-v2
+  labels:
+    app: klusterlet-addon-controller-v2
+    component: klusterlet-addon-controller
+    app.kubernetes.io/name: klusterlet-addon-controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  - secrets
+  - configmaps
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - agent.open-cluster-management.io
+  resources:
+  - klusterletaddonconfigs
+  - klusterletaddonconfigs/finalizers
+  - klusterletaddonconfigs/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - managedclusters
+  - managedclusters/finalizers
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworks
+  - manifestworks/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+# appmgr
+- apiGroups:
+  - apps.open-cluster-management.io
+  resources:
+  - subscriptions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  - delete
+- apiGroups: 
+  - addon.open-cluster-management.io
+  resources: 
+  - managedclusteraddons
+  - managedclusteraddons/status
+  - clustermanagementaddons
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+    - imageregistry.open-cluster-management.io
+  resources:
+    - managedclusterimageregistries
+    - managedclusterimageregistries/status
+  verbs:
+    - get
+    - list
+    - watch
+- apiGroups:
+    - operator.open-cluster-management.io
+  resources:
+    - multiclusterhubs
+  verbs:
+    - get
+    - list
