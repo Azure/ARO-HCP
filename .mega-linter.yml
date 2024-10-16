@@ -8,7 +8,6 @@ ENABLE_LINTERS:
   - BASH_SHELLCHECK
 EXCLUDED_DIRECTORIES:
   - "node_modules"
-  - "acm/deploy/helm/multicluster-engine-config/charts/policy/charts"
 BASH_SHELLCHECK_ARGUMENTS:
   - -i1101
   - -fgcc
