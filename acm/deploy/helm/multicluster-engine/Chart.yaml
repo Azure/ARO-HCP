@@ -7,6 +7,6 @@ keywords:
 - multiclusterengine
 name: multicluster-engine
 sources:
-- quay.io/acm-d/mce-operator-bundle:v2.7.0-110
+- oci://quay.io/acm-d/mce-operator-bundle:v2.7.0-110
 type: application
 version: 2.7.0

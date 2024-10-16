@@ -33,7 +33,7 @@ helm-chart:
 	go run ../tooling/mcerepkg/main.go \
 		-b ${MCE_OPERATOR_BUNDLE_FILE} \
 		-o ${HELM_BASE_DIR} -s scaffold \
-		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
+		-l oci://${MCE_OPERATOR_BUNDLE_IMAGE}
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
 
 	@echo "Cloning remote mce-install-kube repository..."
