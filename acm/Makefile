@@ -23,7 +23,7 @@ deploy:
 		--namespace ${MCE_NS} \
 		--set imageRegistry=${REGISTRY}
 	helm upgrade --install --wait \
-		mce-local-cluster ${MCE_CONFIG_DIR} \
+		mce-config ${MCE_CONFIG_DIR} \
 		--namespace ${MCE_NS}
 
 helm-chart:
