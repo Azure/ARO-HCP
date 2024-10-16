@@ -1,3 +1,10 @@
 using '../templates/image-sync.bicep'
 
-param containerAppEnvName = 'image-sync-env'
+param acrResourceGroup = 'gobal'
+
+param keyVaultName = 'aro-hcp-dev-global-kv'
+
+param requiredSecretNames = [
+  'pull-secret'
+  'bearer-secret'
+]
