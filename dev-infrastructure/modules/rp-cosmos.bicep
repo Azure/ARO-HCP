@@ -18,7 +18,6 @@ var containers = [
   {
     name: 'Operations'
     defaultTtl: 604800 // 7 days
-    partitionKeyPaths: ['/id']
   }
   {
     name: 'Resources'

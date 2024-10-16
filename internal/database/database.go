@@ -24,6 +24,21 @@ const (
 	billingContainer    = "Billing"
 	operationsContainer = "Operations"
 	locksContainer      = "Locks"
+
+	// XXX The azcosmos SDK currently only supports single-partition queries,
+	//     so there's no way to list all items in a container unless you know
+	//     all the partition keys. The backend needs to list all items in the
+	//     Operations container so to work around this limitation we keep all
+	//     items in a single partition with a well-known name: "workaround".
+	//
+	//     Once [1] is fixed we could transition the Operations container to
+	//     using subscription IDs as the partition key like other containers.
+	//     The items are transient thanks to the container's default TTL, so
+	//     GetOperationDoc would just need temporary fallback logic to check
+	//     the "workaround" partition.
+	//
+	//     [1] https://github.com/Azure/azure-sdk-for-go/issues/18578
+	operationsPartitionKey = "workaround"
 )
 
 var ErrNotFound = errors.New("DocumentNotFound")
@@ -314,7 +329,7 @@ func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 		return nil, err
 	}
 
-	pk := azcosmos.NewPartitionKeyString(operationID)
+	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 
 	response, err := container.ReadItem(ctx, pk, operationID, nil)
 	if isResponseError(err, http.StatusNotFound) {
@@ -340,7 +355,7 @@ func (d *CosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 		return err
 	}
 
-	pk := azcosmos.NewPartitionKeyString(doc.ID)
+	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 
 	data, err := json.Marshal(doc)
 	if err != nil {
@@ -366,7 +381,7 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 		return err
 	}
 
-	pk := azcosmos.NewPartitionKeyString(operationID)
+	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 
 	_, err = container.DeleteItem(ctx, pk, operationID, nil)
 	if isResponseError(err, http.StatusNotFound) {
