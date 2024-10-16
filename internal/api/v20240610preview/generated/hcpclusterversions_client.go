@@ -10,19 +10,20 @@ package generated
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/url"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"net/http"
-	"net/url"
-	"strings"
 )
 
 // HcpClusterVersionsClient contains the methods for the HcpClusterVersions group.
 // Don't use this type directly, use NewHcpClusterVersionsClient() instead.
 type HcpClusterVersionsClient struct {
-	internal *arm.Client
+	internal       *arm.Client
 	subscriptionID string
 }
 
@@ -37,7 +38,7 @@ func NewHcpClusterVersionsClient(subscriptionID string, credential azcore.TokenC
 	}
 	client := &HcpClusterVersionsClient{
 		subscriptionID: subscriptionID,
-	internal: cl,
+		internal:       cl,
 	}
 	return client, nil
 }
@@ -48,13 +49,13 @@ func NewHcpClusterVersionsClient(subscriptionID string, credential azcore.TokenC
 //   - location - The name of the Azure region.
 //   - options - HcpClusterVersionsClientListOptions contains the optional parameters for the HcpClusterVersionsClient.NewListPager
 //     method.
-func (client *HcpClusterVersionsClient) NewListPager(location string, options *HcpClusterVersionsClientListOptions) (*runtime.Pager[HcpClusterVersionsClientListResponse]) {
+func (client *HcpClusterVersionsClient) NewListPager(location string, options *HcpClusterVersionsClientListOptions) *runtime.Pager[HcpClusterVersionsClientListResponse] {
 	return runtime.NewPager(runtime.PagingHandler[HcpClusterVersionsClientListResponse]{
 		More: func(page HcpClusterVersionsClientListResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
 		Fetcher: func(ctx context.Context, page *HcpClusterVersionsClientListResponse) (HcpClusterVersionsClientListResponse, error) {
-		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "HcpClusterVersionsClient.NewListPager")
+			ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "HcpClusterVersionsClient.NewListPager")
 			nextLink := ""
 			if page != nil {
 				nextLink = *page.NextLink
@@ -66,7 +67,7 @@ func (client *HcpClusterVersionsClient) NewListPager(location string, options *H
 				return HcpClusterVersionsClientListResponse{}, err
 			}
 			return client.listHandleResponse(resp)
-			},
+		},
 		Tracer: client.internal.Tracer(),
 	})
 }
@@ -101,4 +102,3 @@ func (client *HcpClusterVersionsClient) listHandleResponse(resp *http.Response) 
 	}
 	return result, nil
 }
-

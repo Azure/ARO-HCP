@@ -10,22 +10,23 @@ package fake
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"net/http"
+	"net/url"
+	"regexp"
+
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"net/http"
-	"net/url"
-	"regexp"
+
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 // HcpClusterVersionsServer is a fake server for instances of the generated.HcpClusterVersionsClient type.
-type HcpClusterVersionsServer struct{
+type HcpClusterVersionsServer struct {
 	// NewListPager is the fake for method HcpClusterVersionsClient.NewListPager
 	// HTTP status codes to indicate success: http.StatusOK
 	NewListPager func(location string, options *generated.HcpClusterVersionsClientListOptions) (resp azfake.PagerResponder[generated.HcpClusterVersionsClientListResponse])
-
 }
 
 // NewHcpClusterVersionsServerTransport creates a new instance of HcpClusterVersionsServerTransport with the provided implementation.
@@ -33,7 +34,7 @@ type HcpClusterVersionsServer struct{
 // azcore.ClientOptions.Transporter field in the client's constructor parameters.
 func NewHcpClusterVersionsServerTransport(srv *HcpClusterVersionsServer) *HcpClusterVersionsServerTransport {
 	return &HcpClusterVersionsServerTransport{
-		srv: srv,
+		srv:          srv,
 		newListPager: newTracker[azfake.PagerResponder[generated.HcpClusterVersionsClientListResponse]](),
 	}
 }
@@ -41,7 +42,7 @@ func NewHcpClusterVersionsServerTransport(srv *HcpClusterVersionsServer) *HcpClu
 // HcpClusterVersionsServerTransport connects instances of generated.HcpClusterVersionsClient to instances of HcpClusterVersionsServer.
 // Don't use this type directly, use NewHcpClusterVersionsServerTransport instead.
 type HcpClusterVersionsServerTransport struct {
-	srv *HcpClusterVersionsServer
+	srv          *HcpClusterVersionsServer
 	newListPager *tracker[azfake.PagerResponder[generated.HcpClusterVersionsClientListResponse]]
 }
 
@@ -76,17 +77,17 @@ func (h *HcpClusterVersionsServerTransport) dispatchNewListPager(req *http.Reque
 	}
 	newListPager := h.newListPager.get(req)
 	if newListPager == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/locations/(?P<location>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftVersions`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 2 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	locationParam, err := url.PathUnescape(matches[regex.SubexpIndex("location")])
-	if err != nil {
-		return nil, err
-	}
-resp := h.srv.NewListPager(locationParam, nil)
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/locations/(?P<location>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftVersions`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 2 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		locationParam, err := url.PathUnescape(matches[regex.SubexpIndex("location")])
+		if err != nil {
+			return nil, err
+		}
+		resp := h.srv.NewListPager(locationParam, nil)
 		newListPager = &resp
 		h.newListPager.add(req, newListPager)
 		server.PagerResponderInjectNextLinks(newListPager, req, func(page *generated.HcpClusterVersionsClientListResponse, createLink func() string) {
@@ -106,4 +107,3 @@ resp := h.srv.NewListPager(locationParam, nil)
 	}
 	return resp, nil
 }
-
