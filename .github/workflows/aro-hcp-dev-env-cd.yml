@@ -107,7 +107,7 @@
 
               az deployment group create \
                 --name "image-sync" \
-                --resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
+                --resource-group ${IMAGE_SYNC_RESOURCEGROUP} \
                 --template-file templates/image-sync.bicep \
                 --parameters \
                   configurations/mvp-image-sync.bicepparam

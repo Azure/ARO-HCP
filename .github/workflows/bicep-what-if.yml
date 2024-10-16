@@ -51,9 +51,9 @@ jobs:
             az group create -g "${IMAGE_SYNC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
 
             # Image Sync
-            az deployment group create \
+            az deployment group what-if \
               --name "image-sync" \
-              --resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
+              --resource-group ${IMAGE_SYNC_RESOURCEGROUP} \
               --template-file templates/image-sync.bicep \
               --parameters \
                 configurations/mvp-image-sync.bicepparam
