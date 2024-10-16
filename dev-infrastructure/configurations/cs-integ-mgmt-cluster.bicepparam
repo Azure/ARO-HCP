@@ -17,11 +17,6 @@ param aksUserOsDiskSizeGB = 100
 param userAgentPoolAZCount = 3
 param persist = true
 
-param deployMaestroConsumer = true
-param maestroKeyVaultName = 'maestro-kv-cs-integ'
-param maestroEventGridNamespacesName = 'maestro-eventgrid-cs-integ'
-param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-dev.azure.com'
-
 param baseDNSZoneName = 'hcp.osadev.cloud'
 param regionalDNSSubdomain = 'westus3-cs'
 
