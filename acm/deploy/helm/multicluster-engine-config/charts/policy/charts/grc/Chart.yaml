@@ -1,13 +1,11 @@
 # Copyright (c) 2024 Red Hat, Inc.
 # Copyright Contributors to the Open Cluster Management project
 
-apiVersion: v1
+apiVersion: v2
 appVersion: 2.12.0
 description: A Helm chart for multicloud grc
-category: "Development"
 keywords:
   - acm
   - grc
 name: grc
-verified: "RHACM"
 version: 2.12.0
