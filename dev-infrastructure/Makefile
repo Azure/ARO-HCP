@@ -115,7 +115,7 @@ image-sync: imagesyncRg
 		--template-file templates/image-sync.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/image-sync.bicepparam
+			configurations/mvp-image-sync.bicepparam
 
 acr: regionalRg
 	az deployment group create \
