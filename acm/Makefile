@@ -20,8 +20,6 @@ deploy:
 		mce deploy/helm/multicluster-engine \
 		--namespace ${MCE_NS} \
 		--set imageRegistry=${REGISTRY}
-
-configure:
 	helm upgrade --install mce-config deploy/helm/multicluster-engine-config \
 		--namespace ${MCE_NS}
 
@@ -31,7 +29,8 @@ helm-chart:
 	rm -rf ${MCE_CHART_DIR}
 	go run ../tooling/mcerepkg/main.go \
 		-b ${MCE_OPERATOR_BUNDLE_FILE} \
-		-o ${HELM_BASE_DIR} -s scaffold
+		-o ${HELM_BASE_DIR} -s scaffold \
+		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
 
 .PHONY: deploy helm-chart
