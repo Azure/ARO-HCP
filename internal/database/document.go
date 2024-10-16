@@ -64,6 +64,7 @@ const (
 type OperationDocument struct {
 	BaseDocument
 
+	PartitionKey string `json:"partitionKey,omitempty"`
 	// TenantID is the tenant ID of the client that requested the operation
 	TenantID string `json:"tenantId,omitempty"`
 	// ClientID is the object ID of the client that requested the operation
@@ -96,6 +97,7 @@ func NewOperationDocument(request OperationRequest) *OperationDocument {
 
 	return &OperationDocument{
 		BaseDocument:       newBaseDocument(),
+		PartitionKey:       operationsPartitionKey,
 		Request:            request,
 		StartTime:          now,
 		LastTransitionTime: now,
