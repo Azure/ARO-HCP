@@ -13,9 +13,7 @@ import (
 
 type ClusterServiceClientSpec interface {
 	GetConn() *sdk.Connection
-	GetProvisionShardID() *string
-	GetProvisionerNoOpProvision() bool
-	GetProvisionerNoOpDeprovision() bool
+	AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder
 	GetCSCluster(ctx context.Context, internalID InternalID) (*cmv1.Cluster, error)
 	PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error)
 	UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *cmv1.Cluster) (*cmv1.Cluster, error)
@@ -24,6 +22,27 @@ type ClusterServiceClientSpec interface {
 	PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
 	UpdateCSNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
 	DeleteCSNodePool(ctx context.Context, internalID InternalID) error
+}
+
+// Get the default set of properties for the Cluster Service
+func getDefaultAdditionalProperities() map[string]string {
+	// additionalProperties should be empty in production, it is configurable for development to pin to specific
+	// provision shards or instruct CS to skip the full provisioning/deprovisioning flow.
+	additionalProperties := map[string]string{
+		// Enable the ARO HCP provisioner during development. For now, if not set a cluster will not progress past the
+		// installing state in CS.
+		"provisioner_hostedcluster_step_enabled": "true",
+		// Enable the provisioning of ACM's ManagedCluster CR associated to the ARO-HCP
+		// cluster during ARO-HCP Cluster provisioning. For now, if not set a cluster will not progress past the
+		// installing state in CS.
+		"provisioner_managedcluster_step_enabled": "true",
+
+		// Enable the provisioning and deprovisioning of ARO-HCP Node Pools. For now, if not set the provisioning
+		// and deprovisioning of day 2 ARO-HCP Node Pools will not be performed on the Management Cluster.
+		"np_provisioner_provision_enabled":   "true",
+		"np_provisioner_deprovision_enabled": "true",
+	}
+	return additionalProperties
 }
 
 type ClusterServiceClient struct {
@@ -43,13 +62,21 @@ type ClusterServiceClient struct {
 	ProvisionerNoOpDeprovision bool
 }
 
-func (csc *ClusterServiceClient) GetConn() *sdk.Connection     { return csc.Conn }
-func (csc *ClusterServiceClient) GetProvisionShardID() *string { return csc.ProvisionShardID }
-func (csc *ClusterServiceClient) GetProvisionerNoOpProvision() bool {
-	return csc.ProvisionerNoOpProvision
-}
-func (csc *ClusterServiceClient) GetProvisionerNoOpDeprovision() bool {
-	return csc.ProvisionerNoOpDeprovision
+func (csc *ClusterServiceClient) GetConn() *sdk.Connection { return csc.Conn }
+
+// AddProperties injects the some addtional properties into the CSCluster Object.
+func (csc *ClusterServiceClient) AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder {
+	additionalProperties := getDefaultAdditionalProperities()
+	if csc.ProvisionShardID != nil {
+		additionalProperties["provision_shard_id"] = *csc.ProvisionShardID
+	}
+	if csc.ProvisionerNoOpProvision {
+		additionalProperties["provisioner_noop_provision"] = "true"
+	}
+	if csc.ProvisionerNoOpDeprovision {
+		additionalProperties["provisioner_noop_deprovision"] = "true"
+	}
+	return builder.Properties(additionalProperties)
 }
 
 // GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
@@ -185,15 +212,10 @@ func NewMockClusterServiceClient() MockClusterServiceClient {
 }
 
 func (mcsc *MockClusterServiceClient) GetConn() *sdk.Connection { panic("GetConn not implemented") }
-func (mcsc *MockClusterServiceClient) GetProvisionShardID() *string {
-	mockProvisionShardID := "mock-client"
-	return &mockProvisionShardID
-}
-func (mcsc *MockClusterServiceClient) GetProvisionerNoOpProvision() bool {
-	return false
-}
-func (mcsc *MockClusterServiceClient) GetProvisionerNoOpDeprovision() bool {
-	return false
+
+func (csc *MockClusterServiceClient) AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder {
+	additionalProperties := getDefaultAdditionalProperities()
+	return builder.Properties(additionalProperties)
 }
 
 func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*cmv1.Cluster, error) {

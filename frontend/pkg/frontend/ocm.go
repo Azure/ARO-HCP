@@ -124,31 +124,6 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
 func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
-	// additionalProperties should be empty in production, it is configurable for development to pin to specific
-	// provision shards or instruct CS to skip the full provisioning/deprovisioning flow.
-	additionalProperties := map[string]string{
-		// Enable the ARO HCP provisioner during development. For now, if not set a cluster will not progress past the
-		// installing state in CS.
-		"provisioner_hostedcluster_step_enabled": "true",
-		// Enable the provisioning of ACM's ManagedCluster CR associated to the ARO-HCP
-		// cluster during ARO-HCP Cluster provisioning. For now, if not set a cluster will not progress past the
-		// installing state in CS.
-		"provisioner_managedcluster_step_enabled": "true",
-
-		// Enable the provisioning and deprovisioning of ARO-HCP Node Pools. For now, if not set the provisioning
-		// and deprovisioning of day 2 ARO-HCP Node Pools will not be performed on the Management Cluster.
-		"np_provisioner_provision_enabled":   "true",
-		"np_provisioner_deprovision_enabled": "true",
-	}
-	if f.clusterServiceClient.GetProvisionShardID() != nil {
-		additionalProperties["provision_shard_id"] = *f.clusterServiceClient.GetProvisionShardID()
-	}
-	if f.clusterServiceClient.GetProvisionerNoOpProvision() {
-		additionalProperties["provisioner_noop_provision"] = "true"
-	}
-	if f.clusterServiceClient.GetProvisionerNoOpDeprovision() {
-		additionalProperties["provisioner_noop_deprovision"] = "true"
-	}
 
 	clusterBuilder := cmv1.NewCluster()
 
@@ -222,8 +197,9 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, h
 	clusterBuilder = clusterBuilder.
 		DisableUserWorkloadMonitoring(hcpCluster.Properties.Spec.DisableUserWorkloadMonitoring).
 		Proxy(proxyBuilder).
-		AdditionalTrustBundle(hcpCluster.Properties.Spec.Proxy.TrustedCA).
-		Properties(additionalProperties)
+		AdditionalTrustBundle(hcpCluster.Properties.Spec.Proxy.TrustedCA)
+
+	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 
 	return clusterBuilder.Build()
 }
