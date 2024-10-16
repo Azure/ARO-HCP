@@ -16,11 +16,16 @@ MCE_NS = multicluster-engine
 
 deploy:
 	@kubectl create namespace ${MCE_NS} --dry-run=client -o json | kubectl apply -f -
-	helm upgrade --install mce deploy/helm/multicluster-engine \
+	helm upgrade --install --wait \
+		mce deploy/helm/multicluster-engine \
 		--namespace ${MCE_NS} \
 		--set imageRegistry=${REGISTRY}
 
-create-chart:
+configure:
+	helm upgrade --install mce-config deploy/helm/multicluster-engine-config \
+		--namespace ${MCE_NS}
+
+helm-chart:
 	@podman pull --arch amd64 ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@podman save -o ${MCE_OPERATOR_BUNDLE_FILE} ${MCE_OPERATOR_BUNDLE_IMAGE}
 	rm -rf ${MCE_CHART_DIR}
@@ -29,4 +34,4 @@ create-chart:
 		-o ${HELM_BASE_DIR} -s scaffold
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
 
-.PHONY: deploy create-chart
+.PHONY: deploy helm-chart
