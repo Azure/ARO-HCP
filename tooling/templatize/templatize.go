@@ -1,44 +1,26 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"path"
-	"path/filepath"
+	"log"
 	"text/template"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/config"
 )
 
-func (opts *GenerationOptions) ExecuteTemplate(ctx context.Context) error {
-	cfg := config.NewConfigProvider(opts.ConfigFile, opts.Region, opts.User)
-	vars, err := cfg.GetVariables(ctx, opts.Cloud, opts.DeployEnv)
-	if err != nil {
-		return err
-	}
-
+func (opts *GenerationOptions) ExecuteTemplate() error {
 	// print the vars
-	for k, v := range vars {
+	for k, v := range opts.Config {
 		fmt.Println(k, v)
 	}
 
-	fileName := filepath.Base(opts.Input)
-
-	if err := os.MkdirAll(opts.Output, os.ModePerm); err != nil {
-		return err
-	}
-
-	output, err := os.Create(path.Join(opts.Output, fileName))
-	if err != nil {
-		return err
-	}
-	defer output.Close()
-
-	tmpl, err := template.New(fileName).ParseFiles(opts.Input)
+	tmpl, err := template.New(opts.InputFile).ParseFS(opts.Input, opts.InputFile)
 	if err != nil {
 		return err
 	}
 
-	return tmpl.ExecuteTemplate(output, fileName, vars)
+	defer func() {
+		if err := opts.Output.Close(); err != nil {
+			log.Printf("error closing output: %v\n", err)
+		}
+	}()
+	return tmpl.ExecuteTemplate(opts.Output, opts.InputFile, opts.Config)
 }
