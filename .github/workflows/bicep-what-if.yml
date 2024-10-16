@@ -5,6 +5,7 @@ env:
   REGIONAL_RESOURCEGROUP: aro-hcp-dev-westus3
   SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
   MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
+  IMAGE_SYNC_RESOURCEGROUP: aro-hcp-dev-image-sync
   GLOBAL_RESOURCEGROUP: global
   ARO_HCP_IMAGE_ACR: arohcpdev
 on:
@@ -47,6 +48,15 @@ jobs:
             az group create -g "${SC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
             az group create -g "${MC_RESOURCEGROUP}"       -l "${REGION}" --tags persist=true
             az group create -g "${REGIONAL_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
+            az group create -g "${IMAGE_SYNC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
+
+            # Image Sync
+            az deployment group create \
+              --name "image-sync" \
+              --resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
+              --template-file templates/image-sync.bicep \
+              --parameters \
+                configurations/mvp-image-sync.bicepparam
 
             # ACR
             az deployment group what-if \

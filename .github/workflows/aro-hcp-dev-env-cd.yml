@@ -6,6 +6,7 @@
     SC_RESOURCEGROUP: aro-hcp-dev-westus3-sc
     MC_RESOURCEGROUP: aro-hcp-dev-westus3-mc-1
     GLOBAL_RESOURCEGROUP: global
+    IMAGE_SYNC_RESOURCEGROUP: aro-hcp-dev-image-sync
     ARO_HCP_IMAGE_ACR: arohcpdev
   on:
     workflow_dispatch:
@@ -76,6 +77,40 @@
                 --resource-group ${GLOBAL_RESOURCEGROUP} \
                 --template-file templates/dev-acr.bicep \
                 --parameters configurations/mvp-dev-acr.bicepparam
+
+    deploy_image_sync_rg:
+      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+      permissions:
+        id-token: 'write'
+        contents: 'read'
+      runs-on: 'ubuntu-latest'
+      steps:
+        - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+          with:
+            fetch-depth: 1
+
+        - name: 'Az CLI login'
+          uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+          with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+        - name: 'Deploy'
+          uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
+          with:
+            azcliversion: 2.63.0
+            inlineScript: |
+              cd dev-infrastructure/
+
+              az group create -g "${IMAGE_SYNC_RESOURCEGROUP}" -l "${REGION}" --tags persist=true
+
+              az deployment group create \
+                --name "image-sync" \
+                --resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
+                --template-file templates/image-sync.bicep \
+                --parameters \
+                  configurations/mvp-image-sync.bicepparam
 
     deploy_region_rg:
       if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
