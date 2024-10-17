@@ -42,8 +42,8 @@ param dnsPrefix string = aksClusterName
 @description('Disk size (in GB) to provision for each of the agent pool nodes. This value ranges from 0 to 1023. Specifying 0 will apply the default disk size for that agentVMSize.')
 @minValue(0)
 @maxValue(1023)
-param systemOsDiskSizeGB int = 128
-param userOsDiskSizeGB int = 128
+param systemOsDiskSizeGB int
+param userOsDiskSizeGB int
 
 param acrPullResourceGroups array = []
 
