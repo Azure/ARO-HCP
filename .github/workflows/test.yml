@@ -1,0 +1,23 @@
+---
+name: mshen-test
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  test:
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+        with:
+          fetch-depth: 1
+
+      - name: 'Az CLI login'
+        uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+        with:
+          client-id: "e222d37f-941b-4130-a146-e55a3a2c4f10"
+          tenant-id: "64dc69e4-d083-49fc-9569-ebece1dd1408"
+          subscription-id: "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
