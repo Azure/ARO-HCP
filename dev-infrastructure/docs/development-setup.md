@@ -219,6 +219,17 @@ Option 2: You can follow the below manual steps from the root of the CS repo on 
 # Setup the development.yml
 cp ./configs/development.yml .
 
+# Setup the azure-runtime-config.json
+# Currently following properties are expected in the file:
+# - `cloudEnvironment` : The Azure cloud environment where Cluster Service is running on.
+#   Possible values are 'AzurePublicCloud', 'AzureChinaCloud' and 'AzureUSGovernmentCloud'.
+cp ./configs/azure/example-config.json ./azure-runtime-config.json
+
+# Get azure-first-party-application-client-id
+# This property needs to be set in the forked development.yml file using the value obtained below
+az ad app list --display-name aro-dev-first-party --query '[*]'.appId -o tsv
+
+
 # Update any required empty strings to 'none'
 yq -i '(.aws-access-key-id, .aws-secret-access-key, .route53-access-key-id, .route53-secret-access-key, .oidc-access-key-id, .oidc-secret-access-key, .network-verifier-access-key-id, .network-verifier-secret-access-key, .client-id, .client-secret) = "none"' development.yml
 
@@ -304,7 +315,14 @@ instance_types:
 EOF
 ```
 
-3) Follow CS dev setup process:
+3) Get azure-first-party-application-certificate-bundle-path:
+Run the following command to generate a file containing the base64 decoded first-party application certificate bundle.
+This property needs to be set in the forked development.yml file using the value of the absolute path where the certificate resides
+```shell
+$ az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "firstPartyCert" --query "value" -o tsv | base64 -d > ~/fpa_cert
+```
+
+4) Follow CS dev setup process:
 
 ```bash
 # Build CS
@@ -317,7 +335,7 @@ make db/setup
 ./clusters-service init --config-file ./development.yml
 ```
 
-4) Start CS:
+5) Start CS:
 
 ```bash
 ./clusters-service serve --config-file development.yml --runtime-mode aro-hcp --azure-auth-config-path azure-creds.json
@@ -333,14 +351,20 @@ You now have a running, functioning local CS deployment
 ocm login --url=http://localhost:8000 --use-auth-code
 ```
 
-2) Create a test cluster - note that `version.id` must match the version inserted into the database earlier.
+2) In the previously created Resource Group:
+  - Create a Virtual Network and a Network security group
+  - Associate the created VNet with the subnet of the created NSG
+    - Go to settings→Subnets of NSG and associate Vnet
+
+3) Create a test cluster - note that `version.id` must match the version inserted into the database earlier.
 
 ```bash
 NAME="<INSERT-NAME-HERE>"
+SUBSCRIPTION_NAME="ARO Hosted Control Planes (EA Subscription 1)"
 RESOURCENAME="<INSERT-NAME>"
-SUBSCRIPTION="<INSERT-NAME>"
+SUBSCRIPTION=$(echo $(az account subscription list | jq '.[] | select(.displayName == $SUBSCRIPTION_NAME)' | jq -r '.subscriptionId'))
 RESOURCEGROUPNAME="<INSERT-NAME>"
-TENANTID="<INSERT-NAME>"
+TENANTID=$(echo $(cat azure-creds.json | jq -r '.tenantId'))
 MANAGEDRGNAME="<INSERT-NAME>"
 SUBNETRESOURCEID="<INSERT-NAME>"
 $NSG="<INSERT-NAME>"
@@ -391,6 +415,7 @@ To tear down your CS setup:
 
 1) Kill the running clusters-service process
 2) Clean up the database `make db/teardown`
+3) Clean the certificate bundle `$ rm ~/fpa_cert_decoded`
 
 ## Appendix
 
