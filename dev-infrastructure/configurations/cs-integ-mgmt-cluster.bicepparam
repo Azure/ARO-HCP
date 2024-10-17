@@ -9,9 +9,11 @@ param aksKeyVaultName = 'aks-kv-cs-integ-mc-1'
 param systemAgentMinCount = 2
 param systemAgentMaxCount = 6
 param systemAgentVMSize = 'Standard_D2s_v3'
+param aksSystemOsDiskSizeGB = 32
 param userAgentMinCount = 1
 param userAgentMaxCount = 12
-param userAgentVMSize = 'Standard_D2s_v3'
+param userAgentVMSize = 'Standard_D2s_v3' // todo bump later
+param aksUserOsDiskSizeGB = 32 // todo bump later
 param userAgentPoolAZCount = 3
 param persist = true
 

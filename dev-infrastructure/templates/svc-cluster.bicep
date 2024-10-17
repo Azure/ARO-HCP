@@ -10,6 +10,12 @@ param currentUserId string
 @description('AKS cluster name')
 param aksClusterName string
 
+@description('Disk size for the AKS system nodes')
+param aksSystemOsDiskSizeGB int = 32
+
+@description('Disk size for the AKS user nodes')
+param aksUserOsDiskSizeGB int = 32
+
 @description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
 param acrPullResourceGroups array = []
 
@@ -152,6 +158,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
+    systemOsDiskSizeGB: aksSystemOsDiskSizeGB
+    userOsDiskSizeGB: aksUserOsDiskSizeGB
     workloadIdentities: items({
       frontend_wi: {
         uamiName: 'frontend'

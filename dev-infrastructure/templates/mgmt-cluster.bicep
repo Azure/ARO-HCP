@@ -10,6 +10,12 @@ param currentUserId string
 @description('AKS cluster name')
 param aksClusterName string = 'aro-hcp-aks'
 
+@description('Disk size for the AKS system nodes')
+param aksSystemOsDiskSizeGB int
+
+@description('Disk size for the AKS user nodes')
+param aksUserOsDiskSizeGB int
+
 @description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
 param acrPullResourceGroups array = []
 
@@ -133,6 +139,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
+    systemOsDiskSizeGB: aksSystemOsDiskSizeGB
+    userOsDiskSizeGB: aksUserOsDiskSizeGB
   }
 }
 

@@ -9,9 +9,11 @@ param aksKeyVaultName = 'aks-kv-aro-hcp-dev-mc-1'
 param systemAgentMinCount = 2
 param systemAgentMaxCount = 3
 param systemAgentVMSize = 'Standard_D2s_v3'
+param aksSystemOsDiskSizeGB = 32
 param userAgentMinCount = 1
-param userAgentMaxCount = 3
-param userAgentVMSize = 'Standard_D2s_v3'
+param userAgentMaxCount = 9
+param userAgentVMSize = 'Standard_D4s_v3'
+param aksUserOsDiskSizeGB = 100
 param userAgentPoolAZCount = 3
 param persist = true
 
