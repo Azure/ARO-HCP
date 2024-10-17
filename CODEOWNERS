@@ -1,8 +1,8 @@
-* @bennerv @jharrington22 @mjlshen @ulrichschlueter @zgalor
-/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @ulrichschlueter @weinong @whober0521
-/image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @ulrichschlueter @weinong @whober0521
-/api/ @bennerv @mbarnes @mjlshen
-/frontend/ @bennerv @mbarnes @mjlshen
-/backend/ @bennerv @mbarnes @mjlshen
-/internal/ @bennerv @mbarnes @mjlshen
+* @bennerv @jharrington22 @mjlshen @SudoBrendan @ulrichschlueter @zgalor
+/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @SudoBrendan @ulrichschlueter @weinong @whober0521
+/image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @SudoBrendan @ulrichschlueter @weinong @whober0521
+/api/ @bennerv @mbarnes @mjlshen @SudoBrendan
+/frontend/ @bennerv @mbarnes @mjlshen @SudoBrendan
+/backend/ @bennerv @mbarnes @mjlshen @SudoBrendan
+/internal/ @bennerv @mbarnes @mjlshen @SudoBrendan
 /tooling/ @bennerv @geoberle @janboll @weinong @whober0521
