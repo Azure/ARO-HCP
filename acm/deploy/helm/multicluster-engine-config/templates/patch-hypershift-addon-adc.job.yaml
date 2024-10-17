@@ -3,6 +3,10 @@ kind: Job
 metadata:
     name: patch-hypershift-addon-adc
     namespace: '{{ .Release.Namespace }}'
+    annotations:
+        "helm.sh/hook": post-install,post-upgrade
+        "helm.sh/hook-weight": "1"
+        "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
     activeDeadlineSeconds: 1800
     backoffLimit: 3
@@ -24,4 +28,3 @@ spec:
                   name: patch-hypershift-addon-deploy-config-adc
             restartPolicy: Never
             serviceAccountName: multicluster-engine-operator
-    ttlSecondsAfterFinished: 60

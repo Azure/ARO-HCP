@@ -211,12 +211,39 @@ func TestParameterizeDeploymentImage(t *testing.T) {
 }
 
 func TestAnnotationCleaner(t *testing.T) {
-	obj := unstructured.Unstructured{}
-	obj.SetAnnotations(map[string]string{
-		"some-annotation": "value",
-	})
-	modifiedObj, param, err := annotationCleaner(obj)
-	assert.Nil(t, err)
-	assert.Nil(t, param)
-	assert.Empty(t, modifiedObj.GetAnnotations())
+	for _, testCase := range []struct {
+		name        string
+		annotations map[string]string
+		expected    map[string]string
+	}{
+		{
+			name: "only remove unwanted annotations",
+			annotations: map[string]string{
+				"openshift.io/some-annotation":         "value",
+				"operatorframework.io/some-annotation": "value",
+				"olm/some-annotation":                  "value",
+				"alm-examples/some-annotation":         "value",
+				"some-other-annotation":                "value",
+			},
+			expected: map[string]string{
+				"some-other-annotation": "value",
+			},
+		},
+		{
+			name: "annotations are nil if none are left after cleaning",
+			annotations: map[string]string{
+				"openshift.io/some-annotation": "value",
+			},
+			expected: nil,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			obj := unstructured.Unstructured{}
+			obj.SetAnnotations(testCase.annotations)
+			modifiedObj, param, err := annotationCleaner(obj)
+			assert.Nil(t, err)
+			assert.Nil(t, param)
+			assert.Equal(t, testCase.expected, modifiedObj.GetAnnotations())
+		})
+	}
 }

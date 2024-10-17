@@ -6,9 +6,8 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
-  # delete 1 minute after completion
-  ttlSecondsAfterFinished: 60
   # set deadline to 30min
   activeDeadlineSeconds: 1800
   backoffLimit: 3
@@ -29,4 +28,4 @@ spec:
               kubectl patch clustermanagementaddon work-manager --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
               echo "Patch applied successfully."
       restartPolicy: Never
-      serviceAccountName: cluster-manager
+      serviceAccountName: multicluster-engine-operator
