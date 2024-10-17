@@ -1,6 +1,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+    annotations:
+        capabilities: Seamless Upgrades
+        categories: Integration & Delivery
+        certified: "true"
+        createdAt: "2024-10-10T23:21:18Z"
+        description: Foundational components for central management of multiple OpenShift Container Platform and Kubernetes clusters
+        support: Red Hat
     creationTimestamp: null
     labels:
         control-plane: backplane-operator

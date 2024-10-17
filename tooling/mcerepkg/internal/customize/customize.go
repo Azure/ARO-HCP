@@ -131,6 +131,20 @@ func parameterizeDeployment(obj unstructured.Unstructured) (unstructured.Unstruc
 }
 
 func annotationCleaner(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
-	obj.SetAnnotations(nil)
+	annotationToScrape := []string{"openshift.io", "operatorframework.io", "olm", "alm-examples"}
+	annotations := obj.GetAnnotations()
+	for k := range annotations {
+		for _, prefix := range annotationToScrape {
+			if strings.Contains(k, prefix) {
+				delete(annotations, k)
+				break
+			}
+		}
+	}
+	if len(annotations) == 0 {
+		obj.SetAnnotations(nil)
+	} else {
+		obj.SetAnnotations(annotations)
+	}
 	return obj, nil, nil
 }

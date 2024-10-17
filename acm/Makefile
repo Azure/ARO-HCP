@@ -18,11 +18,11 @@ POLICY_HELM_REPO = https://github.com/stolostron/mce-install-kube.git
 
 deploy:
 	@kubectl create namespace ${MCE_NS} --dry-run=client -o json | kubectl apply -f -
-	helm upgrade --install --wait \
+	helm upgrade --install --wait --wait-for-jobs \
 		mce ${MCE_CHART_DIR} \
 		--namespace ${MCE_NS} \
 		--set imageRegistry=${REGISTRY}
-	helm upgrade --install --wait \
+	helm upgrade --install --wait --wait-for-jobs \
 		mce-config ${MCE_CONFIG_DIR} \
 		--namespace ${MCE_NS}
 
