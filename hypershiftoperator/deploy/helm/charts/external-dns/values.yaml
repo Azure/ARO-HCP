@@ -1,0 +1,8 @@
+image: ""
+txtOwnerId: ""
+domain: ""
+credentials:
+  tenantId: ""
+  subscriptionId: ""
+  resourceGroup: ""
+  userAssignedIdentityID: ""

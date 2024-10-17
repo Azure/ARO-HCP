@@ -1,0 +1,17 @@
+apiVersion: azmonitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  creationTimestamp: null
+  name: external-dns
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  jobLabel: component
+  namespaceSelector: {}
+  podMetricsEndpoints:
+  - bearerTokenSecret:
+      key: ""
+    interval: 30s
+    port: metrics
+  selector:
+    matchLabels:
+      name: external-dns

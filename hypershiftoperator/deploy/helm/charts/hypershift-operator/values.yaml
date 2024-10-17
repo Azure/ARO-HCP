@@ -1,0 +1,18 @@
+aws:
+  private:
+    credsSecret: ""
+    credsSecretKey: ""
+    region: ""
+externaldns:
+  credsSecret: ""
+  domainFilter: ""
+  image: ""
+  txtOwnerId: ""
+image: ""
+oidc:
+  s3:
+    credsSecret: ""
+    credsSecretKey: ""
+    name: ""
+    region: ""
+registryOverrides: ""
