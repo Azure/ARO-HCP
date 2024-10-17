@@ -131,7 +131,7 @@ func parameterizeDeployment(obj unstructured.Unstructured) (unstructured.Unstruc
 }
 
 func annotationCleaner(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
-	annotationToScrape := []string{"openshift.io", "operatorframework.io", "olm", "alm-examples"}
+	annotationToScrape := []string{"openshift.io", "operatorframework.io", "olm", "alm-examples", "createdAt"}
 	annotations := obj.GetAnnotations()
 	for k := range annotations {
 		for _, prefix := range annotationToScrape {
