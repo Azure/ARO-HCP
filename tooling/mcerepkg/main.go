@@ -24,19 +24,21 @@ var (
 		Long:  "mce-repkg",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return buildChart(
-				outputDir, mceBundle, scaffoldDir,
+				outputDir, mceBundle, sourceLink, scaffoldDir,
 			)
 		},
 	}
 	mceBundle   string
 	outputDir   string
 	scaffoldDir string
+	sourceLink  string
 )
 
 func main() {
 	cmd.Flags().StringVarP(&mceBundle, "mce-bundle", "b", "", "MCE OLM bundle image tgz")
 	cmd.Flags().StringVarP(&scaffoldDir, "scaffold-dir", "s", "", "Directory containing additional templates to be added to the generated Helm Chart")
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", "", "Output directory for the generated Helm Chart")
+	cmd.Flags().StringVarP(&sourceLink, "source-link", "l", "", "Link to the Bundle image that is repackaged")
 	err := cmd.MarkFlagRequired("mce-bundle")
 	if err != nil {
 		log.Fatalf("failed to mark flag as required: %v", err)
@@ -52,7 +54,7 @@ func main() {
 	}
 }
 
-func buildChart(outputDir string, mceOlmBundle string, scaffoldDir string) error {
+func buildChart(outputDir, mceOlmBundle, sourceLink, scaffoldDir string) error {
 	ctx := context.Background()
 
 	// load OLM bundle manifests
@@ -92,7 +94,7 @@ func buildChart(outputDir string, mceOlmBundle string, scaffoldDir string) error
 			Version:     reg.CSV.Spec.Version.String(),
 			AppVersion:  reg.CSV.Spec.Version.String(),
 			Type:        "application",
-			Sources:     []string{mceOlmBundle},
+			Sources:     []string{sourceLink},
 			Keywords:    reg.CSV.Spec.Keywords,
 		},
 	}

@@ -1,0 +1,24 @@
+# Copyright (c) 2020 Red Hat, Inc.
+
+global:
+  imageOverrides:
+    governance_policy_propagator: ""
+    governance_policy_addon_controller: ""
+    cert_policy_controller: ""
+    config_policy_controller: ""
+    governance_policy_framework_addon: ""
+  templateOverrides: {}
+  namespace: ""
+  pullSecret: null
+  pullPolicy: Always
+  hubSize: Small
+
+  cma:
+    defaultConfig: {}
+
+hubconfig:
+  nodeSelector: null
+  proxyConfigs: {}
+  replicaCount: 2
+  tolerations: []
+org: open-cluster-management

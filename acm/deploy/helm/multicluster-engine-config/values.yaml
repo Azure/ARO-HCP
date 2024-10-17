@@ -1,0 +1,7 @@
+localCluster:
+  kubeApiUrl: https://kubernetes.default.svc
+  addonConfig:
+    applicationManagerEnabled: false
+    certPolicyControllerEnabled: true
+    policyControllerEnabled: true
+    searchCollectorEnabled: false

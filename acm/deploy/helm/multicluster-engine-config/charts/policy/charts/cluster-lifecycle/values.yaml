@@ -1,0 +1,14 @@
+global:
+  imageOverrides:
+    klusterlet_addon_controller: ''
+  templateOverrides: {}
+  namespace: ''
+  pullSecret: null
+  imageRepository: ''
+  hubSize: Small
+hubconfig:
+  nodeSelector: null
+  proxyConfigs: {}
+  replicaCount: 2
+  tolerations: []
+org: open-cluster-management

@@ -1,0 +1,12 @@
+apiVersion: v2
+appVersion: 2.7.0
+description: A Helm chart for multicluster-engine
+keywords:
+- mce
+- multicluster-engine
+- multiclusterengine
+name: multicluster-engine
+sources:
+- oci://quay.io/acm-d/mce-operator-bundle:v2.7.0-110
+type: application
+version: 2.7.0

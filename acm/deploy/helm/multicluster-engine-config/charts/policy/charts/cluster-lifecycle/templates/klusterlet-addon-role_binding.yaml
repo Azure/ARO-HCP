@@ -1,0 +1,18 @@
+# Copyright Contributors to the Open Cluster Management project
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: open-cluster-management:klusterlet-addon-controller-v2
+  labels:
+    app: klusterlet-addon-controller-v2
+    component: klusterlet-addon-controller
+    app.kubernetes.io/name: klusterlet-addon-controller
+subjects:
+- kind: ServiceAccount
+  name: klusterlet-addon-controller-v2
+  namespace: '{{ .Values.global.namespace }}'
+roleRef:
+  kind: ClusterRole
+  name: open-cluster-management:klusterlet-addon-controller-v2
+  apiGroup: rbac.authorization.k8s.io
