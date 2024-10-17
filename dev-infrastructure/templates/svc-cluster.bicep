@@ -93,6 +93,9 @@ param serviceKeyVaultName string
 @description('The name of the resourcegroup for the service keyvault')
 param serviceKeyVaultResourceGroup string = resourceGroup().name
 
+@description('The location of the resourcegroup for the service keyvault')
+param serviceKeyVaultLocation string = resourceGroup().location
+
 @description('Soft delete setting for service keyvault')
 param serviceKeyVaultSoftDelete bool = true
 
@@ -242,7 +245,7 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
   name: 'service-keyvault'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
-    location: location
+    location: serviceKeyVaultLocation
     keyVaultName: serviceKeyVaultName
     private: serviceKeyVaultPrivate
     enableSoftDelete: serviceKeyVaultSoftDelete
