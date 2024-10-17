@@ -27,6 +27,7 @@ param clusterServicePostgresPrivate = false
 
 param serviceKeyVaultName = 'aro-hcp-dev-svc-kv'
 param serviceKeyVaultResourceGroup = 'global'
+param serviceKeyVaultLocation = 'westus3'
 param serviceKeyVaultSoftDelete = true
 param serviceKeyVaultPrivate = false
 
