@@ -8,6 +8,8 @@ CONSUMER_NAME ?= $(shell az aks list --query "[?tags.clusterType == 'mgmt-cluste
 KEYVAULT_NAME ?= $(shell az keyvault list --query "[?tags.aroHCPPurpose=='service'].name" -g  ${SVC_KV_RESOURCEGROUP} --output tsv)
 FPA_CERT_NAME ?= firstPartyCert
 AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID ?= "57e54810-3138-4f38-bd3b-29cb33f4c358"
+AZURE_ARM_HELPER_IDENTITY_CLIENT_ID ?= "2c6ca254-36bd-43c8-a7a8-fe880bc2c489"
+AZURE_ARM_HELPER_IDENTITY_CERT_NAME ?= armHelperCert
 
 deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
@@ -37,7 +39,9 @@ deploy:
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
 	  -p AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
 	  -p FPA_CERT_NAME=${FPA_CERT_NAME} \
-	  -p IMAGE_TAG=cf23767 | oc apply -f -
+	  -p AZURE_ARM_HELPER_IDENTITY_CLIENT_ID=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
+	  -p AZURE_ARM_HELPER_IDENTITY_CERT_NAME=${AZURE_ARM_HELPER_IDENTITY_CERT_NAME} \
+	  -p IMAGE_TAG=910676a | oc apply -f -
 
 deploy-integ:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
@@ -45,6 +49,7 @@ deploy-integ:
 			-n clusters-service \
 			--query clientId) && \
 	oc process --local -f deploy/integration/cluster-service-namespace.yaml \
+	-p AZURE_ARM_HELPER_IDENTITY_CLIENT_ID=$${AZURE_ARM_HELPER_CLIENT_ID} \
 	-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
 
 # for local development
