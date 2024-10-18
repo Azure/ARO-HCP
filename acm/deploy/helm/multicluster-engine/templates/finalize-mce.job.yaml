@@ -5,7 +5,7 @@ metadata:
         helm.sh/hook: post-install,post-upgrade
         helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
         helm.sh/hook-weight: "1"
-    name: finalize
+    name: finalize-mce
     namespace: '{{ .Release.Namespace }}'
 spec:
     activeDeadlineSeconds: 1800
@@ -32,6 +32,6 @@ spec:
                       done
                       echo "Namespace 'local-cluster' found."
                   image: mcr.microsoft.com/aks/command/runtime:master.240118.1
-                  name: patch-work-manager-cma
+                  name: finalize
             restartPolicy: Never
             serviceAccountName: multicluster-engine-operator

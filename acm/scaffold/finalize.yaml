@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: finalize
+  name: finalize-mce
   namespace: '{{ .Release.Namespace }}'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
@@ -14,7 +14,7 @@ spec:
   template:
     spec:
       containers:
-        - name: patch-work-manager-cma
+        - name: finalize
           image: mcr.microsoft.com/aks/command/runtime:master.240118.1
           command:
             - /bin/sh
