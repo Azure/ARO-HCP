@@ -1,0 +1,16 @@
+aws:
+  private:
+    credsSecret: ""
+    credsSecretKey: ""
+    region: ""
+azure:
+  keyVault:
+    clientId: ""
+image: ""
+oidc:
+  s3:
+    credsSecret: ""
+    credsSecretKey: ""
+    name: ""
+    region: ""
+registryOverrides: ""

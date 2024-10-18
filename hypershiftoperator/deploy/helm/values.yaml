@@ -1,0 +1,21 @@
+apiVersion: v1
+version: 0.1.0
+description: A Helm chart to manage Hypershift Operator and dependencies for ARO HCP
+name: aro-hcp-hypershift-operator
+
+hypershift-operator:
+  image: ""
+  registryOverrides: ""
+  azure:
+    keyVault:
+      clientId: ""
+
+external-dns:
+  image: ""
+  txtOwnerId: ""
+  domain: ""
+  credentials:
+    tenantId: ""
+    subscriptionId: ""
+    resourceGroup: ""
+    userAssignedIdentityID: ""

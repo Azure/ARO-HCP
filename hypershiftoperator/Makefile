@@ -8,66 +8,39 @@ EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID ?= $(shell az identity show -g ${RESOURCEGROU
 ZONE_NAME ?= $(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv)
 AZURE_TENANT_ID ?= $(shell az account show --query tenantId --output tsv)
 AZURE_SUBSCRIPTION_ID ?= $(shell az account show --query id --output tsv)
+CSI_SECRET_STORE_CLIENT_ID ?= $(shell az aks list -g ${RESOURCEGROUP} --query '[].addonProfiles.azureKeyvaultSecretsProvider.identity.clientId' -o tsv)
 
 HO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d/rhtap-hypershift-operator:99a256f
-EDO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/external-dns/external-dns:v0.14.2
-
-create-edo-azure-creds:
-	@echo '{' > deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "tenantId": "${AZURE_TENANT_ID}",' >> deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",' >> deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "resourceGroup": "${REGIONAL_RESOURCEGROUP}",' >> deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "useWorkloadIdentityExtension": true,' >> deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "userAssignedIdentityID": "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}"' >> deploy/overlays/dev/edo-azure-credentials.json
-	@echo '}' >> deploy/overlays/dev/edo-azure-credentials.json
-
-create-edo-sa-patch:
-	@echo '[{"op": "add", "path": "/metadata/annotations/azure.workload.identity~1client-id", "value": "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}"}]' > deploy/overlays/dev/patch-serviceaccount-external-dns.json
-
-create-domain-file:
-	@echo "${ZONE_NAME}" > deploy/overlays/dev/domain.txt
-
-create-txt-owner-id-file:
-	@echo "${RESOURCEGROUP}" > deploy/overlays/dev/txt_owner_id.txt
-
-deploy: create-edo-azure-creds create-edo-sa-patch create-domain-file create-txt-owner-id-file
-	kubectl apply --server-side --force-conflicts -k deploy/crds
-	kubectl apply --server-side --force-conflicts -k deploy/overlays/dev
+ED_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/external-dns/external-dns:v0.14.2
+HO_CHART_DIR = deploy/helm/charts/hypershift-operator
 
 # run this task whenever HO_IMAGE or EDO_IMAGE is updated
 # commit the changes to deploy/base to the repo since we don't have podman or docker in CI
-prepare-ho-manifests:
-	@curl -sfLo - "https://github.com/patrickdappollonio/kubectl-slice/releases/download/v1.3.1/kubectl-slice_${shell uname -s | tr '[:upper:]' '[:lower:]'}_${shell uname -m}.tar.gz" | tar xzf - kubectl-slice
-	@rm deploy/base/*
-	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_servicemonitors.yaml
-	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_prometheusrules.yaml
-	curl https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml -o deploy/base/customresourcedefinition-monitoring.coreos.com_podmonitors.yaml
-	curl https://raw.githubusercontent.com/openshift/api/master/route/v1/zz_generated.crd-manifests/routes-Default.crd.yaml -o deploy/base/customresourcedefinition-routes-default.crd.yaml
-	# Currently the hypershift install render command prints an error out to stdout if there is no available kubeconfig
-	# TODO: Get a fix into the hypershift install render command so we don't have to do this
-	@podman run -it --rm ${HO_IMAGE} install render \
-		--hypershift-image ${HO_IMAGE} \
+helm-chart:
+	@rm -rf ${HO_CHART_DIR}
+	@mkdir -p ${HO_CHART_DIR}/crds
+	@curl -s https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml -o ${HO_CHART_DIR}/crds/customresourcedefinition-monitoring.coreos.com_servicemonitors.yaml
+	@curl -s https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml -o ${HO_CHART_DIR}/crds/customresourcedefinition-monitoring.coreos.com_prometheusrules.yaml
+	@curl -s https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml -o ${HO_CHART_DIR}/crds/customresourcedefinition-monitoring.coreos.com_podmonitors.yaml
+	@curl -s https://raw.githubusercontent.com/openshift/api/master/route/v1/zz_generated.crd-manifests/routes-Default.crd.yaml -o ${HO_CHART_DIR}/crds/customresourcedefinition-routes-default.crd.yaml
+	@podman run -it --rm ${HO_IMAGE} install helm \
 		--enable-conversion-webhook=false \
-		--external-dns-provider azure \
-		--external-dns-secret external-dns-azure \
-		--external-dns-domain-filter \$$\(DOMAIN\) \
-		--external-dns-image ${EDO_IMAGE} \
-		--external-dns-txt-owner-id \$$\(TXT_OWNER_ID\) \
 		--managed-service ARO-HCP \
-		| tail -n +2 \
-		| ./kubectl-slice -f - -o deploy/base
-	@rm deploy/crds/*
-	@mkdir -p deploy/crds
-	@mv deploy/base/customresourcedefinition*.yaml deploy/crds
+		--pull-secret pull-secret.json \
+		--output-dir=${HO_CHART_DIR}
 
-	@echo "apiVersion: kustomize.config.k8s.io/v1beta1" > deploy/crds/kustomization.yml
-	@echo "kind: Kustomization" >> deploy/crds/kustomization.yml
-	@echo "resources:" >> deploy/crds/kustomization.yml
-	@find deploy/crds -type f -name "customresourcedefinition*.yaml" ! -name "kustomization.yml" | sed 's/^deploy\/crds\//  - /' >> deploy/crds/kustomization.yml
+deploy:
+	helm upgrade --install hypershift deploy/helm \
+		--create-namespace --namespace hypershift \
+		--set hypershift-operator.image=${HO_IMAGE} \
+		--set hypershift-operator.registryOverrides="quay.io/openshift-release-dev/ocp-v4.0-art-dev=${ARO_HCP_IMAGE_ACR}.azurecr.io/openshift/release\,quay.io/openshift-release-dev/ocp-release=${ARO_HCP_IMAGE_ACR}.azurecr.io/openshift/release-images\,${ARO_HCP_IMAGE_ACR}.redhat.io/redhat=arohcpdev.azurecr.io/redhat" \
+		--set hypershift-operator.azure.keyVault.clientId=${CSI_SECRET_STORE_CLIENT_ID} \
+		--set external-dns.image=${ED_IMAGE} \
+		--set external-dns.txtOwnerId=${RESOURCEGROUP} \
+		--set external-dns.domain=${ZONE_NAME} \
+		--set external-dns.credentials.tenantId=${AZURE_TENANT_ID} \
+		--set external-dns.credentials.subscriptionId=${AZURE_SUBSCRIPTION_ID} \
+		--set external-dns.credentials.resourceGroup=${REGIONAL_RESOURCEGROUP} \
+		--set external-dns.credentials.userAssignedIdentityID=${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}
 
-	@echo "apiVersion: kustomize.config.k8s.io/v1beta1" > deploy/base/kustomization.yml
-	@echo "kind: Kustomization" >> deploy/base/kustomization.yml
-	@echo "resources:" >> deploy/base/kustomization.yml
-	@find deploy/base -type f -name "*.yaml" ! -name "kustomization.yml" | sed 's/^deploy\/base\//  - /' >> deploy/base/kustomization.yml
-
-.PHONY: create-edo-azure-creds create-edo-sa-patch create-domain-file create-txt-owner-id-file deploy unpack-ho-manifests
+.PHONY: helm-chart deploy
