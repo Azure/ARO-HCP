@@ -1,6 +1,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
+    annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-weight: "1"
     name: patch-work-manager-cma
     namespace: '{{ .Release.Namespace }}'
 spec:
@@ -23,5 +27,4 @@ spec:
                   image: mcr.microsoft.com/aks/command/runtime:master.240118.1
                   name: patch-work-manager-cma
             restartPolicy: Never
-            serviceAccountName: cluster-manager
-    ttlSecondsAfterFinished: 60
+            serviceAccountName: multicluster-engine-operator
