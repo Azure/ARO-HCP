@@ -43,6 +43,14 @@ func convertVisibilityToListening(visibility api.Visibility) (listening cmv1.Lis
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv1.Cluster) *api.HCPOpenShiftCluster {
+	// A word about ProvisioningState:
+	// ProvisioningState is stored in Cosmos and is applied to the
+	// HCPOpenShiftCluster struct along with the ARM metadata that
+	// is also stored in Cosmos. We could convert the ClusterState
+	// from Cluster Service to a ProvisioningState, but instead we
+	// defer that to the backend pod so that the ProvisioningState
+	// stays consistent with the Status of any active non-terminal
+	// operation on the cluster.
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Location: cluster.Region().ID(),
@@ -53,7 +61,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv1.Cl
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
-			// ProvisioningState: cluster.State(), // TODO: align with OCM on ProvisioningState
 			Spec: api.ClusterSpec{
 				Version: api.VersionProfile{
 					ID:                cluster.Version().ID(),
@@ -215,7 +222,6 @@ func ConvertCStoNodePool(resourceID *arm.ResourceID, np *cmv1.NodePool) *api.HCP
 			},
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			// ProvisioningState: np.Status(), // TODO: Align with OCM on aligning with ProvisioningState
 			Spec: api.NodePoolSpec{
 				Version: api.VersionProfile{
 					ID:                np.Version().ID(),
