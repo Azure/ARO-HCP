@@ -9,6 +9,7 @@ OC_MIRROR_IMAGE_TAGGED ?= $(OC_MIRROR_IMAGE):$(COMMIT)
 build-push: image push
 
 image:
+	cp ../configuration/mvp-oc-mirror.yml config.yml
 	docker build --platform="linux/amd64" -f "./Dockerfile" -t ${OC_MIRROR_IMAGE_TAGGED} .
 
 push: image
