@@ -12,8 +12,8 @@ param systemAgentVMSize = 'Standard_D2s_v3'
 param aksSystemOsDiskSizeGB = 32
 param userAgentMinCount = 1
 param userAgentMaxCount = 12
-param userAgentVMSize = 'Standard_D2s_v3' // todo bump later
-param aksUserOsDiskSizeGB = 32 // todo bump later
+param userAgentVMSize = 'Standard_D4s_v3'
+param aksUserOsDiskSizeGB = 100
 param userAgentPoolAZCount = 3
 param persist = true
 
