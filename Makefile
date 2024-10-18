@@ -6,6 +6,8 @@ SHELL = /bin/bash
 GOTAGS?='containers_image_openpgp'
 TOOLS_BIN_DIR := tooling/bin
 
+.DEFAULT_GOAL := all
+
 all: test lint
 
 # There is currently no convenient way to run tests against a whole Go workspace
