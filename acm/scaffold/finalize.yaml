@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: patch-work-manager-cma
+  name: finalize-mce
   namespace: '{{ .Release.Namespace }}'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
@@ -14,7 +14,7 @@ spec:
   template:
     spec:
       containers:
-        - name: patch-work-manager-cma
+        - name: finalize
           image: mcr.microsoft.com/aks/command/runtime:master.240118.1
           command:
             - /bin/sh
@@ -24,8 +24,15 @@ spec:
               until kubectl get clustermanagementaddon work-manager; do
                 sleep 5
               done
+
               echo "ClusterManagementAddOn 'work-manager' found. Patching..."
               kubectl patch clustermanagementaddon work-manager --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
               echo "Patch applied successfully."
+
+              echo "Waiting for namespace 'local-cluster' to exist..."
+              until kubectl get namespace local-cluster; do
+                sleep 5
+              done
+              echo "Namespace 'local-cluster' found."
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator
