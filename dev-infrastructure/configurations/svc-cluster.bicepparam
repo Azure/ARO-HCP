@@ -12,15 +12,6 @@ param aksEtcdKVEnableSoftDelete = false
 param disableLocalAuth = false
 param deployFrontendCosmos = false
 
-param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
-param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)
-param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
-param maestroPostgresServerName = take('maestro-pg-${uniqueString(currentUserId)}', 60)
-param maestroPostgresServerVersion = '15'
-param maestroPostgresServerStorageSizeGB = 32
-param deployMaestroPostgres = false
-param maestroPostgresPrivate = false
-
 param deployCsInfra = false
 param csPostgresServerName = take('cs-pg-${uniqueString(currentUserId)}', 60)
 param clusterServicePostgresPrivate = false

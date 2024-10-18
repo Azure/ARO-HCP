@@ -18,11 +18,6 @@ param aksUserOsDiskSizeGB = 100
 param userAgentPoolAZCount = 3
 param persist = false
 
-param deployMaestroConsumer = true
-param maestroKeyVaultName = take('maestro-kv-${uniqueString(currentUserId)}', 24)
-param maestroEventGridNamespacesName = take('maestro-eg-${uniqueString(currentUserId)}', 24)
-param maestroCertDomain = 'selfsigned.maestro.keyvault.aro-int.azure.com'
-
 param baseDNSZoneName = 'hcp.osadev.cloud'
 
 param acrPullResourceGroups = ['global']
