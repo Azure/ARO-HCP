@@ -1,8 +1,8 @@
 # copy from maestro/Makefile#L14
 deploy-server:
     TENANT_ID="72f988bf-86f1-41af-91ab-2d7cd011db47"
-    REGION_RG="hcp-underlay-uksouth"
-    EVENTGRID_NS="maestro-eventgrid-uksouth"
+    REGION_RG="hcp-underlay-uksouth-1"
+    EVENTGRID_NS="maestro-eventgrid-uksouth-1"
     MAESTRO_KV=""
     SERVICE_RG=""
     AKS="aro-hcp-aks"

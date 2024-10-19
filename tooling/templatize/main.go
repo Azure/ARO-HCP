@@ -21,11 +21,12 @@ func DefaultGenerationOptions() *RawGenerationOptions {
 func BindGenerationOptions(opts *RawGenerationOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
 	cmd.Flags().StringVar(&opts.Input, "input", opts.Input, "input file path")
-	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file directory")
+	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file directory or '-' for stdout")
 	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax)")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "resources location")
-	cmd.Flags().StringVar(&opts.User, "user", opts.User, "unique user name")
+	cmd.Flags().StringVar(&opts.RegionStamp, "region-stamp", opts.RegionStamp, "region stamp")
+	cmd.Flags().StringVar(&opts.CXStamp, "cx-stamp", opts.CXStamp, "CX stamp")
 
 	for _, flag := range []string{"config-file", "input", "output"} {
 		if err := cmd.MarkFlagFilename("config-file"); err != nil {
@@ -37,13 +38,14 @@ func BindGenerationOptions(opts *RawGenerationOptions, cmd *cobra.Command) error
 
 // RawGenerationOptions holds input values.
 type RawGenerationOptions struct {
-	ConfigFile string
-	Input      string
-	Output     string
-	Cloud      string
-	DeployEnv  string
-	Region     string
-	User       string
+	ConfigFile  string
+	Input       string
+	Output      string
+	Cloud       string
+	DeployEnv   string
+	Region      string
+	RegionStamp string
+	CXStamp     string
 }
 
 func (o *RawGenerationOptions) Validate() (*ValidatedGenerationOptions, error) {
@@ -51,8 +53,6 @@ func (o *RawGenerationOptions) Validate() (*ValidatedGenerationOptions, error) {
 	if !validClouds.Has(o.Cloud) {
 		return nil, fmt.Errorf("invalid cloud %s, must be one of %v", o.Cloud, validClouds.List())
 	}
-
-	// TODO: validate the environments, ensure a user is not passed for prod, etc
 
 	return &ValidatedGenerationOptions{
 		validatedGenerationOptions: &validatedGenerationOptions{
@@ -72,7 +72,7 @@ type ValidatedGenerationOptions struct {
 }
 
 func (o *ValidatedGenerationOptions) Complete() (*GenerationOptions, error) {
-	cfg := config.NewConfigProvider(o.ConfigFile, o.Region, o.User)
+	cfg := config.NewConfigProvider(o.ConfigFile, o.Region, o.RegionStamp, o.CXStamp)
 	vars, err := cfg.GetVariables(o.Cloud, o.DeployEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get variables for cloud %s: %w", o.Cloud, err)
@@ -80,13 +80,18 @@ func (o *ValidatedGenerationOptions) Complete() (*GenerationOptions, error) {
 
 	inputFile := filepath.Base(o.Input)
 
-	if err := os.MkdirAll(o.Output, os.ModePerm); err != nil {
-		return nil, fmt.Errorf("failed to create output directory %s: %w", o.Output, err)
-	}
+	var output *os.File
+	if o.Output == "-" {
+		output = os.Stdout
+	} else {
+		if err = os.MkdirAll(o.Output, os.ModePerm); err != nil {
+			return nil, fmt.Errorf("failed to create output directory %s: %w", o.Output, err)
+		}
 
-	output, err := os.Create(filepath.Join(o.Output, inputFile))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create output file %s: %w", o.Input, err)
+		output, err = os.Create(filepath.Join(o.Output, inputFile))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create output file %s: %w", o.Input, err)
+		}
 	}
 
 	return &GenerationOptions{
@@ -132,12 +137,13 @@ func main() {
 }
 
 func executeTemplate(opts *RawGenerationOptions) error {
-	println("Config:", opts.ConfigFile)
-	println("Input:", opts.Input)
-	println("Cloud:", opts.Cloud)
-	println("Deployment Env:", opts.DeployEnv)
-	println("Region:", opts.Region)
-	println("User:", opts.User)
+	fmt.Printf("%-20s: %s\n", "Config", opts.ConfigFile)
+	fmt.Printf("%-20s: %s\n", "Input", opts.Input)
+	fmt.Printf("%-20s: %s\n", "Cloud", opts.Cloud)
+	fmt.Printf("%-20s: %s\n", "Deployment Env", opts.DeployEnv)
+	fmt.Printf("%-20s: %s\n", "Region", opts.Region)
+	fmt.Printf("%-20s: %s\n", "Region Stamp", opts.RegionStamp)
+	fmt.Printf("%-20s: %s\n", "CX Stamp", opts.CXStamp)
 
 	validated, err := opts.Validate()
 	if err != nil {

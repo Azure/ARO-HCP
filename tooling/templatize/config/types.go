@@ -4,7 +4,8 @@ type configProviderImpl struct {
 	baseVariableOverrides *VariableOverrides
 	config                string
 	region                string
-	user                  string
+	regionStamp           string
+	cxStamp               string
 }
 
 type Variables map[string]string
