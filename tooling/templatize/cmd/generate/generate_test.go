@@ -1,35 +1,16 @@
-package main
+package generate
 
 import (
 	"bytes"
 	"io"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/config"
-	"github.com/Azure/ARO-HCP/tooling/templatize/testutil"
+	"github.com/Azure/ARO-HCP/tooling/templatize/internal/config"
 )
-
-func TestRawOptions(t *testing.T) {
-	tmpdir := t.TempDir()
-	opts := &RawGenerationOptions{
-		ConfigFile:  "./testdata/config.yaml",
-		Input:       "./testdata/helm.sh",
-		Output:      tmpdir,
-		Cloud:       "fairfax",
-		DeployEnv:   "prod",
-		Region:      "uksouth",
-		RegionStamp: "1",
-		CXStamp:     "cx",
-	}
-
-	assert.NoError(t, executeTemplate(opts))
-	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "helm.sh"))
-}
 
 func TestExecuteTemplate(t *testing.T) {
 	for _, testCase := range []struct {

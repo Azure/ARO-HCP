@@ -12,7 +12,7 @@ func TestConfigProvider(t *testing.T) {
 	regionStamp := "1"
 	cxStamp := "cx"
 
-	configProvider := NewConfigProvider("../testdata/config.yaml", region, regionStamp, cxStamp)
+	configProvider := NewConfigProvider("../../testdata/config.yaml", region, regionStamp, cxStamp)
 
 	variables, err := configProvider.GetVariables("public", "int")
 	assert.NoError(t, err)

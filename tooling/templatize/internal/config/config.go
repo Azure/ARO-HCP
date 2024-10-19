@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/naming"
+	"github.com/Azure/ARO-HCP/tooling/templatize/internal/naming"
 )
 
 type Provider interface {
