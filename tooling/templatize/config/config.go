@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"text/template"
 
@@ -59,9 +58,6 @@ func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOver
 	vars := map[string]interface{}{
 		"ctx": map[string]interface{}{
 			"region": cp.region,
-			"user": func() (string, error) {
-				return "asasdf", errors.New("not implemented")
-			},
 			"cloud":       cloud,
 			"deployEnv":   deployEnv,
 			"regionStamp": cp.regionStamp,
