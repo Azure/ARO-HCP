@@ -57,7 +57,7 @@ func (cp *configProviderImpl) GetVariables(cloud, deployEnv string) (Variables, 
 func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOverrides, error) {
 	vars := map[string]interface{}{
 		"ctx": map[string]interface{}{
-			"region": cp.region,
+			"region":      cp.region,
 			"cloud":       cloud,
 			"deployEnv":   deployEnv,
 			"regionStamp": cp.regionStamp,
