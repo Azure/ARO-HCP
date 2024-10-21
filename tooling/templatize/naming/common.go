@@ -3,25 +3,33 @@ package naming
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 )
 
-func HashString(strs ...string) string {
+func suffixDigest(length int, strs ...string) (string, error) {
 	combined := ""
 	for _, s := range strs {
 		combined += s
 	}
 	hash := sha256.Sum256([]byte(combined))
 	hashedString := hex.EncodeToString(hash[:])
-	return hashedString
+	if len(hashedString) < length {
+		return "", fmt.Errorf("suffix digest does not have the required length of %d", length)
+	}
+	return hashedString[:length], nil
 }
 
-func SuffixedName(prefix string, suffixDelim string, maxLength int, suffixArgs ...string) string {
-	if len(suffixArgs) == 0 {
-		return prefix
+func suffixedName(prefix string, suffixDelim string, maxLength int, suffixLength int, suffixDigestArgs ...string) (string, error) {
+	name := prefix
+	if len(suffixDigestArgs) > 0 {
+		suffixDigest, err := suffixDigest(suffixLength, suffixDigestArgs...)
+		if err != nil {
+			return "", err
+		}
+		name = prefix + suffixDelim + suffixDigest
 	}
-	longName := prefix + suffixDelim + HashString(suffixArgs...)
-	if len(longName) <= maxLength {
-		return longName
+	if len(name) > maxLength {
+		return "", fmt.Errorf("name '%s' is too long, max length is %d", name, maxLength)
 	}
-	return longName[:maxLength]
+	return name, nil
 }

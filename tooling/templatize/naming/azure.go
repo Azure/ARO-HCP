@@ -1,16 +1,13 @@
 package naming
 
-func AzureEventGridName(prefix string, suffixArgs ...string) string {
-	// todo other naming rules
-	return SuffixedName(prefix, "-", 24, suffixArgs...)
+func AzureEventGridName(prefix string, suffixLength int, suffixDigestArgs ...string) (string, error) {
+	return suffixedName(prefix, "-", 24, suffixLength, suffixDigestArgs...)
 }
 
-func AzurePostgresName(prefix string, suffixArgs ...string) string {
-	// todo other naming rules
-	return SuffixedName(prefix, "-", 60, suffixArgs...)
+func AzurePostgresName(prefix string, suffixLength int, suffixDigestArgs ...string) (string, error) {
+	return suffixedName(prefix, "-", 60, suffixLength, suffixDigestArgs...)
 }
 
-func AzureKeyVaultName(prefix string, suffixArgs ...string) string {
-	// todo other naming rules
-	return SuffixedName(prefix, "-", 24, suffixArgs...)
+func AzureKeyVaultName(prefix string, suffixLength int, suffixDigestArgs ...string) (string, error) {
+	return suffixedName(prefix, "-", 24, suffixLength, suffixDigestArgs...)
 }
