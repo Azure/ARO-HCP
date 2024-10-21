@@ -1,5 +1,5 @@
 # Base and builder image will need to be replaced by Fips compliant one
-FROM --platform=${TARGETPLATFORM:-linux/amd64} mcr.microsoft.com/oss/go/microsoft/golang:1.23-fips-cbl-mariner2.0@sha256:a6fe4aff3ebf62d2b37e79ae2ae069a5b8319123ec40763477f3937f681c0760 as builder
+FROM --platform=${TARGETPLATFORM:-linux/amd64} mcr.microsoft.com/oss/go/microsoft/golang:1.23-fips-cbl-mariner2.0@sha256:3d148186bc623a52acd2fe2575898b66ed6c7495bb8ca962159f9a4b59d4d535 as builder
 
 WORKDIR /app
 ADD archive.tar.gz .
