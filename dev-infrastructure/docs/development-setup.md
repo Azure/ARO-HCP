@@ -129,6 +129,8 @@ To access the HTTP and GRPC endpoints of maestro, run
 
 ### Cluster Service
 
+> This might not work with oc 4.17.0, please use oc 4.16.x until this is fixed in 4.17
+> 
 Deploy CS:
    ```bash
    cd cluster-service/
