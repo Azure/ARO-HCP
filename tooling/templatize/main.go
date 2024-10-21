@@ -21,7 +21,7 @@ func DefaultGenerationOptions() *RawGenerationOptions {
 func BindGenerationOptions(opts *RawGenerationOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
 	cmd.Flags().StringVar(&opts.Input, "input", opts.Input, "input file path")
-	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file directory or '-' for stdout")
+	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file directory")
 	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax)")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "resources location")
@@ -80,18 +80,13 @@ func (o *ValidatedGenerationOptions) Complete() (*GenerationOptions, error) {
 
 	inputFile := filepath.Base(o.Input)
 
-	var output *os.File
-	if o.Output == "-" {
-		output = os.Stdout
-	} else {
-		if err = os.MkdirAll(o.Output, os.ModePerm); err != nil {
-			return nil, fmt.Errorf("failed to create output directory %s: %w", o.Output, err)
-		}
+	if err := os.MkdirAll(o.Output, os.ModePerm); err != nil {
+		return nil, fmt.Errorf("failed to create output directory %s: %w", o.Output, err)
+	}
 
-		output, err = os.Create(filepath.Join(o.Output, inputFile))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create output file %s: %w", o.Input, err)
-		}
+	output, err := os.Create(filepath.Join(o.Output, inputFile))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create output file %s: %w", o.Input, err)
 	}
 
 	return &GenerationOptions{
