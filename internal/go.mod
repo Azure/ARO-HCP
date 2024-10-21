@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	dario.cat/mergo v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.14.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.16.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.1.0
 	github.com/go-playground/validator/v10 v10.22.1
 	github.com/google/go-cmp v0.6.0
