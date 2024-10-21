@@ -71,29 +71,24 @@ func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOver
 		"azureKeyVaultName":  naming.AzureKeyVaultName,
 	}
 
-	// Create a new template and associate the FuncMap with it
+	// parse, execute and unmarshal the config file as a template to generate the final config file
 	tmpl := template.New("configTemplate").Funcs(functions)
-
-	// Read the template file content
 	content, err := os.ReadFile(cp.config)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse the template content
 	tmpl, err = tmpl.Parse(string(content))
 	if err != nil {
 		return nil, err
 	}
 
 	var tmplBytes bytes.Buffer
-
 	if err := tmpl.Execute(&tmplBytes, vars); err != nil {
 		return nil, err
 	}
 
 	currentVariableOverrides := &VariableOverrides{}
-
 	if err := yaml.Unmarshal(tmplBytes.Bytes(), currentVariableOverrides); err == nil {
 		cp.baseVariableOverrides = currentVariableOverrides
 	}
