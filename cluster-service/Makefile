@@ -37,6 +37,7 @@ deploy:
 	  -p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
 	  -p AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
 	  -p FPA_CERT_NAME=${FPA_CERT_NAME} \
+# TODO bump the image sha once https://issues.redhat.com/browse/ARO-7364 is completed
 	  -p IMAGE_TAG=cf23767 | oc apply -f -
 
 deploy-integ:

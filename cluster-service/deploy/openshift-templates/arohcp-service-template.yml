@@ -371,6 +371,17 @@ objects:
       }
 
 - apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: azure-operators-managed-identities-config
+    namespace: ${NAMESPACE}
+  data:
+    #TODO document or link to the documentation of the expected format of this configuration
+    config.yaml: |
+      controlPlaneOperatorsIdentities: {}
+      dataPlaneOperatorsIdentities: {}
+
+- apiVersion: v1
   kind: ServiceAccount
   metadata:
     name: clusters-service
@@ -449,6 +460,9 @@ objects:
         - name: azure-runtime-config
           configMap:
             name: azure-runtime-config
+        - name: azure-operators-managed-identities-config
+          configMap:
+            name: azure-operators-managed-identities-config
         - name: mixin-pull-secret
           secret:
             secretName: hive-ci-global-pull-secret
@@ -523,6 +537,8 @@ objects:
             readOnly: true
           - name: azure-runtime-config
             mountPath: /configs/azure-runtime-config
+          - name: azure-operators-managed-identities-config
+            mountPath: /configs/azure-operators-managed-identities-config
           env:
           - name: NAMESPACE
             valueFrom:
@@ -574,6 +590,7 @@ objects:
           - --azure-first-party-application-client-id=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID}
           - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
           - --azure-runtime-config-path=/configs/azure-runtime-config/config.json
+          - --azure-operators-managed-identities-config-path=/configs/azure-operators-managed-identities-config/config.yaml
           livenessProbe:
             httpGet:
               path: /api/clusters_mgmt/v1
