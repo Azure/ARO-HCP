@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-    name: patch-hypershift-addon-adc
+    name: finalize-mce-config
     namespace: '{{ .Release.Namespace }}'
     annotations:
         "helm.sh/hook": post-install,post-upgrade
@@ -21,10 +21,19 @@ spec:
                       until kubectl get AddonDeploymentConfig hypershift-addon-deploy-config; do
                         sleep 5
                       done
+
                       echo "AddonDeploymentConfig 'hypershift-addon-deploy-config' found. Patching..."
                       kubectl patch addondeploymentconfig hypershift-addon-deploy-config -n multicluster-engine --type=merge -p '{"spec":{"customizedVariables":[{"name":"disableMetrics","value": "true"},{"name":"disableHOManagement","value": "true"},{"name":"autoImportDisabled","value": "true"},{"name":"aroHcp","value": "true"}]}}'
                       echo "Patch applied successfully."
+
+                      echo "Wait for MulticlusterEngine to be available..."
+                      kubectl wait --for=jsonpath=.status.phase=Available --timeout=600s mce multiclusterengine
+                      if [ $? -ne 0 ]; then
+                        echo "MulticlusterEngine did not become available within the timeout period."
+                        exit 1
+                      fi
+                      echo "MulticlusterEngine is available"
                   image: mcr.microsoft.com/aks/command/runtime:master.240118.1
-                  name: patch-hypershift-addon-deploy-config-adc
+                  name: finalize
             restartPolicy: Never
             serviceAccountName: multicluster-engine-operator
