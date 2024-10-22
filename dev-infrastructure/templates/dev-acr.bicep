@@ -12,6 +12,9 @@ param acrSku string
 @description('List of quay repositories to cache in the Azure Container Registry.')
 param quayRepositoriesToCache array = []
 
+@description('List of jobs to run to purge old images from Azure Container Registry')
+param purgeJobs array = []
+
 @description('Name of the global key vault.')
 param keyVaultName string = ''
 
@@ -19,79 +22,24 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
 
-resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
+module acr '../modules/acr/acr.bicep' = {
   name: acrName
-  location: location
-  sku: {
-    name: acrSku
-  }
-  properties: {
-    adminUserEnabled: false
-    anonymousPullEnabled: false
-    // Premium-only feature
-    // https://azure.microsoft.com/en-us/blog/azure-container-registry-mitigating-data-exfiltration-with-dedicated-data-endpoints/
-    dataEndpointEnabled: false
-    encryption: {
-      // The naming of this field is misleading - it disables encryption with a customer-managed key.
-      // Data in Azure Container Registry is encrypted, just with an Azure-managed key.
-      // https://learn.microsoft.com/en-us/azure/container-registry/tutorial-enable-customer-managed-keys#show-encryption-status
-      status: 'disabled'
-    }
-    policies: {
-      azureADAuthenticationAsArmPolicy: {
-        status: 'enabled'
-      }
-      softDeletePolicy: {
-        retentionDays: 7
-        status: 'disabled'
-      }
-    }
+  params: {
+    acrName: acrName
+    location: location
+    acrSku: acrSku
   }
 }
 
-// https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-overview
-resource acrPurgeTask 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' = {
-  name: '${acrName}-purge'
-  location: location
-  parent: acrResource
-  properties: {
-    agentConfiguration: {
-      cpu: 2
-    }
-    platform: {
-      architecture: 'amd64'
-      os: 'Linux'
-    }
-    step: {
-      encodedTaskContent: base64('''
-version: v1.1.0
-steps: 
-  - cmd: acr purge --filter "arohcpfrontend:.*" --keep 3 --ago 7d
-    disableWorkingDirectoryOverride: true
-    timeout: 3600
-  - cmd: acr purge --filter "arohcpbackend:.*" --keep 3 --ago 7d
-    disableWorkingDirectoryOverride: true
-    timeout: 3600
-''')
-      type: 'EncodedTask'
-    }
-    timeout: 3600
-    trigger: {
-      timerTriggers: [
-        {
-          name: 'daily'
-          schedule: '0 0 * * *'
-        }
-      ]
-    }
-  }
+resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
+  name: acrName
 }
-
-@description('Login server property for later use')
-output loginServer string = acrResource.properties.loginServer
 
 resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2023-01-01-preview' = [
   for repo in quayRepositoriesToCache: {
+    dependsOn: [
+      acr
+    ]
     name: repo.ruleName
     parent: acrResource
     identity: {
@@ -112,6 +60,9 @@ resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2
 
 resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01-preview' = [
   for (repo, i) in quayRepositoriesToCache: {
+    dependsOn: [
+      acr
+    ]
     name: repo.ruleName
     parent: acrResource
     properties: {
@@ -124,6 +75,9 @@ resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01
 
 resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
   for (repo, i) in quayRepositoriesToCache: {
+    dependsOn: [
+      acr
+    ]
     scope: keyVault
     name: guid(keyVault.id, 'quayPullSecrets', 'read', repo.ruleName)
     properties: {
@@ -138,8 +92,11 @@ resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04
 ]
 
 resource purgeCached 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' = [
-  for repo in quayRepositoriesToCache: {
-    name: '${repo.ruleName}-purge'
+  for purgeJob in purgeJobs: {
+    dependsOn: [
+      acr
+    ]
+    name: '${purgeJob.name}'
     location: location
     parent: acrResource
     properties: {
@@ -159,9 +116,9 @@ steps:
     disableWorkingDirectoryOverride: true
     timeout: 3600
 ''',
-          repo.purgeFilter,
-          repo.imagesToKeep,
-          repo.purgeAfter
+          purgeJob.purgeFilter,
+          purgeJob.imagesToKeep,
+          purgeJob.purgeAfter
         ))
         type: 'EncodedTask'
       }
