@@ -79,7 +79,7 @@ resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04
       acr
     ]
     scope: keyVault
-    name: guid(keyVault.id, 'quayPullSecrets', 'read', repo.ruleName)
+    name: guid(keyVault.id, 'quayPullSecrets', 'read', repo.ruleName, acrName)
     properties: {
       roleDefinitionId: subscriptionResourceId(
         'Microsoft.Authorization/roleDefinitions/',
