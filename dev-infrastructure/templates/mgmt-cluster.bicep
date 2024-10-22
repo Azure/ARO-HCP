@@ -62,22 +62,6 @@ param aksKeyVaultName string
 @description('Manage soft delete setting for AKS etcd key-value store')
 param aksEtcdKVEnableSoftDelete bool = true
 
-@description('Deploys a Maestro Consumer to the management cluster if set to true.')
-param deployMaestroConsumer bool
-
-@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
-param maestroCertDomain string
-
-@description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
-@maxLength(24)
-param maestroKeyVaultName string
-
-@description('The name of the managed identity that will manage certificates in maestros keyvault.')
-param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
-
-@description('The name of the eventgrid namespace for Maestro.')
-param maestroEventGridNamespacesName string
-
 @description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
 param baseDNSZoneName string = ''
 
@@ -145,27 +129,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = mgmtCluster.outputs.aksClusterName
-
-//
-//   M A E S T R O
-//
-
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer) {
-  name: 'maestro-consumer'
-  params: {
-    maestroServerManagedIdentityPrincipalId: filter(
-      mgmtCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-consumer'
-    )[0].uamiPrincipalID
-    maestroInfraResourceGroup: regionalResourceGroup
-    maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name) ? resourceGroup().name : ''
-    maestroEventGridNamespaceName: maestroEventGridNamespacesName
-    maestroKeyVaultName: maestroKeyVaultName
-    maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
-    maestroKeyVaultCertificateDomain: maestroCertDomain
-    location: location
-  }
-}
 
 //
 //  E X T E R N A L   D N S
