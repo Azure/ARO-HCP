@@ -44,14 +44,13 @@ resource mgmtUami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
     scope: resourceGroup(mgmtResourceGroup)
   }
 ]
-func isValidMaestroConsumerName(input string) bool => length(input) <= 90 && contains(input, '[^a-zA-Z0-9_-]') == false
 
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployMaestroConsumer) {
   name: 'maestro-consumer'
   params: {
     maestroServerManagedIdentityPrincipalId: mgmtUami[0].properties.principalId
     maestroInfraResourceGroup: regionalResourceGroup
-    maestroConsumerName: isValidMaestroConsumerName(resourceGroup().name) ? mgmtResourceGroup : ''
+    maestroConsumerName: mgmtResourceGroup
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     maestroKeyVaultName: maestroKeyVaultName
     maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
