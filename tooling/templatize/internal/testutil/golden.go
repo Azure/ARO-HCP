@@ -102,7 +102,7 @@ func golden(t *testing.T, opts *options) (string, error) {
 	if opts.Extension == "" {
 		opts.Extension = ".yaml"
 	}
-	return filepath.Abs(filepath.Join("testdata", opts.SubDir, sanitizeFilename(opts.Prefix+t.Name()+opts.Suffix)) + opts.Extension)
+	return filepath.Abs(filepath.Join("../../testdata", opts.SubDir, sanitizeFilename(opts.Prefix+t.Name()+opts.Suffix)) + opts.Extension)
 }
 
 func sanitizeFilename(s string) string {
