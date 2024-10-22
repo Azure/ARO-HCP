@@ -17,12 +17,14 @@ import (
 func TestRawOptions(t *testing.T) {
 	tmpdir := t.TempDir()
 	opts := &RawGenerationOptions{
-		ConfigFile: "./testdata/config.yaml",
-		Input:      "./testdata/helm.sh",
-		Output:     tmpdir,
-		Cloud:      "fairfax",
-		DeployEnv:  "prod",
-		Region:     "uksouth",
+		ConfigFile:  "./testdata/config.yaml",
+		Input:       "./testdata/helm.sh",
+		Output:      tmpdir,
+		Cloud:       "fairfax",
+		DeployEnv:   "prod",
+		Region:      "uksouth",
+		RegionStamp: "1",
+		CXStamp:     "cx",
 	}
 
 	assert.NoError(t, executeTemplate(opts))

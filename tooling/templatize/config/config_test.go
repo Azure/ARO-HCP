@@ -9,9 +9,10 @@ import (
 
 func TestConfigProvider(t *testing.T) {
 	region := "uksouth"
-	user := "chiac"
+	regionStamp := "1"
+	cxStamp := "cx"
 
-	configProvider := NewConfigProvider("../testdata/config.yaml", region, user)
+	configProvider := NewConfigProvider("../testdata/config.yaml", region, regionStamp, cxStamp)
 
 	variables, err := configProvider.GetVariables("public", "int")
 	assert.NoError(t, err)
@@ -27,5 +28,5 @@ func TestConfigProvider(t *testing.T) {
 	assert.Equal(t, "aro-hcp-int.azurecr.io/maestro-server:the-stable-one", variables["maestro_image"])
 
 	// key is in the config file, default, varaible value
-	assert.Equal(t, fmt.Sprintf("hcp-underlay-%s", region), variables["region_resourcegroup"])
+	assert.Equal(t, fmt.Sprintf("hcp-underlay-%s-%s", region, regionStamp), variables["region_resourcegroup"])
 }
