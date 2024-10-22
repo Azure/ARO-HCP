@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"time"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
@@ -123,6 +124,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		doc = database.NewResourceDocument(resourceID)
 	}
 
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, doc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -135,7 +144,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	cloudError := versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, updating, request.Method)
+	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, updating, request.Method)
 	if cloudError != nil {
 		f.logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -281,6 +290,16 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	operationRequest := database.OperationRequestDelete
+
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, doc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
 	err = f.clusterServiceClient.DeleteCSNodePool(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", resourceID, err))
@@ -288,7 +307,27 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	operationDoc, err := f.StartOperation(writer, request, doc, database.OperationRequestDelete)
+	// Deletion is underway; mark any active operation as canceled.
+	if doc.ActiveOperationID != "" {
+		updated, err := f.dbClient.UpdateOperationDoc(ctx, doc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
+			if updateDoc.Status != arm.ProvisioningStateCanceled {
+				updateDoc.LastTransitionTime = time.Now()
+				updateDoc.Status = arm.ProvisioningStateCanceled
+				return true
+			}
+			return false
+		})
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		if updated {
+			f.logger.Info(fmt.Sprintf("canceled operation '%s'", doc.ActiveOperationID))
+		}
+	}
+
+	operationDoc, err := f.StartOperation(writer, request, doc, operationRequest)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
 		arm.WriteInternalServerError(writer)
