@@ -111,7 +111,7 @@ resource purgeCached 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' =
         encodedTaskContent: base64(format(
           '''
 version: v1.1.0
-steps: 
+steps:
   - cmd: acr purge --filter "{0}" --keep {1} --ago {2}
     disableWorkingDirectoryOverride: true
     timeout: 3600

@@ -19,6 +19,13 @@ param quayRepositoriesToCache = [
     userIdentifier: 'quay-componentsync-username'
     passwordIdentifier: 'quay-componentsync-password'
   }
+  {
+    ruleName: 'acm-d-mce'
+    sourceRepo: 'quay.io/acm-d/*'
+    targetRepo: 'acm-d-mce/multicluster-engine/*'
+    userIdentifier: 'acm-d-componentsync-username'
+    passwordIdentifier: 'acm-d-componentsync-password'
+  }
 ]
 
 param purgeJobs = [
