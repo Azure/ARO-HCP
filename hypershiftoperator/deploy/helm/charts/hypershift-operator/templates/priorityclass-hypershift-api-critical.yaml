@@ -1,0 +1,9 @@
+apiVersion: scheduling.k8s.io/v1
+description: This priority class should be used for hypershift control plane pods
+  critical to serving the API.
+kind: PriorityClass
+metadata:
+  creationTimestamp: null
+  name: hypershift-api-critical
+preemptionPolicy: Never
+value: 100001000
