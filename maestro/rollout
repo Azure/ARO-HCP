@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -e
+
+DEPLOY_ENV=$1
+cd $(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
+server/deploy $DEPLOY_ENV
+agent/deploy $DEPLOY_ENV
+registration/deploy $DEPLOY_ENV
