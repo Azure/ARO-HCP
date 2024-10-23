@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -e
+
+DEPLOY_ENV=$1
+cd $(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
+../templatize $1 configurations/config.tmpl.mk configurations/config.mk
+../templatize $1 configurations/region.tmpl.bicepparam configurations/region.bicepparam
+../templatize $1 configurations/svc-cluster.tmpl.bicepparam configurations/svc-cluster.bicepparam
+../templatize $1 configurations/mgmt-cluster.tmpl.bicepparam configurations/mgmt-cluster.bicepparam
+
+make "${@:2}"

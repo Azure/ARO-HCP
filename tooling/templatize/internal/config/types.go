@@ -8,7 +8,7 @@ type configProviderImpl struct {
 	cxStamp               string
 }
 
-type Variables map[string]string
+type Variables map[string]interface{}
 
 type VariableOverrides struct {
 	Defaults Variables `yaml:"defaults"`

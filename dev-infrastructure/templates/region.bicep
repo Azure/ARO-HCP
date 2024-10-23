@@ -1,9 +1,6 @@
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('Captures logged in users UID')
-param currentUserId string
-
 @description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
 @maxLength(24)
 param maestroKeyVaultName string
@@ -26,9 +23,7 @@ param baseDNSZoneName string
 @description('The resource group to deploy the base DNS zone to')
 param baseDNSZoneResourceGroup string = 'global'
 
-param regionalDNSSubdomain string = empty(currentUserId)
-  ? location
-  : '${location}-${take(uniqueString(currentUserId), 5)}'
+param regionalDNSSubdomain string
 
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
@@ -37,7 +32,7 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   properties: {
     tags: {
       persist: toLower(string(persist))
-      deployedBy: currentUserId
+      deployedBy: ''
     }
   }
 }

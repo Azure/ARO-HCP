@@ -4,9 +4,6 @@ param location string = resourceGroup().location
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
-@description('Captures logged in users UID')
-param currentUserId string
-
 @description('AKS cluster name')
 param aksClusterName string
 
@@ -123,13 +120,8 @@ param clustersServiceAcrResourceGroupNames array = []
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
-@description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
-param baseDNSZoneName string = ''
-
-@description('This is the region name in dev/staging/production')
-param regionalDNSSubdomain string = empty(currentUserId)
-  ? location
-  : '${location}-${take(uniqueString(currentUserId), 5)}'
+@description('This is a regional DNS zone')
+param regionalDNSZoneName string
 
 var clusterServiceMIName = 'clusters-service'
 
@@ -140,7 +132,7 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   properties: {
     tags: {
       persist: toLower(string(persist))
-      deployedBy: currentUserId
+      deployedBy: ''
     }
   }
 }
@@ -315,10 +307,10 @@ module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep
 }
 
 module csDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
-  name: guid(regionalDNSSubdomain, svcCluster.name, 'cs')
+  name: guid(regionalDNSZoneName, svcCluster.name, 'cs')
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    zoneName: '${regionalDNSSubdomain}.${baseDNSZoneName}'
+    zoneName: regionalDNSZoneName
     zoneContributerManagedIdentityPrincipalId: csManagedIdentityPrincipalId
   }
 }

@@ -1,0 +1,17 @@
+#!/bin/bash
+
+PROJECT_ROOT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
+DEPLOY_ENV=$1
+INPUT=$2
+OUTPUT=$3
+
+go run ${PROJECT_ROOT_DIR}/tooling/templatize/main.go generate \
+    --config-file=${PROJECT_ROOT_DIR}/config/config.yaml \
+    --cloud=public \
+    --deploy-env=$DEPLOY_ENV \
+    --region=westus3 \
+    --region-stamp=${USER} \
+    --cx-stamp=1 \
+    --input=$INPUT \
+    --output=$OUTPUT

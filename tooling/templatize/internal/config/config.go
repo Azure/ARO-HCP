@@ -69,6 +69,8 @@ func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOver
 		"azureEventGridName": naming.AzureEventGridName,
 		"azurePostgresName":  naming.AzurePostgresName,
 		"azureKeyVaultName":  naming.AzureKeyVaultName,
+		"azureStorageAccountName": naming.AzureStorageAccountName,
+		"uniqueString": 	  naming.UniqueString,
 	}
 
 	// parse, execute and unmarshal the config file as a template to generate the final config file
@@ -91,6 +93,8 @@ func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOver
 	currentVariableOverrides := &VariableOverrides{}
 	if err := yaml.Unmarshal(tmplBytes.Bytes(), currentVariableOverrides); err == nil {
 		cp.baseVariableOverrides = currentVariableOverrides
+	} else {
+		return nil, err
 	}
 
 	return cp.baseVariableOverrides, err
