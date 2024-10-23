@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/spf13/cobra"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
@@ -25,7 +26,7 @@ func BindGenerationOptions(opts *RawGenerationOptions, cmd *cobra.Command) error
 		return fmt.Errorf("failed to bind raw options: %w", err)
 	}
 	cmd.Flags().StringVar(&opts.Input, "input", opts.Input, "input file path")
-	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file directory")
+	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file path")
 
 	for _, flag := range []string{"config-file", "input", "output"} {
 		if err := cmd.MarkFlagFilename("config-file"); err != nil {
@@ -66,18 +67,18 @@ type ValidatedGenerationOptions struct {
 
 func (o *ValidatedGenerationOptions) Complete() (*GenerationOptions, error) {
 	cfg := config.NewConfigProvider(o.ConfigFile, o.Region, o.RegionStamp, o.CXStamp)
-	vars, err := cfg.GetVariables(o.Cloud, o.DeployEnv)
+	vars, err := cfg.GetVariables(o.Cloud, o.DeployEnv, o.ExtraVars)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get variables for cloud %s: %w", o.Cloud, err)
 	}
 
 	inputFile := filepath.Base(o.Input)
 
-	if err := os.MkdirAll(o.Output, os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(o.Output), os.ModePerm); err != nil {
 		return nil, fmt.Errorf("failed to create output directory %s: %w", o.Output, err)
 	}
 
-	output, err := os.Create(filepath.Join(o.Output, inputFile))
+	output, err := os.Create(o.Output)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create output file %s: %w", o.Input, err)
 	}
@@ -106,7 +107,13 @@ type GenerationOptions struct {
 }
 
 func (opts *GenerationOptions) ExecuteTemplate() error {
-	tmpl, err := template.New(opts.InputFile).ParseFS(opts.Input, opts.InputFile)
+	tmpl := template.New(opts.InputFile).Funcs(sprig.FuncMap())
+	content, err := fs.ReadFile(opts.Input, opts.InputFile)
+	if err != nil {
+		return err
+	}
+
+	tmpl, err = tmpl.Parse(string(content))
 	if err != nil {
 		return err
 	}
@@ -116,5 +123,5 @@ func (opts *GenerationOptions) ExecuteTemplate() error {
 			log.Printf("error closing output: %v\n", err)
 		}
 	}()
-	return tmpl.ExecuteTemplate(opts.Output, opts.InputFile, opts.Config)
+	return tmpl.Option("missingkey=error").ExecuteTemplate(opts.Output, opts.InputFile, opts.Config)
 }

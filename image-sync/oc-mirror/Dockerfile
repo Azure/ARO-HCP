@@ -1,12 +1,13 @@
-FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS downloader
+FROM --platform=linux/amd64 mcr.microsoft.com/cbl-mariner/base/core:2.0 AS downloader
 
 RUN set -eux; \
 # Upgrade all packages per https://eng.ms/docs/more/containers-secure-supply-chain/updating
     tdnf update -y; \
-    tdnf -y install unzip wget tar ca-certificates; \ 
+    tdnf -y install unzip wget tar ca-certificates; \
     tdnf clean all
 
 ENV OC_VERSION=4.16.3
+ENV YQ_VERSION=v4.2.0
 
 RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux.tar.gz -o oc.tar.gz  && \
     tar -zvxf oc.tar.gz && \
@@ -17,19 +18,29 @@ RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VER
     tar -zvxf oc-mirror.tar.gz && \
     mv oc-mirror /usr/local/bin
 
-FROM mcr.microsoft.com/cbl-mariner/base/core:2.0
+RUN curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64.tar.gz \
+    -o yq.tar.gz && \
+    tar -zvxf yq.tar.gz && \
+    mv yq_linux_amd64 /usr/local/bin/yq
+
+FROM --platform=linux/amd64 mcr.microsoft.com/azure-cli:cbl-mariner2.0
 
 RUN mkdir --mode=777 /workspace; \
+    mkdir --mode=777 /config; \
     tdnf update -y; \
-    tdnf -y install ca-certificates; \
+    tdnf -y install ca-certificates yq; \
     tdnf clean all
 
 WORKDIR /workspace
+
+ADD mirror.sh /usr/local/bin/mirror.sh
+ADD docker-login.sh /usr/local/bin/docker-login.sh
 
 COPY --chown=0:0 --chmod=755 --from=downloader \
     /usr/local/bin/oc-mirror \
     /usr/local/bin/oc \
     /usr/local/bin/kubectl \
+    /usr/local/bin/yq \
     /usr/local/bin/
 
-ENTRYPOINT ["oc-mirror", "--continue-on-error", "--config", "/etc/oc-mirror/imageset-config.yml"] 
+    ENTRYPOINT ["/usr/local/bin/mirror.sh"]

@@ -11,3 +11,11 @@ func AzurePostgresName(prefix string, suffixLength int, suffixDigestArgs ...stri
 func AzureKeyVaultName(prefix string, suffixLength int, suffixDigestArgs ...string) (string, error) {
 	return suffixedName(prefix, "-", 24, suffixLength, suffixDigestArgs...)
 }
+
+func AzureStorageAccountName(prefix string, suffixLength int, suffixDigestArgs ...string) (string, error) {
+	return suffixedName(prefix, "", 24, suffixLength, suffixDigestArgs...)
+}
+
+func AzureCosmosDBName(prefix string, suffixLength int, suffixDigestArgs ...string) (string, error) {
+	return suffixedName(prefix, "-", 44, suffixLength, suffixDigestArgs...)
+}

@@ -1,1 +1,4 @@
 deploy/tmp-provisioning-shard.yml
+deploy/provisioning-shards.yml
+deploy/dev-provisioning-shards.yml
+config.mk

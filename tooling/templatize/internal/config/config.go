@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"text/template"
 
@@ -24,7 +25,7 @@ func NewConfigProvider(config, region, regionStamp, cxStamp string) *configProvi
 }
 
 // get the variables toke effect finally for cloud/deployEnv/region
-func (cp *configProviderImpl) GetVariables(cloud, deployEnv string) (Variables, error) {
+func (cp *configProviderImpl) GetVariables(cloud, deployEnv string, extraVars map[string]string) (Variables, error) {
 	variableOverrides, err := cp.loadConfig(cloud, deployEnv)
 	variables := Variables{}
 
@@ -47,10 +48,19 @@ func (cp *configProviderImpl) GetVariables(cloud, deployEnv string) (Variables, 
 						variables[k] = v
 					}
 				}
+			} else {
+				return nil, fmt.Errorf("the deployment env %s is not found under cloud %s in %s", deployEnv, cloud, cp.config)
 			}
 		}
 	}
 
+	if _, exists := variables["extraVars"]; exists {
+		return nil, fmt.Errorf("extraVars is a reserved key and cannot be used in the config file")
+	}
+
+	if len(extraVars) > 0 {
+		variables["extraVars"] = extraVars
+	}
 	return variables, err
 }
 
@@ -66,9 +76,12 @@ func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOver
 	}
 
 	functions := template.FuncMap{
-		"azureEventGridName": naming.AzureEventGridName,
-		"azurePostgresName":  naming.AzurePostgresName,
-		"azureKeyVaultName":  naming.AzureKeyVaultName,
+		"azureEventGridName":      naming.AzureEventGridName,
+		"azurePostgresName":       naming.AzurePostgresName,
+		"azureKeyVaultName":       naming.AzureKeyVaultName,
+		"azureStorageAccountName": naming.AzureStorageAccountName,
+		"azureCosmosDBName":       naming.AzureCosmosDBName,
+		"uniqueString":            naming.UniqueString,
 	}
 
 	// parse, execute and unmarshal the config file as a template to generate the final config file
@@ -84,13 +97,15 @@ func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOver
 	}
 
 	var tmplBytes bytes.Buffer
-	if err := tmpl.Execute(&tmplBytes, vars); err != nil {
+	if err := tmpl.Option("missingkey=error").Execute(&tmplBytes, vars); err != nil {
 		return nil, err
 	}
 
 	currentVariableOverrides := &VariableOverrides{}
 	if err := yaml.Unmarshal(tmplBytes.Bytes(), currentVariableOverrides); err == nil {
 		cp.baseVariableOverrides = currentVariableOverrides
+	} else {
+		return nil, err
 	}
 
 	return cp.baseVariableOverrides, err

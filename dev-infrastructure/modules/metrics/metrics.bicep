@@ -1,21 +1,21 @@
 // this module is only used in dev
-@description('Captures logged in users UID')
-param currentUserId string = ''
-
 @description('Metrics global resource group name')
 param globalResourceGroup string
 
 @description('Metrics global MSI name')
-param msiName string = take('metrics-admin-${uniqueString(currentUserId)}', 20)
+param msiName string
 
 @description('Metrics regional monitor name')
-param monitorName string = take('aro-hcp-monitor-${uniqueString(currentUserId)}', 23)
+param monitorName string
 
 @description('Metrics global Grafana name')
-param grafanaName string = take('aro-hcp-grafana-${uniqueString(currentUserId)}', 23)
+param grafanaName string
+
+@description('The admin group principal ID to manage Grafana')
+param grafanaAdminGroupPrincipalId string
 
 var grafanaAdmin = {
-  principalId: '6b6d3adf-8476-4727-9812-20ffdef2b85c' // aro-hcp-engineering-App Developer
+  principalId: grafanaAdminGroupPrincipalId
   principalType: 'group'
 }
 

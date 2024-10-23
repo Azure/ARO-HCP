@@ -130,6 +130,14 @@ parameters:
   description: Date identification of each batch process expected to be run. Comma separated sequence.
   value: ""
 
+- name: OCP_ACR_URL
+  description: The URL of the Azure Container Registry where the OpenShift images are stored.
+  required: true
+
+- name: OCP_ACR_RESOURCE_ID
+  description: The resource ID of the Azure Container Registry where the OpenShift images are stored.
+  required: true
+
 
 # These limits are based on the metrics collected in the production environment
 # over the last year. In particular the following Prometheus queries were used
@@ -352,10 +360,10 @@ objects:
     config.json: |
       {
         "cloudEnvironment": "AzurePublicCloud",
-        "tenantId": "64dc69e4-d083-49fc-9569-ebece1dd1408",
+        "tenantId": "${TENANT_ID}",
         "ocpImagesAcr": {
-          "resourceId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ContainerRegistry/registries/arohcpdev",
-          "url": "arohcpdev.azurecr.io",
+          "resourceId": "${OCP_ACR_RESOURCE_ID}",
+          "url": "${OCP_ACR_URL}",
           "scopeMapName": "_repositories_pull"
         }
       }

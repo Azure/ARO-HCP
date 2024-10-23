@@ -27,24 +27,22 @@ func TestExecuteTemplate(t *testing.T) {
 				"region_maestro_keyvault":    "kv",
 				"region_eventgrid_namespace": "ns",
 			},
-			input: `param maestroKeyVaultName = '{{index . "region_maestro_keyvault"}}'
-param maestroEventGridNamespacesName = '{{index . "region_eventgrid_namespace"}}'
+			input: `param maestroKeyVaultName = '{{ .region_maestro_keyvault }}'
+param maestroEventGridNamespacesName = '{{ .region_eventgrid_namespace }}'
 param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 			expected: `param maestroKeyVaultName = 'kv'
 param maestroEventGridNamespacesName = 'ns'
 param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 		},
 		{
-			name: "referencing unset variable errors", // TODO: this does not error today, just gets an empty string, this is not the UX we want
+			name: "referencing unset variable errors",
 			config: config.Variables{
 				"region_maestro_keyvault": "kv",
 			},
-			input: `param maestroKeyVaultName = '{{index . "region_maestro_keyvault"}}'
-param maestroEventGridNamespacesName = '{{index . "region_eventgrid_namespace"}}'
+			input: `param maestroKeyVaultName = '{{ .region_maestro_keyvault }}'
+param maestroEventGridNamespacesName = '{{ .region_eventgrid_namespace }}'
 param maestroEventGridMaxClientSessionsPerAuthName = 4`,
-			expected: `param maestroKeyVaultName = 'kv'
-param maestroEventGridNamespacesName = ''
-param maestroEventGridMaxClientSessionsPerAuthName = 4`,
+			expectedError: true,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

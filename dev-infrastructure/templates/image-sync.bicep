@@ -2,13 +2,13 @@
 param location string = resourceGroup().location
 
 @description('Specifies the name of the container app environment.')
-param containerAppEnvName string = 'image-sync-env-${uniqueString(resourceGroup().id)}'
+param containerAppEnvName string
 
 @description('Specifies the name of the log analytics workspace.')
-param containerAppLogAnalyticsName string = 'containerapp-log-${uniqueString(resourceGroup().id)}'
+param containerAppLogAnalyticsName string = 'containerapp-log'
 
 @description('Specifies the name of the user assigned managed identity.')
-param imageSyncManagedIdentity string = 'image-sync-${uniqueString(resourceGroup().id)}'
+param imageSyncManagedIdentity string = 'image-sync'
 
 @description('Resource group of the ACR containerapps will get permissions on')
 param acrResourceGroup string
@@ -16,14 +16,17 @@ param acrResourceGroup string
 @description('Name of the service component ACR registry')
 param svcAcrName string
 
+@description('Name of the OCP ACR registry')
+param ocpAcrName string
+
 @description('Name of the keyvault where the pull secret is stored')
 param keyVaultName string
 
 @description('Name of the KeyVault RG')
-param keyVaultResourceGroup string = 'global'
+param keyVaultResourceGroup string
 
-@description('The name of the pull secret')
-param pullSecretName string
+@description('The name of the pull secret for the component sync job')
+param componentSyncPullSecretName string
 
 @description('The name of the Quay API bearer token secret')
 param bearerSecretName string
@@ -36,6 +39,12 @@ param repositoriesToSync string
 
 @description('The number of tags to sync per image in the repo list')
 param numberOfTags int = 10
+
+@description('The image to use for the oc-mirror job')
+param ocMirrorImage string
+
+@description('The name of the pull secret for the oc-mirror job')
+param ocpPullSecretName string
 
 //
 // Container App Infra
@@ -75,7 +84,7 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
 // be able to deal with ACR resource IDs as input instead of RG and ACR names
 
 module acrContributorRole '../modules/acr-permissions.bicep' = {
-  name: guid(imageSyncManagedIdentity, 'acr', 'readwrite')
+  name: guid(imageSyncManagedIdentity, location, 'acr', 'readwrite')
   scope: resourceGroup(acrResourceGroup)
   params: {
     principalId: uami.properties.principalId
@@ -85,7 +94,7 @@ module acrContributorRole '../modules/acr-permissions.bicep' = {
 }
 
 module acrPullRole '../modules/acr-permissions.bicep' = {
-  name: guid(imageSyncManagedIdentity, 'acr', 'pull')
+  name: guid(imageSyncManagedIdentity, location, 'acr', 'pull')
   scope: resourceGroup(acrResourceGroup)
   params: {
     principalId: uami.properties.principalId
@@ -94,8 +103,8 @@ module acrPullRole '../modules/acr-permissions.bicep' = {
 }
 
 module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for secretName in [pullSecretName, bearerSecretName]: {
-    name: '${secretName}-access'
+  for secretName in [componentSyncPullSecretName, bearerSecretName, ocpPullSecretName]: {
+    name: guid(imageSyncManagedIdentity, location, keyVaultName, secretName, 'secret-user')
     scope: resourceGroup(keyVaultResourceGroup)
     params: {
       keyVaultName: keyVaultName
@@ -110,11 +119,11 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
 // Component sync job
 //
 
-var jobName = 'component-sync'
+var componentSyncJobName = 'component-sync'
 var pullSecretFile = 'quayio-auth.json'
 
 resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
-  name: jobName
+  name: componentSyncJobName
   location: location
 
   identity: {
@@ -143,7 +152,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
       secrets: [
         {
           name: 'pull-secrets'
-          keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${pullSecretName}'
+          keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${componentSyncPullSecretName}'
           identity: uami.id
         }
         {
@@ -156,7 +165,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
     template: {
       containers: [
         {
-          name: jobName
+          name: componentSyncJobName
           image: componentSyncImage
           volumeMounts: [
             { volumeName: 'pull-secrets-updated', mountPath: '/auth' }
@@ -207,6 +216,142 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
           storageType: 'Secret'
           secrets: [
             { secretRef: 'bearer-secret' }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+// oc-mirror job
+
+var ocMirrorJobName = 'oc-mirror'
+
+var ocMirrorConfig = {
+  kind: 'ImageSetConfiguration'
+  apiVersion: 'mirror.openshift.io/v1alpha2'
+  storageConfig: {
+    registry: {
+      imageURL: '${ocpAcrName}${environment().suffixes.acrLoginServer}/mirror/oc-mirror-metadata'
+      skipTLS: false
+    }
+  }
+  mirror: {
+    platform: {
+      architectures: ['multi']
+      channels: [
+        {
+          name: 'stable-4.17'
+          type: 'ocp'
+          full: true
+          minVersion: '4.17.0'
+          maxVersion: '4.17.0'
+        }
+      ]
+      graph: true
+    }
+    additionalImages: [
+      { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.16' }
+      { name: 'registry.redhat.io/redhat/certified-operator-index:v4.16' }
+      { name: 'registry.redhat.io/redhat/community-operator-index:v4.16' }
+      { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.16' }
+      { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.17' }
+      { name: 'registry.redhat.io/redhat/certified-operator-index:v4.17' }
+      { name: 'registry.redhat.io/redhat/community-operator-index:v4.17' }
+      { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.17' }
+    ]
+  }
+}
+
+resource ocMirrorJob 'Microsoft.App/jobs@2024-03-01' = {
+  name: ocMirrorJobName
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${uami.id}': {}
+    }
+  }
+
+  properties: {
+    environmentId: containerAppEnvironment.id
+    configuration: {
+      eventTriggerConfig: {}
+      triggerType: 'Schedule'
+      manualTriggerConfig: {
+        parallelism: 1
+      }
+      scheduleTriggerConfig: {
+        cronExpression: '0 * * * *'
+        parallelism: 1
+      }
+      replicaTimeout: 4 * 60 * 60
+      registries: [
+        {
+          identity: uami.id
+          server: '${svcAcrName}${environment().suffixes.acrLoginServer}'
+        }
+      ]
+      secrets: [
+        {
+          name: 'pull-secrets'
+          keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${ocpPullSecretName}'
+          identity: uami.id
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: ocMirrorJobName
+          image: ocMirrorImage
+          volumeMounts: [
+            { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
+          ]
+          env: [
+            { name: 'IMAGE_SET_CONFIG', value: base64(string(ocMirrorConfig)) }
+            { name: 'REGISTRY', value: ocpAcrName }
+            { name: 'REGISTRY_URL', value: '${ocpAcrName}${environment().suffixes.acrLoginServer}' }
+            { name: 'XDG_RUNTIME_DIR', value: '/etc' }
+            { name: 'AZURE_CLIENT_ID', value: uami.properties.clientId }
+            {
+              name: 'APPSETTING_WEBSITE_SITE_NAME'
+              value: 'workaround - https://github.com/microsoft/azure-container-apps/issues/502'
+            }
+          ]
+          resources: {
+            cpu: 2
+            memory: '4Gi'
+          }
+        }
+      ]
+      initContainers: [
+        {
+          name: 'decodesecrets'
+          image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
+          command: [
+            '/bin/sh'
+          ]
+          args: [
+            '-c'
+            'cat /tmp/secret-orig/pull-secrets | base64 -d > /etc/containers/auth.json'
+          ]
+          volumeMounts: [
+            { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
+            { volumeName: 'pull-secrets', mountPath: '/tmp/secret-orig' }
+          ]
+        }
+      ]
+      volumes: [
+        {
+          name: 'pull-secrets-updated'
+          storageType: 'EmptyDir'
+        }
+        {
+          name: 'pull-secrets'
+          storageType: 'Secret'
+          secrets: [
+            { secretRef: 'pull-secrets' }
           ]
         }
       ]

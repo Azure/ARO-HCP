@@ -1,28 +1,26 @@
 SHELL := /bin/bash
+DEPLOY_ENV ?= personal-dev
+$(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
+include config.mk
 
-AKSCONFIG ?= mgmt-cluster
-CONFIG_PROFILE ?= dev
-include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
-
-EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID ?= $(shell az identity show -g ${RESOURCEGROUP} -n external-dns --query clientId -o tsv)
-ZONE_NAME ?= $(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].name" -o tsv)
-AZURE_TENANT_ID ?= $(shell az account show --query tenantId --output tsv)
-AZURE_SUBSCRIPTION_ID ?= $(shell az account show --query id --output tsv)
-
-HO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d/rhtap-hypershift-operator:99a256f
-EDO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/external-dns/external-dns:v0.14.2
+HO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d/rhtap-hypershift-operator:${HO_IMAGE_TAG}
+EDO_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/external-dns/external-dns:${ED_IMAGE_TAG}
 
 create-edo-azure-creds:
 	@echo '{' > deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "tenantId": "${AZURE_TENANT_ID}",' >> deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "subscriptionId": "${AZURE_SUBSCRIPTION_ID}",' >> deploy/overlays/dev/edo-azure-credentials.json
+	@AZURE_TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+	echo "  \"tenantId\": \"$$AZURE_TENANT_ID\"," >> deploy/overlays/dev/edo-azure-credentials.json
+	@AZURE_SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) && \
+	echo "  \"subscriptionId\": \"$$AZURE_SUBSCRIPTION_ID\"," >> deploy/overlays/dev/edo-azure-credentials.json
 	@echo '  "resourceGroup": "${REGIONAL_RESOURCEGROUP}",' >> deploy/overlays/dev/edo-azure-credentials.json
 	@echo '  "useWorkloadIdentityExtension": true,' >> deploy/overlays/dev/edo-azure-credentials.json
-	@echo '  "userAssignedIdentityID": "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}"' >> deploy/overlays/dev/edo-azure-credentials.json
+	@EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n external-dns --query clientId -o tsv) && \
+	echo "  \"userAssignedIdentityID\": \"$$EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID\"" >> deploy/overlays/dev/edo-azure-credentials.json
 	@echo '}' >> deploy/overlays/dev/edo-azure-credentials.json
 
 create-edo-sa-patch:
-	@echo '[{"op": "add", "path": "/metadata/annotations/azure.workload.identity~1client-id", "value": "${EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID}"}]' > deploy/overlays/dev/patch-serviceaccount-external-dns.json
+	@EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n external-dns --query clientId -o tsv) && \
+	echo "[{\"op\": \"add\", \"path\": \"/metadata/annotations/azure.workload.identity~1client-id\", \"value\": \"$$EXTERNAL_DNS_OPERATOR_MI_CLIENT_ID\"}]" > deploy/overlays/dev/patch-serviceaccount-external-dns.json
 
 create-domain-file:
 	@echo "${ZONE_NAME}" > deploy/overlays/dev/domain.txt

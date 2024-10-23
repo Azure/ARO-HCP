@@ -1,19 +1,11 @@
 SHELL = /bin/bash
-
-# for deploying backend into private aks cluster via invoke command
-# these values must be set
-AKSCONFIG ?= svc-cluster
-CONFIG_PROFILE ?= dev
-include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
+DEPLOY_ENV ?= personal-dev
+$(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
+include config.mk
 
 COMMIT = $(shell git rev-parse --short=7 HEAD)
 ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_BACKEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpbackend:$(COMMIT)
-CLUSTER_NAME ?=
-DEPLOYMENTNAME=$(RESOURCEGROUP)
-
-# dev-infrastructure defines this as REGION
-LOCATION ?= ${REGION}
 
 backend:
 	go build -o aro-hcp-backend .
@@ -31,6 +23,7 @@ image:
 	rm -f archive.tar.gz
 
 push: image
+	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	docker push ${ARO_HCP_BACKEND_IMAGE}
 
 deploy:
@@ -38,14 +31,14 @@ deploy:
 			-g ${RESOURCEGROUP} \
 			-n backend \
 			--query clientId);\
-	DB_NAME=$(shell az cosmosdb list -g ${RESOURCEGROUP} | jq -r '.[].name') DB_NAME=$${DB_NAME:-"none"};\
-	ISTO_VERSION=$(shell az aks list --query "[?tags.clusterType == 'svc-cluster' && starts_with(resourceGroup, '${RESOURCEGROUP}')].serviceMeshProfile.istio.revisions[-1]" -o tsv) && \
+	ISTO_VERSION=$(shell az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
+	DB_URL=$(shell az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
 	helm upgrade --install aro-hcp-backend-dev \
 		deploy/helm/backend/ \
-		--set configMap.databaseName=$${DB_NAME} \
-		--set configMap.databaseUrl="https://$${DB_NAME}.documents.azure.com:443/" \
+		--set configMap.databaseName=${DB_NAME} \
+		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE} \

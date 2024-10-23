@@ -1,11 +1,7 @@
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('Captures logged in users UID')
-param currentUserId string
-
 @description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
-@maxLength(24)
 param maestroKeyVaultName string
 
 @description('The name of the managed identity that will manage certificates in maestros keyvault.')
@@ -26,9 +22,7 @@ param baseDNSZoneName string
 @description('The resource group to deploy the base DNS zone to')
 param baseDNSZoneResourceGroup string = 'global'
 
-param regionalDNSSubdomain string = empty(currentUserId)
-  ? location
-  : '${location}-${take(uniqueString(currentUserId), 5)}'
+param regionalDNSSubdomain string
 
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
@@ -37,7 +31,6 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   properties: {
     tags: {
       persist: toLower(string(persist))
-      deployedBy: currentUserId
     }
   }
 }
@@ -52,7 +45,7 @@ resource regionalZone 'Microsoft.Network/dnsZones@2018-05-01' = {
 }
 
 module regionalZoneDelegation '../modules/dns/zone-delegation.bicep' = {
-  name: 'regional-zone-delegation'
+  name: '${deployment().name}-zone-deleg'
   scope: resourceGroup(baseDNSZoneResourceGroup)
   params: {
     childZoneName: regionalDNSSubdomain
@@ -66,7 +59,7 @@ module regionalZoneDelegation '../modules/dns/zone-delegation.bicep' = {
 //
 
 module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
-  name: 'maestro-infra'
+  name: '${deployment().name}-maestro'
   params: {
     eventGridNamespaceName: maestroEventGridNamespacesName
     location: location

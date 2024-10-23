@@ -14,12 +14,12 @@ func TestConfigProvider(t *testing.T) {
 
 	configProvider := NewConfigProvider("../../testdata/config.yaml", region, regionStamp, cxStamp)
 
-	variables, err := configProvider.GetVariables("public", "int")
+	variables, err := configProvider.GetVariables("public", "int", map[string]string{})
 	assert.NoError(t, err)
 	assert.NotNil(t, variables)
 
 	// key is not in the config file
-	assert.Equal(t, "", variables["svc_resourcegroup"])
+	assert.Nil(t, variables["svc_resourcegroup"])
 
 	// key is in the config file, region constant value
 	assert.Equal(t, "uksouth", variables["test"])
