@@ -10,4 +10,5 @@ WORKDIR /
 
 ADD config.yml /app/config.yml
 COPY --from=builder /app/image-sync .
+
 CMD ["/image-sync", "-c", "/app/config.yml"]
