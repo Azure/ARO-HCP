@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+DEPLOY_ENV=$1
+cd $(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
+../templatize $DEPLOY_ENV Makefile.tmpl.mk Makefile
+
+export KUBECONFIG=$(../dev-infrastructure/make $DEPLOY_ENV svc.aks.kubeconfig)
+make deploy

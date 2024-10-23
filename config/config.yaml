@@ -84,12 +84,16 @@ clouds:
           mgmtUserAgentPoolVmSize: 'Standard_D4s_v3'
           mgmtUserAgentPoolOsDiskSizeGB: 100
           mgmtUserAgentPoolAzCount: 3
+          # 1P app
+          firstPartyAppClientId: 57e54810-3138-4f38-bd3b-29cb33f4c358
           # Maestro
           maestroPostgresDeploy: false
           maestroImageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
           maestroImageTag: ea066c250a002f0cc458711945165591bc9f6d3f
           # Cluster Service
           clusterServicePostgresDeploy: false
+          clusterServiceImageTag: cf23767
+          clusterServiceImageRepo: app-sre/uhc-clusters-service
           # Shared SVC KV
           serviceKeyVaultName: 'aro-hcp-dev-svc-kv'
           serviceKeyVaultRG: 'global'
