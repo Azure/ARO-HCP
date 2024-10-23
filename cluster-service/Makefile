@@ -12,7 +12,7 @@ AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID ?= "57e54810-3138-4f38-bd3b-29cb33f4c358
 deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
 	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
-	ISTO_VERSION=$(shell az aks list --query "[?tags.clusterType == 'svc-cluster' && starts_with(resourceGroup, '${RESOURCEGROUP}')].serviceMeshProfile.istio.revisions[-1]" -o tsv) \
+	ISTO_VERSION=$(shell az aks list --query "[?tags.clusterType == 'svc-cluster' && starts_with(resourceGroup, '${RESOURCEGROUP}')].serviceMeshProfile.istio.revisions[-1]" -o tsv)  && \
 	oc process --local -f deploy/openshift-templates/arohcp-namespace-template.yml \
 	  -p ISTIO_VERSION=$${ISTO_VERSION} | oc apply -f -
 	kubectl apply -f deploy/istio.yml
