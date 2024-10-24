@@ -21,13 +21,14 @@ func Log() *zap.SugaredLogger {
 
 // SyncConfig is the configuration for the image sync
 type SyncConfig struct {
-	Repositories   []string
-	NumberOfTags   int
-	QuaySecretFile string
-	AcrRegistry    string
-	TenantId       string
-	RequestTimeout int
-	AddLatest      bool
+	Repositories            []string
+	NumberOfTags            int
+	QuaySecretFile          string
+	AcrRegistry             string
+	TenantId                string
+	RequestTimeout          int
+	AddLatest               bool
+	ManagedIdentityClientID string
 }
 
 // QuaySecret is the secret for quay.io
@@ -42,6 +43,10 @@ func NewSyncConfig() *SyncConfig {
 	v.SetDefault("numberoftags", 10)
 	v.SetDefault("requesttimeout", 10)
 	v.SetDefault("addlatest", false)
+
+	if err := v.BindEnv("ManagedIdentityClientId", "MANAGED_IDENTITY_CLIENT_ID"); err != nil {
+		Log().Fatalw("Error while binding environment variable %s", err.Error())
+	}
 
 	if err := v.Unmarshal(&sc); err != nil {
 		Log().Fatalw("Error while unmarshalling configuration %s", err.Error())
