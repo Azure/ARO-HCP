@@ -96,6 +96,23 @@ func (csc *ClusterServiceClient) GetCSCluster(ctx context.Context, internalID In
 	return cluster, nil
 }
 
+// GetCSClusterStatus creates and sends a GET request to fetch a cluster's status from Clusters Service
+func (csc *ClusterServiceClient) GetCSClusterStatus(ctx context.Context, internalID InternalID) (*cmv1.ClusterStatus, error) {
+	client, ok := internalID.GetClusterClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	clusterStatusGetResponse, err := client.Status().Get().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	status, ok := clusterStatusGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return status, nil
+}
+
 // PostCSCluster creates and sends a POST request to create a cluster in Clusters Service
 func (csc *ClusterServiceClient) PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
 	clustersAddResponse, err := csc.Conn.ClustersMgmt().V1().Clusters().Add().Body(cluster).SendContext(ctx)
