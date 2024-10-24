@@ -86,7 +86,7 @@ func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOver
 	}
 
 	var tmplBytes bytes.Buffer
-	if err := tmpl.Execute(&tmplBytes, vars); err != nil {
+	if err := tmpl.Option("missingkey=error").Execute(&tmplBytes, vars); err != nil {
 		return nil, err
 	}
 

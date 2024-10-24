@@ -123,5 +123,5 @@ func (opts *GenerationOptions) ExecuteTemplate() error {
 			log.Printf("error closing output: %v\n", err)
 		}
 	}()
-	return tmpl.ExecuteTemplate(opts.Output, opts.InputFile, opts.Config)
+	return tmpl.Option("missingkey=error").ExecuteTemplate(opts.Output, opts.InputFile, opts.Config)
 }
