@@ -69,6 +69,41 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 	return nil
 }
 
+func (f *Frontend) DeleteResource(ctx context.Context, resourceID *arm.ResourceID) (*database.ResourceDocument, *arm.CloudError) {
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return nil, arm.NewResourceNotFoundError(resourceID)
+		} else {
+			f.logger.Error(err.Error())
+			return nil, arm.NewInternalServerError()
+		}
+	}
+
+	switch doc.InternalID.Kind() {
+	case cmv1.ClusterKind:
+		err = f.clusterServiceClient.DeleteCSCluster(ctx, doc.InternalID)
+
+	case cmv1.NodePoolKind:
+		err = f.clusterServiceClient.DeleteCSNodePool(ctx, doc.InternalID)
+
+	default:
+		f.logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", doc.InternalID))
+		return nil, arm.NewInternalServerError()
+	}
+
+	if err != nil {
+		var ocmError *ocmerrors.Error
+		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+			return nil, arm.NewResourceNotFoundError(resourceID)
+		}
+		f.logger.Error(err.Error())
+		return nil, arm.NewInternalServerError()
+	}
+
+	return doc, nil
+}
+
 func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
 	var responseBody []byte
 
