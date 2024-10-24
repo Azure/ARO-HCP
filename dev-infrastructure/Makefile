@@ -20,15 +20,6 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
-rg:
-	@if [ "$$(az group exists --name $(RESOURCEGROUP))" = "false" ]; then \
-		az group create \
-			--name $(RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: rg
-
 cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh $(MGMT_RESOURCEGROUP)
@@ -317,19 +308,19 @@ acr-ocp.what-if: globalRg
 # Postgres Authentication Helpers
 #
 
-cs-current-user-pg-connect: rg
+cs-current-user-pg-connect:
 	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME)
 .PHONY: cs-current-user-pg-connect
 
-cs-miwi-pg-connect: rg
+cs-miwi-pg-connect:
 	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME) "clusters-service" "cluster-service" "clusters-service"
 .PHONY: cs-miwi-pg-connect
 
-maestro-current-user-pg-connect: rg
+maestro-current-user-pg-connect:
 	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME)
 .PHONY: maestro-current-user-pg-connect
 
-maestro-miwi-pg-connect: rg
+maestro-miwi-pg-connect:
 	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
 .PHONY: maestro-miwi-pg-connect
 
@@ -372,3 +363,10 @@ secrets-yes-i-want-to-update-the-shared-secrets:
 	az storage blob upload -n secrets.tar.gz -c secrets -f secrets.tar.gz --overwrite --auth-mode login --account-name ${SECRET_SA_ACCOUNT_NAME} >/dev/null
 	rm secrets.tar.gz
 .PHONY: secrets-yes-i-want-to-update-the-shared-secrets
+
+#
+# Common
+#
+
+what-if: acr.what-if acr-svc.what-if acr-ocp.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if
+.PHONY: what-if

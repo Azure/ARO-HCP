@@ -35,11 +35,4 @@ jobs:
 
       - name: 'Deployment What If'
         run: |
-          dev-infrastructure/make ${DEPLOY_ENV} acr.what-if
-          dev-infrastructure/make ${DEPLOY_ENV} acr-svc.what-if
-          dev-infrastructure/make ${DEPLOY_ENV} acr-ocp.what-if
-          dev-infrastructure/make ${DEPLOY_ENV} region.what-if
-          dev-infrastructure/make ${DEPLOY_ENV} svc.what-if
-          dev-infrastructure/make ${DEPLOY_ENV} mgmt.what-if
-          dev-infrastructure/make ${DEPLOY_ENV} metrics-infra.what-if
-          dev-infrastructure/make ${DEPLOY_ENV} imagesync.what-if
+          dev-infrastructure/make ${DEPLOY_ENV} what-if
