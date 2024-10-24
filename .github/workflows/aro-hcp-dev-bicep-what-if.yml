@@ -1,0 +1,45 @@
+---
+name: ARO HCP Integrated DEV Bicep What-If
+env:
+  DEPLOY_ENV: dev
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'dev-infrastructure/**/*.bicep'
+      - 'dev-infrastructure/**/*.bicepparam'
+      - 'dev-infrastructure/Makefile'
+      - '.github/workflows/aro-hcp-dev-bicep-what-if.yml'
+
+jobs:
+  what-if:
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 1
+
+      - name: 'Az CLI login'
+        uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
+        with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Deployment What If'
+        uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
+        with:
+          azcliversion: 2.63.0
+          inlineScript: |
+            dev-infrastructure/make ${DEPLOY_ENV} acr.what-if
+            dev-infrastructure/make ${DEPLOY_ENV} acr-svc.what-if
+            dev-infrastructure/make ${DEPLOY_ENV} acr-ocp.what-if
+            dev-infrastructure/make ${DEPLOY_ENV} region.what-if
+            dev-infrastructure/make ${DEPLOY_ENV} svc.what-if
+            dev-infrastructure/make ${DEPLOY_ENV} mgmt.what-if
+            dev-infrastructure/make ${DEPLOY_ENV} metrics-infra.what-if
+            dev-infrastructure/make ${DEPLOY_ENV} image-sync.what-if
