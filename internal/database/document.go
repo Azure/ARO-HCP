@@ -97,7 +97,7 @@ type OperationDocument struct {
 func NewOperationDocument(request OperationRequest) *OperationDocument {
 	now := time.Now().UTC()
 
-	return &OperationDocument{
+	doc := &OperationDocument{
 		BaseDocument:       newBaseDocument(),
 		PartitionKey:       operationsPartitionKey,
 		Request:            request,
@@ -105,6 +105,14 @@ func NewOperationDocument(request OperationRequest) *OperationDocument {
 		LastTransitionTime: now,
 		Status:             arm.ProvisioningStateAccepted,
 	}
+
+	// When deleting, set Status directly to ProvisioningStateDeleting
+	// so any further deletion requests are rejected with 409 Conflict.
+	if request == OperationRequestDelete {
+		doc.Status = arm.ProvisioningStateDeleting
+	}
+
+	return doc
 }
 
 // ToStatus converts an OperationDocument to the ARM operation status format.

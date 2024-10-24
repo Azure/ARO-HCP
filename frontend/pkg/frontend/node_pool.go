@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"time"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
@@ -42,7 +43,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	nodePoolResourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -58,41 +59,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	f.logger.Info(fmt.Sprintf("%s: CreateNodePool", versionedInterface))
 
-	clusterResourceID := nodePoolResourceID.GetParent()
-	if clusterResourceID == nil {
-		f.logger.Error(fmt.Sprintf("failed to obtain Azure parent resourceID for node pool %s", nodePoolResourceID))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	clusterDoc, err := f.dbClient.GetResourceDoc(ctx, clusterResourceID)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	csCluster, err := f.clusterServiceClient.GetCSCluster(ctx, clusterDoc.InternalID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", clusterResourceID, err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	if csCluster.State() == cmv1.ClusterStateUninstalling {
-		f.logger.Error(fmt.Sprintf("failed to create node pool for cluster %s as it is in %v state", clusterResourceID, cmv1.ClusterStateUninstalling))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	nodePoolDoc, err := f.dbClient.GetResourceDoc(ctx, nodePoolResourceID)
+	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var updating = (nodePoolDoc != nil)
+	var updating = (doc != nil)
 	var operationRequest database.OperationRequest
 
 	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
@@ -106,14 +80,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// No special treatment here for "not found" errors. A "not found"
 		// error indicates the database has gotten out of sync and so it's
 		// appropriate to fail.
-		csNodePool, err := f.clusterServiceClient.GetCSNodePool(ctx, nodePoolDoc.InternalID)
+		csNodePool, err := f.clusterServiceClient.GetCSNodePool(ctx, doc.InternalID)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", nodePoolResourceID, err))
+			f.logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
 			return
 		}
 
-		hcpNodePool := ConvertCStoNodePool(nodePoolResourceID, csNodePool)
+		hcpNodePool := ConvertCStoNodePool(resourceID, csNodePool)
 
 		// Do not set the TrackedResource.Tags field here. We need
 		// the Tags map to remain nil so we can see if the request
@@ -143,11 +117,19 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
 			f.logger.Error("Resource not found")
-			arm.WriteResourceNotFoundError(writer, nodePoolResourceID)
+			arm.WriteResourceNotFoundError(writer, resourceID)
 			return
 		}
 
-		nodePoolDoc = database.NewResourceDocument(nodePoolResourceID)
+		doc = database.NewResourceDocument(resourceID)
+	}
+
+	// CheckForConflict does not log conflict errors but
+	// does log unexpected errors like database failures.
+	cloudError := f.CheckForConflict(ctx, operationRequest, doc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
 	}
 
 	body, err := BodyFromContext(ctx)
@@ -162,7 +144,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	cloudError := versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, updating, request.Method)
+	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, updating, request.Method)
 	if cloudError != nil {
 		f.logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -181,15 +163,22 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	if updating {
-		f.logger.Info(fmt.Sprintf("updating resource %s", nodePoolResourceID))
-		csNodePool, err = f.clusterServiceClient.UpdateCSNodePool(ctx, nodePoolDoc.InternalID, csNodePool)
+		f.logger.Info(fmt.Sprintf("updating resource %s", resourceID))
+		csNodePool, err = f.clusterServiceClient.UpdateCSNodePool(ctx, doc.InternalID, csNodePool)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 	} else {
-		f.logger.Info(fmt.Sprintf("creating resource %s", nodePoolResourceID))
+		f.logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+		clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.GetParent())
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
 		csNodePool, err = f.clusterServiceClient.PostCSNodePool(ctx, clusterDoc.InternalID, csNodePool)
 		if err != nil {
 			f.logger.Error(err.Error())
@@ -197,7 +186,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		nodePoolDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
+		doc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -205,7 +194,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	}
 
-	operationDoc, err := f.StartOperation(writer, request, nodePoolDoc, operationRequest)
+	operationDoc, err := f.StartOperation(writer, request, doc, operationRequest)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
 		arm.WriteInternalServerError(writer)
@@ -236,27 +225,27 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	if !updating {
-		updateResourceMetadata(nodePoolDoc)
-		err = f.dbClient.CreateResourceDoc(ctx, nodePoolDoc)
+		updateResourceMetadata(doc)
+		err = f.dbClient.CreateResourceDoc(ctx, doc)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		f.logger.Info(fmt.Sprintf("document created for %s", nodePoolResourceID))
+		f.logger.Info(fmt.Sprintf("document created for %s", resourceID))
 	} else {
-		updated, err := f.dbClient.UpdateResourceDoc(ctx, nodePoolResourceID, updateResourceMetadata)
+		updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, updateResourceMetadata)
 		if err != nil {
 			f.logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 		if updated {
-			f.logger.Info(fmt.Sprintf("document updated for %s", nodePoolResourceID))
+			f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
 	}
 
-	responseBody, err := marshalCSNodePool(csNodePool, nodePoolDoc, versionedInterface)
+	responseBody, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -301,6 +290,16 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	operationRequest := database.OperationRequestDelete
+
+	// CheckForConflict does not log conflict errors but
+	// does log unexpected errors like database failures.
+	cloudError := f.CheckForConflict(ctx, operationRequest, doc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
 	err = f.clusterServiceClient.DeleteCSNodePool(ctx, doc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", resourceID, err))
@@ -308,7 +307,27 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	operationDoc, err := f.StartOperation(writer, request, doc, database.OperationRequestDelete)
+	// Deletion is underway; mark any active operation as canceled.
+	if doc.ActiveOperationID != "" {
+		updated, err := f.dbClient.UpdateOperationDoc(ctx, doc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
+			if updateDoc.Status != arm.ProvisioningStateCanceled {
+				updateDoc.LastTransitionTime = time.Now()
+				updateDoc.Status = arm.ProvisioningStateCanceled
+				return true
+			}
+			return false
+		})
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		if updated {
+			f.logger.Info(fmt.Sprintf("canceled operation '%s'", doc.ActiveOperationID))
+		}
+	}
+
+	operationDoc, err := f.StartOperation(writer, request, doc, operationRequest)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
 		arm.WriteInternalServerError(writer)
