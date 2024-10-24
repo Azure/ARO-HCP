@@ -34,76 +34,55 @@ Note: you only need to run this once. Re-runing it wont hurt, but it will not ch
 
 ### Create a Service Cluster
 
-The service cluster base configuration to use for development is `configurations/svc-cluster.bicepparam`. Depending on the personal requirements this file offers some features toggles for the main features of the service cluster and the regional resources.
+The configuration for the entire infrastructure and service is located in `config/config.yaml`. For environments hosted in the Red Hat Azure Subscription, the configuration is found under `cloud.public.environments.rh-dev` and all environments that include it. Inspect `dev-infrastructure/configurations/svc-cluster.tmpl.bicepparam` to see how this configuration file influences the actual management cluster deployment.
 
-* `deployFrontendCosmos` - set to `true` if you want a CosmosDB created for the RP
+For personal development environments, the `personal-dev` is used. Any overrides should go there, e.g. if you want to keep your personal DEV environment for more than three days, define `persist: true`.
 
-  This also includes managed identity and access permissions
-
-* `deployCsInfra` - set to `true` if you want CS infra to be provisioned, e.g. if you want to develop on RP and run it towards an on-cluster CS
-
-  This includes a Postgres DB and access permissions to the DB and the service KeyVault, as well as the Maestro Server
-  and supporting infrastructure (EventGrid Namespaces instance, Postgres DB and necessary access permissions).
-
-* `persist` - if set to `true` the resourcegroup holding the cluster and the regional resources will not be deleted after a couple of days
-
-Change those flags accordingly and then run the following command. Depending on the selected features, this may take a while:
+To install a service cluster and all its dependencies, run
 
   ```bash
-  AKSCONFIG=svc-cluster make cluster
+  ./make personal-dev svc.init
   ```
-
-Enable metrics for the svc-cluster
-   ```bash
-  AKSCONFIG=svc-cluster make enable-aks-metrics
-   ```
 
 ### Create a Management Cluster
 
+Similar to the service cluster, the configuration is located under `config/config.yaml`. Inspect `dev-infrastructure/configurations/mgmt-cluster.tmpl.bicepparam` to see how this configuration file influences the actual management cluster deployment.
+
 The service cluster base configuration to use for development is `configurations/mgmt-cluster.bicepparam`. This parameter file offers feature toggles as well.
 
-* `deployMaestroConsumer` - if set to `true` deploys the required infrastructure to run a Maestro Consumer (TODO find a better name for this flag because it does not deploy the consumer itself).
-
-* `persist` - if set to `true` the resourcegroup holding the cluster will not be deleted after a couple of days
-
-> A Management Cluster depends on certain resources found in the resource group of the Service Cluster. Therefore, a standalone Management Cluster can't be created right now and requires a Service Cluster
+To install a management cluster and all its dependencies, run
 
   ```bash
-  AKSCONFIG=mgmt-cluster make cluster
-  ```
-
-Enable metrics for the mgmt-cluster
-  ```bash
-  AKSCONFIG=mgmt-cluster make enable-aks-metrics
+  ./make personal-dev mgmt.init
   ```
 
 ### Access AKS clusters
 
-   ```bash
-   AKSCONFIG=svc-cluster make aks.admin-access  # one time
-   AKSCONFIG=svc-cluster make aks.kubeconfig
-   AKSCONFIG=svc-cluster export KUBECONFIG=${HOME}/.kube/${AKSCONFIG}.kubeconfig
-   kubectl get ns
-   ```
-
-   (Replace svc with mgmt for management clusters)
-
-### Access cluster via the Azure portal or via `az aks command invoke`
+To gain admin access to an AKS cluster run:
 
   ```bash
-  AKSCONFIG=svc-cluster make aks.admin-access  # one time
-  az aks command invoke ...
+  ./make personal-dev svc.aks.admin-access
+  or
+  ./make personal-dev mgmt.aks.admin-access
+  ```
+
+To get a kubeconfig for an AKS cluster run:
+
+  ```bash
+  ./make personal-dev svc.aks.kubeconfig
+  or
+  ./make personal-dev mgmt.aks.kubeconfig
   ```
 
 ### Cleanup
 
 > Please note that all resource groups not tagged with `persist=true` will be deleted by our cleanup pipeline after 48 hours
 
-Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azure
-
-   ```bash
-   AKSCONFIG=svc-cluster make clean
-   ```
+  ```bash
+  ./make personal-dev svc.clean
+  or
+  ./make personal-dev mgmt.clean
+  ```
 
 ## Deploy Services to the service cluster
 

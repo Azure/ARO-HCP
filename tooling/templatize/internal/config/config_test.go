@@ -19,7 +19,7 @@ func TestConfigProvider(t *testing.T) {
 	assert.NotNil(t, variables)
 
 	// key is not in the config file
-	assert.Equal(t, "", variables["svc_resourcegroup"])
+	assert.Nil(t, variables["svc_resourcegroup"])
 
 	// key is in the config file, region constant value
 	assert.Equal(t, "uksouth", variables["test"])

@@ -1,11 +1,7 @@
 SHELL = /bin/bash
 
-CONFIG_PROFILE ?= dev
-include configurations/$(CONFIG_PROFILE).mk
-
-CURRENTUSER = $(shell az ad signed-in-user show | jq -r '.id')
-DEPLOYMENTNAME = $(RESOURCEGROUP)
-DEPLOYMENTNAMEREGION = $(REGIONAL_RESOURCEGROUP)-REGION
+include configurations/config.mk
+include Makefile.lint.mk
 
 # Set SKIP_CONFIRM to a non-empty value to skip "what-if" confirmation prompts.
 ifndef SKIP_CONFIRM
@@ -16,24 +12,6 @@ list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
 
-fmt:
-	set -e; \
-	FILES="$$(find . -type f -name "*.bicep*")"; \
-	for file in $$FILES; do \
-	echo "az bicep format --file $${file}"; \
-	az bicep format --file $$file; \
-	done
-.PHONY: fmt
-
-lint:
-	set -e; \
-	FILES="$$(find . -type f -name "*.bicep*")"; \
-	for file in $$FILES; do \
-	echo "az bicep lint --file $${file}"; \
-	az bicep lint --file $$file; \
-	done
-.PHONY: lint
-
 feature-registration: # hardcoded to eastus as this is a subscription deployment, not a resource group
 	@az deployment sub create \
 		--name "feature-registration" \
@@ -42,36 +20,9 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
-rg:
-	@if [ "$$(az group exists --name $(RESOURCEGROUP))" = "false" ]; then \
-		az group create \
-			--name $(RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: rg
-
-regionalRg:
-	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP))" = "false" ]; then \
-		az group create \
-			--name $(REGIONAL_RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: regionalRg
-
-
-imagesyncRg:
-	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP))" = "false" ]; then \
-		az group create \
-			--name $(IMAGE_SYNC_RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: imagesyncRg
-
 cleanup-orphaned-rolebindings:
-	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
+	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
+	@scripts/cleanup-orphaned-rolebindings.sh $(MGMT_RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
 .PHONY: cleanup-orphaned-rolebindings
@@ -108,122 +59,303 @@ create-mock-identities:
 	./scripts/create-sp-for-rbac.sh
 .PHONY: create-mock-identities
 
-image-sync: imagesyncRg
+#
+# Image Sync
+#
+
+imagesyncRg:
+	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
+			--name $(IMAGE_SYNC_RESOURCEGROUP)  \
+			--location $(REGION) \
+			--output none; \
+	fi
+.PHONY: imagesyncRg
+
+imagesync: imagesyncRg
 	az deployment group create \
 		--name "image-sync" \
 		--resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
 		--template-file templates/image-sync.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/mvp-image-sync.bicepparam
+			configurations/image-sync.bicepparam
+.PHONY: imagesync
+
+imagesync.what-if: imagesyncRg
+	az deployment group what-if \
+		--name "image-sync" \
+		--resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
+		--template-file templates/image-sync.bicep \
+		--parameters \
+			configurations/image-sync.bicepparam
+.PHONY: imagesync.what-if
+
+#
+# Region
+#
+
+regionalRg:
+	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
+			--name $(REGIONAL_RESOURCEGROUP)  \
+			--location $(REGION) \
+			--output none; \
+	fi
+.PHONY: regionalRg
 
 region: regionalRg
 	az deployment group create \
-		--name "$(DEPLOYMENTNAMEREGION)" \
+		--name "region" \
 		--resource-group $(REGIONAL_RESOURCEGROUP) \
 		--template-file templates/region.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/region.bicepparam \
-		--parameters \
-			currentUserId=$(CURRENTUSER)
+			configurations/region.bicepparam
 .PHONY: region
 
-cluster: rg cleanup-orphaned-rolebindings region
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
+region.what-if: regionalRg
+	az deployment group what-if \
+		--name "region" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file templates/region.bicep \
+		--parameters \
+			configurations/region.bicepparam
+.PHONY: region
+
+#
+# Service Cluster
+#
+
+svcRg:
+	@if [ "$$(az group exists --name $(SVC_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
+			--name $(SVC_RESOURCEGROUP)  \
+			--location $(REGION) \
+			--output none; \
+	fi
+.PHONY: svcRg
+
+svc: svcRg cleanup-orphaned-rolebindings region
 	az deployment group create \
-		--name "$(DEPLOYMENTNAME)" \
-		--resource-group $(RESOURCEGROUP) \
-		--template-file templates/$(AKSCONFIG).bicep \
+		--name "svc" \
+		--resource-group $(SVC_RESOURCEGROUP) \
+		--template-file templates/svc-cluster.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/$(AKSCONFIG).bicepparam \
-		--parameters \
-			currentUserId=$(CURRENTUSER) \
-			regionalResourceGroup=$(REGIONAL_RESOURCEGROUP)
-.PHONY: cluster
+			configurations/svc-cluster.bicepparam
+.PHONY: svc
 
-cluster-what-if: rg
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
+svc.enable-aks-metrics: metrics-infra
+	@if [ "$$(az aks show --resource-group $(SVC_RESOURCEGROUP) --name ${AKS_NAME} --query 'azureMonitorProfile.metrics.enabled' -o tsv)" = "true" ]; then \
+        echo "Azure Monitor metrics are already enabled."; \
+    else \
+        az aks update --enable-azure-monitor-metrics \
+            --resource-group $(SVC_RESOURCEGROUP) \
+            --name ${AKS_NAME} \
+            --azure-monitor-workspace-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
+            --grafana-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value); \
+    fi
+.PHONY: svc.enable-aks-metrics
+
+svc.aks.admin-access:
+	@scripts/aks-admin-access.sh $(SVC_RESOURCEGROUP)
+.PHONY: svc.aks.admin-access
+
+svc.aks.kubeconfig:
+	@az aks get-credentials --overwrite-existing --only-show-errors -n ${AKS_NAME} -g $(SVC_RESOURCEGROUP) -f "${HOME}/.kube/${SVC_RESOURCEGROUP}.kubeconfig"
+	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${HOME}/.kube/${SVC_RESOURCEGROUP}.kubeconfig"
+	@echo ${HOME}/.kube/${SVC_RESOURCEGROUP}.kubeconfig
+.PHONY: svc.aks.kubeconfig
+
+svc.init: svc svc.aks.admin-access svc.aks.kubeconfig svc.enable-aks-metrics
+.PHONY: svc.init
+
+svc.what-if: svcRg
 	az deployment group what-if \
-		--name "$(DEPLOYMENTNAME)" \
-		--resource-group $(RESOURCEGROUP) \
-		--template-file templates/$(AKSCONFIG).bicep \
+		--name "svc" \
+		--resource-group $(SVC_RESOURCEGROUP) \
+		--template-file templates/svc-cluster.bicep \
 		--parameters \
-			configurations/$(AKSCONFIG).bicepparam \
+			configurations/svc-cluster.bicepparam
+.PHONY: svc.what-if
+
+svc.clean:
+	az group delete -g $(SVC_RESOURCEGROUP)
+	az keyvault purge --name "$$(az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(SVC_RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')"
+.PHONY: svc.clean
+
+#
+# Management Cluster
+#
+
+mgmtRg:
+	@if [ "$$(az group exists --name $(MGMT_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
+			--name $(MGMT_RESOURCEGROUP)  \
+			--location $(REGION) \
+			--output none; \
+	fi
+.PHONY: mgmtRg
+
+mgmt: mgmtRg cleanup-orphaned-rolebindings region
+	az deployment group create \
+		--name "mgmt" \
+		--resource-group $(MGMT_RESOURCEGROUP) \
+		--template-file templates/mgmt-cluster.bicep \
+		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			currentUserId=$(CURRENTUSER) \
-.PHONY: cluster-what-if
+			configurations/mgmt-cluster.bicepparam
+.PHONY: mgmt
 
-aks.admin-access: rg
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
-	@scripts/aks-admin-access.sh $(RESOURCEGROUP)
-.PHONY: aks.admin-access
+mgmt.enable-aks-metrics: metrics-infra
+	@if [ "$$(az aks show --resource-group $(MGMT_RESOURCEGROUP) --name ${AKS_NAME} --query 'azureMonitorProfile.metrics.enabled' -o tsv)" = "true" ]; then \
+        echo "Azure Monitor metrics are already enabled."; \
+    else \
+        az aks update --enable-azure-monitor-metrics \
+            --resource-group $(MGMT_RESOURCEGROUP) \
+            --name ${AKS_NAME} \
+            --azure-monitor-workspace-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
+            --grafana-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value); \
+    fi
+.PHONY: mgmt.enable-aks-metrics
 
-cs-current-user-pg-connect: rg
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
-	@scripts/cs-current-user-pg-connect.sh $(RESOURCEGROUP) "cs-pg-"
+mgmt.aks.admin-access:
+	@scripts/aks-admin-access.sh $(MGMT_RESOURCEGROUP)
+.PHONY: mgmt.aks.admin-access
+
+mgmt.aks.kubeconfig:
+	@az aks get-credentials --overwrite-existing --only-show-errors -n ${AKS_NAME} -g $(MGMT_RESOURCEGROUP) -f "${HOME}/.kube/${MGMT_RESOURCEGROUP}.kubeconfig"
+	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${HOME}/.kube/${MGMT_RESOURCEGROUP}.kubeconfig"
+	@echo ${HOME}/.kube/${MGMT_RESOURCEGROUP}.kubeconfig
+.PHONY: mgmt.aks.kubeconfig
+
+mgmt.init: mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.enable-aks-metrics
+.PHONY: mgmt.init
+
+mgmt.what-if: mgmtRg
+	az deployment group what-if \
+		--name "mgmt" \
+		--resource-group $(MGMT_RESOURCEGROUP) \
+		--template-file templates/mgmt-cluster.bicep \
+		--parameters \
+			configurations/mgmt-cluster.bicepparam
+.PHONY: mgmt.what-if
+
+mgmt.clean:
+	az group delete -g $(MGMT_RESOURCEGROUP)
+	az keyvault purge --name "$$(az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(MGMT_RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')"
+.PHONY: mgmt.clean
+
+# ACR
+
+globalRg:
+	@if [ "$$(az group exists --name $(GLOBAL_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
+			--name $(GLOBAL_RESOURCEGROUP)  \
+			--location $(REGION) \
+			--output none; \
+	fi
+.PHONY: globalRg
+
+acr: globalRg
+	az deployment group create \
+		--name "acr" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/dev-acr.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/acr.bicepparam
+.PHONY: acr
+
+acr.what-if: globalRg
+	az deployment group what-if \
+		--name "acr" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/dev-acr.bicep \
+		--parameters \
+			configurations/acr.bicepparam
+
+acr-svc: globalRg
+	az deployment group create \
+		--name "acr-svc" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/dev-acr.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/acr-svc.bicepparam
+.PHONY: acr-svc
+
+acr-svc.what-if: globalRg
+	az deployment group what-if \
+		--name "acr-svc" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/dev-acr.bicep \
+		--parameters \
+			configurations/acr-svc.bicepparam
+
+acr-ocp: globalRg
+	az deployment group create \
+		--name "acr-ocp" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/dev-acr.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/acr-ocp.bicepparam
+.PHONY: acr-ocp
+
+acr-ocp.what-if: globalRg
+	az deployment group what-if \
+		--name "acr-ocp" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/dev-acr.bicep \
+		--parameters \
+			configurations/acr-ocp.bicepparam
+
+#
+# Postgres Authentication Helpers
+#
+
+cs-current-user-pg-connect:
+	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME)
 .PHONY: cs-current-user-pg-connect
 
-cs-miwi-pg-connect: rg
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
-	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "cs-pg-" "clusters-service" "cluster-service" "clusters-service"
+cs-miwi-pg-connect:
+	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME) "clusters-service" "cluster-service" "clusters-service"
 .PHONY: cs-miwi-pg-connect
 
-maestro-current-user-pg-connect: rg
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
-	@scripts/cs-current-user-pg-connect.sh $(RESOURCEGROUP) "maestro-pg-"
+maestro-current-user-pg-connect:
+	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME)
 .PHONY: maestro-current-user-pg-connect
 
-maestro-miwi-pg-connect: rg
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
-	@scripts/cs-miwi-pg-connect.sh $(RESOURCEGROUP) "maestro-pg-" "maestro-server" "maestro" "maestro"
+maestro-miwi-pg-connect:
+	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
 .PHONY: maestro-miwi-pg-connect
 
+#
+# Metrics
+#
+
 metrics-infra: regionalRg
-	 CURRENTUSER=$(CURRENTUSER) az deployment group create \
+	 az deployment group create \
 		--name "metrics-infra" \
 		--resource-group $(REGIONAL_RESOURCEGROUP) \
 		--template-file modules/metrics/metrics.bicep \
 		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-		  globalResourceGroup=$(REGIONAL_RESOURCEGROUP) \
-		--parameters configurations/dev-metrics.bicepparam
-.PHONY: metrics-infra 
+		--parameters configurations/metrics.bicepparam
+.PHONY: metrics-infra
 
-enable-aks-metrics: metrics-infra
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
-	az aks update --enable-azure-monitor-metrics \
-	--resource-group $(RESOURCEGROUP) \
-	--name aro-hcp-$(AKSCONFIG) \
-	--azure-monitor-workspace-resource-id $(shell az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
-	--grafana-resource-id $(shell az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value)
-.PHONY: enable-aks-metrics
+metrics-infra.what-if: regionalRg
+	az deployment group what-if \
+		--name "metrics-infra" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file modules/metrics/metrics.bicep \
+		--parameters configurations/metrics.bicepparam
+.PHONY: metrics-infra.what-if
 
-aks.kubeconfig:
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
-	AKS_NAME="$$(az aks list --query "[?tags.clusterType == '$(AKSCONFIG)'].name" -ojson -g $(RESOURCEGROUP) | jq -r '.[0]')"; \
-	az aks get-credentials -n "$${AKS_NAME}" -g $(RESOURCEGROUP) -f "${HOME}/.kube/$(AKSCONFIG).kubeconfig"
-	kubelogin convert-kubeconfig -l azurecli --kubeconfig "${HOME}/.kube/$(AKSCONFIG).kubeconfig"
-.PHONY: aks.kubeconfig
+#
+# Secrets
+#
 
 secrets-download:
 	@[ "${SECRET_SA_ACCOUNT_NAME}" ] || ( echo ">> SECRET_SA_ACCOUNT_NAME is not set"; exit 1 )
@@ -240,7 +372,12 @@ secrets-yes-i-want-to-update-the-shared-secrets:
 	rm secrets.tar.gz
 .PHONY: secrets-yes-i-want-to-update-the-shared-secrets
 
-clean:
-	az group delete -g $(RESOURCEGROUP)
-	az keyvault purge --name "$$(az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')"
-.PHONY: clean
+#
+# Common
+#
+
+what-if: acr.what-if acr-svc.what-if acr-ocp.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if
+.PHONY: what-if
+
+infra: region svc.init mgmt.init imagesync
+.PHONY: infra

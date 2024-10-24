@@ -1,8 +1,8 @@
 using '../templates/dev-acr.bicep'
 
-param acrName = 'arohcpdev'
+param acrName = '{{ .acrName }}'
 param acrSku = 'Premium'
-param location = 'westus3'
+param location = '{{ .region }}'
 
 param quayRepositoriesToCache = [
   {
@@ -49,4 +49,4 @@ param purgeJobs = [
   }
 ]
 
-param keyVaultName = 'aro-hcp-dev-global-kv'
+param keyVaultName = '{{ .serviceKeyVaultName }}'

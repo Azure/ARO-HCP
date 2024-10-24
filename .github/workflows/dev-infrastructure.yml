@@ -25,8 +25,8 @@ jobs:
         working-directory: './dev-infrastructure'
         run: |
           az bicep version
-          make fmt
-          make lint
+          make -f Makefile.lint.mk fmt
+          make -f Makefile.lint.mk lint
 
       - name: Check for uncommitted changes
         working-directory: './dev-infrastructure'

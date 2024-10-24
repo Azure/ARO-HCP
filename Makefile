@@ -5,6 +5,7 @@ SHELL = /bin/bash
 # https://github.com/containers/image?tab=readme-ov-file#building
 GOTAGS?='containers_image_openpgp'
 TOOLS_BIN_DIR := tooling/bin
+DEPLOY_ENV ?= personal-dev
 
 .DEFAULT_GOAL := all
 
@@ -24,4 +25,42 @@ lint: $(GOLANGCI_LINT)
 fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 
-.PHONY: all clean lint test fmt
+#
+# Infra
+#
+
+infra.svc:
+	dev-infrastructure/make $(DEPLOY_ENV) svc.init
+
+infra.mgmt:
+	dev-infrastructure/make $(DEPLOY_ENV) mgmt.init
+
+infra.imagesync:
+	dev-infrastructure/make $(DEPLOY_ENV) imagesync
+
+infra:
+	dev-infrastructure/make $(DEPLOY_ENV) infra
+
+#
+# Cluster Service
+#
+
+cs.deploy:
+	cluster-service/rollout $(DEPLOY_ENV)
+
+#
+# Maestro
+#
+
+maestro.server.deploy:
+	maestro/server/rollout $(DEPLOY_ENV)
+
+maestro.agent.deploy:
+	maestro/agent/rollout $(DEPLOY_ENV)
+
+maestro.registration.deploy:
+	maestro/registration/rollout $(DEPLOY_ENV)
+
+maestro: maestro.server.deploy maestro.agent.deploy maestro.registration.deploy
+
+.PHONY: all clean lint test fmt maestro.server.deploy maestro.agent.deploy maestro.registration.deploy maestro infra.svc infra.mgmt infra.imagesync infra
