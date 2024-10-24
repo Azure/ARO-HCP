@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"time"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
@@ -260,98 +259,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 }
 
-func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("%s: DeleteNodePool", versionedInterface))
-
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			writer.WriteHeader(http.StatusNoContent)
-		} else {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-		}
-		return
-	}
-
-	operationRequest := database.OperationRequestDelete
-
-	// CheckForProvisioningStateConflict does not log conflict errors
-	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, doc)
-	if cloudError != nil {
-		arm.WriteCloudError(writer, cloudError)
-		return
-	}
-
-	err = f.clusterServiceClient.DeleteCSNodePool(ctx, doc.InternalID)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to delete node pool %s: %v", resourceID, err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	// Deletion is underway; mark any active operation as canceled.
-	if doc.ActiveOperationID != "" {
-		updated, err := f.dbClient.UpdateOperationDoc(ctx, doc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
-			if updateDoc.Status != arm.ProvisioningStateCanceled {
-				updateDoc.LastTransitionTime = time.Now()
-				updateDoc.Status = arm.ProvisioningStateCanceled
-				return true
-			}
-			return false
-		})
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		if updated {
-			f.logger.Info(fmt.Sprintf("canceled operation '%s'", doc.ActiveOperationID))
-		}
-	}
-
-	operationDoc, err := f.StartOperation(writer, request, doc, operationRequest)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, func(doc *database.ResourceDocument) bool {
-		doc.ActiveOperationID = operationDoc.ID
-		doc.ProvisioningState = operationDoc.Status
-		return true
-	})
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if updated {
-		f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
-	}
-
-	writer.WriteHeader(http.StatusAccepted)
-}
-
-// marshalCSNodePool renders a CS NodePool object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
 	hcpNodePool := ConvertCStoNodePool(doc.Key, csNodePool)
