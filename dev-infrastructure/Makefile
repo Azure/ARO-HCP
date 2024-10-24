@@ -147,11 +147,15 @@ svc: svcRg cleanup-orphaned-rolebindings region
 .PHONY: svc
 
 svc.enable-aks-metrics: metrics-infra
-	az aks update --enable-azure-monitor-metrics \
-		--resource-group $(SVC_RESOURCEGROUP) \
-		--name ${AKS_NAME} \
-		--azure-monitor-workspace-resource-id $(shell az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
-		--grafana-resource-id $(shell az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value)
+	@if [ "$$(az aks show --resource-group $(SVC_RESOURCEGROUP) --name ${AKS_NAME} --query 'azureMonitorProfile.metrics.enabled' -o tsv)" = "true" ]; then \
+        echo "Azure Monitor metrics are already enabled."; \
+    else \
+        az aks update --enable-azure-monitor-metrics \
+            --resource-group $(SVC_RESOURCEGROUP) \
+            --name ${AKS_NAME} \
+            --azure-monitor-workspace-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
+            --grafana-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value); \
+    fi
 .PHONY: svc.enable-aks-metrics
 
 svc.aks.admin-access:
@@ -205,11 +209,15 @@ mgmt: mgmtRg cleanup-orphaned-rolebindings region
 .PHONY: mgmt
 
 mgmt.enable-aks-metrics: metrics-infra
-	az aks update --enable-azure-monitor-metrics \
-		--resource-group $(MGMT_RESOURCEGROUP) \
-		--name ${AKS_NAME} \
-		--azure-monitor-workspace-resource-id $(shell az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
-		--grafana-resource-id $(shell az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value)
+	@if [ "$$(az aks show --resource-group $(MGMT_RESOURCEGROUP) --name ${AKS_NAME} --query 'azureMonitorProfile.metrics.enabled' -o tsv)" = "true" ]; then \
+        echo "Azure Monitor metrics are already enabled."; \
+    else \
+        az aks update --enable-azure-monitor-metrics \
+            --resource-group $(MGMT_RESOURCEGROUP) \
+            --name ${AKS_NAME} \
+            --azure-monitor-workspace-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
+            --grafana-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value); \
+    fi
 .PHONY: mgmt.enable-aks-metrics
 
 mgmt.aks.admin-access:
@@ -370,3 +378,6 @@ secrets-yes-i-want-to-update-the-shared-secrets:
 
 what-if: acr.what-if acr-svc.what-if acr-ocp.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if
 .PHONY: what-if
+
+infra: region svc.init mgmt.init imagesync
+.PHONY: infra
