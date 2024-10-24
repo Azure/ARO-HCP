@@ -103,7 +103,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
-		postMuxMiddleware.HandlerFunc(f.DeleteNodePool))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 
 	// Operation endpoints
 	postMuxMiddleware = NewMiddleware(
