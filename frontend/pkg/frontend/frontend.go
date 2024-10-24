@@ -561,13 +561,14 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
 
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
+	resourceDoc, cloudError := f.DeleteResource(ctx, resourceID)
+	if cloudError != nil {
+		// For resource not found errors on deletion, ARM requires
+		// us to simply return 204 No Content and no response body.
+		if cloudError.StatusCode == http.StatusNotFound {
 			writer.WriteHeader(http.StatusNoContent)
 		} else {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, cloudError)
 		}
 		return
 	}
@@ -576,13 +577,13 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, doc)
+	cloudError = f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
-	err = f.clusterServiceClient.DeleteCSCluster(ctx, doc.InternalID)
+	err = f.clusterServiceClient.DeleteCSCluster(ctx, resourceDoc.InternalID)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to delete cluster %s: %v", resourceID, err))
 		arm.WriteInternalServerError(writer)
@@ -590,8 +591,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	}
 
 	// Deletion is underway; mark any active operation as canceled.
-	if doc.ActiveOperationID != "" {
-		updated, err := f.dbClient.UpdateOperationDoc(ctx, doc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
+	if resourceDoc.ActiveOperationID != "" {
+		updated, err := f.dbClient.UpdateOperationDoc(ctx, resourceDoc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
 			if updateDoc.Status != arm.ProvisioningStateCanceled {
 				updateDoc.LastTransitionTime = time.Now()
 				updateDoc.Status = arm.ProvisioningStateCanceled
@@ -605,20 +606,20 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 			return
 		}
 		if updated {
-			f.logger.Info(fmt.Sprintf("canceled operation '%s'", doc.ActiveOperationID))
+			f.logger.Info(fmt.Sprintf("canceled operation '%s'", resourceDoc.ActiveOperationID))
 		}
 	}
 
-	operationDoc, err := f.StartOperation(writer, request, doc, operationRequest)
+	operationDoc, err := f.StartOperation(writer, request, resourceDoc, operationRequest)
 	if err != nil {
 		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, func(doc *database.ResourceDocument) bool {
-		doc.ActiveOperationID = operationDoc.ID
-		doc.ProvisioningState = operationDoc.Status
+	updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, func(updateDoc *database.ResourceDocument) bool {
+		updateDoc.ActiveOperationID = operationDoc.ID
+		updateDoc.ProvisioningState = operationDoc.Status
 		return true
 	})
 	if err != nil {
