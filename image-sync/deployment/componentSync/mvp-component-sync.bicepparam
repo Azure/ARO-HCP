@@ -2,7 +2,7 @@ using 'component-sync.bicep'
 
 param environmentName = 'image-sync-env-sxo4oqbcjiekg'
 
-param jobName = 'component-sync-aaa'
+param jobName = 'component-sync'
 
 param containerImage = 'arohcpdev.azurecr.io/image-sync/component-sync:latest'
 

@@ -1,6 +1,6 @@
 using '../templates/image-sync.bicep'
 
-param acrResourceGroup = 'gobal'
+param acrResourceGroup = 'global'
 
 param keyVaultName = 'aro-hcp-dev-global-kv'
 
