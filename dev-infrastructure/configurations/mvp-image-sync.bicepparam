@@ -5,6 +5,6 @@ param acrResourceGroup = 'gobal'
 param keyVaultName = 'aro-hcp-dev-global-kv'
 
 param requiredSecretNames = [
-  'pull-secret'
+  'component-sync-pull-secret'
   'bearer-secret'
 ]
