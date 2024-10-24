@@ -19,12 +19,12 @@ param userAgentPoolAZCount = {{ .mgmtUserAgentPoolAzCount }}
 param persist = {{ .persist }}
 
 param deployMaestroConsumer = true
-param maestroKeyVaultName = '{{ .maestroKeyVaultName}}'
+param maestroKeyVaultName = '{{ .maestroKeyVaultName }}'
 param maestroEventGridNamespacesName = '{{ .maestroEventgridName }}'
 param maestroCertDomain = '{{ .maestroCertDomain }}'
 
 param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .baseDnsZoneName }}'
 
-param acrPullResourceGroups = ['{{ .svcPullResourceGroups }}']
+param acrPullResourceGroups = ['{{ .serviceComponentPullResourceGroups }}']
 
 param regionalResourceGroup = '{{ .regionRG }}'

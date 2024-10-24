@@ -1,0 +1,4 @@
+configurations/config.mk
+configurations/mgmt-cluster.bicepparam
+configurations/svc-cluster.bicepparam
+configurations/region.bicepparam

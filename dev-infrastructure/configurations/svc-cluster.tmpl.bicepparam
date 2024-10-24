@@ -32,7 +32,7 @@ param serviceKeyVaultLocation = '{{ .serviceKeyVaultRegion }}'
 param serviceKeyVaultSoftDelete = {{ .serviceKeyVaultSoftDelete }}
 param serviceKeyVaultPrivate = {{ .serviceKeyVaultPrivate }}
 
-param acrPullResourceGroups = ['{{ .svcPullResourceGroups }}']
+param acrPullResourceGroups = ['{{ .serviceComponentPullResourceGroups }}']
 param imageSyncAcrResourceGroupNames = ['{{ .imageSyncAcrRG }}']
 param clustersServiceAcrResourceGroupNames = ['{{ .clusterServiceAcrRG }}']
 
