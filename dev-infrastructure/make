@@ -9,5 +9,6 @@ cd $(dirname "$(realpath "${BASH_SOURCE[0]}")")
 ../templatize $1 configurations/region.tmpl.bicepparam configurations/region.bicepparam
 ../templatize $1 configurations/svc-cluster.tmpl.bicepparam configurations/svc-cluster.bicepparam
 ../templatize $1 configurations/mgmt-cluster.tmpl.bicepparam configurations/mgmt-cluster.bicepparam
+../templatize $1 configurations/metrics.tmpl.bicepparam configurations/metrics.bicepparam
 
 make "${@:2}"

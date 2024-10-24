@@ -130,6 +130,15 @@ region: regionalRg
 			configurations/region.bicepparam
 .PHONY: region
 
+region.what-if: regionalRg
+	az deployment group what-if \
+		--name "region" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file templates/region.bicep \
+		--parameters \
+			configurations/region.bicepparam
+.PHONY: region
+
 #
 # Service Cluster
 #
@@ -174,7 +183,7 @@ svc.aks.kubeconfig:
 svc.init: svc svc.aks.admin-access svc.aks.kubeconfig svc.enable-aks-metrics
 .PHONY: svc.init
 
-svc.what-if: rg
+svc.what-if: svcRg
 	az deployment group what-if \
 		--name "svc" \
 		--resource-group $(SVC_RESOURCEGROUP) \
@@ -186,6 +195,7 @@ svc.what-if: rg
 svc.clean:
 	az group delete -g $(SVC_RESOURCEGROUP)
 	az keyvault purge --name "$$(az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(SVC_RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')"
+.PHONY: svc.clean
 
 #
 # Management Cluster
@@ -231,7 +241,7 @@ mgmt.aks.kubeconfig:
 mgmt.init: mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.enable-aks-metrics
 .PHONY: mgmt.init
 
-mgmt.what-if: rg
+mgmt.what-if: mgmtRg
 	az deployment group what-if \
 		--name "mgmt" \
 		--resource-group $(MGMT_RESOURCEGROUP) \
@@ -243,6 +253,7 @@ mgmt.what-if: rg
 mgmt.clean:
 	az group delete -g $(MGMT_RESOURCEGROUP)
 	az keyvault purge --name "$$(az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(MGMT_RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')"
+.PHONY: mgmt.clean
 
 #
 # Postgres Authentication Helpers
@@ -269,15 +280,21 @@ maestro-miwi-pg-connect: rg
 #
 
 metrics-infra: regionalRg
-	 CURRENTUSER=$(CURRENTUSER) az deployment group create \
+	 az deployment group create \
 		--name "metrics-infra" \
 		--resource-group $(REGIONAL_RESOURCEGROUP) \
 		--template-file modules/metrics/metrics.bicep \
 		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-		  globalResourceGroup=$(REGIONAL_RESOURCEGROUP) \
-		--parameters configurations/dev-metrics.bicepparam
+		--parameters configurations/metrics.bicepparam
 .PHONY: metrics-infra
+
+metrics-infra.what-if: regionalRg
+	az deployment group what-if \
+		--name "metrics-infra" \
+		--resource-group $(REGIONAL_RESOURCEGROUP) \
+		--template-file modules/metrics/metrics.bicep \
+		--parameters configurations/metrics.bicepparam
+.PHONY: metrics-infra.what-if
 
 #
 # Secrets

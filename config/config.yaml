@@ -108,6 +108,11 @@ clouds:
           acrName: arohcpdev
           # OIDC
           oidcStorageAccountName: {{ azureStorageAccountName "arohcpoidc" 6 .ctx.region .ctx.regionStamp }}
+          # Metrics
+          monitoringWorkspaceName: 'aro-hcp-monitor-{{ uniqueString 5 .ctx.region .ctx.regionStamp}}'
+          grafanaName: 'aro-hcp-grafana-{{ uniqueString 5 .ctx.region .ctx.regionStamp}}'
+          monitoringMsiName: 'aro-hcp-metrics-msi-{{ uniqueString 5 .ctx.region .ctx.regionStamp }}'
+          grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
           # DEVOPS MSI
           aroDevopsMsiId: '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops'
       dev:
