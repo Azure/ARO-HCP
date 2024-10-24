@@ -66,11 +66,11 @@ func (cp *configProviderImpl) loadConfig(cloud, deployEnv string) (*VariableOver
 	}
 
 	functions := template.FuncMap{
-		"azureEventGridName": naming.AzureEventGridName,
-		"azurePostgresName":  naming.AzurePostgresName,
-		"azureKeyVaultName":  naming.AzureKeyVaultName,
+		"azureEventGridName":      naming.AzureEventGridName,
+		"azurePostgresName":       naming.AzurePostgresName,
+		"azureKeyVaultName":       naming.AzureKeyVaultName,
 		"azureStorageAccountName": naming.AzureStorageAccountName,
-		"uniqueString": 	  naming.UniqueString,
+		"uniqueString":            naming.UniqueString,
 	}
 
 	// parse, execute and unmarshal the config file as a template to generate the final config file

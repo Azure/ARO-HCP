@@ -15,4 +15,3 @@ func AzureKeyVaultName(prefix string, suffixLength int, suffixDigestArgs ...stri
 func AzureStorageAccountName(prefix string, suffixLength int, suffixDigestArgs ...string) (string, error) {
 	return suffixedName(prefix, "", 24, suffixLength, suffixDigestArgs...)
 }
-

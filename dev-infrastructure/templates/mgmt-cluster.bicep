@@ -66,7 +66,6 @@ param deployMaestroConsumer bool
 param maestroCertDomain string
 
 @description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
-@maxLength(24)
 param maestroKeyVaultName string
 
 @description('The name of the managed identity that will manage certificates in maestros keyvault.')

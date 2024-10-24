@@ -34,6 +34,6 @@ func suffixedName(prefix string, suffixDelim string, maxLength int, suffixLength
 	return name, nil
 }
 
-func UniqueString(length int, digestArgs ...string) (string, error)  {
+func UniqueString(length int, digestArgs ...string) (string, error) {
 	return suffixDigest(length, digestArgs...)
 }

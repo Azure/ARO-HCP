@@ -1,6 +1,7 @@
 SHELL = /bin/bash
 
 include configurations/config.mk
+include Makefile.lint.mk
 
 # Set SKIP_CONFIRM to a non-empty value to skip "what-if" confirmation prompts.
 ifndef SKIP_CONFIRM
@@ -10,24 +11,6 @@ endif
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
-
-fmt:
-	set -e; \
-	FILES="$$(find . -type f -name "*.bicep*")"; \
-	for file in $$FILES; do \
-	echo "az bicep format --file $${file}"; \
-	az bicep format --file $$file; \
-	done
-.PHONY: fmt
-
-lint:
-	set -e; \
-	FILES="$$(find . -type f -name "*.bicep*")"; \
-	for file in $$FILES; do \
-	echo "az bicep lint --file $${file}"; \
-	az bicep lint --file $$file; \
-	done
-.PHONY: lint
 
 feature-registration: # hardcoded to eastus as this is a subscription deployment, not a resource group
 	@az deployment sub create \
@@ -280,7 +263,7 @@ acr: globalRg
 	az deployment group create \
 		--name "acr" \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/acr.bicep \
+		--template-file templates/dev-acr.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/acr.bicepparam
@@ -290,7 +273,7 @@ acr.what-if: globalRg
 	az deployment group what-if \
 		--name "acr" \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/acr.bicep \
+		--template-file templates/dev-acr.bicep \
 		--parameters \
 			configurations/acr.bicepparam
 
@@ -298,7 +281,7 @@ acr-svc: globalRg
 	az deployment group create \
 		--name "acr-svc" \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/acr-svc.bicep \
+		--template-file templates/dev-acr.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/acr-svc.bicepparam
@@ -308,7 +291,7 @@ acr-svc.what-if: globalRg
 	az deployment group what-if \
 		--name "acr-svc" \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/acr-svc.bicep \
+		--template-file templates/dev-acr.bicep \
 		--parameters \
 			configurations/acr-svc.bicepparam
 
@@ -316,7 +299,7 @@ acr-ocp: globalRg
 	az deployment group create \
 		--name "acr-ocp" \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/acr-ocp.bicep \
+		--template-file templates/dev-acr.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/acr-ocp.bicepparam
@@ -326,7 +309,7 @@ acr-ocp.what-if: globalRg
 	az deployment group what-if \
 		--name "acr-ocp" \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/acr-ocp.bicep \
+		--template-file templates/dev-acr.bicep \
 		--parameters \
 			configurations/acr-ocp.bicepparam
 

@@ -30,16 +30,16 @@ jobs:
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install Azure CLI
+        uses: ./.github/actions/install-azure-cli
+
       - name: 'Deployment What If'
-        uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
-        with:
-          azcliversion: 2.63.0
-          inlineScript: |
-            dev-infrastructure/make ${DEPLOY_ENV} acr.what-if
-            dev-infrastructure/make ${DEPLOY_ENV} acr-svc.what-if
-            dev-infrastructure/make ${DEPLOY_ENV} acr-ocp.what-if
-            dev-infrastructure/make ${DEPLOY_ENV} region.what-if
-            dev-infrastructure/make ${DEPLOY_ENV} svc.what-if
-            dev-infrastructure/make ${DEPLOY_ENV} mgmt.what-if
-            dev-infrastructure/make ${DEPLOY_ENV} metrics-infra.what-if
-            dev-infrastructure/make ${DEPLOY_ENV} image-sync.what-if
+        run: |
+          dev-infrastructure/make ${DEPLOY_ENV} acr.what-if
+          dev-infrastructure/make ${DEPLOY_ENV} acr-svc.what-if
+          dev-infrastructure/make ${DEPLOY_ENV} acr-ocp.what-if
+          dev-infrastructure/make ${DEPLOY_ENV} region.what-if
+          dev-infrastructure/make ${DEPLOY_ENV} svc.what-if
+          dev-infrastructure/make ${DEPLOY_ENV} mgmt.what-if
+          dev-infrastructure/make ${DEPLOY_ENV} metrics-infra.what-if
+          dev-infrastructure/make ${DEPLOY_ENV} imagesync.what-if

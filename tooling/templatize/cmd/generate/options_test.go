@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -15,14 +16,14 @@ func TestRawOptions(t *testing.T) {
 	opts := &RawGenerationOptions{
 		RawOptions: options.RawOptions{
 			ConfigFile:  "../../testdata/config.yaml",
-			Cloud:       "fairfax",
-			DeployEnv:   "prod",
+			Cloud:       "public",
+			DeployEnv:   "dev",
 			Region:      "uksouth",
 			RegionStamp: "1",
 			CXStamp:     "cx",
 		},
 		Input:  "../../testdata/helm.sh",
-		Output: tmpdir,
+		Output: fmt.Sprintf("%s/helm.sh", tmpdir),
 	}
 	assert.NoError(t, generate(opts))
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "helm.sh"))

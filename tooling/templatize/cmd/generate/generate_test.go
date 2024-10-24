@@ -43,7 +43,7 @@ param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 param maestroEventGridNamespacesName = '{{index . "region_eventgrid_namespace"}}'
 param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 			expected: `param maestroKeyVaultName = 'kv'
-param maestroEventGridNamespacesName = ''
+param maestroEventGridNamespacesName = '<no value>'
 param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 		},
 	} {
