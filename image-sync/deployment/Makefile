@@ -65,9 +65,9 @@ undeploy: undeploy-shared undeploy-component-sync undeploy-oc-mirror
 
 deploy-component-sync:
 	az deployment group create --name comp-sync \
-		--resource-group $IMAGE_SYNC_RESOURCEGROUP \
+		--resource-group ${IMAGE_SYNC_RESOURCEGROUP} \
 		--template-file componentSync/component-sync.bicep \
 		--parameters componentSync/mvp-component-sync.bicepparam \
-		--parameter containerImage="arohcpdev.azurecr.io/image-sync/component-sync:testing"
+		--parameters containerImage="arohcpdev.azurecr.io/image-sync/component-sync:latest"
 
 .PHONY: deploy-component-sync deploy-shared deploy-oc-mirror undeploy-shared undeploy-component-sync undeploy-oc-mirror

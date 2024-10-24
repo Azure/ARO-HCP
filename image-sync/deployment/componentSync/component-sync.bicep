@@ -72,10 +72,11 @@ resource symbolicname 'Microsoft.App/jobs@2024-03-01' = {
           name: jobName
           image: containerImage
           volumeMounts: [
-            { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
+            { volumeName: 'pull-secrets-updated', mountPath: '/auth' }
           ]
           env: [
             { name: 'MANAGED_IDENTITY_CLIENT_ID', value: uami.properties.clientId }
+            { name: 'DOCKER_CONFIG', value: '/auth' }
           ]
         }
       ]
