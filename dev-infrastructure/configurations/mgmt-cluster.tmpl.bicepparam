@@ -25,6 +25,6 @@ param maestroCertDomain = '{{ .maestroCertDomain }}'
 
 param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .baseDnsZoneName }}'
 
-param acrPullResourceGroups = ['{{ .serviceComponentPullResourceGroups }}']
+param acrPullResourceGroups = ['{{ .serviceComponentAcrResourceGroups }}']
 
 param regionalResourceGroup = '{{ .regionRG }}'

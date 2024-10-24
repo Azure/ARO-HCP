@@ -17,7 +17,7 @@ defaults:
   aksName: aro-hcp-aks
 
   # ACR
-  serviceComponentPullResourceGroups: global
+  serviceComponentAcrResourceGroups: global
 
   # SVC cluster specifics
   svcEtcdKVName: {{ azureKeyVaultName "aro-hcp-etcd" 5 .ctx.region .ctx.regionStamp }}
@@ -104,8 +104,10 @@ clouds:
           # disable soft delete on etcd KVs in DEV
           svcEtcdKVSoftDelete: false
           mgmtEtcdKVSoftDelete: false
-          # ACR
+          # Shared ACRs
           acrName: arohcpdev
+          svcAcrName: arohcpsvcdev
+          ocpAcrName: arohcpocpdev
           # OIDC
           oidcStorageAccountName: {{ azureStorageAccountName "arohcpoidc" 6 .ctx.region .ctx.regionStamp }}
           # Metrics

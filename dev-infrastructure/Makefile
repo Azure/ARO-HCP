@@ -2,10 +2,6 @@ SHELL = /bin/bash
 
 include configurations/config.mk
 
-CURRENTUSER = $(shell az ad signed-in-user show | jq -r '.id')
-DEPLOYMENTNAME = $(RESOURCEGROUP)
-DEPLOYMENTNAMEREGION = $(REGIONAL_RESOURCEGROUP)-REGION
-
 # Set SKIP_CONFIRM to a non-empty value to skip "what-if" confirmation prompts.
 ifndef SKIP_CONFIRM
 PROMPT_TO_CONFIRM = "--confirm-with-what-if"
@@ -50,15 +46,6 @@ rg:
 	fi
 .PHONY: rg
 
-imagesyncRg:
-	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP))" = "false" ]; then \
-		az group create \
-			--name $(IMAGE_SYNC_RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: imagesyncRg
-
 cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh $(MGMT_RESOURCEGROUP)
@@ -98,14 +85,37 @@ create-mock-identities:
 	./scripts/create-sp-for-rbac.sh
 .PHONY: create-mock-identities
 
-image-sync: imagesyncRg
+#
+# Image Sync
+#
+
+imagesyncRg:
+	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
+			--name $(IMAGE_SYNC_RESOURCEGROUP)  \
+			--location $(REGION) \
+			--output none; \
+	fi
+.PHONY: imagesyncRg
+
+imagesync: imagesyncRg
 	az deployment group create \
 		--name "image-sync" \
 		--resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
 		--template-file templates/image-sync.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/mvp-image-sync.bicepparam
+			configurations/image-sync.bicepparam
+.PHONY: imagesync
+
+imagesync.what-if: imagesyncRg
+	az deployment group what-if \
+		--name "image-sync" \
+		--resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
+		--template-file templates/image-sync.bicep \
+		--parameters \
+			configurations/image-sync.bicepparam
+.PHONY: imagesync.what-if
 
 #
 # Region
@@ -254,6 +264,71 @@ mgmt.clean:
 	az group delete -g $(MGMT_RESOURCEGROUP)
 	az keyvault purge --name "$$(az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(MGMT_RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')"
 .PHONY: mgmt.clean
+
+# ACR
+
+globalRg:
+	@if [ "$$(az group exists --name $(GLOBAL_RESOURCEGROUP))" = "false" ]; then \
+		az group create \
+			--name $(GLOBAL_RESOURCEGROUP)  \
+			--location $(REGION) \
+			--output none; \
+	fi
+.PHONY: globalRg
+
+acr: globalRg
+	az deployment group create \
+		--name "acr" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/acr.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/acr.bicepparam
+.PHONY: acr
+
+acr.what-if: globalRg
+	az deployment group what-if \
+		--name "acr" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/acr.bicep \
+		--parameters \
+			configurations/acr.bicepparam
+
+acr-svc: globalRg
+	az deployment group create \
+		--name "acr-svc" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/acr-svc.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/acr-svc.bicepparam
+.PHONY: acr-svc
+
+acr-svc.what-if: globalRg
+	az deployment group what-if \
+		--name "acr-svc" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/acr-svc.bicep \
+		--parameters \
+			configurations/acr-svc.bicepparam
+
+acr-ocp: globalRg
+	az deployment group create \
+		--name "acr-ocp" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/acr-ocp.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/acr-ocp.bicepparam
+.PHONY: acr-ocp
+
+acr-ocp.what-if: globalRg
+	az deployment group what-if \
+		--name "acr-ocp" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/acr-ocp.bicep \
+		--parameters \
+			configurations/acr-ocp.bicepparam
 
 #
 # Postgres Authentication Helpers

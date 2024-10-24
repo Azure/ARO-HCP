@@ -3,3 +3,7 @@ configurations/mgmt-cluster.bicepparam
 configurations/svc-cluster.bicepparam
 configurations/region.bicepparam
 configurations/metrics.bicepparam
+configurations/acr-svc.bicepparam
+configurations/acr-ocp.bicepparam
+configurations/acr.bicepparam
+configurations/image-sync.bicepparam
