@@ -45,7 +45,11 @@ resource symbolicname 'Microsoft.App/jobs@2024-03-01' = {
     environmentId: containerAppEnvironment.id
     configuration: {
       eventTriggerConfig: {}
-      triggerType: 'Manual'
+      triggerType: 'Schedule'
+      scheduleTriggerConfig: {
+        cronExpression: '*/5 * * * *'
+        parallelism: 1
+      }
       replicaTimeout: 60 * 60
       registries: [
         {
