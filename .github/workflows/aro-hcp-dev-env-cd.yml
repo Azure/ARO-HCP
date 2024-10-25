@@ -27,6 +27,7 @@
         - 'acm/**'
         - 'hypershiftoperator/**'
         - 'image-sync/**/'
+        - 'tooling/image-sync/**'
       types:
         - opened
         - synchronize
