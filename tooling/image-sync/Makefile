@@ -17,6 +17,7 @@ clean:
 build-push: image push
 
 image:
+	cp ../../image-sync/configuration/mvp-image-sync.yml config.yml
 	docker build --platform="linux/amd64" -f "./Dockerfile" -t ${ARO_HCP_IMAGE_SYNC_IMAGE}:${COMMIT} .
 
 push:

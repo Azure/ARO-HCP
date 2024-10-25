@@ -53,9 +53,19 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
 
 module acrContributorRole '../modules/acr-permissions.bicep' = {
   name: guid(imageSyncManagedIdentity, 'acr', 'readwrite')
+  scope: resourceGroup(acrResourceGroup)
   params: {
     principalId: uami.properties.principalId
     grantPushAccess: true
+    acrResourceGroupid: acrResourceGroup
+  }
+}
+
+module acrPullRole '../modules/acr-permissions.bicep' = {
+  name: guid(imageSyncManagedIdentity, 'acr', 'pull')
+  scope: resourceGroup(acrResourceGroup)
+  params: {
+    principalId: uami.properties.principalId
     acrResourceGroupid: acrResourceGroup
   }
 }

@@ -121,9 +121,9 @@ func TestQuayGetTags(t *testing.T) {
 func TestGetPullSecret(t *testing.T) {
 	acr := AzureContainerRegistry{
 		tenantId:   "test",
-		credential: &azidentity.DefaultAzureCredential{},
+		credential: &azidentity.ManagedIdentityCredential{},
 
-		getAccessTokenImpl: func(ctx context.Context, dac *azidentity.DefaultAzureCredential) (string, error) {
+		getAccessTokenImpl: func(ctx context.Context, dac *azidentity.ManagedIdentityCredential) (string, error) {
 			return "fooBar", nil
 		},
 		getACRUrlImpl: func(acrName string) string {

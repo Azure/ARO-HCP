@@ -14,24 +14,24 @@ deploy-shared:
 	--set serviceAccountName=image-sync \
 	--set azureClientId=$${AZURE_SYNC_MI_CLIENT_ID}
 
-deploy-component-sync:
-	AZURE_SYNC_MI_CLIENT_ID=$(shell az identity show \
-			-g ${RESOURCEGROUP} \
-			-n image-sync \
-			--query clientId) && \
-	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	helm upgrade --force --install component-sync-cronjob ./componentSyncCronjob \
-	--namespace ${NAMESPACE} --create-namespace \
-	--set serviceAccountName=image-sync \
-	--set azureClientId=$${AZURE_SYNC_MI_CLIENT_ID} \
-	--set acrRegistryName=${ARO_HCP_IMAGE_ACR} \
-	--set azureTenantId=$${TENANT_ID} \
-	--set componentSyncImage="arohcpdev.azurecr.io/image-sync/component-sync" \
-	--set componentSyncTag=latest \
-	--set credsBearerSecret=bearer-secret \
-	--set credsPullSecret=component-pull-secret \
-	--set credsKeyVaultName=service-kv-aro-hcp-dev \
-	--set repositories=${REPOSITORIES_TO_SYNC}
+# deploy-component-sync:
+# 	AZURE_SYNC_MI_CLIENT_ID=$(shell az identity show \
+# 			-g ${RESOURCEGROUP} \
+# 			-n image-sync \
+# 			--query clientId) && \
+# 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+# 	helm upgrade --force --install component-sync-cronjob ./componentSyncCronjob \
+# 	--namespace ${NAMESPACE} --create-namespace \
+# 	--set serviceAccountName=image-sync \
+# 	--set azureClientId=$${AZURE_SYNC_MI_CLIENT_ID} \
+# 	--set acrRegistryName=${ARO_HCP_IMAGE_ACR} \
+# 	--set azureTenantId=$${TENANT_ID} \
+# 	--set componentSyncImage="arohcpdev.azurecr.io/image-sync/component-sync" \
+# 	--set componentSyncTag=latest \
+# 	--set credsBearerSecret=bearer-secret \
+# 	--set credsPullSecret=component-pull-secret \
+# 	--set credsKeyVaultName=service-kv-aro-hcp-dev \
+# 	--set repositories=${REPOSITORIES_TO_SYNC}
 
 deploy-oc-mirror:
 	AZURE_SYNC_MI_CLIENT_ID=$(shell az identity show \
@@ -62,5 +62,12 @@ undeploy-oc-mirror:
 	helm uninstall oc-mirror-cronjob --namespace ${NAMESPACE}
 
 undeploy: undeploy-shared undeploy-component-sync undeploy-oc-mirror
+
+deploy-component-sync:
+	az deployment group create --name comp-sync \
+		--resource-group ${IMAGE_SYNC_RESOURCEGROUP} \
+		--template-file componentSync/component-sync.bicep \
+		--parameters componentSync/mvp-component-sync.bicepparam \
+		--parameters containerImage="arohcpdev.azurecr.io/image-sync/component-sync:latest"
 
 .PHONY: deploy-component-sync deploy-shared deploy-oc-mirror undeploy-shared undeploy-component-sync undeploy-oc-mirror

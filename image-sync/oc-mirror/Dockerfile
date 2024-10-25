@@ -31,3 +31,5 @@ COPY --chown=0:0 --chmod=755 --from=downloader \
     /usr/local/bin/oc \
     /usr/local/bin/kubectl \
     /usr/local/bin/
+
+ENTRYPOINT ["oc-mirror", "--continue-on-error", "--config", "/etc/oc-mirror/imageset-config.yml"] 

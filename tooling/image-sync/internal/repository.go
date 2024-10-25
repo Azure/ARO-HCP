@@ -128,13 +128,13 @@ func (q *QuayRegistry) GetTags(ctx context.Context, image string) ([]string, err
 	return tags, nil
 }
 
-type getAccessToken func(context.Context, *azidentity.DefaultAzureCredential) (string, error)
+type getAccessToken func(context.Context, *azidentity.ManagedIdentityCredential) (string, error)
 type getACRUrl func(string) string
 
 // AzureContainerRegistry implements ACR Repository access
 type AzureContainerRegistry struct {
 	acrName      string
-	credential   *azidentity.DefaultAzureCredential
+	credential   *azidentity.ManagedIdentityCredential
 	acrClient    *azcontainerregistry.Client
 	httpClient   *http.Client
 	numberOfTags int
@@ -146,7 +146,9 @@ type AzureContainerRegistry struct {
 
 // NewAzureContainerRegistry creates a new AzureContainerRegistry access client
 func NewAzureContainerRegistry(cfg *SyncConfig) *AzureContainerRegistry {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
+		ID: azidentity.ClientID(cfg.ManagedIdentityClientID),
+	})
 	if err != nil {
 		Log().Fatalf("failed to obtain a credential: %v", err)
 	}
@@ -164,7 +166,7 @@ func NewAzureContainerRegistry(cfg *SyncConfig) *AzureContainerRegistry {
 		numberOfTags: cfg.NumberOfTags,
 		tenantId:     cfg.TenantId,
 
-		getAccessTokenImpl: func(ctx context.Context, dac *azidentity.DefaultAzureCredential) (string, error) {
+		getAccessTokenImpl: func(ctx context.Context, dac *azidentity.ManagedIdentityCredential) (string, error) {
 			accessToken, err := dac.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{"https://management.core.windows.net//.default"}})
 			if err != nil {
 				return "", err
