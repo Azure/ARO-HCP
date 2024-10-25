@@ -416,7 +416,7 @@
         - name: Push image-sync container image
           if: github.event.pull_request.merged == true
           run: |
-            cd image-sync/oc-mirror
+            cd tooling/image-sync
             az acr login --name ${ARO_HCP_IMAGE_ACR}
             make push
 
