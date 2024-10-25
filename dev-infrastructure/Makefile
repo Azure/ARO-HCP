@@ -116,6 +116,7 @@ image-sync: imagesyncRg
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/mvp-image-sync.bicepparam
+.PHONY: image-sync
 
 region: regionalRg
 	az deployment group create \
