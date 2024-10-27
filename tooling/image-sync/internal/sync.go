@@ -11,7 +11,6 @@ import (
 	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/signature"
 	"github.com/containers/image/v5/types"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -34,25 +33,6 @@ type SyncConfig struct {
 // QuaySecret is the secret for quay.io
 type QuaySecret struct {
 	BearerToken string
-}
-
-// NewSyncConfig creates a new SyncConfig from the configuration file
-func NewSyncConfig() *SyncConfig {
-	var sc *SyncConfig
-	v := viper.GetViper()
-	v.SetDefault("numberoftags", 10)
-	v.SetDefault("requesttimeout", 10)
-	v.SetDefault("addlatest", false)
-
-	if err := v.BindEnv("ManagedIdentityClientId", "MANAGED_IDENTITY_CLIENT_ID"); err != nil {
-		Log().Fatalw("Error while binding environment variable %s", err.Error())
-	}
-
-	if err := v.Unmarshal(&sc); err != nil {
-		Log().Fatalw("Error while unmarshalling configuration %s", err.Error())
-	}
-	Log().Debugw("Using configuration", "config", sc)
-	return sc
 }
 
 // Copy copies an image from one registry to another
@@ -119,14 +99,13 @@ func filterTagsToSync(src, target []string) []string {
 }
 
 // DoSync syncs the images from the source registry to the target registry
-func DoSync() error {
-	cfg := NewSyncConfig()
+func DoSync(cfg *SyncConfig) error {
 	Log().Infow("Syncing images", "images", cfg.Repositories, "numberoftags", cfg.NumberOfTags)
 	ctx := context.Background()
 
 	quaySecret, err := readQuaySecret(cfg.QuaySecretFile)
 	if err != nil {
-		return fmt.Errorf("error reading secret file: %w", err)
+		return fmt.Errorf("error reading secret file: %w %s", err, cfg.QuaySecretFile)
 	}
 	qr := NewQuayRegistry(cfg, quaySecret.BearerToken)
 

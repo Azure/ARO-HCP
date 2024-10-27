@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
@@ -128,13 +129,13 @@ func (q *QuayRegistry) GetTags(ctx context.Context, image string) ([]string, err
 	return tags, nil
 }
 
-type getAccessToken func(context.Context, *azidentity.ManagedIdentityCredential) (string, error)
+type getAccessToken func(context.Context, azcore.TokenCredential) (string, error)
 type getACRUrl func(string) string
 
 // AzureContainerRegistry implements ACR Repository access
 type AzureContainerRegistry struct {
 	acrName      string
-	credential   *azidentity.ManagedIdentityCredential
+	credential   azcore.TokenCredential
 	acrClient    *azcontainerregistry.Client
 	httpClient   *http.Client
 	numberOfTags int
@@ -146,11 +147,20 @@ type AzureContainerRegistry struct {
 
 // NewAzureContainerRegistry creates a new AzureContainerRegistry access client
 func NewAzureContainerRegistry(cfg *SyncConfig) *AzureContainerRegistry {
-	cred, err := azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
-		ID: azidentity.ClientID(cfg.ManagedIdentityClientID),
-	})
-	if err != nil {
-		Log().Fatalf("failed to obtain a credential: %v", err)
+	var cred azcore.TokenCredential
+	var err error
+	if cfg.ManagedIdentityClientID != "" {
+		cred, err = azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
+			ID: azidentity.ClientID(cfg.ManagedIdentityClientID),
+		})
+		if err != nil {
+			Log().Fatalf("failed to obtain a credentials for managed identity %s: %v", cfg.ManagedIdentityClientID, err)
+		}
+	} else {
+		cred, err = azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			Log().Fatalf("failed to obtain default credentials: %v", err)
+		}
 	}
 
 	client, err := azcontainerregistry.NewClient(fmt.Sprintf("https://%s", cfg.AcrRegistry), cred, nil)
@@ -166,7 +176,7 @@ func NewAzureContainerRegistry(cfg *SyncConfig) *AzureContainerRegistry {
 		numberOfTags: cfg.NumberOfTags,
 		tenantId:     cfg.TenantId,
 
-		getAccessTokenImpl: func(ctx context.Context, dac *azidentity.ManagedIdentityCredential) (string, error) {
+		getAccessTokenImpl: func(ctx context.Context, dac azcore.TokenCredential) (string, error) {
 			accessToken, err := dac.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{"https://management.core.windows.net//.default"}})
 			if err != nil {
 				return "", err

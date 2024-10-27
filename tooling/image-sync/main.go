@@ -19,7 +19,7 @@ var (
 		Short: "image-sync",
 		Long:  "image-sync",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.DoSync()
+			return internal.DoSync(newSyncConfig())
 		},
 	}
 	cfgFile  string
@@ -30,8 +30,8 @@ func main() {
 	syncCmd.Flags().StringVarP(&cfgFile, "cfgFile", "c", "", "Configuration File")
 	syncCmd.Flags().StringVarP(&logLevel, "logLevel", "l", "", "Loglevel (info, debug, error, warn, fatal, panic)")
 
-	cobra.OnInitialize(initConfig)
 	cobra.OnInitialize(configureLogging)
+	cobra.OnInitialize(initConfig)
 	err := syncCmd.Execute()
 
 	if err != nil {
@@ -40,12 +40,46 @@ func main() {
 }
 
 func initConfig() {
-	viper.SetConfigFile(cfgFile)
-	viper.AutomaticEnv()
-
-	if err := viper.ReadInConfig(); err != nil {
-		defaultlog.Fatal(err)
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
+		if err := viper.ReadInConfig(); err != nil {
+			Log().Warnw("Error reading config file, using environment variables only", "error", err)
+		}
 	}
+}
+
+// newSyncConfig creates a new SyncConfig from the configuration file
+func newSyncConfig() *internal.SyncConfig {
+	var sc *internal.SyncConfig
+	v := viper.GetViper()
+	v.SetDefault("numberoftags", 10)
+	v.SetDefault("requesttimeout", 10)
+	v.SetDefault("addlatest", false)
+
+	// bind environment variables
+	// we can't use vipers native viper.AutomaticEnv() because it only works
+	// when also a config file is used
+	envVars := map[string]string{
+		"NumberOfTags":            "NUMBER_OF_TAGS",
+		"RequestTimeout":          "REQUEST_TIMEOUT",
+		"AddLatest":               "ADD_LATEST",
+		"Repositories":            "REPOSITORIES",
+		"QuaySecretFile":          "QUAY_SECRET_FILE",
+		"AcrRegistry":             "ACR_REGISTRY",
+		"TenantId":                "TENANT_ID",
+		"ManagedIdentityClientID": "MANAGED_IDENTITY_CLIENT_ID",
+	}
+	for key, env := range envVars {
+		if err := v.BindEnv(key, env); err != nil {
+			Log().Fatalw("Error while binding environment variable %s: %s", key, err.Error())
+		}
+	}
+
+	if err := v.Unmarshal(&sc); err != nil {
+		Log().Fatalw("Error while unmarshalling configuration %s", err.Error())
+	}
+	Log().Debugw("Using configuration", "config", sc)
+	return sc
 }
 
 func configureLogging() {
@@ -66,4 +100,8 @@ func configureLogging() {
 	if err != nil {
 		defaultlog.Fatal(err)
 	}
+}
+
+func Log() *zap.SugaredLogger {
+	return zap.L().Sugar()
 }
