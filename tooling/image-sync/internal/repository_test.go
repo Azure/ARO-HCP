@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"gotest.tools/v3/assert"
 )
@@ -121,9 +122,9 @@ func TestQuayGetTags(t *testing.T) {
 func TestGetPullSecret(t *testing.T) {
 	acr := AzureContainerRegistry{
 		tenantId:   "test",
-		credential: &azidentity.ManagedIdentityCredential{},
+		credential: &azidentity.DefaultAzureCredential{},
 
-		getAccessTokenImpl: func(ctx context.Context, dac *azidentity.ManagedIdentityCredential) (string, error) {
+		getAccessTokenImpl: func(ctx context.Context, dac azcore.TokenCredential) (string, error) {
 			return "fooBar", nil
 		},
 		getACRUrlImpl: func(acrName string) string {
