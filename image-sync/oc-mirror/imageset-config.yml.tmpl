@@ -1,0 +1,25 @@
+kind: ImageSetConfiguration
+apiVersion: mirror.openshift.io/v1alpha2
+storageConfig:
+  registry:
+    imageURL: {{ .RegistryUrl }}/mirror/oc-mirror-metadata
+    skipTLS: false
+mirror:
+  platform:
+    architectures:
+      - multi
+      - amd64
+    channels:
+      {{- range .StableVersions }}
+      - name: stable-{{ . }}
+        type: ocp
+        full: true
+      {{- end }}
+    graph: true
+  additionalImages:
+  {{- range .StableVersions }}
+  - name: registry.redhat.io/redhat/redhat-operator-index:v{{ . }}
+  - name: registry.redhat.io/redhat/certified-operator-index:v{{ . }}
+  - name: registry.redhat.io/redhat/community-operator-index:v{{ . }}
+  - name: registry.redhat.io/redhat/redhat-marketplace-index:v{{ . }}
+  {{- end }}

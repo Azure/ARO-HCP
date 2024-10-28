@@ -29,24 +29,21 @@ spec:
           containers:
           - image: "{{ .Values.ocmirrorImage }}:{{ .Values.ocmirrorTag }}"
             name: oc-mirror
-            command: ["oc-mirror", "--continue-on-error", "--config", "/etc/oc-mirror/imageset-config.yml", "docker://{{ .Values.acrRegistryName }}.azurecr.io"]
             workingDir: "/workspace"
             env:
               - name: XDG_RUNTIME_DIR
                 value: /etc/
+              - name: REGISTRY_URL
+                value: "{{ .Values.acrRegistryName }}.azurecr.io"
+              - name: STABLE_VERSIONS
+                value: "{{ .Values.stableVersions }}"
             volumeMounts:
-            - name: oc-mirror-config
-              mountPath: "/etc/oc-mirror"
-              readOnly: true
             - name: pull-secrets-updated
               mountPath: "/etc/containers"
               readOnly: true
             - name: workspace
               mountPath: "/workspace"
           volumes:
-          - name: oc-mirror-config
-            configMap:
-              name: oc-mirror-config
           - name: workspace
             emptyDir: {}
           - name: pull-secrets-updated

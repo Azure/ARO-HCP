@@ -25,11 +25,12 @@ deploy-oc-mirror:
 	--set serviceAccountName=image-sync \
 	--set azureClientId=$${AZURE_SYNC_MI_CLIENT_ID} \
 	--set acrRegistryName=${ARO_HCP_IMAGE_ACR} \
+	--set stableVersions="4.16\,4.17" \
 	--set azureTenantId=$${TENANT_ID} \
 	--set ocmirrorImage="arohcpdev.azurecr.io/image-sync/ocmirror" \
 	--set ocmirrorTag=latest \
 	--set credsPullSecret=pull-secret \
-	--set credsKeyVaultName=service-kv-aro-hcp-dev
+	--set credsKeyVaultName=aro-hcp-dev-svc-kv
 
 deploy: deploy-shared deploy-component-sync deploy-oc-mirror
 

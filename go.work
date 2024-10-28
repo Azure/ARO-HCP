@@ -6,6 +6,7 @@ use (
 	./frontend
 	./backend
 	./internal
+	./image-sync/oc-mirror
 	./tooling/image-sync
 	./tooling/templatize
 	./tooling/mcerepkg

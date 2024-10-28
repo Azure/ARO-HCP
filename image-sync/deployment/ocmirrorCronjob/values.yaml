@@ -1,4 +1,5 @@
 acrRegistryName: ""
+stableVersions: ""
 
 azureClientId: ""
 azureTenantId: ""
