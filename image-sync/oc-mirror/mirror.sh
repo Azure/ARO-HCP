@@ -1,4 +1,4 @@
 #!/bin/sh
 
-/usr/local/bin/imageset-config-tmpl -c /config/imageset-config.yml.tmpl -o /config/imageset-config.yml -s ${STABLE_VERSIONS} -r ${REGISTRY_URL}
+echo ${IMAGE_SET_CONFIG} | base64 -d /config/imageset-config.yml
 /usr/local/bin/oc-mirror --continue-on-error --config /config/imageset-config.yml docker://${REGISTRY_URL} @$
