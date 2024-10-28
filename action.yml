@@ -1,0 +1,42 @@
+---
+# Custom install of the azure-cli
+# Note that the azure-cli ships out of the box with ubuntu-latest for
+# github actions runs.  This allows us to pin a version and also allows us
+# to use commands that aren't present in the azure/cli github action that's
+# published to the GitHub actions marketplace.
+# Follows instructions: https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux
+name: 'Install Azure CLI'
+description: 'installs the azure-cli at a given version'
+inputs:
+  version:
+    description: 'Azure CLI Version to install'
+    required: false
+    default: "2.63.0" # pin to 2.63.0 because of https://github.com/Azure/azure-cli/issues/29828
+runs:
+  using: "composite"
+  steps:
+    - name: 'install azure-cli'
+      shell: bash
+      env:
+        AZ_VER: ${{ inputs.version }}
+      run: |
+        if [[ "${AZ_VER}" == "latest" ]]; then
+          # If AZ_VER == latest, then don't bother installing a specific version of az
+          exit 0
+        fi
+        sudo mkdir -p /etc/apt/keyrings
+        curl -sLS https://packages.microsoft.com/keys/microsoft.asc |
+        gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft.gpg > /dev/null
+        sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
+        AZ_DIST=$(lsb_release -cs)
+        echo "Types: deb
+        URIs: https://packages.microsoft.com/repos/azure-cli/
+        Suites: ${AZ_DIST}
+        Components: main
+        Architectures: $(dpkg --print-architecture)
+        Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
+        sudo apt-get update
+        # Obtain the currently installed distribution
+        AZ_DIST=$(lsb_release -cs)
+        # Install a specific version
+        sudo apt-get install azure-cli=${AZ_VER}-1~${AZ_DIST} --allow-downgrades
