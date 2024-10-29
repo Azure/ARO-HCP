@@ -233,6 +233,12 @@ parameters:
   value: ""
 - name: FPA_CERT_NAME
   description: The name of the secret that contains the first party application certificate bundle.
+- name: DATABASE_DISABLE_TLS
+  description: "If set to true the connection to the database is performed without TLS"
+  value: "false"
+- name: DATABASE_AUTH_METHOD
+  description: "Authentication method to use when connecting to the database. Accepted values are 'az-entra', 'postgres'"
+  value: "az-entra"
 
 objects:
 
@@ -454,7 +460,8 @@ objects:
           - --db-name=@/secrets/rds/db.name
           - --db-user=@/secrets/rds/db.user
           - --db-password=@/secrets/rds/db.password
-          - --db-disable-tls=true
+          - --db-disable-tls=${DATABASE_DISABLE_TLS}
+          - --db-auth-method=${DATABASE_AUTH_METHOD}
           - --force-migration=${FORCE_MIGRATION}
           - --batch-processes-dry-run=${BATCH_PROCESSES_DRY_RUN}
           - --batch-processes=${BATCH_PROCESSES}
@@ -514,7 +521,8 @@ objects:
           - --db-name=@/secrets/rds/db.name
           - --db-user=@/secrets/rds/db.user
           - --db-password=@/secrets/rds/db.password
-          - --db-disable-tls=true
+          - --db-disable-tls=${DATABASE_DISABLE_TLS}
+          - --db-auth-method=${DATABASE_AUTH_METHOD}
           - --gateway-url=${GATEWAY_URL}
           - --client-id=@/secrets/service/client.id
           - --client-secret=@/secrets/service/client.secret
