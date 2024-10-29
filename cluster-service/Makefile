@@ -41,12 +41,7 @@ deploy: configure-tmp-provision-shard deploy-namespace-template deploy-istio-con
 # be redesigned when we move to use Helm templates.
 # *Warning* if you change any parameter remember to change it in both the deploy and the deploy-using-azure-db targets
 # if they apply to both
-deploy-using-azure-db: configure-tmp-provision-shard deploy-namespace-template deploy-istio-configurations-template deploy-secrets-template
-	oc process --local -f deploy/openshift-templates/arohcp-db-template.yml \
-	-p DATABASE_USER=clusters-service \
-	-p DATABASE_NAME=clusters-service \
-	-p DATABASE_PASSWORD="" \
-	-p DATABASE_SERVICE=$(shell az postgres flexible-server list --resource-group ${RESOURCEGROUP} --query "[?starts_with(name, 'cs-pg-')].fullyQualifiedDomainName" -o tsv) | oc apply -f -
+deploy-using-azure-db: configure-tmp-provision-shard deploy-namespace-template deploy-istio-configurations-template deploy-secrets-template-using-azure-db
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
 			-g ${RESOURCEGROUP} \
 			-n clusters-service \
@@ -90,6 +85,14 @@ deploy-secrets-template: configure-tmp-provision-shard
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
 		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/tmp-provisioning-shard.yml)" | oc apply -f -
 
+deploy-secrets-template-using-azure-db: configure-tmp-provision-shard
+	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
+		-p DATABASE_USER=clusters-service \
+		-p DATABASE_NAME=clusters-service \
+		-p DATABASE_PASSWORD="" \
+		-p DATABASE_HOST=$(shell az postgres flexible-server list --resource-group ${RESOURCEGROUP} --query "[?starts_with(name, 'cs-pg-')].fullyQualifiedDomainName" -o tsv) \
+		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/tmp-provisioning-shard.yml)" | oc apply -f -
+
 configure-tmp-provision-shard:
 	ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
 	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
@@ -99,4 +102,4 @@ provision-shard:
 	@ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
 	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/dev-provisioning-shards.yml
 
-.PHONY: deploy deploy-using-azure-db deploy-integ provision-shard configure-tmp-provision-shard deploy-secrets-template deploy-istio-configurations-template deploy-namespace-template
+.PHONY: deploy deploy-using-azure-db deploy-integ provision-shard configure-tmp-provision-shard deploy-secrets-template deploy-secrets-template-using-azure-db deploy-istio-configurations-template deploy-namespace-template
