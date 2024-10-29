@@ -35,6 +35,18 @@ param maestroKeyVaultName string
 @description('The name for the Managed Identity that will be created for Key Vault Certificate management.')
 param kvCertOfficerManagedIdentityName string
 
+@description('Allow public network access to the EventGrid Namespace')
+@allowed([
+  'Enabled'
+  'Disabled'
+])
+param publicNetworkAccess string = 'Enabled'
+
+@description('The IDs of the subnets to create the private endpoints in.')
+param aksNodeSubnetIds array = ['']
+
+param vnetId string
+
 //
 //   K E Y    V A U L T
 //
@@ -110,7 +122,7 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' 
   }
   properties: {
     isZoneRedundant: true
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: publicNetworkAccess
     topicSpacesConfiguration: {
       state: 'Enabled'
       maximumSessionExpiryInHours: 1
@@ -246,6 +258,69 @@ resource maestroConsumersPublishTopicspacePermissionBinding 'Microsoft.EventGrid
     topicSpaceName: maestroConsumersPublishTopicspace.name
   }
 }
+
+var privateDnsZoneName = 'privatelink.ts.eventgrid.azure.net'
+
+resource eventGridPrivatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = [
+  for aksNodeSubnetId in aksNodeSubnetIds: {
+    name: '${eventGridNamespaceName}-${uniqueString(aksNodeSubnetId)}'
+    location: location
+    properties: {
+      privateLinkServiceConnections: [
+        {
+          name: '${eventGridNamespaceName}-private-endpoint'
+          properties: {
+            privateLinkServiceId: eventGridNamespace.id
+            groupIds: [
+              'topicspace'
+            ]
+          }
+        }
+      ]
+      subnet: {
+        id: aksNodeSubnetId
+      }
+    }
+  }
+]
+
+resource eventGridPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: privateDnsZoneName
+  location: 'global'
+  properties: {}
+}
+
+resource eventGridPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  name: uniqueString('eventgrid-${uniqueString(vnetId)}')
+  parent: eventGridPrivateEndpointDnsZone
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnetId
+    }
+  }
+}
+
+resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = [
+  for index in range(0, length(aksNodeSubnetIds)): {
+    name: '${eventGridNamespaceName}-dns-group'
+    parent: eventGridPrivatEndpoint[index]
+    properties: {
+      privateDnsZoneConfigs: [
+        {
+          name: 'config1'
+          properties: {
+            privateDnsZoneId: eventGridPrivateEndpointDnsZone.id
+          }
+        }
+      ]
+    }
+    dependsOn: [
+      eventGridPrivateDnsZoneVnetLink
+    ]
+  }
+]
 
 output keyVaultName string = kv.name
 output eventGridNamespaceName string = eventGridNamespace.name
