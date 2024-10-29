@@ -500,7 +500,7 @@
         - name: 'Deploy Cluster Service'
           run: |
             cd cluster-service/
-            make deploy
+            make deploy-using-azure-db
 
         - name: 'Deploy Maestro Server'
           run: |
