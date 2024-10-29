@@ -54,19 +54,6 @@ param deployFrontendCosmos bool
 @description('The resourcegroup for regional infrastructure')
 param regionalResourceGroup string
 
-@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
-param maestroCertDomain string
-
-@description('The name of the eventgrid namespace for Maestro.')
-param maestroEventGridNamespacesName string
-
-@description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
-@maxLength(24)
-param maestroKeyVaultName string
-
-@description('The name of the managed identity that will manage certificates in maestros keyvault.')
-param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
-
 @description('Deploy ARO HCP CS Infrastructure if true')
 param deployCsInfra bool
 
@@ -76,22 +63,6 @@ param csPostgresServerName string
 
 @description('If true, make the CS Postgres instance private')
 param clusterServicePostgresPrivate bool = true
-
-@description('Deploy ARO HCP Maestro Postgres if true')
-param deployMaestroPostgres bool = true
-
-@description('If true, make the Maestro Postgres instance private')
-param maestroPostgresPrivate bool = true
-
-@description('The name of the Postgres server for Maestro')
-@maxLength(60)
-param maestroPostgresServerName string
-
-@description('The version of the Postgres server for Maestro')
-param maestroPostgresServerVersion string
-
-@description('The size of the Postgres server for Maestro')
-param maestroPostgresServerStorageSizeGB int
 
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
@@ -215,37 +186,6 @@ output cosmosDBName string = deployFrontendCosmos ? rpCosmosDb.outputs.cosmosDBN
 output frontend_mi_client_id string = frontendMI.uamiClientID
 
 //
-//   M A E S T R O
-//
-
-module maestroServer '../modules/maestro/maestro-server.bicep' = {
-  name: 'maestro-server'
-  params: {
-    maestroInfraResourceGroup: regionalResourceGroup
-    maestroEventGridNamespaceName: maestroEventGridNamespacesName
-    maestroKeyVaultName: maestroKeyVaultName
-    maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
-    maestroKeyVaultCertificateDomain: maestroCertDomain
-    deployPostgres: deployMaestroPostgres
-    postgresServerName: maestroPostgresServerName
-    postgresServerVersion: maestroPostgresServerVersion
-    postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
-    privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
-    privateEndpointVnetId: svcCluster.outputs.aksVnetId
-    postgresServerPrivate: maestroPostgresPrivate
-    maestroServerManagedIdentityPrincipalId: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-server'
-    )[0].uamiPrincipalID
-    maestroServerManagedIdentityName: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-server'
-    )[0].uamiName
-    location: location
-  }
-}
-
-//
 //   K E Y V A U L T S
 //
 
@@ -295,7 +235,6 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
     clusterServiceManagedIdentityName: clusterServiceMIName
   }
   dependsOn: [
-    maestroServer
     svcCluster
   ]
 }
