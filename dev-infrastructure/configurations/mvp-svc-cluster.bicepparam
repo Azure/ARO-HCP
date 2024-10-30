@@ -20,7 +20,7 @@ param maestroPostgresServerStorageSizeGB = 32
 param deployMaestroPostgres = false
 param maestroPostgresPrivate = false
 
-param deployCsInfra = false
+param deployCsInfra = true
 param csPostgresServerName = 'cs-pg-aro-hcp-dev'
 param clusterServicePostgresPrivate = false
 

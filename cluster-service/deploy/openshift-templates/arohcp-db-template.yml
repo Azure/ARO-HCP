@@ -16,21 +16,8 @@ parameters:
     required: true
     value: ocm-cs-db
 
-  - name: DATABASE_USER
-    description: Username for PostgreSQL user that will be used for accessing the database.
-    displayName: PostgreSQLUsername
-    required: true
-    value: ocm
-
-  - name: DATABASE_PASSWORD
-    description: Password for the PostgreSQL connection user.
-    displayName: PostgreSQL Password
-    required: true
-    value: TheBlurstOfTimes
-
-  - name: DATABASE_NAME
-    description: Name of the PostgreSQL database accessed.
-    displayName: PostgreSQL Database Name
+  - name: DATABASE_K8S_SECRET_NAME
+    description: The name of the K8s secret where CS DB connection information is placed
     required: true
     value: ocm-cs-db
 
@@ -112,17 +99,17 @@ objects:
                   valueFrom:
                     secretKeyRef:
                       key: db.user
-                      name: ${DATABASE_SERVICE_NAME}
+                      name: ${DATABASE_K8S_SECRET_NAME}
                 - name: POSTGRES_PASSWORD
                   valueFrom:
                     secretKeyRef:
                       key: db.password
-                      name: ${DATABASE_SERVICE_NAME}
+                      name: ${DATABASE_K8S_SECRET_NAME}
                 - name: POSTGRES_DB
                   valueFrom:
                     secretKeyRef:
                       key: db.name
-                      name: ${DATABASE_SERVICE_NAME}
+                      name: ${DATABASE_K8S_SECRET_NAME}
                 - name: PGDATA
                   value: /var/lib/pgsql/data/pgdata
               image: docker.io/library/postgres:16.2
@@ -158,15 +145,3 @@ objects:
               persistentVolumeClaim:
                 claimName: ${DATABASE_SERVICE_NAME}
     status: {}
-
-  - apiVersion: v1
-    kind: Secret
-    metadata:
-      name: ${DATABASE_SERVICE_NAME}
-      namespace: ${NAMESPACE}
-    stringData:
-      db.host: ${DATABASE_SERVICE_NAME}
-      db.name: ${DATABASE_NAME}
-      db.password: ${DATABASE_PASSWORD}
-      db.user: ${DATABASE_USER}
-      db.port: "5432"
