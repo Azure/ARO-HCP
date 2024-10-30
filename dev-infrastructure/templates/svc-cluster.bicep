@@ -73,8 +73,20 @@ param deployCsInfra bool
 @maxLength(60)
 param csPostgresServerName string
 
+@description('The name of the database to create for CS')
+param csDatabaseName string
+
 @description('If true, make the CS Postgres instance private')
-param clusterServicePostgresPrivate bool = true
+param csPostgresPrivate bool = true
+
+@description('The name of the cluster service managed identity')
+param csMIName string
+
+@description('The name of the cluster service namespace')
+param csNamespace string
+
+@description('The name of the cluster service service account')
+param csServiceAccountName string
 
 @description('Deploy ARO HCP Maestro Postgres if true')
 param deployMaestroPostgres bool = true
@@ -86,11 +98,23 @@ param maestroPostgresPrivate bool = true
 @maxLength(60)
 param maestroPostgresServerName string
 
+@description('The name of the database to create for Maestro')
+param maestroDatabaseName string
+
 @description('The version of the Postgres server for Maestro')
 param maestroPostgresServerVersion string
 
 @description('The size of the Postgres server for Maestro')
 param maestroPostgresServerStorageSizeGB int
+
+@description('The name of the maestro managed identity')
+param maestroMIName string
+
+@description('The name of themaestro namespace')
+param maestroNamespace string
+
+@description('The name of the maestro service account')
+param maestroServiceAccountName string
 
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
@@ -124,8 +148,6 @@ param aroDevopsMsiId string
 
 @description('This is a regional DNS zone')
 param regionalDNSZoneName string
-
-var clusterServiceMIName = 'clusters-service'
 
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
@@ -168,14 +190,14 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         serviceAccountName: 'backend'
       }
       maestro_wi: {
-        uamiName: 'maestro-server'
-        namespace: 'maestro'
-        serviceAccountName: 'maestro'
+        uamiName: maestroMIName
+        namespace: maestroNamespace
+        serviceAccountName: maestroServiceAccountName
       }
       cs_wi: {
-        uamiName: clusterServiceMIName
-        namespace: 'cluster-service'
-        serviceAccountName: 'clusters-service'
+        uamiName: csMIName
+        namespace: csNamespace
+        serviceAccountName: csServiceAccountName
       }
       image_sync_wi: {
         uamiName: 'image-sync'
@@ -224,6 +246,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
+    maestroDatabaseName: maestroDatabaseName
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     postgresServerPrivate: maestroPostgresPrivate
@@ -273,21 +296,19 @@ module serviceKeyVaultPrivateEndpoint '../modules/private-endpoint.bicep' = {
 //   C L U S T E R   S E R V I C E
 //
 
-var csManagedIdentityPrincipalId = filter(
-  svcCluster.outputs.userAssignedIdentities,
-  id => id.uamiName == clusterServiceMIName
-)[0].uamiPrincipalID
+var csManagedIdentityPrincipalId = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == csMIName)[0].uamiPrincipalID
 
 module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
   name: 'cluster-service'
   params: {
     location: location
     postgresServerName: csPostgresServerName
+    csDatabaseName: csDatabaseName
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
-    postgresServerPrivate: clusterServicePostgresPrivate
+    postgresServerPrivate: csPostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
-    clusterServiceManagedIdentityName: clusterServiceMIName
+    clusterServiceManagedIdentityName: csMIName
   }
   dependsOn: [
     maestroServer
@@ -379,14 +400,14 @@ module acrManageTokenRole '../modules/acr-permissions.bicep' = [
   }
 ]
 
-// oidc
+//   O I D C
 
 module oidc '../modules/oidc/main.bicep' = {
   name: '${deployment().name}-oidc'
   params: {
     location: location
     storageAccountName: oidcStorageAccountName
-    rpMsiName: clusterServiceMIName
+    rpMsiName: csMIName
     skuName: oidcStorageAccountSku
     aroDevopsMsiId: aroDevopsMsiId
     deploymentScriptLocation: location

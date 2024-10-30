@@ -8,7 +8,7 @@ param clusterServiceManagedIdentityName string
 param clusterServiceManagedIdentityPrincipalId string
 
 @description('The name of the database to create for CS')
-param csDatabaseName string = 'clusters-service'
+param csDatabaseName string
 
 @description('The name of the Postgres server for CS')
 param postgresServerName string
