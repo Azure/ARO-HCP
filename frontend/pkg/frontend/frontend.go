@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"golang.org/x/sync/errgroup"
@@ -593,12 +592,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	// Deletion is underway; mark any active operation as canceled.
 	if resourceDoc.ActiveOperationID != "" {
 		updated, err := f.dbClient.UpdateOperationDoc(ctx, resourceDoc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
-			if updateDoc.Status != arm.ProvisioningStateCanceled {
-				updateDoc.LastTransitionTime = time.Now()
-				updateDoc.Status = arm.ProvisioningStateCanceled
-				return true
-			}
-			return false
+			return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, nil)
 		})
 		if err != nil {
 			f.logger.Error(err.Error())

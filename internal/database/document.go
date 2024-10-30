@@ -132,6 +132,20 @@ func (doc *OperationDocument) ToStatus() *arm.Operation {
 	return operation
 }
 
+// UpdateStatus conditionally updates the document if the status given differs
+// from the status already present. If so, it sets the Status and Error fields
+// to the values given, updates the LastTransitionTime, and returns true. This
+// is intended to be used with DBClient.UpdateOperationDoc.
+func (doc *OperationDocument) UpdateStatus(status arm.ProvisioningState, err *arm.CloudErrorBody) bool {
+	if doc.Status != status {
+		doc.LastTransitionTime = time.Now()
+		doc.Status = status
+		doc.Error = err
+		return true
+	}
+	return false
+}
+
 // SubscriptionDocument represents an Azure Subscription document.
 type SubscriptionDocument struct {
 	BaseDocument
