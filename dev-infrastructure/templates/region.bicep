@@ -67,10 +67,5 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maestroKeyVaultName: maestroKeyVaultName
     kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
     publicNetworkAccess: 'Disabled'
-    vnetId: '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/aro-hcp-jboll-westus3/providers/Microsoft.Network/virtualNetworks/test'
-    aksNodeSubnetIds: [
-      '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/aro-hcp-jboll-westus3/providers/Microsoft.Network/virtualNetworks/test/subnets/default'
-      '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/aro-hcp-jboll-westus3/providers/Microsoft.Network/virtualNetworks/test/subnets/default2'
-    ]
   }
 }

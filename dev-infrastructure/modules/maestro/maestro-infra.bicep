@@ -42,11 +42,6 @@ param kvCertOfficerManagedIdentityName string
 ])
 param publicNetworkAccess string = 'Enabled'
 
-@description('The IDs of the subnets to create the private endpoints in.')
-param aksNodeSubnetIds array = ['']
-
-param vnetId string
-
 //
 //   K E Y    V A U L T
 //
@@ -261,66 +256,13 @@ resource maestroConsumersPublishTopicspacePermissionBinding 'Microsoft.EventGrid
 
 var privateDnsZoneName = 'privatelink.ts.eventgrid.azure.net'
 
-resource eventGridPrivatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = [
-  for aksNodeSubnetId in aksNodeSubnetIds: {
-    name: '${eventGridNamespaceName}-${uniqueString(aksNodeSubnetId)}'
-    location: location
-    properties: {
-      privateLinkServiceConnections: [
-        {
-          name: '${eventGridNamespaceName}-private-endpoint'
-          properties: {
-            privateLinkServiceId: eventGridNamespace.id
-            groupIds: [
-              'topicspace'
-            ]
-          }
-        }
-      ]
-      subnet: {
-        id: aksNodeSubnetId
-      }
-    }
-  }
-]
-
+// TODO: find a place for this
 resource eventGridPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
   name: privateDnsZoneName
   location: 'global'
   properties: {}
 }
 
-resource eventGridPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
-  name: uniqueString('eventgrid-${uniqueString(vnetId)}')
-  parent: eventGridPrivateEndpointDnsZone
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: vnetId
-    }
-  }
-}
-
-resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = [
-  for index in range(0, length(aksNodeSubnetIds)): {
-    name: '${eventGridNamespaceName}-dns-group'
-    parent: eventGridPrivatEndpoint[index]
-    properties: {
-      privateDnsZoneConfigs: [
-        {
-          name: 'config1'
-          properties: {
-            privateDnsZoneId: eventGridPrivateEndpointDnsZone.id
-          }
-        }
-      ]
-    }
-    dependsOn: [
-      eventGridPrivateDnsZoneVnetLink
-    ]
-  }
-]
 
 output keyVaultName string = kv.name
 output eventGridNamespaceName string = eventGridNamespace.name

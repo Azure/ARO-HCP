@@ -234,5 +234,25 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
     private: mgmtKeyVaultPrivate
     enableSoftDelete: mgmtKeyVaultSoftDelete
     purpose: 'mgmt'
+
+// 
+//  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
+//
+
+
+resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' existing = {
+  name: maestroEventGridNamespacesName
+}
+
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
+  name: 'eventGridPrivateEndpoint'
+  params: {
+    location: location
+    serviceType: 'eventgrid'
+    subnetIds: [mgmtCluster.outputs.aksNodeSubnetId]
+    privateLinkServiceId: eventGridNamespace.id
+    groupIds: ['topicspaces']
+    privateEndpointDnsZoneName: 'privatelink.ts.eventgrid.azure.net'
+    vnetId: mgmtCluster.outputs.aksVnetId
   }
 }
