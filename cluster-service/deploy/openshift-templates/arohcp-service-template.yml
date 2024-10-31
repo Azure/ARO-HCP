@@ -351,7 +351,13 @@ objects:
   data:
     config.json: |
       {
-        "cloudEnvironment": "AzurePublicCloud"
+        "cloudEnvironment": "AzurePublicCloud",
+        "tenantId": "64dc69e4-d083-49fc-9569-ebece1dd1408",
+        "ocpImagesAcr": {
+          "resourceId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ContainerRegistry/registries/arohcpdev",
+          "url": "arohcpdev.azurecr.io",
+          "scopeMapName": "_repositories_pull"
+        }
       }
 
 - apiVersion: v1
