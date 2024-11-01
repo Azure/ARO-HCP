@@ -1,0 +1,18 @@
+provision_shards:
+- id: 1
+  maestro_config: |
+    {
+      "rest_api_config": {
+        "url": "http://maestro.maestro.svc.cluster.local:8000"
+      },
+      "grpc_api_config": {
+        "url": "maestro-grpc.maestro.svc.cluster.local:8090"
+      },
+      "consumer_name": "{{ .maestroConsumerName }}"
+    }
+  status: active
+  azure_base_domain: "{{ .extraVars.zoneResourceId }}"
+  management_cluster_id: local-cluster
+  region: {{ .region }}
+  cloud_provider: azure
+  topology: dedicated

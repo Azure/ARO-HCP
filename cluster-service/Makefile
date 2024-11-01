@@ -1,106 +1,67 @@
 SHELL = /bin/bash
-AKSCONFIG ?= svc-cluster
+DEPLOY_ENV ?= personal-dev
+$(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
+include config.mk
 
-CONFIG_PROFILE ?= dev
-include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
-
-CONSUMER_NAME ?= $(shell az aks list --query "[?tags.clusterType == 'mgmt-cluster' && starts_with(resourceGroup, '$(REGIONAL_RESOURCEGROUP)')].resourceGroup" -o tsv)
-KEYVAULT_NAME ?= $(shell az keyvault list --query "[?tags.aroHCPPurpose=='service'].name" -g  ${SVC_KV_RESOURCEGROUP} --output tsv)
-FPA_CERT_NAME ?= firstPartyCert
-AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID ?= "57e54810-3138-4f38-bd3b-29cb33f4c358"
-CLUSTERS_SERVICE_IMAGE_TAG ?= "4f12dd5"
-
-# *Warning* if you change any parameter remember to change it in both the deploy and the deploy-using-azure-db targets
-# if they apply to both
-deploy: configure-tmp-provision-shard deploy-namespace-template deploy-istio-configurations-template deploy-secrets-template
-	oc process --local -f deploy/openshift-templates/arohcp-db-template.yml | oc apply -f -
-	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
-			-g ${RESOURCEGROUP} \
-			-n clusters-service \
-			--query clientId) && \
-	AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} && \
-	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
+deploy: deploy-namespace-template deploy-istio-configurations-template ${DB_SECRET_TARGET}
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
+	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "${SERVICE_KV}" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account list --query "[?starts_with(name, 'arohcpoidc')].primaryEndpoints.blob" -g ${RESOURCEGROUP} -o tsv) && \
-	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account list --query "[?starts_with(name, 'arohcpoidc')].primaryEndpoints.web" -g ${RESOURCEGROUP} -o tsv) && \
-	OIDC_CONTAINER="$$web" \
+	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
+	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
+	OIDC_CONTAINER="$$web" && \
+	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
+	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
-		-p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
-		-p TENANT_ID=$${TENANT_ID} \
-		-p REGION=${REGION} \
-		-p SERVICE_KEYVAULT_NAME=${KEYVAULT_NAME} \
-		-p CS_SERVICE_PRINCIPAL_CREDS_BASE64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
-		-p IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}.azurecr.io \
-		-p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
-		-p AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
-		-p FPA_CERT_NAME=${FPA_CERT_NAME} \
-		-p IMAGE_TAG=${CLUSTERS_SERVICE_IMAGE_TAG} \
-		-p DATABASE_DISABLE_TLS=true \
-		-p DATABASE_AUTH_METHOD="postgres" | oc apply -f -
-
-# We temporarily create another target to deploy CS using the Azure Database for PostgreSQL database. This will
-# be redesigned when we move to use Helm templates.
-# *Warning* if you change any parameter remember to change it in both the deploy and the deploy-using-azure-db targets
-# if they apply to both
-deploy-using-azure-db: configure-tmp-provision-shard deploy-namespace-template deploy-istio-configurations-template deploy-secrets-template-using-azure-db
-	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
-			-g ${RESOURCEGROUP} \
-			-n clusters-service \
-			--query clientId) && \
-	AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} && \
-	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "service-kv-aro-hcp-dev" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
-	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account list --query "[?starts_with(name, 'arohcpoidc')].primaryEndpoints.blob" -g ${REGIONAL_RESOURCEGROUP} -o tsv) && \
-	OIDC_WEB_ENDPOINT=$(shell az storage account list --query "[?starts_with(name, 'arohcpoidc')].primaryEndpoints.web" -g ${REGIONAL_RESOURCEGROUP} -o tsv) && \
-	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
-		-p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
-		-p TENANT_ID=$${TENANT_ID} \
-		-p REGION=${REGION} \
-		-p SERVICE_KEYVAULT_NAME=${KEYVAULT_NAME} \
-		-p CS_SERVICE_PRINCIPAL_CREDS_BASE64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
-		-p IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}.azurecr.io \
-		-p IMAGE_REPOSITORY=app-sre/uhc-clusters-service \
-		-p AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
-		-p FPA_CERT_NAME=${FPA_CERT_NAME} \
-		-p IMAGE_TAG=${CLUSTERS_SERVICE_IMAGE_TAG} \
-		-p DATABASE_DISABLE_TLS=false \
-		-p DATABASE_AUTH_METHOD="az-entra" | oc apply -f -
-
-deploy-integ:
-	AZURE_CS_MI_CLIENT_ID=$(shell az identity show \
-		-g ${RESOURCEGROUP} \
-		-n clusters-service \
-		--query clientId) && \
-		oc process --local -f deploy/integration/cluster-service-namespace.yaml \
-			-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
+	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
+	  -p TENANT_ID=$${TENANT_ID} \
+	  -p REGION=${REGION} \
+	  -p SERVICE_KEYVAULT_NAME=${SERVICE_KV} \
+	  -p CS_SERVICE_PRINCIPAL_CREDS_BASE64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
+	  -p IMAGE_REGISTRY=${ACR_NAME}.azurecr.io \
+	  -p IMAGE_REPOSITORY=${IMAGE_REPO} \
+	  -p AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
+	  -p FPA_CERT_NAME=${FPA_CERT_NAME} \
+	  -p IMAGE_TAG=${IMAGE_TAG} \
+	  -p OCP_ACR_RESOURCE_ID=$${OCP_ACR_RESOURCE_ID} \
+	  -p OCP_ACR_URL=$${OCP_ACR_URL} \
+	  -p DATABASE_DISABLE_TLS=${DATABASE_DISABLE_TLS} \
+	  -p DATABASE_AUTH_METHOD=${DATABASE_AUTH_METHOD} | oc apply -f -
 
 deploy-namespace-template:
-	ISTO_VERSION=$(shell az aks list --query "[?tags.clusterType == 'svc-cluster' && starts_with(resourceGroup, '${RESOURCEGROUP}')].serviceMeshProfile.istio.revisions[-1]" -o tsv)  && \
+	ISTO_VERSION=$(shell az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
 	oc process --local -f deploy/openshift-templates/arohcp-namespace-template.yml \
 		-p ISTIO_VERSION=$${ISTO_VERSION} | oc apply -f -
 
 deploy-istio-configurations-template:
 	kubectl apply -f deploy/istio.yml
 
-deploy-secrets-template: configure-tmp-provision-shard
+deploy-local-db-secret: configure-tmp-provision-shard
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
-		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/tmp-provisioning-shard.yml)" | oc apply -f -
+		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/provisioning-shards.yml)" | oc apply -f -
+	oc process --local -f deploy/openshift-templates/arohcp-db-template.yml | oc apply -f -
 
-deploy-secrets-template-using-azure-db: configure-tmp-provision-shard
+deploy-azure-db-secret: configure-tmp-provision-shard
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
 		-p DATABASE_USER=clusters-service \
 		-p DATABASE_NAME=clusters-service \
 		-p DATABASE_PASSWORD="" \
-		-p DATABASE_HOST=$(shell az postgres flexible-server list --resource-group ${RESOURCEGROUP} --query "[?starts_with(name, 'cs-pg-')].fullyQualifiedDomainName" -o tsv) \
-		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/tmp-provisioning-shard.yml)" | oc apply -f -
+		-p DATABASE_HOST=$(shell az postgres flexible-server show --resource-group ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv) \
+		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/provisioning-shards.yml)" | oc apply -f -
 
 configure-tmp-provision-shard:
-	ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
-	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/mvp-provisioning-shards.yml > deploy/tmp-provisioning-shard.yml
+	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
+	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID}
+
+deploy-pr-env-deps:
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
+	oc process --local -f deploy/integration/cluster-service-namespace.yaml \
+		-p CLIENT_ID=${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
 
 # for local development
 provision-shard:
-	@ZONE_RESOURCE_ID=$(shell az network dns zone list -g ${REGIONAL_RESOURCEGROUP} --query "[?zoneType=='Public'].id" -o tsv) && \
-	sed -e "s#ZONE_RESOURCE_ID#$${ZONE_RESOURCE_ID}#g" -e "s/REGION/${REGION}/g" -e "s/CONSUMER_NAME/${CONSUMER_NAME}/g" deploy/dev-provisioning-shards.yml
+	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
+	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID}
+	@cat deploy/provisioning-shards.yml
 
 .PHONY: deploy deploy-using-azure-db deploy-integ provision-shard configure-tmp-provision-shard deploy-secrets-template deploy-secrets-template-using-azure-db deploy-istio-configurations-template deploy-namespace-template

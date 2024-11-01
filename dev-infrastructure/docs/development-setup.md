@@ -11,16 +11,91 @@ The idea of this repo is to provide means to create a development environment th
 * `az` version >= 2.60, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version >= 1.30, `helm`
 * `az login` with your Red Hat email
 * Register the needed [AFEC](https://aka.ms/afec) feature flags using `cd dev-infrastructure && make feature-registration
-    * __NOTE:__ This will take awhile, you will have to wait until they're in a registered state.
+* __NOTE:__ This will take awhile, you will have to wait until they're in a registered state.
 
-## Cluster creation procedure
+## Infrastructure
 
-There are a few variants to chose from when creating an AKS cluster:
+This section describes how to create the infrastructure required to run ARO HCP.
 
-* Service Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Service cluster
-* Management Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Management cluster
+The infrastructure roughly consists of two AKS clusters:
 
-When creating a cluster, also supporting infrastructure is created, e.g. managed identities, permissions, databases, keyvaults, ...
+* Service Cluster: the cluster hosting supporting services for a an ARO HCP region, e.g. the Frontend, Cluster Service, Maestro, etc.
+
+* Management Cluster: the cluster hosting the actual hosted controlplanes and supporting services to provision and manage them
+
+In addition to the clusters, the services require supporting infrastructure as well, consisting of managed identities (and their permissions), Key Vaults, Databases, Networking, DNS, Storage, ...
+
+All this infrastructure is managed by the bicep templates found in the `dev-infrastructure` folder. Despite the name of this folder, these templates are also being used in higher environments (MSFT INT, MSFT PROD) for infrastructure management.
+
+### Shared infrastructure
+
+Every developer creates their own set of service/management clusters, including the supporting infrastructure. This allows for independant development. Certain parts of the infrastructure are shared between developers though for various reasons (cost, ease of management, time):
+
+* Service Key Vault `aro-hcp-dev-svc-kv`: this KV holds various shared secrets that are the same for all developer setups (e.g. 1P app certificates, ARM helper certificates, Quay.io pullsecrets). Some of these need to be recycled occasionally so sharing them allows for a central cycle process. Access to this KV is read-only, therefore sharing is not going to result in conflicts between individual developers. See [SD-DDR-0043](https://docs.google.com/document/d/1YKnMFPFvdIuGpGC1il78O9d3WwTyiVgw7jzCpDTUlII/edit#heading=h.bupciudrwmna) for more details about this KV.
+
+* SVC ACR: this ACR holds mirrored service image to be used by developers. Having these mirrored only once saves time and money. The mirror process for this ACR is driven by the integrated DEV environment. Developers access this ACR read-only, therefore sharing it is not going to result in conflicts.
+
+* OCP ACR: this ACR holds mirrored OCP release payloads. The mirror process for this ACR is driven by the integrated DEV environment. Developers access this ACR read-only, therefore sharing it is not going to result in conflicts.
+
+* Image sync: since we share ACRs, we can also share the image sync deployment
+
+#### Shared SVC KV Secrets
+
+* `acm-d-componentsync-password` and `acm-d-componentsync-username`
+  what: credentials for the `quay.io/acm-d` organization
+  purpose: used for ACR caching to make ACM prerelease images available for ACR HCP
+
+* `quay-componentsync-password` and `quay-componentsync-password`
+  what: credentials for the `quay.io/app-sre` organization
+  purpose: used for ACR caching to make CS sandbox images available to the CS PR check environment
+
+* `quay-password` and `quay-username`
+  what: credentials for the `quay.io/openshift-release-dev` organization
+  purpose: we only sync stable releases with `oc-mirror` but a ACR caching rule makes
+    other releases like nightly available for testing purposes
+
+* `component-sync-pull-secret`
+  what: base64 encoded pull secret for container registries
+  purpose: used by image-sync to mirror component images
+
+* `bearer-secret`
+  what: base64 encoded access token for the `quay.io/app-sre` organization
+  purposes: used by image-sync to mirror component images
+
+* `aro-hcp-dev-sp`
+  what: Azure SP credentials to be used for HCPs
+  purpose: until managed identities are available for HCPs, this is the auth creds
+    for controlplane operators to interact with Azure. This SP has contributer
+    permissions in the subscription
+
+* `aro-hcp-dev-sp-cs`
+  what: the same Azure SP credentials as `aro-hcp-dev-sp` but formatted for CS
+  purpose: until the 1P mock certificate is going to be used by CS to interact
+    with Azure, it will use these static creds instead
+
+* `pull-secret`
+  what: pull secret for quay and redhat registries of user `aro-hcp-service-lifecycle-team+quay@redhat.com`
+  purpose: used by `oc-mirror` to mirror OCP release payloads into the ACR
+
+* `aro-hcp-dev-pull-secret` - can be removed????
+  what: pull secret for quay.io and registry.redhat.io and the `arohcpdev` ACR
+  purpose: this was used during P1 while we still installed clusters from quay.io payloads
+    later it was used to for HCPs to get access to the ACR while CS was not
+    yet creating dedicated pull secrets for them
+  note: since HCPs don't pull from quay or RH registries anymore and CS now creates
+    dedicated pull secrets for the ACR, this should be safe to delete
+
+* `component-pull-secret` - can be removed????
+  what: holds the same a pull secret for quay.io (same as `component-sync-pull-secret`) but
+        with an incomplete one for arohcpdev as well
+
+* `quay-pull-token` - can be removed????
+  what: a quay token
+  purpose: unknown
+
+* `testing` - can be removed????
+  what: foo-bar
+  purpose: unkown
 
 ### Grant yourself Key Vault access
 
@@ -32,90 +107,107 @@ az role assignment create --role "Key Vault Secrets User" --assignee $(az ad sig
 
 Note: you only need to run this once. Re-runing it wont hurt, but it will not change anything.
 
-### Create a Service Cluster
+### Create infrastructure the easy way
 
-The service cluster base configuration to use for development is `configurations/svc-cluster.bicepparam`. Depending on the personal requirements this file offers some features toggles for the main features of the service cluster and the regional resources.
+> A word of caution upfront: dev infrastructure is usually automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`
 
-* `deployFrontendCosmos` - set to `true` if you want a CosmosDB created for the RP
-
-  This also includes managed identity and access permissions
-
-* `deployCsInfra` - set to `true` if you want CS infra to be provisioned, e.g. if you want to develop on RP and run it towards an on-cluster CS
-
-  This includes a Postgres DB and access permissions to the DB and the service KeyVault, as well as the Maestro Server
-  and supporting infrastructure (EventGrid Namespaces instance, Postgres DB and necessary access permissions).
-
-* `persist` - if set to `true` the resourcegroup holding the cluster and the regional resources will not be deleted after a couple of days
-
-Change those flags accordingly and then run the following command. Depending on the selected features, this may take a while:
+To create the service cluster, management cluster and supporting infrastructure run the following command from the root of this repository.
 
   ```bash
-  AKSCONFIG=svc-cluster make cluster
+  SKIP_CONFIRM=1 make infra.all
   ```
 
-Enable metrics for the svc-cluster
-   ```bash
-  AKSCONFIG=svc-cluster make enable-aks-metrics
-   ```
-
-### Create a Management Cluster
-
-The service cluster base configuration to use for development is `configurations/mgmt-cluster.bicepparam`. This parameter file offers feature toggles as well.
-
-* `deployMaestroConsumer` - if set to `true` deploys the required infrastructure to run a Maestro Consumer (TODO find a better name for this flag because it does not deploy the consumer itself).
-
-* `persist` - if set to `true` the resourcegroup holding the cluster will not be deleted after a couple of days
-
-> A Management Cluster depends on certain resources found in the resource group of the Service Cluster. Therefore, a standalone Management Cluster can't be created right now and requires a Service Cluster
+Running this the first time takes around 60 minutes. Afterwards you can access your clusters with
 
   ```bash
-  AKSCONFIG=mgmt-cluster make cluster
+  export KUBECONFIG=$(make infra.svc.aks.kubeconfigfile)
+  export KUBECONFIG=$(make infra.mgmt.aks.kubeconfigfile)
   ```
 
-Enable metrics for the mgmt-cluster
+If you only need a management cluster or service cluster for development work, consider using one of the following commands. They take less time and the resulting infrastructure costs less money
+
   ```bash
-  AKSCONFIG=mgmt-cluster make enable-aks-metrics
+  SKIP_CONFIRM=1 make infra.svc
+  or
+  SKIP_CONFIRM=1 make infra.mgmt
   ```
+
+### Updating infrastructure
+
+To update already existing infrastructure you can run `make infra.all` again. You can also use more fine grained make tasks that finish quicker, e.g.
+
+  ```bash
+  make infra.svc
+  make infra.mgmt
+  ```
+
+### Customizing infra deployment
+
+The basic configuration for infrastructure deployment can be found in the `config/config.yaml` file.
+This file offers multiple levels of overrides depending on cloud and deployment environments.
+
+The base configuration for all Red Hat Azure Subscription based deployments can be found under `clouds.public.environments.rh-dev-tmpl`. This configures the shared infrastructure and component versions to be used in general.
+
+The deployment environment used for personal developer infrastructure is found under `.clouds.public.environments.personal-dev`. It inherits from `rh-dev-tmpl` and defines certain overrides.
 
 ### Access AKS clusters
 
-   ```bash
-   AKSCONFIG=svc-cluster make aks.admin-access  # one time
-   AKSCONFIG=svc-cluster make aks.kubeconfig
-   AKSCONFIG=svc-cluster export KUBECONFIG=${HOME}/.kube/${AKSCONFIG}.kubeconfig
-   kubectl get ns
-   ```
+Running `make infra.all` will provide you with cluster admin on your clusters and kubeconfig files being created under `~/.kube`. The kubeconfigs are named after the resource group name that holds the cluster. The term `svc` and `mgmt` used in these filesnames indicate what cluster they are for.
 
-   (Replace svc with mgmt for management clusters)
+Please not that these kubeconfig files require an active Azure CLI session (`az login`) to work properly.
 
-### Access cluster via the Azure portal or via `az aks command invoke`
+If you loose these files, you can recreate them by running
 
   ```bash
-  AKSCONFIG=svc-cluster make aks.admin-access  # one time
-  az aks command invoke ...
+  make -f dev-infrastructure/Makefile svc.aks.admin-access svc.aks.kubeconfig
+  or
+  make -f dev-infrastructure/Makefile mgmt.aks.admin-access mgmt.aks.kubeconfig
   ```
+
+> Freshly granted cluster admin permissions might not be effective immediately. If you get permission denied errors on your `kubectl` commands, consider waiting a couple of minutes for the permissons to be propagated
 
 ### Cleanup
 
-> Please note that all resource groups not tagged with `persist=true` will be deleted by our cleanup pipeline after 48 hours
+To clean up the entire infrastructure of a personal dev environment, run the following command
 
-Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azure
+  ```bash
+  make infra.clean
+  ```
 
-   ```bash
-   AKSCONFIG=svc-cluster make clean
-   ```
+There are more fine grained cleanup tasks available as well
+
+  ```bash
+  make infra.svc.clean
+  make infra.mgmt.clean
+  make infra.region.clean
+  make infra.imagesync.clean
+  ```
+
+> Please note that all resource groups not tagged with `persist=true` will be deleted by our cleanup pipeline after 48 hours. In order to prevent that from happening, run the infrastructure deployment make targets with a `PERSIST=true` env variable defined
+
+## Deploying Services quick and easy
+
+To followup sections describe how to deploy the components individually. But if you are looking for a quick and easy way to install or update ALL components on both clusters with one command, then run this:
+
+  ```bash
+  make deploy.svc.all
+  make deploy.mgmt.all
+  ```
+
+Or even simpler with
+
+  ```bash
+  make deploy.all
+  ```
 
 ## Deploy Services to the service cluster
-
-> Make sure your `KUBECONFIG` points to the service cluster!!!
 
 > The service cluster has no ingress. To interact with the services you deploy use `kubectl port-forward`
 
 ### Maestro Server
 
   ```bash
-  cd maestro
-  AKSCONFIG=svc-cluster make deploy-server
+  make maestro.server.deploy
   ```
 
 To validate, have a look at the `maestro` namespace on the service cluster. Some pod restarts are expected in the first 1 minute until the containerized DB is ready.
@@ -129,66 +221,51 @@ To access the HTTP and GRPC endpoints of maestro, run
 
 ### Cluster Service
 
-> This might not work with oc 4.17.0, please use oc 4.16.x until this is fixed in 4.17
-> 
-Deploy CS:
+> This might not work with `oc` 4.17.0, please use oc 4.16.x until this is fixed in 4.17
+
    ```bash
-   cd cluster-service/
-   make deploy
+   make cs.deploy
    ```
 
-To validate, have a look at the `cluster-service` namespace.
+To validate, have a look at the `cluster-service` namespace or the service cluster.
 
-### Resource Provider
+### Resource Provider / Frontend
 
 The ARO-HCP resource provider consists of independent frontend and backend components.
 
   ```bash
-  cd frontend/
-  make deploy
-  ```
-
-  ```bash
-  cd backend/
-  make deploy
+  make rp.frontend.deploy
+  make rp.backend.deploy
   ```
 
 To validate, have a look at the `aro-hcp` namespace on the service cluster.
 
 ## Deploy Services to the management cluster
 
-> Make sure your `KUBECONFIG` points to the management cluster!!!
-
 ### ACM
 
   ```bash
-  cd acm
-  make deploy
+  make acm.deploy
   ```
 
 ### Hypershift Operator and External DNS
 
   ```bash
-  cd hypershiftoperator/
-  make deploy
+  make hypershift.deploy
   ```
 
-## Maestro Agent
+### Maestro Agent
 
 First install the agent
 
   ```bash
-  cd maestro
-  AKSCONFIG=mgmt-cluster make deploy-agent
+  make maestro.agent.deploy
   ```
 
 Then register it with the Maestro Server
 
-Make sure your `KUBECONFIG` points to the service cluster, then run
-
   ```bash
-  cd maestro
-  AKSCONFIG=svc-cluster make register-agent
+  make maestro.registration.deploy
   ```
 
 ## CS Local Development Setup
@@ -495,37 +572,29 @@ Users require membership in the `aro-hcp-engineering` group to read secrets.  Th
   az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
   ```
 
-In case the `aro-hcp-dev-svc-kv` KV gets recreated as part of a DEV environment recreation, the lost secrets can be replayed from the `aro-hcp-dev-global-kv` KV by ensuring you have `Secret Officer` permissions in the target KV and running
-
-```sh
-dev-infrastructure/scripts/import-kv.sh aro-hcp-dev-global-kv aro-hcp-dev-svc-kv
-```
-
 ### Access integrated DEV environment
 
 The integrated DEV environment is hosted in `westus3` and consists of
 
-* the RG `aro-hcp-dev-westus3` containing shared regional resources (regional DNS zone, Maestro Eventgrid, Maestro KV)
-* the RG `aro-hcp-dev-westus3-sc` the AKS service cluster and the resources required by the service components running on the SC (Postgres for Maestro Server, Postgres for Cluster Service, CosmosDB for RP, Service Key Vault, ...)
-* the RG `aro-hcp-dev-westus3-mc-1` containing the AKS mgmt cluster
-* the ACR `devarohcp` running in the `global` RG
+* the RG `hcp-underlay-westus3-dev` containing shared regional resources (regional DNS zone, Maestro Eventgrid, Maestro KV)
+* the RG `hcp-underlay-westus3-svc-dev` the AKS service cluster and the resources required by the service components running on the SC (Postgres for Maestro Server, Postgres for Cluster Service, CosmosDB for RP, Service Key Vault, ...)
+* the RG `hcp-underlay-westus3-mgmt-dev-1` containing the AKS mgmt cluster
+* the shared ACRs `arohcpsvcdev` and `arohcpocpdev` running in the `global` RG
 
 To access the SC run
 
 ```sh
-AKSCONFIG=svc-cluster RESOURCEGROUP=aro-hcp-dev-westus3-sc make aks.admin-access # run one
-AKSCONFIG=svc-cluster RESOURCEGROUP=aro-hcp-dev-westus3-sc make aks.kubeconfig
-export KUBECONFIG=${HOME}/.kube/svc-cluster.kubeconfig
+DEPLOY_ENV=dev make svc.aks.admin-access svc.aks.kubeconfig
+export KUBECONFIG=$(DEPLOY_ENV=dev make svc.aks.kubeconfigfile)
 kubectl get ns
 ```
 
 To access the MC run
 
 ```sh
-AKSCONFIG=mgmt-cluster RESOURCEGROUP=aro-hcp-dev-westus3-mc-1 make aks.admin-access # run one
-AKSCONFIG=mgmt-cluster RESOURCEGROUP=aro-hcp-dev-westus3-mc-1 make aks.kubeconfig
-export KUBECONFIG=${HOME}/.kube/mgmt-cluster.kubeconfig
+DEPLOY_ENV=dev make mgmt.aks.admin-access mgmt.aks.kubeconfig
+export KUBECONFIG=$(DEPLOY_ENV=dev make mgmt.aks.kubeconfigfile)
 kubectl get ns
 ```
 
-> It might take a couple of minutes for the permissions created by `make aks.admin-access` to take effect.
+> It might take a couple of minutes for the permissions created by `make xxx.aks.admin-access` to take effect.

@@ -20,6 +20,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "resources location")
 	cmd.Flags().StringVar(&opts.RegionStamp, "region-stamp", opts.RegionStamp, "region stamp")
 	cmd.Flags().StringVar(&opts.CXStamp, "cx-stamp", opts.CXStamp, "CX stamp")
+	cmd.Flags().StringToStringVar(&opts.ExtraVars, "extra-args", opts.ExtraVars, "Extra arguments to be used config templating")
 	return nil
 }
 
@@ -31,6 +32,7 @@ type RawOptions struct {
 	Region      string
 	RegionStamp string
 	CXStamp     string
+	ExtraVars   map[string]string
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
@@ -58,7 +60,7 @@ type ValidatedOptions struct {
 
 func (o *ValidatedOptions) Complete() (*Options, error) {
 	cfg := config.NewConfigProvider(o.ConfigFile, o.Region, o.RegionStamp, o.CXStamp)
-	vars, err := cfg.GetVariables(o.Cloud, o.DeployEnv)
+	vars, err := cfg.GetVariables(o.Cloud, o.DeployEnv, o.ExtraVars)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get variables for cloud %s: %w", o.Cloud, err)
 	}

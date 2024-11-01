@@ -1,8 +1,7 @@
 SHELL = /bin/bash
-
-AKSCONFIG ?= mgmt-cluster
-CONFIG_PROFILE ?= dev
-include ../dev-infrastructure/configurations/$(CONFIG_PROFILE).mk
+DEPLOY_ENV ?= personal-dev
+$(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
+include config.mk
 
 MCE_OPERATOR_BUNDLE_IMAGE ?= quay.io/acm-d/mce-operator-bundle:v2.7.0-110
 REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d-mce

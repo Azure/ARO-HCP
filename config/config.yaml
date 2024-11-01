@@ -1,0 +1,156 @@
+defaults:
+  region: {{ .ctx.region }}
+  # Resourcegroups
+  globalRG: global
+  regionRG: hcp-underlay-{{ .ctx.region }}-{{ .ctx.regionStamp }}
+  serviceClusterRG: hcp-underlay-{{ .ctx.region }}-{{ .ctx.regionStamp }}-svc
+  managementClusterRG: hcp-underlay-{{ .ctx.region }}-{{ .ctx.regionStamp }}-mgmt-{{ .ctx.cxStamp }}
+  imageSyncRG: hcp-underlay-{{ .ctx.region }}-{{ .ctx.regionStamp }}-imagesync
+
+  # General AKS config
+  kubernetesVersion: 1.30.5
+  istioVersion: "['asm-1-22']"
+  vnetAddressPrefix: "10.128.0.0/14"
+  subnetPrefix: "10.128.8.0/21"
+  podSubnetPrefix: "10.128.64.0/18"
+  aksName: aro-hcp-aks
+
+  # ACR
+  serviceComponentAcrResourceGroups: global
+
+  # SVC cluster specifics
+  svcEtcdKVName: {{ azureKeyVaultName "aro-hcp-etcd" 5 .ctx.region .ctx.regionStamp }}
+  svcEtcdKVSoftDelete: true
+
+  # MGMT cluster specifics
+  mgmtEtcdKVName: {{ azureKeyVaultName "aro-hcp-etcd" 5 .ctx.region .ctx.regionStamp .ctx.cxStamp }}
+  mgmtEtcdKVSoftDelete: true
+
+  # Frontend
+  frontendCosmosDBDeploy: true
+  frontendCosmosDBDisableLocalAuth: true
+  frontendCosmosDBName: {{ azureCosmosDBName "aro-hcp-rp" 5 .ctx.region .ctx.regionStamp }}
+
+  # Maestro
+  maestroKeyVaultName: {{ azureKeyVaultName "maestro" 5 .ctx.region .ctx.regionStamp }}
+  maestroEventgridName: {{ azureEventGridName "maestro" 5 .ctx.region .ctx.regionStamp }}
+  maestroEventGridMaxClientSessionsPerAuthName: '4'
+  maestroCertDomain: 'selfsigned.maestro.keyvault.azure.com'
+  maestroPostgresName: {{ azurePostgresName "maestro" 5 .ctx.region .ctx.regionStamp }}
+  maestroPostgresServerVersion: '15'
+  maestroPostgresServerStorageSizeGB: '32'
+  maestroPostgresDeploy: true
+  maestroPostgresPrivate: false
+  maestroRestrictIstioIngress: true
+  maestroConsumerName: hcp-underlay-{{ .ctx.region }}-{{ .ctx.regionStamp }}-mgmt-{{ .ctx.cxStamp }}
+
+  # Cluster Service
+  clusterServicePostgresName: {{ azurePostgresName "cs" 5 .ctx.region .ctx.regionStamp }}
+  clusterServicePostgresDeploy: true
+  clusterServicePostgresPrivate: false
+  clusterServiceAcrRG: global
+
+  # Image Sync
+  imageSyncAcrRG: global
+  imageSyncEnvironmentName: aro-hcp-image-sync
+  imageSyncRepositories: registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service
+  imageSyncImageRepo: image-sync/component-sync
+  imageSyncImageTag: latest
+  ocMirrorImageRepo: image-sync/oc-mirror
+  ocMirrorImageTag: 7abc8af
+
+  # Service KeyVault
+  serviceKeyVaultName: {{ azureKeyVaultName "svc-kv" 5 .ctx.region .ctx.regionStamp }}
+  serviceKeyVaultRG: hcp-underlay-{{ .ctx.region }}-svc-{{ .ctx.regionStamp }}
+  serviceKeyVaultRegion: {{ .ctx.region }}
+  serviceKeyVaultSoftDelete: true
+  serviceKeyVaultPrivate: true
+
+  # DNS
+  baseDnsZoneRG: 'global'
+clouds:
+  fairfax:
+    defaults:
+  public:
+    defaults:
+    environments:
+      rh-dev-tmpl:
+        # this configuration serves as a template for for all RH DEV subscription deployments
+        # the following vars need approprivate overrides:
+        # - regionalDNSSubdomain
+        default: &rh-dev-tmpl
+          # DNS
+          baseDnsZoneName: 'hcp.osadev.cloud'
+          # MGMTM AKS nodepools - big enough for 2 HCPs
+          mgmtSystemAgentPoolMinCount: 1
+          mgmtSystemAgentPoolMaxCount: 4
+          mgmtSystemAgentPoolVmSize: 'Standard_D2s_v3'
+          mgmtSystemAgentPoolOsDiskSizeGB: 32
+          mgmtUserAgentPoolMinCount: 1
+          mgmtUserAgentPoolMaxCount: 6
+          mgmtUserAgentPoolVmSize: 'Standard_D4s_v3'
+          mgmtUserAgentPoolOsDiskSizeGB: 100
+          mgmtUserAgentPoolAzCount: 3
+          # 1P app
+          firstPartyAppClientId: 57e54810-3138-4f38-bd3b-29cb33f4c358
+          # Maestro
+          maestroPostgresDeploy: false
+          maestroImageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+          maestroImageTag: ea066c250a002f0cc458711945165591bc9f6d3f
+          # Cluster Service
+          clusterServiceImageTag: 4f12dd5
+          clusterServiceImageRepo: app-sre/uhc-clusters-service
+          # Hypershift Operator
+          hypershiftOperatorImageTag: 99a256f
+          externalDNSImageTag: v0.14.2
+          # Shared SVC KV
+          serviceKeyVaultName: 'aro-hcp-dev-svc-kv'
+          serviceKeyVaultRG: 'global'
+          serviceKeyVaultRegion: 'westus3'
+          serviceKeyVaultPrivate: false
+          # disable soft delete on etcd KVs in DEV
+          svcEtcdKVSoftDelete: false
+          mgmtEtcdKVSoftDelete: false
+          # Shared ACRs
+          acrName: arohcpdev
+          svcAcrName: arohcpsvcdev
+          ocpAcrName: arohcpocpdev
+          # Shared Image Sync
+          imageSyncRG: hcp-underlay-westus3-imagesync-dev
+          # OIDC
+          oidcStorageAccountName: {{ azureStorageAccountName "arohcpoidc" 5 .ctx.region .ctx.regionStamp }}
+          # Metrics
+          monitoringWorkspaceName: 'aro-hcp-monitor-{{ uniqueString 5 .ctx.region .ctx.regionStamp}}'
+          grafanaName: 'aro-hcp-grafana-{{ uniqueString 5 .ctx.region .ctx.regionStamp}}'
+          monitoringMsiName: 'aro-hcp-metrics-msi-{{ uniqueString 5 .ctx.region .ctx.regionStamp }}'
+          grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
+          # DEVOPS MSI
+          aroDevopsMsiId: '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops'
+      dev:
+        # this is the integrated DEV environment
+        defaults:
+          <<: *rh-dev-tmpl
+          # MGMTM AKS nodepools - big enough for multiple HCPs
+          mgmtUserAgentPoolMinCount: 2
+          mgmtUserAgentPoolMaxCount: 12
+          # DNS
+          regionalDNSSubdomain: '{{ .ctx.region }}'
+      cs-pr:
+        # this is the cluster service PR check and full cycle test environment
+        defaults:
+          <<: *rh-dev-tmpl
+          # MGMTM AKS nodepools - big enough for multiple HCPs
+          mgmtUserAgentPoolMinCount: 2
+          mgmtUserAgentPoolMaxCount: 12
+          # DNS
+          regionalDNSSubdomain: '{{ .ctx.region }}-cs'
+          # Maestro
+          maestroRestrictIstioIngress: false
+      personal-dev:
+        # this is the personal DEV environment
+        defaults:
+          <<: *rh-dev-tmpl
+          # Cluster Service
+          clusterServicePostgresDeploy: false
+          # DNS
+          regionalDNSSubdomain: '{{ .ctx.region }}-{{ uniqueString 5 .ctx.region .ctx.regionStamp }}'

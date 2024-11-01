@@ -34,9 +34,8 @@ docker run -p 8443:8443 aro-hcp-frontend
 
 **In Cluster:**
 ```bash
-# Requires kustomize CLI to be installed
-AKSCONFIG=svc-cluster make deploy
-AKSCONFIG=svc-cluster make undeploy
+make deploy
+make undeploy
 ```
 
 > To create a cluster, follow the instructions in [development-setup.md](../dev-infrastructure/docs/development-setup.md)

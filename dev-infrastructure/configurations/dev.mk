@@ -1,9 +1,0 @@
-REGION ?= westus3
-RESOURCEGROUP ?= aro-hcp-$(USER)-$(REGION)-$(AKSCONFIG)
-REGIONAL_RESOURCEGROUP ?= aro-hcp-$(USER)-$(REGION)
-SVC_KV_RESOURCEGROUP ?= global
-GLOBAL_RESOURCEGROUP ?= global
-IMAGE_SYNC_RESOURCEGROUP ?= aro-hcp-image-sync-$(USER)-$(REGION)
-IMAGE_SYNC_ENVIRONMENT ?= image-sync-env-sxo4oqbcjiekg
-ARO_HCP_IMAGE_ACR ?= arohcpdev
-REPOSITORIES_TO_SYNC ?= '{registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/pstefans/controlplaneoperator,quay.io/app-sre/uhc-clusters-service}'

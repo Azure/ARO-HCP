@@ -1,0 +1,10 @@
+configurations/mgmt-cluster.bicepparam
+configurations/svc-cluster.bicepparam
+configurations/region.bicepparam
+configurations/metrics.bicepparam
+configurations/acr-svc.bicepparam
+configurations/acr-ocp.bicepparam
+configurations/image-sync.bicepparam
+configurations/dev-role-assignments.bicepparam
+configurations/cs-integ-msi.bicepparam
+config.mk
