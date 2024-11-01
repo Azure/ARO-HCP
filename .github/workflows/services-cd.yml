@@ -103,7 +103,7 @@
         - name: 'Deploy CS PR check environment dressup'
           if: inputs.deploy_cs_pr_check_deps
           run: |
-            ./svc-deploy.sh $(DEPLOY_ENV) cluster-service svc deploy-pr-env-deps
+            ./svc-deploy.sh ${DEPLOY_ENV} cluster-service svc deploy-pr-env-deps
 
     deploy_to_management_cluster:
       permissions:

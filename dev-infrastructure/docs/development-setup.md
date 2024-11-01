@@ -102,7 +102,7 @@ Every developer creates their own set of service/management clusters, including 
 In order to access shared Service Principle credentials you need access to the Key Vault. To grant yourself access, run
 
 ```bash
-az role assignment create --role "Key Vault Secrets User" --assignee $(az ad signed-in-user show --query id -o tsv) --scope $(az keyvault show --name service-kv-aro-hcp-dev --query id -o tsv)
+az role assignment create --role "Key Vault Secrets User" --assignee $(az ad signed-in-user show --query id -o tsv) --scope $(az keyvault show --name aro-hcp-dev-svc-kv --query id -o tsv)
 ```
 
 Note: you only need to run this once. Re-runing it wont hurt, but it will not change anything.
@@ -149,6 +149,14 @@ This file offers multiple levels of overrides depending on cloud and deployment 
 The base configuration for all Red Hat Azure Subscription based deployments can be found under `clouds.public.environments.rh-dev-tmpl`. This configures the shared infrastructure and component versions to be used in general.
 
 The deployment environment used for personal developer infrastructure is found under `.clouds.public.environments.personal-dev`. It inherits from `rh-dev-tmpl` and defines certain overrides.
+
+You can inspect the final results of configuration value overrides by running
+
+  ```bash
+  ./templatize.sh <DEPLOY_ENV> | jq
+  e.g.
+  ./templatize.sh personal-dev | jq
+  ```
 
 ### Access AKS clusters
 
