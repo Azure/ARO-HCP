@@ -12,7 +12,7 @@ on:
       - 'dev-infrastructure/**/*.bicep'
       - 'dev-infrastructure/**/*.bicepparam'
       - 'dev-infrastructure/Makefile'
-      - '.github/workflows/aro-hcp-dev-bicep-what-if.yml'
+      - '.github/workflows/aro-hcp-dev-what-if.yml'
 
 jobs:
   what-if:
