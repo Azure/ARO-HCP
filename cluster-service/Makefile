@@ -56,7 +56,7 @@ configure-tmp-provision-shard:
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
 	oc process --local -f deploy/integration/cluster-service-namespace.yaml \
-		-p CLIENT_ID=${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
+		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
 
 # for local development
 provision-shard:
