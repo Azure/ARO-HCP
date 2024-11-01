@@ -12,7 +12,7 @@ on:
       - 'dev-infrastructure/**/*.bicep'
       - 'dev-infrastructure/**/*.bicepparam'
       - 'dev-infrastructure/Makefile'
-      - '.github/workflows/cs-pr-bicep-what-if.yml'
+      - '.github/workflows/cs-pr-what-if.yml'
 
 jobs:
   what-if:
