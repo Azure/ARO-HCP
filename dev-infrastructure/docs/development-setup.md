@@ -143,12 +143,47 @@ To update already existing infrastructure you can run `make infra.all` again. Yo
 
 ### Customizing infra deployment
 
-The basic configuration for infrastructure deployment can be found in the `config/config.yaml` file.
-This file offers multiple levels of overrides depending on cloud and deployment environments.
+The basic configuration for infrastructure deployment can be found in the `config/config.yaml` file. It holds configuration key/value pairs that can be used in bicep parameter template files (`*.tmpl.bicepparam`) and Makefile config template file (`config.tmpl.mk`).
 
-The base configuration for all Red Hat Azure Subscription based deployments can be found under `clouds.public.environments.rh-dev-tmpl`. This configures the shared infrastructure and component versions to be used in general.
+The configuration file offers multiple levels of overrides depending on cloud, deployment environments and regions.
 
-The deployment environment used for personal developer infrastructure is found under `.clouds.public.environments.personal-dev`. It inherits from `rh-dev-tmpl` and defines certain overrides.
+* `cloud` allows to distinguish between the Azure public cloud and Fairfax.
+* `envionment` describes a deployment environment archetype, e.g. production deployment, integrated DEV deployment, CS PR check deployment or personal DEV deployment
+
+The following describes the sections where configuration data and overwrites can be defined.
+
+```yaml
+defaults: (1)
+  subnetPrefix: "10.128.8.0/21"
+  podSubnetPrefix: "10.128.64.0/18"
+  clusterServicePostgresPrivate: true
+  maxHCPPerMC: 100
+clouds:
+  public: (2)
+    defaults: (3)
+      baseDnsZoneName: "arohcp.azure.com"
+    environments:
+      personal-dev: (4)
+        defaults:
+          baseDnsZoneName: "hcp.osadev.cloud" (5)
+      production:
+        defaults:
+        regions:
+          westus3: (6)
+            defaults:
+              maxHCPPerMC: 100
+```
+
+* (1) `.defaults` provides the most general configurations that should serve most environments
+* (2) `.clouds.${cloud}` inherits from `.defaults`
+* (3) ... and allow overrides and introduction of new configuration
+* (4) deployment environments inherit configuration from their cloud and the global defaults
+* (5) ... and allow overrides and introduction of new configuration
+* (6) regional overrides customize a deployment environment to accomoate for regional specifics
+
+The base configuration for all Red Hat Azure Subscription based deployments can be found under `clouds.public.defaults`. This configures the shared infrastructure and component versions to be used in general.
+
+The deployment environment used for personal developer infrastructure is found under `.clouds.public.environments.personal-dev`. It inherits the lgobal configuration from `defaults` and the cloud specific ones under `clouds.public.defaults`.
 
 You can inspect the final results of configuration value overrides by running
 
