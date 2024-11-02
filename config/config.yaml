@@ -60,11 +60,22 @@ defaults:
   ocMirrorImageTag: 7abc8af
 
   # Service KeyVault
-  serviceKeyVaultName: {{ azureKeyVaultName "svc-kv" 5 .ctx.region .ctx.regionStamp }}
+  serviceKeyVaultName: {{ azureKeyVaultName "aro-hcp-svc" 5 .ctx.region .ctx.regionStamp }}
   serviceKeyVaultRG: hcp-underlay-{{ .ctx.region }}-svc-{{ .ctx.regionStamp }}
   serviceKeyVaultRegion: {{ .ctx.region }}
   serviceKeyVaultSoftDelete: true
   serviceKeyVaultPrivate: true
+
+  # Management Cluster KV
+  cxKeyVaultName: {{ azureKeyVaultName "aro-hcp-cx" 5 .ctx.region .ctx.regionStamp .ctx.cxStamp }}
+  cxKeyVaultSoftDelete: true
+  cxKeyVaultPrivate: true
+  msiKeyVaultName: {{ azureKeyVaultName "aro-hcp-msi" 5 .ctx.region .ctx.regionStamp .ctx.cxStamp }}
+  msiKeyVaultSoftDelete: true
+  msiKeyVaultPrivate: true
+  mgmtKeyVaultName: {{ azureKeyVaultName "aro-hcp-mgmt" 5 .ctx.region .ctx.regionStamp .ctx.cxStamp }}
+  mgmtKeyVaultSoftDelete: true
+  mgmtKeyVaultPrivate: true
 
   # DNS
   baseDnsZoneRG: 'global'
@@ -102,6 +113,13 @@ clouds:
       serviceKeyVaultRG: 'global'
       serviceKeyVaultRegion: 'westus3'
       serviceKeyVaultPrivate: false
+      # Management Cluster KVs
+      cxKeyVaultSoftDelete: false
+      cxKeyVaultPrivate: false
+      msiKeyVaultSoftDelete: false
+      msiKeyVaultPrivate: false
+      mgmtKeyVaultSoftDelete: false
+      mgmtKeyVaultPrivate: false
       # disable soft delete on etcd KVs in DEV
       svcEtcdKVSoftDelete: false
       mgmtEtcdKVSoftDelete: false
