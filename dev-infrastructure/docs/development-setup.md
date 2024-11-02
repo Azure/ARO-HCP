@@ -107,40 +107,6 @@ az role assignment create --role "Key Vault Secrets User" --assignee $(az ad sig
 
 Note: you only need to run this once. Re-runing it wont hurt, but it will not change anything.
 
-### Create infrastructure the easy way
-
-> A word of caution upfront: dev infrastructure is usually automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`
-
-To create the service cluster, management cluster and supporting infrastructure run the following command from the root of this repository.
-
-  ```bash
-  SKIP_CONFIRM=1 make infra.all
-  ```
-
-Running this the first time takes around 60 minutes. Afterwards you can access your clusters with
-
-  ```bash
-  export KUBECONFIG=$(make infra.svc.aks.kubeconfigfile)
-  export KUBECONFIG=$(make infra.mgmt.aks.kubeconfigfile)
-  ```
-
-If you only need a management cluster or service cluster for development work, consider using one of the following commands. They take less time and the resulting infrastructure costs less money
-
-  ```bash
-  SKIP_CONFIRM=1 make infra.svc
-  or
-  SKIP_CONFIRM=1 make infra.mgmt
-  ```
-
-### Updating infrastructure
-
-To update already existing infrastructure you can run `make infra.all` again. You can also use more fine grained make tasks that finish quicker, e.g.
-
-  ```bash
-  make infra.svc
-  make infra.mgmt
-  ```
-
 ### Customizing infra deployment
 
 The basic configuration for infrastructure deployment can be found in the `config/config.yaml` file. It holds configuration key/value pairs that can be used in bicep parameter template files (`*.tmpl.bicepparam`) and Makefile config template file (`config.tmpl.mk`).
@@ -183,7 +149,7 @@ clouds:
 
 The base configuration for all Red Hat Azure Subscription based deployments can be found under `clouds.public.defaults`. This configures the shared infrastructure and component versions to be used in general.
 
-The deployment environment used for personal developer infrastructure is found under `.clouds.public.environments.personal-dev`. It inherits the lgobal configuration from `defaults` and the cloud specific ones under `clouds.public.defaults`.
+The deployment environment used for personal developer infrastructure is found under `.clouds.public.environments.personal-dev`. It inherits the global configuration from `defaults` and the cloud specific ones under `clouds.public.defaults`.
 
 You can inspect the final results of configuration value overrides by running
 
@@ -191,6 +157,55 @@ You can inspect the final results of configuration value overrides by running
   ./templatize.sh <DEPLOY_ENV> | jq
   e.g.
   ./templatize.sh personal-dev | jq
+  ```
+
+If you introduce change to `config.yaml`, run the following command and review the change to the json files in the `config` directory. Make sure all changes are expected and only then commit them to be part of of your next PR (otherwise the PR check will fail):
+
+   ```bash
+   cd config
+   make detect-change
+   ```
+
+### Before creating infrastructure
+
+> A word of caution upfront: dev infrastructure is usually automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
+
+All the following make commands will asume that you want to deploy a `personal-dev` environment in the public cloud section. If you want to deploy/update/interact with other deployment environments, define an environment variable `DEPLOY_ENV=the-env-name`.
+
+* if you want to interact with the integrated DEV environment use `DEPLOY_ENV=dev make ...`
+* if you want to interact with the CS PR check environment use `DEPLOY_ENV=cs-pr make ...`
+* if you want to interact with the personal DEV environment of a collague use `USER=other-user DEPLOY_ENV=personal-dev make ...`
+
+### Create infrastructure the easy way
+
+To create the service cluster, management cluster and supporting infrastructure run the following command from the root of this repository.
+
+  ```bash
+  SKIP_CONFIRM=1 make infra.all
+  ```
+
+Running this the first time takes around 60 minutes. Afterwards you can access your clusters with
+
+  ```bash
+  export KUBECONFIG=$(make infra.svc.aks.kubeconfigfile)
+  export KUBECONFIG=$(make infra.mgmt.aks.kubeconfigfile)
+  ```
+
+If you only need a management cluster or service cluster for development work, consider using one of the following commands. They take less time and the resulting infrastructure costs less money
+
+  ```bash
+  SKIP_CONFIRM=1 make infra.svc
+  or
+  SKIP_CONFIRM=1 make infra.mgmt
+  ```
+
+### Updating infrastructure
+
+To update already existing infrastructure you can run `make infra.all` again. You can also use more fine grained make tasks that finish quicker, e.g.
+
+  ```bash
+  make infra.svc
+  make infra.mgmt
   ```
 
 ### Access AKS clusters
