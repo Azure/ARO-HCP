@@ -45,7 +45,7 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
 //
 // R E G I O N A L   D N S   Z O N E
 //
-
+/*
 resource regionalZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: '${regionalDNSSubdomain}.${baseDNSZoneName}'
   location: 'global'
@@ -60,6 +60,7 @@ module regionalZoneDelegation '../modules/dns/zone-delegation.bicep' = {
     parentZoneName: baseDNSZoneName
   }
 }
+*/
 
 //
 // M A E S T R O

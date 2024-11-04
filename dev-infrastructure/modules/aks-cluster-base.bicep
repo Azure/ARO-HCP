@@ -237,7 +237,8 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
         osSKU: 'AzureLinux'
         mode: 'System'
         enableAutoScaling: true
-        enableEncryptionAtHost: true
+        // enableEncryptionAtHost: true
+        enableEncryptionAtHost: false
         enableFIPS: true
         enableNodePublicIP: false
         kubeletDiskType: 'OS'
@@ -316,7 +317,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
     }
     securityProfile: {
       azureKeyVaultKms: {
-        enabled: true
+        enabled: false
         keyId: aks_etcd_kms.properties.keyUriWithVersion
         keyVaultNetworkAccess: 'Public'
       }
@@ -372,7 +373,8 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       osSKU: 'AzureLinux'
       mode: 'User'
       enableAutoScaling: true
-      enableEncryptionAtHost: true
+      // enableEncryptionAtHost: true
+      enableEncryptionAtHost: false
       enableFIPS: true
       enableNodePublicIP: false
       kubeletDiskType: 'OS'
@@ -406,6 +408,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
 // by acrResourceGroups
 //
 
+/*
 var acrPullRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
@@ -428,6 +431,7 @@ module acrPullRole 'acr-permissions.bicep' = [
     }
   }
 ]
+*/
 
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
   for wi in workloadIdentities: {

@@ -6,3 +6,5 @@ param msiName = 'aro-hcp-metrics-msi-${take(uniqueString(readEnvironmentVariable
 
 // overriden in makefile
 param globalResourceGroup = ''
+param currentPrincipalID = ''
+param currentPrincipalType = ''

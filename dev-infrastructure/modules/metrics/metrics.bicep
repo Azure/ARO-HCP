@@ -5,6 +5,12 @@ param currentUserId string = ''
 @description('Metrics global resource group name')
 param globalResourceGroup string
 
+@description('Captures logged in user principal ID')
+param currentPrincipalID string
+
+@description('Captures logged in user principal type')
+param currentPrincipalType string
+
 @description('Metrics global MSI name')
 param msiName string = take('metrics-admin-${uniqueString(currentUserId)}', 20)
 
@@ -15,8 +21,8 @@ param monitorName string = take('aro-hcp-monitor-${uniqueString(currentUserId)}'
 param grafanaName string = take('aro-hcp-grafana-${uniqueString(currentUserId)}', 23)
 
 var grafanaAdmin = {
-  principalId: '6b6d3adf-8476-4727-9812-20ffdef2b85c' // aro-hcp-engineering-App Developer
-  principalType: 'group'
+  principalId: currentPrincipalID
+  principalType: currentPrincipalType
 }
 
 module grafana 'br:arointacr.azurecr.io/grafana.bicep:metrics.20240814.1' = {

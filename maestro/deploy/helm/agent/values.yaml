@@ -11,4 +11,3 @@ credsKeyVault:
   name: ""
   secret: ""
 consumerName: ""
-installAppliedManifestWorkCRD: false

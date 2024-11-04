@@ -171,6 +171,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (deployM
 //  E X T E R N A L   D N S
 //
 
+/*
 var externalDnsManagedIdentityPrincipalId = filter(
   mgmtCluster.outputs.userAssignedIdentities,
   id => id.uamiName == 'external-dns'
@@ -184,3 +185,4 @@ module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
     zoneContributerManagedIdentityPrincipalId: externalDnsManagedIdentityPrincipalId
   }
 }
+*/

@@ -155,7 +155,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     kubernetesVersion: kubernetesVersion
-    deployIstio: true
+    deployIstio: false
     istioVersion: istioVersion
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix
@@ -249,6 +249,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
 //   K E Y V A U L T S
 //
 
+/*
 module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
   name: 'service-keyvault'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -273,11 +274,13 @@ module serviceKeyVaultPrivateEndpoint '../modules/keyvault/keyvault-private-endp
     keyVaultId: serviceKeyVault.outputs.kvId
   }
 }
+*/
 
 //
 //   C L U S T E R   S E R V I C E
 //
 
+/*
 var csManagedIdentityPrincipalId = filter(
   svcCluster.outputs.userAssignedIdentities,
   id => id.uamiName == clusterServiceMIName
@@ -322,11 +325,13 @@ module csDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
     zoneContributerManagedIdentityPrincipalId: csManagedIdentityPrincipalId
   }
 }
+*/
 
 //
 //   I M A G E   S Y N C
 //
 
+/*
 var imageSyncManagedIdentityPrincipalId = filter(
   svcCluster.outputs.userAssignedIdentities,
   id => id.uamiName == 'image-sync'
@@ -383,9 +388,11 @@ module acrContributorRole '../modules/acr-permissions.bicep' = [
     }
   }
 ]
+*/
 
 // oidc
 
+/*
 module oidc '../modules/oidc/main.bicep' = {
   name: 'oidc'
   params: {
@@ -400,3 +407,4 @@ module oidc '../modules/oidc/main.bicep' = {
     svcCluster
   ]
 }
+*/

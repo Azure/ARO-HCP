@@ -3,13 +3,18 @@ SHELL = /bin/bash
 CONFIG_PROFILE ?= dev
 include configurations/$(CONFIG_PROFILE).mk
 
-CURRENTUSER = $(shell az ad signed-in-user show | jq -r '.id')
+# CURRENTUSER = $(shell az ad signed-in-user show | jq -r '.id')
+CURRENTUSER = $(shell az account show -o json | jq -r '.name')
+CURRENTPRINCIPALID = $(shell az account show -o json | jq -r '.user.name')
+CURRENTPRINCIPALTYPE = $(shell az account show -o json | jq -r '.user.type')
 DEPLOYMENTNAME = $(RESOURCEGROUP)
 DEPLOYMENTNAMEREGION = $(REGIONAL_RESOURCEGROUP)-REGION
 
 # Set SKIP_CONFIRM to a non-empty value to skip "what-if" confirmation prompts.
 ifndef SKIP_CONFIRM
 PROMPT_TO_CONFIRM = "--confirm-with-what-if"
+else
+PROMPT_TO_CONFIRM_CLEANUP = "--yes"
 endif
 
 list:
@@ -73,7 +78,7 @@ imagesyncRg:
 cleanup-orphaned-rolebindings:
 	@scripts/cleanup-orphaned-rolebindings.sh $(RESOURCEGROUP)
 	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
-	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
+	# @scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
 .PHONY: cleanup-orphaned-rolebindings
 
 create-mock-identities:
@@ -203,6 +208,8 @@ metrics-infra: regionalRg
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 		  globalResourceGroup=$(REGIONAL_RESOURCEGROUP) \
+		  currentPrincipalID=$(CURRENTPRINCIPALID) \
+		  currentPrincipalType=$(CURRENTPRINCIPALTYPE) \
 		--parameters configurations/dev-metrics.bicepparam
 .PHONY: metrics-infra 
 
@@ -242,6 +249,9 @@ secrets-yes-i-want-to-update-the-shared-secrets:
 .PHONY: secrets-yes-i-want-to-update-the-shared-secrets
 
 clean:
-	az group delete -g $(RESOURCEGROUP)
-	az keyvault purge --name "$$(az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')"
+	az group delete -g $(RESOURCEGROUP) $(PROMPT_TO_CONFIRM_CLEANUP)
+	KEY_VAULT_NAME=$(shell az keyvault list-deleted --query "[?properties.tags.resourceGroup == '$(RESOURCEGROUP)'].name" -ojson | jq -r '.[0]')
+	if [ -n "$${KEY_VAULT_NAME}" ]; then \
+		az keyvault purge --name "$${KEY_VAULT_NAME}"; \
+	fi
 .PHONY: clean
