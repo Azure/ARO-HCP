@@ -156,7 +156,7 @@ You can inspect the final results of configuration value overrides by running
   ```bash
   ./templatize.sh <DEPLOY_ENV> | jq
   e.g.
-  ./templatize.sh personal-dev | jq
+  ./templatize.sh personal-dev | jq
   ```
 
 If you introduce changes to `config.yaml`, run the following command and review the change to the json files in the `config` directory. Make sure all changes are expected and only then commit them to be part of of your next PR (otherwise the PR check will fail):
