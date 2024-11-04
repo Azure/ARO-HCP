@@ -6,7 +6,7 @@
   "baseDnsZoneRG": "global",
   "clusterServiceAcrRG": "global",
   "clusterServiceImageRepo": "app-sre/uhc-clusters-service",
-  "clusterServiceImageTag": "4f12dd5",
+  "clusterServiceImageTag": "a23276d",
   "clusterServicePostgresDeploy": true,
   "clusterServicePostgresName": "cs-157ff",
   "clusterServicePostgresPrivate": false,
