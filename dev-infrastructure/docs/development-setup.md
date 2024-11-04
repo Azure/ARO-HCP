@@ -29,7 +29,7 @@ All this infrastructure is managed by the bicep templates found in the `dev-infr
 
 ### Shared infrastructure
 
-Every developer creates their own set of service/management clusters, including the supporting infrastructure. This allows for independant development. Certain parts of the infrastructure are shared between developers though for various reasons (cost, ease of management, time):
+Every developer creates their own set of service/management clusters, including the supporting infrastructure. This allows for independent development. Certain parts of the infrastructure are shared between developers though for various reasons (cost, ease of management, time):
 
 * Service Key Vault `aro-hcp-dev-svc-kv`: this KV holds various shared secrets that are the same for all developer setups (e.g. 1P app certificates, ARM helper certificates, Quay.io pullsecrets). Some of these need to be recycled occasionally so sharing them allows for a central cycle process. Access to this KV is read-only, therefore sharing is not going to result in conflicts between individual developers. See [SD-DDR-0043](https://docs.google.com/document/d/1YKnMFPFvdIuGpGC1il78O9d3WwTyiVgw7jzCpDTUlII/edit#heading=h.bupciudrwmna) for more details about this KV.
 
@@ -105,7 +105,7 @@ In order to access shared Service Principle credentials you need access to the K
 az role assignment create --role "Key Vault Secrets User" --assignee $(az ad signed-in-user show --query id -o tsv) --scope $(az keyvault show --name aro-hcp-dev-svc-kv --query id -o tsv)
 ```
 
-Note: you only need to run this once. Re-runing it wont hurt, but it will not change anything.
+Note: you only need to run this once. Re-running it wont hurt, but it will not change anything.
 
 ### Customizing infra deployment
 
@@ -114,7 +114,7 @@ The basic configuration for infrastructure deployment can be found in the `confi
 The configuration file offers multiple levels of overrides depending on cloud, deployment environments and regions.
 
 * `cloud` allows to distinguish between the Azure public cloud and Fairfax.
-* `envionment` describes a deployment environment archetype, e.g. production deployment, integrated DEV deployment, CS PR check deployment or personal DEV deployment
+* `environment` describes a deployment environment archetype, e.g. production deployment, integrated DEV deployment, CS PR check deployment or personal DEV deployment
 
 The following describes the sections where configuration data and overwrites can be defined.
 
@@ -145,7 +145,7 @@ clouds:
 * (3) ... and allow overrides and introduction of new configuration
 * (4) deployment environments inherit configuration from their cloud and the global defaults
 * (5) ... and allow overrides and introduction of new configuration
-* (6) regional overrides customize a deployment environment to accomoate for regional specifics
+* (6) regional overrides customize a deployment environment to accommodate for regional specifics
 
 The base configuration for all Red Hat Azure Subscription based deployments can be found under `clouds.public.defaults`. This configures the shared infrastructure and component versions to be used in general.
 
@@ -159,7 +159,7 @@ You can inspect the final results of configuration value overrides by running
   ./templatize.sh personal-dev | jq
   ```
 
-If you introduce change to `config.yaml`, run the following command and review the change to the json files in the `config` directory. Make sure all changes are expected and only then commit them to be part of of your next PR (otherwise the PR check will fail):
+If you introduce changes to `config.yaml`, run the following command and review the change to the json files in the `config` directory. Make sure all changes are expected and only then commit them to be part of of your next PR (otherwise the PR check will fail):
 
    ```bash
    cd config
@@ -170,11 +170,11 @@ If you introduce change to `config.yaml`, run the following command and review t
 
 > A word of caution upfront: dev infrastructure is usually automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
 
-All the following make commands will asume that you want to deploy a `personal-dev` environment in the public cloud section. If you want to deploy/update/interact with other deployment environments, define an environment variable `DEPLOY_ENV=the-env-name`.
+All the following make commands will assume that you want to deploy a `personal-dev` environment in the public cloud section. If you want to deploy/update/interact with other deployment environments, define an environment variable `DEPLOY_ENV=the-env-name`.
 
 * if you want to interact with the integrated DEV environment use `DEPLOY_ENV=dev make ...`
 * if you want to interact with the CS PR check environment use `DEPLOY_ENV=cs-pr make ...`
-* if you want to interact with the personal DEV environment of a collague use `USER=other-user DEPLOY_ENV=personal-dev make ...`
+* if you want to interact with the personal DEV environment of a colleague use `USER=other-user DEPLOY_ENV=personal-dev make ...`
 
 ### Create infrastructure the easy way
 
@@ -210,7 +210,7 @@ To update already existing infrastructure you can run `make infra.all` again. Yo
 
 ### Access AKS clusters
 
-Running `make infra.all` will provide you with cluster admin on your clusters and kubeconfig files being created under `~/.kube`. The kubeconfigs are named after the resource group name that holds the cluster. The term `svc` and `mgmt` used in these filesnames indicate what cluster they are for.
+Running `make infra.all` will provide you with cluster admin on your clusters and kubeconfig files being created under `~/.kube`. The kubeconfigs are named after the resource group name that holds the cluster. The term `svc` and `mgmt` used in these file names indicate what cluster they are for.
 
 Please not that these kubeconfig files require an active Azure CLI session (`az login`) to work properly.
 
@@ -222,7 +222,7 @@ If you loose these files, you can recreate them by running
   make -f dev-infrastructure/Makefile mgmt.aks.admin-access mgmt.aks.kubeconfig
   ```
 
-> Freshly granted cluster admin permissions might not be effective immediately. If you get permission denied errors on your `kubectl` commands, consider waiting a couple of minutes for the permissons to be propagated
+> Freshly granted cluster admin permissions might not be effective immediately. If you get permission denied errors on your `kubectl` commands, consider waiting a couple of minutes for the permissions to be propagated
 
 ### Cleanup
 
@@ -618,7 +618,7 @@ Users require membership in the `aro-hcp-engineering` group to read secrets.  Th
   az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-pull-secret" | jq .value -r > pull-secret.json
   ````
 
-* Azure SP credentials in the format Hypershift Operator requires it (line format)
+* Azure SP credentials in the format HyperShift Operator requires it (line format)
 
   ```sh
   az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
