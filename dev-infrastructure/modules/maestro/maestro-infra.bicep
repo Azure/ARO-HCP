@@ -254,14 +254,5 @@ resource maestroConsumersPublishTopicspacePermissionBinding 'Microsoft.EventGrid
   }
 }
 
-var privateDnsZoneName = 'privatelink.ts.eventgrid.azure.net'
-
-// TODO: find a place for this
-resource eventGridPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
-  name: privateDnsZoneName
-  location: 'global'
-  properties: {}
-}
-
 output keyVaultName string = kv.name
 output eventGridNamespaceName string = eventGridNamespace.name

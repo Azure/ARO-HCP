@@ -11,8 +11,10 @@ param privateEndpointDnsZoneName string
 
 param vnetId string
 
-resource privateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = {
+resource eventGridPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
   name: privateEndpointDnsZoneName
+  location: 'global'
+  properties: {}
 }
 
 resource eventGridPrivatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = [
@@ -38,14 +40,14 @@ resource eventGridPrivatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01'
 
 resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = [
   for index in range(0, length(subnetIds)): {
-    name: '${serviceType}-dns-group'
+    name: '${serviceType}-${uniqueString(subnetIds[index])}'
     parent: eventGridPrivatEndpoint[index]
     properties: {
       privateDnsZoneConfigs: [
         {
           name: 'config1'
           properties: {
-            privateDnsZoneId: privateEndpointDnsZone.id
+            privateDnsZoneId: eventGridPrivateEndpointDnsZone.id
           }
         }
       ]
@@ -55,7 +57,7 @@ resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZ
 
 resource eventGridPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
   name: uniqueString('eventgrid-${uniqueString(vnetId)}')
-  parent: privateEndpointDnsZone
+  parent: eventGridPrivateEndpointDnsZone
   location: 'global'
   properties: {
     registrationEnabled: false
