@@ -263,6 +263,5 @@ resource eventGridPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020
   properties: {}
 }
 
-
 output keyVaultName string = kv.name
 output eventGridNamespaceName string = eventGridNamespace.name

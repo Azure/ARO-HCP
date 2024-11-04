@@ -9,16 +9,11 @@ param groupIds array
 
 param privateEndpointDnsZoneName string
 
-
 param vnetId string
-
-
 
 resource privateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = {
   name: privateEndpointDnsZoneName
 }
-
-
 
 resource eventGridPrivatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = [
   for aksNodeSubnetId in subnetIds: {
