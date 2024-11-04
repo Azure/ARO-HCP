@@ -1,5 +1,6 @@
 using '../templates/mgmt-cluster.bicep'
 
+// AKS
 param kubernetesVersion = '{{ .kubernetesVersion}}'
 param vnetAddressPrefix = '{{ .vnetAddressPrefix }}'
 param subnetPrefix = '{{ .subnetPrefix }}'
@@ -17,13 +18,32 @@ param userAgentVMSize = '{{ .mgmtUserAgentPoolVmSize }}'
 param aksUserOsDiskSizeGB = {{ .mgmtUserAgentPoolOsDiskSizeGB }}
 param userAgentPoolAZCount = {{ .mgmtUserAgentPoolAzCount }}
 
+// Maestro
 param maestroConsumerName = '{{ .maestroConsumerName }}'
 param maestroKeyVaultName = '{{ .maestroKeyVaultName }}'
 param maestroEventGridNamespacesName = '{{ .maestroEventgridName }}'
 param maestroCertDomain = '{{ .maestroCertDomain }}'
 
+// DNS
 param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .baseDnsZoneName }}'
 
+// ACR
 param acrPullResourceGroups = ['{{ .serviceComponentAcrResourceGroups }}']
 
+// Region
 param regionalResourceGroup = '{{ .regionRG }}'
+
+// CX KV
+param cxKeyVaultName = '{{ .cxKeyVaultName }}'
+param cxKeyVaultPrivate = {{ .cxKeyVaultPrivate }}
+param cxKeyVaultSoftDelete = {{ .cxKeyVaultSoftDelete }}
+
+// MSI KV
+param msiKeyVaultName = '{{ .msiKeyVaultName }}'
+param msiKeyVaultPrivate = {{ .msiKeyVaultPrivate }}
+param msiKeyVaultSoftDelete = {{ .msiKeyVaultSoftDelete }}
+
+// MGMT KV
+param mgmtKeyVaultName = '{{ .mgmtKeyVaultName }}'
+param mgmtKeyVaultPrivate = {{ .mgmtKeyVaultPrivate }}
+param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVaultSoftDelete }}

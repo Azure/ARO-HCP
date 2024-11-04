@@ -80,6 +80,33 @@ param regionalDNSZoneName string
 @description('The resource group that hosts the regional zone')
 param regionalResourceGroup string
 
+@description('The name of the CX KeyVault')
+param cxKeyVaultName string
+
+@description('Defines if the CX KeyVault is private')
+param cxKeyVaultPrivate bool
+
+@description('Defines if the CX KeyVault has soft delete enabled')
+param cxKeyVaultSoftDelete bool
+
+@description('The name of the MSI KeyVault')
+param msiKeyVaultName string
+
+@description('Defines if the MSI KeyVault is private')
+param msiKeyVaultPrivate bool
+
+@description('Defines if the MSI KeyVault has soft delete enabled')
+param msiKeyVaultSoftDelete bool
+
+@description('The name of the MGMT KeyVault')
+param mgmtKeyVaultName string
+
+@description('Defines if the MGMT KeyVault is private')
+param mgmtKeyVaultPrivate bool
+
+@description('Defines if the MGMT KeyVault has soft delete enabled')
+param mgmtKeyVaultSoftDelete bool
+
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -170,5 +197,42 @@ module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
   params: {
     zoneName: regionalDNSZoneName
     zoneContributerManagedIdentityPrincipalId: externalDnsManagedIdentityPrincipalId
+  }
+}
+
+//
+//   K E Y V A U L T S
+//
+
+module cxKeyVault '../modules/keyvault/keyvault.bicep' = {
+  name: '${deployment().name}-cx-kv'
+  params: {
+    location: location
+    keyVaultName: cxKeyVaultName
+    private: cxKeyVaultPrivate
+    enableSoftDelete: cxKeyVaultSoftDelete
+    purpose: 'cx'
+  }
+}
+
+module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
+  name: '${deployment().name}-msi-kv'
+  params: {
+    location: location
+    keyVaultName: msiKeyVaultName
+    private: msiKeyVaultPrivate
+    enableSoftDelete: msiKeyVaultSoftDelete
+    purpose: 'msi'
+  }
+}
+
+module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
+  name: '${deployment().name}-mgmt-kv'
+  params: {
+    location: location
+    keyVaultName: mgmtKeyVaultName
+    private: mgmtKeyVaultPrivate
+    enableSoftDelete: mgmtKeyVaultSoftDelete
+    purpose: 'mgmt'
   }
 }
