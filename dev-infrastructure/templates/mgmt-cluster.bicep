@@ -241,16 +241,18 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
 
 resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' existing = {
   name: maestroEventGridNamespacesName
+  scope: resourceGroup(regionalResourceGroup)
 }
 
 module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     location: location
     serviceType: 'eventgrid'
     subnetIds: [mgmtCluster.outputs.aksNodeSubnetId]
     privateLinkServiceId: eventGridNamespace.id
-    groupIds: ['topicspaces']
+    groupIds: ['topicspace']
     privateEndpointDnsZoneName: 'privatelink.ts.eventgrid.azure.net'
     vnetId: mgmtCluster.outputs.aksVnetId
   }
