@@ -199,10 +199,6 @@ svc.wait:
 
 svc: svc.wait svc.rg
 	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
-cluster: 
-ifndef AKSCONFIG
-	$(error "Must set AKSCONFIG")
-endif
 	az deployment group create \
 		--name $(SVC_RG_DEPLOYMENT_NAME) \
 		--resource-group $(SVC_RESOURCEGROUP) \
