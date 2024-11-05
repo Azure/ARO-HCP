@@ -1,23 +1,39 @@
 param location string
 
+@description('The service type the private endpoint is created for')
+@allowed([
+  'eventgrid'
+])
 param serviceType string
-param subnetIds array
 
+@description('The group id of the private endpoint service')
+@allowed([
+  'topicspace'
+])
+param groupId string
+
+@description('The private link service id')
 param privateLinkServiceId string
 
-param groupIds array
+@description('The subnet ids to create the private endpoint in')
+param subnetIds array
 
-param privateEndpointDnsZoneName string
-
+@description('The vnet id to link the private endpoint to')
 param vnetId string
 
+var endpointConfig = {
+  eventgrid: {
+    topicspace: 'privatelink.ts.eventgrid.azure.net'
+  }
+}
+
 resource eventGridPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
-  name: privateEndpointDnsZoneName
+  name: endpointConfig[serviceType][groupId]
   location: 'global'
   properties: {}
 }
 
-resource eventGridPrivatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = [
+resource privatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = [
   for aksNodeSubnetId in subnetIds: {
     name: '${serviceType}-${uniqueString(aksNodeSubnetId)}'
     location: location
@@ -27,7 +43,7 @@ resource eventGridPrivatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01'
           name: '${serviceType}-private-endpoint'
           properties: {
             privateLinkServiceId: privateLinkServiceId
-            groupIds: groupIds
+            groupIds: [groupId]
           }
         }
       ]
@@ -41,7 +57,7 @@ resource eventGridPrivatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01'
 resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = [
   for index in range(0, length(subnetIds)): {
     name: '${serviceType}-${uniqueString(subnetIds[index])}'
-    parent: eventGridPrivatEndpoint[index]
+    parent: privatEndpoint[index]
     properties: {
       privateDnsZoneConfigs: [
         {

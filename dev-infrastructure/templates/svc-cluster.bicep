@@ -408,11 +408,10 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
-    serviceType: 'eventgrid'
     subnetIds: [svcCluster.outputs.aksNodeSubnetId]
     privateLinkServiceId: eventGridNamespace.id
-    groupIds: ['topicspace']
-    privateEndpointDnsZoneName: 'privatelink.ts.eventgrid.azure.net'
+    serviceType: 'eventgrid'
+    groupId: 'topicspace'
     vnetId: svcCluster.outputs.aksVnetId
   }
 }
