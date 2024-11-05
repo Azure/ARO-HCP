@@ -208,9 +208,9 @@ Please not that these kubeconfig files require an active Azure CLI session (`az 
 If you loose these files, you can recreate them by running
 
   ```bash
-  make -f dev-infrastructure/Makefile svc.aks.admin-access svc.aks.kubeconfig
+  make --directory=dev-infrastructure svc.aks.admin-access svc.aks.kubeconfig
   or
-  make -f dev-infrastructure/Makefile mgmt.aks.admin-access mgmt.aks.kubeconfig
+  make --directory=dev-infrastructure mgmt.aks.admin-access mgmt.aks.kubeconfig
   ```
 
 > Freshly granted cluster admin permissions might not be effective immediately. If you get permission denied errors on your `kubectl` commands, consider waiting a couple of minutes for the permissions to be propagated
