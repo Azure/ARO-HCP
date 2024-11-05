@@ -246,7 +246,6 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' 
 
 module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
-  scope: resourceGroup(regionalResourceGroup)
   params: {
     location: location
     serviceType: 'eventgrid'
