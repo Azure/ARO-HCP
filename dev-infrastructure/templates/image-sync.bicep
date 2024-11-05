@@ -238,7 +238,7 @@ var ocMirrorConfig = {
   }
   mirror: {
     platform: {
-      architectures: ['multi']
+      architectures: ['multi', 'amd64']
       channels: [
         {
           name: 'stable-4.17'
