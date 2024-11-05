@@ -12,6 +12,7 @@ The idea of this repo is to provide means to create a development environment th
 * `az login` with your Red Hat email
 * Register the needed [AFEC](https://aka.ms/afec) feature flags using `cd dev-infrastructure && make feature-registration
 * __NOTE:__ This will take awhile, you will have to wait until they're in a registered state.
+* Your Red Hat account has been added to the ARO HCP Engineering App Developer group in Azure portal. This will give your account access to resources on Azure for development purposes. Please reach out to your manager or team lead to add you to this group.
 
 ## Infrastructure
 
@@ -96,16 +97,6 @@ Every developer creates their own set of service/management clusters, including 
 * `testing` - can be removed????
   what: foo-bar
   purpose: unkown
-
-### Grant yourself Key Vault access
-
-In order to access shared Service Principle credentials you need access to the Key Vault. To grant yourself access, run
-
-```bash
-az role assignment create --role "Key Vault Secrets User" --assignee $(az ad signed-in-user show --query id -o tsv) --scope $(az keyvault show --name aro-hcp-dev-svc-kv --query id -o tsv)
-```
-
-Note: you only need to run this once. Re-running it wont hurt, but it will not change anything.
 
 ### Customizing infra deployment
 
