@@ -53,7 +53,7 @@ defaults:
   # Image Sync
   imageSyncAcrRG: global
   imageSyncEnvironmentName: aro-hcp-image-sync
-  imageSyncRepositories: registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service
+  imageSyncRepositories: registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
   imageSyncImageRepo: image-sync/component-sync
   imageSyncImageTag: latest
   ocMirrorImageRepo: image-sync/oc-mirror

@@ -27,7 +27,7 @@
   "imageSyncImageRepo": "image-sync/component-sync",
   "imageSyncImageTag": "latest",
   "imageSyncRG": "hcp-underlay-westus3-imagesync-dev",
-  "imageSyncRepositories": "registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service",
+  "imageSyncRepositories": "registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
   "istioVersion": "['asm-1-22']",
   "kubernetesVersion": "1.30.5",
   "maestroCertDomain": "selfsigned.maestro.keyvault.azure.com",
