@@ -35,6 +35,13 @@ param maestroKeyVaultName string
 @description('The name for the Managed Identity that will be created for Key Vault Certificate management.')
 param kvCertOfficerManagedIdentityName string
 
+@description('Allow public network access to the EventGrid Namespace')
+@allowed([
+  'Enabled'
+  'Disabled'
+])
+param publicNetworkAccess string = 'Enabled'
+
 //
 //   K E Y    V A U L T
 //
@@ -110,7 +117,7 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' 
   }
   properties: {
     isZoneRedundant: true
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: publicNetworkAccess
     topicSpacesConfiguration: {
       state: 'Enabled'
       maximumSessionExpiryInHours: 1

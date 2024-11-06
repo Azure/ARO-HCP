@@ -236,3 +236,24 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
     purpose: 'mgmt'
   }
 }
+
+// 
+//  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
+//
+
+resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' existing = {
+  name: maestroEventGridNamespacesName
+  scope: resourceGroup(regionalResourceGroup)
+}
+
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
+  name: 'eventGridPrivateEndpoint'
+  params: {
+    location: location
+    subnetIds: [mgmtCluster.outputs.aksNodeSubnetId]
+    privateLinkServiceId: eventGridNamespace.id
+    vnetId: mgmtCluster.outputs.aksVnetId
+    serviceType: 'eventgrid'
+    groupId: 'topicspace'
+  }
+}

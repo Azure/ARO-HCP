@@ -66,5 +66,6 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
     maestroKeyVaultName: maestroKeyVaultName
     kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
+    publicNetworkAccess: 'Enabled'
   }
 }

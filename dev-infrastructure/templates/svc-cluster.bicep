@@ -394,3 +394,24 @@ module oidc '../modules/oidc/main.bicep' = {
     svcCluster
   ]
 }
+
+//
+//  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
+//
+
+resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' existing = {
+  name: maestroEventGridNamespacesName
+  scope: resourceGroup(regionalResourceGroup)
+}
+
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
+  name: 'eventGridPrivateEndpoint'
+  params: {
+    location: location
+    subnetIds: [svcCluster.outputs.aksNodeSubnetId]
+    privateLinkServiceId: eventGridNamespace.id
+    serviceType: 'eventgrid'
+    groupId: 'topicspace'
+    vnetId: svcCluster.outputs.aksVnetId
+  }
+}
