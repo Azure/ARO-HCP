@@ -365,8 +365,8 @@ yq -i '(.aws-access-key-id, .aws-secret-access-key, .route53-access-key-id, .rou
 make -C $the_aro_hcp_dir/cluster-service provision-shard > provision_shards.config
 
 # the resulting configuration requires two portforwardings into the service cluster
-kubectl port-forward svc/maestro 8001:8000 -n maestro
-kubectl port-forward svc/maestro-grpc 8090 -n maestro
+KUBECONFIG=$(make -C $the_aro_hcp_dir infra.svc.aks.kubeconfigfile) kubectl port-forward svc/maestro 8001:8000 -n maestro
+KUBECONFIG=$(make -C $the_aro_hcp_dir infra.svc.aks.kubeconfigfile) kubectl port-forward svc/maestro-grpc 8090 -n maestro
 
 # Alternatively, update provision shards config with new shard manually
 cat <<EOF > ./provision_shards.config
@@ -399,7 +399,7 @@ cat <<EOF>> ./configs/cloud-resources/cloud-regions.yaml
     supports_multi_az: true
 EOF
 
-cat <<EOF>> ./configs/cloud-resources/cloud-regions-constraints.yaml
+cat <<EOF>> ./configs/cloud-resource-constraints/cloud-regions-constraints.yaml
   - id: westus3
     enabled: true
     govcloud: false
@@ -479,10 +479,11 @@ You now have a running, functioning local CS deployment
 ocm login --url=http://localhost:8000 --use-auth-code
 ```
 
-2) In the previously created Resource Group:
-  - Create a Virtual Network and a Network security group
-  - Associate the created VNet with the subnet of the created NSG
+2) We need to percreate the Resource Group, Nvet, Subnet and NSG in Azure account where hosted cluster will get deployed:
+  - Create a new Resource Group, Virtual Network and a Network security group
+  - Associate the created NSG with the subnet of the created Vnet
     - Go to settings→Subnets of NSG and associate Vnet
+Make a note of above created resources, details of above resources are required in the next step. 
 
 3) Create a test cluster - note that `version.id` must match the version inserted into the database earlier.
 
@@ -523,9 +524,15 @@ cat <<EOF > cluster-test.json
   },
   "properties": {
     "provision_shard_id": "1"
+    "provisioner_noop_deprovision": "false",
+    "provisioner_noop_provision": "false",
+    "provisioner_hostedcluster_step_enabled": "true",
+    "provisioner_managedcluster_step_enabled": "true",
+    "np_provisioner_provision_enabled": "true",
+    "np_provisioner_deprovision_enabled": "true"
   },
   "version": {
-    "id": "openshift-v4.16.0"
+    "id": "openshift-v4.17.0"
   }
 }
 EOF
