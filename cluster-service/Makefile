@@ -64,4 +64,53 @@ provision-shard:
 	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID}
 	@cat deploy/provisioning-shards.yml
 
-.PHONY: deploy deploy-using-azure-db deploy-integ provision-shard configure-tmp-provision-shard deploy-secrets-template deploy-secrets-template-using-azure-db deploy-istio-configurations-template deploy-namespace-template
+personal-runtime-config:
+	@TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
+	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
+	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
+	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
+	../templatize.sh $(DEPLOY_ENV) deploy/azure-runtime-config.tmpl.yaml deploy/azure-runtime-config.yaml \
+		-e tenantId=$${TENANT_ID},ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID},ocpAcrResourceUrl=$${OCP_ACR_URL},oidc_container='$$web',oidc_issuer_base_url=$${OIDC_ISSUER_BASE_ENDPOINT},oidc_service_url=$${OIDC_BLOB_SERVICE_ENDPOINT}
+	@cat deploy/azure-runtime-config.yaml
+.PHONY: personal-runtime-config
+
+#
+# Shared OIDC Storage
+#
+
+SHARED_OIDC_RG_NAME ?= "cs-shared-oidc-storage"
+SHARED_OIDC_STORAGE_ACCOUNT_NAME ?= "arohcpdevoidcshared"
+
+shared-oidc-storage:
+	@if [ "$$(az group exists --name $(SHARED_OIDC_RG_NAME))" = "false" ]; then \
+		az group create \
+			--name $(SHARED_OIDC_RG_NAME)  \
+			--location westus3 \
+			--output none; \
+	fi
+	az deployment group create \
+		--name oidc \
+		--resource-group $(SHARED_OIDC_RG_NAME) \
+		--template-file ../dev-infrastructure/modules/oidc/storage.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			location=westus3 \
+			accountName=${SHARED_OIDC_STORAGE_ACCOUNT_NAME} \
+			publicBlobAccess=true \
+			aroDevopsMsiId=${DEVOPS_MSI_ID} \
+			deploymentScriptLocation=westus3
+.PHONY: shared-oidc-storage
+
+shared-storage-runtime-config:
+	@TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${SHARED_OIDC_STORAGE_ACCOUNT_NAME} -g ${SHARED_OIDC_RG_NAME} --query primaryEndpoints.blob -o tsv) && \
+	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${SHARED_OIDC_STORAGE_ACCOUNT_NAME} -g ${SHARED_OIDC_RG_NAME} --query primaryEndpoints.web -o tsv) && \
+	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
+	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
+	../templatize.sh $(DEPLOY_ENV) deploy/azure-runtime-config.tmpl.yaml deploy/azure-runtime-config.yaml \
+		-e tenantId=$${TENANT_ID},ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID},ocpAcrResourceUrl=$${OCP_ACR_URL},oidc_container='$$web',oidc_issuer_base_url=$${OIDC_ISSUER_BASE_ENDPOINT},oidc_service_url=$${OIDC_BLOB_SERVICE_ENDPOINT}
+	@cat deploy/azure-runtime-config.yaml
+.PHONY: shared-storage-runtime-config
+
+.PHONY: deploy deploy-using-azure-db deploy-integ provision-shard configure-tmp-provision-shard deploy-secrets-template deploy-secrets-template-using-azure-db deploy-istio-configurations-template deploy-namespace-template runtime-config
