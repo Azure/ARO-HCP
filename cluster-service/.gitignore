@@ -1,4 +1,5 @@
 deploy/tmp-provisioning-shard.yml
 deploy/provisioning-shards.yml
 deploy/dev-provisioning-shards.yml
+deploy/azure-runtime-config.yaml
 config.mk

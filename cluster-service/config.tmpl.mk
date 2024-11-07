@@ -17,3 +17,5 @@ DATABASE_DISABLE_TLS ?= {{ not .clusterServicePostgresDeploy }}
 DATABASE_AUTH_METHOD ?= {{ ternary "az-entra" "postgres" .clusterServicePostgresDeploy }}
 DATABASE_SERVER_NAME ?= {{ .clusterServicePostgresName }}
 DB_SECRET_TARGET = {{ ternary "deploy-azure-db-secret" "deploy-local-db-secret" .clusterServicePostgresDeploy }}
+
+DEVOPS_MSI_ID ?= {{ .aroDevopsMsiId }}

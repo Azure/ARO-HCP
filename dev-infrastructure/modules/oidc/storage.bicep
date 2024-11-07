@@ -20,7 +20,7 @@ param skuName string = 'Standard_ZRS'
 param publicBlobAccess bool
 
 @description('The service principal ID to be added to Azure Storage account.')
-param principalId string
+param principalId string = ''
 
 @description('Id of the MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
@@ -52,7 +52,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   }
 }
 
-resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (principalId != '') {
   name: guid(storageAccount.id, principalId, roleDefinitionId)
   scope: storageAccount
   properties: {
