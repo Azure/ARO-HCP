@@ -317,233 +317,132 @@ Then register it with the Maestro Server
   make maestro.registration.deploy
   ```
 
-## CS Local Development Setup
+## Creating an ARO HCP Cluster via Cluster Service
 
-Should your development needs require a running instance of CS to test with, here is how to spin up a locally running Clusters Service with containerized database suitable enough for testing.
+### Creating a cluster
+1) Login to your CS deployment
+  - Access your CS deployment locally
+    ```bash
+    KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
+    ```
+  - Login to your CS deployment
+    ```bash
+    ocm login --url=http://localhost:8000 --use-auth-code
+    ```
 
-To complete the below steps you will need:
+2) Create pre-requisite resources for cluster creation
 
-1) `podman`, `ocm` cli (latest), and [`yq`](https://github.com/mikefarah/yq) cli (version 4+)
-2) An up-to-date [Clusters Service repo](https://gitlab.cee.redhat.com/service/uhc-clusters-service) cloned down (can also use a fork if you have one)
-
-> If you don't have or want to install `yq`, any steps below using `yq` can be done manually
-
-### Configure and run CS
-
-Option 1: Configure and initialize Cluster Service using the script:
-Run ./dev-infrastructure/local_CS.sh from the root of ARO-HCP repo where "uhc-clusters-service" and "ARO-HCP" repos should be at the same level:
-
-* uhc-clusters-service/
-* ARO-HCP/
-* etc
-
-Option 2: You can follow the below manual steps from the root of the CS repo on our system:
-
-1) Follow [Azure Credentials and Pull Secret for HCP creation](#azure-credentials-and-pull-secret-for-hcp-creation) to fetch `azure-creds.json`.
-
-2) Setup required config files
-
-```bash
-# Setup the development.yml
-cp ./configs/development.yml .
-
-# Setup the azure-runtime-config.json
-# Currently following properties are expected in the file:
-# - `cloudEnvironment` : The Azure cloud environment where Cluster Service is running on.
-#   Possible values are 'AzurePublicCloud', 'AzureChinaCloud' and 'AzureUSGovernmentCloud'.
-cp ./configs/azure/example-config.json ./azure-runtime-config.json
-
-# Get azure-first-party-application-client-id
-# This property needs to be set in the forked development.yml file using the value obtained below
-az ad app list --display-name aro-dev-first-party --query '[*]'.appId -o tsv
-
-
-# Update any required empty strings to 'none'
-yq -i '(.aws-access-key-id, .aws-secret-access-key, .route53-access-key-id, .route53-secret-access-key, .oidc-access-key-id, .oidc-secret-access-key, .network-verifier-access-key-id, .network-verifier-secret-access-key, .client-id, .client-secret) = "none"' development.yml
-
-# Generate a provision_shards.config for port-forwarded maestro ...
-make -C $the_aro_hcp_dir/cluster-service provision-shard > provision_shards.config
-
-# the resulting configuration requires two portforwardings into the service cluster
-kubectl port-forward svc/maestro 8001:8000 -n maestro
-kubectl port-forward svc/maestro-grpc 8090 -n maestro
-
-# Alternatively, update provision shards config with new shard manually
-cat <<EOF > ./provision_shards.config
-provision_shards:
-- id: 1
-  maestro_config: |
-    {
-      "rest_api_config": {
-        "url": "http://localhost:8001"
-      },
-      "grpc_api_config": {
-        "url": "localhost:8090"
-      },
-      "consumer_name": "<<maestro_consumer_name>>"
-    }
-  status: active
-  azure_base_domain: "<azure_resource_id_of_your_azure_dns_domain>"
-  management_cluster_id: local-cluster
-  region: westus3
-  cloud_provider: azure
-  topology: dedicated
-EOF
-
-# Enable the westus3 region in cloud region config
-
-cat <<EOF>> ./configs/cloud-resources/cloud-regions.yaml
-  - id: westus3
-    cloud_provider_id: azure
-    display_name: West US 3
-    supports_multi_az: true
-EOF
-
-cat <<EOF>> ./configs/cloud-resources/cloud-regions-constraints.yaml
-  - id: westus3
-    enabled: true
-    govcloud: false
-    ccs_only: true
-EOF
-
-# you can verify the region change with the below
-yq '.cloud_regions[] | select(.id == "westus3")' configs/cloud-resource-constraints/cloud-region-constraints.yaml
-
-# Update region_constraints.config with new cloud provider
-cat <<EOF > ./region_constraints.config
-cloud_providers:
-- name: azure
-  regions:
-    - name: westus3
-      version_constraints:
-        min_version: 4.11.0
-      product_constraints:
-        - product: hcp
-          version_constraints:
-            min_version: 4.12.23
-EOF
-
-cat <<EOF > ./configs/cloud-resources/instance-types.yaml
-instance_types:
-  - id: Standard_D4as_v4
-    name: Standard_D4as_v4 - General purpose
-    cloud_provider_id: azure
-    cpu_cores: 4
-    memory: 17179869184
-    category: general_purpose
-    size: d4as_v4
-    generic_name: standard-d4as_v4
-EOF
-
-cat <<EOF > ./configs/cloud-resource-constraints/instance-type-constraints.yaml
-instance_types:
-  - id: Standard_D4as_v4
-    ccs_only: true
-    enabled: true
-EOF
-```
-
-3) Get azure-first-party-application-certificate-bundle-path:
-Run the following command to generate a file containing the base64 decoded first-party application certificate bundle.
-This property needs to be set in the forked development.yml file using the value of the absolute path where the certificate resides
-```shell
-$ az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "firstPartyCert" --query "value" -o tsv | base64 -d > ~/fpa_cert
-```
-
-4) Follow CS dev setup process:
-
-```bash
-# Build CS
-make cmds
-
-# Setup local DB
-make db/setup
-
-# Initialize the DB
-./clusters-service init --config-file ./development.yml
-```
-
-5) Start CS:
-
-```bash
-./clusters-service serve --config-file development.yml --runtime-mode aro-hcp --azure-auth-config-path azure-creds.json
-```
-
-You now have a running, functioning local CS deployment
-
-### Interact with CS
-
-1) Login to your local CS deployment
-
-```bash
-ocm login --url=http://localhost:8000 --use-auth-code
-```
-
-2) In the previously created Resource Group:
-  - Create a Virtual Network and a Network security group
+    Replace `resource-group`, `vnet-name`, `nsg-name` and `subnet-name` with any valid names.
+  
+  - Create a resource group for your ARO HCP cluster. This is used, alongside the resource name and subscription ID, to represent
+    your ARO HCP cluster resource in Azure. 
+    ```
+    az group create --name <resource-group> --location "westus3"
+    ```
+  - Create a Virtual Network. 
+    > NOTE: This may be created in the same resource group above, or a different one.
+    ```
+    az network vnet create -n <vnet-name> -g <resource-group> --subnet-name <subnet-name>
+    ```
+  - Create a Network security group
+    > NOTE: This may be created in the same resource group above, or a different one.
+    ```
+    az network nsg create -n <nsg-name> -g <resource-group>
+    ```
   - Associate the created VNet with the subnet of the created NSG
-    - Go to settings→Subnets of NSG and associate Vnet
+    ```
+    az network vnet subnet update -g <resource-group> -n <subnet-name> --vnet-name <vnet-name> --network-security-group <nsg-name>
+    ```
 
-3) Create a test cluster - note that `version.id` must match the version inserted into the database earlier.
+3) Create the cluster
+    > **NOTE** See the [Cluster Service API](https://api.openshift.com/#/default/post_api_clusters_mgmt_v1_clusters) documentation
+    > for further information on the properties within the payload below
+
+    ```bash
+    NAME="<INSERT-NAME-HERE>"
+    SUBSCRIPTION_NAME="ARO Hosted Control Planes (EA Subscription 1)"
+    RESOURCENAME="<INSERT-NAME>"
+    SUBSCRIPTION=$(echo $(az account subscription list | jq '.[] | select(.displayName == $SUBSCRIPTION_NAME)' | jq -r '.subscriptionId'))
+    RESOURCEGROUPNAME="<INSERT-NAME>"
+    TENANTID=$(echo $(cat azure-creds.json | jq -r '.tenantId'))
+    MANAGEDRGNAME="<INSERT-NAME>"
+    SUBNETRESOURCEID="<INSERT-NAME>"
+    NSG="<INSERT-NAME>"
+    cat <<EOF > cluster-test.json
+    {
+      "name": "$NAME",
+      "product": {
+        "id": "aro"
+      },
+      "ccs": {
+        "enabled": true
+      },
+      "region": {
+        "id": "westus3"
+      },
+      "hypershift": {
+        "enabled": true
+      },
+      "multi_az": true,
+      "azure": {
+        "resource_name": "$RESOURCENAME",
+        "subscription_id": "$SUBSCRIPTION",
+        "resource_group_name": "$RESOURCEGROUPNAME",
+        "tenant_id": "$TENANTID",
+        "managed_resource_group_name": "$MANAGEDRGNAME",
+        "subnet_resource_id": "$SUBNETRESOURCEID",
+        "network_security_group_resource_id":"$NSG"
+      },
+      "properties": {
+        "provisioner_hostedcluster_step_enabled": "true",
+        "provisioner_managedcluster_step_enabled": "true",
+        "np_provisioner_provision_enabled": "true",
+        "np_provisioner_deprovision_enabled": "true"
+      },
+      "version": {
+        "id": "openshift-v4.17.0"
+      }
+    }
+    EOF
+
+    cat cluster-test.json | ocm post /api/clusters_mgmt/v1/clusters
+    ```
+
+    You should now have a cluster in OCM. You can verify using `ocm list clusters` or `ocm get cluster CLUSTERID`
+
+### Creating node pools
+> NOTE: See the [Cluster Service API](https://api.openshift.com/#/default/post_api_clusters_mgmt_v1_clusters__cluster_id__node_pools) documentation for further information on the properties within the payload below
 
 ```bash
+CLUSTER_ID="<INSERT-CLUSTER-ID-HERE>"
+UID="<INSERT-ID-HERE>"
 NAME="<INSERT-NAME-HERE>"
-SUBSCRIPTION_NAME="ARO Hosted Control Planes (EA Subscription 1)"
-RESOURCENAME="<INSERT-NAME>"
-SUBSCRIPTION=$(echo $(az account subscription list | jq '.[] | select(.displayName == $SUBSCRIPTION_NAME)' | jq -r '.subscriptionId'))
-RESOURCEGROUPNAME="<INSERT-NAME>"
-TENANTID=$(echo $(cat azure-creds.json | jq -r '.tenantId'))
-MANAGEDRGNAME="<INSERT-NAME>"
-SUBNETRESOURCEID="<INSERT-NAME>"
-$NSG="<INSERT-NAME>"
-cat <<EOF > cluster-test.json
+REPLICAS="<INSERT-NUM-OF-REPLICAS-HERE>"
+cat <<EOF > nodepool-test.json
 {
-  "name": "$NAME-aro-hcp",
-  "product": {
-    "id": "aro"
-  },
-  "ccs": {
-    "enabled": true
-  },
-  "region": {
-    "id": "westus3"
-  },
-  "hypershift": {
-    "enabled": true
-  },
-  "multi_az": true,
-  "azure": {
-    "resource_name": "$RESOURCENAME",
-    "subscription_id": "$SUBSCRIPTION",
-    "resource_group_name": "$RESOURCEGROUPNAME",
-    "tenant_id": "$TENANTID",
-    "managed_resource_group_name": "$MANAGEDRGNAME",
-    "subnet_resource_id": "$SUBNETRESOURCEID",
-    "network_security_group_resource_id":"$NSG"
-  },
-  "properties": {
-    "provision_shard_id": "1"
-  },
-  "version": {
-    "id": "openshift-v4.16.0"
-  }
+    "id": "$UID",
+    "replicas": $REPLICAS,
+    "auto_repair": false,
+    "azure_node_pool": {
+        "resource_name": "$NAME",
+        "vm_size": "Standard_D8s_v3",
+        "os_disk_size_gibibytes": 30,
+        "os_disk_storage_account_type": "StandardSSD_LRS",
+        "ephemeral_os_disk_enabled": false
+    }
 }
 EOF
 
-cat cluster-test.json | ocm post /api/clusters_mgmt/v1/clusters
+cat nodepool-test.json | ocm post /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools
 ```
 
-You should now have a cluster in OCM. You can verify using `ocm list clusters` or `ocm get cluster CLUSTERID`
+You should now have a nodepool for your cluster in Cluster Service. You can verify using:
+```
+ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools/$UID
+```
 
+## Creating an ARO HCP Cluster via Frontend
 To create a cluster in CS using a locally running Frontend, see the frontend [README](../../frontend/README.md)
-
-## CS Dev Cleanup
-
-To tear down your CS setup:
-
-1) Kill the running clusters-service process
-2) Clean up the database `make db/teardown`
-3) Clean the certificate bundle `$ rm ~/fpa_cert_decoded`
 
 ## Appendix
 
