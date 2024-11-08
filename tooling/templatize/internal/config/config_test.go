@@ -112,6 +112,12 @@ func TestMergeVariable(t *testing.T) {
 			override: Variables{"key1": Variables{"key3": "value3"}},
 			expected: Variables{"key1": Variables{"key2": "value2", "key3": "value3"}},
 		},
+		{
+			name:     "override sub map value",
+			base:     Variables{"key1": Variables{"key2": "value2"}},
+			override: Variables{"key1": Variables{"key2": "value3"}},
+			expected: Variables{"key1": Variables{"key2": "value3"}},
+		},
 	}
 
 	for _, tc := range testCases {
