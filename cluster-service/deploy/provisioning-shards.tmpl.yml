@@ -3,10 +3,10 @@ provision_shards:
   maestro_config: |
     {
       "rest_api_config": {
-        "url": "http://maestro.maestro.svc.cluster.local:8000"
+        "url": "{{ .extraVars.maestroRestUrl }}"
       },
       "grpc_api_config": {
-        "url": "maestro-grpc.maestro.svc.cluster.local:8090"
+        "url": "{{ .extraVars.maestroGrpUrl }}"
       },
       "consumer_name": "{{ .maestroConsumerName }}"
     }

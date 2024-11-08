@@ -41,17 +41,13 @@ deploy-local-db-secret: configure-tmp-provision-shard
 		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/provisioning-shards.yml)" | oc apply -f -
 	oc process --local -f deploy/openshift-templates/arohcp-db-template.yml | oc apply -f -
 
-deploy-azure-db-secret: configure-tmp-provision-shard
+deploy-azure-db-secret: provision-shard
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
 		-p DATABASE_USER=clusters-service \
 		-p DATABASE_NAME=clusters-service \
 		-p DATABASE_PASSWORD="" \
 		-p DATABASE_HOST=$(shell az postgres flexible-server show --resource-group ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv) \
 		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/provisioning-shards.yml)" | oc apply -f -
-
-configure-tmp-provision-shard:
-	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
-	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID}
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
@@ -65,11 +61,19 @@ create-pr-env-sp:
 	--role 'Azure Kubernetes Service RBAC Admin' \
 	--scopes "$${CLUSTER_ID}"
 
-# for local development
 provision-shard:
-	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
-	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID}
+	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
+	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
+	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
+	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID},cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL},cxMiKeyVaultUrl=$${CX_MI_KV_URL},maestroRestUrl=http://maestro.maestro.svc.cluster.local:8000,maestroGrpUrl=maestro-grpc.maestro.svc.cluster.local:8090
 	@cat deploy/provisioning-shards.yml
+
+local-deploy-provision-shard:
+	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
+	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
+	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
+	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/local-provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID},cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL},cxMiKeyVaultUrl=$${CX_MI_KV_URL},maestroRestUrl=http://localhost:8001,maestroGrpUrl=localhost:8090
+	@cat deploy/local-provisioning-shards.yml
 
 personal-runtime-config:
 	@TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
