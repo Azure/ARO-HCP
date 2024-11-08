@@ -11,8 +11,11 @@ provision_shards:
       "consumer_name": "{{ .maestroConsumerName }}"
     }
   status: active
-  azure_base_domain: "{{ .extraVars.zoneResourceId }}"
   management_cluster_id: local-cluster
   region: {{ .region }}
   cloud_provider: azure
   topology: dedicated
+  azure_shard:
+    public_dns_zone_resource_id: "{{ .extraVars.zoneResourceId }}"
+    cx_secrets_key_vault_url: "{{ .extraVars.cxSecretsKeyVaultUrl }}"
+    cx_managed_identities_key_vault_url: "{{ .extraVars.cxMiKeyVaultUrl }}"
