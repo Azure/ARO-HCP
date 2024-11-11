@@ -34,8 +34,6 @@ type LoggingResponseWriter struct {
 }
 
 func (w *LoggingResponseWriter) Write(b []byte) (int, error) {
-	// All response body content is application/json.
-	w.Header().Set("Content-Type", "application/json")
 	n, err := w.ResponseWriter.Write(b)
 	w.bytesWritten += n
 	return n, err
