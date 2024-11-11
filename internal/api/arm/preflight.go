@@ -89,9 +89,5 @@ func WriteDeploymentPreflightResponse(w http.ResponseWriter, preflightErrors []C
 		}
 	}
 
-	w.Header()["Content-Type"] = []string{"application/json"}
-	w.WriteHeader(http.StatusOK)
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "    ")
-	_ = encoder.Encode(response)
+	_, _ = WriteJSONResponse(w, http.StatusOK, response)
 }

@@ -251,9 +251,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	writer.WriteHeader(successStatusCode)
-
-	_, err = writer.Write(responseBody)
+	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -266,5 +264,5 @@ func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument
 	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
 
-	return json.Marshal(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
+	return arm.Marshal(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }
