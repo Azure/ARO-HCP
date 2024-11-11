@@ -42,7 +42,7 @@ infra.svc:
 .PHONY: infra.svc
 
 infra.svc.aks.kubeconfigfile:
-	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make svc.aks.kubeconfigfile
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s svc.aks.kubeconfigfile
 .PHONY: infra.svc.aks.kubeconfigfile
 
 infra.mgmt:
@@ -50,7 +50,7 @@ infra.mgmt:
 .PHONY: infra.mgmt
 
 infra.mgmt.aks.kubeconfigfile:
-	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make mgmt.aks.kubeconfigfile
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfigfile
 .PHONY: infra.mgmt.aks.kubeconfigfile
 
 infra.imagesync:
