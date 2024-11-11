@@ -105,12 +105,8 @@ func WriteError(w http.ResponseWriter, statusCode int, code, target, format stri
 
 // WriteCloudError writes a CloudError to the given ResponseWriter
 func WriteCloudError(w http.ResponseWriter, err *CloudError) {
-	w.Header()["Content-Type"] = []string{"application/json"}
 	w.Header()[HeaderNameErrorCode] = []string{err.Code}
-	w.WriteHeader(err.StatusCode)
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "    ")
-	_ = encoder.Encode(err)
+	_, _ = WriteJSONResponse(w, err.StatusCode, err)
 }
 
 // NewInternalServerError creates a CloudError for an internal server error

@@ -249,14 +249,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	resp, err := json.Marshal(pagedResponse)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	_, err = writer.Write(resp)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -290,7 +283,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	_, err = writer.Write(responseBody)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -529,9 +522,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	writer.WriteHeader(successStatusCode)
-
-	_, err = writer.Write(responseBody)
+	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -665,14 +656,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	resp, err := json.Marshal(&doc.Subscription)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	_, err = writer.Write(resp)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, &doc.Subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -746,15 +730,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		"state":          string(subscription.State),
 	})
 
-	resp, err := json.Marshal(subscription)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	writer.WriteHeader(http.StatusCreated)
-	_, err = writer.Write(resp)
+	_, err = arm.WriteJSONResponse(writer, http.StatusCreated, subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -909,14 +885,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	responseBody, err := json.Marshal(doc.ToStatus())
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	_, err = writer.Write(responseBody)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, doc.ToStatus())
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
@@ -930,7 +899,7 @@ func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, v
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
 	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
 
-	return json.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
+	return arm.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
@@ -1039,9 +1008,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	writer.WriteHeader(successStatusCode)
-
-	_, err = writer.Write(responseBody)
+	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
