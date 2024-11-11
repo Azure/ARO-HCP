@@ -1,7 +1,7 @@
 using '../modules/metrics/metrics.bicep'
 
-param monitorName = '{{ .monitoringWorkspaceName }}'
-param grafanaName = '{{ .grafanaName }}'
-param msiName = '{{ .monitoringMsiName }}'
-param grafanaAdminGroupPrincipalId = '{{ .grafanaAdminGroupPrincipalId }}'
+param monitorName = '{{ .monitoring.workspaceName }}'
+param grafanaName = '{{ .monitoring.grafanaName }}'
+param msiName = '{{ .monitoring.msiName }}'
+param grafanaAdminGroupPrincipalId = '{{ .monitoring.grafanaAdminGroupPrincipalId }}'
 param globalResourceGroup = '{{ .regionRG }}'

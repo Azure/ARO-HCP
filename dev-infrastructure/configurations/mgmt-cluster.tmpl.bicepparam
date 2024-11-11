@@ -6,23 +6,23 @@ param vnetAddressPrefix = '{{ .vnetAddressPrefix }}'
 param subnetPrefix = '{{ .subnetPrefix }}'
 param podSubnetPrefix = '{{ .podSubnetPrefix }}'
 param aksClusterName = '{{ .aksName }}'
-param aksKeyVaultName = '{{ .mgmtEtcdKVName }}'
-param aksEtcdKVEnableSoftDelete = {{ .mgmtEtcdKVSoftDelete }}
-param systemAgentMinCount = {{ .mgmtSystemAgentPoolMinCount}}
-param systemAgentMaxCount = {{ .mgmtSystemAgentPoolMaxCount }}
-param systemAgentVMSize = '{{ .mgmtSystemAgentPoolVmSize }}'
-param aksSystemOsDiskSizeGB = {{ .mgmtSystemAgentPoolOsDiskSizeGB }}
-param userAgentMinCount = {{ .mgmtUserAgentPoolMinCount }}
-param userAgentMaxCount = {{ .mgmtUserAgentPoolMaxCount }}
-param userAgentVMSize = '{{ .mgmtUserAgentPoolVmSize }}'
-param aksUserOsDiskSizeGB = {{ .mgmtUserAgentPoolOsDiskSizeGB }}
-param userAgentPoolAZCount = {{ .mgmtUserAgentPoolAzCount }}
+param aksKeyVaultName = '{{ .mgmt.etcd.kvName }}'
+param aksEtcdKVEnableSoftDelete = {{ .mgmt.etcd.kvSoftDelete }}
+param systemAgentMinCount = {{ .mgmt.systemAgentPool.minCount}}
+param systemAgentMaxCount = {{ .mgmt.systemAgentPool.maxCount }}
+param systemAgentVMSize = '{{ .mgmt.systemAgentPool.vmSize }}'
+param aksSystemOsDiskSizeGB = {{ .mgmt.systemAgentPool.osDiskSizeGB }}
+param userAgentMinCount = {{ .mgmt.userAgentPool.minCount }}
+param userAgentMaxCount = {{ .mgmt.userAgentPool.maxCount }}
+param userAgentVMSize = '{{ .mgmt.userAgentPool.vmSize }}'
+param aksUserOsDiskSizeGB = {{ .mgmt.userAgentPool.osDiskSizeGB }}
+param userAgentPoolAZCount = {{ .mgmt.userAgentPool.azCount }}
 
 // Maestro
-param maestroConsumerName = '{{ .maestroConsumerName }}'
-param maestroKeyVaultName = '{{ .maestroKeyVaultName }}'
-param maestroEventGridNamespacesName = '{{ .maestroEventgridName }}'
-param maestroCertDomain = '{{ .maestroCertDomain }}'
+param maestroConsumerName = '{{ .maestro.consumerName }}'
+param maestroKeyVaultName = '{{ .maestro.keyVaultName }}'
+param maestroEventGridNamespacesName = '{{ .maestro.eventgridName }}'
+param maestroCertDomain = '{{ .maestro.certDomain }}'
 
 // Hypershift
 param hypershiftNamespace = '{{ .hypershiftNamespace }}'
@@ -39,16 +39,16 @@ param acrPullResourceGroups = ['{{ .serviceComponentAcrResourceGroups }}']
 param regionalResourceGroup = '{{ .regionRG }}'
 
 // CX KV
-param cxKeyVaultName = '{{ .cxKeyVaultName }}'
-param cxKeyVaultPrivate = {{ .cxKeyVaultPrivate }}
-param cxKeyVaultSoftDelete = {{ .cxKeyVaultSoftDelete }}
+param cxKeyVaultName = '{{ .cxKeyVault.name }}'
+param cxKeyVaultPrivate = {{ .cxKeyVault.private }}
+param cxKeyVaultSoftDelete = {{ .cxKeyVault.softDelete }}
 
 // MSI KV
-param msiKeyVaultName = '{{ .msiKeyVaultName }}'
-param msiKeyVaultPrivate = {{ .msiKeyVaultPrivate }}
-param msiKeyVaultSoftDelete = {{ .msiKeyVaultSoftDelete }}
+param msiKeyVaultName = '{{ .msiKeyVault.name }}'
+param msiKeyVaultPrivate = {{ .msiKeyVault.private }}
+param msiKeyVaultSoftDelete = {{ .msiKeyVault.softDelete }}
 
 // MGMT KV
-param mgmtKeyVaultName = '{{ .mgmtKeyVaultName }}'
-param mgmtKeyVaultPrivate = {{ .mgmtKeyVaultPrivate }}
-param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVaultSoftDelete }}
+param mgmtKeyVaultName = '{{ .mgmtKeyVault.name }}'
+param mgmtKeyVaultPrivate = {{ .mgmtKeyVault.private }}
+param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVault.softDelete }}

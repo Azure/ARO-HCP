@@ -4,89 +4,134 @@
   "aroDevopsMsiId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops",
   "baseDnsZoneName": "hcp.osadev.cloud",
   "baseDnsZoneRG": "global",
-  "clusterServiceAcrRG": "global",
-  "clusterServiceImageRepo": "app-sre/uhc-clusters-service",
-  "clusterServiceImageTag": "a23276d",
-  "clusterServicePostgresDeploy": true,
-  "clusterServicePostgresName": "arohcp-cs-dev",
-  "clusterServicePostgresPrivate": false,
-  "cxKeyVaultName": "arohcp-cx-dev-1",
-  "cxKeyVaultPrivate": false,
-  "cxKeyVaultSoftDelete": false,
-  "externalDNSImageTag": "v0.14.2",
-  "externalDNSManagedIdentityName": "external-dns",
-  "externalDNSServiceAccountName": "external-dns",
+  "clusterService": {
+    "acrRG": "global",
+    "imageRepo": "app-sre/uhc-clusters-service",
+    "imageTag": "a23276d",
+    "postgres": {
+      "deploy": true,
+      "name": "arohcp-cs-dev",
+      "private": false
+    }
+  },
+  "cxKeyVault": {
+    "name": "arohcp-cx-dev-1",
+    "private": false,
+    "softDelete": false
+  },
+  "externalDNS": {
+    "imageTag": "v0.14.2"
+  },
+  "extraVars": {},
   "firstPartyAppClientId": "57e54810-3138-4f38-bd3b-29cb33f4c358",
-  "frontendCosmosDBDeploy": true,
-  "frontendCosmosDBDisableLocalAuth": true,
-  "frontendCosmosDBName": "arohcp-rp-dev",
+  "frontend": {
+    "cosmosDB": {
+      "deploy": true,
+      "disableLocalAuth": true,
+      "name": "arohcp-rp-dev"
+    }
+  },
   "globalRG": "global",
-  "grafanaAdminGroupPrincipalId": "6b6d3adf-8476-4727-9812-20ffdef2b85c",
-  "grafanaName": "arohcp-dev",
-  "hypershiftAdditionalInstallArg": "",
-  "hypershiftNamespace": "hypershift",
-  "hypershiftOperatorImageTag": "a95fc46",
-  "imageSyncAcrRG": "global",
-  "imageSyncEnvironmentName": "aro-hcp-image-sync",
-  "imageSyncImageRepo": "image-sync/component-sync",
-  "imageSyncImageTag": "latest",
-  "imageSyncRG": "hcp-underlay-westus3-imagesync-dev",
-  "imageSyncRepositories": "registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
+  "hypershift": {
+    "additionalInstallArg": "",
+    "externalDNSManagedIdentityName": "external-dns",
+    "externalDNSServiceAccountName": "external-dns",
+    "namespace": "hypershift"
+  },
+  "hypershiftOperator": {
+    "imageTag": "a95fc46"
+  },
+  "imageSync": {
+    "acrRG": "global",
+    "environmentName": "aro-hcp-image-sync",
+    "imageRepo": "image-sync/component-sync",
+    "imageTag": "latest",
+    "repositories": "registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
+    "rg": "hcp-underlay-westus3-imagesync-dev"
+  },
   "istioVersion": "['asm-1-22']",
   "kubernetesVersion": "1.30.5",
-  "maestroCertDomain": "selfsigned.maestro.keyvault.azure.com",
-  "maestroConsumerName": "hcp-underlay-dev-mgmt-1",
-  "maestroEventGridMaxClientSessionsPerAuthName": "4",
-  "maestroEventgridName": "arohcp-maestro-dev",
-  "maestroImageBase": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
-  "maestroImageTag": "ea066c250a002f0cc458711945165591bc9f6d3f",
-  "maestroKeyVaultName": "arohcp-maestro-dev",
-  "maestroPostgresDeploy": false,
-  "maestroPostgresName": "arohcp-maestro-dev",
-  "maestroPostgresPrivate": false,
-  "maestroPostgresServerStorageSizeGB": "32",
-  "maestroPostgresServerVersion": "15",
-  "maestroRestrictIstioIngress": true,
-  "managementClusterRG": "hcp-underlay-dev-mgmt-1",
+  "maestro": {
+    "certDomain": "selfsigned.maestro.keyvault.azure.com",
+    "consumerName": "hcp-underlay-dev-mgmt-1",
+    "eventGridMaxClientSessionsPerAuthName": "4",
+    "eventgridName": "arohcp-maestro-dev",
+    "imageBase": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
+    "imageTag": "ea066c250a002f0cc458711945165591bc9f6d3f",
+    "keyVaultName": "arohcp-maestro-dev",
+    "postgres": {
+      "deploy": false,
+      "name": "arohcp-maestro-dev",
+      "private": false,
+      "serverStorageSizeGB": "32",
+      "serverVersion": "15"
+    },
+    "restrictIstioIngress": true
+  },
   "managementClusterSubscription": "ARO Hosted Control Planes (EA Subscription 1)",
-  "mgmtEtcdKVName": "arohcp-etcd-dev-1",
-  "mgmtEtcdKVSoftDelete": false,
-  "mgmtKeyVaultName": "arohcp-mgmt-dev-1",
-  "mgmtKeyVaultPrivate": false,
-  "mgmtKeyVaultSoftDelete": false,
-  "mgmtSystemAgentPoolMaxCount": 4,
-  "mgmtSystemAgentPoolMinCount": 1,
-  "mgmtSystemAgentPoolOsDiskSizeGB": 32,
-  "mgmtSystemAgentPoolVmSize": "Standard_D2s_v3",
-  "mgmtUserAgentPoolAzCount": 3,
-  "mgmtUserAgentPoolMaxCount": 12,
-  "mgmtUserAgentPoolMinCount": 2,
-  "mgmtUserAgentPoolOsDiskSizeGB": 100,
-  "mgmtUserAgentPoolVmSize": "Standard_D4s_v3",
-  "monitoringMsiName": "aro-hcp-metrics-msi-dev",
-  "monitoringWorkspaceName": "arohcp-dev",
-  "msiKeyVaultName": "arohcp-msi-dev-1",
-  "msiKeyVaultPrivate": false,
-  "msiKeyVaultSoftDelete": false,
-  "ocMirrorImageRepo": "image-sync/oc-mirror",
-  "ocMirrorImageTag": "7abc8af",
+  "mgmt": {
+    "etcd": {
+      "kvName": "arohcp-etcd-dev-1",
+      "kvSoftDelete": false
+    },
+    "rg": "hcp-underlay-dev-mgmt-1",
+    "systemAgentPool": {
+      "maxCount": 4,
+      "minCount": 1,
+      "osDiskSizeGB": 32,
+      "vmSize": "Standard_D2s_v3"
+    },
+    "userAgentPool": {
+      "azCount": 3,
+      "maxCount": 12,
+      "minCount": 2,
+      "osDiskSizeGB": 100,
+      "vmSize": "Standard_D4s_v3"
+    }
+  },
+  "mgmtKeyVault": {
+    "name": "arohcp-mgmt-dev-1",
+    "private": false,
+    "softDelete": false
+  },
+  "monitoring": {
+    "grafanaAdminGroupPrincipalId": "6b6d3adf-8476-4727-9812-20ffdef2b85c",
+    "grafanaName": "arohcp-dev",
+    "msiName": "aro-hcp-metrics-msi-dev",
+    "workspaceName": "arohcp-dev"
+  },
+  "msiKeyVault": {
+    "name": "arohcp-msi-dev-1",
+    "private": false,
+    "softDelete": false
+  },
+  "ocMirror": {
+    "imageRepo": "image-sync/oc-mirror",
+    "imageTag": "7abc8af"
+  },
   "ocpAcrName": "arohcpocpdev",
   "oidcStorageAccountName": "arohcpoidcdev",
   "podSubnetPrefix": "10.128.64.0/18",
   "region": "westus3",
   "regionRG": "hcp-underlay-dev",
   "regionalDNSSubdomain": "westus3",
-  "serviceClusterRG": "hcp-underlay-dev-svc",
   "serviceClusterSubscription": "ARO Hosted Control Planes (EA Subscription 1)",
   "serviceComponentAcrResourceGroups": "global",
-  "serviceKeyVaultName": "aro-hcp-dev-svc-kv",
-  "serviceKeyVaultPrivate": false,
-  "serviceKeyVaultRG": "global",
-  "serviceKeyVaultRegion": "westus3",
-  "serviceKeyVaultSoftDelete": true,
+  "serviceKeyVault": {
+    "name": "aro-hcp-dev-svc-kv",
+    "private": false,
+    "region": "westus3",
+    "rg": "global",
+    "softDelete": true
+  },
   "subnetPrefix": "10.128.8.0/21",
+  "svc": {
+    "etcd": {
+      "kvName": "arohcp-etcd-dev",
+      "kvSoftDelete": false
+    },
+    "rg": "hcp-underlay-dev-svc"
+  },
   "svcAcrName": "arohcpsvcdev",
-  "svcEtcdKVName": "arohcp-etcd-dev",
-  "svcEtcdKVSoftDelete": false,
   "vnetAddressPrefix": "10.128.0.0/14"
 }

@@ -1,18 +1,18 @@
 using '../templates/image-sync.bicep'
 
-param containerAppEnvName = '{{ .imageSyncEnvironmentName }}'
+param containerAppEnvName = '{{ .imageSync.environmentName }}'
 
-param acrResourceGroup = '{{ .imageSyncAcrRG }}'
-param keyVaultName = '{{ .serviceKeyVaultName}}'
-param keyVaultResourceGroup = '{{ .serviceKeyVaultRG }}'
+param acrResourceGroup = '{{ .imageSync.acrRG }}'
+param keyVaultName = '{{ .serviceKeyVault.name}}'
+param keyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 
 param bearerSecretName = 'bearer-secret'
 param componentSyncPullSecretName = 'component-sync-pull-secret'
-param componentSyncImage = '{{ .svcAcrName }}.azurecr.io/{{ .imageSyncImageRepo }}:{{ .imageSyncImageTag }}'
+param componentSyncImage = '{{ .svcAcrName }}.azurecr.io/{{ .imageSync.imageRepo }}:{{ .imageSync.imageTag }}'
 param svcAcrName = '{{ .svcAcrName }}'
 
 param ocpAcrName = '{{ .ocpAcrName }}'
 param ocpPullSecretName = 'pull-secret'
-param repositoriesToSync = '{{ .imageSyncRepositories }}'
-param ocMirrorImage = '{{ .svcAcrName }}.azurecr.io/{{ .ocMirrorImageRepo }}:{{ .ocMirrorImageTag }}'
+param repositoriesToSync = '{{ .imageSync.repositories }}'
+param ocMirrorImage = '{{ .svcAcrName }}.azurecr.io/{{ .ocMirror.imageRepo }}:{{ .ocMirror.imageTag }}'
 param numberOfTags = 10
