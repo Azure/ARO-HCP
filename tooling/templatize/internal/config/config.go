@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"reflect"
 	"text/template"
 
 	"gopkg.in/yaml.v3"
@@ -24,6 +25,38 @@ func NewConfigProvider(config, region, regionStamp, cxStamp string) *configProvi
 	}
 }
 
+func interfaceToVariables(i interface{}) (Variables, bool) {
+	// Helper, that reduces need for reflection calls, i.e. MapIndex
+	// from: https://github.com/peterbourgon/mergemap/blob/master/mergemap.go
+	value := reflect.ValueOf(i)
+	if value.Kind() == reflect.Map {
+		m := Variables{}
+		for _, k := range value.MapKeys() {
+			m[k.String()] = value.MapIndex(k).Interface()
+		}
+		return m, true
+	}
+	return Variables{}, false
+}
+
+// Merges variables, returns merged variables
+// However the return value is only used for recursive updates on the map
+// The actual merged variables are updated in the base map
+func mergeVariables(base, override Variables) Variables {
+	for k, newValue := range override {
+		if baseValue, exists := base[k]; exists {
+			srcMap, srcMapOk := interfaceToVariables(newValue)
+			dstMap, dstMapOk := interfaceToVariables(baseValue)
+			if srcMapOk && dstMapOk {
+				newValue = mergeVariables(dstMap, srcMap)
+			}
+		}
+		base[k] = newValue
+	}
+
+	return base
+}
+
 // get the variables toke effect finally for cloud/deployEnv/region
 func (cp *configProviderImpl) GetVariables(cloud, deployEnv string, extraVars map[string]string) (Variables, error) {
 	variableOverrides, err := cp.loadConfig(cloud, deployEnv)
@@ -34,19 +67,11 @@ func (cp *configProviderImpl) GetVariables(cloud, deployEnv string, extraVars ma
 			variables[k] = v
 		}
 		if cloudOverride, ok := variableOverrides.Overrides[cloud]; ok {
-			for k, v := range cloudOverride.Defaults {
-				variables[k] = v
-			}
-
+			mergeVariables(variables, cloudOverride.Defaults)
 			if deployEnvOverride, ok := cloudOverride.Overrides[deployEnv]; ok {
-				for k, v := range deployEnvOverride.Defaults {
-					variables[k] = v
-				}
-
+				mergeVariables(variables, deployEnvOverride.Defaults)
 				if regionOverride, ok := deployEnvOverride.Overrides[cp.region]; ok {
-					for k, v := range regionOverride {
-						variables[k] = v
-					}
+					mergeVariables(variables, regionOverride)
 				}
 			} else {
 				return nil, fmt.Errorf("the deployment env %s is not found under cloud %s in %s", deployEnv, cloud, cp.config)
