@@ -361,6 +361,10 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
     }
     supportPlan: 'KubernetesOfficial'
   }
+  dependsOn: [
+    aksNetworkContributorRoleAssignment
+    aks_keyvault_crypto_user
+  ]
 }
 
 resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-04-02-preview' = [
