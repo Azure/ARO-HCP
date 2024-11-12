@@ -6,6 +6,7 @@ package frontend
 import (
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,6 +23,7 @@ type Emitter interface {
 }
 
 type PrometheusEmitter struct {
+	mutex    sync.Mutex
 	gauges   map[string]*prometheus.GaugeVec
 	counters map[string]*prometheus.CounterVec
 	registry prometheus.Registerer
@@ -36,6 +38,8 @@ func NewPrometheusEmitter() *PrometheusEmitter {
 }
 
 func (pe *PrometheusEmitter) EmitGauge(name string, value float64, labels map[string]string) {
+	pe.mutex.Lock()
+	defer pe.mutex.Unlock()
 	vec, exists := pe.gauges[name]
 	if !exists {
 		labelKeys := maps.Keys(labels)
@@ -47,6 +51,8 @@ func (pe *PrometheusEmitter) EmitGauge(name string, value float64, labels map[st
 }
 
 func (pe *PrometheusEmitter) EmitCounter(name string, value float64, labels map[string]string) {
+	pe.mutex.Lock()
+	defer pe.mutex.Unlock()
 	vec, exists := pe.counters[name]
 	if !exists {
 		labelKeys := maps.Keys(labels)
