@@ -51,7 +51,7 @@ func (pe *PrometheusEmitter) EmitCounter(name string, value float64, labels map[
 	if !exists {
 		labelKeys := maps.Keys(labels)
 		vec = prometheus.NewCounterVec(prometheus.CounterOpts{Name: name}, labelKeys)
-		prometheus.MustRegister(vec)
+		pe.registry.MustRegister(vec)
 		pe.counters[name] = vec
 	}
 	vec.With(labels).Add(value)
