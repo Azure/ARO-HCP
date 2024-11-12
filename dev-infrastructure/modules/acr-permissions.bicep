@@ -4,10 +4,10 @@ param principalId string
 @description('Whether to grant push access to the ACR')
 param grantPushAccess bool = false
 
-@description('Whether to grant contributor access to the ACR')
-param grantContributorAccess bool = false
+@description('Whether to grant manage token access to the ACR')
+param grantManageTokenAccess bool = true
 
-@description('ACR Namespace Resource Group Name')
+@description('ACR Namespace Resource Group Id')
 param acrResourceGroupid string
 
 var acrPullRoleDefinitionId = subscriptionResourceId(
@@ -23,11 +23,6 @@ var acrPushRoleDefinitionId = subscriptionResourceId(
 var acrDeleteRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'c2f4ef07-c644-48eb-af81-4b1b4947fb11'
-)
-
-var contributorRoleDefinitionId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions/',
-  'b24988ac-6180-42a0-ab88-20f7382dd24c'
 )
 
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!grantPushAccess) {
@@ -57,10 +52,33 @@ resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
   }
 }
 
-resource acrContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantContributorAccess) {
-  name: guid(acrResourceGroupid, principalId, contributorRoleDefinitionId)
+resource tokenManagementRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = if (grantManageTokenAccess) {
+  name: guid(acrResourceGroupid, principalId, 'token-creation-role')
   properties: {
-    roleDefinitionId: contributorRoleDefinitionId
+    assignableScopes: [
+      subscription().id
+      acrResourceGroupid
+    ]
+    description: 'This role allows the management of tokens in the ACR'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.ContainerRegistry/registries/tokens/read'
+          'Microsoft.ContainerRegistry/registries/tokens/write'
+          'Microsoft.ContainerRegistry/registries/tokens/delete'
+          'Microsoft.ContainerRegistry/registries/generateCredentials/action'
+          'Microsoft.ContainerRegistry/registries/tokens/operationStatuses/read'
+        ]
+      }
+    ]
+    roleName: 'ACR Manage Tokens'
+  }
+}
+
+resource acrContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantManageTokenAccess) {
+  name: guid(acrResourceGroupid, principalId, 'token-creation-role')
+  properties: {
+    roleDefinitionId: tokenManagementRole.id
     principalId: principalId
     principalType: 'ServicePrincipal'
   }
