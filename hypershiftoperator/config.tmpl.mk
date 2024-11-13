@@ -16,3 +16,4 @@ HYPERSHIFT_NAMESPACE ?= {{ .hypershiftNamespace}}
 EXTERNAL_DNS_MI_NAME ?= {{ .externalDNSManagedIdentityName }}
 
 HO_CHART_DIR ?= deploy/helm/charts/hypershift-operator
+HO_ADDITIONAL_INSTALL_ARG ?= {{ .hypershiftAdditionalInstallArg }}
