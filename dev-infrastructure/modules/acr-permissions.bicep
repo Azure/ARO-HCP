@@ -5,7 +5,7 @@ param principalId string
 param grantPushAccess bool = false
 
 @description('Whether to grant manage token access to the ACR')
-param grantManageTokenAccess bool = true
+param grantManageTokenAccess bool = false
 
 @description('ACR Namespace Resource Group Id')
 param acrResourceGroupid string
