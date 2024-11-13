@@ -58,6 +58,13 @@ deploy-pr-env-deps:
 	oc process --local -f deploy/integration/cluster-service-namespace.yaml \
 		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
 
+create-pr-env-sp:
+	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n aro-hcp-aks --query id -o tsv) && \
+	az ad sp create-for-rbac \
+	--display-name "cs-pr-authentication" \
+	--role 'Azure Kubernetes Service RBAC Admin' \
+	--scopes "$${CLUSTER_ID}"
+
 # for local development
 provision-shard:
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
@@ -113,4 +120,4 @@ shared-storage-runtime-config:
 	@cat deploy/azure-runtime-config.yaml
 .PHONY: shared-storage-runtime-config
 
-.PHONY: deploy deploy-using-azure-db deploy-integ provision-shard configure-tmp-provision-shard deploy-secrets-template deploy-secrets-template-using-azure-db deploy-istio-configurations-template deploy-namespace-template runtime-config
+.PHONY: create-pr-env-sp deploy deploy-using-azure-db deploy-integ provision-shard configure-tmp-provision-shard deploy-secrets-template deploy-secrets-template-using-azure-db deploy-istio-configurations-template deploy-namespace-template runtime-config
