@@ -61,10 +61,39 @@ while getopts "c:r:x:e:" opt; do
     esac
 done
 
+# short names from EV2 prod ServiceConfig
+case ${REGION} in
+    eastus)
+        REGION_SHORT="bl"
+        ;;
+    westus)
+        REGION_SHORT="by"
+        ;;
+    centralus)
+        REGION_SHORT="dm"
+        ;;
+    northcentralus)
+        REGION_SHORT="ch"
+        ;;
+    southcentralus)
+        REGION_SHORT="sn"
+        ;;
+    westus2)
+        REGION_SHORT="mwh"
+        ;;
+    westus3)
+        REGION_SHORT="usw3"
+        ;;
+    *)
+        echo "unsupported region: ${REGION}"
+        exit 1
+esac
+
 if [ "$DEPLOY_ENV" == "personal-dev" ]; then
-    REGION_STAMP=${USER}
+    REGION_STAMP="${REGION_SHORT}${USER:0:4}"
 else
-    REGION_STAMP=${DEPLOY_ENV}
+    CLEAN_DEPLOY_ENV=$(echo "${DEPLOY_ENV}" | tr -cd '[:alnum:]')
+    REGION_STAMP="${CLEAN_DEPLOY_ENV}"
 fi
 
 TEMPLATIZE=${PROJECT_ROOT_DIR}/tooling/templatize/templatize
@@ -79,8 +108,8 @@ if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
         --cloud=${CLOUD} \
         --deploy-env=${DEPLOY_ENV} \
         --region=${REGION} \
-        --region-stamp=${REGION_STAMP} \
-        --cx-stamp=${CXSTAMP} \
+        --region-short=${REGION_STAMP} \
+        --stamp=${CXSTAMP} \
         --input=${INPUT} \
         --output=${OUTPUT} \
         ${EXTRA_ARGS}
@@ -90,7 +119,7 @@ else
         --cloud=${CLOUD} \
         --deploy-env=${DEPLOY_ENV} \
         --region=${REGION} \
-        --region-stamp=${REGION_STAMP} \
-        --cx-stamp=${CXSTAMP} \
+        --region-short=${REGION_STAMP} \
+        --stamp=${CXSTAMP} \
         ${EXTRA_ARGS}
 fi

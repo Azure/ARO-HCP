@@ -9,21 +9,22 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/internal/config"
+	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
 func TestExecuteTemplate(t *testing.T) {
 	for _, testCase := range []struct {
-		name   string
-		config config.Variables
-		input  string
+		name  string
+		vars  config.Variables
+		input string
 
 		expected      string
 		expectedError bool
 	}{
 		{
 			name: "happy case generates a file",
-			config: config.Variables{
+			vars: config.Variables{
 				"region_maestro_keyvault":    "kv",
 				"region_eventgrid_namespace": "ns",
 			},
@@ -36,7 +37,7 @@ param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 		},
 		{
 			name: "referencing unset variable errors",
-			config: config.Variables{
+			vars: config.Variables{
 				"region_maestro_keyvault": "kv",
 			},
 			input: `param maestroKeyVaultName = '{{ .region_maestro_keyvault }}'
@@ -49,10 +50,10 @@ param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 			output := &bytes.Buffer{}
 			opts := GenerationOptions{
 				completedGenerationOptions: &completedGenerationOptions{
-					Config:    testCase.config,
-					Input:     fstest.MapFS{"test": &fstest.MapFile{Data: []byte(testCase.input)}},
-					InputFile: "test",
-					Output:    &nopCloser{Writer: output},
+					InputFS:        fstest.MapFS{"test": &fstest.MapFile{Data: []byte(testCase.input)}},
+					InputFile:      "test",
+					OutputFile:     &nopCloser{Writer: output},
+					RolloutOptions: options.NewRolloutOptions(testCase.vars),
 				},
 			}
 			err := opts.ExecuteTemplate()

@@ -1,0 +1,30 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Maestro Server Rollout
+steps:
+- name: deploy
+  subscription: {{ .serviceClusterSubscription }}
+  resourceGroup: {{ .serviceClusterRG }}
+  aksCluster: {{ .aksName }}
+  action:
+    type: Shell
+    command: ["/bin/bash", "-c", "make deploy"]
+    # we could infer the pwd from the location of this file and could avoid make -C
+    env:
+    - name: EVENTGRID_NAME
+      configRef: maestroEventgridName
+    - name: REGION_RG
+      configRef: regionRG
+    - name: SVC_RG
+      configRef: serviceClusterRG
+    - name: AKS_NAME
+      configRef: aksName
+    - name: IMAGE_BASE
+      configRef: maestroImageBase
+    - name: IMAGE_TAG
+      configRef: maestroImageTag
+    - name: USE_AZURE_DB
+      configRef: maestroPostgresDeploy
+    - name: ISTIO_RESTRICT_INGRESS
+      configRef: maestroRestrictIstioIngress
+    - name: KEYVAULT_NAME
+      configRef: maestroKeyVaultName

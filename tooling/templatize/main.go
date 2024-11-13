@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/generate"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/inspect"
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/run"
 )
 
 func main() {
@@ -20,17 +20,11 @@ func main() {
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			err := cmd.Help()
-			if err != nil {
-				return err
-			}
-			os.Exit(1)
-			return nil
-		},
 	}
 	cmd.AddCommand(generate.NewCommand())
 	cmd.AddCommand(inspect.NewCommand())
+	cmd.AddCommand(run.NewCommand())
+	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 
 	if err := cmd.Execute(); err != nil {
 		log.Fatal(err)
