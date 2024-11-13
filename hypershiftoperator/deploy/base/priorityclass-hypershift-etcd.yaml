@@ -1,8 +1,0 @@
-apiVersion: scheduling.k8s.io/v1
-description: This priority class should be used for hypershift etcd pods.
-kind: PriorityClass
-metadata:
-  creationTimestamp: null
-  name: hypershift-etcd
-preemptionPolicy: Never
-value: 100002000

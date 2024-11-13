@@ -44,6 +44,12 @@ defaults:
   maestroRestrictIstioIngress: true
   maestroConsumerName: hcp-underlay-{{ .ctx.region }}-{{ .ctx.regionStamp }}-mgmt-{{ .ctx.cxStamp }}
 
+  # Hypershift
+  hypershiftNamespace: hypershift
+  hypershiftAdditionalInstallArg: ''
+  externalDNSManagedIdentityName: external-dns
+  externalDNSServiceAccountName: external-dns
+
   # Cluster Service
   clusterServicePostgresName: {{ azurePostgresName "cs" 5 .ctx.region .ctx.regionStamp }}
   clusterServicePostgresDeploy: true
@@ -106,7 +112,7 @@ clouds:
       clusterServiceImageTag: a23276d
       clusterServiceImageRepo: app-sre/uhc-clusters-service
       # Hypershift Operator
-      hypershiftOperatorImageTag: 99a256f
+      hypershiftOperatorImageTag: a95fc46
       externalDNSImageTag: v0.14.2
       # Shared SVC KV
       serviceKeyVaultName: 'aro-hcp-dev-svc-kv'
@@ -164,3 +170,7 @@ clouds:
           clusterServicePostgresDeploy: false
           # DNS
           regionalDNSSubdomain: '{{ .ctx.region }}-{{ uniqueString 5 .ctx.region .ctx.regionStamp }}'
+          # Hypershift
+          # uncomment the following line if you want to install the hypershift operator
+          # with CRD support for managedIdentities
+          #hypershiftAdditionalInstallArg: '--tech-preview-no-upgrade'
