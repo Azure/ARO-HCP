@@ -366,13 +366,13 @@ resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@20
   }
 ]
 
-module acrContributorRole '../modules/acr-permissions.bicep' = [
+module acrManageTokenRole '../modules/acr-permissions.bicep' = [
   for (_, i) in clustersServiceAcrResourceGroupNames: {
-    name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'contributor')
+    name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'manage-tokens')
     scope: clustersServiceAcrResourceGroups[i]
     params: {
       principalId: csManagedIdentityPrincipalId
-      grantContributorAccess: true
+      grantManageTokenAccess: true
       acrResourceGroupid: clustersServiceAcrResourceGroups[i].id
     }
   }
