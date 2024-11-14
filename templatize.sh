@@ -96,10 +96,7 @@ else
     REGION_STAMP="${CLEAN_DEPLOY_ENV}"
 fi
 
-TEMPLATIZE=${PROJECT_ROOT_DIR}/tooling/templatize/templatize
-if [ ! -f "${TEMPLATIZE}" ] || [ -n "${REBUILD_TEMPLATIZE}" ]; then
-    go build -o "$TEMPLATIZE" ${PROJECT_ROOT_DIR}/tooling/templatize
-fi
+TEMPLATIZE="go run ${PROJECT_ROOT_DIR}/tooling/templatize"
 
 CONFIG_FILE=${PROJECT_ROOT_DIR}/config/config.yaml
 if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
