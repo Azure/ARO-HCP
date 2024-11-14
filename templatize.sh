@@ -64,22 +64,22 @@ done
 # short names from EV2 prod ServiceConfig
 case ${REGION} in
     eastus)
-        REGION_SHORT="bl"
+        REGION_SHORT="use"
         ;;
     westus)
-        REGION_SHORT="by"
+        REGION_SHORT="usw"
         ;;
     centralus)
-        REGION_SHORT="dm"
+        REGION_SHORT="usc"
         ;;
     northcentralus)
-        REGION_SHORT="ch"
+        REGION_SHORT="usnc"
         ;;
     southcentralus)
-        REGION_SHORT="sn"
+        REGION_SHORT="ussc"
         ;;
     westus2)
-        REGION_SHORT="mwh"
+        REGION_SHORT="usw2"
         ;;
     westus3)
         REGION_SHORT="usw3"
