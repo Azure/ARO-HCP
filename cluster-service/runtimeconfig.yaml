@@ -1,0 +1,28 @@
+apiVersion: v1
+data:
+  config.json: |
+    {
+      "cloudEnvironment": "AzurePublicCloud",
+      "tenantId": "64dc69e4-d083-49fc-9569-ebece1dd1408",
+      "managedIdentitiesDataPlaneAudienceResource": "https://dummy.org",
+      "ocpImagesAcr": {
+        "resourceId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ContainerRegistry/registries/arohcpocpdev",
+        "url": "arohcpocpdev.azurecr.io",
+        "scopeMapName": "_repositories_pull"
+      },
+      "dataplane_identities_oidc_configuration": {
+        "storage_account_blob_container_name": "$web",
+        "storage_account_blob_service_url": "https://arohcpoidcusetsch.blob.core.windows.net/",
+        "oidc_issuer_base_url": "https://arohcpoidcusetsch.z13.web.core.windows.net/"
+        }
+    }
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"config.json":"{\n  \"cloudEnvironment\": \"AzurePublicCloud\",\n  \"tenantId\": \"64dc69e4-d083-49fc-9569-ebece1dd1408\",\n  \"managedIdentitiesDataPlaneAudienceResource\": \"https://dummy.org\",\n  \"ocpImagesAcr\": {\n    \"resourceId\": \"/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ContainerRegistry/registries/arohcpocpdev\",\n    \"url\": \"arohcpocpdev.azurecr.io\",\n    \"scopeMapName\": \"_repositories_pull\"\n  },\n  \"dataplane_identities_oidc_configuration\": {\n    \"storage_account_blob_container_name\": \"$web\",\n    \"storage_account_blob_service_url\": \"https://arohcpoidcusetsch.blob.core.windows.net/\",\n    \"oidc_issuer_base_url\": \"https://arohcpoidcusetsch.z13.web.core.windows.net/\"\n    }\n}\n"},"kind":"ConfigMap","metadata":{"annotations":{},"name":"azure-runtime-config","namespace":"cluster-service"}}
+  creationTimestamp: "2024-12-09T16:10:50Z"
+  name: azure-runtime-config
+  namespace: cluster-service
+  resourceVersion: "55008"
+  uid: 78ab9a5e-1b59-41c1-8bed-07f38f72809d
