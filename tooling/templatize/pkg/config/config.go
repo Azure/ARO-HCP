@@ -52,7 +52,7 @@ func NewConfigProvider(config string) ConfigProvider {
 	}
 }
 
-func interfaceToVariables(i interface{}) (Variables, bool) {
+func InterfaceToVariables(i interface{}) (Variables, bool) {
 	// Helper, that reduces need for reflection calls, i.e. MapIndex
 	// from: https://github.com/peterbourgon/mergemap/blob/master/mergemap.go
 	value := reflect.ValueOf(i)
@@ -60,7 +60,7 @@ func interfaceToVariables(i interface{}) (Variables, bool) {
 		m := Variables{}
 		for _, k := range value.MapKeys() {
 			v := value.MapIndex(k).Interface()
-			if nestedMap, ok := interfaceToVariables(v); ok {
+			if nestedMap, ok := InterfaceToVariables(v); ok {
 				m[k.String()] = nestedMap
 			} else {
 				m[k.String()] = v
@@ -77,8 +77,8 @@ func interfaceToVariables(i interface{}) (Variables, bool) {
 func mergeVariables(base, override Variables) Variables {
 	for k, newValue := range override {
 		if baseValue, exists := base[k]; exists {
-			srcMap, srcMapOk := interfaceToVariables(newValue)
-			dstMap, dstMapOk := interfaceToVariables(baseValue)
+			srcMap, srcMapOk := InterfaceToVariables(newValue)
+			dstMap, dstMapOk := InterfaceToVariables(baseValue)
 			if srcMapOk && dstMapOk {
 				newValue = mergeVariables(dstMap, srcMap)
 			}
