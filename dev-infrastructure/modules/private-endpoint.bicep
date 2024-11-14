@@ -3,12 +3,14 @@ param location string
 @description('The service type the private endpoint is created for')
 @allowed([
   'eventgrid'
+  'keyvault'
 ])
 param serviceType string
 
 @description('The group id of the private endpoint service')
 @allowed([
   'topicspace'
+  'vault'
 ])
 param groupId string
 
@@ -24,6 +26,9 @@ param vnetId string
 var endpointConfig = {
   eventgrid: {
     topicspace: 'privatelink.ts.eventgrid.azure.net'
+  }
+  keyvault: {
+    vault: 'privatelink.vaultcore.azure.net'
   }
 }
 
