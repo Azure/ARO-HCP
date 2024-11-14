@@ -8,7 +8,8 @@ steps:
   action:
     type: Shell
     command: ["/bin/bash", "-c", "make deploy"]
-    # we could infer the pwd from the location of this file and could avoid make -C
+    # pwd is inferred from the location of this file
+    # so all path references in the command are relativ to the files location
     env:
     - name: EVENTGRID_NAME
       configRef: maestroEventgridName
