@@ -23,6 +23,11 @@ DATABASE_DISABLE_TLS ?= {{ not .clusterService.postgres.deploy }}
 DATABASE_AUTH_METHOD ?= {{ ternary "az-entra" "postgres" .clusterService.postgres.deploy }}
 DATABASE_SERVER_NAME ?= {{ .clusterService.postgres.name }}
 DB_SECRET_TARGET = {{ ternary "deploy-azure-db-secret" "deploy-local-db-secret" .clusterService.postgres.deploy }}
+DEPLOY_LOCAL_DB ?= {{ ternary "false" "true" .clusterService.postgres.deploy }}
+DB_HOST ?= {{ ternary "$(shell az postgres flexible-server show --resource-group ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv)" "ocm-cs-db" .clusterService.postgres.deploy }}
+DB_NAME ?= {{ ternary "clusters-service" "ocm-cs-db" .clusterService.postgres.deploy }}
+DB_USERNAME ?= {{ ternary "clusters-service" "ocm" .clusterService.postgres.deploy }}
+DB_PASSWORD ?= {{ ternary "" "TheBlurstOfTimes" .clusterService.postgres.deploy }}
 
 DEVOPS_MSI_ID ?= {{ .aroDevopsMsiId }}
 
@@ -30,3 +35,5 @@ DEVOPS_MSI_ID ?= {{ .aroDevopsMsiId }}
 MGMT_RESOURCEGROUP ?= {{ .mgmt.rg }}
 CX_SECRETS_KV_NAME ?= {{ .cxKeyVault.name }}
 CX_MI_KV_NAME ?= {{ .msiKeyVault.name }}
+
+AZURE_OPERATORS_MANAGED_IDENTITIES_CONFIG ?= {{ .clusterService.azureOperatorsManagedIdentitiesConfig | b64enc }}
