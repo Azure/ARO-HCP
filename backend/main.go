@@ -11,15 +11,32 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"sync/atomic"
 	"syscall"
+	"time"
 
+	"github.com/go-logr/logr"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/klog/v2"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
+const (
+	leaderElectionLockName      = "backend-leader"
+	leaderElectionLeaseDuration = 15 * time.Second
+	leaderElectionRenewDeadline = 10 * time.Second
+	leaderElectionRetryPeriod   = 2 * time.Second
+)
+
 var (
+	argKubeconfig         string
+	argNamespace          string
 	argLocation           string
 	argCosmosName         string
 	argCosmosURL          string
@@ -50,6 +67,8 @@ var (
 func init() {
 	rootCmd.SetErrPrefix(rootCmd.Short + " error:")
 
+	rootCmd.Flags().StringVar(&argKubeconfig, "kubeconfig", "", "Absolute path to the kubeconfig file")
+	rootCmd.Flags().StringVar(&argNamespace, "namespace", os.Getenv("NAMESPACE"), "Kubernetes namespace")
 	rootCmd.Flags().StringVar(&argLocation, "location", os.Getenv("LOCATION"), "Azure location")
 	rootCmd.Flags().StringVar(&argCosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&argCosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
@@ -68,9 +87,42 @@ func init() {
 	}
 }
 
+func newKubeconfig(kubeconfig string) (*rest.Config, error) {
+	loader := clientcmd.NewDefaultClientConfigLoadingRules()
+	if kubeconfig != "" {
+		loader.ExplicitPath = kubeconfig
+	}
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loader, nil).ClientConfig()
+}
+
 func Run(cmd *cobra.Command, args []string) error {
 	handler := slog.NewJSONHandler(os.Stdout, nil)
 	logger := slog.New(handler)
+	klog.SetLogger(logr.FromSlogHandler(handler))
+
+	// Use pod name as the lock identity.
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+
+	kubeconfig, err := newKubeconfig(argKubeconfig)
+	if err != nil {
+		return fmt.Errorf("Failed to create Kubernetes configuration: %w", err)
+	}
+
+	leaderElectionLock, err := resourcelock.NewFromKubeconfig(
+		resourcelock.LeasesResourceLock,
+		argNamespace,
+		leaderElectionLockName,
+		resourcelock.ResourceLockConfig{
+			Identity: hostname,
+		},
+		kubeconfig,
+		leaderElectionRenewDeadline)
+	if err != nil {
+		return fmt.Errorf("Failed to create leader election lock: %w", err)
+	}
 
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(argCosmosURL, argCosmosName)
@@ -96,17 +148,36 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	operationsScanner := NewOperationsScanner(dbClient, ocmConnection)
 
-	stop := make(chan struct{})
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
-	go operationsScanner.Run(logger, stop)
+	go func() {
+		<-ctx.Done()
+		logger.Info("Caught interrupt signal")
+	}()
 
-	sig := <-signalChannel
-	logger.Info(fmt.Sprintf("caught %s signal", sig))
-	close(stop)
+	var startedLeading atomic.Bool
 
-	operationsScanner.Join()
+	// FIXME Integrate leaderelection.HealthzAdaptor into a /healthz endpoint.
+	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
+		Lock:          leaderElectionLock,
+		LeaseDuration: leaderElectionLeaseDuration,
+		RenewDeadline: leaderElectionRenewDeadline,
+		RetryPeriod:   leaderElectionRetryPeriod,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(ctx context.Context) {
+				startedLeading.Store(true)
+				go operationsScanner.Run(ctx, logger)
+			},
+			OnStoppedLeading: func() {
+				if startedLeading.Load() {
+					operationsScanner.Join()
+				}
+			},
+		},
+		ReleaseOnCancel: true,
+		Name:            leaderElectionLockName,
+	})
 
 	logger.Info(fmt.Sprintf("%s (%s) stopped", cmd.Short, cmd.Version))
 
