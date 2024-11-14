@@ -1,0 +1,12 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Maestro Server Rollout
+steps:
+- name: deploy
+  subscription: {{ .subscription }}
+  resourceGroup: {{ .region_resourcegroup }}
+  action:
+    type: Shell
+    command: ["make", "hi"]
+    env:
+    - name: EVENTGRID_NAME
+      configRef: maestroEventgridName

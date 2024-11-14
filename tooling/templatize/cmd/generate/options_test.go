@@ -14,13 +14,15 @@ import (
 func TestRawOptions(t *testing.T) {
 	tmpdir := t.TempDir()
 	opts := &RawGenerationOptions{
-		RawOptions: options.RawOptions{
-			ConfigFile:  "../../testdata/config.yaml",
-			Cloud:       "public",
-			DeployEnv:   "dev",
+		RolloutOptions: &options.RawRolloutOptions{
 			Region:      "uksouth",
-			RegionStamp: "1",
-			CXStamp:     "cx",
+			RegionShort: "abcde",
+			Stamp:       "fghij",
+			BaseOptions: &options.RawOptions{
+				ConfigFile: "../../testdata/config.yaml",
+				Cloud:      "public",
+				DeployEnv:  "dev",
+			},
 		},
 		Input:  "../../testdata/helm.sh",
 		Output: fmt.Sprintf("%s/helm.sh", tmpdir),

@@ -11,7 +11,8 @@ import (
 )
 
 func NewCommand() *cobra.Command {
-	opts := options.DefaultOptions()
+	opts := options.DefaultRolloutOptions()
+
 	format := "json"
 	cmd := &cobra.Command{
 		Use:   "inspect",
@@ -21,14 +22,14 @@ func NewCommand() *cobra.Command {
 			return dumpConfig(format, opts)
 		},
 	}
-	if err := options.BindOptions(opts, cmd); err != nil {
+	if err := options.BindRolloutOptions(opts, cmd); err != nil {
 		log.Fatal(err)
 	}
 	cmd.Flags().StringVar(&format, "format", format, "output format (json, yaml)")
 	return cmd
 }
 
-func dumpConfig(format string, opts *options.RawOptions) error {
+func dumpConfig(format string, opts *options.RawRolloutOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
 		return err

@@ -9,12 +9,12 @@ import (
 
 func TestConfigProvider(t *testing.T) {
 	region := "uksouth"
-	regionStamp := "1"
-	cxStamp := "cx"
+	regionShort := "uks"
+	stamp := "1"
 
-	configProvider := NewConfigProvider("../../testdata/config.yaml", region, regionStamp, cxStamp)
+	configProvider := NewConfigProvider("../../testdata/config.yaml")
 
-	variables, err := configProvider.GetVariables("public", "int", map[string]string{})
+	variables, err := configProvider.GetVariables("public", "int", region, NewConfigReplacements(region, regionShort, stamp))
 	assert.NoError(t, err)
 	assert.NotNil(t, variables)
 
@@ -28,7 +28,7 @@ func TestConfigProvider(t *testing.T) {
 	assert.Equal(t, "aro-hcp-int.azurecr.io/maestro-server:the-stable-one", variables["maestro_image"])
 
 	// key is in the config file, default, varaible value
-	assert.Equal(t, fmt.Sprintf("hcp-underlay-%s-%s", region, regionStamp), variables["region_resourcegroup"])
+	assert.Equal(t, fmt.Sprintf("hcp-underlay-%s-%s", region, stamp), variables["region_resourcegroup"])
 }
 
 func TestInterfaceToVariable(t *testing.T) {
@@ -59,6 +59,20 @@ func TestInterfaceToVariable(t *testing.T) {
 			expecetedVariables: Variables{
 				"key1": "value1",
 				"key2": "value2",
+			},
+		},
+		{
+			name: "nested map",
+			i: map[string]interface{}{
+				"key1": map[string]interface{}{
+					"key2": "value2",
+				},
+			},
+			ok: true,
+			expecetedVariables: Variables{
+				"key1": Variables{
+					"key2": "value2",
+				},
 			},
 		},
 	}
@@ -117,6 +131,18 @@ func TestMergeVariable(t *testing.T) {
 			base:     Variables{"key1": Variables{"key2": "value2"}},
 			override: Variables{"key1": Variables{"key2": "value3"}},
 			expected: Variables{"key1": Variables{"key2": "value3"}},
+		},
+		{
+			name:     "override nested sub map",
+			base:     Variables{"key1": Variables{"key2": Variables{"key3": "value3"}}},
+			override: Variables{"key1": Variables{"key2": Variables{"key3": "value4"}}},
+			expected: Variables{"key1": Variables{"key2": Variables{"key3": "value4"}}},
+		},
+		{
+			name:     "override nested sub map multiple levels",
+			base:     Variables{"key1": Variables{"key2": Variables{"key3": "value3"}}},
+			override: Variables{"key1": Variables{"key2": Variables{"key4": "value4"}}, "key5": "value5"},
+			expected: Variables{"key1": Variables{"key2": Variables{"key3": "value3", "key4": "value4"}}, "key5": "value5"},
 		},
 	}
 

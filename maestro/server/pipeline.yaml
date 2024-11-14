@@ -1,0 +1,35 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Maestro Server Rollout
+resourceGroups:
+- name: {{ .serviceClusterRG }}
+  subscription: {{ .serviceClusterSubscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  #- name: bicepTest
+  #  action: ARM
+  #  template: test.bicep
+  #  parameters: test.bicepparam
+  - name: deploy
+    action: Shell
+    command: ["/bin/bash", "-c", "make deploy"]
+    # pwd is inferred from the location of this file
+    # so all path references in the command are relativ to the files location
+    env:
+    - name: EVENTGRID_NAME
+      configRef: maestroEventgridName
+    - name: REGION_RG
+      configRef: regionRG
+    - name: SVC_RG
+      configRef: serviceClusterRG
+    - name: AKS_NAME
+      configRef: aksName
+    - name: IMAGE_BASE
+      configRef: maestroImageBase
+    - name: IMAGE_TAG
+      configRef: maestroImageTag
+    - name: USE_AZURE_DB
+      configRef: maestroPostgresDeploy
+    - name: ISTIO_RESTRICT_INGRESS
+      configRef: maestroRestrictIstioIngress
+    - name: KEYVAULT_NAME
+      configRef: maestroKeyVaultName
