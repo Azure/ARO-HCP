@@ -5,6 +5,7 @@ param location string
   'eventgrid'
   'keyvault'
   'cosmosdb'
+  'postgres'
 ])
 param serviceType string
 
@@ -13,6 +14,7 @@ param serviceType string
   'topicspace'
   'vault'
   'Sql'
+  'postgresqlServer'
 ])
 param groupId string
 
@@ -34,6 +36,9 @@ var endpointConfig = {
   }
   cosmosdb: {
     Sql: 'privatelink.documents.azure.com'
+  }
+  postgres: {
+    postgresqlServer: 'privatelink.postgres.database.azure.com'
   }
 }
 
