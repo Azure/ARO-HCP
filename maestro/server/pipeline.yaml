@@ -1,12 +1,16 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Maestro Server Rollout
-steps:
-- name: deploy
+resourceGroups:
+- name: {{ .serviceClusterRG }}
   subscription: {{ .serviceClusterSubscription }}
-  resourceGroup: {{ .serviceClusterRG }}
   aksCluster: {{ .aksName }}
-  action:
-    type: Shell
+  steps:
+  #- name: bicepTest
+  #  action: ARM
+  #  template: test.bicep
+  #  parameters: test.bicepparam
+  - name: deploy
+    action: Shell
     command: ["/bin/bash", "-c", "make deploy"]
     # pwd is inferred from the location of this file
     # so all path references in the command are relativ to the files location

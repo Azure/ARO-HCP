@@ -9,9 +9,9 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
-func (s *step) runShellStep(ctx context.Context, executionTarget *StepExecutionTarget, vars config.Variables) error {
+func (s *step) runShellStep(ctx context.Context, executionTarget *ExecutionTarget, vars config.Variables) error {
 	fmt.Printf("Execution target: %s\n", executionTarget.Name())
-	fmt.Printf("Shell command: %v\n", s.Action.Command)
+	fmt.Printf("Shell command: %v\n", s.Command)
 
 	// prepare kubeconfig
 	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
@@ -35,13 +35,13 @@ func (s *step) runShellStep(ctx context.Context, executionTarget *StepExecutionT
 		}
 		envVars = append(envVars, fmt.Sprintf("KUBECONFIG=%s", kubeconfigFile))
 	}
-	for _, e := range s.Action.Env {
+	for _, e := range s.Env {
 		value := vars[e.ConfigRef] // todo nested lookups
 		envVars = append(envVars, fmt.Sprintf("%s=%s", e.Name, value))
 	}
 
 	// execute the shell command with the environment variables
-	cmd := exec.CommandContext(ctx, s.Action.Command[0], s.Action.Command[1:]...)
+	cmd := exec.CommandContext(ctx, s.Command[0], s.Command[1:]...)
 	cmd.Env = append(cmd.Env, envVars...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

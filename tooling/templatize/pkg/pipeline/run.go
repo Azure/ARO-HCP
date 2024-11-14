@@ -46,8 +46,8 @@ func (p *Pipeline) Run(ctx context.Context, vars config.Variables) error {
 		}
 	}()
 
-	for _, step := range p.Steps {
-		err := step.run(ctx, vars)
+	for _, rg := range p.ResourceGroups {
+		err := rg.run(ctx, vars)
 		if err != nil {
 			return err
 		}
@@ -55,28 +55,34 @@ func (p *Pipeline) Run(ctx context.Context, vars config.Variables) error {
 	return nil
 }
 
-func (s *step) executionTarget(ctx context.Context) (*StepExecutionTarget, error) {
-	subscriptionID, err := lookupSubscriptionID(ctx, s.Subscription)
-	if err != nil {
-		return nil, err
-	}
-	return &StepExecutionTarget{
-		SubscriptionName: s.Subscription,
-		SubscriptionID:   subscriptionID,
-		ResourceGroup:    s.ResourceGroup,
-		AKSClusterName:   s.AKSClusterName,
-	}, nil
-}
-
-func (s *step) run(ctx context.Context, vars config.Variables) error {
-	executionTarget, err := s.executionTarget(ctx)
+func (rg *resourceGroup) run(ctx context.Context, vars config.Variables) error {
+	subscriptionID, err := lookupSubscriptionID(ctx, rg.Subscription)
 	if err != nil {
 		return err
 	}
-	switch s.Action.Type {
+	executionTarget := &ExecutionTarget{
+		SubscriptionName: rg.Subscription,
+		SubscriptionID:   subscriptionID,
+		ResourceGroup:    rg.Name,
+		AKSClusterName:   rg.AKSCluster,
+	}
+
+	for _, step := range rg.Steps {
+		err := step.run(ctx, executionTarget, vars)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *step) run(ctx context.Context, executionTarget *ExecutionTarget, vars config.Variables) error {
+	switch s.Action {
 	case "Shell":
 		return s.runShellStep(ctx, executionTarget, vars)
+	case "ARM":
+		return fmt.Errorf("not implemented %q", s.Action)
 	default:
-		return fmt.Errorf("unsupported action type %q", s.Action.Type)
+		return fmt.Errorf("unsupported action type %q", s.Action)
 	}
 }

@@ -41,14 +41,14 @@ func lookupSubscriptionID(ctx context.Context, subscriptionName string) (string,
 	return "", fmt.Errorf("subscription with name %q not found", subscriptionName)
 }
 
-type StepExecutionTarget struct {
+type ExecutionTarget struct {
 	SubscriptionName string
 	SubscriptionID   string
 	ResourceGroup    string
 	AKSClusterName   string
 }
 
-func (target *StepExecutionTarget) KubeConfig(ctx context.Context) (string, error) {
+func (target *ExecutionTarget) KubeConfig(ctx context.Context) (string, error) {
 	if target.AKSClusterName == "" {
 		return "", fmt.Errorf("AKSClusterName is required to build a kubeconfig")
 	}
@@ -98,6 +98,6 @@ func (target *StepExecutionTarget) KubeConfig(ctx context.Context) (string, erro
 	return tmpfile.Name(), nil
 }
 
-func (target *StepExecutionTarget) Name() string {
+func (target *ExecutionTarget) Name() string {
 	return fmt.Sprintf("SUB %s / RG %s / AKS %s", target.SubscriptionName, target.ResourceGroup, target.AKSClusterName)
 }
