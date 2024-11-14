@@ -24,9 +24,9 @@ func TestRawOptions(t *testing.T) {
 				DeployEnv:  "dev",
 			},
 		},
-		Input:  "../../testdata/helm.sh",
-		Output: fmt.Sprintf("%s/helm.sh", tmpdir),
+		Input:  "../../testdata/pipeline.yaml",
+		Output: fmt.Sprintf("%s/pipeline.yaml", tmpdir),
 	}
 	assert.NoError(t, generate(opts))
-	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "helm.sh"))
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "pipeline.yaml"))
 }

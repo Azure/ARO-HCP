@@ -1,9 +1,9 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: {{ .regionRG }}
-  subscription: {{ .serviceClusterSubscription }}
-  aksCluster: {{ .aksName }}
+- name: hcp-underlay-$(regionShortName)
+  subscription: hcp-$location()
+  aksCluster: aro-hcp-aks
   steps:
   - name: deploy
     action: Shell

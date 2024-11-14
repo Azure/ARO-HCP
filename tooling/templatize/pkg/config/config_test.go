@@ -28,7 +28,7 @@ func TestConfigProvider(t *testing.T) {
 	assert.Equal(t, "aro-hcp-int.azurecr.io/maestro-server:the-stable-one", variables["maestro_image"])
 
 	// key is in the config file, default, varaible value
-	assert.Equal(t, fmt.Sprintf("hcp-underlay-%s-%s", region, stamp), variables["region_resourcegroup"])
+	assert.Equal(t, fmt.Sprintf("hcp-underlay-%s", regionShort), variables["regionRG"])
 }
 
 func TestInterfaceToVariable(t *testing.T) {
@@ -79,7 +79,7 @@ func TestInterfaceToVariable(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			vars, ok := interfaceToVariables(tc.i)
+			vars, ok := InterfaceToVariables(tc.i)
 			assert.Equal(t, tc.ok, ok)
 			assert.Equal(t, tc.expecetedVariables, vars)
 		})
