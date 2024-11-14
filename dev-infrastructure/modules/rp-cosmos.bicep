@@ -82,59 +82,15 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
   }
 }
 
-resource cosmosDbPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = {
-  name: '${name}-private-endpoint'
-  location: location
-  properties: {
-    privateLinkServiceConnections: [
-      {
-        name: '${name}-private-endpoint'
-        properties: {
-          privateLinkServiceId: cosmosDbAccount.id
-          groupIds: [
-            'Sql'
-          ]
-        }
-      }
-    ]
-    subnet: {
-      id: aksNodeSubnetId
-    }
-  }
-}
-
-resource cosmosPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
-  // https://github.com/Azure/bicep/issues/12482
-  // There is no environments().suffixes constant for this
-  name: 'privatelink.documents.azure.com'
-  location: 'global'
-  properties: {}
-}
-
-resource cosmosPrivateEndpointDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
-  parent: cosmosPrivateEndpointDnsZone
-  name: 'link'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: vnetId
-    }
-  }
-}
-
-resource cosmosPrivateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = {
-  parent: cosmosDbPrivateEndpoint
-  name: '${name}-dns-group'
-  properties: {
-    privateDnsZoneConfigs: [
-      {
-        name: 'config1'
-        properties: {
-          privateDnsZoneId: cosmosPrivateEndpointDnsZone.id
-        }
-      }
-    ]
+module serviceCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = {
+  name: '${deployment().name}-svcs-kv-pe'
+  params: {
+    location: location
+    subnetIds: [aksNodeSubnetId]
+    vnetId: vnetId
+    privateLinkServiceId: cosmosDbAccount.id
+    serviceType: 'cosmosdb'
+    groupId: 'Sql'
   }
 }
 

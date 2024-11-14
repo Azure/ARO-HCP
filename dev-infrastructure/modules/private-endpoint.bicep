@@ -4,6 +4,7 @@ param location string
 @allowed([
   'eventgrid'
   'keyvault'
+  'cosmosdb'
 ])
 param serviceType string
 
@@ -11,6 +12,7 @@ param serviceType string
 @allowed([
   'topicspace'
   'vault'
+  'Sql'
 ])
 param groupId string
 
@@ -29,6 +31,9 @@ var endpointConfig = {
   }
   keyvault: {
     vault: 'privatelink.vaultcore.azure.net'
+  }
+  cosmosdb: {
+    Sql: 'privatelink.documents.azure.com'
   }
 }
 
