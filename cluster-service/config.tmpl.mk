@@ -19,3 +19,8 @@ DATABASE_SERVER_NAME ?= {{ .clusterServicePostgresName }}
 DB_SECRET_TARGET = {{ ternary "deploy-azure-db-secret" "deploy-local-db-secret" .clusterServicePostgresDeploy }}
 
 DEVOPS_MSI_ID ?= {{ .aroDevopsMsiId }}
+
+# MGMT CLUSTER KVs
+MGMT_RESOURCEGROUP ?= {{ .managementClusterRG }}
+CX_SECRETS_KV_NAME ?= {{ .cxKeyVaultName }}
+CX_MI_KV_NAME ?= {{ .msiKeyVaultName }}

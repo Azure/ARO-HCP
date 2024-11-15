@@ -101,10 +101,7 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 	for k, v := range o.ExtraVars {
 		extraVars[k] = v
 	}
-	err = variables.AddNested("extraVars", extraVars)
-	if err != nil {
-		return nil, fmt.Errorf("failed to add extraVars: %w", err)
-	}
+	variables["extraVars"] = extraVars
 
 	return &RolloutOptions{
 		completedRolloutOptions: &completedRolloutOptions{
