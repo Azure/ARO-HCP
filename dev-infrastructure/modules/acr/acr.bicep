@@ -73,6 +73,7 @@ resource tokenManagementRole 'Microsoft.Authorization/roleDefinitions@2022-04-01
           'Microsoft.ContainerRegistry/registries/tokens/delete'
           'Microsoft.ContainerRegistry/registries/generateCredentials/action'
           'Microsoft.ContainerRegistry/registries/tokens/operationStatuses/read'
+          'Microsoft.ContainerRegistry/registries/scopeMaps/read'
         ]
       }
     ]
