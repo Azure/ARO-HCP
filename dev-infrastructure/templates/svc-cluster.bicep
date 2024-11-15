@@ -257,14 +257,15 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
 
 output svcKeyVaultName string = serviceKeyVault.outputs.kvName
 
-module serviceKeyVaultPrivateEndpoint '../modules/keyvault/keyvault-private-endpoint.bicep' = {
+module serviceKeyVaultPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: '${deployment().name}-svcs-kv-pe'
   params: {
     location: location
-    keyVaultName: serviceKeyVaultName
-    subnetId: svcCluster.outputs.aksNodeSubnetId
+    subnetIds: [svcCluster.outputs.aksNodeSubnetId]
     vnetId: svcCluster.outputs.aksVnetId
-    keyVaultId: serviceKeyVault.outputs.kvId
+    privateLinkServiceId: serviceKeyVault.outputs.kvId
+    serviceType: 'keyvault'
+    groupId: 'vault'
   }
 }
 
