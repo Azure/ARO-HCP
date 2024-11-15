@@ -175,4 +175,7 @@ module servicePostgresPrivateEndpoint '../private-endpoint.bicep' = if (managedP
     serviceType: 'postgres'
     groupId: 'postgresqlServer'
   }
+  dependsOn: [
+    postgres_database
+  ]
 }
