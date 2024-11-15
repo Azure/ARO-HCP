@@ -10,14 +10,6 @@ type configProviderImpl struct {
 
 type Variables map[string]interface{}
 
-func (v Variables) AddNested(key string, other map[string]interface{}) error {
-	if _, exists := v[key]; exists {
-		return fmt.Errorf("%s exists already in Variables", key)
-	}
-	other[key] = other
-	return nil
-}
-
 func NewVariableOverrides() VariableOverrides {
 	return &variableOverrides{}
 }
