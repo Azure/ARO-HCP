@@ -165,7 +165,7 @@ output port int = 5432
 //   P R I V A T E   E N D P O I N T
 //
 
-module servicePostgresPrivateEndpoint '../private-endpoint.bicep' = {
+module servicePostgresPrivateEndpoint '../private-endpoint.bicep' = if (managedPrivateEndpoint) {
   name: '${deployment().name}-svcs-kv-pe'
   params: {
     location: location
