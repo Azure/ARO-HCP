@@ -165,67 +165,14 @@ output port int = 5432
 //   P R I V A T E   E N D P O I N T
 //
 
-var privateDnsZoneName = 'privatelink.postgres.database.azure.com'
-
-resource postgresPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = if (managedPrivateEndpoint) {
-  name: '${name}-pe'
-  location: location
-  properties: {
-    privateLinkServiceConnections: [
-      {
-        name: '${name}-pe'
-        properties: {
-          groupIds: [
-            'postgresqlServer'
-          ]
-          privateLinkServiceId: postgres.id
-        }
-      }
-    ]
-    subnet: {
-      id: subnetId
-    }
+module servicePostgresPrivateEndpoint '../private-endpoint.bicep' = if (managedPrivateEndpoint) {
+  name: '${deployment().name}-svcs-kv-pe'
+  params: {
+    location: location
+    subnetIds: [subnetId]
+    vnetId: vnetId
+    privateLinkServiceId: postgres.id
+    serviceType: 'postgres'
+    groupId: 'postgresqlServer'
   }
-  dependsOn: [
-    postgres_database
-  ]
-}
-
-resource postgresPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (managedPrivateEndpoint) {
-  name: privateDnsZoneName
-  location: 'global'
-  properties: {}
-  dependsOn: [
-    postgresPrivateEndpoint
-  ]
-}
-
-resource postgresPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (managedPrivateEndpoint) {
-  parent: postgresPrivateEndpointDnsZone
-  name: 'postgres'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: vnetId
-    }
-  }
-}
-
-resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = if (managedPrivateEndpoint) {
-  parent: postgresPrivateEndpoint
-  name: '${name}-dns-group'
-  properties: {
-    privateDnsZoneConfigs: [
-      {
-        name: 'config1'
-        properties: {
-          privateDnsZoneId: postgresPrivateEndpointDnsZone.id
-        }
-      }
-    ]
-  }
-  dependsOn: [
-    postgresPrivateDnsZoneVnetLink
-  ]
 }
