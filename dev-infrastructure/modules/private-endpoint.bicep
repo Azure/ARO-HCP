@@ -42,10 +42,13 @@ var endpointConfig = {
   }
 }
 
-resource eventGridPrivateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+resource privateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
   name: endpointConfig[serviceType][groupId]
   location: 'global'
   properties: {}
+  dependsOn: [
+    privatEndpoint
+  ]
 }
 
 resource privatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = [
@@ -78,17 +81,20 @@ resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZ
         {
           name: 'config1'
           properties: {
-            privateDnsZoneId: eventGridPrivateEndpointDnsZone.id
+            privateDnsZoneId: privateEndpointDnsZone.id
           }
         }
       ]
     }
+    dependsOn: [
+      privateDnsZoneVnetLink
+    ]
   }
 ]
 
-resource eventGridPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+resource privateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
   name: uniqueString('eventgrid-${uniqueString(vnetId)}')
-  parent: eventGridPrivateEndpointDnsZone
+  parent: privateEndpointDnsZone
   location: 'global'
   properties: {
     registrationEnabled: false
