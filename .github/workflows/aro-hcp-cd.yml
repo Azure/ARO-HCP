@@ -81,6 +81,9 @@
             # Manage ACR
             make acr-svc acr-ocp
 
+            # Setup operator roles for platform workload identity
+            make operator-roles
+
     deploy_image_sync_rg:
       name: 'Deploy Image Sync'
       if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'

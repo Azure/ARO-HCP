@@ -460,10 +460,31 @@ secrets-yes-i-want-to-update-the-shared-secrets:
 .PHONY: secrets-yes-i-want-to-update-the-shared-secrets
 
 #
+# Operator roles for platform workload identity
+#
+
+operator-roles:
+	az deployment sub create \
+	    --location westus3 \
+		--name operator-roles \
+		--template-file templates/dev-operator-roles.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/dev-operator-roles.bicepparam
+.PHONY: operator-roles
+
+operator-roles.what-if:
+	az deployment sub what-if \
+	    --location westus3 \
+		--name operator-roles \
+		--template-file templates/dev-operator-roles.bicep \
+		--parameters configurations/dev-operator-roles.bicepparam
+.PHONY: operator-roles.what-if
+
+#
 # Common
 #
 
-what-if: acr-svc.what-if acr-ocp.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if
+what-if: acr-svc.what-if acr-ocp.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if operator-roles.what-if
 .PHONY: what-if
 
 infra: region svc.init mgmt.init
