@@ -1,18 +1,12 @@
 global:
+  registryOverride: "registry.redhat.io"
   imageOverrides:
-    # upstream images
-    governance_policy_propagator: "quay.io/stolostron/governance-policy-propagator:2.12.0-SNAPSHOT-2024-09-30-01-46-06"
-    governance_policy_addon_controller: "quay.io/stolostron/governance-policy-addon-controller:2.12.0-SNAPSHOT-2024-09-30-01-46-06"
-    config_policy_controller: "quay.io/stolostron/config-policy-controller:2.12.0-SNAPSHOT-2024-09-30-01-46-06"
-    governance_policy_framework_addon: "quay.io/stolostron/governance-policy-framework-addon:2.12.0-SNAPSHOT-2024-09-30-01-46-06"
-    klusterlet_addon_controller: "quay.io/stolostron/klusterlet-addon-controller:2.12.0-SNAPSHOT-2024-09-30-01-46-06"
+    governance_policy_propagator: "rhacm2/governance-policy-propagator-rhel9@sha256:f2fa1a7c7af6379eda44a691de57eb59dc8068aadb98504df7ef4a5e059a0cfa"
+    governance_policy_addon_controller: "rhacm2/acm-governance-policy-addon-controller-rhel9@sha256:7b2f432d7ea6b9eb9c4df6df88ae3d5bfc261a8d24a5146a04d3465a41d99e10"
+    config_policy_controller: "rhacm2/config-policy-controller-rhel9@sha256:bad96b2cd7efd604b3ef8092eb72c5a7d33b39732a1a8fe995aa197ead7a5d31"
+    governance_policy_framework_addon: "rhacm2/acm-governance-policy-framework-addon-rhel9@sha256:a5373e3aed5c8e0ac1427599c3801eccd3b4ff4bdc3f9c0cd7083ff3e34433b3"
+    klusterlet_addon_controller: "rhacm2/klusterlet-addon-controller-rhel9@sha256:f8188bc955dbc635031e765fb09015926eb350a7484e6c9f2e0af6020e02aa30"
 
-    # images in ACM 2.11.2
-    # governance_policy_propagator: "registry.redhat.io/rhacm2/governance-policy-propagator-rhel9@sha256:af848e7e31d8ec9b5ad1896a5d5ccc67f320a7740245c190ba8a76757984e65b"
-    # governance_policy_addon_controller: "registry.redhat.io/rhacm2/acm-governance-policy-addon-controller-rhel9@sha256:fc0708f0a6d5266fb544f41b61d9697d370c8c5e297e4e3f13de8656f9c2b049"
-    # config_policy_controller: "registry.redhat.io/rhacm2/config-policy-controller-rhel9@sha256:cecf914d7fb7759a4f512c1ec53a077dcb1c7e405c22a5bf6af1bf5878cf3c42"
-    # governance_policy_framework_addon: "registry.redhat.io/rhacm2/acm-governance-policy-framework-addon-rhel9@sha256:a4880f6e82d2b82606203ea855d0418bb29b3d4535f8bc7a9ef4074258c18674"
-    # klusterlet_addon_controller: "registry.redhat.io/rhacm2/klusterlet-addon-controller-rhel9@sha256:478e3e6cda0d74f43b0f05911d023344108a5cd79d57d5cc9f268ad064848a00"
   namespace: multicluster-engine
   pullSecret: open-cluster-management-image-pull-credentials
 

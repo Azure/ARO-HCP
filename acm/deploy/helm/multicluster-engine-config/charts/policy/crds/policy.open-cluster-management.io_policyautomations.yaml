@@ -56,8 +56,8 @@ spec:
                     x-kubernetes-preserve-unknown-fields: true
                   jobTtl:
                     description: >-
-                      JobTTL sets the time to live for the Kubernetes AnsibleJob object after the Ansible job run has
-                      finished.
+                      JobTTL sets the time to live for the Kubernetes Job object after the Ansible job playbook run
+                      has finished.
                     type: integer
                   name:
                     description: Name of the Ansible Template to run in Ansible Automation
@@ -91,6 +91,7 @@ spec:
                 minimum: 0
                 type: integer
               eventHook:
+                default: noncompliant
                 description: >-
                   EventHook specifies the compliance state that initiates automation. This must be set to
                   "noncompliant".
@@ -116,7 +117,6 @@ spec:
                 type: string
             required:
             - automationDef
-            - eventHook
             - mode
             - policyRef
             type: object

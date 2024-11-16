@@ -69,10 +69,10 @@ spec:
               apiVersion: v1
               fieldPath: metadata.name
         - name: CONFIG_POLICY_CONTROLLER_IMAGE
-          value: {{ .Values.global.imageOverrides.config_policy_controller }}
+          value: "{{ .Values.global.registryOverride}}/{{ .Values.global.imageOverrides.config_policy_controller }}"
         - name: GOVERNANCE_POLICY_FRAMEWORK_ADDON_IMAGE
-          value: {{ .Values.global.imageOverrides.governance_policy_framework_addon }}
-        image: {{ .Values.global.imageOverrides.governance_policy_addon_controller }}
+          value: "{{ .Values.global.registryOverride}}/{{ .Values.global.imageOverrides.governance_policy_framework_addon }}"
+        image: "{{ .Values.global.registryOverride}}/{{ .Values.global.imageOverrides.governance_policy_addon_controller }}"
         imagePullPolicy: IfNotPresent
         name: manager
         resources:

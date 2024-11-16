@@ -3,10 +3,8 @@ DEPLOY_ENV ?= personal-dev
 $(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
 include config.mk
 
-MCE_OPERATOR_BUNDLE_IMAGE ?= quay.io/acm-d/mce-operator-bundle:v2.7.0-110
-REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io/acm-d-mce
-# once MCE 2.7 is released, we can find the official bundle image here
-# https://catalog.redhat.com/software/containers/multicluster-engine/mce-operator-bundle/6160406290fb938ecf6009c6
+MCE_OPERATOR_BUNDLE_IMAGE ?= registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.7.0-116
+REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 
 MCE_OPERATOR_BUNDLE_FILE = mce-operator-bundle.tgz
 HELM_BASE_DIR = deploy/helm
@@ -23,7 +21,8 @@ deploy:
 		--set imageRegistry=${REGISTRY}
 	helm upgrade --install --wait --wait-for-jobs \
 		mce-config ${MCE_CONFIG_DIR} \
-		--namespace ${MCE_NS}
+		--namespace ${MCE_NS} \
+		--set global.registryOverride=${REGISTRY}
 
 helm-chart:
 	@podman pull --arch amd64 ${MCE_OPERATOR_BUNDLE_IMAGE}
@@ -43,8 +42,5 @@ helm-chart:
 	cp -r $$TMP_DIR/policy ${MCE_CONFIG_DIR}/charts && \
 	rm -rf $$TMP_DIR
 	@echo "Helm chart imported successfully."
-
-import-chart:
-
 
 .PHONY: deploy helm-chart

@@ -79,7 +79,7 @@ spec:
       {{- end }}
       containers:
       - name: klusterlet-addon-controller
-        image: "{{ .Values.global.imageOverrides.klusterlet_addon_controller }}"
+        image: "{{ .Values.global.registryOverride}}/{{ .Values.global.imageOverrides.klusterlet_addon_controller }}"
         imagePullPolicy: {{ .Values.global.pullPolicy }}
         securityContext:
           allowPrivilegeEscalation: false
