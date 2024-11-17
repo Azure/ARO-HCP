@@ -1,4 +1,7 @@
 ARO_HCP_IMAGE_ACR ?= {{ .svcAcrName }}
-ARO_HCP_FULL ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-OC_MIRROR_IMAGE ?= $(ARO_HCP_FULL)/{{ .ocMirrorImageRepo }}
+ARO_HCP_IMAGE_ACR_URL ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
+OC_MIRROR_IMAGE ?= $(ARO_HCP_IMAGE_ACR_URL)/{{ .ocMirrorImageRepo }}
 OC_MIRROR_IMAGE_TAGGED ?= $(OC_MIRROR_IMAGE):$(COMMIT)
+
+ARO_HCP_OCP_IMAGE_ACR ?= {{ .ocpAcrName }}
+ARO_HCP_OCP_IMAGE_ACR_URL ?= ${ARO_HCP_OCP_IMAGE_ACR}.azurecr.io

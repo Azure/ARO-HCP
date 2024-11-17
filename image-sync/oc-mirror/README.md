@@ -1,42 +1,40 @@
 # oc-mirror
 
-This container contains oc-mirror end required dependencies.
+This tool packages oc-mirror and all dependencies to mirror OCP artifacts and operators to an ACR.
 
-## Example usage for devarohcp
+## Build and push
 
- * Build the container image `podman build -t oc-mirror .`
- * Alternatively, use `make image`
- * Get credentials for Openshift registries https://console.redhat.com/openshift/install/pull-secret
- * Get Azure registry credentials `az acr login -n devarohcp`
- * Run the sync using the built container
-```BASH
-podman run -it --rm --tmpfs /oc-mirror-workspace \
-  -e XDG_RUNTIME_DIR=/ \
-  -v $PWD/imageset-config.yml:/imageset-config.yml:Z \
-  -v $HOME/.docker/config.json:/containers/auth.json:Z \
-  oc-mirror \
-  oc mirror --config=/imageset-config.yml docker://devarohcp.azurecr.io --dry-run
+To build a container image and push it to the service ACR, run
+
+```bash
+make build-push
 ```
 
-Note, the above command will run the sync in dry-run mode. To run the sync, remove the `--dry-run` flag.
+## Production deployment
 
-## Example configuration
+oc-mirror and the required configurations are deployed as Azure Container App
+via the `dev-infrastructure/templates/image-sync.bicep` template.
 
-The following is an example of the configuration file `imageset-config.yml`.
+## Local dry-run
 
-This exact configuration was used in the initial testing of the `oc-mirror` tool.
+To run oc-mirror locally, you need to have an active Azure CLI session.
 
-```YAML
-kind: ImageSetConfiguration
-apiVersion: mirror.openshift.io/v1alpha2
-storageConfig:
-  registry:
-    imageURL: devarohcp.azurecr.io/mirror/oc-mirror-metadata
-    skipTLS: false
-mirror:
-  platform:
-    channels:
-      - name: stable-4.16
-        type: ocp
-    graph: true
+### OCP mirror
+
+To dry-run the OCP mirror, run
+
+```bash
+make ocp-dry-run
 ```
+
+The test mirror-configuration can be found in the `test` directory.
+
+### ACM/MCE mirror
+
+To dry-run the ACM/MCE operator mirror, run
+
+```bash
+make acm-dry-run
+```
+
+The test mirror-configuration can be found in the `test` directory.
