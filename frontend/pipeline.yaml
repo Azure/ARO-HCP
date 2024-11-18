@@ -1,0 +1,21 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: RP - Frontend
+resourceGroups:
+- name: {{ .serviceClusterRG }}
+  subscription: {{ .serviceClusterSubscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  - name: deploy
+    action: Shell
+    command: ["/bin/bash", "-c", "make deploy"]
+    env:
+    - name: ARO_HCP_IMAGE_ACR
+      configRef: svcAcrName
+    - name: LOCATION
+      configRef: region
+    - name: RESOURCEGROUP
+      configRef: serviceClusterRG
+    - name: AKS_NAME
+      configRef: aksName
+    - name: DB_NAME
+      configRef: frontendCosmosDBName

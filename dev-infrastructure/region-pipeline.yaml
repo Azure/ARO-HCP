@@ -1,0 +1,14 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Region Rollout
+resourceGroups:
+- name: {{ .regionRG }}
+  subscription: {{ .serviceClusterSubscription }}
+  steps:
+  - name: region
+    action: ARM
+    template: templates/region.bicep
+    parameters: configurations/region.tmpl.bicepparam
+  - name: region
+    action: ARM
+    template: modules/modules/metrics.bicep
+    parameters: configurations/metrics.tmpl.bicepparam

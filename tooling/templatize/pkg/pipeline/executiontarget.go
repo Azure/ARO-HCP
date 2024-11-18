@@ -3,12 +3,11 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
 
 func lookupSubscriptionID(ctx context.Context, subscriptionName string) (string, error) {
@@ -45,59 +44,36 @@ type ExecutionTarget struct {
 	SubscriptionName string
 	SubscriptionID   string
 	ResourceGroup    string
+	Region           string
 	AKSClusterName   string
 }
 
 func (target *ExecutionTarget) KubeConfig(ctx context.Context) (string, error) {
 	if target.AKSClusterName == "" {
-		return "", fmt.Errorf("AKSClusterName is required to build a kubeconfig")
+		return "", fmt.Errorf("AKS cluster name is required to build a kubeconfig")
 	}
 
-	// Create a new Azure identity client
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	// Get Kubeconfig
+	kubeconfigPath, err := aks.GetKubeConfig(ctx, target.SubscriptionID, target.ResourceGroup, target.AKSClusterName)
 	if err != nil {
-		return "", fmt.Errorf("failed to obtain a credential: %v", err)
+		return "", fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
 
-	// Create a new AKS client
-	client, err := armcontainerservice.NewManagedClustersClient(target.SubscriptionID, cred, nil)
+	// Make sure we have cluster admin
+	err = aks.EnsureClusterAdmin(ctx, kubeconfigPath, target.SubscriptionID, target.ResourceGroup, target.AKSClusterName, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to create AKS client: %v", err)
+		return "", fmt.Errorf("failed to ensure cluster admin role: %w", err)
 	}
-
-	// Get the cluster access credentials
-	resp, err := client.ListClusterUserCredentials(ctx, target.ResourceGroup, target.AKSClusterName, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to get cluster access credentials: %v", err)
-	}
-	if len(resp.Kubeconfigs) == 0 {
-		return "", fmt.Errorf("no kubeconfig found")
-	}
-	kubeconfigContent := resp.Kubeconfigs[0].Value
-
-	// store the kubeconfig content into a temporary file
-	// generate a unique temporary filename
-	tmpfile, err := os.CreateTemp("", "kubeconfig-*.yaml")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temporary file for kubeconfig: %v", err)
-	}
-	defer tmpfile.Close()
-
-	// store the kubeconfig content into the temporary file
-	if _, err := tmpfile.Write([]byte(kubeconfigContent)); err != nil {
-		return "", fmt.Errorf("failed to write to temporary kubeconfigfile %s: %v", tmpfile.Name(), err)
-	}
-
-	// Run kubelogin to transform the kubeconfig
-	cmd := exec.CommandContext(ctx, "kubelogin", "convert-kubeconfig", "-l", "azurecli", "--kubeconfig", tmpfile.Name())
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to run kubelogin: %s %v", string(output), err)
-	}
-
-	return tmpfile.Name(), nil
+	return kubeconfigPath, nil
 }
 
-func (target *ExecutionTarget) Name() string {
+func (target *ExecutionTarget) description() string {
+	if target.AKSClusterName == "" {
+		return fmt.Sprintf("Subscription:\t %s\n\t Resourcegroup:\t %s\n", target.SubscriptionName, target.ResourceGroup)
+	}
 	return fmt.Sprintf("SUB %s / RG %s / AKS %s", target.SubscriptionName, target.ResourceGroup, target.AKSClusterName)
+}
+
+func (target *ExecutionTarget) aksID() string {
+	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s", target.SubscriptionID, target.ResourceGroup, target.AKSClusterName)
 }

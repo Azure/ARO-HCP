@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "baseDNSZoneName": {
+      "value": "hcp.osadev.cloud"
+    },
+    "baseDNSZoneResourceGroup": {
+      "value": "global"
+    },
+    "regionalDNSSubdomain": {
+      "value": "usw3sjan"
+    },
+    "maestroKeyVaultName": {
+      "value": "arohcp-maestro-usw3sjan"
+    },
+    "maestroEventGridNamespacesName": {
+      "value": "arohcp-maestro-usw3sjan"
+    },
+    "maestroEventGridMaxClientSessionsPerAuthName": {
+      "value": 4
+    }
+  }
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -27,9 +28,16 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 	return pipeline, nil
 }
 
-func (p *Pipeline) Run(ctx context.Context, vars config.Variables) error {
-	// set working directory to the pipeline file directory for the duration of
-	// the execution
+type PipelineRunOptions struct {
+	DryRun bool
+	Region string
+	Vars   config.Variables
+}
+
+func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
+	// set working directory to the pipeline file directory for the
+	// duration of the execution so that all commands and file references
+	// within the pipeline file are resolved relative to the pipeline file
 	originalDir, err := os.Getwd()
 	if err != nil {
 		return err
@@ -47,7 +55,7 @@ func (p *Pipeline) Run(ctx context.Context, vars config.Variables) error {
 	}()
 
 	for _, rg := range p.ResourceGroups {
-		err := rg.run(ctx, vars)
+		err := rg.run(ctx, options)
 		if err != nil {
 			return err
 		}
@@ -55,7 +63,7 @@ func (p *Pipeline) Run(ctx context.Context, vars config.Variables) error {
 	return nil
 }
 
-func (rg *resourceGroup) run(ctx context.Context, vars config.Variables) error {
+func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) error {
 	subscriptionID, err := lookupSubscriptionID(ctx, rg.Subscription)
 	if err != nil {
 		return err
@@ -63,12 +71,16 @@ func (rg *resourceGroup) run(ctx context.Context, vars config.Variables) error {
 	executionTarget := &ExecutionTarget{
 		SubscriptionName: rg.Subscription,
 		SubscriptionID:   subscriptionID,
+		Region:           options.Region,
 		ResourceGroup:    rg.Name,
 		AKSClusterName:   rg.AKSCluster,
 	}
 
 	for _, step := range rg.Steps {
-		err := step.run(ctx, executionTarget, vars)
+		fmt.Println("\n---------------------")
+		fmt.Println(step.description())
+		fmt.Print("\n")
+		err := step.run(ctx, executionTarget, options)
 		if err != nil {
 			return err
 		}
@@ -76,13 +88,25 @@ func (rg *resourceGroup) run(ctx context.Context, vars config.Variables) error {
 	return nil
 }
 
-func (s *step) run(ctx context.Context, executionTarget *ExecutionTarget, vars config.Variables) error {
+func (s *step) run(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
 	switch s.Action {
 	case "Shell":
-		return s.runShellStep(ctx, executionTarget, vars)
+		return s.runShellStep(ctx, executionTarget, options)
 	case "ARM":
-		return fmt.Errorf("not implemented %q", s.Action)
+		return s.runArmStep(ctx, executionTarget, options)
 	default:
 		return fmt.Errorf("unsupported action type %q", s.Action)
 	}
+}
+
+func (s *step) description() string {
+	var details []string
+	switch s.Action {
+	case "Shell":
+		details = append(details, fmt.Sprintf("Command: %v", strings.Join(s.Command, " ")))
+	case "ARM":
+		details = append(details, fmt.Sprintf("Template: %s", s.Template))
+		details = append(details, fmt.Sprintf("Parameters: %s", s.Parameters))
+	}
+	return fmt.Sprintf("Step %s\n  Kind: %s\n  %s", s.Name, s.Action, strings.Join(details, "\n  "))
 }

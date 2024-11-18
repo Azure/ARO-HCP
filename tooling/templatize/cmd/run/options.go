@@ -24,6 +24,7 @@ func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
 		return fmt.Errorf("failed to bind options: %w", err)
 	}
 	cmd.Flags().StringVar(&opts.PipelineFile, "pipeline-file", opts.PipelineFile, "pipeline file path")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 
 	for _, flag := range []string{"pipeline-file"} {
 		if err := cmd.MarkFlagFilename(flag); err != nil {
@@ -40,6 +41,7 @@ func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
 type RawRunOptions struct {
 	RolloutOptions *options.RawRolloutOptions
 	PipelineFile   string
+	DryRun         bool
 }
 
 // validatedRunOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -57,6 +59,7 @@ type ValidatedRunOptions struct {
 type completedRunOptions struct {
 	RolloutOptions *options.RolloutOptions
 	Pipeline       *pipeline.Pipeline
+	DryRun         bool
 }
 
 type RunOptions struct {
@@ -97,6 +100,7 @@ func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
 		completedRunOptions: &completedRunOptions{
 			RolloutOptions: completed,
 			Pipeline:       pipeline,
+			DryRun:         o.DryRun,
 		},
 	}, nil
 }
@@ -115,5 +119,9 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return o.Pipeline.Run(ctx, variables)
+	return o.Pipeline.Run(ctx, &pipeline.PipelineRunOptions{
+		DryRun: o.DryRun,
+		Vars:   variables,
+		Region: o.RolloutOptions.Region,
+	})
 }

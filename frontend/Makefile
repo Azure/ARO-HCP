@@ -1,7 +1,4 @@
 SHELL = /bin/bash
-DEPLOY_ENV ?= personal-dev
-$(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
-include config.mk
 
 COMMIT = $(shell git rev-parse --short=7 HEAD)
 ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
