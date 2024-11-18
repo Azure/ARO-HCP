@@ -1,0 +1,143 @@
+defaults:
+  region: {{ .ctx.region }}
+
+  # Resourcegroups
+  globalRG: global-shared-resources
+  regionRG: '{{ .ctx.region }}-shared-resources'
+  serviceClusterRG: hcp-underlay-{{ .ctx.region }}-svc
+  managementClusterRG: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
+  imageSyncRG: hcp-underlay-imagesync
+
+  # General AKS config
+  kubernetesVersion: 1.30.5
+  istioVersion: "['asm-1-22']"
+  vnetAddressPrefix: "10.128.0.0/14"
+  subnetPrefix: "10.128.8.0/21"
+  podSubnetPrefix: "10.128.64.0/18"
+  aksName: aro-hcp-aks
+
+  # ACR
+  serviceComponentAcrResourceGroups: global-shared-resources
+
+  # SVC cluster specifics
+  svcEtcdKVName: arohcp-etcd-{{ .ctx.regionShort }}
+  svcEtcdKVSoftDelete: true
+
+  # MGMT cluster specifics
+  mgmtEtcdKVName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+  mgmtEtcdKVSoftDelete: true
+
+  # Frontend
+  frontendCosmosDBDeploy: true
+  frontendCosmosDBDisableLocalAuth: true
+  frontendCosmosDBName: arohcp-rp-{{ .ctx.regionShort }}
+
+  # Maestro
+  maestroKeyVaultName: arohcp-maestro-{{ .ctx.regionShort }}
+  maestroEventgridName: arohcp-maestro-{{ .ctx.regionShort }}
+  maestroEventGridMaxClientSessionsPerAuthName: '4'
+  maestroCertDomain: 'selfsigned.maestro.keyvault.azure.com'
+  maestroPostgresName: arohcp-maestro-{{ .ctx.regionShort }}
+  maestroPostgresServerVersion: '15'
+  maestroPostgresServerStorageSizeGB: '32'
+  maestroPostgresDeploy: true
+  maestroPostgresPrivate: false
+  maestroRestrictIstioIngress: true
+  maestroConsumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+  maestroImageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+
+  # Cluster Service
+  clusterServicePostgresName: arohcp-cs-{{ .ctx.regionShort }}
+  clusterServicePostgresDeploy: true
+  clusterServicePostgresPrivate: false
+  clusterServiceAcrRG: global-shared-resources
+
+  # Image Sync
+  imageSyncAcrRG: global-shared-resources
+  imageSyncEnvironmentName: aro-hcp-image-sync
+  imageSyncRepositories: registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
+  imageSyncImageRepo: image-sync/component-sync
+  imageSyncImageTag: latest
+  ocMirrorImageRepo: image-sync/oc-mirror
+  ocMirrorImageTag: 7abc8af
+
+  # Service KeyVault
+  serviceKeyVaultName: arohcp-svc-{{ .ctx.regionShort }}
+  serviceKeyVaultRG: hcp-underlay-{{ .ctx.regionShort }}
+  serviceKeyVaultRegion: {{ .ctx.region }}
+  serviceKeyVaultSoftDelete: true
+  serviceKeyVaultPrivate: true
+
+  # Management Cluster KV
+  cxKeyVaultName: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+  cxKeyVaultSoftDelete: true
+  cxKeyVaultPrivate: true
+  msiKeyVaultName: arohcp-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+  msiKeyVaultSoftDelete: true
+  msiKeyVaultPrivate: true
+  mgmtKeyVaultName: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+  mgmtKeyVaultSoftDelete: true
+  mgmtKeyVaultPrivate: true
+
+  # OIDC
+  oidcStorageAccountName: arohcpoidc{{ .ctx.regionShort }}
+
+  # DNS
+  baseDnsZoneRG: 'global-shared-resources'
+  regionalDNSSubdomain: '{{ .ctx.region }}'
+
+  # Metrics
+  monitoringWorkspaceName: 'arohcp-{{ .ctx.regionShort }}'
+  grafanaName: 'arohcp-{{ .ctx.regionShort }}'
+  monitoringMsiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
+clouds:
+  public:
+    # this configuration serves as a template for for all RH DEV subscription deployments
+    # the following vars need approprivate overrides:
+    defaults:
+      # Maestro
+      maestroPostgresDeploy: false
+      maestroImageTag: ea066c250a002f0cc458711945165591bc9f6d3f
+      # Cluster Service
+      clusterServiceImageTag: a23276d
+      clusterServiceImageRepo: app-sre/uhc-clusters-service
+      # Hypershift Operator
+      hypershiftOperatorImageTag: 99a256f
+      externalDNSImageTag: v0.14.2
+    environments:
+      int:
+        # this is the MSFT INT environment
+        defaults:
+          # Subscriptions
+          serviceClusterSubscription: hcp-{{ ctx.region }}
+          managementClusterSubscription: hcp-{{ ctx.region }}
+          # DNS
+          baseDnsZoneName: aro-hcp.azure-test.net'
+          regionalDNSSubdomain: '{{ .ctx.region }}'
+          # 1P app
+          firstPartyAppClientId: '??? the one used by CS to do first party stuff ???'
+          # disable KV softdelete for easy cleanup and recreate in INT
+          cxKeyVaultSoftDelete: false
+          cxKeyVaultPrivate: false
+          msiKeyVaultSoftDelete: false
+          msiKeyVaultPrivate: false
+          mgmtKeyVaultSoftDelete: false
+          mgmtKeyVaultPrivate: false
+          svcEtcdKVSoftDelete: false
+          mgmtEtcdKVSoftDelete: false
+          # Grafana
+          grafanaAdminGroupPrincipalId: '??? the one to be used as Grafana Admin in grafana.bicep ???'
+          # DEVOPS MSI
+          # lets create this MSI manually for the time being and automate soon
+          # but we should use the MSI name as an input and not the resource ID of the MSI
+          aroDevopsMsiId: '??? the one for OIDC deployment script / lives in the global RG / needs to be created first thing on regional buildout ???'
+          # MGMTM AKS nodepools - big enough for 2 HCPs
+          mgmtSystemAgentPoolMinCount: 1
+          mgmtSystemAgentPoolMaxCount: 4
+          mgmtSystemAgentPoolVmSize: 'Standard_D2s_v3'
+          mgmtSystemAgentPoolOsDiskSizeGB: 32
+          mgmtUserAgentPoolMinCount: 2
+          mgmtUserAgentPoolMaxCount: 12
+          mgmtUserAgentPoolVmSize: 'Standard_D4s_v3'
+          mgmtUserAgentPoolOsDiskSizeGB: 100
+          mgmtUserAgentPoolAzCount: 3

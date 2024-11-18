@@ -403,20 +403,14 @@ acr-ocp.what-if: global.rg
 # Postgres Authentication Helpers
 #
 
-cs-current-user-pg-connect:
-	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME)
-.PHONY: cs-current-user-pg-connect
-
 cs-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME) "clusters-service" "cluster-service" "clusters-service"
+	@KUBECONFIG=${SVC_KUBECONFIG_FILE} && \
+	scripts/miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME) $(CS_MI_NAME) $(CS_NAMESPACE_NAME) $(CS_SA_NAME) $(CS_DB_NAME)
 .PHONY: cs-miwi-pg-connect
 
-maestro-current-user-pg-connect:
-	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME)
-.PHONY: maestro-current-user-pg-connect
-
 maestro-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
+	@KUBECONFIG=${SVC_KUBECONFIG_FILE} && \
+	scripts/miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME) $(MAESTRO_MI_NAME) $(MAESTRO_NAMESPACE_NAME) $(MAESTRO_SA_NAME) $(MAESTRO_DB_NAME)
 .PHONY: maestro-miwi-pg-connect
 
 #

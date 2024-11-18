@@ -13,6 +13,11 @@ AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID ?= {{ .firstPartyAppClientId }}
 FPA_CERT_NAME ?= firstPartyCert
 ZONE_NAME ?= {{ .regionalDNSSubdomain }}.{{ .baseDnsZoneName }}
 
+CS_MI_NAME ?= {{ .clusterServiceManagedIdentityName }}
+CS_DB_NAME ?= {{ .clusterServiceDatabaseName }}
+CS_SA_NAME ?= {{ .clusterServiceServiceAccountName }}
+CS_NAMESPACE_NAME ?= {{ .clusterServiceNamespace  }}
+
 DATABASE_DISABLE_TLS ?= {{ not .clusterServicePostgresDeploy }}
 DATABASE_AUTH_METHOD ?= {{ ternary "az-entra" "postgres" .clusterServicePostgresDeploy }}
 DATABASE_SERVER_NAME ?= {{ .clusterServicePostgresName }}

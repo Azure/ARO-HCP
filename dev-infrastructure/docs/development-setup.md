@@ -448,20 +448,10 @@ To create a cluster in CS using a locally running Frontend, see the frontend [RE
 
 ### Access Maestro Postgres from outside of the AKS cluster
 
-To connect to the database as current user run
+To connect to the database with the managed identity of Maestro, run the following command
 
   ```sh
-  eval $(AKSCONFIG=svc-cluster make maestro-current-user-pg-connect)
-  psql -d maestro
-  ```
-
-The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
-
-To connect to the database with the managed identity of Maestro, make sure to have a KUBECONFIG for the cluster that runs Maestro Server and run
-
-  ```sh
-  eval $(AKSCONFIG=svc-cluster make maestro-miwi-pg-connect)
-  psql -d maestro
+  make maestro-miwi-pg-connect
   ```
 
 Once logged in, verify the connection with `\conninfo`
@@ -474,20 +464,10 @@ To create a Postgres DB on Azure enabled for Entra authentication, a svc cluster
 
 ### Access the database from outside of the AKS cluster
 
-To connect to the database as current user run
+To connect to the database with the managed identity of CS, run the following command
 
   ```sh
-  eval $(make cs-current-user-pg-connect)
-  psql -d clusters-service
-  ```
-
-The output of the make target is in ENV var format for the `psql` tool, so this works to get a connection into the DB.
-
-To connect to the database with the managed identity of CS, make sure to have a KUBECONFIG for the cluster that runs CS and run
-
-  ```sh
-  eval $(make cs-miwi-pg-connect)
-  psql -d clusters-service
+  make cs-miwi-pg-connect
   ```
 
 Once logged in, verify the connection with `\conninfo`

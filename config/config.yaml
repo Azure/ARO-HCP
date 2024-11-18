@@ -40,6 +40,10 @@ defaults:
   maestroEventGridMaxClientSessionsPerAuthName: '4'
   maestroCertDomain: 'selfsigned.maestro.keyvault.azure.com'
   maestroPostgresName: arohcp-maestro-{{ .ctx.regionShort }}
+  maestroServerNamespace: maestro
+  maestroServerManagedIdentityName: maestro-server
+  maestroServerServiceAccountName: maestro
+  maestroDatabaseName: maestro
   maestroPostgresServerVersion: '15'
   maestroPostgresServerStorageSizeGB: '32'
   maestroPostgresDeploy: true
@@ -58,6 +62,10 @@ defaults:
   clusterServicePostgresDeploy: true
   clusterServicePostgresPrivate: false
   clusterServiceAcrRG: global
+  clusterServiceNamespace: cluster-service
+  clusterServiceManagedIdentityName: clusters-service
+  clusterServiceServiceAccountName: clusters-service
+  clusterServiceDatabaseName: clusters-service
 
   # Image Sync
   imageSyncAcrRG: global

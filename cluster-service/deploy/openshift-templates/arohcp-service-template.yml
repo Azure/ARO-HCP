@@ -138,6 +138,11 @@ parameters:
   description: The resource ID of the Azure Container Registry where the OpenShift images are stored.
   required: true
 
+- name: SERVICE_ACCOUNT_NAME
+  description: The name of the service account used to run CS.
+  required: true
+  value: "clusters-service"
+
 
 # These limits are based on the metrics collected in the production environment
 # over the last year. In particular the following Prometheus queries were used
@@ -472,7 +477,7 @@ objects:
 - apiVersion: v1
   kind: ServiceAccount
   metadata:
-    name: clusters-service
+    name: ${SERVICE_ACCOUNT_NAME}
     namespace: ${NAMESPACE}
     labels:
       app: clusters-service
@@ -506,8 +511,8 @@ objects:
           app: clusters-service
           azure.workload.identity/use: "true"
       spec:
-        serviceAccount: clusters-service
-        serviceAccountName: clusters-service
+        serviceAccount: ${SERVICE_ACCOUNT_NAME}
+        serviceAccountName: ${SERVICE_ACCOUNT_NAME}
         volumes:
         - name: service
           secret:
