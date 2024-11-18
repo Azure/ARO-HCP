@@ -24,14 +24,14 @@ type Cache struct {
 	subscription map[string]*SubscriptionDocument
 }
 
-type operationCacheIterator struct {
-	operation map[string]*OperationDocument
-	err       error
+type cacheIterator struct {
+	docs []any
+	err  error
 }
 
-func (iter operationCacheIterator) Items(ctx context.Context) iter.Seq[[]byte] {
+func (iter cacheIterator) Items(ctx context.Context) iter.Seq[[]byte] {
 	return func(yield func([]byte) bool) {
-		for _, doc := range iter.operation {
+		for _, doc := range iter.docs {
 			// Marshalling the document struct only to immediately unmarshal
 			// it back to a document struct is a little silly but this is to
 			// conform to the DBClientIterator interface.
@@ -48,7 +48,7 @@ func (iter operationCacheIterator) Items(ctx context.Context) iter.Seq[[]byte] {
 	}
 }
 
-func (iter operationCacheIterator) GetError() error {
+func (iter cacheIterator) GetError() error {
 	return iter.err
 }
 
@@ -164,7 +164,11 @@ func (c *Cache) DeleteOperationDoc(ctx context.Context, operationID string) erro
 }
 
 func (c *Cache) ListAllOperationDocs(ctx context.Context) DBClientIterator {
-	return operationCacheIterator{operation: c.operation}
+	var iterator cacheIterator
+	for _, doc := range c.operation {
+		iterator.docs = append(iterator.docs, doc)
+	}
+	return iterator
 }
 
 func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
