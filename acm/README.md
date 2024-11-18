@@ -20,8 +20,8 @@ Updating `policy` needs to be done with care for now, since the content of the h
 
 ## Updating charts
 
-Lookup the desired install MCE OLM bundle on [https://catalog.redhat.com](https://catalog.redhat.com/software/containers/multicluster-engine/mce-operator-bundle/6160406290fb938ecf6009c6) and update the `MCE_OPERATOR_BUNDLE_IMAGE` variable in `Makefile`.
+To update the `multicluster-engine` chart, lookup the desired install MCE OLM bundle on [https://catalog.redhat.com](https://catalog.redhat.com/software/containers/multicluster-engine/mce-operator-bundle/6160406290fb938ecf6009c6) and update the `MCE_OPERATOR_BUNDLE_IMAGE` variable in `Makefile`.
 
-Then run `make helm-chart`.
+To update the `multicluster-engine-config/policy` subchart, update the `POLICY_HELM_REPO_BRANCH` variable in the `Makefile` for the desired release.
 
-Test the changes and commit
+Run `make helm-chart` to update all charts. Review and commit all changes to the `deploy/helm` directory.

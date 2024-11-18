@@ -12,6 +12,7 @@ MCE_CHART_DIR = ${HELM_BASE_DIR}/multicluster-engine
 MCE_CONFIG_DIR = ${HELM_BASE_DIR}/multicluster-engine-config
 MCE_NS = multicluster-engine
 POLICY_HELM_REPO = https://github.com/stolostron/mce-install-kube.git
+POLICY_HELM_REPO_BRANCH = release-2.12
 
 deploy:
 	@kubectl create namespace ${MCE_NS} --dry-run=client -o json | kubectl apply -f -
@@ -36,7 +37,7 @@ helm-chart:
 
 	@echo "Cloning remote mce-install-kube repository..."
 	TMP_DIR=$$(mktemp -d) && \
-	git clone ${POLICY_HELM_REPO} $$TMP_DIR && \
+	git clone --branch ${POLICY_HELM_REPO_BRANCH} ${POLICY_HELM_REPO} $$TMP_DIR && \
 	rm -rf ${MCE_CONFIG_DIR}/charts && \
 	mkdir -p ${MCE_CONFIG_DIR}/charts && \
 	cp -r $$TMP_DIR/policy ${MCE_CONFIG_DIR}/charts && \
