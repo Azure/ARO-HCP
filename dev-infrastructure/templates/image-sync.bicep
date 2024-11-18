@@ -223,11 +223,9 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
   }
 }
 
-// oc-mirror job
+// oc-mirror jobs
 
-var ocMirrorJobName = 'oc-mirror'
-
-var ocMirrorConfig = {
+var ocpMirrorConfig = {
   kind: 'ImageSetConfiguration'
   apiVersion: 'mirror.openshift.io/v1alpha2'
   storageConfig: {
@@ -251,10 +249,6 @@ var ocMirrorConfig = {
       graph: true
     }
     additionalImages: [
-      { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.16' }
-      { name: 'registry.redhat.io/redhat/certified-operator-index:v4.16' }
-      { name: 'registry.redhat.io/redhat/community-operator-index:v4.16' }
-      { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.16' }
       { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.17' }
       { name: 'registry.redhat.io/redhat/certified-operator-index:v4.17' }
       { name: 'registry.redhat.io/redhat/community-operator-index:v4.17' }
@@ -263,98 +257,149 @@ var ocMirrorConfig = {
   }
 }
 
-resource ocMirrorJob 'Microsoft.App/jobs@2024-03-01' = {
-  name: ocMirrorJobName
-  location: location
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${uami.id}': {}
-    }
-  }
-
-  properties: {
-    environmentId: containerAppEnvironment.id
-    configuration: {
-      eventTriggerConfig: {}
-      triggerType: 'Schedule'
-      manualTriggerConfig: {
-        parallelism: 1
-      }
-      scheduleTriggerConfig: {
-        cronExpression: '0 * * * *'
-        parallelism: 1
-      }
-      replicaTimeout: 4 * 60 * 60
-      registries: [
-        {
-          identity: uami.id
-          server: '${svcAcrName}${environment().suffixes.acrLoginServer}'
-        }
-      ]
-      secrets: [
-        {
-          name: 'pull-secrets'
-          keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${ocpPullSecretName}'
-          identity: uami.id
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: ocMirrorJobName
-          image: ocMirrorImage
-          volumeMounts: [
-            { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
-          ]
-          env: [
-            { name: 'IMAGE_SET_CONFIG', value: base64(string(ocMirrorConfig)) }
-            { name: 'REGISTRY', value: ocpAcrName }
-            { name: 'REGISTRY_URL', value: '${ocpAcrName}${environment().suffixes.acrLoginServer}' }
-            { name: 'XDG_RUNTIME_DIR', value: '/etc' }
-            { name: 'AZURE_CLIENT_ID', value: uami.properties.clientId }
-            {
-              name: 'APPSETTING_WEBSITE_SITE_NAME'
-              value: 'workaround - https://github.com/microsoft/azure-container-apps/issues/502'
-            }
-          ]
-          resources: {
-            cpu: 2
-            memory: '4Gi'
+var acmMirrorConfig = {
+  kind: 'ImageSetConfiguration'
+  apiVersion: 'mirror.openshift.io/v2alpha1'
+  mirror: {
+    operators: [
+      {
+        catalog: 'registry.redhat.io/redhat/redhat-operator-index:v4.17'
+        packages: [
+          {
+            name: 'multicluster-engine'
+            bundles: [
+              {
+                name: 'multicluster-engine.v2.7.0'
+              }
+            ]
           }
-        }
-      ]
-      initContainers: [
-        {
-          name: 'decodesecrets'
-          image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
-          command: [
-            '/bin/sh'
-          ]
-          args: [
-            '-c'
-            'cat /tmp/secret-orig/pull-secrets | base64 -d > /etc/containers/auth.json'
-          ]
-          volumeMounts: [
-            { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
-            { volumeName: 'pull-secrets', mountPath: '/tmp/secret-orig' }
-          ]
-        }
-      ]
-      volumes: [
-        {
-          name: 'pull-secrets-updated'
-          storageType: 'EmptyDir'
-        }
-        {
-          name: 'pull-secrets'
-          storageType: 'Secret'
-          secrets: [
-            { secretRef: 'pull-secrets' }
-          ]
-        }
-      ]
-    }
+          {
+            name: 'advanced-cluster-management'
+            bundles: [
+              {
+                name: 'advanced-cluster-management.v2.12.0'
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 }
+
+var ocMirrorJobConfiguration = [
+  {
+    name: 'oc-mirror'
+    cron: '0 * * * *'
+    timeout: 4 * 60 * 60
+    targetRegistry: ocpAcrName
+    imageSetConfig: ocpMirrorConfig
+  }
+  {
+    name: 'acm-mirror'
+    cron: '0 10 * * *'
+    timeout: 4 * 60 * 60
+    targetRegistry: svcAcrName
+    imageSetConfig: acmMirrorConfig
+  }
+]
+
+resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
+  for i in range(0, length(ocMirrorJobConfiguration)): {
+    name: ocMirrorJobConfiguration[i].name
+    location: location
+    identity: {
+      type: 'UserAssigned'
+      userAssignedIdentities: {
+        '${uami.id}': {}
+      }
+    }
+    properties: {
+      environmentId: containerAppEnvironment.id
+      configuration: {
+        eventTriggerConfig: {}
+        triggerType: 'Schedule'
+        manualTriggerConfig: {
+          parallelism: 1
+        }
+        scheduleTriggerConfig: {
+          cronExpression: ocMirrorJobConfiguration[i].cron
+          parallelism: 1
+        }
+        replicaTimeout: ocMirrorJobConfiguration[i].timeout
+        registries: [
+          {
+            identity: uami.id
+            server: '${svcAcrName}${environment().suffixes.acrLoginServer}'
+          }
+        ]
+        secrets: [
+          {
+            name: 'pull-secrets'
+            keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${ocpPullSecretName}'
+            identity: uami.id
+          }
+        ]
+      }
+      template: {
+        containers: [
+          {
+            name: 'oc-mirror'
+            image: ocMirrorImage
+            volumeMounts: [
+              { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
+            ]
+            env: [
+              { name: 'IMAGE_SET_CONFIG', value: base64(string(ocMirrorJobConfiguration[i].imageSetConfig)) }
+              { name: 'REGISTRY', value: ocMirrorJobConfiguration[i].targetRegistry }
+              {
+                name: 'REGISTRY_URL'
+                value: '${ocMirrorJobConfiguration[i].targetRegistry}${environment().suffixes.acrLoginServer}'
+              }
+              { name: 'XDG_RUNTIME_DIR', value: '/etc' }
+              { name: 'AZURE_CLIENT_ID', value: uami.properties.clientId }
+              {
+                name: 'APPSETTING_WEBSITE_SITE_NAME'
+                value: 'workaround - https://github.com/microsoft/azure-container-apps/issues/502'
+              }
+            ]
+            resources: {
+              cpu: 2
+              memory: '4Gi'
+            }
+          }
+        ]
+        initContainers: [
+          {
+            name: 'decodesecrets'
+            image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
+            command: [
+              '/bin/sh'
+            ]
+            args: [
+              '-c'
+              'cat /tmp/secret-orig/pull-secrets | base64 -d > /etc/containers/auth.json'
+            ]
+            volumeMounts: [
+              { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
+              { volumeName: 'pull-secrets', mountPath: '/tmp/secret-orig' }
+            ]
+          }
+        ]
+        volumes: [
+          {
+            name: 'pull-secrets-updated'
+            storageType: 'EmptyDir'
+          }
+          {
+            name: 'pull-secrets'
+            storageType: 'Secret'
+            secrets: [
+              { secretRef: 'pull-secrets' }
+            ]
+          }
+        ]
+      }
+    }
+  }
+]

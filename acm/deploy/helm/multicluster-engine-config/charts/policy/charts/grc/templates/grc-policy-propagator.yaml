@@ -81,7 +81,7 @@ spec:
               fieldPath: metadata.name
         - name: OPERATOR_NAME
           value: governance-policy-propagator
-        image: {{ .Values.global.imageOverrides.governance_policy_propagator }}
+        image: "{{ .Values.global.registryOverride}}/{{ .Values.global.imageOverrides.governance_policy_propagator }}"
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:

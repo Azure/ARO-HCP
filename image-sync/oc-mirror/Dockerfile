@@ -43,4 +43,4 @@ COPY --chown=0:0 --chmod=755 --from=downloader \
     /usr/local/bin/yq \
     /usr/local/bin/
 
-    ENTRYPOINT ["/usr/local/bin/mirror.sh"]
+ENTRYPOINT ["/usr/local/bin/mirror.sh"]

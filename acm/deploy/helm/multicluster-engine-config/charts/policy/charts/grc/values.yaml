@@ -1,6 +1,7 @@
 # Copyright (c) 2020 Red Hat, Inc.
 
 global:
+  registryOverride: ""
   imageOverrides:
     governance_policy_propagator: ""
     governance_policy_addon_controller: ""

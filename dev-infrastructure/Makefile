@@ -102,6 +102,7 @@ imagesync.rg:
 		az group create \
 			--name $(IMAGE_SYNC_RESOURCEGROUP)  \
 			--location $(REGION) \
+			--tags persist=$(PERSIST) \
 			--output none; \
 	fi
 .PHONY: imagesyncRg
