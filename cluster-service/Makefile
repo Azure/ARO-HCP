@@ -36,7 +36,7 @@ deploy-namespace-template:
 deploy-istio-configurations-template:
 	kubectl apply -f deploy/istio.yml
 
-deploy-local-db-secret: configure-tmp-provision-shard
+deploy-local-db-secret: provision-shard
 	oc process --local -f deploy/openshift-templates/arohcp-secrets-template.yml \
 		-p PROVISION_SHARDS_CONFIG="$$( base64 -i deploy/provisioning-shards.yml)" | oc apply -f -
 	oc process --local -f deploy/openshift-templates/arohcp-db-template.yml | oc apply -f -
