@@ -1,8 +1,5 @@
 defaults:
   region: {{ .ctx.region }}
-  # Subscriptions
-  serviceClusterSubscription: hcp-{{ .ctx.region }}
-  managementClusterSubscription: hcp-{{ .ctx.region }}
   # Resourcegroups
   globalRG: global
 
@@ -27,6 +24,7 @@ defaults:
     externalDNSServiceAccountName: external-dns
 
   svc:
+    subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.regionShort }}-svc
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}
@@ -34,6 +32,7 @@ defaults:
 
   # MGMT cluster specifics
   mgmt:
+    subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
