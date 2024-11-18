@@ -25,9 +25,9 @@ param maestroEventGridNamespacesName = '{{ .maestro.eventgridName }}'
 param maestroCertDomain = '{{ .maestro.certDomain }}'
 
 // Hypershift
-param hypershiftNamespace = '{{ .hypershiftNamespace }}'
-param externalDNSManagedIdentityName = '{{ .externalDNSManagedIdentityName }}'
-param externalDNSServiceAccountName = '{{ .externalDNSServiceAccountName }}'
+param hypershiftNamespace = '{{ .hypershift.namespace }}'
+param externalDNSManagedIdentityName = '{{ .hypershift.externalDNSManagedIdentityName }}'
+param externalDNSServiceAccountName = '{{ .hypershift.externalDNSServiceAccountName }}'
 
 // DNS
 param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .baseDnsZoneName }}'
