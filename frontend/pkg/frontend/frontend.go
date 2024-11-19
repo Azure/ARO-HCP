@@ -192,17 +192,29 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	documentList, continuationToken, err := f.dbClient.ListResourceDocs(ctx, prefix, &api.ClusterResourceType, pageSizeHint, continuationToken)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	iterator := f.dbClient.ListResourceDocs(ctx, prefix, pageSizeHint, continuationToken)
 
 	// Build a map of cluster documents by Cluster Service cluster ID.
 	documentMap := make(map[string]*database.ResourceDocument)
-	for _, doc := range documentList {
-		documentMap[doc.InternalID.ID()] = doc
+	for item := range iterator.Items(ctx) {
+		var doc database.ResourceDocument
+
+		err = json.Unmarshal(item, &doc)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		if strings.EqualFold(doc.Key.ResourceType.String(), api.ClusterResourceType.String()) {
+			documentMap[doc.InternalID.ID()] = &doc
+		}
+	}
+
+	err = iterator.GetError()
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
 	}
 
 	// Build a Cluster Service query that looks for
@@ -240,13 +252,11 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	if continuationToken != nil {
-		err = pagedResponse.SetNextLink(request.Referer(), *continuationToken)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+	err = pagedResponse.SetNextLink(request.Referer(), iterator.GetContinuationToken())
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
