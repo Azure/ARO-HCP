@@ -1,3 +1,4 @@
+$schema: config.schema.json
 defaults:
   region: {{ .ctx.region }}
   # Resourcegroups
@@ -207,7 +208,8 @@ clouds:
           # DNS
           regionalDNSSubdomain: '{{ .ctx.region }}-cs'
           # Maestro
-          maestroRestrictIstioIngress: false
+          maestro:
+            restrictIstioIngress: false
       personal-dev:
         # this is the personal DEV environment
         defaults:

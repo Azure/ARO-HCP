@@ -1,3 +1,4 @@
+$schema: schema.json
 defaults:
   region: {{ .ctx.region }}
   serviceClusterSubscription: hcp-{{ .ctx.region }}

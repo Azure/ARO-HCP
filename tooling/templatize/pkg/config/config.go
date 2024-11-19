@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"text/template"
 
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"gopkg.in/yaml.v3"
 )
 
@@ -89,6 +91,62 @@ func mergeVariables(base, override Variables) Variables {
 	return base
 }
 
+// Needed to convert Variables to map[string]interface{} for jsonschema validation
+// see: https://github.com/santhosh-tekuri/jsonschema/blob/boon/schema.go#L124
+func convertToInterface(variables Variables) map[string]any {
+	m := map[string]any{}
+	for k, v := range variables {
+		if subMap, ok := v.(Variables); ok {
+			m[k] = convertToInterface(subMap)
+		} else {
+			m[k] = v
+		}
+	}
+	return m
+}
+
+func (cp *configProviderImpl) loadSchema() (any, error) {
+	schemaPath := cp.schema
+	if !filepath.IsAbs(schemaPath) {
+		schemaPath = filepath.Join(filepath.Dir(cp.config), schemaPath)
+	}
+	reader, err := os.Open(schemaPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open schema file: %v", err)
+	}
+
+	schema, err := jsonschema.UnmarshalJSON(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal schema: %v", err)
+	}
+
+	return schema, nil
+}
+
+func (cp *configProviderImpl) validateSchema(variables Variables) error {
+	c := jsonschema.NewCompiler()
+
+	schema, err := cp.loadSchema()
+	if err != nil {
+		return fmt.Errorf("failed to load schema: %v", err)
+	}
+
+	err = c.AddResource(cp.schema, schema)
+	if err != nil {
+		return fmt.Errorf("failed to add schema resource: %v", err)
+	}
+	sch, err := c.Compile(cp.schema)
+	if err != nil {
+		return fmt.Errorf("failed to compile schema: %v", err)
+	}
+
+	err = sch.Validate(convertToInterface(variables))
+	if err != nil {
+		return fmt.Errorf("failed to validate schema: %v", err)
+	}
+	return nil
+}
+
 func (cp *configProviderImpl) GetVariables(cloud, deployEnv, region string, configReplacements *ConfigReplacements) (Variables, error) {
 	variables, err := cp.GetDeployEnvVariables(cloud, deployEnv, configReplacements)
 	if err != nil {
@@ -102,6 +160,11 @@ func (cp *configProviderImpl) GetVariables(cloud, deployEnv, region string, conf
 	}
 	mergeVariables(variables, regionOverrides)
 
+	// validate schema
+	err = cp.validateSchema(variables)
+	if err != nil {
+		return nil, err
+	}
 	return variables, nil
 }
 
@@ -116,6 +179,10 @@ func (cp *configProviderImpl) Validate(cloud, deployEnv string) error {
 
 	if ok := config.HasDeployEnv(cloud, deployEnv); !ok {
 		return fmt.Errorf("the deployment env %s is not found under cloud %s", deployEnv, cloud)
+	}
+
+	if !config.HasSchema() {
+		return fmt.Errorf("$schema not found in config")
 	}
 	return nil
 }
@@ -134,6 +201,8 @@ func (cp *configProviderImpl) GetDeployEnvVariables(cloud, deployEnv string, con
 	mergeVariables(variables, config.GetDefaults())
 	mergeVariables(variables, config.GetCloudOverrides(cloud))
 	mergeVariables(variables, config.GetDeployEnvOverrides(cloud, deployEnv))
+
+	cp.schema = config.GetSchema()
 
 	return variables, nil
 }
