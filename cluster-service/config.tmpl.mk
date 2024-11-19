@@ -21,6 +21,6 @@ DB_SECRET_TARGET = {{ ternary "deploy-azure-db-secret" "deploy-local-db-secret" 
 DEVOPS_MSI_ID ?= {{ .aroDevopsMsiId }}
 
 # MGMT CLUSTER KVs
-MGMT_RESOURCEGROUP ?= {{ .managementClusterRG }}
-CX_SECRETS_KV_NAME ?= {{ .cxKeyVaultName }}
-CX_MI_KV_NAME ?= {{ .msiKeyVaultName }}
+MGMT_RESOURCEGROUP ?= {{ .mgmt.rg }}
+CX_SECRETS_KV_NAME ?= {{ .cxKeyVault.name }}
+CX_MI_KV_NAME ?= {{ .msiKeyVault.name }}

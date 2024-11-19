@@ -12,8 +12,8 @@ RESOURCEGROUP ?= {{ .mgmt.rg }}
 REGIONAL_RESOURCEGROUP ?= {{ .regionRG }}
 ZONE_NAME ?= {{ .regionalDNSSubdomain }}.{{ .baseDnsZoneName }}
 AKS_NAME ?= {{ .aksName }}
-HYPERSHIFT_NAMESPACE ?= {{ .hypershiftNamespace}}
-EXTERNAL_DNS_MI_NAME ?= {{ .externalDNSManagedIdentityName }}
+HYPERSHIFT_NAMESPACE ?= {{ .hypershift.namespace}}
+EXTERNAL_DNS_MI_NAME ?= {{ .hypershift.externalDNSManagedIdentityName }}
 
 HO_CHART_DIR ?= deploy/helm/charts/hypershift-operator
-HO_ADDITIONAL_INSTALL_ARG ?= {{ .hypershiftAdditionalInstallArg }}
+HO_ADDITIONAL_INSTALL_ARG ?= {{ .hypershift.additionalInstallArg }}
