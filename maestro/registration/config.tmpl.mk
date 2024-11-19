@@ -1,1 +1,1 @@
-CONSUMER_NAME ?= {{ .maestroConsumerName }}
+CONSUMER_NAME ?= {{ .maestro.consumerName }}

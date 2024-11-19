@@ -1,7 +1,7 @@
-EVENTGRID_NAME ?= {{ .maestroEventgridName}}
+EVENTGRID_NAME ?= {{ .maestro.eventgridName}}
 REGION_RG ?= {{ .regionRG }}
-MGMT_RG ?= {{ .managementClusterRG }}
-CONSUMER_NAME ?= {{ .maestroConsumerName }}
-KEYVAULT_NAME ?= {{ .maestroKeyVaultName }}
-IMAGE_BASE ?= {{ .maestroImageBase }}
-IMAGE_TAG ?= {{ .maestroImageTag }}
+MGMT_RG ?= {{ .mgmt.rg }}
+CONSUMER_NAME ?= {{ .maestro.consumerName }}
+KEYVAULT_NAME ?= {{ .maestro.keyVaultName }}
+IMAGE_BASE ?= {{ .maestro.imageBase }}
+IMAGE_TAG ?= {{ .maestro.imageTag }}

@@ -36,4 +36,4 @@ param purgeJobs = [
   }
 ]
 
-param keyVaultName = '{{ .serviceKeyVaultName }}'
+param keyVaultName = '{{ .serviceKeyVault.name }}'
