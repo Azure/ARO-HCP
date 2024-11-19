@@ -75,6 +75,7 @@
       "kvSoftDelete": false
     },
     "rg": "hcp-underlay-usw3tst-mgmt-1",
+    "subscription": "hcp-westus3",
     "systemAgentPool": {
       "maxCount": 4,
       "minCount": 1,
@@ -130,7 +131,8 @@
       "kvName": "arohcp-etcd-usw3tst",
       "kvSoftDelete": false
     },
-    "rg": "hcp-underlay-usw3tst-svc"
+    "rg": "hcp-underlay-usw3tst-svc",
+    "subscription": "hcp-westus3"
   },
   "svcAcrName": "arohcpsvcdev",
   "vnetAddressPrefix": "10.128.0.0/14"

@@ -76,6 +76,7 @@
       "kvSoftDelete": false
     },
     "rg": "hcp-underlay-cspr-mgmt-1",
+    "subscription": "hcp-westus3",
     "systemAgentPool": {
       "maxCount": 4,
       "minCount": 1,
@@ -131,7 +132,8 @@
       "kvName": "arohcp-etcd-cspr",
       "kvSoftDelete": false
     },
-    "rg": "hcp-underlay-cspr-svc"
+    "rg": "hcp-underlay-cspr-svc",
+    "subscription": "hcp-westus3"
   },
   "svcAcrName": "arohcpsvcdev",
   "vnetAddressPrefix": "10.128.0.0/14"
