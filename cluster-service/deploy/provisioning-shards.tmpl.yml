@@ -8,7 +8,7 @@ provision_shards:
       "grpc_api_config": {
         "url": "{{ .extraVars.maestroGrpUrl }}"
       },
-      "consumer_name": "{{ .maestroConsumerName }}"
+      "consumer_name": "{{ .maestro.consumerName }}"
     }
   status: active
   azure_base_domain: "{{ .extraVars.zoneResourceId }}"
