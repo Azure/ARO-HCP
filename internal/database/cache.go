@@ -48,6 +48,10 @@ func (iter cacheIterator) Items(ctx context.Context) iter.Seq[[]byte] {
 	}
 }
 
+func (iter cacheIterator) GetContinuationToken() string {
+	return ""
+}
+
 func (iter cacheIterator) GetError() error {
 	return iter.err
 }

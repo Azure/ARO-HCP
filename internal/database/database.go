@@ -51,6 +51,7 @@ func isResponseError(err error, statusCode int) bool {
 
 type DBClientIterator interface {
 	Items(ctx context.Context) iter.Seq[[]byte]
+	GetContinuationToken() string
 	GetError() error
 }
 
