@@ -24,4 +24,4 @@ resourceGroups:
     - name: GRAFANA_NAME
       configRef: grafanaName
     dependsOn:
-    - region
+    - svc

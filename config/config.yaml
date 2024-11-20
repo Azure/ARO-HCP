@@ -151,7 +151,6 @@ clouds:
         etcd:
           kvSoftDelete: false
       mgmt:
-        subscription: ARO Hosted Control Planes (EA Subscription 1)
         # MGMTM AKS nodepools - big enough for 2 HCPs
         systemAgentPool:
           minCount: 1

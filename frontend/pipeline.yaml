@@ -1,8 +1,8 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: RP - Frontend
 resourceGroups:
-- name: {{ .serviceClusterRG }}
-  subscription: {{ .serviceClusterSubscription }}
+- name: {{ .svc.rg }}
+  subscription: {{ .svc.subscription }}
   aksCluster: {{ .aksName }}
   steps:
   - name: deploy
@@ -14,8 +14,8 @@ resourceGroups:
     - name: LOCATION
       configRef: region
     - name: RESOURCEGROUP
-      configRef: serviceClusterRG
+      configRef: svc.rg
     - name: AKS_NAME
       configRef: aksName
     - name: DB_NAME
-      configRef: frontendCosmosDBName
+      configRef: frontend.cosmosDB.name

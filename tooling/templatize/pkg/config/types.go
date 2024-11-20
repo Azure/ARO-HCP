@@ -12,9 +12,9 @@ type configProviderImpl struct {
 
 type Variables map[string]any
 
-func (v Variables) GetByPath(path string) (interface{}, bool) {
+func (v Variables) GetByPath(path string) (any, bool) {
 	keys := strings.Split(path, ".")
-	var current interface{} = v
+	var current any = v
 
 	for _, key := range keys {
 		if m, ok := current.(Variables); ok {

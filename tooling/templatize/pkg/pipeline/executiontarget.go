@@ -67,13 +67,6 @@ func (target *ExecutionTarget) KubeConfig(ctx context.Context) (string, error) {
 	return kubeconfigPath, nil
 }
 
-func (target *ExecutionTarget) description() string {
-	if target.AKSClusterName == "" {
-		return fmt.Sprintf("Subscription:\t %s\n\t Resourcegroup:\t %s\n", target.SubscriptionName, target.ResourceGroup)
-	}
-	return fmt.Sprintf("SUB %s / RG %s / AKS %s", target.SubscriptionName, target.ResourceGroup, target.AKSClusterName)
-}
-
 func (target *ExecutionTarget) aksID() string {
 	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s", target.SubscriptionID, target.ResourceGroup, target.AKSClusterName)
 }

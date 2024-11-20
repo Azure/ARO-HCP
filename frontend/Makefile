@@ -1,6 +1,6 @@
-SHELL = /bin/bash
+include ../setup-env.mk
 
-COMMIT = $(shell git rev-parse --short=7 HEAD)
+COMMIT ?= $(shell git rev-parse --short=7 HEAD)
 ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
@@ -16,6 +16,7 @@ run:
 
 clean:
 	rm -f aro-hcp-frontend
+.PHONY: clean
 
 build-push: image push
 
@@ -23,18 +24,19 @@ image:
 	pushd .. && git archive --output frontend/archive.tar.gz HEAD && popd
 	docker build -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
 	rm -f archive.tar.gz
+.PHONY: image
 
 push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	docker push ${ARO_HCP_FRONTEND_IMAGE}
 
 deploy:
-	FRONTEND_MI_CLIENT_ID=$(shell az identity show \
+	FRONTEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend \
 			--query clientId);\
-	ISTO_VERSION=$(shell az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
-	DB_URL=$(shell az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
+	ISTO_VERSION=$$(az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
+	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
 	helm upgrade --install aro-hcp-frontend-dev \
@@ -47,11 +49,11 @@ deploy:
 		--set configMap.location=${LOCATION}  \
 		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE} \
 		--namespace aro-hcp
+.PHONY: deploy
 
 undeploy:
 	helm uninstall aro-hcp-frontend-dev --namespace aro-hcp
+.PHONY: undeploy
 
 smoke-tests:
 	go test -v -count 1 ./utils/frontend_smoke_test.go
-
-.PHONY: frontend clean image deploy undeploy
