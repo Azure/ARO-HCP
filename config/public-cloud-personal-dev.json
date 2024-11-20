@@ -68,14 +68,13 @@
     },
     "restrictIstioIngress": true
   },
-  "managementClusterSubscription": "ARO Hosted Control Planes (EA Subscription 1)",
   "mgmt": {
     "etcd": {
       "kvName": "arohcp-etcd-usw3tst-1",
       "kvSoftDelete": false
     },
     "rg": "hcp-underlay-usw3tst-mgmt-1",
-    "subscription": "hcp-westus3",
+    "subscription": "ARO Hosted Control Planes (EA Subscription 1)",
     "systemAgentPool": {
       "maxCount": 4,
       "minCount": 1,
@@ -116,7 +115,6 @@
   "region": "westus3",
   "regionRG": "hcp-underlay-usw3tst",
   "regionalDNSSubdomain": "usw3tst",
-  "serviceClusterSubscription": "ARO Hosted Control Planes (EA Subscription 1)",
   "serviceComponentAcrResourceGroups": "global",
   "serviceKeyVault": {
     "name": "aro-hcp-dev-svc-kv",
@@ -132,7 +130,7 @@
       "kvSoftDelete": false
     },
     "rg": "hcp-underlay-usw3tst-svc",
-    "subscription": "hcp-westus3"
+    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "svcAcrName": "arohcpsvcdev",
   "vnetAddressPrefix": "10.128.0.0/14"

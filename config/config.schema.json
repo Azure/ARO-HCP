@@ -50,6 +50,7 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
           "acrRG",
           "imageRepo",
@@ -70,6 +71,7 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false,
         "required": [
           "name",
           "private",
@@ -83,6 +85,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "imageTag"
         ]
@@ -111,6 +114,7 @@
                 "type": "string"
               }
             },
+            "additionalProperties": false,
             "required": [
               "deploy",
               "disableLocalAuth",
@@ -118,6 +122,7 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
           "cosmosDB"
         ]
@@ -141,6 +146,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "additionalInstallArg",
           "externalDNSManagedIdentityName",
@@ -155,6 +161,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "imageTag"
         ]
@@ -181,6 +188,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "acrRG",
           "environmentName",
@@ -239,6 +247,7 @@
                 "type": "string"
               }
             },
+            "additionalProperties": false,
             "required": [
               "deploy",
               "name",
@@ -251,6 +260,7 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false,
         "required": [
           "certDomain",
           "consumerName",
@@ -262,9 +272,6 @@
           "postgres",
           "restrictIstioIngress"
         ]
-      },
-      "managementClusterSubscription": {
-        "type": "string"
       },
       "mgmt": {
         "type": "object",
@@ -279,12 +286,16 @@
                 "type": "boolean"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kvName",
               "kvSoftDelete"
             ]
           },
           "rg": {
+            "type": "string"
+          },
+          "subscription": {
             "type": "string"
           },
           "systemAgentPool": {
@@ -303,6 +314,7 @@
                 "type": "string"
               }
             },
+            "additionalProperties": false,
             "required": [
               "maxCount",
               "minCount",
@@ -329,6 +341,7 @@
                 "type": "string"
               }
             },
+            "additionalProperties": false,
             "required": [
               "azCount",
               "maxCount",
@@ -338,10 +351,12 @@
             ]
           }
         },
+        "additionalProperties": false,
         "required": [
           "etcd",
           "rg",
           "systemAgentPool",
+          "subscription",
           "userAgentPool"
         ]
       },
@@ -358,6 +373,7 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false,
         "required": [
           "name",
           "private",
@@ -380,6 +396,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "grafanaAdminGroupPrincipalId",
           "grafanaName",
@@ -400,6 +417,7 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false,
         "required": [
           "name",
           "private",
@@ -416,6 +434,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "imageRepo",
           "imageTag"
@@ -437,9 +456,6 @@
         "type": "string"
       },
       "regionalDNSSubdomain": {
-        "type": "string"
-      },
-      "serviceClusterSubscription": {
         "type": "string"
       },
       "serviceComponentAcrResourceGroups": {
@@ -464,6 +480,7 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false,
         "required": [
           "name",
           "private",
@@ -488,6 +505,7 @@
                 "type": "boolean"
               }
             },
+            "additionalProperties": false,
             "required": [
               "kvName",
               "kvSoftDelete"
@@ -495,11 +513,16 @@
           },
           "rg": {
             "type": "string"
+          },
+          "subscription": {
+            "type": "string"
           }
         },
+        "additionalProperties": false,
         "required": [
           "etcd",
-          "rg"
+          "rg",
+          "subscription"
         ]
       },
       "svcAcrName": {
@@ -528,7 +551,6 @@
       "istioVersion",
       "kubernetesVersion",
       "maestro",
-      "managementClusterSubscription",
       "mgmt",
       "mgmtKeyVault",
       "monitoring",
@@ -540,7 +562,6 @@
       "region",
       "regionRG",
       "regionalDNSSubdomain",
-      "serviceClusterSubscription",
       "serviceComponentAcrResourceGroups",
       "serviceKeyVault",
       "subnetPrefix",
