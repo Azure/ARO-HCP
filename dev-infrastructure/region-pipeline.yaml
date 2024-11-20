@@ -12,3 +12,5 @@ resourceGroups:
     action: ARM
     template: modules/modules/metrics.bicep
     parameters: configurations/metrics.tmpl.bicepparam
+    dependsOn:
+    - region

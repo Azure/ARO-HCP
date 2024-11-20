@@ -14,10 +14,14 @@ usage() {
     echo "  deploy_env  Deployment environment"
     echo "  input       Optional input file"
     echo "  output      Optional output file"
+    echo "  -i          Set the input file same as second arg"
+    echo "  -o          Set the output file same as third arg"
     echo "  -c          Set the cloud (default: public)"
     echo "  -r          Set the region (default: westus3)"
     echo "  -x          Set the cxstamp (default: 1)"
     echo "  -e          Extra args for config interpolation"
+    echo "  -p          Pipeline to inspect"
+    echo "  -s          Pipeline step to inspect"
     exit 1
 }
 
@@ -41,7 +45,7 @@ if [ "$#" -ge 1 ] && [[ ! "$1" =~ ^- ]]; then
 fi
 
 # Parse optional flags
-while getopts "c:r:x:e:" opt; do
+while getopts "c:r:x:e:i:o:p:s:" opt; do
     case ${opt} in
         c)
             CLOUD=${OPTARG}
@@ -54,6 +58,18 @@ while getopts "c:r:x:e:" opt; do
             ;;
         e)
             EXTRA_ARGS="--extra-args ${OPTARG}"
+            ;;
+        i)
+            INPUT=${OPTARG}
+            ;;
+        o)
+            OUTPUT=${OPTARG}
+            ;;
+        p)
+            PIPELINE=${OPTARG}
+            ;;
+        s)
+            PIPELINE_STEP=${OPTARG}
             ;;
         *)
             usage
@@ -96,7 +112,8 @@ else
     REGION_STAMP="${CLEAN_DEPLOY_ENV}"
 fi
 
-TEMPLATIZE="go run ${PROJECT_ROOT_DIR}/tooling/templatize"
+make -s -C ${PROJECT_ROOT_DIR}/tooling/templatize templatize
+TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize"
 
 CONFIG_FILE=${PROJECT_ROOT_DIR}/config/config.yaml
 if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
@@ -110,6 +127,17 @@ if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
         --input=${INPUT} \
         --output=${OUTPUT} \
         ${EXTRA_ARGS}
+elif [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
+    $TEMPLATIZE run-pipeline \
+        --config-file=${CONFIG_FILE} \
+        --cloud=${CLOUD} \
+        --deploy-env=${DEPLOY_ENV} \
+        --region=${REGION} \
+        --region-short=${REGION_STAMP} \
+        --stamp=${CXSTAMP} \
+        --pipeline-file=${PIPELINE} \
+        --step=${PIPELINE_STEP} \
+        --dump-step-vars
 else
     $TEMPLATIZE inspect \
         --config-file=${CONFIG_FILE} \

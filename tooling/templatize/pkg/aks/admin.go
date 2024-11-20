@@ -48,7 +48,7 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 	}
 
 	// Validate assignment
-	err = TestClusterAdminPermissions(ctx, kubeconfigPath)
+	err = CheckClusterAdminPermissions(ctx, kubeconfigPath)
 	if err == nil {
 		return nil
 	}
@@ -66,7 +66,7 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for role assignment to be effective")
 		case <-ticker.C:
-			err = TestClusterAdminPermissions(ctx, kubeconfigPath)
+			err = CheckClusterAdminPermissions(ctx, kubeconfigPath)
 			if err == nil {
 				fmt.Println("Cluster admin permissions are now effective")
 				return nil
@@ -76,7 +76,7 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 	}
 }
 
-func TestClusterAdminPermissions(ctx context.Context, kubeconfigPath string) error {
+func CheckClusterAdminPermissions(ctx context.Context, kubeconfigPath string) error {
 	clientset, err := createKubeClient(kubeconfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to create Kubernetes client: %w", err)

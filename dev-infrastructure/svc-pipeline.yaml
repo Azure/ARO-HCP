@@ -23,3 +23,5 @@ resourceGroups:
       configRef: monitoringWorkspaceName
     - name: GRAFANA_NAME
       configRef: grafanaName
+    dependsOn:
+    - region
