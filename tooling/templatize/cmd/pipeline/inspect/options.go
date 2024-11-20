@@ -3,6 +3,7 @@ package inspect
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -61,7 +62,12 @@ func (o *RawInspectOptions) Validate() (*ValidatedInspectOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	// todo validate aspect
+
+	inspectScopes := pipeline.NewStepInspectScopes()
+	if _, ok := inspectScopes[o.Aspect]; !ok {
+		return nil, fmt.Errorf("unknown inspect scope %q", o.Aspect)
+	}
+
 	return &ValidatedInspectOptions{
 		validatedInspectOptions: &validatedInspectOptions{
 			RawInspectOptions:        o,
@@ -106,5 +112,5 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 		Step:   o.PipelineOptions.Step,
 		Aspect: o.Aspect,
 		Format: o.Format,
-	})
+	}, os.Stdout)
 }

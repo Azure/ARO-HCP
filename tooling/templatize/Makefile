@@ -9,7 +9,6 @@ SOURCES = $(shell find . -name '*.go')
 
 # Build the binary
 $(BINARY): $(SOURCES) $(MAKEFILE_LIST)
-	@echo "rebuild templatize"
 	go build -o $(BINARY) .
 
 # Clean the build artifacts

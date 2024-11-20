@@ -138,7 +138,7 @@ elif [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
         --pipeline-file=${PIPELINE} \
         --step=${PIPELINE_STEP} \
         --aspect vars \
-        --format Makefile
+        --format makefile
 else
     $TEMPLATIZE inspect \
         --config-file=${CONFIG_FILE} \

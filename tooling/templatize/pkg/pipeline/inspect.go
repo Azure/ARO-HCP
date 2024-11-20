@@ -3,20 +3,17 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"strings"
+	"io"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
-type StepInspectScope func(*step, *PipelineInspectOptions) error
+type StepInspectScope func(*step, *PipelineInspectOptions, io.Writer) error
 
-var stepInspectScopes = map[string]StepInspectScope{
-	"vars": inspectVars,
-}
-
-func init() {
-	// Initialize the map with function pointers
-	stepInspectScopes["vars"] = inspectVars
+func NewStepInspectScopes() map[string]StepInspectScope {
+	return map[string]StepInspectScope{
+		"vars": inspectVars,
+	}
 }
 
 type PipelineInspectOptions struct {
@@ -27,12 +24,13 @@ type PipelineInspectOptions struct {
 	Vars   config.Variables
 }
 
-func (p *Pipeline) Inspect(ctx context.Context, options *PipelineInspectOptions) error {
+func (p *Pipeline) Inspect(ctx context.Context, options *PipelineInspectOptions, writer io.Writer) error {
+	stepInspectScopes := NewStepInspectScopes()
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.Name == options.Step {
 				if inspectFunc, ok := stepInspectScopes[options.Aspect]; ok {
-					err := inspectFunc(step, options)
+					err := inspectFunc(step, options, writer)
 					if err != nil {
 						return err
 					}
@@ -46,19 +44,38 @@ func (p *Pipeline) Inspect(ctx context.Context, options *PipelineInspectOptions)
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(s *step, options *PipelineInspectOptions) error {
+func inspectVars(s *step, options *PipelineInspectOptions, writer io.Writer) error {
+	var envVars map[string]string
+	var err error
 	switch s.Action {
 	case "Shell":
-		envVars, err := s.getEnvVars(options.Vars, false)
-		if err != nil {
-			return err
-		}
-		for _, e := range envVars {
-			parts := strings.SplitN(e, "=", 2)
-			fmt.Printf("%s ?= %s\n", parts[0], parts[1])
-		}
-		return nil
+		envVars, err = s.getEnvVars(options.Vars, false)
 	default:
-		return fmt.Errorf("dumping step variables not implemented for action type %q", s.Action)
+		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.Action)
+	}
+	if err != nil {
+		return err
+	}
+
+	switch options.Format {
+	case "makefile":
+		printMakefileVars(envVars, writer)
+	case "shell":
+		printShellVars(envVars, writer)
+	default:
+		return fmt.Errorf("unknown output format %q", options.Format)
+	}
+	return nil
+}
+
+func printMakefileVars(vars map[string]string, writer io.Writer) {
+	for k, v := range vars {
+		fmt.Fprintf(writer, "%s ?= %s\n", k, v)
+	}
+}
+
+func printShellVars(vars map[string]string, writer io.Writer) {
+	for k, v := range vars {
+		fmt.Fprintf(writer, "export %s=\"%s\"\n", k, v)
 	}
 }
