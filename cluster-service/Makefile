@@ -26,6 +26,8 @@ deploy: deploy-namespace-template deploy-istio-configurations-template ${DB_SECR
 	  -p OCP_ACR_RESOURCE_ID=$${OCP_ACR_RESOURCE_ID} \
 	  -p OCP_ACR_URL=$${OCP_ACR_URL} \
 	  -p DATABASE_DISABLE_TLS=${DATABASE_DISABLE_TLS} \
+	  -p OIDC_ISSUER_BASE_URL=${OIDC_ISSUER_BASE_ENDPOINT} \
+	  -p OIDC_ISSUER_BLOB_SERVICE_URL=${OIDC_BLOB_SERVICE_ENDPOINT} \
 	  -p DATABASE_AUTH_METHOD=${DATABASE_AUTH_METHOD} | oc apply -f -
 
 deploy-namespace-template:
