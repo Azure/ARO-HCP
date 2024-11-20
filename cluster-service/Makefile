@@ -9,7 +9,6 @@ deploy: deploy-namespace-template deploy-istio-configurations-template ${DB_SECR
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
-	OIDC_CONTAINER="$$web" && \
 	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
 	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
@@ -26,8 +25,8 @@ deploy: deploy-namespace-template deploy-istio-configurations-template ${DB_SECR
 	  -p OCP_ACR_RESOURCE_ID=$${OCP_ACR_RESOURCE_ID} \
 	  -p OCP_ACR_URL=$${OCP_ACR_URL} \
 	  -p DATABASE_DISABLE_TLS=${DATABASE_DISABLE_TLS} \
-	  -p OIDC_ISSUER_BASE_URL=${OIDC_ISSUER_BASE_ENDPOINT} \
-	  -p OIDC_ISSUER_BLOB_SERVICE_URL=${OIDC_BLOB_SERVICE_ENDPOINT} \
+	  -p OIDC_ISSUER_BASE_URL=$${OIDC_ISSUER_BASE_ENDPOINT} \
+	  -p OIDC_ISSUER_BLOB_SERVICE_URL=$${OIDC_BLOB_SERVICE_ENDPOINT} \
 	  -p DATABASE_AUTH_METHOD=${DATABASE_AUTH_METHOD} | oc apply -f -
 
 deploy-namespace-template:
