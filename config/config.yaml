@@ -19,7 +19,7 @@ defaults:
   # Hypershift
   hypershift:
     namespace: hypershift
-    additionalInstallArg: ''
+    additionalInstallArg: '--tech-preview-no-upgrade'
     externalDNSManagedIdentityName: external-dns
     externalDNSServiceAccountName: external-dns
 
@@ -120,11 +120,11 @@ clouds:
         imageTag: ea066c250a002f0cc458711945165591bc9f6d3f
       # Cluster Service
       clusterService:
-        imageTag: a23276d
+        imageTag: aac7623
         imageRepo: app-sre/uhc-clusters-service
       # Hypershift Operator
       hypershiftOperator:
-        imageTag: a95fc46
+        imageTag: 9aca808
       externalDNS:
         imageTag: v0.14.2
       # Shared SVC KV
@@ -217,7 +217,3 @@ clouds:
               deploy: false
           # DNS
           regionalDNSSubdomain: '{{ .ctx.regionShort }}'
-          # Hypershift
-          # uncomment the following line if you want to install the hypershift operator
-          # with CRD support for managedIdentities
-          #hypershiftAdditionalInstallArg: '--tech-preview-no-upgrade'

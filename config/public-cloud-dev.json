@@ -7,7 +7,7 @@
   "clusterService": {
     "acrRG": "global",
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "a23276d",
+    "imageTag": "aac7623",
     "postgres": {
       "deploy": true,
       "name": "arohcp-cs-dev",
@@ -33,13 +33,13 @@
   },
   "globalRG": "global",
   "hypershift": {
-    "additionalInstallArg": "",
+    "additionalInstallArg": "--tech-preview-no-upgrade",
     "externalDNSManagedIdentityName": "external-dns",
     "externalDNSServiceAccountName": "external-dns",
     "namespace": "hypershift"
   },
   "hypershiftOperator": {
-    "imageTag": "a95fc46"
+    "imageTag": "9aca808"
   },
   "imageSync": {
     "acrRG": "global",
