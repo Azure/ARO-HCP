@@ -507,9 +507,18 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	}
 
-	operationDoc, err := f.StartOperation(writer, request, doc, operationRequest)
+	operationDoc := database.NewOperationDocument(operationRequest, doc.Key, doc.InternalID)
+
+	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.ExposeOperation(writer, request, operationDoc.ID)
+	if err != nil {
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -638,9 +647,18 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		}
 	}
 
-	operationDoc, err := f.StartOperation(writer, request, resourceDoc, operationRequest)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.Key, resourceDoc.InternalID)
+
+	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.ExposeOperation(writer, request, operationDoc.ID)
+	if err != nil {
+		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}

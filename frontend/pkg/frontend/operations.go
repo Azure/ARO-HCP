@@ -77,45 +77,53 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 	writer.Header().Set("Location", u.String())
 }
 
-func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Request, resourceDoc *database.ResourceDocument, operationRequest database.OperationRequest) (*database.OperationDocument, error) {
+// ExposeOperation fully initiates a new asynchronous operation by enriching
+// the operation database item and adding the necessary response headers.
+func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Request, operationID string) error {
 	ctx := request.Context()
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.Key, resourceDoc.InternalID)
+	_, err := f.dbClient.UpdateOperationDoc(ctx, operationID, func(updateDoc *database.OperationDocument) bool {
+		// There is no way to propagate a parse error here but it should
+		// never fail since we are building a trusted resource ID string.
+		operationID, err := arm.ParseResourceID(path.Join("/",
+			"subscriptions", updateDoc.ExternalID.SubscriptionID,
+			"providers", api.ProviderNamespace,
+			"locations", f.location,
+			api.OperationStatusResourceTypeName, operationID))
+		if err != nil {
+			f.logger.Error(err.Error())
+			return false
+		}
 
-	operationID, err := arm.ParseResourceID(path.Join("/",
-		"subscriptions", resourceDoc.Key.SubscriptionID,
-		"providers", api.ProviderNamespace,
-		"locations", f.location,
-		api.OperationStatusResourceTypeName, operationDoc.ID))
+		updateDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
+		updateDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
+		updateDoc.OperationID = operationID
+		updateDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+
+		// If ARM passed a notification URI, acknowledge it.
+		if updateDoc.NotificationURI != "" {
+			writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
+		}
+
+		// Add callback header(s) based on the request method.
+		switch request.Method {
+		case http.MethodDelete, http.MethodPatch:
+			f.AddLocationHeader(writer, request, updateDoc)
+			fallthrough
+		case http.MethodPut:
+			f.AddAsyncOperationHeader(writer, request, updateDoc)
+		}
+
+		return true
+	})
 	if err != nil {
-		return nil, err
+		// Delete any response headers that may have been added.
+		writer.Header().Del(arm.HeaderNameAsyncNotification)
+		writer.Header().Del(arm.HeaderNameAsyncOperation)
+		writer.Header().Del("Location")
 	}
 
-	operationDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	operationDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	operationDoc.OperationID = operationID
-	operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-
-	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
-	if err != nil {
-		return nil, err
-	}
-
-	// If ARM passed a notification URI, acknowledge it.
-	if operationDoc.NotificationURI != "" {
-		writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
-	}
-
-	// Add callback header(s) based on the request method.
-	switch request.Method {
-	case http.MethodDelete, http.MethodPatch:
-		f.AddLocationHeader(writer, request, operationDoc)
-		fallthrough
-	case http.MethodPut:
-		f.AddAsyncOperationHeader(writer, request, operationDoc)
-	}
-
-	return operationDoc, nil
+	return err
 }
 
 // OperationIsVisible returns true if the request is being called from the same
@@ -127,18 +135,23 @@ func (f *Frontend) OperationIsVisible(request *http.Request, doc *database.Opera
 	clientID := request.Header.Get(arm.HeaderNameClientObjectID)
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	if doc.TenantID != "" && !strings.EqualFold(tenantID, doc.TenantID) {
-		f.logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, doc.ID))
-		visible = false
-	}
+	if doc.OperationID != nil {
+		if doc.TenantID != "" && !strings.EqualFold(tenantID, doc.TenantID) {
+			f.logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, doc.ID))
+			visible = false
+		}
 
-	if doc.ClientID != "" && !strings.EqualFold(clientID, doc.ClientID) {
-		f.logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, doc.ID))
-		visible = false
-	}
+		if doc.ClientID != "" && !strings.EqualFold(clientID, doc.ClientID) {
+			f.logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, doc.ID))
+			visible = false
+		}
 
-	if !strings.EqualFold(subscriptionID, doc.OperationID.SubscriptionID) {
-		f.logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, doc.ID))
+		if !strings.EqualFold(subscriptionID, doc.OperationID.SubscriptionID) {
+			f.logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, doc.ID))
+			visible = false
+		}
+	} else {
+		f.logger.Info(fmt.Sprintf("Status request for implicit operation '%s'", doc.ID))
 		visible = false
 	}
 
