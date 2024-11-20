@@ -1,0 +1,551 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Generated schema for Root",
+    "type": "object",
+    "properties": {
+      "acrName": {
+        "type": "string"
+      },
+      "aksName": {
+        "type": "string"
+      },
+      "aroDevopsMsiId": {
+        "type": "string"
+      },
+      "baseDnsZoneName": {
+        "type": "string"
+      },
+      "baseDnsZoneRG": {
+        "type": "string"
+      },
+      "clusterService": {
+        "type": "object",
+        "properties": {
+          "acrRG": {
+            "type": "string"
+          },
+          "imageRepo": {
+            "type": "string"
+          },
+          "imageTag": {
+            "type": "string"
+          },
+          "postgres": {
+            "type": "object",
+            "properties": {
+              "deploy": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "private": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "deploy",
+              "name",
+              "private"
+            ]
+          }
+        },
+        "required": [
+          "acrRG",
+          "imageRepo",
+          "imageTag",
+          "postgres"
+        ]
+      },
+      "cxKeyVault": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "softDelete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "private",
+          "softDelete"
+        ]
+      },
+      "externalDNS": {
+        "type": "object",
+        "properties": {
+          "imageTag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "imageTag"
+        ]
+      },
+      "extraVars": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "firstPartyAppClientId": {
+        "type": "string"
+      },
+      "frontend": {
+        "type": "object",
+        "properties": {
+          "cosmosDB": {
+            "type": "object",
+            "properties": {
+              "deploy": {
+                "type": "boolean"
+              },
+              "disableLocalAuth": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deploy",
+              "disableLocalAuth",
+              "name"
+            ]
+          }
+        },
+        "required": [
+          "cosmosDB"
+        ]
+      },
+      "globalRG": {
+        "type": "string"
+      },
+      "hypershift": {
+        "type": "object",
+        "properties": {
+          "additionalInstallArg": {
+            "type": "string"
+          },
+          "externalDNSManagedIdentityName": {
+            "type": "string"
+          },
+          "externalDNSServiceAccountName": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "additionalInstallArg",
+          "externalDNSManagedIdentityName",
+          "externalDNSServiceAccountName",
+          "namespace"
+        ]
+      },
+      "hypershiftOperator": {
+        "type": "object",
+        "properties": {
+          "imageTag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "imageTag"
+        ]
+      },
+      "imageSync": {
+        "type": "object",
+        "properties": {
+          "acrRG": {
+            "type": "string"
+          },
+          "environmentName": {
+            "type": "string"
+          },
+          "imageRepo": {
+            "type": "string"
+          },
+          "imageTag": {
+            "type": "string"
+          },
+          "repositories": {
+            "type": "string"
+          },
+          "rg": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "acrRG",
+          "environmentName",
+          "imageRepo",
+          "imageTag",
+          "repositories",
+          "rg"
+        ]
+      },
+      "istioVersion": {
+        "type": "string"
+      },
+      "kubernetesVersion": {
+        "type": "string"
+      },
+      "maestro": {
+        "type": "object",
+        "properties": {
+          "certDomain": {
+            "type": "string"
+          },
+          "consumerName": {
+            "type": "string"
+          },
+          "eventGridMaxClientSessionsPerAuthName": {
+            "type": "string"
+          },
+          "eventgridName": {
+            "type": "string"
+          },
+          "imageBase": {
+            "type": "string"
+          },
+          "imageTag": {
+            "type": "string"
+          },
+          "keyVaultName": {
+            "type": "string"
+          },
+          "postgres": {
+            "type": "object",
+            "properties": {
+              "deploy": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "private": {
+                "type": "boolean"
+              },
+              "serverStorageSizeGB": {
+                "type": "string"
+              },
+              "serverVersion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "deploy",
+              "name",
+              "private",
+              "serverStorageSizeGB",
+              "serverVersion"
+            ]
+          },
+          "restrictIstioIngress": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "certDomain",
+          "consumerName",
+          "eventGridMaxClientSessionsPerAuthName",
+          "eventgridName",
+          "imageBase",
+          "imageTag",
+          "keyVaultName",
+          "postgres",
+          "restrictIstioIngress"
+        ]
+      },
+      "managementClusterSubscription": {
+        "type": "string"
+      },
+      "mgmt": {
+        "type": "object",
+        "properties": {
+          "etcd": {
+            "type": "object",
+            "properties": {
+              "kvName": {
+                "type": "string"
+              },
+              "kvSoftDelete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kvName",
+              "kvSoftDelete"
+            ]
+          },
+          "rg": {
+            "type": "string"
+          },
+          "systemAgentPool": {
+            "type": "object",
+            "properties": {
+              "maxCount": {
+                "type": "number"
+              },
+              "minCount": {
+                "type": "number"
+              },
+              "osDiskSizeGB": {
+                "type": "number"
+              },
+              "vmSize": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "maxCount",
+              "minCount",
+              "osDiskSizeGB",
+              "vmSize"
+            ]
+          },
+          "userAgentPool": {
+            "type": "object",
+            "properties": {
+              "azCount": {
+                "type": "number"
+              },
+              "maxCount": {
+                "type": "number"
+              },
+              "minCount": {
+                "type": "number"
+              },
+              "osDiskSizeGB": {
+                "type": "number"
+              },
+              "vmSize": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "azCount",
+              "maxCount",
+              "minCount",
+              "osDiskSizeGB",
+              "vmSize"
+            ]
+          }
+        },
+        "required": [
+          "etcd",
+          "rg",
+          "systemAgentPool",
+          "userAgentPool"
+        ]
+      },
+      "mgmtKeyVault": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "softDelete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "private",
+          "softDelete"
+        ]
+      },
+      "monitoring": {
+        "type": "object",
+        "properties": {
+          "grafanaAdminGroupPrincipalId": {
+            "type": "string"
+          },
+          "grafanaName": {
+            "type": "string"
+          },
+          "msiName": {
+            "type": "string"
+          },
+          "workspaceName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "grafanaAdminGroupPrincipalId",
+          "grafanaName",
+          "msiName",
+          "workspaceName"
+        ]
+      },
+      "msiKeyVault": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "softDelete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "private",
+          "softDelete"
+        ]
+      },
+      "ocMirror": {
+        "type": "object",
+        "properties": {
+          "imageRepo": {
+            "type": "string"
+          },
+          "imageTag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "imageRepo",
+          "imageTag"
+        ]
+      },
+      "ocpAcrName": {
+        "type": "string"
+      },
+      "oidcStorageAccountName": {
+        "type": "string"
+      },
+      "podSubnetPrefix": {
+        "type": "string"
+      },
+      "region": {
+        "type": "string"
+      },
+      "regionRG": {
+        "type": "string"
+      },
+      "regionalDNSSubdomain": {
+        "type": "string"
+      },
+      "serviceClusterSubscription": {
+        "type": "string"
+      },
+      "serviceComponentAcrResourceGroups": {
+        "type": "string"
+      },
+      "serviceKeyVault": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "region": {
+            "type": "string"
+          },
+          "rg": {
+            "type": "string"
+          },
+          "softDelete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "private",
+          "region",
+          "rg",
+          "softDelete"
+        ]
+      },
+      "subnetPrefix": {
+        "type": "string"
+      },
+      "svc": {
+        "type": "object",
+        "properties": {
+          "etcd": {
+            "type": "object",
+            "properties": {
+              "kvName": {
+                "type": "string"
+              },
+              "kvSoftDelete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kvName",
+              "kvSoftDelete"
+            ]
+          },
+          "rg": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "etcd",
+          "rg"
+        ]
+      },
+      "svcAcrName": {
+        "type": "string"
+      },
+      "vnetAddressPrefix": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "acrName",
+      "aksName",
+      "aroDevopsMsiId",
+      "baseDnsZoneName",
+      "baseDnsZoneRG",
+      "clusterService",
+      "cxKeyVault",
+      "externalDNS",
+      "firstPartyAppClientId",
+      "frontend",
+      "globalRG",
+      "hypershift",
+      "hypershiftOperator",
+      "imageSync",
+      "istioVersion",
+      "kubernetesVersion",
+      "maestro",
+      "managementClusterSubscription",
+      "mgmt",
+      "mgmtKeyVault",
+      "monitoring",
+      "msiKeyVault",
+      "ocMirror",
+      "ocpAcrName",
+      "oidcStorageAccountName",
+      "podSubnetPrefix",
+      "region",
+      "regionRG",
+      "regionalDNSSubdomain",
+      "serviceClusterSubscription",
+      "serviceComponentAcrResourceGroups",
+      "serviceKeyVault",
+      "subnetPrefix",
+      "svc",
+      "svcAcrName",
+      "vnetAddressPrefix"
+    ]
+  }

@@ -66,9 +66,8 @@
       "serverStorageSizeGB": "32",
       "serverVersion": "15"
     },
-    "restrictIstioIngress": true
+    "restrictIstioIngress": false
   },
-  "maestroRestrictIstioIngress": false,
   "managementClusterSubscription": "ARO Hosted Control Planes (EA Subscription 1)",
   "mgmt": {
     "etcd": {
