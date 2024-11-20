@@ -1,8 +1,8 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Maestro Server Rollout
 resourceGroups:
-- name: {{ .serviceClusterRG }}
-  subscription: {{ .serviceClusterSubscription }}
+- name: {{ .svc.rg }}
+  subscription: {{ .svc.subscription }}
   aksCluster: {{ .aksName }}
   steps:
   #- name: bicepTest
