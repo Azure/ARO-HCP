@@ -4,6 +4,8 @@ package frontend
 // Licensed under the Apache License 2.0.
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -124,6 +126,23 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 	}
 
 	return err
+}
+
+// CancelActiveOperation marks the status of any active operation on the resource as canceled.
+func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *database.ResourceDocument) error {
+	if resourceDoc.ActiveOperationID != "" {
+		updated, err := f.dbClient.UpdateOperationDoc(ctx, resourceDoc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
+			return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, nil)
+		})
+		// Disregard "not found" errors; a missing operation is effectively canceled.
+		if err != nil && !errors.Is(err, database.ErrNotFound) {
+			return err
+		}
+		if updated {
+			f.logger.Info(fmt.Sprintf("Canceled operation '%s'", resourceDoc.ActiveOperationID))
+		}
+	}
+	return nil
 }
 
 // OperationIsVisible returns true if the request is being called from the same
