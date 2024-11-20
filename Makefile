@@ -167,7 +167,7 @@ hypershift.deploy:
 deploy.svc.all: isto.deploy metrics.deploy maestro.server.deploy maestro.registration.deploy cs.deploy rp.frontend.deploy rp.backend.deploy
 .PHONY: deploy.svc.all
 
-deploy.mgmt.all: maestro.agent.deploy acm.deploy hypershift.deploy
+deploy.mgmt.all: acm.deploy maestro.agent.deploy hypershift.deploy
 .PHONY: deploy.mgmt.all
 
 deploy.all: deploy.svc.all deploy.mgmt.all
