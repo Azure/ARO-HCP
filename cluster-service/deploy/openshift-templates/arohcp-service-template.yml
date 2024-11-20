@@ -247,6 +247,12 @@ parameters:
 - name: DATABASE_AUTH_METHOD
   description: "Authentication method to use when connecting to the database. Accepted values are 'az-entra', 'postgres'"
   value: "az-entra"
+- name: OIDC_ISSUER_BLOB_SERVICE_URL
+  description: "URL of the storage account blob service, e.g. https://<storage-account>.blob.core.windows.net/"
+  value: ""
+- name: OIDC_ISSUER_BASE_URL
+  description: "OIDC base issuer URL, e.g. https://<storage-account>.z1.web.core.windows.net/"
+  value: ""
 
 objects:
 
@@ -365,7 +371,12 @@ objects:
           "resourceId": "${OCP_ACR_RESOURCE_ID}",
           "url": "${OCP_ACR_URL}",
           "scopeMapName": "_repositories_pull"
-        }
+        },
+        "dataplane_identities_oidc_configuration": {
+          "storage_account_blob_container_name": "$$web",
+          "storage_account_blob_service_url": "${OIDC_ISSUER_BLOB_SERVICE_URL}",
+          "oidc_issuer_base_url": "${OIDC_ISSUER_BASE_URL}"
+          }
       }
 
 # TODO: parameterize data.platform-identities.yaml after templatize refactor and helm chart conversion
