@@ -13,21 +13,21 @@ type configProviderImpl struct {
 type Variables map[string]any
 
 func (v Variables) GetByPath(path string) (interface{}, bool) {
-    keys := strings.Split(path, ".")
-    var current interface{} = v
+	keys := strings.Split(path, ".")
+	var current interface{} = v
 
-    for _, key := range keys {
-        if m, ok := current.(Variables); ok {
-            current, ok = m[key]
-            if !ok {
-                return nil, false
-            }
-        } else {
-            return nil, false
-        }
-    }
+	for _, key := range keys {
+		if m, ok := current.(Variables); ok {
+			current, ok = m[key]
+			if !ok {
+				return nil, false
+			}
+		} else {
+			return nil, false
+		}
+	}
 
-    return current, true
+	return current, true
 }
 
 func NewVariableOverrides() VariableOverrides {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/generate"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/inspect"
-	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/run"
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 	}
 	cmd.AddCommand(generate.NewCommand())
 	cmd.AddCommand(inspect.NewCommand())
-	cmd.AddCommand(run.NewCommand())
+	cmd.AddCommand(pipeline.NewCommand())
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 
 	if err := cmd.Execute(); err != nil {

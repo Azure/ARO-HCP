@@ -13,7 +13,7 @@ import (
 func NewCommand() *cobra.Command {
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
-		Use:   "run-pipeline",
+		Use:   "run",
 		Short: "run a pipeline.yaml file towards an Azure Resourcegroup / AKS cluster",
 		Long:  "run a pipeline.yaml file towards an Azure Resourcegroup / AKS cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {

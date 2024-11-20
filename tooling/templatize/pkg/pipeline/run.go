@@ -30,6 +30,7 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 
 type PipelineRunOptions struct {
 	DryRun bool
+	Step   string
 	Region string
 	Vars   config.Variables
 }
@@ -64,6 +65,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 }
 
 func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) error {
+	// prepare execution context
 	subscriptionID, err := lookupSubscriptionID(ctx, rg.Subscription)
 	if err != nil {
 		return err
@@ -77,6 +79,11 @@ func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 	}
 
 	for _, step := range rg.Steps {
+		if options.Step != "" && step.Name != options.Step {
+			// skip steps that don't match the specified step name
+			continue
+		}
+		// execute
 		fmt.Println("\n---------------------")
 		fmt.Println(step.description())
 		fmt.Print("\n")

@@ -5,13 +5,19 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
 func (s *step) runShellStep(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
 	// build ENV vars
-	envVars := os.Environ()
+	envVars, err := s.getEnvVars(options.Vars, true)
+	if err != nil {
+		return fmt.Errorf("failed to build env vars: %w", err)
+	}
+
+	// prepare kubeconfig
 	if executionTarget.AKSClusterName != "" {
-		// prepare kubeconfig
 		kubeconfigFile, err := executionTarget.KubeConfig(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to build kubeconfig for %s: %w", executionTarget.aksID(), err)
@@ -24,18 +30,10 @@ func (s *step) runShellStep(ctx context.Context, executionTarget *ExecutionTarge
 		envVars = append(envVars, fmt.Sprintf("KUBECONFIG=%s", kubeconfigFile))
 	}
 
-	// prepare declared env vars
-	for _, e := range s.Env {
-		value, found := options.Vars.GetByPath(e.ConfigRef)
-		if !found {
-			return fmt.Errorf("failed to lookup config reference %s for %s", e.ConfigRef, e.Name)
-		}
-		envVars = append(envVars, fmt.Sprintf("%s=%s", e.Name, value))
-	}
-
 	// TODO handle dry-run
 
 	// execute the command
+	fmt.Printf("Executing shell command: %s - %s\n", s.Command[0], s.Command[1:])
 	cmd := exec.CommandContext(ctx, s.Command[0], s.Command[1:]...)
 	cmd.Env = append(cmd.Env, envVars...)
 	output, err := cmd.CombinedOutput()
@@ -47,4 +45,20 @@ func (s *step) runShellStep(ctx context.Context, executionTarget *ExecutionTarge
 	fmt.Println(string(output))
 
 	return nil
+}
+
+func (s *step) getEnvVars(vars config.Variables, includeOSEnvVars bool) ([]string, error) {
+	envVars := make([]string, 0)
+	if includeOSEnvVars {
+		envVars = append(envVars, os.Environ()...)
+	}
+	envVars = append(envVars, "RUNS_IN_TEMPLATIZE=1")
+	for _, e := range s.Env {
+		value, found := vars.GetByPath(e.ConfigRef)
+		if !found {
+			return nil, fmt.Errorf("failed to lookup config reference %s for %s", e.ConfigRef, e.Name)
+		}
+		envVars = append(envVars, fmt.Sprintf("%s=%s", e.Name, value))
+	}
+	return envVars, nil
 }

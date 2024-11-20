@@ -128,7 +128,7 @@ if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
         --output=${OUTPUT} \
         ${EXTRA_ARGS}
 elif [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
-    $TEMPLATIZE run-pipeline \
+    $TEMPLATIZE pipeline inspect \
         --config-file=${CONFIG_FILE} \
         --cloud=${CLOUD} \
         --deploy-env=${DEPLOY_ENV} \
@@ -137,7 +137,8 @@ elif [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
         --stamp=${CXSTAMP} \
         --pipeline-file=${PIPELINE} \
         --step=${PIPELINE_STEP} \
-        --dump-step-vars
+        --aspect vars \
+        --format Makefile
 else
     $TEMPLATIZE inspect \
         --config-file=${CONFIG_FILE} \
