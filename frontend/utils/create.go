@@ -48,7 +48,7 @@ func CreateJSONFile() error {
 		Properties: api.HCPOpenShiftClusterProperties{
 			Spec: api.ClusterSpec{
 				Version: api.VersionProfile{
-					ID:           "openshift-v4.16.0",
+					ID:           "openshift-v4.17.0",
 					ChannelGroup: "stable",
 				},
 				DNS: api.DNSProfile{},
@@ -98,7 +98,7 @@ func CreateNodePool() error {
 			ProvisioningState: arm.ProvisioningState(""),
 			Spec: api.NodePoolSpec{
 				Version: api.VersionProfile{
-					ID:           "openshift-v4.16.0",
+					ID:           "openshift-v4.17.0",
 					ChannelGroup: "stable",
 				},
 				Platform: api.NodePoolPlatformProfile{
