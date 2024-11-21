@@ -10,6 +10,7 @@
     "imageTag": "aac7623",
     "postgres": {
       "deploy": true,
+      "minTLSVersion": "TLSV1.2",
       "name": "arohcp-cs-dev",
       "private": false
     }
@@ -61,6 +62,7 @@
     "keyVaultName": "arohcp-maestro-dev",
     "postgres": {
       "deploy": false,
+      "minTLSVersion": "TLSV1.2",
       "name": "arohcp-maestro-dev",
       "private": false,
       "serverStorageSizeGB": "32",

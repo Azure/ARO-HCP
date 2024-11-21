@@ -41,6 +41,10 @@
               },
               "private": {
                 "type": "boolean"
+              },
+              "minTLSVersion": {
+                "type": "string",
+                "enum": ["TLSV1.2", "TLSV1.3"]
               }
             },
             "required": [
@@ -245,6 +249,10 @@
               },
               "serverVersion": {
                 "type": "string"
+              },
+              "minTLSVersion": {
+                "type": "string",
+                "enum": ["TLSV1.2", "TLSV1.3"]
               }
             },
             "additionalProperties": false,

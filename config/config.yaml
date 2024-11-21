@@ -57,6 +57,7 @@ defaults:
       serverStorageSizeGB: '32'
       deploy: true
       private: false
+      minTLSVersion: 'TLSV1.2'
     restrictIstioIngress: true
     consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
 
@@ -67,6 +68,7 @@ defaults:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true
       private: false
+      minTLSVersion: 'TLSV1.2'
 
   # Image Sync
   imageSync:

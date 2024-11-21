@@ -9,6 +9,7 @@ param location string = resourceGroup().location
 
 param sku string = 'Standard_D2s_v3'
 param tier string = 'GeneralPurpose'
+param minTLSVersion string
 
 type DatabaseAdministrators = {
   principalId: string
@@ -145,6 +146,16 @@ resource postgres_config 'Microsoft.DBforPostgreSQL/flexibleServers/configuratio
   }
 ]
 
+resource postgres_min_tls 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2023-12-01-preview' = {
+  name: 'ssl_min_protocol_version'
+  parent: postgres
+  properties: {
+    source: 'user-override'
+    value: minTLSVersion
+  }
+  dependsOn: [postgres_config]
+}
+
 @batchSize(1)
 resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-12-01-preview' = [
   for database in databases: {
@@ -154,7 +165,7 @@ resource postgres_database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@
       charset: database.charset
       collation: database.collation
     }
-    dependsOn: [postgres_config]
+    dependsOn: [postgres_min_tls]
   }
 ]
 
