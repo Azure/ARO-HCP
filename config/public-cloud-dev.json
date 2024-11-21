@@ -29,7 +29,8 @@
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-dev"
+      "name": "arohcp-rp-dev",
+      "private": false
     }
   },
   "globalRG": "global",

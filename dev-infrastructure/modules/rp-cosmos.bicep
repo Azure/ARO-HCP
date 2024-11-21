@@ -8,6 +8,7 @@ param location string
 param aksNodeSubnetId string
 param vnetId string
 param userAssignedMIs array
+param private bool
 
 // Local Params
 var containers = [
@@ -62,7 +63,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
         locationName: location
       }
     ]
-    publicNetworkAccess: 'Disabled'
+    publicNetworkAccess: private ? 'Disabled' : 'Enabled'
     enableAutomaticFailover: false
     enableMultipleWriteLocations: false
     isVirtualNetworkFilterEnabled: false
