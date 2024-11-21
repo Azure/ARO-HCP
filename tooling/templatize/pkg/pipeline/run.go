@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
@@ -16,38 +19,58 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 	if err != nil {
 		return nil, err
 	}
+	absPath, err := filepath.Abs(pipelineFilePath)
+	if err != nil {
+		return nil, err
+	}
 
 	pipeline := &Pipeline{
-		pipelineFilePath: pipelineFilePath,
+		pipelineFilePath: absPath,
 	}
 	err = yaml.Unmarshal(bytes, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	err = pipeline.Validate()
 	if err != nil {
 		return nil, err
 	}
 	return pipeline, nil
 }
 
-func (p *Pipeline) Run(ctx context.Context, vars config.Variables) error {
-	// set working directory to the pipeline file directory for the duration of
-	// the execution
+type PipelineRunOptions struct {
+	DryRun bool
+	Step   string
+	Region string
+	Vars   config.Variables
+}
+
+func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	// set working directory to the pipeline file directory for the
+	// duration of the execution so that all commands and file references
+	// within the pipeline file are resolved relative to the pipeline file
 	originalDir, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	dir := filepath.Dir(p.pipelineFilePath)
+	logger.V(7).Info("switch current dir to pipeline file directory", "path", dir)
 	err = os.Chdir(dir)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		err := os.Chdir(originalDir)
+		logger.V(7).Info("switch back dir", "path", originalDir)
+		err = os.Chdir(originalDir)
 		if err != nil {
-			fmt.Printf("failed to reset directory: %v\n", err)
+			logger.Error(err, "failed to switch back to original directory", "path", originalDir)
 		}
 	}()
 
 	for _, rg := range p.ResourceGroups {
-		err := rg.run(ctx, vars)
+		err := rg.run(ctx, options)
 		if err != nil {
 			return err
 		}
@@ -55,7 +78,8 @@ func (p *Pipeline) Run(ctx context.Context, vars config.Variables) error {
 	return nil
 }
 
-func (rg *resourceGroup) run(ctx context.Context, vars config.Variables) error {
+func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) error {
+	// prepare execution context
 	subscriptionID, err := lookupSubscriptionID(ctx, rg.Subscription)
 	if err != nil {
 		return err
@@ -63,12 +87,30 @@ func (rg *resourceGroup) run(ctx context.Context, vars config.Variables) error {
 	executionTarget := &ExecutionTarget{
 		SubscriptionName: rg.Subscription,
 		SubscriptionID:   subscriptionID,
+		Region:           options.Region,
 		ResourceGroup:    rg.Name,
 		AKSClusterName:   rg.AKSCluster,
 	}
 
+	logger := logr.FromContextOrDiscard(ctx)
 	for _, step := range rg.Steps {
-		err := step.run(ctx, executionTarget, vars)
+		if options.Step != "" && step.Name != options.Step {
+			// skip steps that don't match the specified step name
+			continue
+		}
+		// execute
+		err := step.run(
+			logr.NewContext(
+				ctx,
+				logger.WithValues(
+					"step", step.Name,
+					"subscription", executionTarget.SubscriptionName,
+					"resourceGroup", executionTarget.ResourceGroup,
+					"aksCluster", executionTarget.AKSClusterName,
+				),
+			),
+			executionTarget, options,
+		)
 		if err != nil {
 			return err
 		}
@@ -76,13 +118,62 @@ func (rg *resourceGroup) run(ctx context.Context, vars config.Variables) error {
 	return nil
 }
 
-func (s *step) run(ctx context.Context, executionTarget *ExecutionTarget, vars config.Variables) error {
+func (s *step) run(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+	fmt.Println("\n---------------------")
+	fmt.Println(s.description())
+	fmt.Print("\n")
 	switch s.Action {
 	case "Shell":
-		return s.runShellStep(ctx, executionTarget, vars)
+		return s.runShellStep(ctx, executionTarget, options)
 	case "ARM":
-		return fmt.Errorf("not implemented %q", s.Action)
+		return s.runArmStep(ctx, executionTarget, options)
 	default:
 		return fmt.Errorf("unsupported action type %q", s.Action)
 	}
+}
+
+func (s *step) description() string {
+	var details []string
+	switch s.Action {
+	case "Shell":
+		details = append(details, fmt.Sprintf("Command: %v", strings.Join(s.Command, " ")))
+	case "ARM":
+		details = append(details, fmt.Sprintf("Template: %s", s.Template))
+		details = append(details, fmt.Sprintf("Parameters: %s", s.Parameters))
+	}
+	return fmt.Sprintf("Step %s\n  Kind: %s\n  %s", s.Name, s.Action, strings.Join(details, "\n  "))
+}
+
+func (p *Pipeline) Validate() error {
+	for _, rg := range p.ResourceGroups {
+		err := rg.Validate()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (rg *resourceGroup) Validate() error {
+	if rg.Name == "" {
+		return fmt.Errorf("resource group name is required")
+	}
+	if rg.Subscription == "" {
+		return fmt.Errorf("subscription is required")
+	}
+
+	// validate step dependencies
+	// todo - check for circular dependencies
+	stepMap := make(map[string]bool)
+	for _, step := range rg.Steps {
+		stepMap[step.Name] = true
+	}
+	for _, step := range rg.Steps {
+		for _, dep := range step.DependsOn {
+			if !stepMap[dep] {
+				return fmt.Errorf("invalid dependency from step %s to %s", step.Name, dep)
+			}
+		}
+	}
+	return nil
 }

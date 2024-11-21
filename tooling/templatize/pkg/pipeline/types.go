@@ -21,6 +21,7 @@ type step struct {
 	Env        []EnvVar `yaml:"env"`
 	Template   string   `yaml:"template"`
 	Parameters string   `yaml:"parameters"`
+	DependsOn  []string `yaml:"dependsOn"`
 }
 
 type EnvVar struct {

@@ -1,0 +1,105 @@
+package run
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/options"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
+)
+
+func DefaultOptions() *RawRunOptions {
+	return &RawRunOptions{
+		PipelineOptions: options.DefaultOptions(),
+	}
+}
+
+func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
+	err := options.BindOptions(opts.PipelineOptions, cmd)
+	if err != nil {
+		return fmt.Errorf("failed to bind options: %w", err)
+	}
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
+	return nil
+}
+
+type RawRunOptions struct {
+	PipelineOptions *options.RawPipelineOptions
+	DryRun          bool
+}
+
+// validatedRunOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
+type validatedRunOptions struct {
+	*RawRunOptions
+	*options.ValidatedPipelineOptions
+}
+
+type ValidatedRunOptions struct {
+	// Embed a private pointer that cannot be instantiated outside of this package.
+	*validatedRunOptions
+}
+
+// completedRunOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
+type completedRunOptions struct {
+	PipelineOptions *options.PipelineOptions
+	DryRun          bool
+}
+
+type RunOptions struct {
+	// Embed a private pointer that cannot be instantiated outside of this package.
+	*completedRunOptions
+}
+
+func (o *RawRunOptions) Validate() (*ValidatedRunOptions, error) {
+	validatedPipelineOptions, err := o.PipelineOptions.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ValidatedRunOptions{
+		validatedRunOptions: &validatedRunOptions{
+			RawRunOptions:            o,
+			ValidatedPipelineOptions: validatedPipelineOptions,
+		},
+	}, nil
+}
+
+func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
+	completed, err := o.ValidatedPipelineOptions.Complete()
+	if err != nil {
+		return nil, err
+	}
+
+	return &RunOptions{
+		completedRunOptions: &completedRunOptions{
+			PipelineOptions: completed,
+			DryRun:          o.DryRun,
+		},
+	}, nil
+}
+
+func (o *RunOptions) RunPipeline(ctx context.Context) error {
+	rolloutOptions := o.PipelineOptions.RolloutOptions
+	variables, err := rolloutOptions.Options.ConfigProvider.GetVariables(
+		rolloutOptions.Cloud,
+		rolloutOptions.DeployEnv,
+		rolloutOptions.Region,
+		config.NewConfigReplacements(
+			rolloutOptions.Region,
+			rolloutOptions.RegionShort,
+			rolloutOptions.Stamp,
+		),
+	)
+	if err != nil {
+		return err
+	}
+	return o.PipelineOptions.Pipeline.Run(ctx, &pipeline.PipelineRunOptions{
+		DryRun: o.DryRun,
+		Vars:   variables,
+		Region: rolloutOptions.Region,
+		Step:   o.PipelineOptions.Step,
+	})
+}

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 )
 
 type configProviderImpl struct {
@@ -10,6 +11,24 @@ type configProviderImpl struct {
 }
 
 type Variables map[string]any
+
+func (v Variables) GetByPath(path string) (any, bool) {
+	keys := strings.Split(path, ".")
+	var current any = v
+
+	for _, key := range keys {
+		if m, ok := current.(Variables); ok {
+			current, ok = m[key]
+			if !ok {
+				return nil, false
+			}
+		} else {
+			return nil, false
+		}
+	}
+
+	return current, true
+}
 
 func NewVariableOverrides() VariableOverrides {
 	return &variableOverrides{}

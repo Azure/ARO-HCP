@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -27,6 +28,6 @@ func TestRawOptions(t *testing.T) {
 		Input:  "../../testdata/pipeline.yaml",
 		Output: fmt.Sprintf("%s/pipeline.yaml", tmpdir),
 	}
-	assert.NoError(t, generate(opts))
+	assert.NoError(t, generate(context.Background(), opts))
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "pipeline.yaml"))
 }

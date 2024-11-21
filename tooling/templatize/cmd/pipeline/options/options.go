@@ -1,29 +1,28 @@
-package run
+package options
 
 import (
-	"context"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
-func DefaultOptions() *RawRunOptions {
-	return &RawRunOptions{
+func DefaultOptions() *RawPipelineOptions {
+	return &RawPipelineOptions{
 		RolloutOptions: options.DefaultRolloutOptions(),
 	}
 }
 
-func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
+func BindOptions(opts *RawPipelineOptions, cmd *cobra.Command) error {
 	err := options.BindRolloutOptions(opts.RolloutOptions, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to bind options: %w", err)
 	}
 	cmd.Flags().StringVar(&opts.PipelineFile, "pipeline-file", opts.PipelineFile, "pipeline file path")
+	cmd.Flags().StringVar(&opts.Step, "step", opts.Step, "run only a specific step in the pipeline")
 
 	for _, flag := range []string{"pipeline-file"} {
 		if err := cmd.MarkFlagFilename(flag); err != nil {
@@ -37,34 +36,36 @@ func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
 }
 
 // RawRunOptions holds input values.
-type RawRunOptions struct {
+type RawPipelineOptions struct {
 	RolloutOptions *options.RawRolloutOptions
 	PipelineFile   string
+	Step           string
 }
 
-// validatedRunOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
-type validatedRunOptions struct {
-	*RawRunOptions
+// validatedPipelineOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
+type validatedPipelineOptions struct {
+	*RawPipelineOptions
 	*options.ValidatedRolloutOptions
 }
 
-type ValidatedRunOptions struct {
+type ValidatedPipelineOptions struct {
 	// Embed a private pointer that cannot be instantiated outside of this package.
-	*validatedRunOptions
+	*validatedPipelineOptions
 }
 
-// completedRunOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
-type completedRunOptions struct {
+// completedPipelineOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
+type completedPipelineOptions struct {
 	RolloutOptions *options.RolloutOptions
 	Pipeline       *pipeline.Pipeline
+	Step           string
 }
 
-type RunOptions struct {
+type PipelineOptions struct {
 	// Embed a private pointer that cannot be instantiated outside of this package.
-	*completedRunOptions
+	*completedPipelineOptions
 }
 
-func (o *RawRunOptions) Validate() (*ValidatedRunOptions, error) {
+func (o *RawPipelineOptions) Validate() (*ValidatedPipelineOptions, error) {
 	validatedRolloutOptions, err := o.RolloutOptions.Validate()
 	if err != nil {
 		return nil, err
@@ -74,15 +75,15 @@ func (o *RawRunOptions) Validate() (*ValidatedRunOptions, error) {
 		return nil, fmt.Errorf("pipeline file %s does not exist", o.PipelineFile)
 	}
 
-	return &ValidatedRunOptions{
-		validatedRunOptions: &validatedRunOptions{
-			RawRunOptions:           o,
+	return &ValidatedPipelineOptions{
+		validatedPipelineOptions: &validatedPipelineOptions{
+			RawPipelineOptions:      o,
 			ValidatedRolloutOptions: validatedRolloutOptions,
 		},
 	}, nil
 }
 
-func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
+func (o *ValidatedPipelineOptions) Complete() (*PipelineOptions, error) {
 	completed, err := o.ValidatedRolloutOptions.Complete()
 	if err != nil {
 		return nil, err
@@ -90,30 +91,14 @@ func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
 
 	pipeline, err := pipeline.NewPipelineFromFile(o.PipelineFile, completed.Config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load pipeline file %s: %w", o.PipelineFile, err)
+		return nil, fmt.Errorf("failed to load pipeline %s: %w", o.PipelineFile, err)
 	}
 
-	return &RunOptions{
-		completedRunOptions: &completedRunOptions{
+	return &PipelineOptions{
+		completedPipelineOptions: &completedPipelineOptions{
 			RolloutOptions: completed,
 			Pipeline:       pipeline,
+			Step:           o.Step,
 		},
 	}, nil
-}
-
-func (o *RunOptions) RunPipeline(ctx context.Context) error {
-	variables, err := o.RolloutOptions.Options.ConfigProvider.GetVariables(
-		o.RolloutOptions.Cloud,
-		o.RolloutOptions.DeployEnv,
-		o.RolloutOptions.Region,
-		config.NewConfigReplacements(
-			o.RolloutOptions.Region,
-			o.RolloutOptions.RegionShort,
-			o.RolloutOptions.Stamp,
-		),
-	)
-	if err != nil {
-		return err
-	}
-	return o.Pipeline.Run(ctx, variables)
 }

@@ -1,4 +1,4 @@
-package generate
+package inspect
 
 import (
 	"context"
@@ -7,22 +7,22 @@ import (
 )
 
 func NewCommand() (*cobra.Command, error) {
-	opts := DefaultGenerationOptions()
+	opts := DefaultOptions()
 	cmd := &cobra.Command{
-		Use:   "generate",
-		Short: "generate",
-		Long:  "generate",
+		Use:   "inspect",
+		Short: "inspect aspects of a pipeline.yaml file",
+		Long:  "inspect aspects of a pipeline.yaml file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generate(cmd.Context(), opts)
+			return runInspect(cmd.Context(), opts)
 		},
 	}
-	if err := BindGenerationOptions(opts, cmd); err != nil {
+	if err := BindOptions(opts, cmd); err != nil {
 		return nil, err
 	}
 	return cmd, nil
 }
 
-func generate(ctx context.Context, opts *RawGenerationOptions) error {
+func runInspect(ctx context.Context, opts *RawInspectOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
 		return err
@@ -31,5 +31,5 @@ func generate(ctx context.Context, opts *RawGenerationOptions) error {
 	if err != nil {
 		return err
 	}
-	return completed.ExecuteTemplate()
+	return completed.RunInspect(ctx)
 }

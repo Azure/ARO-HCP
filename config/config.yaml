@@ -63,6 +63,7 @@ defaults:
       minTLSVersion: 'TLSV1.2'
     restrictIstioIngress: true
     consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+    imageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
 
   # Cluster Service
   clusterService:
@@ -121,7 +122,6 @@ clouds:
       maestro:
         postgres:
           deploy: false
-        imageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
         imageTag: ea066c250a002f0cc458711945165591bc9f6d3f
       # Cluster Service
       clusterService:
