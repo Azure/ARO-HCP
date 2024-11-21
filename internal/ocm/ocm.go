@@ -18,10 +18,12 @@ type ClusterServiceClientSpec interface {
 	PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error)
 	UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *cmv1.Cluster) (*cmv1.Cluster, error)
 	DeleteCSCluster(ctx context.Context, internalID InternalID) error
+	ListCSClusters(searchExpression string) ClusterListIterator
 	GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error)
 	PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
 	UpdateCSNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
 	DeleteCSNodePool(ctx context.Context, internalID InternalID) error
+	ListCSNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator
 }
 
 type ClusterServiceClient struct {
@@ -132,6 +134,17 @@ func (csc *ClusterServiceClient) DeleteCSCluster(ctx context.Context, internalID
 	return err
 }
 
+// ListCSClusters prepares a GET request with the given search expression. Call Items() on
+// the returned iterator in a for/range loop to execute the request and paginate over results,
+// then call GetError() to check for an iteration error.
+func (csc *ClusterServiceClient) ListCSClusters(searchExpression string) ClusterListIterator {
+	clustersListRequest := csc.Conn.ClustersMgmt().V1().Clusters().List()
+	if searchExpression != "" {
+		clustersListRequest.Search(searchExpression)
+	}
+	return ClusterListIterator{request: clustersListRequest}
+}
+
 // GetCSNodePool creates and sends a GET request to fetch a node pool from Clusters Service
 func (csc *ClusterServiceClient) GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
@@ -191,4 +204,19 @@ func (csc *ClusterServiceClient) DeleteCSNodePool(ctx context.Context, internalI
 	}
 	_, err := client.Delete().SendContext(ctx)
 	return err
+}
+
+// ListCSNodePools prepares a GET request with the given search expression. Call Items() on
+// the returned iterator in a for/range loop to execute the request and paginate over results,
+// then call GetError() to check for an iteration error.
+func (csc *ClusterServiceClient) ListCSNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
+	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+	if !ok {
+		return NodePoolListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
+	}
+	nodePoolsListRequest := client.NodePools().List()
+	if searchExpression != "" {
+		nodePoolsListRequest.Search(searchExpression)
+	}
+	return NodePoolListIterator{request: nodePoolsListRequest}
 }
