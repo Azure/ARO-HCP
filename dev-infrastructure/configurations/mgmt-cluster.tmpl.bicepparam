@@ -52,3 +52,7 @@ param msiKeyVaultSoftDelete = {{ .msiKeyVault.softDelete }}
 param mgmtKeyVaultName = '{{ .mgmtKeyVault.name }}'
 param mgmtKeyVaultPrivate = {{ .mgmtKeyVault.private }}
 param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVault.softDelete }}
+
+// Cluster Service identity
+// used for Key Vault access
+param clusterServicePrincipalId = '{{ .mgmt.clusterServicePrincipalId }}'

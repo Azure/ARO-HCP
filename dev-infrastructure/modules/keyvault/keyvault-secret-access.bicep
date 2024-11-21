@@ -8,6 +8,8 @@ param secretName string = ''
 @allowed([
   'Key Vault Secrets Officer'
   'Key Vault Secrets User'
+  'Key Vault Certificate User'
+  'Key Vault Certificates Officer'
 ])
 param roleName string
 
@@ -24,6 +26,14 @@ var roleResourceIds = {
   'Key Vault Secrets Officer': subscriptionResourceId(
     'Microsoft.Authorization/roleDefinitions/',
     'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
+  )
+  'Key Vault Certificate User': subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions/',
+    'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba'
+  )
+  'Key Vault Certificates Officer': subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions/',
+    'a4417e6f-fecd-4de8-b567-7b0420556985'
   )
 }
 
