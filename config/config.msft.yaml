@@ -1,6 +1,6 @@
+$schema: config.schema.json
 defaults:
   region: {{ .ctx.region }}
-
   # Resourcegroups
   globalRG: global-shared-resources
   regionRG: '{{ .ctx.region }}-shared-resources'
@@ -14,26 +14,26 @@ defaults:
   aksName: aro-hcp-aks
 
   # ACR
-  serviceComponentAcrResourceGroups: global-shared-resources
+  serviceComponentAcrResourceGroups: '{{ .ctx.region }}-shared-resources'
 
   # Hypershift
   hypershift:
     namespace: hypershift
-    additionalInstallArg: ''
+    additionalInstallArg: '--tech-preview-no-upgrade'
     externalDNSManagedIdentityName: external-dns
     externalDNSServiceAccountName: external-dns
 
   svc:
+    subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
-    clusterSubscription: hcp-{{ .ctx.region }}
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}
       kvSoftDelete: true
 
   # MGMT cluster specifics
   mgmt:
+    subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
-    clusterSubscription: hcp-{{ .ctx.region }}
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
       kvSoftDelete: true
@@ -55,24 +55,26 @@ defaults:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       serverVersion: '15'
       serverStorageSizeGB: '32'
-      deploy: true
+      deploy: false
       private: false
+      minTLSVersion: 'TLSV1.2'
     restrictIstioIngress: true
     consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     imageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
 
   # Cluster Service
   clusterService:
-    acrRG: global-shared-resources
+    acrRG: '{{ .ctx.region }}-shared-resources'
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true
       private: false
+      minTLSVersion: 'TLSV1.2'
 
   # Image Sync
   imageSync:
     rg: hcp-underlay-imagesync
-    acrRG: global-shared-resources
+    acrRG: '{{ .ctx.region }}-shared-resources'
     environmentName: aro-hcp-image-sync
     repositories: registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
     imageRepo: image-sync/component-sync
@@ -85,28 +87,25 @@ defaults:
     name: arohcp-svc-{{ .ctx.regionShort }}
     rg: hcp-underlay-{{ .ctx.regionShort }}
     region: {{ .ctx.region }}
-    softDelete: true
-    private: true
+    softDelete: false
+    private: false
 
   # Management Cluster KV
   cxKeyVault:
     name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: true
-    private: true
+    softDelete: false
+    private: false
   msiKeyVault:
     name: arohcp-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: true
-    private: true
+    softDelete: false
+    private: false
   mgmtKeyVault:
     name: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: true
-    private: true
-
-  # OIDC
-  oidcStorageAccountName: arohcpoidc{{ .ctx.regionShort }}
+    softDelete: false
+    private: false
 
   # DNS
-  baseDnsZoneRG: 'global-shared-resources'
+  baseDnsZoneRG: '{{ .ctx.region }}-shared-resources'
   regionalDNSSubdomain: '{{ .ctx.region }}'
 
   # Metrics
@@ -115,38 +114,29 @@ defaults:
     grafanaName: 'arohcp-{{ .ctx.regionShort }}'
     msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
 
-  # ACR
-  acrName: arohcpdev
-  svcAcrName: arohcpsvcdev
-  ocpAcrName: arohcpocpdev
-
 clouds:
   public:
     # this configuration serves as a template for for all RH DEV subscription deployments
     # the following vars need approprivate overrides:
     defaults:
-      # Maestro
       maestro:
-        postgres:
-          deploy: false
         imageTag: ea066c250a002f0cc458711945165591bc9f6d3f
-      # Cluster Service
       clusterService:
-        imageTag: a23276d
+        imageTag: aac7623
         imageRepo: app-sre/uhc-clusters-service
-
-      # Hypershift Operator
-      hypershiftOperatorImageTag: 99a256f
-      externalDNSImageTag: v0.14.2
+      hypershiftOperator:
+        imageTag: 9aca808
+      externalDNS:
+        imageTag: v0.14.2
 
     environments:
       int:
         # this is the MSFT INT environment
         defaults:
-          svc:
-            clusterSubscription: hcp-{{ .ctx.region }}
+            # OIDC
+          oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }}
+          # MC
           mgmt:
-            clusterSubscription: hcp-{{ .ctx.region }}
             # MGMTM AKS nodepools - big enough for 2 HCPs
             systemAgentPool:
               minCount: 1
@@ -162,18 +152,24 @@ clouds:
           # DNS
           baseDnsZoneName: aro-hcp.azure-test.net'
           regionalDNSSubdomain: '{{ .ctx.region }}'
+
+          # ACR
+          acrName: arohcpint
+          svcAcrName: arohcpsvcint
+          ocpAcrName: arohcpocpint
+
           # 1P app
           firstPartyAppClientId: '??? the one used by CS to do first party stuff ???'
 
           # disable KV softdelete for easy cleanup and recreate in INT
           cxKeyVault:
-            softdelete: false
+            softDelete: false
             private: false
           msiKeyVault:
-            softdelete: false
+            softDelete: false
             private: false
           mgmtKeyVault:
-            softdelete: false
+            softDelete: false
             private: false
 
           # Grafana

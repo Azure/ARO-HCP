@@ -115,7 +115,7 @@ fi
 make -s -C ${PROJECT_ROOT_DIR}/tooling/templatize templatize
 TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize"
 
-CONFIG_FILE=${PROJECT_ROOT_DIR}/config/config.yaml
+CONFIG_FILE=${CONFIG_FILE:-${PROJECT_ROOT_DIR}/config/config.yaml}
 if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
     $TEMPLATIZE generate \
         --config-file=${CONFIG_FILE} \
