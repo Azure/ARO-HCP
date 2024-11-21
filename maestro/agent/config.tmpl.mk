@@ -1,4 +1,4 @@
-EVENTGRID_NAME ?= {{ .maestro.eventgridName}}
+EVENTGRID_NAME ?= {{ .maestro.eventGrid.name }}
 REGION_RG ?= {{ .regionRG }}
 MGMT_RG ?= {{ .mgmt.rg }}
 CONSUMER_NAME ?= {{ .maestro.consumerName }}
