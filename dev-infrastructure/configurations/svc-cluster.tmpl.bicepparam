@@ -12,6 +12,7 @@ param aksEtcdKVEnableSoftDelete = {{ .svc.etcd.kvSoftDelete }}
 param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
 param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
+param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 
 param maestroKeyVaultName = '{{ .maestro.keyVaultName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventgridName }}'

@@ -50,7 +50,8 @@
             "required": [
               "deploy",
               "name",
-              "private"
+              "private",
+              "minTLSVersion"
             ]
           }
         },
@@ -116,13 +117,17 @@
               },
               "name": {
                 "type": "string"
+              },
+              "private": {
+                "type": "boolean"
               }
             },
             "additionalProperties": false,
             "required": [
               "deploy",
               "disableLocalAuth",
-              "name"
+              "name",
+              "private"
             ]
           }
         },
@@ -261,7 +266,8 @@
               "name",
               "private",
               "serverStorageSizeGB",
-              "serverVersion"
+              "serverVersion",
+              "minTLSVersion"
             ]
           },
           "restrictIstioIngress": {
