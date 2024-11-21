@@ -1,4 +1,4 @@
-EVENTGRID_NAME ?= {{ .maestro.eventgridName}}
+EVENTGRID_NAME ?= {{ .maestro.eventGrid.name }}
 REGION_RG ?= {{ .regionRG }}
 AKS_NAME ?= {{ .aksName }}
 SVC_RG ?= {{ .svc.rg }}
