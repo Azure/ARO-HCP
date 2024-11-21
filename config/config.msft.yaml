@@ -44,12 +44,15 @@ defaults:
       deploy: true
       disableLocalAuth: true
       name: arohcp-rp-{{ .ctx.regionShort }}
+      private: true
 
   # Maestro
   maestro:
     keyVaultName: arohcp-maestro-{{ .ctx.regionShort }}
-    eventgridName: arohcp-maestro-{{ .ctx.regionShort }}
-    eventGridMaxClientSessionsPerAuthName: '4'
+    eventGrid:
+      name: arohcp-maestro-{{ .ctx.regionShort }}
+      maxClientSessionsPerAuthName: '4'
+      minTLSVersion: '1.2'
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
     postgres:
       name: arohcp-maestro-{{ .ctx.regionShort }}
@@ -157,6 +160,11 @@ clouds:
           acrName: arohcpint
           svcAcrName: arohcpsvcint
           ocpAcrName: arohcpocpint
+
+          # Frontend
+          frontend:
+            cosmosDB:
+              private: false
 
           # 1P app
           firstPartyAppClientId: '??? the one used by CS to do first party stuff ???'
