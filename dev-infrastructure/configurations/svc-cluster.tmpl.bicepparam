@@ -17,6 +17,7 @@ param maestroKeyVaultName = '{{ .maestro.keyVaultName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventgridName }}'
 param maestroCertDomain = '{{ .maestro.certDomain}}'
 param maestroPostgresServerName = '{{ .maestro.postgres.name }}'
+param maestroPostgresServerMinTLSVersion = '{{ .maestro.postgres.minTLSVersion }}'
 param maestroPostgresServerVersion = '{{ .maestro.postgres.serverVersion }}'
 param maestroPostgresServerStorageSizeGB = {{ .maestro.postgres.serverStorageSizeGB }}
 param deployMaestroPostgres = {{ .maestro.postgres.deploy }}
@@ -24,6 +25,7 @@ param maestroPostgresPrivate = {{ .maestro.postgres.private }}
 
 param deployCsInfra = {{ .clusterService.postgres.deploy }}
 param csPostgresServerName = '{{ .clusterService.postgres.name }}'
+param csPostgresServerMinTLSVersion = '{{ .clusterService.postgres.minTLSVersion }}'
 param clusterServicePostgresPrivate = {{ .clusterService.postgres.private }}
 
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'

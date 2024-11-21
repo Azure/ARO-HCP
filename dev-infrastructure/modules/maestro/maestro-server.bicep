@@ -23,6 +23,9 @@ param deployPostgres bool
 param postgresServerName string
 
 @description('The version of the Postgres server for Maestro')
+param postgresServerMinTLSVersion string
+
+@description('The version of the Postgres server for Maestro')
 param postgresServerVersion string
 
 @description('The size of the Postgres server storage for Maestro')
@@ -71,6 +74,7 @@ module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
   name: '${deployment().name}-postgres'
   params: {
     name: postgresServerName
+    minTLSVersion: postgresServerMinTLSVersion
     databaseAdministrators: [
       // add the dedicated admin managed identity as administrator
       // this one is going to be used to manage DB access

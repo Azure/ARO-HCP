@@ -73,6 +73,9 @@ param deployCsInfra bool
 @maxLength(60)
 param csPostgresServerName string
 
+@description('The minimum TLS version for the Postgres server for CS')
+param csPostgresServerMinTLSVersion string
+
 @description('If true, make the CS Postgres instance private')
 param clusterServicePostgresPrivate bool = true
 
@@ -88,6 +91,9 @@ param maestroPostgresServerName string
 
 @description('The version of the Postgres server for Maestro')
 param maestroPostgresServerVersion string
+
+@description('The minimum TLS version for the Postgres server for Maestro')
+param maestroPostgresServerMinTLSVersion string
 
 @description('The size of the Postgres server for Maestro')
 param maestroPostgresServerStorageSizeGB int
@@ -223,6 +229,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
+    postgresServerMinTLSVersion: maestroPostgresServerMinTLSVersion
     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
@@ -283,6 +290,7 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
   params: {
     location: location
     postgresServerName: csPostgresServerName
+    postgresServerMinTLSVersion: csPostgresServerMinTLSVersion
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     postgresServerPrivate: clusterServicePostgresPrivate

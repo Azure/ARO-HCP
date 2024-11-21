@@ -13,6 +13,9 @@ param csDatabaseName string = 'clusters-service'
 @description('The name of the Postgres server for CS')
 param postgresServerName string
 
+@description('The minimum TLS version for the Postgres server')
+param postgresServerMinTLSVersion string
+
 param postgresServerPrivate bool
 
 param privateEndpointSubnetId string = ''
@@ -38,6 +41,7 @@ module postgres 'postgres/postgres.bicep' = {
       }
     ]
     version: '12'
+    minTLSVersion: postgresServerMinTLSVersion
     configurations: [
       // some configs taked over from the CS RDS instance
       // https://gitlab.cee.redhat.com/service/app-interface/-/blob/fc95453b1e0eaf162089525f5b94b6dc1e6a091f/resources/terraform/resources/ocm/clusters-service-production-rds-parameter-group-pg12.yml
