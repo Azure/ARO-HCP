@@ -70,6 +70,6 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maestroKeyVaultName: maestroKeyVaultName
     kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
     publicNetworkAccess: 'Enabled'
-    minimumTlsVersionAllowed: eventGridMinimumTlsVersionAllowed
+    minimumTlsVersionAllowed: maestroEventGridMinimumTlsVersionAllowed
   }
 }
