@@ -2,6 +2,7 @@ materialize:
 	@../templatize.sh dev > public-cloud-dev.json
 	@../templatize.sh cs-pr > public-cloud-cs-pr.json
 	@USER=tst ../templatize.sh personal-dev > public-cloud-personal-dev.json
+	@CONFIG_FILE=../config/config.msft.yaml ../templatize.sh int > public-cloud-msft-int.json
 .PHONY: materialize
 
 detect-change: materialize

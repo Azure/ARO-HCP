@@ -1,0 +1,143 @@
+{
+  "acrName": "arohcpint",
+  "aksName": "aro-hcp-aks",
+  "aroDevopsMsiId": "??? the one for OIDC deployment script / lives in the global RG / needs to be created first thing on regional buildout ???",
+  "baseDnsZoneName": "aro-hcp.azure-test.net'",
+  "baseDnsZoneRG": "westus3-shared-resources",
+  "clusterService": {
+    "acrRG": "westus3-shared-resources",
+    "imageRepo": "app-sre/uhc-clusters-service",
+    "imageTag": "aac7623",
+    "postgres": {
+      "deploy": true,
+      "minTLSVersion": "TLSV1.2",
+      "name": "arohcp-cs-int",
+      "private": false
+    }
+  },
+  "cxKeyVault": {
+    "name": "arohcp-cx-int-1",
+    "private": false,
+    "softDelete": false
+  },
+  "externalDNS": {
+    "imageTag": "v0.14.2"
+  },
+  "extraVars": {},
+  "firstPartyAppClientId": "??? the one used by CS to do first party stuff ???",
+  "frontend": {
+    "cosmosDB": {
+      "deploy": true,
+      "disableLocalAuth": true,
+      "name": "arohcp-rp-int",
+      "private": false
+    }
+  },
+  "globalRG": "global-shared-resources",
+  "hypershift": {
+    "additionalInstallArg": "--tech-preview-no-upgrade",
+    "externalDNSManagedIdentityName": "external-dns",
+    "externalDNSServiceAccountName": "external-dns",
+    "namespace": "hypershift"
+  },
+  "hypershiftOperator": {
+    "imageTag": "9aca808"
+  },
+  "imageSync": {
+    "acrRG": "westus3-shared-resources",
+    "environmentName": "aro-hcp-image-sync",
+    "imageRepo": "image-sync/component-sync",
+    "imageTag": "latest",
+    "repositories": "registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
+    "rg": "hcp-underlay-imagesync"
+  },
+  "istioVersion": "['asm-1-22']",
+  "kubernetesVersion": "1.30.5",
+  "maestro": {
+    "certDomain": "selfsigned.maestro.keyvault.azure.com",
+    "consumerName": "hcp-underlay-int-mgmt-1",
+    "eventGrid": {
+      "maxClientSessionsPerAuthName": "4",
+      "minTLSVersion": "1.2",
+      "name": "arohcp-maestro-int"
+    },
+    "imageBase": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
+    "imageTag": "ea066c250a002f0cc458711945165591bc9f6d3f",
+    "keyVaultName": "arohcp-maestro-int",
+    "postgres": {
+      "deploy": false,
+      "minTLSVersion": "TLSV1.2",
+      "name": "arohcp-maestro-int",
+      "private": false,
+      "serverStorageSizeGB": "32",
+      "serverVersion": "15"
+    },
+    "restrictIstioIngress": true
+  },
+  "mgmt": {
+    "etcd": {
+      "kvName": "arohcp-etcd-int-1",
+      "kvSoftDelete": true
+    },
+    "rg": "hcp-underlay-westus3-mgmt-1",
+    "subscription": "hcp-westus3",
+    "systemAgentPool": {
+      "maxCount": 4,
+      "minCount": 1,
+      "osDiskSizeGB": 32,
+      "vmSize": "Standard_D2s_v3"
+    },
+    "userAgentPool": {
+      "azCount": 3,
+      "maxCount": 12,
+      "minCount": 2,
+      "osDiskSizeGB": 100,
+      "vmSize": "Standard_D4s_v3"
+    }
+  },
+  "mgmtKeyVault": {
+    "name": "arohcp-mgmt-int-1",
+    "private": false,
+    "softDelete": false
+  },
+  "monitoring": {
+    "grafanaAdminGroupPrincipalId": "??? the one to be used as Grafana Admin in grafana.bicep ???",
+    "grafanaName": "arohcp-int",
+    "msiName": "aro-hcp-metrics-msi-int",
+    "workspaceName": "arohcp-int"
+  },
+  "msiKeyVault": {
+    "name": "arohcp-msi-int-1",
+    "private": false,
+    "softDelete": false
+  },
+  "ocMirror": {
+    "imageRepo": "image-sync/oc-mirror",
+    "imageTag": "7abc8af"
+  },
+  "ocpAcrName": "arohcpocpint",
+  "oidcStorageAccountName": "arohcpoidcintint",
+  "podSubnetPrefix": "10.128.64.0/18",
+  "region": "westus3",
+  "regionRG": "westus3-shared-resources",
+  "regionalDNSSubdomain": "westus3",
+  "serviceComponentAcrResourceGroups": "westus3-shared-resources",
+  "serviceKeyVault": {
+    "name": "arohcp-svc-int",
+    "private": false,
+    "region": "westus3",
+    "rg": "hcp-underlay-int",
+    "softDelete": false
+  },
+  "subnetPrefix": "10.128.8.0/21",
+  "svc": {
+    "etcd": {
+      "kvName": "arohcp-etcd-int",
+      "kvSoftDelete": true
+    },
+    "rg": "hcp-underlay-westus3-svc",
+    "subscription": "hcp-westus3"
+  },
+  "svcAcrName": "arohcpsvcint",
+  "vnetAddressPrefix": "10.128.0.0/14"
+}
