@@ -62,6 +62,17 @@ func TestMiddlewareResourceID(t *testing.T) {
 			},
 		},
 		{
+			name: "node pool collection",
+			path: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/RESOURCEGROUPS/MyResourceGroup/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/myCluster/NODEPOOLS",
+			resourceTypes: []string{
+				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/NODEPOOLS",
+				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS",
+				"Microsoft.Resources/resourceGroups",
+				"Microsoft.Resources/subscriptions",
+				"Microsoft.Resources/tenants",
+			},
+		},
+		{
 			name: "preflight deployment",
 			path: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/RESOURCEGROUPS/MyResourceGroup/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/DEPLOYMENTS/preflight",
 			resourceTypes: []string{

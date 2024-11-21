@@ -18,8 +18,6 @@ import (
 var rxHCPOpenShiftClusterResourceName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{2,53}$`)
 var rxNodePoolResourceName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{2,14}$`)
 
-var resourceTypeSubscription = "Microsoft.Resources/subscriptions"
-
 func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	// To conform with "OAPI012: Resource IDs must not be case sensitive"
 	// we need to use the original, non-lowercased resource ID components
@@ -40,29 +38,28 @@ func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.
 			}
 		}
 
-		// Skip static validation for subscription resources
-		if !strings.EqualFold(resource.ResourceType.String(), resourceTypeSubscription) {
-			switch strings.ToLower(resource.ResourceType.Type) {
-			case strings.ToLower(api.ClusterResourceType.Type):
-				if !rxHCPOpenShiftClusterResourceName.MatchString(resource.Name) {
-					arm.WriteError(w, http.StatusBadRequest,
-						arm.CloudErrorCodeInvalidResourceName,
-						resource.String(),
-						"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
-						resource.ResourceType, resource.Name,
-						resource.ResourceGroupName)
-					return
-				}
-			case strings.ToLower(api.NodePoolResourceType.Type):
-				if !rxNodePoolResourceName.MatchString(resource.Name) {
-					arm.WriteError(w, http.StatusBadRequest,
-						arm.CloudErrorCodeInvalidResourceName,
-						resource.String(),
-						"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
-						resource.ResourceType, resource.Name,
-						resource.ResourceGroupName)
-					return
-				}
+		switch strings.ToLower(resource.ResourceType.Type) {
+		case strings.ToLower(api.ClusterResourceType.Type):
+			if !rxHCPOpenShiftClusterResourceName.MatchString(resource.Name) {
+				arm.WriteError(w, http.StatusBadRequest,
+					arm.CloudErrorCodeInvalidResourceName,
+					resource.String(),
+					"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
+					resource.ResourceType, resource.Name,
+					resource.ResourceGroupName)
+				return
+			}
+		case strings.ToLower(api.NodePoolResourceType.Type):
+			// The collection GET endpoint for nested resources
+			// parses into a ResourceID with an empty Name field.
+			if resource.Name != "" && !rxNodePoolResourceName.MatchString(resource.Name) {
+				arm.WriteError(w, http.StatusBadRequest,
+					arm.CloudErrorCodeInvalidResourceName,
+					resource.String(),
+					"The Resource '%s/%s' under resource group '%s' does not conform to the naming restriction.",
+					resource.ResourceType, resource.Name,
+					resource.ResourceGroupName)
+				return
 			}
 		}
 	}
