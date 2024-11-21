@@ -11,3 +11,7 @@ resourceGroups:
     env:
     - name: MAESTRO_IMAGE
       configRef: maestro_image
+  - name: svc
+    action: ARM
+    template: templates/svc-cluster.bicep
+    parameters: test.bicepparam
