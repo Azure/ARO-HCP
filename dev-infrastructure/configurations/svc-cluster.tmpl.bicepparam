@@ -14,7 +14,7 @@ param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
 
 param maestroKeyVaultName = '{{ .maestro.keyVaultName }}'
-param maestroEventGridNamespacesName = '{{ .maestro.eventgridName }}'
+param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroCertDomain = '{{ .maestro.certDomain}}'
 param maestroPostgresServerName = '{{ .maestro.postgres.name }}'
 param maestroPostgresServerMinTLSVersion = '{{ .maestro.postgres.minTLSVersion }}'

@@ -21,7 +21,7 @@ param userAgentPoolAZCount = {{ .mgmt.userAgentPool.azCount }}
 // Maestro
 param maestroConsumerName = '{{ .maestro.consumerName }}'
 param maestroKeyVaultName = '{{ .maestro.keyVaultName }}'
-param maestroEventGridNamespacesName = '{{ .maestro.eventgridName }}'
+param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroCertDomain = '{{ .maestro.certDomain }}'
 
 // Hypershift
