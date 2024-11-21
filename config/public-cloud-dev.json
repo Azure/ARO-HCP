@@ -55,8 +55,11 @@
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-dev-mgmt-1",
-    "eventGridMaxClientSessionsPerAuthName": "4",
-    "eventgridName": "arohcp-maestro-dev",
+    "eventGrid": {
+      "maxClientSessionsPerAuthName": "4",
+      "minimumTlsVersionAllowed": "1.2",
+      "name": "arohcp-maestro-dev"
+    },
     "imageBase": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
     "imageTag": "ea066c250a002f0cc458711945165591bc9f6d3f",
     "keyVaultName": "arohcp-maestro-dev",

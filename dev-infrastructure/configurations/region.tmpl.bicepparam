@@ -9,3 +9,4 @@ param regionalDNSSubdomain = '{{ .regionalDNSSubdomain }}'
 param maestroKeyVaultName = '{{ .maestro.keyVaultName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventgridName }}'
 param maestroEventGridMaxClientSessionsPerAuthName = {{ .maestro.eventGridMaxClientSessionsPerAuthName }}
+param maestroEventGridMinimumTlsVersionAllowed = {{ .maestro.eventGridMinimumTlsVersionAllowed }}
