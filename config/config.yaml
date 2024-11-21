@@ -51,7 +51,7 @@ defaults:
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       maxClientSessionsPerAuthName: '4'
-      minimumTlsVersionAllowed: '1.2'
+      minTLSVersion: '1.2'
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
     postgres:
       name: arohcp-maestro-{{ .ctx.regionShort }}

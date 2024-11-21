@@ -226,15 +226,16 @@
               "name": {
                 "type": "string"
               },
-              "minimumTlsVersionAllowed": {
-                "type": "string"
+              "minTLSVersion": {
+                "type": "string",
+                "enum": ["1.2"]
               }
             },
             "additionalProperties": false,
             "required": [
               "maxClientSessionsPerAuthName",
               "name",
-              "minimumTlsVersionAllowed"
+              "minTLSVersion"
             ]
           },
           "imageBase": {
