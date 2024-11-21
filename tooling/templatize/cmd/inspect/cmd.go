@@ -1,8 +1,8 @@
 package inspect
 
 import (
+	"context"
 	"fmt"
-	"log"
 
 	"github.com/spf13/cobra"
 
@@ -10,7 +10,7 @@ import (
 	output "github.com/Azure/ARO-HCP/tooling/templatize/internal/utils"
 )
 
-func NewCommand() *cobra.Command {
+func NewCommand() (*cobra.Command, error) {
 	opts := options.DefaultRolloutOptions()
 
 	format := "json"
@@ -19,17 +19,17 @@ func NewCommand() *cobra.Command {
 		Short: "inspect",
 		Long:  "inspect",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return dumpConfig(format, opts)
+			return dumpConfig(cmd.Context(), format, opts)
 		},
 	}
 	if err := options.BindRolloutOptions(opts, cmd); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	cmd.Flags().StringVar(&format, "format", format, "output format (json, yaml)")
-	return cmd
+	return cmd, nil
 }
 
-func dumpConfig(format string, opts *options.RawRolloutOptions) error {
+func dumpConfig(ctx context.Context, format string, opts *options.RawRolloutOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
 		return err

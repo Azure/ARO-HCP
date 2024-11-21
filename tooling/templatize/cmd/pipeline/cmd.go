@@ -7,7 +7,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 )
 
-func NewCommand() *cobra.Command {
+func NewCommand() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:              "pipeline",
 		Short:            "pipeline",
@@ -18,8 +18,18 @@ func NewCommand() *cobra.Command {
 			HiddenDefaultCmd: true,
 		},
 	}
-	cmd.AddCommand(run.NewCommand())
-	cmd.AddCommand(inspect.NewCommand())
 
-	return cmd
+	commands := []func() (*cobra.Command, error){
+		run.NewCommand,
+		inspect.NewCommand,
+	}
+	for _, newCmd := range commands {
+		c, err := newCmd()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(c)
+	}
+
+	return cmd, nil
 }

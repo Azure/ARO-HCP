@@ -2,31 +2,24 @@ package run
 
 import (
 	"context"
-	"log"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/spf13/cobra"
 )
 
-func NewCommand() *cobra.Command {
+func NewCommand() (*cobra.Command, error) {
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "run a pipeline.yaml file towards an Azure Resourcegroup / AKS cluster",
 		Long:  "run a pipeline.yaml file towards an Azure Resourcegroup / AKS cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-			defer stop()
-
-			return runPipeline(ctx, opts)
+			return runPipeline(cmd.Context(), opts)
 		},
 	}
 	if err := BindOptions(opts, cmd); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return cmd
+	return cmd, nil
 }
 
 func runPipeline(ctx context.Context, opts *RawRunOptions) error {

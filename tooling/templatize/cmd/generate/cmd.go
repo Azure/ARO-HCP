@@ -1,28 +1,28 @@
 package generate
 
 import (
-	"log"
+	"context"
 
 	"github.com/spf13/cobra"
 )
 
-func NewCommand() *cobra.Command {
+func NewCommand() (*cobra.Command, error) {
 	opts := DefaultGenerationOptions()
 	cmd := &cobra.Command{
 		Use:   "generate",
 		Short: "generate",
 		Long:  "generate",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generate(opts)
+			return generate(cmd.Context(), opts)
 		},
 	}
 	if err := BindGenerationOptions(opts, cmd); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return cmd
+	return cmd, nil
 }
 
-func generate(opts *RawGenerationOptions) error {
+func generate(ctx context.Context, opts *RawGenerationOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
 		return err

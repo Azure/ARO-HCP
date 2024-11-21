@@ -9,6 +9,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
@@ -17,9 +19,13 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 	if err != nil {
 		return nil, err
 	}
+	absPath, err := filepath.Abs(pipelineFilePath)
+	if err != nil {
+		return nil, err
+	}
 
 	pipeline := &Pipeline{
-		pipelineFilePath: pipelineFilePath,
+		pipelineFilePath: absPath,
 	}
 	err = yaml.Unmarshal(bytes, pipeline)
 	if err != nil {
@@ -36,6 +42,8 @@ type PipelineRunOptions struct {
 }
 
 func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	// set working directory to the pipeline file directory for the
 	// duration of the execution so that all commands and file references
 	// within the pipeline file are resolved relative to the pipeline file
@@ -44,14 +52,16 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 		return err
 	}
 	dir := filepath.Dir(p.pipelineFilePath)
+	logger.V(7).Info("switch current dir to pipeline file directory", "path", dir)
 	err = os.Chdir(dir)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		err := os.Chdir(originalDir)
+		logger.V(7).Info("switch back dir", "path", originalDir)
+		err = os.Chdir(originalDir)
 		if err != nil {
-			fmt.Printf("failed to reset directory: %v\n", err)
+			logger.Error(err, "failed to switch back to original directory", "path", originalDir)
 		}
 	}()
 
@@ -78,16 +88,25 @@ func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 		AKSClusterName:   rg.AKSCluster,
 	}
 
+	logger := logr.FromContextOrDiscard(ctx)
 	for _, step := range rg.Steps {
 		if options.Step != "" && step.Name != options.Step {
 			// skip steps that don't match the specified step name
 			continue
 		}
 		// execute
-		fmt.Println("\n---------------------")
-		fmt.Println(step.description())
-		fmt.Print("\n")
-		err := step.run(ctx, executionTarget, options)
+		err := step.run(
+			logr.NewContext(
+				ctx,
+				logger.WithValues(
+					"step", step.Name,
+					"subscription", executionTarget.SubscriptionName,
+					"resourceGroup", executionTarget.ResourceGroup,
+					"aksCluster", executionTarget.AKSClusterName,
+				),
+			),
+			executionTarget, options,
+		)
 		if err != nil {
 			return err
 		}
@@ -96,6 +115,9 @@ func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 }
 
 func (s *step) run(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+	fmt.Println("\n---------------------")
+	fmt.Println(s.description())
+	fmt.Print("\n")
 	switch s.Action {
 	case "Shell":
 		return s.runShellStep(ctx, executionTarget, options)

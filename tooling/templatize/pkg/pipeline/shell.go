@@ -6,11 +6,15 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
 func (s *step) runShellStep(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	// build ENV vars
 	envVars, err := s.getEnvVars(options.Vars, true)
 	if err != nil {
@@ -19,22 +23,24 @@ func (s *step) runShellStep(ctx context.Context, executionTarget *ExecutionTarge
 
 	// prepare kubeconfig
 	if executionTarget.AKSClusterName != "" {
+		logger.V(5).Info("Building kubeconfig for AKS cluster")
 		kubeconfigFile, err := executionTarget.KubeConfig(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to build kubeconfig for %s: %w", executionTarget.aksID(), err)
 		}
 		defer func() {
 			if err := os.Remove(kubeconfigFile); err != nil {
-				fmt.Printf("Warning: failed to delete kubeconfig file %s: %v\n", kubeconfigFile, err)
+				logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
 			}
 		}()
 		envVars["KUBECONFIG"] = kubeconfigFile
+		logger.V(5).Info("kubeconfig set to shell execution environment", "kubeconfig", kubeconfigFile)
 	}
 
 	// TODO handle dry-run
 
 	// execute the command
-	fmt.Printf("Executing shell command: %s - %s\n", s.Command[0], s.Command[1:])
+	logger.V(5).Info(fmt.Sprintf("Executing shell command: %s\n", s.Command), "command", s.Command)
 	cmd := exec.CommandContext(ctx, s.Command[0], s.Command[1:]...)
 	cmd.Env = append(cmd.Env, utils.MapToEnvVarArray(envVars)...)
 	output, err := cmd.CombinedOutput()
