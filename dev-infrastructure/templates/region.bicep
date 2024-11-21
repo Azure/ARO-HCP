@@ -13,6 +13,9 @@ param maestroEventGridNamespacesName string
 @description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
 param maestroEventGridMaxClientSessionsPerAuthName int
 
+@description('Minimum TLS version allowed for the EventGrid Namespace')
+param maestroEventGridMinimumTlsVersionAllowed string = '1.2'
+
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
@@ -67,5 +70,6 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maestroKeyVaultName: maestroKeyVaultName
     kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
     publicNetworkAccess: 'Enabled'
+    minimumTlsVersionAllowed: maestroEventGridMinimumTlsVersionAllowed
   }
 }

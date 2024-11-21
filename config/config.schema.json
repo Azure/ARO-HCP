@@ -222,11 +222,26 @@
           "consumerName": {
             "type": "string"
           },
-          "eventGridMaxClientSessionsPerAuthName": {
-            "type": "string"
-          },
-          "eventgridName": {
-            "type": "string"
+          "eventGrid": {
+            "type": "object",
+            "properties": {
+              "maxClientSessionsPerAuthName": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "minTLSVersion": {
+                "type": "string",
+                "enum": ["1.2"]
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "maxClientSessionsPerAuthName",
+              "name",
+              "minTLSVersion"
+            ]
           },
           "imageBase": {
             "type": "string"
@@ -278,8 +293,7 @@
         "required": [
           "certDomain",
           "consumerName",
-          "eventGridMaxClientSessionsPerAuthName",
-          "eventgridName",
+          "eventGrid",
           "imageBase",
           "imageTag",
           "keyVaultName",
