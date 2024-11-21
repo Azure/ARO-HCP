@@ -91,7 +91,7 @@ func (o *ValidatedPipelineOptions) Complete() (*PipelineOptions, error) {
 
 	pipeline, err := pipeline.NewPipelineFromFile(o.PipelineFile, completed.Config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load pipeline file %s: %w", o.PipelineFile, err)
+		return nil, fmt.Errorf("failed to load pipeline %s: %w", o.PipelineFile, err)
 	}
 
 	return &PipelineOptions{

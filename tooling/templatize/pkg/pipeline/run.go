@@ -31,6 +31,10 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 	if err != nil {
 		return nil, err
 	}
+	err = pipeline.Validate()
+	if err != nil {
+		return nil, err
+	}
 	return pipeline, nil
 }
 
@@ -138,4 +142,38 @@ func (s *step) description() string {
 		details = append(details, fmt.Sprintf("Parameters: %s", s.Parameters))
 	}
 	return fmt.Sprintf("Step %s\n  Kind: %s\n  %s", s.Name, s.Action, strings.Join(details, "\n  "))
+}
+
+func (p *Pipeline) Validate() error {
+	for _, rg := range p.ResourceGroups {
+		err := rg.Validate()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (rg *resourceGroup) Validate() error {
+	if rg.Name == "" {
+		return fmt.Errorf("resource group name is required")
+	}
+	if rg.Subscription == "" {
+		return fmt.Errorf("subscription is required")
+	}
+
+	// validate step dependencies
+	// todo - check for circular dependencies
+	stepMap := make(map[string]bool)
+	for _, step := range rg.Steps {
+		stepMap[step.Name] = true
+	}
+	for _, step := range rg.Steps {
+		for _, dep := range step.DependsOn {
+			if !stepMap[dep] {
+				return fmt.Errorf("invalid dependency from step %s to %s", step.Name, dep)
+			}
+		}
+	}
+	return nil
 }

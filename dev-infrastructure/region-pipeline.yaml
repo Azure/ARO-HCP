@@ -2,7 +2,7 @@ serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Region Rollout
 resourceGroups:
 - name: {{ .regionRG }}
-  subscription: {{ .serviceClusterSubscription }}
+  subscription: {{ .svc.subscription }}
   steps:
   - name: region
     action: ARM

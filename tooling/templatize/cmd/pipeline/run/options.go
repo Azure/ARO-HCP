@@ -58,7 +58,7 @@ func (o *RawRunOptions) Validate() (*ValidatedRunOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	// todo validate
+
 	return &ValidatedRunOptions{
 		validatedRunOptions: &validatedRunOptions{
 			RawRunOptions:            o,
