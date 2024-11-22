@@ -51,11 +51,11 @@ func PrecompilePipelineForEV2(pipelineFilePath string, vars config.Variables) (s
 }
 
 func processPipelineForEV2(p *pipeline.Pipeline, vars config.Variables) error {
-	_, scopeBindedVars := EV2Mapping(vars, []string{})
+	_, scopeBoundVars := EV2Mapping(vars, []string{})
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.Parameters != "" {
-				newParameterFilePath, err := precompileFileAndStore(step.Parameters, scopeBindedVars)
+				newParameterFilePath, err := precompileFileAndStore(step.Parameters, scopeBoundVars)
 				if err != nil {
 					return err
 				}
