@@ -10,8 +10,8 @@ func NewCommand() (*cobra.Command, error) {
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
 		Use:   "inspect",
-		Short: "inspect aspects of a pipeline.yaml file",
-		Long:  "inspect aspects of a pipeline.yaml file",
+		Short: "inspect scopes of a pipeline.yaml file",
+		Long:  "inspect scopes of a pipeline.yaml file",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInspect(cmd.Context(), opts)
 		},

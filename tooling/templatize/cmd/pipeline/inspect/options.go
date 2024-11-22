@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -23,14 +24,14 @@ func BindOptions(opts *RawInspectOptions, cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to bind options: %w", err)
 	}
-	cmd.Flags().StringVar(&opts.Aspect, "aspect", opts.Aspect, "aspect of the pipeline to inspect")
+	cmd.Flags().StringVar(&opts.Scope, "scope", opts.Scope, "scope of the pipeline to inspect")
 	cmd.Flags().StringVar(&opts.Format, "format", opts.Format, "output format")
 	return nil
 }
 
 type RawInspectOptions struct {
 	PipelineOptions *options.RawPipelineOptions
-	Aspect          string
+	Scope           string
 	Format          string
 }
 
@@ -48,7 +49,7 @@ type ValidatedInspectOptions struct {
 // completedRunOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedInspectOptions struct {
 	PipelineOptions *options.PipelineOptions
-	Aspect          string
+	Scope           string
 	Format          string
 }
 
@@ -64,8 +65,13 @@ func (o *RawInspectOptions) Validate() (*ValidatedInspectOptions, error) {
 	}
 
 	inspectScopes := pipeline.NewStepInspectScopes()
-	if _, ok := inspectScopes[o.Aspect]; !ok {
-		return nil, fmt.Errorf("unknown inspect scope %q", o.Aspect)
+	if _, ok := inspectScopes[o.Scope]; !ok {
+		scopes := make([]string, 0, len(inspectScopes))
+		for scope := range inspectScopes {
+			scopes = append(scopes, scope)
+		}
+		availableScopes := strings.Join(scopes, ", ")
+		return nil, fmt.Errorf("unknown inspect scope %q, valid scopes are: (%v)", o.Scope, availableScopes)
 	}
 
 	return &ValidatedInspectOptions{
@@ -85,7 +91,7 @@ func (o *ValidatedInspectOptions) Complete() (*InspectOptions, error) {
 	return &InspectOptions{
 		completedInspectOptions: &completedInspectOptions{
 			PipelineOptions: completed,
-			Aspect:          o.Aspect,
+			Scope:           o.Scope,
 			Format:          o.Format,
 		},
 	}, nil
@@ -110,7 +116,7 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 		Vars:   variables,
 		Region: rolloutOptions.Region,
 		Step:   o.PipelineOptions.Step,
-		Aspect: o.Aspect,
+		Scope:  o.Scope,
 		Format: o.Format,
 	}, os.Stdout)
 }

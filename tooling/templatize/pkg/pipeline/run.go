@@ -17,11 +17,11 @@ import (
 func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipeline, error) {
 	bytes, err := config.PreprocessFile(pipelineFilePath, vars)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to preprocess pipeline file %w", err)
 	}
 	absPath, err := filepath.Abs(pipelineFilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get absolute path for pipeline file %q: %w", pipelineFilePath, err)
 	}
 
 	pipeline := &Pipeline{
@@ -29,11 +29,11 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 	}
 	err = yaml.Unmarshal(bytes, pipeline)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal pipeline file %w", err)
 	}
 	err = pipeline.Validate()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pipeline file failed validation %w", err)
 	}
 	return pipeline, nil
 }
