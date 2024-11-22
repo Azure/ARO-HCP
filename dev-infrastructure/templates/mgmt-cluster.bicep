@@ -110,8 +110,8 @@ param mgmtKeyVaultPrivate bool
 @description('Defines if the MGMT KeyVault has soft delete enabled')
 param mgmtKeyVaultSoftDelete bool
 
-@description('Cluster user assigned identity principal id, used to grant KeyVault access')
-param clusterServicePrincipalId string
+@description('Cluster user assigned identity resource id, used to grant KeyVault access')
+param clusterServiceMIResourceId string
 
 @description('MSI that will be used to run deploymentScripts')
 param aroDevopsMsiId string
@@ -248,17 +248,26 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
+var clusterServiceMISplit = split(clusterServiceMIResourceId, '/')
+var clusterServiceMIResourceGroup = clusterServiceMISplit[4]
+var clusterServiceMIName = last(clusterServiceMISplit)
+
+resource clusterServiceMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(clusterServiceMIResourceGroup)
+  name: clusterServiceMIName
+}
+
 module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
   for role in [
     'Key Vault Secrets Officer'
     'Key Vault Certificate User'
     'Key Vault Certificates Officer'
   ]: {
-    name: guid(cxKeyVaultName, clusterServicePrincipalId, role)
+    name: guid(cxKeyVaultName, clusterServiceMIResourceId, role)
     params: {
       keyVaultName: cxKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: clusterServicePrincipalId
+      managedIdentityPrincipalId: clusterServiceMI.properties.principalId
     }
     dependsOn: [
       cxKeyVault
@@ -272,11 +281,11 @@ module msiClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-acce
     'Key Vault Certificate User'
     'Key Vault Certificates Officer'
   ]: {
-    name: guid(msiKeyVaultName, clusterServicePrincipalId, role)
+    name: guid(msiKeyVaultName, clusterServiceMIResourceId, role)
     params: {
       keyVaultName: msiKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: clusterServicePrincipalId
+      managedIdentityPrincipalId: clusterServiceMI.properties.principalId
     }
     dependsOn: [
       msiKeyVault
@@ -284,7 +293,7 @@ module msiClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-acce
   }
 ]
 
-// 
+//
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
