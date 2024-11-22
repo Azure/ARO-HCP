@@ -231,13 +231,13 @@ func (cp *configProviderImpl) GetRegionOverrides(cloud, deployEnv, region string
 func (cp *configProviderImpl) loadConfig(configReplacements *ConfigReplacements) (VariableOverrides, error) {
 	// TODO validate that field names are unique regardless of casing
 	// parse, execute and unmarshal the config file as a template to generate the final config file
-	bytes, err := PreprocessFile(cp.config, configReplacements.AsMap())
+	rawContent, err := PreprocessFile(cp.config, configReplacements.AsMap())
 	if err != nil {
 		return nil, err
 	}
 
 	currentVariableOverrides := NewVariableOverrides()
-	if err := yaml.Unmarshal(bytes, currentVariableOverrides); err == nil {
+	if err := yaml.Unmarshal(rawContent, currentVariableOverrides); err == nil {
 		return currentVariableOverrides, nil
 	} else {
 		return nil, err
