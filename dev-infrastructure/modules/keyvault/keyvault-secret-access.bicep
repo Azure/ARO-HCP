@@ -27,10 +27,12 @@ var roleResourceIds = {
     'Microsoft.Authorization/roleDefinitions/',
     'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
   )
+  // Read entire certificate contents including secret and key portion. 
   'Key Vault Certificate User': subscriptionResourceId(
     'Microsoft.Authorization/roleDefinitions/',
     'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba'
   )
+  // Perform any action on the certificates of a key vault, excluding reading the secret and key portions, and managing permissions. 
   'Key Vault Certificates Officer': subscriptionResourceId(
     'Microsoft.Authorization/roleDefinitions/',
     'a4417e6f-fecd-4de8-b567-7b0420556985'

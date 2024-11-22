@@ -251,7 +251,7 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
 
 module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
   for role in [
-    'Key Vault Secrets User'
+    'Key Vault Secrets Officer'
     'Key Vault Certificate User'
     'Key Vault Certificates Officer'
   ]: {
@@ -267,9 +267,9 @@ module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-acces
   }
 ]
 
-module msiCluserServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+module msiClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
   for role in [
-    'Key Vault Secrets User'
+    'Key Vault Secrets Officer'
     'Key Vault Certificate User'
     'Key Vault Certificates Officer'
   ]: {
