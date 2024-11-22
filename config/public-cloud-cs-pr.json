@@ -75,7 +75,7 @@
     "restrictIstioIngress": false
   },
   "mgmt": {
-    "clusterServicePrincipalId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-cspr-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-sync",
+    "clusterServicePrincipalId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-cspr-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service",
     "etcd": {
       "kvName": "arohcp-etcd-cspr-1",
       "kvSoftDelete": false
