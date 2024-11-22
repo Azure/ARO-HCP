@@ -9,6 +9,12 @@ param aksClusterName = '{{ .aksName }}'
 param aksKeyVaultName = '{{ .svc.etcd.kvName }}'
 param aksEtcdKVEnableSoftDelete = {{ .svc.etcd.kvSoftDelete }}
 
+param userAgentMinCount = {{ .svc.userAgentPool.minCount }}
+param userAgentMaxCount = {{ .svc.userAgentPool.maxCount }}
+param userAgentVMSize = '{{ .svc.userAgentPool.vmSize }}'
+param aksUserOsDiskSizeGB = {{ .svc.userAgentPool.osDiskSizeGB }}
+param userAgentPoolAZCount = {{ .svc.userAgentPool.azCount }}
+
 param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
 param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'

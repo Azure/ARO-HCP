@@ -136,7 +136,14 @@
       "kvSoftDelete": true
     },
     "rg": "hcp-underlay-westus3-svc",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-westus3",
+    "userAgentPool": {
+      "azCount": 3,
+      "maxCount": 3,
+      "minCount": 1,
+      "osDiskSizeGB": 32,
+      "vmSize": "Standard_D2s_v3"
+    }
   },
   "svcAcrName": "arohcpsvcint",
   "vnetAddressPrefix": "10.128.0.0/14"

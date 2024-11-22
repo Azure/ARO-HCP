@@ -539,6 +539,34 @@
               "kvSoftDelete"
             ]
           },
+          "userAgentPool": {
+            "type": "object",
+            "properties": {
+              "azCount": {
+                "type": "number"
+              },
+              "maxCount": {
+                "type": "number"
+              },
+              "minCount": {
+                "type": "number"
+              },
+              "osDiskSizeGB": {
+                "type": "number"
+              },
+              "vmSize": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "azCount",
+              "maxCount",
+              "minCount",
+              "osDiskSizeGB",
+              "vmSize"
+            ]
+          },
           "rg": {
             "type": "string"
           },
@@ -550,7 +578,8 @@
         "required": [
           "etcd",
           "rg",
-          "subscription"
+          "subscription",
+          "userAgentPool"
         ]
       },
       "svcAcrName": {
