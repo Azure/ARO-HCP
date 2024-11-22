@@ -1,17 +1,14 @@
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
-param maestroKeyVaultName string
-
-@description('The name of the managed identity that will manage certificates in maestros keyvault.')
-param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
-
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
 @description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
 param maestroEventGridMaxClientSessionsPerAuthName int
+
+@description('Allow/deny public network access to the Maestro EventGrid Namespace')
+param maestroEventGridPrivate bool
 
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
@@ -64,8 +61,6 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     eventGridNamespaceName: maestroEventGridNamespacesName
     location: location
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
-    maestroKeyVaultName: maestroKeyVaultName
-    kvCertOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: maestroEventGridPrivate ? 'Disabled' : 'Enabled'
   }
 }

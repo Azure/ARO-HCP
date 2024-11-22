@@ -74,12 +74,6 @@ param maestroConsumerName string
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
 
-@description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
-param maestroKeyVaultName string
-
-@description('The name of the managed identity that will manage certificates in maestros keyvault.')
-param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
-
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
@@ -118,6 +112,9 @@ param mgmtKeyVaultSoftDelete bool
 
 @description('Cluster user assigned identity principal id, used to grant KeyVault access')
 param clusterServicePrincipalId string
+
+@description('MSI that will be used to run deploymentScripts')
+param aroDevopsMsiId string
 
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
@@ -180,18 +177,20 @@ output aksClusterName string = mgmtCluster.outputs.aksClusterName
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
   name: 'maestro-consumer'
   params: {
-    maestroServerManagedIdentityPrincipalId: filter(
+    maestroAgentManagedIdentityPrincipalId: filter(
       mgmtCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-consumer'
     )[0].uamiPrincipalID
     maestroInfraResourceGroup: regionalResourceGroup
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
-    maestroKeyVaultName: maestroKeyVaultName
-    maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
-    maestroKeyVaultCertificateDomain: maestroCertDomain
-    location: location
+    certKeyVaultName: mgmtKeyVaultName
+    keyVaultOfficerManagedIdentityName: aroDevopsMsiId
+    maestroCertificateDomain: maestroCertDomain
   }
+  dependsOn: [
+    mgmtKeyVault
+  ]
 }
 
 //

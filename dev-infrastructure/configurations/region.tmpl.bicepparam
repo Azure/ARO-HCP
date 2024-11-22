@@ -6,6 +6,6 @@ param baseDNSZoneResourceGroup = '{{ .baseDnsZoneRG }}'
 param regionalDNSSubdomain = '{{ .regionalDNSSubdomain }}'
 
 // maestro
-param maestroKeyVaultName = '{{ .maestro.keyVaultName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroEventGridMaxClientSessionsPerAuthName = {{ .maestro.eventGrid.maxClientSessionsPerAuthName }}
+param maestroEventGridPrivate = {{ .maestro.eventGrid.private }}

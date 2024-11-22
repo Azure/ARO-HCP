@@ -14,7 +14,7 @@ param issuerName string
 param dnsNames array
 param now string = utcNow('F')
 param keyVaultManagedIdentityId string
-param location string
+param location string = resourceGroup().location
 param force bool = false
 var boolstring = force == false ? '$false' : '$true'
 param validityInMonths int = 12
@@ -30,7 +30,7 @@ resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01
   location: location
   kind: 'AzurePowerShell'
   properties: {
-    azPowerShellVersion: '7.5.0'
+    azPowerShellVersion: '12.0.0'
     arguments: ' -VaultName ${keyVaultName} -ValidityInMonths ${validityInMonths} -IssuerName ${issuerName} -CertName ${certName} -SubjectName ${subjectName} -DnsNames ${join(dnsNames,'_')} -Force ${boolstring}'
     scriptContent: loadTextContent('../scripts/key-vault-cert.ps1')
     forceUpdateTag: now

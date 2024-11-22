@@ -1,25 +1,41 @@
-param maestroServerManagedIdentityPrincipalId string
+/*
+This module is responsible for setting up EventGrid access for the maestro consumer by
+- create a client certificate
+- register the client in the EventGrid namespace
+
+Execution scope: the resourcegroup of the MC where the agent is deployed.
+*/
+
+param maestroAgentManagedIdentityPrincipalId string
 @minLength(1)
 param maestroConsumerName string
 param maestroInfraResourceGroup string
 param maestroEventGridNamespaceName string
-param maestroKeyVaultName string
-param maestroKeyVaultOfficerManagedIdentityName string
-param maestroKeyVaultCertificateDomain string
 
-param location string
+param certKeyVaultName string
+param keyVaultOfficerManagedIdentityName string
+param maestroCertificateDomain string
 
-module evengGridAccess './maestro-eventgrid-access.bicep' = {
-  name: 'event-grid-access-${uniqueString(maestroConsumerName)}'
+module eventGridClientCert 'maestro-access-cert.bicep' = {
+  name: '${deployment().name}-eg-crt-${uniqueString(maestroConsumerName)}'
+  params: {
+    keyVaultName: certKeyVaultName
+    kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName
+    certDomain: maestroCertificateDomain
+    clientName: maestroConsumerName
+    keyVaultCertificateName: maestroConsumerName
+    certificateAccessManagedIdentityPrincipalId: maestroAgentManagedIdentityPrincipalId
+  }
+}
+
+module evengGridAccess 'maestro-eventgrid-access.bicep' = {
+  name: '${deployment().name}-eg-access'
   scope: resourceGroup(maestroInfraResourceGroup)
   params: {
     eventGridNamespaceName: maestroEventGridNamespaceName
-    keyVaultName: maestroKeyVaultName
-    kvCertOfficerManagedIdentityName: maestroKeyVaultOfficerManagedIdentityName
-    certDomain: maestroKeyVaultCertificateDomain
     clientName: maestroConsumerName
     clientRole: 'consumer'
-    certificateAccessManagedIdentityPrincipalId: maestroServerManagedIdentityPrincipalId
-    location: location
+    certificateThumbprint: eventGridClientCert.outputs.certificateThumbprint
+    certificateSAN: eventGridClientCert.outputs.certificateSAN
   }
 }

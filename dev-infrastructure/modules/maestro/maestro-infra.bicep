@@ -1,23 +1,11 @@
 /*
 This module creates the infrastructure required by maestro to run. This includes:
 
-- A KeyVault where the client certificates for EventGrid MQTT broker access
-  are generated and stored
-- A managed identity to create and manage certificates in Key Vault. This is
-  used by the maestro-eventgrid-access bicep module deploymentscripts.
-
-    Why is this needed? There are no bicep modules for KeyVault certificate management,
-    so we need deploymentscripts + a managed identity with Key Vault access to run them.
-
 - Create an EventGrid namespaces instance with MQTT enabled.
 - Create EventGrid client groups for the server and consumers and define topic
   access permissions.
 
 Execution scope: the resourcegroup of the maestro infrastructure
-
-TODO:
-- Key Vault network access restrictions (e.g. privatelink)
-- EventGrid network access restrictions (e.g. privatelink)
 */
 
 @description('The Maestro Event Grid Namespaces name')
@@ -29,79 +17,12 @@ param location string
 @description('The maximum client sessions per authentication name for the EventGrid MQTT broker')
 param maxClientSessionsPerAuthName int
 
-@description('The name for the Key Vault for Maestro certificates')
-param maestroKeyVaultName string
-
-@description('The name for the Managed Identity that will be created for Key Vault Certificate management.')
-param kvCertOfficerManagedIdentityName string
-
 @description('Allow public network access to the EventGrid Namespace')
 @allowed([
   'Enabled'
   'Disabled'
 ])
-param publicNetworkAccess string = 'Enabled'
-
-//
-//   K E Y    V A U L T
-//
-
-resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: maestroKeyVaultName
-  location: location
-  tags: {
-    resourceGroup: resourceGroup().name
-  }
-  properties: {
-    accessPolicies: []
-    enableRbacAuthorization: true
-    enabledForDeployment: false
-    enabledForDiskEncryption: false
-    enabledForTemplateDeployment: false
-    enableSoftDelete: false
-    networkAcls: {
-      bypass: 'AzureServices'
-      defaultAction: 'Allow'
-      ipRules: [
-        {
-          // TODO: restrict in higher environments
-          value: '0.0.0.0/0'
-        }
-      ]
-    }
-    // TODO: disabled in higher environments
-    publicNetworkAccess: 'Enabled'
-    sku: {
-      family: 'A'
-      name: 'standard'
-    }
-    tenantId: subscription().tenantId
-  }
-}
-
-//
-// C E R T I F I C A T E   O F F I C E R   M S I
-//
-
-resource kvCertOfficerManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: kvCertOfficerManagedIdentityName
-  location: location
-}
-
-var keyVaultCertificateOfficerRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions/',
-  'a4417e6f-fecd-4de8-b567-7b0420556985'
-)
-
-resource kvManagedIdentityRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: kv
-  name: guid(kvCertOfficerManagedIdentity.id, keyVaultCertificateOfficerRoleId, kv.id)
-  properties: {
-    roleDefinitionId: keyVaultCertificateOfficerRoleId
-    principalId: kvCertOfficerManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
+param publicNetworkAccess string
 
 //
 //   E V E N T   G R I D
@@ -253,6 +174,3 @@ resource maestroConsumersPublishTopicspacePermissionBinding 'Microsoft.EventGrid
     topicSpaceName: maestroConsumersPublishTopicspace.name
   }
 }
-
-output keyVaultName string = kv.name
-output eventGridNamespaceName string = eventGridNamespace.name

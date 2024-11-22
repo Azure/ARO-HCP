@@ -11,25 +11,27 @@ resourceGroups:
   #  parameters: test.bicepparam
   - name: deploy
     action: Shell
-    command: ["/bin/bash", "-c", "make deploy"]
+    command: ["make", "deploy"]
     # pwd is inferred from the location of this file
     # so all path references in the command are relativ to the files location
     env:
     - name: EVENTGRID_NAME
-      configRef: maestroEventgridName
+      configRef: maestro.eventGrid.name
     - name: REGION_RG
       configRef: regionRG
     - name: SVC_RG
-      configRef: serviceClusterRG
+      configRef: svc.rg
     - name: AKS_NAME
       configRef: aksName
     - name: IMAGE_BASE
-      configRef: maestroImageBase
+      configRef: maestro.imageBase
     - name: IMAGE_TAG
-      configRef: maestroImageTag
+      configRef: maestro.imageTag
     - name: USE_AZURE_DB
       configRef: maestroPostgresDeploy
     - name: ISTIO_RESTRICT_INGRESS
-      configRef: maestroRestrictIstioIngress
+      configRef: maestro.restrictIstioIngress
     - name: KEYVAULT_NAME
-      configRef: maestroKeyVaultName
+      configRef: serviceKeyVault.name
+    - name: MQTT_CLIENT_NAME
+      configRef: maestro.serverMqttClientName

@@ -7,4 +7,5 @@ IMAGE_TAG ?= {{ .maestro.imageTag }}
 USE_CONTAINERIZED_DB ?= {{ not .maestro.postgres.deploy }}
 USE_DATABASE_SSL ?= {{ ternary "enable" "disable" .maestro.postgres.deploy }}
 ISTIO_RESTRICT_INGRESS ?= {{ .maestro.restrictIstioIngress }}
-KEYVAULT_NAME ?= {{ .maestro.keyVaultName }}
+KEYVAULT_NAME ?= {{ .serviceKeyVault.name }}
+MQTT_CLIENT_NAME ?= {{ .maestro.serverMqttClientName }}

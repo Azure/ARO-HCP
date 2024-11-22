@@ -49,10 +49,10 @@ defaults:
 
   # Maestro
   maestro:
-    keyVaultName: arohcp-maestro-{{ .ctx.regionShort }}
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       maxClientSessionsPerAuthName: '4'
+      private: false
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
     postgres:
       name: arohcp-maestro-{{ .ctx.regionShort }}
@@ -63,6 +63,7 @@ defaults:
       minTLSVersion: 'TLSV1.2'
     restrictIstioIngress: true
     consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+    serverMqttClientName: maestro-server
     imageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
 
   # Cluster Service

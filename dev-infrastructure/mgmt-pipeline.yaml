@@ -1,20 +1,20 @@
 serviceGroup: Microsoft.Azure.ARO.Test
-rolloutName: Service Cluster Rollout
+rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
+- name: {{ .mgmt.rg }}
+  subscription: {{ .mgmt.subscription }}
   aksCluster: {{ .aksName }}
   steps:
-  - name: svc
+  - name: mgmt
     action: ARM
-    template: templates/svc-cluster.bicep
-    parameters: configurations/svc-cluster.tmpl.bicepparam
+    template: templates/mgmt-cluster.bicep
+    parameters: configurations/mgmt-cluster.tmpl.bicepparam
   - name: enable-metrics
     action: Shell
     command: ["scripts/enable-aks-metrics.sh"]
     env:
     - name: RESOURCEGROUP
-      configRef: svc.rg
+      configRef: mgmt.rg
     - name: AKS_NAME
       configRef: aksName
     - name: GRAFANA_RESOURCEGROUP
@@ -24,4 +24,4 @@ resourceGroups:
     - name: GRAFANA_NAME
       configRef: monitoring.grafanaName
     dependsOn:
-    - svc
+    - mgmt
