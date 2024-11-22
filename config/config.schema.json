@@ -230,17 +230,12 @@
               },
               "name": {
                 "type": "string"
-              },
-              "minTLSVersion": {
-                "type": "string",
-                "enum": ["1.2"]
               }
             },
             "additionalProperties": false,
             "required": [
               "maxClientSessionsPerAuthName",
-              "name",
-              "minTLSVersion"
+              "name"
             ]
           },
           "imageBase": {

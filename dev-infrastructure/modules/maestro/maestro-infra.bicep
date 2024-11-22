@@ -35,9 +35,6 @@ param maestroKeyVaultName string
 @description('The name for the Managed Identity that will be created for Key Vault Certificate management.')
 param kvCertOfficerManagedIdentityName string
 
-@description('Minimum TLS version allowed for the EventGrid Namespace')
-param minimumTlsVersionAllowed string = '1.2'
-
 @description('Allow public network access to the EventGrid Namespace')
 @allowed([
   'Enabled'
@@ -121,7 +118,6 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' 
   properties: {
     isZoneRedundant: true
     publicNetworkAccess: publicNetworkAccess
-    minimumTlsVersionAllowed: minimumTlsVersionAllowed
     topicSpacesConfiguration: {
       state: 'Enabled'
       maximumSessionExpiryInHours: 1
