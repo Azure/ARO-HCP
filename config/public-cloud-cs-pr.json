@@ -136,7 +136,14 @@
       "kvSoftDelete": false
     },
     "rg": "hcp-underlay-cspr-svc",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
+    "subscription": "ARO Hosted Control Planes (EA Subscription 1)",
+    "userAgentPool": {
+      "azCount": 3,
+      "maxCount": 12,
+      "minCount": 2,
+      "osDiskSizeGB": 32,
+      "vmSize": "Standard_D2s_v3"
+    }
   },
   "svcAcrName": "arohcpsvcdev",
   "vnetAddressPrefix": "10.128.0.0/14"

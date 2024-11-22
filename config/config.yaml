@@ -153,6 +153,12 @@ clouds:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
         etcd:
           kvSoftDelete: false
+        userAgentPool:
+          minCount: 1
+          maxCount: 3
+          vmSize: 'Standard_D2s_v3'
+          osDiskSizeGB: 32
+          azCount: 3
       mgmt:
         # MGMTM AKS nodepools - big enough for 2 HCPs
         systemAgentPool:
@@ -207,8 +213,14 @@ clouds:
       cs-pr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
-          # MGMTM AKS nodepools - big enough for multiple HCPs
+          svc:
+            # MC AKS nodepools
+            # big enough for multiple CS instances during PR checks
+            userAgentPool:
+              minCount: 2
+              maxCount: 12
           mgmt:
+            # MC AKS nodepools - big enough for multiple HCPs
             userAgentPool:
               minCount: 2
               maxCount: 12
