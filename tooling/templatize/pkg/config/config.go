@@ -244,21 +244,23 @@ func (cp *configProviderImpl) loadConfig(configReplacements *ConfigReplacements)
 	}
 }
 
-func PreprocessFile(templateFilePath string, vars map[string]interface{}) ([]byte, error) {
+// PreprocessFile reads and processes a gotemplate
+// The path will be read as is. It parses the file as a template, and executes it with the provided variables.
+func PreprocessFile(templateFilePath string, vars map[string]any) ([]byte, error) {
 	tmpl := template.New("file")
 	content, err := os.ReadFile(templateFilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read file %s: %w", templateFilePath, err)
 	}
 
 	tmpl, err = tmpl.Parse(string(content))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse template %s: %w", templateFilePath, err)
 	}
 
 	var tmplBytes bytes.Buffer
 	if err := tmpl.Option("missingkey=error").Execute(&tmplBytes, vars); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute template %s: %w", templateFilePath, err)
 	}
 	return tmplBytes.Bytes(), nil
 }

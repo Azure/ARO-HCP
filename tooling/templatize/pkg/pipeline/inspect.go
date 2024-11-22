@@ -17,7 +17,7 @@ func NewStepInspectScopes() map[string]StepInspectScope {
 }
 
 type PipelineInspectOptions struct {
-	Aspect string
+	Scope  string
 	Format string
 	Step   string
 	Region string
@@ -29,13 +29,13 @@ func (p *Pipeline) Inspect(ctx context.Context, options *PipelineInspectOptions,
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.Name == options.Step {
-				if inspectFunc, ok := stepInspectScopes[options.Aspect]; ok {
+				if inspectFunc, ok := stepInspectScopes[options.Scope]; ok {
 					err := inspectFunc(step, options, writer)
 					if err != nil {
 						return err
 					}
 				} else {
-					return fmt.Errorf("unknown inspect scope %q", options.Aspect)
+					return fmt.Errorf("unknown inspect scope %q", options.Scope)
 				}
 				return nil
 			}

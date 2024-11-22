@@ -137,7 +137,7 @@ elif [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
         --stamp=${CXSTAMP} \
         --pipeline-file=${PIPELINE} \
         --step=${PIPELINE_STEP} \
-        --aspect vars \
+        --scope vars \
         --format makefile
 else
     $TEMPLATIZE inspect \
