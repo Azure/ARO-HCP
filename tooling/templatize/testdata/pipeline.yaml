@@ -2,7 +2,7 @@ serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
 - name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+  subscription: {{ .serviceClusterSubscription }}
   aksCluster: {{ .aksName }}
   steps:
   - name: deploy
@@ -10,7 +10,7 @@ resourceGroups:
     command: ["make", "deploy"]
     env:
     - name: MAESTRO_IMAGE
-      configRef: maestro.imageBase
+      configRef: maestro_image
   - name: svc
     action: ARM
     template: templates/svc-cluster.bicep
