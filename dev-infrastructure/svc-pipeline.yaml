@@ -14,14 +14,14 @@ resourceGroups:
     command: ["/bin/bash", "-c", "scripts/enable-aks-metrics.sh"]
     env:
     - name: RESOURCEGROUP
-      configRef: serviceClusterRG
+      configRef: svc.rg
     - name: AKS_NAME
       configRef: aksName
     - name: GRAFANA_RESOURCEGROUP
       configRef: regionRG
     - name: MONITORING_WORKSPACE_NAME
-      configRef: monitoringWorkspaceName
+      configRef: monitoring.workspaceName
     - name: GRAFANA_NAME
-      configRef: grafanaName
+      configRef: monitoring.grafanaName
     dependsOn:
     - svc
