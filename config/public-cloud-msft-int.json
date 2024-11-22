@@ -74,6 +74,7 @@
     "restrictIstioIngress": true
   },
   "mgmt": {
+    "clusterServicePrincipalId": "todo",
     "etcd": {
       "kvName": "arohcp-etcd-int-1",
       "kvSoftDelete": true

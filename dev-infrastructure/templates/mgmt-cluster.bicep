@@ -116,6 +116,9 @@ param mgmtKeyVaultPrivate bool
 @description('Defines if the MGMT KeyVault has soft delete enabled')
 param mgmtKeyVaultSoftDelete bool
 
+@description('Cluster user assigned identity principal id, used to grant KeyVault access')
+param clusterServicePrincipalId string
+
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -245,6 +248,42 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
     purpose: 'mgmt'
   }
 }
+
+module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+  for role in [
+    'Key Vault Secrets Officer'
+    'Key Vault Certificate User'
+    'Key Vault Certificates Officer'
+  ]: {
+    name: guid(cxKeyVaultName, clusterServicePrincipalId, role)
+    params: {
+      keyVaultName: cxKeyVaultName
+      roleName: role
+      managedIdentityPrincipalId: clusterServicePrincipalId
+    }
+    dependsOn: [
+      cxKeyVault
+    ]
+  }
+]
+
+module msiClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+  for role in [
+    'Key Vault Secrets Officer'
+    'Key Vault Certificate User'
+    'Key Vault Certificates Officer'
+  ]: {
+    name: guid(msiKeyVaultName, clusterServicePrincipalId, role)
+    params: {
+      keyVaultName: msiKeyVaultName
+      roleName: role
+      managedIdentityPrincipalId: clusterServicePrincipalId
+    }
+    dependsOn: [
+      msiKeyVault
+    ]
+  }
+]
 
 // 
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N

@@ -321,6 +321,9 @@
           "subscription": {
             "type": "string"
           },
+          "clusterServicePrincipalId": {
+            "type": "string"
+          },
           "systemAgentPool": {
             "type": "object",
             "properties": {
@@ -376,6 +379,7 @@
         },
         "additionalProperties": false,
         "required": [
+          "clusterServicePrincipalId",
           "etcd",
           "rg",
           "systemAgentPool",
