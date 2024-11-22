@@ -72,7 +72,7 @@ func PreprocessFileForEV2SystemVars(configProvider config.ConfigProvider, cloud,
 	return config.PreprocessFile(templateFile, vars)
 }
 
-// PreprocessFileForEV2ScopeBinding processes an arbitrary gotemplate fileand replaces all config.yaml references
+// PreprocessFileForEV2ScopeBinding processes an arbitrary gotemplate file and replaces all config.yaml references
 // with __VAR__ scope binding find/replace references.
 // This function is useful to process bicepparam files so that they can be used within EV2 together
 // with scopebinding.

@@ -27,7 +27,7 @@ func TestMapping(t *testing.T) {
 		"__PARENT_NESTED__":         "parent.nested",
 		"__PARENT_DEEPER_DEEPEST__": "parent.deeper.deepest",
 	}
-	expecetedReplace := map[string]interface{}{
+	expectedReplace := map[string]interface{}{
 		"key1": "__KEY1__",
 		"key2": "__KEY2__",
 		"key3": "__KEY3__",
@@ -40,7 +40,7 @@ func TestMapping(t *testing.T) {
 	if diff := cmp.Diff(expectedFlattened, flattened); diff != "" {
 		t.Errorf("got incorrect flattened: %v", diff)
 	}
-	if diff := cmp.Diff(expecetedReplace, replace); diff != "" {
+	if diff := cmp.Diff(expectedReplace, replace); diff != "" {
 		t.Errorf("got incorrect replace: %v", diff)
 	}
 }
