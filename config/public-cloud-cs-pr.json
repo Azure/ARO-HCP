@@ -58,11 +58,11 @@
     "consumerName": "hcp-underlay-cspr-mgmt-1",
     "eventGrid": {
       "maxClientSessionsPerAuthName": "4",
-      "name": "arohcp-maestro-cspr"
+      "name": "arohcp-maestro-cspr",
+      "private": false
     },
     "imageBase": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
     "imageTag": "ea066c250a002f0cc458711945165591bc9f6d3f",
-    "keyVaultName": "arohcp-maestro-cspr",
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
@@ -71,7 +71,8 @@
       "serverStorageSizeGB": "32",
       "serverVersion": "15"
     },
-    "restrictIstioIngress": false
+    "restrictIstioIngress": false,
+    "serverMqttClientName": "maestro-server-cspr-cs"
   },
   "mgmt": {
     "clusterServicePrincipalId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-cspr-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service",

@@ -14,6 +14,7 @@ deploy:
 		--namespace maestro \
 		--set broker.host=$${EVENTGRID_HOSTNAME} \
 		--set credsKeyVault.name=${KEYVAULT_NAME} \
+		--set credsKeyVault.secret=${MQTT_CLIENT_NAME} \
 		--set azure.clientId=$${MAESTRO_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
 		--set istio.restrictIngress=${ISTIO_RESTRICT_INGRESS} \

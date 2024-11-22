@@ -75,12 +75,6 @@ param maestroCertDomain string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
-@description('The name of the keyvault for Maestro Eventgrid namespace certificates.')
-param maestroKeyVaultName string
-
-@description('The name of the managed identity that will manage certificates in maestros keyvault.')
-param maestroKeyVaultCertOfficerMSIName string = '${maestroKeyVaultName}-cert-officer-msi'
-
 @description('Deploy ARO HCP CS Infrastructure if true')
 param deployCsInfra bool
 
@@ -112,6 +106,9 @@ param maestroPostgresServerMinTLSVersion string
 
 @description('The size of the Postgres server for Maestro')
 param maestroPostgresServerStorageSizeGB int
+
+@description('The name of Maestro Server MQTT client')
+param maestroServerMqttClientName string
 
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
@@ -243,9 +240,11 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
   params: {
     maestroInfraResourceGroup: regionalResourceGroup
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
-    maestroKeyVaultName: maestroKeyVaultName
-    maestroKeyVaultOfficerManagedIdentityName: maestroKeyVaultCertOfficerMSIName
-    maestroKeyVaultCertificateDomain: maestroCertDomain
+    mqttClientName: maestroServerMqttClientName
+    certKeyVaultName: serviceKeyVaultName
+    certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
+    keyVaultOfficerManagedIdentityName: aroDevopsMsiId
+    maestroCertificateDomain: maestroCertDomain
     deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
@@ -264,6 +263,9 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     )[0].uamiName
     location: location
   }
+  dependsOn: [
+    serviceKeyVault
+  ]
 }
 
 //
@@ -433,6 +435,7 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' 
   scope: resourceGroup(regionalResourceGroup)
 }
 
+// todo manage only if maestro.eventgrid is not set to private
 module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {

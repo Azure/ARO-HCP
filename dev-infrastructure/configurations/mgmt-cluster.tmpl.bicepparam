@@ -20,7 +20,6 @@ param userAgentPoolAZCount = {{ .mgmt.userAgentPool.azCount }}
 
 // Maestro
 param maestroConsumerName = '{{ .maestro.consumerName }}'
-param maestroKeyVaultName = '{{ .maestro.keyVaultName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroCertDomain = '{{ .maestro.certDomain }}'
 
@@ -56,3 +55,6 @@ param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVault.softDelete }}
 // Cluster Service identity
 // used for Key Vault access
 param clusterServicePrincipalId = '{{ .mgmt.clusterServicePrincipalId }}'
+
+// MI for deployment scripts
+param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
