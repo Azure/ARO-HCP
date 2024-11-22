@@ -32,7 +32,7 @@ defaults:
 
   # MGMT cluster specifics
   mgmt:
-    clusterServicePrincipalId: 'todo'
+    clusterServiceResourceId: 'todo'
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
     etcd:

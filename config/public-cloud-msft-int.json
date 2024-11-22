@@ -75,7 +75,7 @@
     "serverMqttClientName": "maestro-server"
   },
   "mgmt": {
-    "clusterServicePrincipalId": "todo",
+    "clusterServiceResourceId": "todo",
     "etcd": {
       "kvName": "arohcp-etcd-int-1",
       "kvSoftDelete": true

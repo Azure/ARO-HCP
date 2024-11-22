@@ -32,7 +32,7 @@ defaults:
 
   # MGMT cluster specifics
   mgmt:
-    clusterServicePrincipalId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-{{ .ctx.regionShort }}-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service
+    clusterServiceResourceId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-{{ .ctx.regionShort }}-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     etcd:

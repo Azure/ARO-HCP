@@ -54,7 +54,7 @@ param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVault.softDelete }}
 
 // Cluster Service identity
 // used for Key Vault access
-param clusterServicePrincipalId = '{{ .mgmt.clusterServicePrincipalId }}'
+param clusterServiceMIResourceId = '{{ .mgmt.clusterServiceResourceId }}'
 
 // MI for deployment scripts
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
