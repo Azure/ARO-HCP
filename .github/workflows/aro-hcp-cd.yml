@@ -48,7 +48,7 @@
       steps:
         - name: Fail if PR submitted from fork
           if: ${{ github.event.pull_request.head.repo.full_name != 'Azure/ARO-HCP' }}
-          run: core.setFailed('Expected source repository to be Azure/ARO-HCP, re-create PR as a branch of Azure/ARO-HCP')
+          run: core.setFailed('Expected source repository to be Azure/ARO-HCP, not ${{ github.event.pull_request.head.repo.full_name }}, re-create PR as a branch of Azure/ARO-HCP')
 
     deploy_global_rg:
       name: 'Deploy global resources'
