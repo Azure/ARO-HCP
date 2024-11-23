@@ -13,7 +13,7 @@ func TestCreateCommand(t *testing.T) {
 	ctx := context.Background()
 	testCases := []struct {
 		name            string
-		step            *step
+		step            *Step
 		dryRun          bool
 		envVars         map[string]string
 		expectedCommand string
@@ -23,7 +23,7 @@ func TestCreateCommand(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			step: &step{
+			step: &Step{
 				Command: []string{"/usr/bin/echo", "hello"},
 			},
 			expectedCommand: "/usr/bin/echo",
@@ -31,9 +31,9 @@ func TestCreateCommand(t *testing.T) {
 		},
 		{
 			name: "dry-run",
-			step: &step{
+			step: &Step{
 				Command: []string{"/usr/bin/echo", "hello"},
-				DryRun: dryRun{
+				DryRun: DryRun{
 					Command: []string{"/usr/bin/echo", "dry-run"},
 				},
 			},
@@ -43,9 +43,9 @@ func TestCreateCommand(t *testing.T) {
 		},
 		{
 			name: "dry-run-env",
-			step: &step{
+			step: &Step{
 				Command: []string{"/usr/bin/echo"},
-				DryRun: dryRun{
+				DryRun: DryRun{
 					EnvVars: []EnvVar{
 						{
 							Name:  "DRY_RUN",
@@ -61,7 +61,7 @@ func TestCreateCommand(t *testing.T) {
 		},
 		{
 			name: "dry-run fail",
-			step: &step{
+			step: &Step{
 				Command: []string{"/usr/bin/echo"},
 			},
 			dryRun:      true,
@@ -90,7 +90,7 @@ func TestMapStepVariables(t *testing.T) {
 	testCases := []struct {
 		name     string
 		vars     config.Variables
-		step     step
+		step     Step
 		expected map[string]string
 		err      string
 	}{
@@ -99,7 +99,7 @@ func TestMapStepVariables(t *testing.T) {
 			vars: config.Variables{
 				"FOO": "bar",
 			},
-			step: step{
+			step: Step{
 				Env: []EnvVar{
 					{
 						Name:      "BAZ",
@@ -114,7 +114,7 @@ func TestMapStepVariables(t *testing.T) {
 		{
 			name: "missing",
 			vars: config.Variables{},
-			step: step{
+			step: Step{
 				Env: []EnvVar{
 					{
 						ConfigRef: "FOO",
@@ -128,7 +128,7 @@ func TestMapStepVariables(t *testing.T) {
 			vars: config.Variables{
 				"FOO": 42,
 			},
-			step: step{
+			step: Step{
 				Env: []EnvVar{
 					{
 						Name:      "BAZ",
@@ -157,7 +157,7 @@ func TestMapStepVariables(t *testing.T) {
 
 func TestRunShellStep(t *testing.T) {
 	expectedOutput := "hello\n"
-	s := &step{
+	s := &Step{
 		Command: []string{"echo", "hello"},
 		outputFunc: func(output string) {
 			assert.Equal(t, output, expectedOutput)

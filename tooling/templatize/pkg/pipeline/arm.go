@@ -10,7 +10,7 @@ import (
 	"github.com/go-logr/logr"
 )
 
-func (s *step) runArmStep(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+func (s *Step) runArmStep(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// Transform Bicep to ARM
@@ -59,7 +59,7 @@ func (s *step) runArmStep(ctx context.Context, executionTarget *ExecutionTarget,
 	return nil
 }
 
-func (s *step) ensureResourceGroupExists(ctx context.Context, executionTarget *ExecutionTarget) error {
+func (s *Step) ensureResourceGroupExists(ctx context.Context, executionTarget *ExecutionTarget) error {
 	// Create a new Azure identity client
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {

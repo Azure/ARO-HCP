@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
-type StepInspectScope func(*step, *InspectOptions, io.Writer) error
+type StepInspectScope func(*Step, *InspectOptions, io.Writer) error
 
 func NewStepInspectScopes() map[string]StepInspectScope {
 	return map[string]StepInspectScope{
@@ -57,7 +57,7 @@ func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer 
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(s *step, options *InspectOptions, writer io.Writer) error {
+func inspectVars(s *Step, options *InspectOptions, writer io.Writer) error {
 	var envVars map[string]string
 	var err error
 	switch s.Action {
