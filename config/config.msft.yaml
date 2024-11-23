@@ -57,7 +57,7 @@ defaults:
     postgres:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       serverVersion: '15'
-      serverStorageSizeGB: '32'
+      serverStorageSizeGB: 32
       deploy: false
       private: false
       minTLSVersion: 'TLSV1.2'
