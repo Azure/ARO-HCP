@@ -1,7 +1,7 @@
 using '../templates/svc-cluster.bicep'
 
 param kubernetesVersion = '{{ .kubernetesVersion }}'
-param istioVersion = any('{{ .istioVersion }}')
+param istioVersion = ['{{ .istioVersion }}']
 param vnetAddressPrefix = '{{ .vnetAddressPrefix }}'
 param subnetPrefix = '{{ .subnetPrefix }}'
 param podSubnetPrefix = '{{ .podSubnetPrefix }}'
@@ -11,7 +11,7 @@ param aksEtcdKVEnableSoftDelete = any('{{ .svc.etcd.kvSoftDelete }}')
 
 param userAgentMinCount = any('{{ .svc.userAgentPool.minCount }}')
 param userAgentMaxCount = any('{{ .svc.userAgentPool.maxCount }}')
-param userAgentVMSize = any('{{ .svc.userAgentPool.vmSize }}')
+param userAgentVMSize = '{{ .svc.userAgentPool.vmSize }}'
 param aksUserOsDiskSizeGB = any('{{ .svc.userAgentPool.osDiskSizeGB }}')
 param userAgentPoolAZCount = any('{{ .svc.userAgentPool.azCount }}')
 
