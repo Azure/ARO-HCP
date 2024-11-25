@@ -49,7 +49,7 @@ func inspectVars(s *step, options *PipelineInspectOptions, writer io.Writer) err
 	var err error
 	switch s.Action {
 	case "Shell":
-		envVars, err = s.getEnvVars(options.Vars, false)
+		envVars, err = s.mapStepVariables(options.Vars)
 	default:
 		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.Action)
 	}

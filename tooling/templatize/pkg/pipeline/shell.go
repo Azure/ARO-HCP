@@ -3,7 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"os"
+	"maps"
 	"os/exec"
 
 	"github.com/go-logr/logr"
@@ -12,75 +12,75 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
-func (s *step) runShellStep(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+func (s *step) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
+	var cmd *exec.Cmd
+	if dryRun {
+		if s.DryRun.Command == nil && s.DryRun.EnvVars == nil {
+			return nil, true
+		}
+		for _, e := range s.DryRun.EnvVars {
+			envVars[e.Name] = e.Value
+		}
+		if s.DryRun.Command != nil {
+			cmd = exec.CommandContext(ctx, s.DryRun.Command[0], s.DryRun.Command[1:]...)
+		}
+	}
+	if cmd == nil {
+		// if dry-run is not enabled, use the actual command or also if no dry-run command is defined
+		cmd = exec.CommandContext(ctx, s.Command[0], s.Command[1:]...)
+	}
+	cmd.Env = append(cmd.Env, utils.MapToEnvVarArray(envVars)...)
+	return cmd, false
+}
+
+func (s *step) runShellStep(ctx context.Context, kubeconfigFile string, options *PipelineRunOptions) error {
+	if s.outputFunc == nil {
+		s.outputFunc = func(output string) {
+			fmt.Println(output)
+		}
+	}
+
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// build ENV vars
-	envVars, err := s.getEnvVars(options.Vars, true)
+	stepVars, err := s.mapStepVariables(options.Vars)
 	if err != nil {
 		return fmt.Errorf("failed to build env vars: %w", err)
 	}
 
-	// prepare kubeconfig
-	if executionTarget.AKSClusterName != "" {
-		logger.V(5).Info("Building kubeconfig for AKS cluster")
-		kubeconfigFile, err := executionTarget.KubeConfig(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to build kubeconfig for %s: %w", executionTarget.aksID(), err)
-		}
-		defer func() {
-			if err := os.Remove(kubeconfigFile); err != nil {
-				logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
-			}
-		}()
-		envVars["KUBECONFIG"] = kubeconfigFile
-		logger.V(5).Info("kubeconfig set to shell execution environment", "kubeconfig", kubeconfigFile)
+	envVars := utils.GetOsVariable()
+
+	maps.Copy(envVars, stepVars)
+	// execute the command
+	cmd, skipCommand := s.createCommand(ctx, options.DryRun, envVars)
+	if skipCommand {
+		logger.V(5).Info("Skipping step '%s' due to missing dry-run configuiration", s.Name)
+		return nil
 	}
 
-	// TODO handle dry-run
+	if kubeconfigFile != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s", kubeconfigFile))
+	}
 
-	// execute the command
 	logger.V(5).Info(fmt.Sprintf("Executing shell command: %s\n", s.Command), "command", s.Command)
-	cmd := exec.CommandContext(ctx, s.Command[0], s.Command[1:]...)
-	cmd.Env = append(cmd.Env, utils.MapToEnvVarArray(envVars)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to execute shell command: %s %w", string(output), err)
 	}
 
-	// print the output of the command
-	fmt.Println(string(output))
+	s.outputFunc(string(output))
 
 	return nil
 }
 
-func (s *step) getEnvVars(vars config.Variables, includeOSEnvVars bool) (map[string]string, error) {
+func (s *step) mapStepVariables(vars config.Variables) (map[string]string, error) {
 	envVars := make(map[string]string)
-	envVars["RUNS_IN_TEMPLATIZE"] = "1"
-	if includeOSEnvVars {
-		for k, v := range utils.GetOSEnvVarsAsMap() {
-			envVars[k] = v
-		}
-	}
 	for _, e := range s.Env {
 		value, found := vars.GetByPath(e.ConfigRef)
 		if !found {
 			return nil, fmt.Errorf("failed to lookup config reference %s for %s", e.ConfigRef, e.Name)
 		}
-		envVars[e.Name] = anyToString(value)
+		envVars[e.Name] = utils.AnyToString(value)
 	}
 	return envVars, nil
-}
-
-func anyToString(value any) string {
-	switch v := value.(type) {
-	case string:
-		return v
-	case int:
-		return fmt.Sprintf("%d", v)
-	case bool:
-		return fmt.Sprintf("%t", v)
-	default:
-		return fmt.Sprintf("%v", v)
-	}
 }

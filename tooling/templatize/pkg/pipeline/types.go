@@ -14,6 +14,8 @@ type resourceGroup struct {
 	Steps        []*step `yaml:"steps"`
 }
 
+type outPutHandler func(string)
+
 type step struct {
 	Name       string   `yaml:"name"`
 	Action     string   `yaml:"action"`
@@ -22,9 +24,17 @@ type step struct {
 	Template   string   `yaml:"template"`
 	Parameters string   `yaml:"parameters"`
 	DependsOn  []string `yaml:"dependsOn"`
+	DryRun     dryRun   `yaml:"dryRun"`
+	outputFunc outPutHandler
+}
+
+type dryRun struct {
+	EnvVars []EnvVar `yaml:"envVars"`
+	Command []string `yaml:"command"`
 }
 
 type EnvVar struct {
 	Name      string `yaml:"name"`
 	ConfigRef string `yaml:"configRef"`
+	Value     string `yaml:"value"`
 }
