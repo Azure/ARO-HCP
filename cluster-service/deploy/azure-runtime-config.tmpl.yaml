@@ -1,6 +1,7 @@
 {
   "cloudEnvironment": "AzurePublicCloud",
   "tenantId": "{{ .extraVars.tenantId }}",
+  "managedIdentitiesDataPlaneAudienceResource": "https://dummy.org",
   "ocpImagesAcr": {
     "resourceId": "{{ .extraVars.ocpAcrResourceId }}",
     "url": "{{ .extraVars.ocpAcrResourceUrl }}",
