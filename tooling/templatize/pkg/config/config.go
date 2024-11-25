@@ -258,7 +258,7 @@ func PreprocessFile(templateFilePath string, vars map[string]any) ([]byte, error
 	return processedContent, nil
 }
 
-// PreprocessFile processes a gotemplate from memory
+// PreprocessContent processes a gotemplate from memory
 func PreprocessContent(content []byte, vars map[string]any) ([]byte, error) {
 	tmpl := template.New("file")
 	tmpl, err := tmpl.Parse(string(content))
