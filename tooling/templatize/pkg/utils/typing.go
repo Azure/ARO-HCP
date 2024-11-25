@@ -1,7 +1,10 @@
 package utils
 
-import "fmt"
+import (
+	"fmt"
+)
 
+// AnyToString maps some types to strings, as they are used in OS Env.
 func AnyToString(value any) string {
 	switch v := value.(type) {
 	case string:
