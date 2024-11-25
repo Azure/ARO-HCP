@@ -1,6 +1,7 @@
 package ev2
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -10,73 +11,105 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
-func PrecompilePipelineForEV2(pipelineFilePath string, vars config.Variables) (string, error) {
-	// switch to the pipeline file dir so all relative paths are resolved correctly
-	originalDir, err := os.Getwd()
-	if err != nil {
-		return "", nil
-	}
-	pipelineDir := filepath.Dir(pipelineFilePath)
-	err = os.Chdir(pipelineDir)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = os.Chdir(originalDir)
-	}()
+const precompiledPrefix = "ev2-precompiled-"
 
-	// precompile the pipeline file
-	pipelineFileName := filepath.Base(pipelineFilePath)
-	p, err := pipeline.NewPipelineFromFile(pipelineFileName, vars)
-	if err != nil {
-		return "", err
-	}
-	err = processPipelineForEV2(p, vars)
+func PrecompilePipelineFileForEV2(pipelineFilePath string, vars config.Variables) (string, error) {
+	precompiledPipeline, err := PrecompilePipelineForEV2(pipelineFilePath, vars)
 	if err != nil {
 		return "", err
 	}
 
 	// store as new file
-	pipelineBytes, err := yaml.Marshal(p)
+	pipelineBytes, err := yaml.Marshal(precompiledPipeline)
 	if err != nil {
 		return "", err
 	}
-	newPipelineFileName := "ev2-precompiled-" + pipelineFileName
-	err = os.WriteFile(newPipelineFileName, pipelineBytes, 0644)
+	err = os.WriteFile(precompiledPipeline.PipelineFilePath(), pipelineBytes, 0644)
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(pipelineDir, newPipelineFileName), nil
+	return precompiledPipeline.PipelineFilePath(), nil
 }
 
-func processPipelineForEV2(p *pipeline.Pipeline, vars config.Variables) error {
-	_, scopeBoundVars := EV2Mapping(vars, []string{})
+func PrecompilePipelineForEV2(pipelineFilePath string, vars config.Variables) (*pipeline.Pipeline, error) {
+	// load the pipeline and referenced files
+	originalPipeline, err := pipeline.NewPipelineFromFile(pipelineFilePath, vars)
+	if err != nil {
+		return nil, err
+	}
+	referencedFiles, err := readReferencedPipelineFiles(originalPipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read referenced files of pipeline %s: %w", originalPipeline.PipelineFilePath(), err)
+	}
+
+	// precompile the pipeline and referenced files
+	processedPipeline, processedFiles, err := processPipelineForEV2(originalPipeline, referencedFiles, vars)
+	if err != nil {
+		return nil, err
+	}
+
+	// store the processed files to disk relative to the pipeline directory
+	for filePath, content := range processedFiles {
+		absFilePath, err := processedPipeline.AbsoluteFilePath(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute file path for %q: %w", filePath, err)
+		}
+		err = os.WriteFile(absFilePath, content, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to write precompiled file %q: %w", filePath, err)
+		}
+	}
+
+	return processedPipeline, nil
+}
+
+func readReferencedPipelineFiles(p *pipeline.Pipeline) (map[string][]byte, error) {
+	referencedFiles := make(map[string][]byte)
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.Parameters != "" {
-				newParameterFilePath, err := precompileFileAndStore(step.Parameters, scopeBoundVars)
+				absFilePath, err := p.AbsoluteFilePath(step.Parameters)
 				if err != nil {
-					return err
+					return nil, fmt.Errorf("failed to get absolute file path for %q: %w", step.Parameters, err)
 				}
+				paramFileContent, err := os.ReadFile(absFilePath)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read parameter file %q: %w", step.Parameters, err)
+				}
+				referencedFiles[step.Parameters] = paramFileContent
+			}
+		}
+	}
+	return referencedFiles, nil
+}
+
+func processPipelineForEV2(p *pipeline.Pipeline, referencedFiles map[string][]byte, vars config.Variables) (*pipeline.Pipeline, map[string][]byte, error) {
+	processingPipeline, err := p.DeepCopy(buildPrefixedFilePath(p.PipelineFilePath(), precompiledPrefix))
+	if err != nil {
+		return nil, nil, err
+	}
+	processedFiles := make(map[string][]byte)
+	_, scopeBoundVars := EV2Mapping(vars, []string{})
+	for _, rg := range processingPipeline.ResourceGroups {
+		for _, step := range rg.Steps {
+			// preprocess the parameters file with scopebinding variables
+			if step.Parameters != "" {
+				paramFileContent, ok := referencedFiles[step.Parameters]
+				if !ok {
+					return nil, nil, fmt.Errorf("parameter file %q not found", step.Parameters)
+				}
+				preprocessedBytes, err := config.PreprocessContent(paramFileContent, scopeBoundVars)
+				if err != nil {
+					return nil, nil, err
+				}
+				newParameterFilePath := buildPrefixedFilePath(step.Parameters, precompiledPrefix)
+				processedFiles[newParameterFilePath] = preprocessedBytes
 				step.Parameters = newParameterFilePath
 			}
 		}
 	}
-	return nil
-}
-
-func precompileFileAndStore(filePath string, vars map[string]interface{}) (string, error) {
-	preprocessedBytes, err := config.PreprocessFile(filePath, vars)
-	if err != nil {
-		return "", err
-	}
-	newFilePath := buildPrefixedFilePath(filePath, "ev2-precompiled-")
-	err = os.WriteFile(newFilePath, preprocessedBytes, 0644)
-	if err != nil {
-		return "", err
-	}
-	return newFilePath, nil
+	return processingPipeline, processedFiles, nil
 }
 
 func buildPrefixedFilePath(path, prefix string) string {

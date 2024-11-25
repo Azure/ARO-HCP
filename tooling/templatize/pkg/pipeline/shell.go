@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
-func (s *step) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
+func (s *Step) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
 	var cmd *exec.Cmd
 	if dryRun {
 		if s.DryRun.Command == nil && s.DryRun.EnvVars == nil {
@@ -33,7 +33,7 @@ func (s *step) createCommand(ctx context.Context, dryRun bool, envVars map[strin
 	return cmd, false
 }
 
-func (s *step) runShellStep(ctx context.Context, kubeconfigFile string, options *PipelineRunOptions) error {
+func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options *PipelineRunOptions) error {
 	if s.outputFunc == nil {
 		s.outputFunc = func(output string) {
 			fmt.Println(output)
@@ -73,7 +73,7 @@ func (s *step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 	return nil
 }
 
-func (s *step) mapStepVariables(vars config.Variables) (map[string]string, error) {
+func (s *Step) mapStepVariables(vars config.Variables) (map[string]string, error) {
 	envVars := make(map[string]string)
 	for _, e := range s.Env {
 		value, found := vars.GetByPath(e.ConfigRef)

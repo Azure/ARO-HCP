@@ -1,0 +1,1 @@
+param regionRG = '__REGIONRG__'

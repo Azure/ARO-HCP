@@ -1,40 +1,42 @@
 package ev2
 
 import (
-	"fmt"
-	"os"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/internal/testutil"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
-func TestPrecompilePipelineForEV2(t *testing.T) {
-	defer func() {
-		_ = os.Remove("../../testdata/ev2-precompiled-pipeline.yaml")
-		_ = os.Remove("../../testdata/ev2-precompiled-test.bicepparam")
-	}()
-
+func TestProcessPipelineForEV2(t *testing.T) {
 	configProvider := config.NewConfigProvider("../../testdata/config.yaml")
-	vars, err := configProvider.GetVariables("public", "int", "", newEv2ConfigReplacements())
+	vars, err := configProvider.GetVariables("public", "int", "", NewEv2ConfigReplacements())
 	if err != nil {
 		t.Errorf("failed to get variables: %v", err)
 	}
-	newPipelinePath, err := PrecompilePipelineForEV2("../../testdata/pipeline.yaml", vars)
+	originalPipeline, err := pipeline.NewPipelineFromFile("../../testdata/pipeline.yaml", vars)
+	if err != nil {
+		t.Errorf("failed to read new pipeline: %v", err)
+	}
+	files := make(map[string][]byte)
+	files["test.bicepparam"] = []byte("param regionRG = '{{ .regionRG }}'")
+
+	newPipeline, newFiles, err := processPipelineForEV2(originalPipeline, files, vars)
 	if err != nil {
 		t.Errorf("failed to precompile pipeline: %v", err)
 	}
 
-	p, err := pipeline.NewPipelineFromFile(newPipelinePath, vars)
+	// verify pipeline
+	pipelineContent, err := yaml.Marshal(newPipeline)
 	if err != nil {
-		t.Errorf("failed to read new pipeline: %v", err)
+		t.Errorf("failed to marshal processed pipeline: %v", err)
 	}
-	fmt.Println(p)
-	expectedParamsPath := "ev2-precompiled-test.bicepparam"
+	testutil.CompareWithFixture(t, pipelineContent, testutil.WithExtension("pipeline.yaml"))
 
-	armStep := p.ResourceGroups[0].Steps[2]
-	if armStep.Parameters != expectedParamsPath {
-		t.Errorf("expected parameters path %v, but got %v", expectedParamsPath, armStep.Parameters)
+	// verify referenced files
+	for filePath, content := range newFiles {
+		testutil.CompareWithFixture(t, content, testutil.WithExtension(filePath))
 	}
-	// TODO improve test, check against fixture
 }

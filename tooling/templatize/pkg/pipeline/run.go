@@ -78,7 +78,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	return nil
 }
 
-func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) error {
+func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions) error {
 	// prepare execution context
 	subscriptionID, err := lookupSubscriptionID(ctx, rg.Subscription)
 	if err != nil {
@@ -132,7 +132,7 @@ func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 	return nil
 }
 
-func (s *step) run(ctx context.Context, kubeconfigFile string, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
 	fmt.Println("\n---------------------")
 	if options.DryRun {
 		fmt.Println("This is a dry run!")
@@ -169,7 +169,7 @@ func prepareKubeConfig(ctx context.Context, executionTarget *ExecutionTarget) (s
 	return kubeconfigFile, nil
 }
 
-func (s *step) description() string {
+func (s *Step) description() string {
 	var details []string
 	switch s.Action {
 	case "Shell":
@@ -191,7 +191,7 @@ func (p *Pipeline) Validate() error {
 	return nil
 }
 
-func (rg *resourceGroup) Validate() error {
+func (rg *ResourceGroup) Validate() error {
 	if rg.Name == "" {
 		return fmt.Errorf("resource group name is required")
 	}

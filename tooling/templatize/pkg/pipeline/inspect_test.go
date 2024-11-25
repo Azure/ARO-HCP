@@ -14,14 +14,14 @@ import (
 func TestInspectVars(t *testing.T) {
 	testCases := []struct {
 		name     string
-		caseStep *step
+		caseStep *Step
 		options  *InspectOptions
 		expected string
 		err      string
 	}{
 		{
 			name: "basic",
-			caseStep: &step{
+			caseStep: &Step{
 				Action: "Shell",
 				Env: []EnvVar{
 					{
@@ -40,7 +40,7 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name: "makefile",
-			caseStep: &step{
+			caseStep: &Step{
 				Action: "Shell",
 				Env: []EnvVar{
 					{
@@ -59,12 +59,12 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name:     "failed action",
-			caseStep: &step{Action: "Unknown"},
+			caseStep: &Step{Action: "Unknown"},
 			err:      "inspecting step variables not implemented for action type Unknown",
 		},
 		{
 			name:     "failed format",
-			caseStep: &step{Action: "Shell"},
+			caseStep: &Step{Action: "Shell"},
 			options:  &InspectOptions{Format: "unknown"},
 			err:      "unknown output format \"unknown\"",
 		},
@@ -86,8 +86,8 @@ func TestInspectVars(t *testing.T) {
 
 func TestInspect(t *testing.T) {
 	p := Pipeline{
-		ResourceGroups: []*resourceGroup{{
-			Steps: []*step{
+		ResourceGroups: []*ResourceGroup{{
+			Steps: []*Step{
 				{
 					Name: "step1",
 				},
@@ -98,7 +98,7 @@ func TestInspect(t *testing.T) {
 	opts := NewInspectOptions(config.Variables{}, "", "step1", "scope", "format")
 
 	opts.ScopeFunctions = map[string]StepInspectScope{
-		"scope": func(s *step, o *InspectOptions, w io.Writer) error {
+		"scope": func(s *Step, o *InspectOptions, w io.Writer) error {
 			assert.Equal(t, s.Name, "step1")
 			return nil
 		},
@@ -110,8 +110,8 @@ func TestInspect(t *testing.T) {
 
 func TestInspectWrongScope(t *testing.T) {
 	p := Pipeline{
-		ResourceGroups: []*resourceGroup{{
-			Steps: []*step{
+		ResourceGroups: []*ResourceGroup{{
+			Steps: []*Step{
 				{
 					Name: "step1",
 				},

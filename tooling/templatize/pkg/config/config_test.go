@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/internal/testutil"
 )
 
 func TestConfigProvider(t *testing.T) {
@@ -230,4 +232,79 @@ func TestConvertToInterface(t *testing.T) {
 	assert.Equal(t, expected, result)
 	assert.IsType(t, expected, map[string]any{})
 	assert.IsType(t, expected["key2"], map[string]any{})
+}
+
+func TestPreprocessContent(t *testing.T) {
+	fileContent, err := os.ReadFile("../../testdata/test.bicepparam")
+	assert.Nil(t, err)
+
+	processed, err := PreprocessContent(
+		fileContent,
+		map[string]any{
+			"regionRG": "bahamas",
+			"clusterService": map[string]any{
+				"imageTag": "cs-image",
+			},
+		},
+	)
+	assert.Nil(t, err)
+	testutil.CompareWithFixture(t, processed, testutil.WithExtension(".bicepparam"))
+}
+
+func TestPreprocessContentMissingKey(t *testing.T) {
+	testCases := []struct {
+		name       string
+		content    string
+		vars       map[string]any
+		shouldFail bool
+	}{
+		{
+			name:    "missing key",
+			content: "foo: {{ .bar }}",
+			vars: map[string]any{
+				"baz": "bar",
+			},
+			shouldFail: true,
+		},
+		{
+			name:    "missing nested key",
+			content: "foo: {{ .bar.baz }}",
+			vars: map[string]any{
+				"baz": "bar",
+			},
+			shouldFail: true,
+		},
+		{
+			name:    "no missing key",
+			content: "foo: {{ .bar }}",
+			vars: map[string]any{
+				"bar": "bar",
+			},
+			shouldFail: false,
+		},
+		{
+			name:    "no missing nested key",
+			content: "foo: {{ .bar.baz }}",
+			vars: map[string]any{
+				"bar": map[string]any{
+					"baz": "baz",
+				},
+			},
+			shouldFail: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := PreprocessContent(
+				[]byte(tc.content),
+				tc.vars,
+			)
+			if tc.shouldFail {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
 }
