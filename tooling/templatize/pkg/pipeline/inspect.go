@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
-type StepInspectScope func(*step, *PipelineInspectOptions, io.Writer) error
+type StepInspectScope func(*step, *InspectOptions, io.Writer) error
 
 func NewStepInspectScopes() map[string]StepInspectScope {
 	return map[string]StepInspectScope{
@@ -16,20 +16,33 @@ func NewStepInspectScopes() map[string]StepInspectScope {
 	}
 }
 
-type PipelineInspectOptions struct {
-	Scope  string
-	Format string
-	Step   string
-	Region string
-	Vars   config.Variables
+// InspectOptions contains the options for the Inspect method
+type InspectOptions struct {
+	Scope          string
+	Format         string
+	Step           string
+	Region         string
+	Vars           config.Variables
+	ScopeFunctions map[string]StepInspectScope
 }
 
-func (p *Pipeline) Inspect(ctx context.Context, options *PipelineInspectOptions, writer io.Writer) error {
-	stepInspectScopes := NewStepInspectScopes()
+// NewInspectOptions creates a new PipelineInspectOptions struct
+func NewInspectOptions(vars config.Variables, region, step, scope, format string) *InspectOptions {
+	return &InspectOptions{
+		Scope:          scope,
+		Format:         format,
+		Step:           step,
+		Region:         region,
+		Vars:           vars,
+		ScopeFunctions: NewStepInspectScopes(),
+	}
+}
+
+func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer io.Writer) error {
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.Name == options.Step {
-				if inspectFunc, ok := stepInspectScopes[options.Scope]; ok {
+				if inspectFunc, ok := options.ScopeFunctions[options.Scope]; ok {
 					err := inspectFunc(step, options, writer)
 					if err != nil {
 						return err
@@ -44,7 +57,7 @@ func (p *Pipeline) Inspect(ctx context.Context, options *PipelineInspectOptions,
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(s *step, options *PipelineInspectOptions, writer io.Writer) error {
+func inspectVars(s *step, options *InspectOptions, writer io.Writer) error {
 	var envVars map[string]string
 	var err error
 	switch s.Action {
