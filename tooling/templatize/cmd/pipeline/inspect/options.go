@@ -112,11 +112,6 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return o.PipelineOptions.Pipeline.Inspect(ctx, &pipeline.PipelineInspectOptions{
-		Vars:   variables,
-		Region: rolloutOptions.Region,
-		Step:   o.PipelineOptions.Step,
-		Scope:  o.Scope,
-		Format: o.Format,
-	}, os.Stdout)
+	inspectOptions := pipeline.NewInspectOptions(variables, rolloutOptions.Region, o.PipelineOptions.Step, o.Scope, o.Format)
+	return o.PipelineOptions.Pipeline.Inspect(ctx, inspectOptions, os.Stdout)
 }
