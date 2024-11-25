@@ -208,7 +208,7 @@
         ]
       },
       "istioVersion": {
-        "type": "array"
+        "type": "string"
       },
       "kubernetesVersion": {
         "type": "string"
