@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
@@ -26,22 +25,6 @@ func (p *Pipeline) PipelineFilePath() string {
 	return p.pipelineFilePath
 }
 
-func (p *Pipeline) EnterPipelineDir() (string, func(), error) {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return "", nil, err
-	}
-
-	pipelineDir, err := filepath.Abs(filepath.Dir(p.pipelineFilePath))
-	if err != nil {
-		return "", nil, err
-	}
-	err = os.Chdir(pipelineDir)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return pipelineDir, func() {
-		_ = os.Chdir(currentDir)
-	}, nil
+func (p *Pipeline) AbsoluteFilePath(filePath string) (string, error) {
+	return filepath.Abs(filepath.Join(filepath.Dir(p.pipelineFilePath), filePath))
 }

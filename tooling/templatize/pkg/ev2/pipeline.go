@@ -50,13 +50,12 @@ func PrecompilePipelineForEV2(pipelineFilePath string, vars config.Variables) (*
 	}
 
 	// store the processed files to disk relative to the pipeline directory
-	_, restoreDir, err := processedPipeline.EnterPipelineDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to enter pipeline directory: %w", err)
-	}
-	defer restoreDir()
 	for filePath, content := range processedFiles {
-		err := os.WriteFile(filePath, content, 0644)
+		absFilePath, err := processedPipeline.AbsoluteFilePath(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute file path for %q: %w", filePath, err)
+		}
+		err = os.WriteFile(absFilePath, content, 0644)
 		if err != nil {
 			return nil, fmt.Errorf("failed to write precompiled file %q: %w", filePath, err)
 		}
@@ -66,18 +65,15 @@ func PrecompilePipelineForEV2(pipelineFilePath string, vars config.Variables) (*
 }
 
 func readReferencedPipelineFiles(p *pipeline.Pipeline) (map[string][]byte, error) {
-	// switch to pipeline directory to ensure relative paths are resolvable
-	_, restoreDir, err := p.EnterPipelineDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to enter pipeline directory: %w", err)
-	}
-	defer restoreDir()
-
 	referencedFiles := make(map[string][]byte)
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.Parameters != "" {
-				paramFileContent, err := os.ReadFile(step.Parameters)
+				absFilePath, err := p.AbsoluteFilePath(step.Parameters)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get absolute file path for %q: %w", step.Parameters, err)
+				}
+				paramFileContent, err := os.ReadFile(absFilePath)
 				if err != nil {
 					return nil, fmt.Errorf("failed to read parameter file %q: %w", step.Parameters, err)
 				}

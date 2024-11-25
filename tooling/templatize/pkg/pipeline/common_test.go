@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -37,7 +36,7 @@ func TestDeepCopy(t *testing.T) {
 	}
 }
 
-func TestEnterPipelineDir(t *testing.T) {
+func TestAbsoluteFilePath(t *testing.T) {
 	configProvider := config.NewConfigProvider("../../testdata/config.yaml")
 	vars, err := configProvider.GetVariables("public", "int", "", config.NewConfigReplacements("r", "sr", "s"))
 	if err != nil {
@@ -48,21 +47,39 @@ func TestEnterPipelineDir(t *testing.T) {
 		t.Errorf("failed to read new pipeline: %v", err)
 	}
 
-	originalDir, _ := os.Getwd()
-
-	pipelineDir, cleanup, err := pipeline.EnterPipelineDir()
-	if err != nil {
-		t.Errorf("failed to enter pipeline dir: %v", err)
+	abspath := func(path string) string {
+		abs, _ := filepath.Abs(path)
+		return abs
 	}
-	defer cleanup()
-
-	currentDir, _ := os.Getwd()
-	pipelineAbsDir, _ := filepath.Abs(pipelineDir)
-	assert.Equal(t, pipelineDir, pipelineAbsDir, "expected absolute pipeline dir to be announced")
-	assert.Equal(t, currentDir, pipelineAbsDir, "expected to be in pipeline dir")
-
-	cleanup()
-	restoredDir, _ := os.Getwd()
-	assert.Equal(t, restoredDir, originalDir, "expected to return to original dir")
+	testCases := []struct {
+		name         string
+		relativeFile string
+		absoluteFile string
+	}{
+		{
+			name:         "basic",
+			relativeFile: "test.bicepparam",
+			absoluteFile: abspath("../../testdata/test.bicepparam"),
+		},
+		{
+			name:         "go one lower",
+			relativeFile: "../test.bicepparam",
+			absoluteFile: abspath("../../test.bicepparam"),
+		},
+		{
+			name:         "subdir",
+			relativeFile: "subdir/test.bicepparam",
+			absoluteFile: abspath("../../testdata/subdir/test.bicepparam"),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			abs, err := pipeline.AbsoluteFilePath(tc.relativeFile)
+			if err != nil {
+				t.Errorf("failed to get absolute file path: %v", err)
+			}
+			assert.Equal(t, abs, tc.absoluteFile, "expected absolute file path to be correct")
+		})
+	}
 
 }
