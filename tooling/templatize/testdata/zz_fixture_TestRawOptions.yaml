@@ -11,6 +11,11 @@ resourceGroups:
     env:
     - name: MAESTRO_IMAGE
       configRef: maestro_image
+  - name: dry-run
+    action: Shell
+    command: ["make", "dry-run"]
+    dryRun: 
+      command: ["make", "-n", "dry-run"]
   - name: svc
     action: ARM
     template: templates/svc-cluster.bicep

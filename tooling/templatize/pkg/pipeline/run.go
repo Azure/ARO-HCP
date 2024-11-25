@@ -93,6 +93,19 @@ func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 	}
 
 	logger := logr.FromContextOrDiscard(ctx)
+
+	kubeconfigFile, err := prepareKubeConfig(ctx, executionTarget)
+	if kubeconfigFile != "" {
+		defer func() {
+			if err := os.Remove(kubeconfigFile); err != nil {
+				logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
+			}
+		}()
+	}
+	if err != nil {
+		return fmt.Errorf("failed to prepare kubeconfig: %w", err)
+	}
+
 	for _, step := range rg.Steps {
 		if options.Step != "" && step.Name != options.Step {
 			// skip steps that don't match the specified step name
@@ -109,6 +122,7 @@ func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 					"aksCluster", executionTarget.AKSClusterName,
 				),
 			),
+			kubeconfigFile,
 			executionTarget, options,
 		)
 		if err != nil {
@@ -118,18 +132,41 @@ func (rg *resourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 	return nil
 }
 
-func (s *step) run(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+func (s *step) run(ctx context.Context, kubeconfigFile string, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
 	fmt.Println("\n---------------------")
+	if options.DryRun {
+		fmt.Println("This is a dry run!")
+	}
 	fmt.Println(s.description())
 	fmt.Print("\n")
+
 	switch s.Action {
 	case "Shell":
-		return s.runShellStep(ctx, executionTarget, options)
+		return s.runShellStep(ctx, kubeconfigFile, options)
 	case "ARM":
 		return s.runArmStep(ctx, executionTarget, options)
 	default:
 		return fmt.Errorf("unsupported action type %q", s.Action)
 	}
+}
+
+func prepareKubeConfig(ctx context.Context, executionTarget *ExecutionTarget) (string, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+	kubeconfigFile := ""
+	if executionTarget.AKSClusterName != "" {
+		logger.V(5).Info("Building kubeconfig for AKS cluster")
+		kubeconfigFile, err := executionTarget.KubeConfig(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to build kubeconfig for %s: %w", executionTarget.aksID(), err)
+		}
+		defer func() {
+			if err := os.Remove(kubeconfigFile); err != nil {
+				logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
+			}
+		}()
+		logger.V(5).Info("kubeconfig set to shell execution environment", "kubeconfig", kubeconfigFile)
+	}
+	return kubeconfigFile, nil
 }
 
 func (s *step) description() string {

@@ -31,8 +31,10 @@ func TestPrecompilePipelineForEV2(t *testing.T) {
 	}
 	fmt.Println(p)
 	expectedParamsPath := "ev2-precompiled-test.bicepparam"
-	if p.ResourceGroups[0].Steps[1].Parameters != expectedParamsPath {
-		t.Errorf("expected parameters path %v, but got %v", expectedParamsPath, p.ResourceGroups[0].Steps[1].Parameters)
+
+	armStep := p.ResourceGroups[0].Steps[2]
+	if armStep.Parameters != expectedParamsPath {
+		t.Errorf("expected parameters path %v, but got %v", expectedParamsPath, armStep.Parameters)
 	}
 	// TODO improve test, check against fixture
 }
