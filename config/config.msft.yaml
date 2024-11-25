@@ -27,7 +27,7 @@ defaults:
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
     etcd:
-      kvName: arohcp-etcd-{{ .ctx.regionShort }}
+      kvName: arohcp-etcd-{{ .ctx.region }}
       kvSoftDelete: true
 
   # MGMT cluster specifics
@@ -36,7 +36,7 @@ defaults:
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
     etcd:
-      kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+      kvName: arohcp-etcd-{{ .ctx.region }}-{{ .ctx.stamp }}
       kvSoftDelete: true
 
   # Frontend
@@ -44,25 +44,25 @@ defaults:
     cosmosDB:
       deploy: true
       disableLocalAuth: true
-      name: arohcp-rp-{{ .ctx.regionShort }}
+      name: arohcp-rp-{{ .ctx.region }}
       private: true
 
   # Maestro
   maestro:
     eventGrid:
-      name: arohcp-maestro-{{ .ctx.regionShort }}
+      name: arohcp-maestro-{{ .ctx.region }}
       maxClientSessionsPerAuthName: '4'
       private: false
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
     postgres:
-      name: arohcp-maestro-{{ .ctx.regionShort }}
+      name: arohcp-maestro-{{ .ctx.region }}
       serverVersion: '15'
       serverStorageSizeGB: 32
       deploy: false
       private: false
       minTLSVersion: 'TLSV1.2'
     restrictIstioIngress: true
-    consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+    consumerName: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
     serverMqttClientName: maestro-server
     imageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
 
@@ -70,7 +70,7 @@ defaults:
   clusterService:
     acrRG: '{{ .ctx.region }}-shared-resources'
     postgres:
-      name: arohcp-cs-{{ .ctx.regionShort }}
+      name: arohcp-cs-{{ .ctx.region }}
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
@@ -88,7 +88,7 @@ defaults:
     imageTag: 7abc8af
 
   serviceKeyVault:
-    name: arohcp-svc-{{ .ctx.regionShort }}
+    name: arohcp-svc-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
     region: {{ .ctx.region }}
     softDelete: false
@@ -96,15 +96,15 @@ defaults:
 
   # Management Cluster KV
   cxKeyVault:
-    name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+    name: arohcp-cx-{{ .ctx.region }}-{{ .ctx.stamp }}
     softDelete: false
     private: false
   msiKeyVault:
-    name: arohcp-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+    name: arohcp-msi-{{ .ctx.region }}-{{ .ctx.stamp }}
     softDelete: false
     private: false
   mgmtKeyVault:
-    name: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+    name: arohcp-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}
     softDelete: false
     private: false
 
@@ -114,9 +114,9 @@ defaults:
 
   # Metrics
   monitoring:
-    workspaceName: 'arohcp-{{ .ctx.regionShort }}'
-    grafanaName: 'arohcp-{{ .ctx.regionShort }}'
-    msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
+    workspaceName: 'arohcp-{{ .ctx.region }}'
+    grafanaName: 'arohcp-{{ .ctx.region }}'
+    msiName: 'aro-hcp-metrics-msi-{{ .ctx.region }}'
 
 clouds:
   public:
@@ -138,7 +138,7 @@ clouds:
         # this is the MSFT INT environment
         defaults:
           # OIDC
-          oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }}
+          oidcStorageAccountName: arohcpoidcint{{ .ctx.region }}
           # SVC
           svc:
             userAgentPool:
