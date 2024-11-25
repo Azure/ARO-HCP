@@ -14,7 +14,7 @@ resourceGroups:
   - name: dry-run
     action: Shell
     command: ["make", "dry-run"]
-    dryRun: 
+    dryRun:
       command: ["make", "-n", "dry-run"]
   - name: svc
     action: ARM
