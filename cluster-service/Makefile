@@ -80,9 +80,9 @@ personal-storage-permissions:
 	USER_OBJECT_ID=$(shell az ad signed-in-user show --query id -o tsv) && \
 	STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query id -o tsv) && \
 	az role assignment create \
-    --role "Storage Blob Data Contributor" \
-    --assignee  $${USER_OBJECT_ID} \
-    --scope "$${STORAGEACCOUNTID}"
+	--role "Storage Blob Data Contributor" \
+	--assignee  $${USER_OBJECT_ID} \
+	--scope "$${STORAGEACCOUNTID}"
 .PHONY: personal-storage-permissions
 
 personal-runtime-config: personal-storage-permissions
