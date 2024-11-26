@@ -50,7 +50,7 @@ defaults:
   # Maestro
   maestro:
     eventGrid:
-      name: arohcp-maestro-{{ .ctx.regionShort }}
+      name: maestro-eventgrid-{{ .ctx.region }}
       maxClientSessionsPerAuthName: '4'
       private: false
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
@@ -162,7 +162,7 @@ clouds:
               osDiskSizeGB: 100
               azCount: 3
           # DNS
-          baseDnsZoneName: aro-hcp.azure-test.net'
+          baseDnsZoneName: aro-hcp.azure-test.net
           regionalDNSSubdomain: '{{ .ctx.region }}'
 
           # ACR
