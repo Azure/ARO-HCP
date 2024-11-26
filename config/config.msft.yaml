@@ -50,9 +50,7 @@ defaults:
   # Maestro
   maestro:
     eventGrid:
-      # revert once region infra pipeline is ready
-      # name: arohcp-maestro-{{ .ctx.regionShort }}
-      name: maestro-eventgrid-{{ .ctx.region }}
+      name: arohcp-maestro-{{ .ctx.regionShort }}
       maxClientSessionsPerAuthName: '4'
       private: false
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
