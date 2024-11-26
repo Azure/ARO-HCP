@@ -10,7 +10,7 @@ resourceGroups:
     parameters: configurations/region.tmpl.bicepparam
   - name: metrics-infra
     action: ARM
-    template: modules/modules/metrics.bicep
+    template: modules/metrics.bicep
     parameters: configurations/metrics.tmpl.bicepparam
     dependsOn:
     - region
