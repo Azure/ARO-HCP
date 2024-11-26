@@ -357,6 +357,8 @@ objects:
             version_constraints:
               min_version: 4.11.0
 
+# TODO: parameterize managedIdentitiesDataPlaneAudienceResource after templatize refactor and helm chart conversion
+# so that the value can be configured in higher envs.
 - apiVersion: v1
   kind: ConfigMap
   metadata:
@@ -367,6 +369,7 @@ objects:
       {
         "cloudEnvironment": "AzurePublicCloud",
         "tenantId": "${TENANT_ID}",
+        "managedIdentitiesDataPlaneAudienceResource": "https://dummy.org",
         "ocpImagesAcr": {
           "resourceId": "${OCP_ACR_RESOURCE_ID}",
           "url": "${OCP_ACR_URL}",
