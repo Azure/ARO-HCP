@@ -84,46 +84,41 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 	if err != nil {
 		return err
 	}
-	executionTarget := &ExecutionTarget{
-		SubscriptionName: rg.Subscription,
-		SubscriptionID:   subscriptionID,
-		Region:           options.Region,
-		ResourceGroup:    rg.Name,
-		AKSClusterName:   rg.AKSCluster,
+	executionTarget := executionTargetImpl{
+		subscriptionName: rg.Subscription,
+		subscriptionID:   subscriptionID,
+		region:           options.Region,
+		resourceGroup:    rg.Name,
+		aksClusterName:   rg.AKSCluster,
 	}
 
 	logger := logr.FromContextOrDiscard(ctx)
 
-	kubeconfigFile, err := prepareKubeConfig(ctx, executionTarget)
+	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
 	if kubeconfigFile != "" {
 		defer func() {
 			if err := os.Remove(kubeconfigFile); err != nil {
 				logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
 			}
 		}()
-	}
-	if err != nil {
+	} else if err != nil || kubeconfigFile == "" && executionTarget.GetAkSClusterName() != "" {
 		return fmt.Errorf("failed to prepare kubeconfig: %w", err)
 	}
 
 	for _, step := range rg.Steps {
-		if options.Step != "" && step.Name != options.Step {
-			// skip steps that don't match the specified step name
-			continue
-		}
 		// execute
 		err := step.run(
 			logr.NewContext(
 				ctx,
 				logger.WithValues(
 					"step", step.Name,
-					"subscription", executionTarget.SubscriptionName,
-					"resourceGroup", executionTarget.ResourceGroup,
-					"aksCluster", executionTarget.AKSClusterName,
+					"subscription", executionTarget.GetSubscriptionID(),
+					"resourceGroup", executionTarget.GetResourceGroup(),
+					"aksCluster", executionTarget.GetAkSClusterName(),
 				),
 			),
 			kubeconfigFile,
-			executionTarget, options,
+			&executionTarget, options,
 		)
 		if err != nil {
 			return err
@@ -132,7 +127,11 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 	return nil
 }
 
-func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions) error {
+	if options.Step != "" && s.Name != options.Step {
+		// skip steps that don't match the specified step name
+		return nil
+	}
 	fmt.Println("\n---------------------")
 	if options.DryRun {
 		fmt.Println("This is a dry run!")
@@ -148,25 +147,6 @@ func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget *
 	default:
 		return fmt.Errorf("unsupported action type %q", s.Action)
 	}
-}
-
-func prepareKubeConfig(ctx context.Context, executionTarget *ExecutionTarget) (string, error) {
-	logger := logr.FromContextOrDiscard(ctx)
-	kubeconfigFile := ""
-	if executionTarget.AKSClusterName != "" {
-		logger.V(5).Info("Building kubeconfig for AKS cluster")
-		kubeconfigFile, err := executionTarget.KubeConfig(ctx)
-		if err != nil {
-			return "", fmt.Errorf("failed to build kubeconfig for %s: %w", executionTarget.aksID(), err)
-		}
-		defer func() {
-			if err := os.Remove(kubeconfigFile); err != nil {
-				logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
-			}
-		}()
-		logger.V(5).Info("kubeconfig set to shell execution environment", "kubeconfig", kubeconfigFile)
-	}
-	return kubeconfigFile, nil
 }
 
 func (s *Step) description() string {

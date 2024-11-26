@@ -10,7 +10,7 @@ import (
 	"github.com/go-logr/logr"
 )
 
-func (s *Step) runArmStep(ctx context.Context, executionTarget *ExecutionTarget, options *PipelineRunOptions) error {
+func (s *Step) runArmStep(ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// Transform Bicep to ARM
@@ -39,12 +39,12 @@ func (s *Step) runArmStep(ctx context.Context, executionTarget *ExecutionTarget,
 		return fmt.Errorf("failed to obtain a credential: %w", err)
 	}
 
-	client, err := armresources.NewDeploymentsClient(executionTarget.SubscriptionID, cred, nil)
+	client, err := armresources.NewDeploymentsClient(executionTarget.GetSubscriptionID(), cred, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create deployments client: %w", err)
 	}
 
-	poller, err := client.BeginCreateOrUpdate(ctx, executionTarget.ResourceGroup, deploymentName, deployment, nil)
+	poller, err := client.BeginCreateOrUpdate(ctx, executionTarget.GetResourceGroup(), deploymentName, deployment, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create deployment: %w", err)
 	}
@@ -59,7 +59,7 @@ func (s *Step) runArmStep(ctx context.Context, executionTarget *ExecutionTarget,
 	return nil
 }
 
-func (s *Step) ensureResourceGroupExists(ctx context.Context, executionTarget *ExecutionTarget) error {
+func (s *Step) ensureResourceGroupExists(ctx context.Context, executionTarget ExecutionTarget) error {
 	// Create a new Azure identity client
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
@@ -67,7 +67,7 @@ func (s *Step) ensureResourceGroupExists(ctx context.Context, executionTarget *E
 	}
 
 	// Create a new ARM client
-	client, err := armresources.NewResourceGroupsClient(executionTarget.SubscriptionID, cred, nil)
+	client, err := armresources.NewResourceGroupsClient(executionTarget.GetSubscriptionID(), cred, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create ARM client: %w", err)
 	}
@@ -77,14 +77,14 @@ func (s *Step) ensureResourceGroupExists(ctx context.Context, executionTarget *E
 	tags := map[string]*string{
 		"persist": to.Ptr("true"),
 	}
-	_, err = client.Get(ctx, executionTarget.ResourceGroup, nil)
+	_, err = client.Get(ctx, executionTarget.GetResourceGroup(), nil)
 	if err != nil {
 		// Create the resource group
 		resourceGroup := armresources.ResourceGroup{
-			Location: to.Ptr(executionTarget.Region),
+			Location: to.Ptr(executionTarget.GetRegion()),
 			Tags:     tags,
 		}
-		_, err = client.CreateOrUpdate(ctx, executionTarget.ResourceGroup, resourceGroup, nil)
+		_, err = client.CreateOrUpdate(ctx, executionTarget.GetResourceGroup(), resourceGroup, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
@@ -92,7 +92,7 @@ func (s *Step) ensureResourceGroupExists(ctx context.Context, executionTarget *E
 		patchResourceGroup := armresources.ResourceGroupPatchable{
 			Tags: tags,
 		}
-		_, err = client.Update(ctx, executionTarget.ResourceGroup, patchResourceGroup, nil)
+		_, err = client.Update(ctx, executionTarget.GetResourceGroup(), patchResourceGroup, nil)
 		if err != nil {
 			return fmt.Errorf("failed to update resource group: %w", err)
 		}
