@@ -34,6 +34,7 @@
     }
   },
   "globalRG": "global-shared-resources",
+  "helmDryRun": "--dry-run=server --debug",
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
     "externalDNSManagedIdentityName": "external-dns",
