@@ -231,42 +231,42 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
 output cosmosDBName string = deployFrontendCosmos ? rpCosmosDb.outputs.cosmosDBName : ''
 output frontend_mi_client_id string = frontendMI.uamiClientID
 
-//
-//   M A E S T R O
-//
+// //
+// //   M A E S T R O
+// //
 
-module maestroServer '../modules/maestro/maestro-server.bicep' = {
-  name: 'maestro-server'
-  params: {
-    maestroInfraResourceGroup: regionalResourceGroup
-    maestroEventGridNamespaceName: maestroEventGridNamespacesName
-    mqttClientName: maestroServerMqttClientName
-    certKeyVaultName: serviceKeyVaultName
-    certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
-    keyVaultOfficerManagedIdentityName: aroDevopsMsiId
-    maestroCertificateDomain: maestroCertDomain
-    deployPostgres: deployMaestroPostgres
-    postgresServerName: maestroPostgresServerName
-    postgresServerVersion: maestroPostgresServerVersion
-    postgresServerMinTLSVersion: maestroPostgresServerMinTLSVersion
-    postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
-    privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
-    privateEndpointVnetId: svcCluster.outputs.aksVnetId
-    postgresServerPrivate: maestroPostgresPrivate
-    maestroServerManagedIdentityPrincipalId: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-server'
-    )[0].uamiPrincipalID
-    maestroServerManagedIdentityName: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-server'
-    )[0].uamiName
-    location: location
-  }
-  dependsOn: [
-    serviceKeyVault
-  ]
-}
+// module maestroServer '../modules/maestro/maestro-server.bicep' = {
+//   name: 'maestro-server'
+//   params: {
+//     maestroInfraResourceGroup: regionalResourceGroup
+//     maestroEventGridNamespaceName: maestroEventGridNamespacesName
+//     mqttClientName: maestroServerMqttClientName
+//     certKeyVaultName: serviceKeyVaultName
+//     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
+//     keyVaultOfficerManagedIdentityName: aroDevopsMsiId
+//     maestroCertificateDomain: maestroCertDomain
+//     deployPostgres: deployMaestroPostgres
+//     postgresServerName: maestroPostgresServerName
+//     postgresServerVersion: maestroPostgresServerVersion
+//     postgresServerMinTLSVersion: maestroPostgresServerMinTLSVersion
+//     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
+//     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
+//     privateEndpointVnetId: svcCluster.outputs.aksVnetId
+//     postgresServerPrivate: maestroPostgresPrivate
+//     maestroServerManagedIdentityPrincipalId: filter(
+//       svcCluster.outputs.userAssignedIdentities,
+//       id => id.uamiName == 'maestro-server'
+//     )[0].uamiPrincipalID
+//     maestroServerManagedIdentityName: filter(
+//       svcCluster.outputs.userAssignedIdentities,
+//       id => id.uamiName == 'maestro-server'
+//     )[0].uamiName
+//     location: location
+//   }
+//   dependsOn: [
+//     serviceKeyVault
+//   ]
+// }
 
 //
 //   K E Y V A U L T S
@@ -320,7 +320,7 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
     clusterServiceManagedIdentityName: clusterServiceMIName
   }
   dependsOn: [
-    maestroServer
+    // maestroServer
     svcCluster
   ]
 }
@@ -371,60 +371,60 @@ module imageServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bi
   ]
 }
 
-resource imageSyncAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
-  for rg in imageSyncAcrResourceGroupNames: {
-    name: rg
-    scope: subscription()
-  }
-]
+// resource imageSyncAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
+//   for rg in imageSyncAcrResourceGroupNames: {
+//     name: rg
+//     scope: subscription()
+//   }
+// ]
 
-module acrPushRole '../modules/acr-permissions.bicep' = [
-  for (_, i) in imageSyncAcrResourceGroupNames: {
-    name: guid(imageSyncAcrResourceGroups[i].id, resourceGroup().name, 'image-sync', 'push')
-    scope: imageSyncAcrResourceGroups[i]
-    params: {
-      principalId: imageSyncManagedIdentityPrincipalId
-      grantPushAccess: true
-      acrResourceGroupid: imageSyncAcrResourceGroups[i].id
-    }
-  }
-]
+// module acrPushRole '../modules/acr-permissions.bicep' = [
+//   for (_, i) in imageSyncAcrResourceGroupNames: {
+//     name: guid(imageSyncAcrResourceGroups[i].id, resourceGroup().name, 'image-sync', 'push')
+//     scope: imageSyncAcrResourceGroups[i]
+//     params: {
+//       principalId: imageSyncManagedIdentityPrincipalId
+//       grantPushAccess: true
+//       acrResourceGroupid: imageSyncAcrResourceGroups[i].id
+//     }
+//   }
+// ]
 
-resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
-  for rg in clustersServiceAcrResourceGroupNames: {
-    name: rg
-    scope: subscription()
-  }
-]
+// resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
+//   for rg in clustersServiceAcrResourceGroupNames: {
+//     name: rg
+//     scope: subscription()
+//   }
+// ]
 
-module acrManageTokenRole '../modules/acr-permissions.bicep' = [
-  for (_, i) in clustersServiceAcrResourceGroupNames: {
-    name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'manage-tokens')
-    scope: clustersServiceAcrResourceGroups[i]
-    params: {
-      principalId: csManagedIdentityPrincipalId
-      grantManageTokenAccess: true
-      acrResourceGroupid: clustersServiceAcrResourceGroups[i].id
-    }
-  }
-]
+// module acrManageTokenRole '../modules/acr-permissions.bicep' = [
+//   for (_, i) in clustersServiceAcrResourceGroupNames: {
+//     name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'manage-tokens')
+//     scope: clustersServiceAcrResourceGroups[i]
+//     params: {
+//       principalId: csManagedIdentityPrincipalId
+//       grantManageTokenAccess: true
+//       acrResourceGroupid: clustersServiceAcrResourceGroups[i].id
+//     }
+//   }
+// ]
 
-// oidc
+// // oidc
 
-module oidc '../modules/oidc/main.bicep' = {
-  name: '${deployment().name}-oidc'
-  params: {
-    location: location
-    storageAccountName: oidcStorageAccountName
-    rpMsiName: clusterServiceMIName
-    skuName: oidcStorageAccountSku
-    aroDevopsMsiId: aroDevopsMsiId
-    deploymentScriptLocation: location
-  }
-  dependsOn: [
-    svcCluster
-  ]
-}
+// module oidc '../modules/oidc/main.bicep' = {
+//   name: '${deployment().name}-oidc'
+//   params: {
+//     location: location
+//     storageAccountName: oidcStorageAccountName
+//     rpMsiName: clusterServiceMIName
+//     skuName: oidcStorageAccountSku
+//     aroDevopsMsiId: aroDevopsMsiId
+//     deploymentScriptLocation: location
+//   }
+//   dependsOn: [
+//     svcCluster
+//   ]
+// }
 
 //
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
