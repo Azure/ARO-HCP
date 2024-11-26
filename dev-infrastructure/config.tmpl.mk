@@ -11,3 +11,4 @@ REPOSITORIES_TO_SYNC ?= '{{ .imageSync.repositories }}'
 AKS_NAME ?= {{ .aksName }}
 CS_PG_NAME ?= {{ .clusterService.postgres.name }}
 MAESTRO_PG_NAME ?= {{ .maestro.postgres.name }}
+OIDC_STORAGE_ACCOUNT ?= {{ .oidcStorageAccountName }}

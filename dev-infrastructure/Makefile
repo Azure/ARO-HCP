@@ -247,7 +247,15 @@ svc.aks.kubeconfigfile:
 	@echo ${SVC_KUBECONFIG_FILE}
 .PHONY: svc.aks.kubeconfigfile
 
-svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig metrics-infra svc.enable-aks-metrics
+svc.oidc.storage.permissions:
+	STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
+	az role assignment create \
+	--role "Storage Blob Data Contributor" \
+	--assignee ${PRINCIPAL_ID} \
+	--scope "$${STORAGEACCOUNTID}"
+.PHONY: svc.oidc.storage.permissions
+
+svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig metrics-infra svc.enable-aks-metrics svc.oidc.storage.permissions
 .PHONY: svc.init
 
 svc.what-if: svc.rg

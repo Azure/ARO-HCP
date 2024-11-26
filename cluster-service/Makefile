@@ -76,16 +76,7 @@ local-deploy-provision-shard:
 	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/local-provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID},cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL},cxMiKeyVaultUrl=$${CX_MI_KV_URL},maestroRestUrl=http://localhost:8001,maestroGrpUrl=localhost:8090
 	@cat deploy/local-provisioning-shards.yml
 
-personal-storage-permissions:
-	USER_OBJECT_ID=$(shell az ad signed-in-user show --query id -o tsv) && \
-	STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query id -o tsv) && \
-	az role assignment create \
-	--role "Storage Blob Data Contributor" \
-	--assignee  $${USER_OBJECT_ID} \
-	--scope "$${STORAGEACCOUNTID}"
-.PHONY: personal-storage-permissions
-
-personal-runtime-config: personal-storage-permissions
+personal-runtime-config:
 	@TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
