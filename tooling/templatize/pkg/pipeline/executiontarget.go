@@ -40,33 +40,57 @@ func lookupSubscriptionID(ctx context.Context, subscriptionName string) (string,
 	return "", fmt.Errorf("subscription with name %q not found", subscriptionName)
 }
 
-type ExecutionTarget struct {
-	SubscriptionName string
-	SubscriptionID   string
-	ResourceGroup    string
-	Region           string
-	AKSClusterName   string
+type ExecutionTarget interface {
+	KubeConfig(ctx context.Context) (string, error)
+	GetSubscriptionID() string
+	GetAkSClusterName() string
+	GetResourceGroup() string
+	GetRegion() string
 }
 
-func (target *ExecutionTarget) KubeConfig(ctx context.Context) (string, error) {
-	if target.AKSClusterName == "" {
-		return "", fmt.Errorf("AKS cluster name is required to build a kubeconfig")
+type executionTargetImpl struct {
+	subscriptionName string
+	subscriptionID   string
+	resourceGroup    string
+	region           string
+	aksClusterName   string
+}
+
+func (target *executionTargetImpl) KubeConfig(ctx context.Context) (string, error) {
+	if target.GetAkSClusterName() == "" {
+		return "", nil
 	}
 
 	// Get Kubeconfig
-	kubeconfigPath, err := aks.GetKubeConfig(ctx, target.SubscriptionID, target.ResourceGroup, target.AKSClusterName)
+	kubeconfigPath, err := aks.GetKubeConfig(ctx, target.GetSubscriptionID(), target.GetResourceGroup(), target.GetAkSClusterName())
 	if err != nil {
 		return "", fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
 
 	// Make sure we have cluster admin
-	err = aks.EnsureClusterAdmin(ctx, kubeconfigPath, target.SubscriptionID, target.ResourceGroup, target.AKSClusterName, nil)
+	err = aks.EnsureClusterAdmin(ctx, kubeconfigPath, target.GetSubscriptionID(), target.GetResourceGroup(), target.GetAkSClusterName(), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to ensure cluster admin role: %w", err)
 	}
 	return kubeconfigPath, nil
 }
 
-func (target *ExecutionTarget) aksID() string {
-	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s", target.SubscriptionID, target.ResourceGroup, target.AKSClusterName)
+func (target *executionTargetImpl) aksID() string {
+	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s", target.GetSubscriptionID(), target.GetResourceGroup(), target.GetAkSClusterName())
+}
+
+func (target *executionTargetImpl) GetSubscriptionID() string {
+	return target.subscriptionID
+}
+
+func (target *executionTargetImpl) GetAkSClusterName() string {
+	return target.aksClusterName
+}
+
+func (target *executionTargetImpl) GetResourceGroup() string {
+	return target.resourceGroup
+}
+
+func (target *executionTargetImpl) GetRegion() string {
+	return target.region
 }
