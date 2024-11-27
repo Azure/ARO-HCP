@@ -229,7 +229,7 @@
             "type": "object",
             "properties": {
               "maxClientSessionsPerAuthName": {
-                "type": "string"
+                "type": "integer"
               },
               "name": {
                 "type": "string"
@@ -264,7 +264,7 @@
                 "type": "boolean"
               },
               "serverStorageSizeGB": {
-                "type": "string"
+                "type": "integer"
               },
               "serverVersion": {
                 "type": "string"
