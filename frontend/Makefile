@@ -39,7 +39,7 @@ deploy:
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
-	helm upgrade --install aro-hcp-frontend-dev \
+	helm upgrade --install ${HELM_DRY_RUN} aro-hcp-frontend-dev \
 		deploy/helm/frontend/ \
 		--set configMap.databaseName=${DB_NAME} \
 		--set configMap.databaseUrl="$${DB_URL}" \
