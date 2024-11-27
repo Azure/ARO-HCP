@@ -7,7 +7,7 @@ defaults:
 
   # General AKS config
   kubernetesVersion: 1.30.5
-  istioVersion: "['asm-1-22']"
+  istioVersion: "asm-1-22"
   vnetAddressPrefix: "10.128.0.0/14"
   subnetPrefix: "10.128.8.0/21"
   podSubnetPrefix: "10.128.64.0/18"
@@ -51,13 +51,13 @@ defaults:
   maestro:
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
-      maxClientSessionsPerAuthName: '4'
+      maxClientSessionsPerAuthName: 4
       private: false
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
     postgres:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       serverVersion: '15'
-      serverStorageSizeGB: '32'
+      serverStorageSizeGB: 32
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'

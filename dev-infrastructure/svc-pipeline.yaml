@@ -1,4 +1,4 @@
-serviceGroup: Microsoft.Azure.ARO.Test
+serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
 - name: {{ .svc.rg }}

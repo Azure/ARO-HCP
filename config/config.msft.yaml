@@ -7,7 +7,7 @@ defaults:
 
   # General AKS config
   kubernetesVersion: 1.30.5
-  istioVersion: "['asm-1-22']"
+  istioVersion: "asm-1-22"
   vnetAddressPrefix: "10.128.0.0/14"
   subnetPrefix: "10.128.8.0/21"
   podSubnetPrefix: "10.128.64.0/18"
@@ -51,13 +51,13 @@ defaults:
   maestro:
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
-      maxClientSessionsPerAuthName: '4'
+      maxClientSessionsPerAuthName: 4
       private: false
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
     postgres:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       serverVersion: '15'
-      serverStorageSizeGB: '32'
+      serverStorageSizeGB: 32
       deploy: false
       private: false
       minTLSVersion: 'TLSV1.2'
@@ -90,7 +90,7 @@ defaults:
 
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
-    rg: hcp-underlay-{{ .ctx.regionShort }}
+    rg: hcp-underlay-{{ .ctx.region }}-svc
     region: {{ .ctx.region }}
     softDelete: false
     private: false
@@ -163,7 +163,7 @@ clouds:
               osDiskSizeGB: 100
               azCount: 3
           # DNS
-          baseDnsZoneName: aro-hcp.azure-test.net'
+          baseDnsZoneName: aro-hcp.azure-test.net
           regionalDNSSubdomain: '{{ .ctx.region }}'
 
           # ACR
@@ -192,9 +192,9 @@ clouds:
 
           # Grafana
           monitoring:
-            grafanaAdminGroupPrincipalId: '??? the one to be used as Grafana Admin in grafana.bicep ???'
+            grafanaAdminGroupPrincipalId: '2fdb57d4-3fd3-415d-b604-1d0e37a188fe' # Azure Red Hat OpenShift MSFT Engineering
 
           # DEVOPS MSI
           # lets create this MSI manually for the time being and automate soon
           # but we should use the MSI name as an input and not the resource ID of the MSI
-          aroDevopsMsiId: '??? the one for OIDC deployment script / lives in the global RG / needs to be created first thing on regional buildout ???'
+          aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aroint-int-public-oidc'
