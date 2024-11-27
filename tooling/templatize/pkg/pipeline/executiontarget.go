@@ -75,10 +75,6 @@ func (target *executionTargetImpl) KubeConfig(ctx context.Context) (string, erro
 	return kubeconfigPath, nil
 }
 
-func (target *executionTargetImpl) aksID() string {
-	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s", target.GetSubscriptionID(), target.GetResourceGroup(), target.GetAkSClusterName())
-}
-
 func (target *executionTargetImpl) GetSubscriptionID() string {
 	return target.subscriptionID
 }
