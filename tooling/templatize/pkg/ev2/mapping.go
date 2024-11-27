@@ -21,7 +21,7 @@ func EV2Mapping(input config.Variables, prefix []string) (map[string]string, map
 			}
 			replaced[key] = replacement
 		} else {
-			placeholder := fmt.Sprintf("__%s__", strings.ToUpper(strings.Join(nestedKey, "_")))
+			placeholder := fmt.Sprintf("__%s__", strings.Join(nestedKey, "_"))
 			output[placeholder] = strings.Join(nestedKey, ".")
 			replaced[key] = placeholder
 		}
