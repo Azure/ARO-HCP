@@ -345,7 +345,7 @@ module csDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
   }
 }
 
-resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
+/*resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
   for rg in clustersServiceAcrResourceGroupNames: {
     name: rg
     scope: subscription()
@@ -362,7 +362,7 @@ module acrManageTokenRole '../modules/acr-permissions.bicep' = [
       acrResourceGroupid: clustersServiceAcrResourceGroups[i].id
     }
   }
-]
+]*/
 
 // oidc
 
