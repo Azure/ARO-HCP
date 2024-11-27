@@ -16,18 +16,18 @@ func TestScopeBindingVariables(t *testing.T) {
 		t.Fatalf("ScopeBindingVariables failed: %v", err)
 	}
 	expectedVars := map[string]string{
-		"__AKSNAME__":                       "$config(aksName)",
-		"__GLOBALRG__":                      "$config(globalRG)",
-		"__IMAGESYNCRG__":                   "$config(imageSyncRG)",
-		"__MAESTRO_HELM_CHART__":            "$config(maestro_helm_chart)",
-		"__MAESTRO_IMAGE__":                 "$config(maestro_image)",
-		"__MANAGEMENTCLUSTERRG__":           "$config(managementClusterRG)",
-		"__MANAGEMENTCLUSTERSUBSCRIPTION__": "$config(managementClusterSubscription)",
-		"__REGION__":                        "$config(region)",
-		"__REGIONRG__":                      "$config(regionRG)",
-		"__SERVICECLUSTERRG__":              "$config(serviceClusterRG)",
-		"__SERVICECLUSTERSUBSCRIPTION__":    "$config(serviceClusterSubscription)",
-		"__CLUSTERSERVICE_IMAGETAG__":       "$config(clusterService.imageTag)",
+		"__aksName__":                       "$config(aksName)",
+		"__globalRG__":                      "$config(globalRG)",
+		"__imageSyncRG__":                   "$config(imageSyncRG)",
+		"__maestro_helm_chart__":            "$config(maestro_helm_chart)",
+		"__maestro_image__":                 "$config(maestro_image)",
+		"__managementClusterRG__":           "$config(managementClusterRG)",
+		"__managementClusterSubscription__": "$config(managementClusterSubscription)",
+		"__region__":                        "$config(region)",
+		"__regionRG__":                      "$config(regionRG)",
+		"__serviceClusterRG__":              "$config(serviceClusterRG)",
+		"__serviceClusterSubscription__":    "$config(serviceClusterSubscription)",
+		"__clusterService_imageTag__":       "$config(clusterService.imageTag)",
 	}
 
 	if diff := cmp.Diff(expectedVars, vars); diff != "" {

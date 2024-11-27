@@ -21,19 +21,19 @@ func TestMapping(t *testing.T) {
 		},
 	}
 	expectedFlattened := map[string]string{
-		"__KEY1__":                  "key1",
-		"__KEY2__":                  "key2",
-		"__KEY3__":                  "key3",
-		"__PARENT_NESTED__":         "parent.nested",
-		"__PARENT_DEEPER_DEEPEST__": "parent.deeper.deepest",
+		"__key1__":                  "key1",
+		"__key2__":                  "key2",
+		"__key3__":                  "key3",
+		"__parent_nested__":         "parent.nested",
+		"__parent_deeper_deepest__": "parent.deeper.deepest",
 	}
 	expectedReplace := map[string]interface{}{
-		"key1": "__KEY1__",
-		"key2": "__KEY2__",
-		"key3": "__KEY3__",
+		"key1": "__key1__",
+		"key2": "__key2__",
+		"key3": "__key3__",
 		"parent": map[string]interface{}{
-			"nested": "__PARENT_NESTED__",
-			"deeper": map[string]interface{}{"deepest": "__PARENT_DEEPER_DEEPEST__"},
+			"nested": "__parent_nested__",
+			"deeper": map[string]interface{}{"deepest": "__parent_deeper_deepest__"},
 		},
 	}
 	flattened, replace := EV2Mapping(testData, []string{})
