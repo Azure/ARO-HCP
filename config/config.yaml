@@ -1,7 +1,5 @@
 $schema: config.schema.json
 defaults:
-  helmDryRun: "--dry-run=server --debug"
-
   region: {{ .ctx.region }}
   # Resourcegroups
   globalRG: global

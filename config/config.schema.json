@@ -139,9 +139,6 @@
       "globalRG": {
         "type": "string"
       },
-      "helmDryRun": {
-        "type": "string"
-      },
       "hypershift": {
         "type": "object",
         "properties": {
@@ -608,7 +605,6 @@
       "firstPartyAppClientId",
       "frontend",
       "globalRG",
-      "helmDryRun",
       "hypershift",
       "hypershiftOperator",
       "imageSync",
