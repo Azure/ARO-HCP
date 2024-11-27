@@ -7,7 +7,7 @@
   "clusterService": {
     "acrRG": "westus3-shared-resources",
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "aac7623",
+    "imageTag": "ecd15ad",
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
@@ -101,6 +101,8 @@
     "private": false,
     "softDelete": false
   },
+  "miMockClientId": "",
+  "miMockPrincipalId": "",
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "??? the one to be used as Grafana Admin in grafana.bicep ???",
     "grafanaName": "arohcp-int",

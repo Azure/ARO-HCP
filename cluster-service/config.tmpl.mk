@@ -11,6 +11,9 @@ ACR_NAME ?= {{ .svcAcrName }}
 OCP_ACR_NAME ?= {{ .ocpAcrName }}
 AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID ?= {{ .firstPartyAppClientId }}
 FPA_CERT_NAME ?= firstPartyCert
+AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID ?= {{ .miMockPrincipalId }}
+AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID ?= {{ .miMockClientId }}
+MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME ?= msiMockCert
 ZONE_NAME ?= {{ .regionalDNSSubdomain }}.{{ .baseDnsZoneName }}
 
 DATABASE_DISABLE_TLS ?= {{ not .clusterService.postgres.deploy }}
