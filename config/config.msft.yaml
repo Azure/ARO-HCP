@@ -51,7 +51,7 @@ defaults:
   maestro:
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
-      maxClientSessionsPerAuthName: '4'
+      maxClientSessionsPerAuthName: 4
       private: false
     certDomain: 'selfsigned.maestro.keyvault.azure.com'
     postgres:
