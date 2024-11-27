@@ -266,7 +266,11 @@ clouds:
           regionalDNSSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
           maestro:
+            imageBase: quay.io/clyang82/maestro
+            imageTag: entra
             serverMqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+            postgres:
+              deploy: true
           # Frontend
           frontend:
             cosmosDB:
