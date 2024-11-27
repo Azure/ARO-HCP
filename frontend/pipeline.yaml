@@ -8,7 +8,7 @@ resourceGroups:
   - name: deploy
     action: Shell
     command: ["make", "deploy"]
-    dryRun: 
+    dryRun:
       envVars:
         - name: HELM_DRY_RUN
           value: "--dry-run=server --debug"
