@@ -125,9 +125,6 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
-@description('Image sync ACR RG name')
-param imageSyncAcrResourceGroupNames array = []
-
 @description('OIDC Storage Account name')
 param oidcStorageAccountName string
 
@@ -347,48 +344,6 @@ module csDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
     zoneContributerManagedIdentityPrincipalId: csManagedIdentityPrincipalId
   }
 }
-
-//
-//   I M A G E   S Y N C
-//
-
-var imageSyncManagedIdentityPrincipalId = filter(
-  svcCluster.outputs.userAssignedIdentities,
-  id => id.uamiName == 'image-sync'
-)[0].uamiPrincipalID
-
-module imageServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(serviceKeyVaultName, 'imagesync', 'read')
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: imageSyncManagedIdentityPrincipalId
-  }
-  dependsOn: [
-    serviceKeyVault
-    svcCluster
-  ]
-}
-
-resource imageSyncAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
-  for rg in imageSyncAcrResourceGroupNames: {
-    name: rg
-    scope: subscription()
-  }
-]
-
-module acrPushRole '../modules/acr-permissions.bicep' = [
-  for (_, i) in imageSyncAcrResourceGroupNames: {
-    name: guid(imageSyncAcrResourceGroups[i].id, resourceGroup().name, 'image-sync', 'push')
-    scope: imageSyncAcrResourceGroups[i]
-    params: {
-      principalId: imageSyncManagedIdentityPrincipalId
-      grantPushAccess: true
-      acrResourceGroupid: imageSyncAcrResourceGroups[i].id
-    }
-  }
-]
 
 resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
   for rg in clustersServiceAcrResourceGroupNames: {

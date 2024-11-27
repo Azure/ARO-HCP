@@ -42,7 +42,6 @@ param serviceKeyVaultSoftDelete = {{ .serviceKeyVault.softDelete }}
 param serviceKeyVaultPrivate = {{ .serviceKeyVault.private }}
 
 param acrPullResourceGroups = ['{{ .serviceComponentAcrResourceGroups }}']
-param imageSyncAcrResourceGroupNames = ['{{ .imageSync.acrRG }}']
 param clustersServiceAcrResourceGroupNames = ['{{ .clusterService.acrRG }}']
 
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
