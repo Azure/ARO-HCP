@@ -1,8 +1,8 @@
 {
   "acrName": "arohcpint",
   "aksName": "aro-hcp-aks",
-  "aroDevopsMsiId": "??? the one for OIDC deployment script / lives in the global RG / needs to be created first thing on regional buildout ???",
-  "baseDnsZoneName": "aro-hcp.azure-test.net'",
+  "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aroint-int-public-oidc",
+  "baseDnsZoneName": "aro-hcp.azure-test.net",
   "baseDnsZoneRG": "westus3-shared-resources",
   "clusterService": {
     "acrRG": "",
@@ -51,13 +51,13 @@
     "repositories": "registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
     "rg": "hcp-underlay-imagesync"
   },
-  "istioVersion": "['asm-1-22']",
+  "istioVersion": "asm-1-22",
   "kubernetesVersion": "1.30.5",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-int-mgmt-1",
     "eventGrid": {
-      "maxClientSessionsPerAuthName": "4",
+      "maxClientSessionsPerAuthName": 4,
       "name": "arohcp-maestro-int",
       "private": false
     },
@@ -68,7 +68,7 @@
       "minTLSVersion": "TLSV1.2",
       "name": "arohcp-maestro-int",
       "private": false,
-      "serverStorageSizeGB": "32",
+      "serverStorageSizeGB": 32,
       "serverVersion": "15"
     },
     "restrictIstioIngress": true,
@@ -102,7 +102,7 @@
     "softDelete": false
   },
   "monitoring": {
-    "grafanaAdminGroupPrincipalId": "??? the one to be used as Grafana Admin in grafana.bicep ???",
+    "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",
     "msiName": "aro-hcp-metrics-msi-int",
     "workspaceName": "arohcp-int"
@@ -127,7 +127,7 @@
     "name": "arohcp-svc-int",
     "private": false,
     "region": "westus3",
-    "rg": "hcp-underlay-int",
+    "rg": "hcp-underlay-westus3-svc",
     "softDelete": false
   },
   "subnetPrefix": "10.128.8.0/21",
