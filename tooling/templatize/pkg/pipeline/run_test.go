@@ -8,16 +8,18 @@ import (
 )
 
 func TestStepRun(t *testing.T) {
+	fooundOutput := ""
 	s := &Step{
 		Name:    "test",
 		Action:  "Shell",
 		Command: []string{"echo", "hello"},
 		outputFunc: func(output string) {
-			assert.Equal(t, output, "hello\n")
+			fooundOutput = output
 		},
 	}
 	err := s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{})
 	assert.NilError(t, err)
+	assert.Equal(t, fooundOutput, "hello\n")
 }
 
 func TestStepRunSkip(t *testing.T) {
@@ -79,4 +81,106 @@ func TestPipelineValidate(t *testing.T) {
 	}
 	err := p.Validate()
 	assert.Error(t, err, "resource group name is required")
+}
+
+func TestResourceGroupRun(t *testing.T) {
+	foundOutput := ""
+	rg := &ResourceGroup{
+		Steps: []*Step{
+			{
+				Name:    "step",
+				Action:  "Shell",
+				Command: []string{"echo", "hello"},
+				outputFunc: func(output string) {
+					foundOutput = output
+				},
+			},
+		},
+	}
+	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{})
+	assert.NilError(t, err)
+	assert.Equal(t, foundOutput, "hello\n")
+}
+
+func TestResourceGroupError(t *testing.T) {
+	tmpVals := make([]string, 0)
+	rg := &ResourceGroup{
+		Steps: []*Step{
+			{
+				Name:    "step",
+				Action:  "Shell",
+				Command: []string{"echo", "hello"},
+				outputFunc: func(output string) {
+					tmpVals = append(tmpVals, output)
+				},
+			},
+			{
+				Name:    "step",
+				Action:  "Shell",
+				Command: []string{"faaaaafffaa"},
+				outputFunc: func(output string) {
+					tmpVals = append(tmpVals, output)
+				},
+			},
+			{
+				Name:    "step",
+				Action:  "Shell",
+				Command: []string{"echo", "hallo"},
+				outputFunc: func(output string) {
+					tmpVals = append(tmpVals, output)
+				},
+			},
+		},
+	}
+	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{})
+	assert.Error(t, err, "failed to execute shell command:  exec: \"faaaaafffaa\": executable file not found in $PATH")
+	// Test processing ends after first error
+	assert.Equal(t, len(tmpVals), 1)
+}
+
+type testExecutionTarget struct{}
+
+func (t *testExecutionTarget) KubeConfig(_ context.Context) (string, error) {
+	return "", nil
+}
+func (t *testExecutionTarget) GetSubscriptionID() string { return "test" }
+func (t *testExecutionTarget) GetAkSClusterName() string { return "test" }
+func (t *testExecutionTarget) GetResourceGroup() string  { return "test" }
+func (t *testExecutionTarget) GetRegion() string         { return "test" }
+
+func TestResourceGroupRunRequireKubeconfig(t *testing.T) {
+
+	rg := &ResourceGroup{Steps: []*Step{}}
+	err := rg.run(context.Background(), &PipelineRunOptions{}, &testExecutionTarget{})
+	assert.NilError(t, err)
+}
+
+func TestPipelineRun(t *testing.T) {
+	foundOutput := ""
+	pipeline := &Pipeline{
+		ResourceGroups: []*ResourceGroup{
+			{
+				Name:         "test",
+				Subscription: "test",
+				Steps: []*Step{
+					{
+						Name:    "step",
+						Action:  "Shell",
+						Command: []string{"echo", "hello"},
+						outputFunc: func(output string) {
+							foundOutput = output
+						},
+					},
+				},
+			},
+		},
+		subsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
+			return "test", nil
+		},
+	}
+
+	err := pipeline.Run(context.Background(), &PipelineRunOptions{})
+
+	assert.NilError(t, err)
+	assert.Equal(t, foundOutput, "hello\n")
 }

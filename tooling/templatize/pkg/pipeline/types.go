@@ -1,10 +1,15 @@
 package pipeline
 
+import "context"
+
+type subsciptionLookup func(context.Context, string) (string, error)
+
 type Pipeline struct {
-	pipelineFilePath string
-	ServiceGroup     string           `yaml:"serviceGroup"`
-	RolloutName      string           `yaml:"rolloutName"`
-	ResourceGroups   []*ResourceGroup `yaml:"resourceGroups"`
+	pipelineFilePath      string
+	ServiceGroup          string           `yaml:"serviceGroup"`
+	RolloutName           string           `yaml:"rolloutName"`
+	ResourceGroups        []*ResourceGroup `yaml:"resourceGroups"`
+	subsciptionLookupFunc subsciptionLookup
 }
 
 type ResourceGroup struct {

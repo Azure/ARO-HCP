@@ -48,6 +48,10 @@ type PipelineRunOptions struct {
 func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	if p.subsciptionLookupFunc == nil {
+		p.subsciptionLookupFunc = lookupSubscriptionID
+	}
+
 	// set working directory to the pipeline file directory for the
 	// duration of the execution so that all commands and file references
 	// within the pipeline file are resolved relative to the pipeline file
@@ -70,7 +74,16 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	}()
 
 	for _, rg := range p.ResourceGroups {
-		err := rg.run(ctx, options)
+		// prepare execution context
+		subscriptionID, err := p.subsciptionLookupFunc(ctx, rg.Subscription)
+		executionTarget := executionTargetImpl{
+			subscriptionName: rg.Subscription,
+			subscriptionID:   subscriptionID,
+			region:           options.Region,
+			resourceGroup:    rg.Name,
+			aksClusterName:   rg.AKSCluster,
+		}
+		err = rg.run(ctx, options, &executionTarget)
 		if err != nil {
 			return err
 		}
@@ -78,20 +91,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	return nil
 }
 
-func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions) error {
-	// prepare execution context
-	subscriptionID, err := lookupSubscriptionID(ctx, rg.Subscription)
-	if err != nil {
-		return err
-	}
-	executionTarget := executionTargetImpl{
-		subscriptionName: rg.Subscription,
-		subscriptionID:   subscriptionID,
-		region:           options.Region,
-		resourceGroup:    rg.Name,
-		aksClusterName:   rg.AKSCluster,
-	}
-
+func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
@@ -101,7 +101,7 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 				logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
 			}
 		}()
-	} else if err != nil || kubeconfigFile == "" && executionTarget.GetAkSClusterName() != "" {
+	} else if err != nil {
 		return fmt.Errorf("failed to prepare kubeconfig: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions) e
 				),
 			),
 			kubeconfigFile,
-			&executionTarget, options,
+			executionTarget, options,
 		)
 		if err != nil {
 			return err
