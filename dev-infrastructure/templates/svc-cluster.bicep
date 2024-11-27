@@ -75,8 +75,8 @@ param maestroCertDomain string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
-@description('Deploy ARO HCP CS Infrastructure if true')
-param deployCsInfra bool
+@description('Deploy CS Postgres if true')
+param csPostgresDeploy bool
 
 @description('The name of the Postgres server for CS')
 @maxLength(60)
@@ -304,7 +304,7 @@ var csManagedIdentityPrincipalId = filter(
   id => id.uamiName == clusterServiceMIName
 )[0].uamiPrincipalID
 
-module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
+module cs '../modules/cluster-service.bicep' = {
   name: 'cluster-service'
   params: {
     location: location
@@ -312,57 +312,22 @@ module cs '../modules/cluster-service.bicep' = if (deployCsInfra) {
     postgresServerMinTLSVersion: csPostgresServerMinTLSVersion
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
+    deployPostgres: csPostgresDeploy
     postgresServerPrivate: clusterServicePostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
     clusterServiceManagedIdentityName: clusterServiceMIName
+    serviceKeyVaultName: serviceKeyVaultName
+    serviceKeyVaultResourceGroup: serviceKeyVaultResourceGroup
+    regionalDNSZoneName: regionalDNSZoneName
+    regionalResourceGroup: regionalResourceGroup
+    acrResourceGroupNames: clustersServiceAcrResourceGroupNames
   }
   dependsOn: [
     maestroServer
     svcCluster
-  ]
-}
-
-module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(serviceKeyVaultName, 'cs', 'read')
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: csManagedIdentityPrincipalId
-  }
-  dependsOn: [
     serviceKeyVault
-    svcCluster
   ]
 }
-
-module csDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
-  name: guid(regionalDNSZoneName, svcCluster.name, 'cs')
-  scope: resourceGroup(regionalResourceGroup)
-  params: {
-    zoneName: regionalDNSZoneName
-    zoneContributerManagedIdentityPrincipalId: csManagedIdentityPrincipalId
-  }
-}
-
-resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
-  for rg in clustersServiceAcrResourceGroupNames: {
-    name: rg
-    scope: subscription()
-  }
-]
-
-module acrManageTokenRole '../modules/acr-permissions.bicep' = [
-  for (_, i) in clustersServiceAcrResourceGroupNames: {
-    name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'manage-tokens')
-    scope: clustersServiceAcrResourceGroups[i]
-    params: {
-      principalId: csManagedIdentityPrincipalId
-      grantManageTokenAccess: true
-      acrResourceGroupid: clustersServiceAcrResourceGroups[i].id
-    }
-  }
-]
 
 // oidc
 

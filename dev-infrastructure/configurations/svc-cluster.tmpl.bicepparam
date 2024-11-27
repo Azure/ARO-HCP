@@ -30,7 +30,7 @@ param maestroPostgresServerStorageSizeGB = {{ .maestro.postgres.serverStorageSiz
 param deployMaestroPostgres = {{ .maestro.postgres.deploy }}
 param maestroPostgresPrivate = {{ .maestro.postgres.private }}
 
-param deployCsInfra = {{ .clusterService.postgres.deploy }}
+param csPostgresDeploy = {{ .clusterService.postgres.deploy }}
 param csPostgresServerName = '{{ .clusterService.postgres.name }}'
 param csPostgresServerMinTLSVersion = '{{ .clusterService.postgres.minTLSVersion }}'
 param clusterServicePostgresPrivate = {{ .clusterService.postgres.private }}
