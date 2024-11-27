@@ -76,6 +76,9 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	for _, rg := range p.ResourceGroups {
 		// prepare execution context
 		subscriptionID, err := p.subsciptionLookupFunc(ctx, rg.Subscription)
+		if err != nil {
+			return fmt.Errorf("failed to lookup subscription ID for %q: %w", rg.Subscription, err)
+		}
 		executionTarget := executionTargetImpl{
 			subscriptionName: rg.Subscription,
 			subscriptionID:   subscriptionID,
