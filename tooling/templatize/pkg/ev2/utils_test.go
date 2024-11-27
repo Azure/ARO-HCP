@@ -28,6 +28,7 @@ func TestScopeBindingVariables(t *testing.T) {
 		"__serviceClusterRG__":              "$config(serviceClusterRG)",
 		"__serviceClusterSubscription__":    "$config(serviceClusterSubscription)",
 		"__clusterService_imageTag__":       "$config(clusterService.imageTag)",
+		"__clusterService_replicas__":       "$config(clusterService.replicas)",
 	}
 
 	if diff := cmp.Diff(expectedVars, vars); diff != "" {

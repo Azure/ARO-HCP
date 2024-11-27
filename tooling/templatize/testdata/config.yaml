@@ -11,6 +11,7 @@ defaults:
   aksName: aro-hcp-aks
   clusterService:
     imageTag: abcdef
+    replicas: 3
 clouds:
   fairfax:
     defaults:

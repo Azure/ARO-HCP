@@ -53,7 +53,7 @@ func ScopeBindingVariables(configProvider config.ConfigProvider, cloud, deployEn
 	if err != nil {
 		return nil, err
 	}
-	flattened, _ := EV2Mapping(vars, []string{})
+	flattened, _ := EV2Mapping(vars, NewDunderPlaceholders(), []string{})
 	variables := make(map[string]string)
 	for key, value := range flattened {
 		variables[key] = fmt.Sprintf("$config(%s)", value)
@@ -81,6 +81,6 @@ func PreprocessFileForEV2ScopeBinding(configProvider config.ConfigProvider, clou
 	if err != nil {
 		return nil, err
 	}
-	_, scopeBindedVars := EV2Mapping(vars, []string{})
+	_, scopeBindedVars := EV2Mapping(vars, NewDunderPlaceholders(), []string{})
 	return config.PreprocessFile(templateFile, scopeBindedVars)
 }
