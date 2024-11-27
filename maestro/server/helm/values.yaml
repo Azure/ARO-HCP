@@ -16,11 +16,12 @@ database:
   host: "maestro-db"
   port: 5432
   name: "maestro"
-  user: "maestro"
+  user: "maestro-server"
   password: "TheBlurstOfTimes"
   ssl: "require"
   maxOpenConnections: 50
   debug: false
+  authMethod: "password"
 maestro:
   serviceAccount: maestro
   httpReadTimeout: 60s

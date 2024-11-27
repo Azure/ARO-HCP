@@ -10,6 +10,7 @@ deploy:
 	EVENTGRID_HOSTNAME=$(shell az resource show -n ${EVENTGRID_NAME} -g ${REGION_RG} --resource-type "Microsoft.EventGrid/namespaces" --query properties.topicSpacesConfiguration.hostname -o tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${SVC_RG}" -n maestro-server --query clientId -o tsv) && \
+	DATABASE_HOST=$(shell az postgres flexible-server show -g ${SVC_RG} -n ${DATABASE_NAME} --query fullyQualifiedDomainName -o tsv) && \
 	helm upgrade --install maestro-server ./helm \
 		--namespace maestro \
 		--set broker.host=$${EVENTGRID_HOSTNAME} \
@@ -21,5 +22,7 @@ deploy:
 		--set image.base=${IMAGE_BASE} \
 		--set image.tag=${IMAGE_TAG} \
 		--set database.containerizedDb=${USE_CONTAINERIZED_DB} \
-		--set database.ssl='${USE_DATABASE_SSL}'
+		--set database.ssl='${USE_DATABASE_SSL}' \
+		$(if $(filter false,$(USE_CONTAINERIZED_DB)),--set database.host=$${DATABASE_HOST}) \
+		--set database.authMethod='${DATABASE_AUTH_METHOD}'
 .PHONY: deploy
