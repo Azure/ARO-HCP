@@ -1,4 +1,4 @@
-serviceGroup: Microsoft.Azure.ARO.Test
+serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
 - name: {{ .regionRG }}
@@ -10,7 +10,7 @@ resourceGroups:
     parameters: configurations/region.tmpl.bicepparam
   - name: metrics-infra
     action: ARM
-    template: modules/modules/metrics.bicep
+    template: modules/metrics/metrics.bicep
     parameters: configurations/metrics.tmpl.bicepparam
     dependsOn:
     - region

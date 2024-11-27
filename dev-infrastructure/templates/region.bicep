@@ -47,7 +47,7 @@ module regionalZoneDelegation '../modules/dns/zone-delegation.bicep' = {
   params: {
     childZoneName: regionalDNSSubdomain
     childZoneNameservers: regionalZone.properties.nameServers
-    parentZoneName: baseDNSZoneName
+    parentZoneName: regionalZone.name
   }
 }
 
