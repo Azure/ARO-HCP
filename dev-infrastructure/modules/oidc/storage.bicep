@@ -16,22 +16,25 @@ param location string
 ])
 param skuName string = 'Standard_ZRS'
 
-@description('Whether or not the Blobs in the Storage Account should be publicly accessible.')
-param publicBlobAccess bool
-
 @description('The service principal ID to be added to Azure Storage account.')
 param principalId string = ''
 
 @description('Id of the MSI that will be used to run the deploymentScript')
-param aroDevopsMsiId string
+param msiId string
 
 // Since deployment script is limted to specific regions, we run deployment script from the same location as the private link.
 // The location where deployment script run doesn't matter as it will be removed once the script is completed to enable static website on storage account.
 param deploymentScriptLocation string
 
+param isDevEnv bool = false
+
+// Storage Account Contributor: Lets you manage storage accounts, including accessing storage account keys which provide full access to storage account data.
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/storage#storage-account-contributor
+var storageAccountContributorRole = '17d1049b-9a84-46fb-8f53-869881c3d3ab'
+
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-contributor
 // Storage Blob Data Contributor: Grants access to Read, write, and delete Azure Storage containers and blobs
-var roleDefinitionId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+var storageBlobDataContributorRole = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 
 var scriptToRun = '../../scripts/storage.sh'
 
@@ -45,20 +48,30 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   properties: {
     accessTier: 'Hot'
     supportsHttpsTrafficOnly: true
-    allowBlobPublicAccess: publicBlobAccess
+    allowBlobPublicAccess: isDevEnv
     minimumTlsVersion: 'TLS1_2'
     allowSharedKeyAccess: false
-    publicNetworkAccess: 'Enabled' // we can switch to private endpoint later
+    publicNetworkAccess: 'Enabled'
   }
 }
 
 resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (principalId != '') {
-  name: guid(storageAccount.id, principalId, roleDefinitionId)
+  name: guid(storageAccount.id, principalId, storageBlobDataContributorRole)
   scope: storageAccount
   properties: {
     principalId: principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', roleDefinitionId)
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRole)
+  }
+}
+
+resource storageAccountContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, msiId, storageAccountContributorRole)
+  scope: storageAccount
+  properties: {
+    principalId: reference(msiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageAccountContributorRole)
   }
 }
 
@@ -69,7 +82,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${aroDevopsMsiId}': {}
+      '${msiId}': {}
     }
   }
   properties: {
@@ -85,6 +98,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   }
   dependsOn: [
     storageAccount
+    storageAccountContributor
   ]
 }
 

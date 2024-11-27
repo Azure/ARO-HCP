@@ -4,7 +4,7 @@ param location string
 param storageAccountName string
 param rpMsiName string
 param skuName string
-param aroDevopsMsiId string
+param msiId string
 param deploymentScriptLocation string
 param enabledAFD bool = false
 
@@ -18,9 +18,9 @@ module storageAccount 'storage.bicep' = {
     location: location
     principalId: reference(rpMsiResourceURI, '2023-01-31').principalId
     skuName: skuName
-    aroDevopsMsiId: aroDevopsMsiId
+    msiId: msiId
     deploymentScriptLocation: deploymentScriptLocation
-    publicBlobAccess: !enabledAFD
+    isDevEnv: !enabledAFD
   }
 }
 

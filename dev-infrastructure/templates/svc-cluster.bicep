@@ -373,7 +373,7 @@ module oidc '../modules/oidc/main.bicep' = {
     storageAccountName: oidcStorageAccountName
     rpMsiName: clusterServiceMIName
     skuName: oidcStorageAccountSku
-    aroDevopsMsiId: aroDevopsMsiId
+    msiId: aroDevopsMsiId
     deploymentScriptLocation: location
   }
   dependsOn: [
