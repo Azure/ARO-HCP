@@ -1,1 +1,1 @@
-param regionRG = '__REGIONRG__'
+param regionRG = '__regionRG__'
