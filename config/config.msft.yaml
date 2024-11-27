@@ -191,7 +191,7 @@ clouds:
 
           # Grafana
           monitoring:
-            grafanaAdminGroupPrincipalId: '??? the one to be used as Grafana Admin in grafana.bicep ???'
+            grafanaAdminGroupPrincipalId: '2fdb57d4-3fd3-415d-b604-1d0e37a188fe'  # Azure Red Hat OpenShift MSFT Engineering
 
           # DEVOPS MSI
           # lets create this MSI manually for the time being and automate soon
