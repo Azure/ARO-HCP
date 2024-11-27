@@ -68,7 +68,8 @@ defaults:
 
   # Cluster Service
   clusterService:
-    acrRG: '{{ .ctx.region }}-shared-resources'
+    #acrRG: '{{ .ctx.region }}-shared-resources'
+    acrRG: ''
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true

@@ -5,7 +5,7 @@
   "baseDnsZoneName": "aro-hcp.azure-test.net'",
   "baseDnsZoneRG": "westus3-shared-resources",
   "clusterService": {
-    "acrRG": "westus3-shared-resources",
+    "acrRG": "",
     "imageRepo": "app-sre/uhc-clusters-service",
     "imageTag": "aac7623",
     "postgres": {
