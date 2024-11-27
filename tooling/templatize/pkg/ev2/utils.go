@@ -10,10 +10,18 @@ import (
 // This package contains helper functions to extract EV2 conformant data from a config.yaml file.
 //
 
-func NewEv2ConfigReplacements() *config.ConfigReplacements {
+func NewEv2ServiceConfigReplacements() *config.ConfigReplacements {
+	return config.NewConfigReplacements(
+		"$(regionName)",
+		"$(regionShortName)",
+		"",
+	)
+}
+
+func NewEv2SystemVariableReplacements() *config.ConfigReplacements {
 	return config.NewConfigReplacements(
 		"$location()",
-		"$(regionShortName)",
+		"$config(regionShortName)",
 		"$stamp()",
 	)
 }
@@ -23,7 +31,7 @@ func NewEv2ConfigReplacements() *config.ConfigReplacements {
 // The variable values are formatted to contain EV2 $location(), $stamp() and $(serviceConfigVar) variables.
 // This function is useful to get the variables to fill the `Settings` section of an EV2 `ServiceConfig.json“
 func GetNonRegionalServiceConfigVariables(configProvider config.ConfigProvider, cloud, deployEnv string) (config.Variables, error) {
-	return configProvider.GetVariables(cloud, deployEnv, "", NewEv2ConfigReplacements())
+	return configProvider.GetVariables(cloud, deployEnv, "", NewEv2ServiceConfigReplacements())
 }
 
 // GetRegionalServiceConfigVariableOverrides returns the regional overrides of a config.yaml file.
@@ -36,7 +44,7 @@ func GetRegionalServiceConfigVariableOverrides(configProvider config.ConfigProvi
 	}
 	overrides := make(map[string]config.Variables)
 	for _, region := range regions {
-		regionOverrides, err := configProvider.GetRegionOverrides(cloud, deployEnv, region, NewEv2ConfigReplacements())
+		regionOverrides, err := configProvider.GetRegionOverrides(cloud, deployEnv, region, NewEv2ServiceConfigReplacements())
 		if err != nil {
 			return nil, err
 		}
@@ -49,7 +57,7 @@ func GetRegionalServiceConfigVariableOverrides(configProvider config.ConfigProvi
 // It uses the provided configProvider to fetch the variables, flattens them into a __VAR__ = $config(var) formatted map.
 // This function is useful to get the find/replace pairs for an EV2 `ScopeBinding.json`
 func ScopeBindingVariables(configProvider config.ConfigProvider, cloud, deployEnv string) (map[string]string, error) {
-	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2ConfigReplacements())
+	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2SystemVariableReplacements())
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +73,7 @@ func ScopeBindingVariables(configProvider config.ConfigProvider, cloud, deployEn
 // while maintaining EV2 conformant system variables.
 // This function is useful to process a pipeline.yaml file so that it contains EV2 system variables.
 func PreprocessFileForEV2SystemVars(configProvider config.ConfigProvider, cloud, deployEnv string, templateFile string) ([]byte, error) {
-	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2ConfigReplacements())
+	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2SystemVariableReplacements())
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +85,7 @@ func PreprocessFileForEV2SystemVars(configProvider config.ConfigProvider, cloud,
 // This function is useful to process bicepparam files so that they can be used within EV2 together
 // with scopebinding.
 func PreprocessFileForEV2ScopeBinding(configProvider config.ConfigProvider, cloud, deployEnv string, templateFile string) ([]byte, error) {
-	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2ConfigReplacements())
+	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2SystemVariableReplacements())
 	if err != nil {
 		return nil, err
 	}

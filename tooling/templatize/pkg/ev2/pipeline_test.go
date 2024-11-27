@@ -12,7 +12,7 @@ import (
 
 func TestProcessPipelineForEV2(t *testing.T) {
 	configProvider := config.NewConfigProvider("../../testdata/config.yaml")
-	vars, err := configProvider.GetVariables("public", "int", "", NewEv2ConfigReplacements())
+	vars, err := configProvider.GetVariables("public", "int", "", NewEv2SystemVariableReplacements())
 	if err != nil {
 		t.Errorf("failed to get variables: %v", err)
 	}
