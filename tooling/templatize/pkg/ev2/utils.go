@@ -60,27 +60,3 @@ func ScopeBindingVariables(configProvider config.ConfigProvider, cloud, deployEn
 	}
 	return variables, nil
 }
-
-// PreprocessFileForEV2SystemVars processes an arbitrary gotemplate file and replaces all config.yaml references
-// while maintaining EV2 conformant system variables.
-// This function is useful to process a pipeline.yaml file so that it contains EV2 system variables.
-func PreprocessFileForEV2SystemVars(configProvider config.ConfigProvider, cloud, deployEnv string, templateFile string) ([]byte, error) {
-	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2ConfigReplacements())
-	if err != nil {
-		return nil, err
-	}
-	return config.PreprocessFile(templateFile, vars)
-}
-
-// PreprocessFileForEV2ScopeBinding processes an arbitrary gotemplate file and replaces all config.yaml references
-// with __VAR__ scope binding find/replace references.
-// This function is useful to process bicepparam files so that they can be used within EV2 together
-// with scopebinding.
-func PreprocessFileForEV2ScopeBinding(configProvider config.ConfigProvider, cloud, deployEnv string, templateFile string) ([]byte, error) {
-	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2ConfigReplacements())
-	if err != nil {
-		return nil, err
-	}
-	_, scopeBindedVars := EV2Mapping(vars, NewDunderPlaceholders(), []string{})
-	return config.PreprocessFile(templateFile, scopeBindedVars)
-}
