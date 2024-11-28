@@ -30,7 +30,10 @@
       "private": false
     }
   },
-  "globalRG": "global-shared-resources",
+  "global": {
+    "rg": "b-gerdo-global-shared-resources",
+    "subscription": "hcp-westus3"
+  },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
     "namespace": "hypershift"

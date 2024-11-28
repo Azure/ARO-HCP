@@ -1,9 +1,13 @@
 $schema: config.schema.json
 defaults:
   region: {{ .ctx.region }}
+
   # Resourcegroups
-  globalRG: global-shared-resources
   regionRG: '{{ .ctx.region }}-shared-resources'
+
+  global:
+    rg: b-gerdo-global-shared-resources
+    subscription: hcp-{{ .ctx.region }}
 
   # General AKS config
   kubernetesVersion: 1.30.6
