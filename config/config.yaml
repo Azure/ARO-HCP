@@ -119,6 +119,9 @@ clouds:
       baseDnsZoneName: 'hcp.osadev.cloud'
       # 1P app
       firstPartyAppClientId: 57e54810-3138-4f38-bd3b-29cb33f4c358
+      # Mock Managed Identities Service Princiapl
+      miMockClientId: 4daa4e3b-abc1-4f9c-812c-77bd37e06741
+      miMockPrincipalId: a03f690c-4b2e-4eef-841e-f1904efe0e37
       # Maestro
       maestro:
         postgres:
@@ -126,7 +129,7 @@ clouds:
         imageTag: ea066c250a002f0cc458711945165591bc9f6d3f
       # Cluster Service
       clusterService:
-        imageTag: aac7623
+        imageTag: ecd15ad
         imageRepo: app-sre/uhc-clusters-service
       # Hypershift Operator
       hypershiftOperator:

@@ -7,7 +7,7 @@
   "clusterService": {
     "acrRG": "",
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "aac7623",
+    "imageTag": "ecd15ad",
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
@@ -101,6 +101,8 @@
     "private": false,
     "softDelete": false
   },
+  "miMockClientId": "",
+  "miMockPrincipalId": "",
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",

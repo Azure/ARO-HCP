@@ -127,7 +127,7 @@ clouds:
       maestro:
         imageTag: ea066c250a002f0cc458711945165591bc9f6d3f
       clusterService:
-        imageTag: aac7623
+        imageTag: ecd15ad
         imageRepo: app-sre/uhc-clusters-service
       hypershiftOperator:
         imageTag: 9aca808
@@ -178,6 +178,11 @@ clouds:
 
           # 1P app
           firstPartyAppClientId: '??? the one used by CS to do first party stuff ???'
+
+          # Mock Managed Identities Service Princiapl.
+          # This is a stub identity to be used by CS in environments where the MI (formerly MSI) RP isn't available.
+          miMockClientId: ''
+          miMockPrincipalId: ''
 
           # disable KV softdelete for easy cleanup and recreate in INT
           cxKeyVault:

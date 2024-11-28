@@ -103,6 +103,12 @@
       "firstPartyAppClientId": {
         "type": "string"
       },
+      "miMockClientId": {
+        "type": "string"
+      },
+      "miMockPrincipalId": {
+        "type": "string"
+      },
       "frontend": {
         "type": "object",
         "properties": {
