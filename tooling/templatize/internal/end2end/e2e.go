@@ -3,8 +3,9 @@ package testutil
 import (
 	"os"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 	"gopkg.in/yaml.v2"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func shouldRunE2E() bool {

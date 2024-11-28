@@ -4,9 +4,10 @@ import (
 	"os"
 	"testing"
 
+	"gotest.tools/v3/assert"
+
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
-	"gotest.tools/v3/assert"
 )
 
 func TestE2EMake(t *testing.T) {
@@ -17,8 +18,7 @@ func TestE2EMake(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-
-	e2eImpl.SetPipeline(pipeline.Step{
+	err := e2eImpl.SetPipeline(pipeline.Step{
 		Name:    "test",
 		Action:  "Shell",
 		Command: []string{"make", "test"},
@@ -29,13 +29,14 @@ func TestE2EMake(t *testing.T) {
 			},
 		},
 	}, "")
+	assert.NilError(t, err)
 
 	e2eImpl.makefile = `
 test:
 	echo ${TEST_ENV} > env.txt
 `
-
-	e2eImpl.Persist()
+	err = e2eImpl.Persist()
+	assert.NilError(t, err)
 
 	cmd, err := run.NewCommand()
 
