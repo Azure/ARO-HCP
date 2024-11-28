@@ -1,2 +1,2 @@
 param regionRG = '__regionRG__'
-param replicas = any('__clusterService_replicas__')
+param replicas = any('__clusterService.replicas__')

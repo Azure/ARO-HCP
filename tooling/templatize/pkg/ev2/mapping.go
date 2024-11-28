@@ -2,19 +2,17 @@ package ev2
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
-type PlaceholderGenerator func(key []string, value interface{}) (flattenedKey string, replaceVar string)
+type PlaceholderGenerator func(key []string, valueType reflect.Type) (flattenedKey string, replaceVar string)
 
 // NewDunderPlaceholders returns a PlaceholderGenerator function that generates
 // placeholder strings by joining the provided key elements with underscores
 // and surrounding them with double underscores.
-//
-// The returned function takes a key (a slice of strings) and an unused interface{} value,
-// and returns a flattenedKey and replaceVar, both of which are the generated placeholder string.
 //
 // Example:
 //
@@ -22,8 +20,8 @@ type PlaceholderGenerator func(key []string, value interface{}) (flattenedKey st
 //	flattenedKey, replaceVar := NewDunderPlaceholders()(key, nil)
 //	// flattenedKey and replaceVar will both be "__foo_bar__"
 func NewDunderPlaceholders() PlaceholderGenerator {
-	return func(key []string, _ interface{}) (flattenedKey string, replaceVar string) {
-		flattenedKey = fmt.Sprintf("__%s__", strings.Join(key, "_"))
+	return func(key []string, _ reflect.Type) (flattenedKey string, replaceVar string) {
+		flattenedKey = fmt.Sprintf("__%s__", strings.Join(key, "."))
 		replaceVar = flattenedKey
 		return
 	}
@@ -40,9 +38,9 @@ func NewDunderPlaceholders() PlaceholderGenerator {
 //	a flattened key and a replacement variable for bicep parameter usage within EV2.
 func NewBicepParamPlaceholders() PlaceholderGenerator {
 	dunder := NewDunderPlaceholders()
-	return func(key []string, value interface{}) (flattenedKey string, replaceVar string) {
-		flattenedKey, replaceVar = dunder(key, value)
-		if _, ok := value.(string); !ok {
+	return func(key []string, valueType reflect.Type) (flattenedKey string, replaceVar string) {
+		flattenedKey, replaceVar = dunder(key, valueType)
+		if valueType.Kind() != reflect.String {
 			replaceVar = fmt.Sprintf("any('%s')", replaceVar)
 		}
 		return
@@ -63,7 +61,7 @@ func EV2Mapping(input config.Variables, placeholderGenerator PlaceholderGenerato
 			}
 			replaced[key] = replacement
 		} else {
-			flattenedKey, replaceVar := placeholderGenerator(nestedKey, value)
+			flattenedKey, replaceVar := placeholderGenerator(nestedKey, reflect.TypeOf(value))
 			output[flattenedKey] = strings.Join(nestedKey, ".")
 			replaced[key] = replaceVar
 		}
