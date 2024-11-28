@@ -14,7 +14,7 @@ param globalResourceGroupName string = 'global'
 // F I R S T   P A R T Y   I D E N T I T Y
 //
 
-module firstPartyIdentity '../modules/key-vault-cert.bicep' = {
+module firstPartyIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'first-party-identity'
   params: {
     location: location
@@ -54,7 +54,7 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
 // A R M   H E L P E R   I D E N T I T Y
 //
 
-module armHelperIdentity '../modules/key-vault-cert.bicep' = {
+module armHelperIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'arm-helper-identity'
   params: {
     location: location
@@ -72,7 +72,7 @@ module armHelperIdentity '../modules/key-vault-cert.bicep' = {
 // M S I   R P   M O CK   I D E N T I T Y
 //
 
-module msiRPMockIdentity '../modules/key-vault-cert.bicep' = {
+module msiRPMockIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'msi-mock-identity'
   params: {
     location: location
