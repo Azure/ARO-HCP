@@ -174,12 +174,13 @@ func TestPipelineRun(t *testing.T) {
 				},
 			},
 		},
-		subsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
-			return "test", nil
-		},
 	}
 
-	err := pipeline.Run(context.Background(), &PipelineRunOptions{})
+	err := pipeline.Run(context.Background(), &PipelineRunOptions{
+		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
+			return "test", nil
+		},
+	})
 
 	assert.NilError(t, err)
 	assert.Equal(t, foundOutput, "hello\n")

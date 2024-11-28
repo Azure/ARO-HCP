@@ -39,18 +39,15 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 }
 
 type PipelineRunOptions struct {
-	DryRun bool
-	Step   string
-	Region string
-	Vars   config.Variables
+	DryRun                bool
+	Step                  string
+	Region                string
+	Vars                  config.Variables
+	SubsciptionLookupFunc subsciptionLookup
 }
 
 func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
-
-	if p.subsciptionLookupFunc == nil {
-		p.subsciptionLookupFunc = lookupSubscriptionID
-	}
 
 	// set working directory to the pipeline file directory for the
 	// duration of the execution so that all commands and file references
@@ -75,7 +72,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 
 	for _, rg := range p.ResourceGroups {
 		// prepare execution context
-		subscriptionID, err := p.subsciptionLookupFunc(ctx, rg.Subscription)
+		subscriptionID, err := options.SubsciptionLookupFunc(ctx, rg.Subscription)
 		if err != nil {
 			return fmt.Errorf("failed to lookup subscription ID for %q: %w", rg.Subscription, err)
 		}
