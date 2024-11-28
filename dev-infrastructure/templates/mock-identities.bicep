@@ -1,8 +1,8 @@
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('Name of the Key Vault Certificate Officer Managed Identity')
-param kvCertOfficerManagedIdentityName string
+@description('The resource ID of the managed identity that will be used for Key Vault operations')
+param aroDevopsMsiId string
 
 @description('The name of the key vault')
 param keyVaultName string
@@ -10,33 +10,21 @@ param keyVaultName string
 @description('Global resource group name')
 param globalResourceGroupName string = 'global'
 
-module scriptMsi '../modules/keyvault/identity-script-msi.bicep' = {
-  name: 'script-msi'
-  params: {
-    location: location
-    kvCertOfficerManagedIdentityName: kvCertOfficerManagedIdentityName
-    keyVaultName: keyVaultName
-  }
-}
-
 //
 // F I R S T   P A R T Y   I D E N T I T Y
 //
 
-module firstPartyIdentity '../modules/key-vault-cert.bicep' = {
+module firstPartyIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'first-party-identity'
   params: {
     location: location
-    keyVaultManagedIdentityId: scriptMsi.outputs.kvCertOfficerManagedIdentityId
+    keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
     certName: 'firstPartyCert'
     subjectName: 'CN=firstparty.hcp.osadev.cloud'
     issuerName: 'Self'
     dnsNames: ['firstparty.hcp.osadev.cloud']
   }
-  dependsOn: [
-    scriptMsi
-  ]
 }
 
 resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
@@ -66,11 +54,11 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
 // A R M   H E L P E R   I D E N T I T Y
 //
 
-module armHelperIdentity '../modules/key-vault-cert.bicep' = {
+module armHelperIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'arm-helper-identity'
   params: {
     location: location
-    keyVaultManagedIdentityId: scriptMsi.outputs.kvCertOfficerManagedIdentityId
+    keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
     certName: 'armHelperCert'
     subjectName: 'CN=armhelper.hcp.osadev.cloud'
@@ -78,20 +66,17 @@ module armHelperIdentity '../modules/key-vault-cert.bicep' = {
     issuerName: 'Self'
     validityInMonths: 1000
   }
-  dependsOn: [
-    scriptMsi
-  ]
 }
 
 //
 // M S I   R P   M O CK   I D E N T I T Y
 //
 
-module msiRPMockIdentity '../modules/key-vault-cert.bicep' = {
+module msiRPMockIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'msi-mock-identity'
   params: {
     location: location
-    keyVaultManagedIdentityId: scriptMsi.outputs.kvCertOfficerManagedIdentityId
+    keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
     certName: 'msiMockCert'
     subjectName: 'CN=msimock.hcp.osadev.cloud'
@@ -99,7 +84,4 @@ module msiRPMockIdentity '../modules/key-vault-cert.bicep' = {
     issuerName: 'Self'
     validityInMonths: 1000
   }
-  dependsOn: [
-    scriptMsi
-  ]
 }

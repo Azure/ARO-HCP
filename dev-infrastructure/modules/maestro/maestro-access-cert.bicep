@@ -37,7 +37,7 @@ param certificateAccessManagedIdentityPrincipalId string
 
 var clientAuthenticationName = '${clientName}.${certDomain}'
 
-module clientCertificate '../key-vault-cert.bicep' = {
+module clientCertificate '../keyvault/key-vault-cert.bicep' = {
   name: '${clientName}-client-cert'
   params: {
     keyVaultName: keyVaultName

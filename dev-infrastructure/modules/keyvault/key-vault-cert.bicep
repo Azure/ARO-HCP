@@ -2,9 +2,6 @@
 Creating certificates in Azure Key Vault is not supported by Bicep yet.
 This module leverages a deploymentscript to solve this for the time beeing.
 Proudly stolen from https://github.com/Azure/bicep/discussions/8457
-
-We might not need certificates for MQTT authentication altogether if
-Entra autentication can be leveraged: https://redhat-external.slack.com/archives/C03F6AA3HDH/p1713340078776669
 */
 
 param keyVaultName string
@@ -19,6 +16,15 @@ param force bool = false
 var boolstring = force == false ? '$false' : '$true'
 param validityInMonths int = 12
 
+module certificateOfficerAccess 'keyvault-secret-access.bicep' = {
+  name: 'kv-cert-officer-access-${keyVaultName}-${uniqueString(keyVaultManagedIdentityId)}'
+  params: {
+    keyVaultName: keyVaultName
+    roleName: 'Key Vault Certificates Officer'
+    managedIdentityPrincipalId: reference(keyVaultManagedIdentityId, '2023-01-31').principalId
+  }
+}
+
 resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: 'newCertwithRotationKV-${certName}'
   identity: {
@@ -32,7 +38,7 @@ resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01
   properties: {
     azPowerShellVersion: '12.0.0'
     arguments: ' -VaultName ${keyVaultName} -ValidityInMonths ${validityInMonths} -IssuerName ${issuerName} -CertName ${certName} -SubjectName ${subjectName} -DnsNames ${join(dnsNames,'_')} -Force ${boolstring}'
-    scriptContent: loadTextContent('../scripts/key-vault-cert.ps1')
+    scriptContent: loadTextContent('../../scripts/key-vault-cert.ps1')
     forceUpdateTag: now
     cleanupPreference: 'Always'
     retentionInterval: 'P1D'
