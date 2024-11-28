@@ -60,9 +60,10 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 resource tokenManagementRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
   name: guid(resourceGroup().id, 'token-creation-role')
   properties: {
+    roleName: 'ACR Manage Tokens'
+    type: 'customRole'
     assignableScopes: [
       subscription().id
-      resourceGroup().id
     ]
     description: 'This role allows the management of tokens in the ACR'
     permissions: [
@@ -77,6 +78,5 @@ resource tokenManagementRole 'Microsoft.Authorization/roleDefinitions@2022-04-01
         ]
       }
     ]
-    roleName: 'ACR Manage Tokens'
   }
 }
