@@ -90,7 +90,7 @@ func processPipelineForEV2(p *pipeline.Pipeline, referencedFiles map[string][]by
 		return nil, nil, err
 	}
 	processedFiles := make(map[string][]byte)
-	_, scopeBoundVars := EV2Mapping(vars, []string{})
+	_, scopeBoundBicepParamVars := EV2Mapping(vars, NewBicepParamPlaceholders(), []string{})
 	for _, rg := range processingPipeline.ResourceGroups {
 		for _, step := range rg.Steps {
 			// preprocess the parameters file with scopebinding variables
@@ -99,7 +99,7 @@ func processPipelineForEV2(p *pipeline.Pipeline, referencedFiles map[string][]by
 				if !ok {
 					return nil, nil, fmt.Errorf("parameter file %q not found", step.Parameters)
 				}
-				preprocessedBytes, err := config.PreprocessContent(paramFileContent, scopeBoundVars)
+				preprocessedBytes, err := config.PreprocessContent(paramFileContent, scopeBoundBicepParamVars)
 				if err != nil {
 					return nil, nil, err
 				}

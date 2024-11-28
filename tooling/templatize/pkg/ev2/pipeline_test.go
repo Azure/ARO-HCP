@@ -1,6 +1,7 @@
 package ev2
 
 import (
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -21,7 +22,15 @@ func TestProcessPipelineForEV2(t *testing.T) {
 		t.Errorf("failed to read new pipeline: %v", err)
 	}
 	files := make(map[string][]byte)
-	files["test.bicepparam"] = []byte("param regionRG = '{{ .regionRG }}'")
+	files["test.bicepparam"] = []byte(
+		strings.Join(
+			[]string{
+				"param regionRG = '{{ .regionRG }}'",
+				"param replicas = {{ .clusterService.replicas }}",
+			},
+			"\n",
+		),
+	)
 
 	newPipeline, newFiles, err := processPipelineForEV2(originalPipeline, files, vars)
 	if err != nil {

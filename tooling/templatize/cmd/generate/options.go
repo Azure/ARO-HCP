@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/ev2"
 )
 
 func DefaultGenerationOptions() *RawGenerationOptions {
@@ -28,7 +27,6 @@ func BindGenerationOptions(opts *RawGenerationOptions, cmd *cobra.Command) error
 	}
 	cmd.Flags().StringVar(&opts.Input, "input", opts.Input, "input file path")
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file path")
-	cmd.Flags().BoolVar(&opts.EV2Placeholders, "ev2-placeholders", opts.EV2Placeholders, "generate EV2 placeholders")
 
 	for _, flag := range []string{"config-file", "input", "output"} {
 		if err := cmd.MarkFlagFilename(flag); err != nil {
@@ -40,10 +38,9 @@ func BindGenerationOptions(opts *RawGenerationOptions, cmd *cobra.Command) error
 
 // RawGenerationOptions holds input values.
 type RawGenerationOptions struct {
-	RolloutOptions  *options.RawRolloutOptions
-	Input           string
-	Output          string
-	EV2Placeholders bool
+	RolloutOptions *options.RawRolloutOptions
+	Input          string
+	Output         string
 }
 
 // validatedGenerationOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -92,11 +89,6 @@ func (o *ValidatedGenerationOptions) Complete() (*GenerationOptions, error) {
 	completed, err := o.ValidatedRolloutOptions.Complete()
 	if err != nil {
 		return nil, err
-	}
-
-	if o.EV2Placeholders {
-		_, vars := ev2.EV2Mapping(completed.Config, []string{})
-		completed.Config = vars
 	}
 
 	inputFile := filepath.Base(o.Input)
