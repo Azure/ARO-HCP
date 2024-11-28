@@ -1,9 +1,11 @@
 $schema: config.schema.json
 defaults:
   region: {{ .ctx.region }}
-  # Resourcegroups
-  globalRG: global
   regionRG: hcp-underlay-{{ .ctx.regionShort }}
+
+  global:
+    rg: global-shared-resources
+    subscription: hcp-{{ .ctx.region }}
 
   # General AKS config
   kubernetesVersion: 1.30.6

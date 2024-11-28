@@ -30,7 +30,10 @@
       "private": false
     }
   },
-  "globalRG": "global",
+  "global": {
+    "rg": "global-shared-resources",
+    "subscription": "hcp-westus3"
+  },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
     "namespace": "hypershift"
