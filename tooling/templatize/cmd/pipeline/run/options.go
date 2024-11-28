@@ -97,9 +97,10 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		return err
 	}
 	return o.PipelineOptions.Pipeline.Run(ctx, &pipeline.PipelineRunOptions{
-		DryRun: o.DryRun,
-		Vars:   variables,
-		Region: rolloutOptions.Region,
-		Step:   o.PipelineOptions.Step,
+		DryRun:                o.DryRun,
+		Vars:                  variables,
+		Region:                rolloutOptions.Region,
+		Step:                  o.PipelineOptions.Step,
+		SubsciptionLookupFunc: pipeline.LookupSubscriptionID,
 	})
 }

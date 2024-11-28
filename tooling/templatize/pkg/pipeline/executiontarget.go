@@ -10,7 +10,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
 
-func lookupSubscriptionID(ctx context.Context, subscriptionName string) (string, error) {
+func LookupSubscriptionID(ctx context.Context, subscriptionName string) (string, error) {
 	// Create a new Azure identity client
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {

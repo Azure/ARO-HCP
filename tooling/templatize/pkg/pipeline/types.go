@@ -1,5 +1,9 @@
 package pipeline
 
+import "context"
+
+type subsciptionLookup func(context.Context, string) (string, error)
+
 type Pipeline struct {
 	pipelineFilePath string
 	ServiceGroup     string           `yaml:"serviceGroup"`
