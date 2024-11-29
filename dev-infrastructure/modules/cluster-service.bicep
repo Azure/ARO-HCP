@@ -152,7 +152,7 @@ resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@20
   }
 ]
 
-module acrManageTokenRole '../modules/acr-permissions.bicep' = [
+module acrManageTokenRole '../modules/acr/acr-permissions.bicep' = [
   for (_, i) in acrResourceGroupNames: if (acrResourceGroupNames[i] != '') {
     // temp hack for MSFT pipelines
     name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'manage-tokens')

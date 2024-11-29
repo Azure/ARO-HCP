@@ -1,5 +1,4 @@
 {
-  "acrName": "arohcpint",
   "aksName": "aro-hcp-aks",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aroint-int-public-oidc",
   "baseDnsZoneName": "aro-hcp.azure-test.net",
@@ -31,6 +30,8 @@
     }
   },
   "global": {
+    "manageTokenCustomRole": false,
+    "region": "uksouth",
     "rg": "b-gerdo-global-shared-resources",
     "subscription": "hcp-westus3"
   },
@@ -122,7 +123,6 @@
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
   "regionalDNSSubdomain": "westus3",
-  "serviceComponentAcrResourceGroups": "westus3-shared-resources",
   "serviceKeyVault": {
     "name": "arohcp-svc-int",
     "private": false,

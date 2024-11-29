@@ -8,4 +8,6 @@ configurations/image-sync.bicepparam
 configurations/dev-role-assignments.bicepparam
 configurations/cs-integ-msi.bicepparam
 configurations/output-region.bicepparam
+configurations/mock-identities.bicepparam
+configurations/global.bicepparam
 config.mk

@@ -52,8 +52,10 @@ resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
   }
 }
 
+import * as tmr from 'token-mgmt-role.bicep'
+
 resource tokenManagementRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = if (grantManageTokenAccess) {
-  name: guid(acrResourceGroupid, 'token-creation-role')
+  name: guid(tmr.tokenManagementRoleName)
 }
 
 resource acrContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantManageTokenAccess) {

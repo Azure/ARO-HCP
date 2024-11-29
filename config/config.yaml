@@ -4,8 +4,10 @@ defaults:
   regionRG: hcp-underlay-{{ .ctx.regionShort }}
 
   global:
-    rg: global-shared-resources
+    rg: global
     subscription: hcp-{{ .ctx.region }}
+    manageTokenCustomRole: true
+    region: westus3
 
   # General AKS config
   kubernetesVersion: 1.30.6
@@ -14,9 +16,6 @@ defaults:
   subnetPrefix: "10.128.8.0/21"
   podSubnetPrefix: "10.128.64.0/18"
   aksName: aro-hcp-aks
-
-  # ACR
-  serviceComponentAcrResourceGroups: global
 
   # Hypershift
   hypershift:
@@ -178,7 +177,6 @@ clouds:
           kvSoftDelete: false
         subscription: ARO Hosted Control Planes (EA Subscription 1)
       # Shared ACRs
-      acrName: arohcpdev
       svcAcrName: arohcpsvcdev
       ocpAcrName: arohcpocpdev
       # Shared Image Sync

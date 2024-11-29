@@ -83,7 +83,7 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
 // ACRs can be in different RGs or even subscriptions. ideally we should
 // be able to deal with ACR resource IDs as input instead of RG and ACR names
 
-module acrContributorRole '../modules/acr-permissions.bicep' = {
+module acrContributorRole '../modules/acr/acr-permissions.bicep' = {
   name: guid(imageSyncManagedIdentity, location, 'acr', 'readwrite')
   scope: resourceGroup(acrResourceGroup)
   params: {
@@ -93,7 +93,7 @@ module acrContributorRole '../modules/acr-permissions.bicep' = {
   }
 }
 
-module acrPullRole '../modules/acr-permissions.bicep' = {
+module acrPullRole '../modules/acr/acr-permissions.bicep' = {
   name: guid(imageSyncManagedIdentity, location, 'acr', 'pull')
   scope: resourceGroup(acrResourceGroup)
   params: {

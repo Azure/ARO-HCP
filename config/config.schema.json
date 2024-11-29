@@ -3,9 +3,6 @@
     "title": "Generated schema for Root",
     "type": "object",
     "properties": {
-      "acrName": {
-        "type": "string"
-      },
       "aksName": {
         "type": "string"
       },
@@ -138,11 +135,19 @@
           },
           "subscription": {
             "type": "string"
+          },
+          "manageTokenCustomRole": {
+            "type": "boolean"
+          },
+          "region": {
+            "type": "string"
           }
         },
         "required": [
           "rg",
-          "subscription"
+          "subscription",
+          "manageTokenCustomRole",
+          "region"
         ]
       },
       "hypershift": {
@@ -487,9 +492,6 @@
       "regionalDNSSubdomain": {
         "type": "string"
       },
-      "serviceComponentAcrResourceGroups": {
-        "type": "string"
-      },
       "serviceKeyVault": {
         "type": "object",
         "properties": {
@@ -592,7 +594,6 @@
     },
     "additionalProperties": false,
     "required": [
-      "acrName",
       "aksName",
       "aroDevopsMsiId",
       "baseDnsZoneName",
@@ -619,7 +620,6 @@
       "region",
       "regionRG",
       "regionalDNSSubdomain",
-      "serviceComponentAcrResourceGroups",
       "serviceKeyVault",
       "subnetPrefix",
       "svc",

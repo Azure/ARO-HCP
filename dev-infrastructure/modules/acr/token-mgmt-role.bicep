@@ -1,9 +1,12 @@
 targetScope = 'subscription'
 
+@export()
+var tokenManagementRoleName = 'token-mgmt-role'
+
 resource tokenManagementRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
-  name: guid('token-mgmt-role')
+  name: guid(tokenManagementRoleName)
   properties: {
-    roleName: 'ACR Manage Tokens'
+    roleName: 'ARO HCP ACR Token Management'
     type: 'customRole'
     assignableScopes: [
       subscription().id

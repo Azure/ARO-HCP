@@ -3,12 +3,6 @@
 @description('Globally unique name of the Azure Container Registry')
 param acrName string
 
-@description('Location of the registry.')
-param location string = resourceGroup().location
-
-@description('Service tier of the Azure Container Registry.')
-param acrSku string
-
 @description('List of quay repositories to cache in the Azure Container Registry.')
 param quayRepositoriesToCache array = []
 
@@ -22,24 +16,12 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
 
-module acr '../modules/acr/acr.bicep' = {
-  name: '${deployment().name}-acrName'
-  params: {
-    acrName: acrName
-    location: location
-    acrSku: acrSku
-  }
-}
-
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
   name: acrName
 }
 
 resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2023-01-01-preview' = [
   for repo in quayRepositoriesToCache: {
-    dependsOn: [
-      acr
-    ]
     name: repo.ruleName
     parent: acrResource
     identity: {
@@ -60,9 +42,6 @@ resource pullCredential 'Microsoft.ContainerRegistry/registries/credentialSets@2
 
 resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01-preview' = [
   for (repo, i) in quayRepositoriesToCache: {
-    dependsOn: [
-      acr
-    ]
     name: repo.ruleName
     parent: acrResource
     properties: {
@@ -75,9 +54,6 @@ resource cacheRule 'Microsoft.ContainerRegistry/registries/cacheRules@2023-01-01
 
 resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
   for (repo, i) in quayRepositoriesToCache: {
-    dependsOn: [
-      acr
-    ]
     scope: keyVault
     name: guid(keyVault.id, 'quayPullSecrets', 'read', repo.ruleName, acrName)
     properties: {
@@ -93,11 +69,8 @@ resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04
 
 resource purgeCached 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' = [
   for purgeJob in purgeJobs: {
-    dependsOn: [
-      acr
-    ]
     name: '${purgeJob.name}'
-    location: location
+    location: resourceGroup().location
     parent: acrResource
     properties: {
       agentConfiguration: {

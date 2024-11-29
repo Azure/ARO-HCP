@@ -56,8 +56,3 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
   }
 }
-
-module tokenMgmtRole 'token-mgmt-role.bicep' = {
-  name: 'acr-token-mgmt-role'
-  scope: subscription()
-}

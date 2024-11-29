@@ -1,5 +1,4 @@
 {
-  "acrName": "arohcpdev",
   "aksName": "aro-hcp-aks",
   "aroDevopsMsiId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops",
   "baseDnsZoneName": "hcp.osadev.cloud",
@@ -31,7 +30,9 @@
     }
   },
   "global": {
-    "rg": "global-shared-resources",
+    "manageTokenCustomRole": true,
+    "region": "westus3",
+    "rg": "global",
     "subscription": "hcp-westus3"
   },
   "hypershift": {
@@ -122,7 +123,6 @@
   "region": "westus3",
   "regionRG": "hcp-underlay-dev",
   "regionalDNSSubdomain": "westus3",
-  "serviceComponentAcrResourceGroups": "global",
   "serviceKeyVault": {
     "name": "aro-hcp-dev-svc-kv",
     "private": false,
