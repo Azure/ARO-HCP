@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"os"
 
 	"gopkg.in/yaml.v2"
@@ -10,12 +11,15 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
+var defaultRgName = "hcp-templatize"
+
 func shouldRunE2E() bool {
 	return os.Getenv("RUN_TEMPLATIZE_E2E") == "true"
 }
 
 type E2E interface {
 	SetConfig(updates config.Variables)
+	UseRandomRG()
 	AddStep(step pipeline.Step)
 	SetOSArgs()
 	Persist() error
@@ -29,6 +33,7 @@ type e2eImpl struct {
 	paramFile string
 	schema    string
 	tmpdir    string
+	rgName    string
 }
 
 var _ E2E = &e2eImpl{}
@@ -42,7 +47,7 @@ func newE2E(tmpdir string) e2eImpl {
 			"defaults": config.Variables{
 				"region":       "westus3",
 				"subscription": "ARO Hosted Control Planes (EA Subscription 1)",
-				"rg":           "hcp-templatize",
+				"rg":           defaultRgName,
 			},
 			"clouds": config.Variables{
 				"public": config.Variables{
@@ -65,10 +70,23 @@ func newE2E(tmpdir string) e2eImpl {
 				},
 			},
 		},
+		rgName: defaultRgName,
 	}
 
 	imp.SetOSArgs()
 	return imp
+}
+
+func (e *e2eImpl) UseRandomRG() {
+
+	chars := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+	rg := "templatize-e2e-"
+
+	for i := 0; i < 10; i++ {
+		rg += string(chars[rand.IntN(len(chars))])
+	}
+	e.rgName = rg
+	e.SetConfig(config.Variables{"defaults": config.Variables{"rg": rg}})
 }
 
 func (e *e2eImpl) SetOSArgs() {

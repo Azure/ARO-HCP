@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -9,6 +10,9 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	dns "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 func persistAndRun(t *testing.T, e2eImpl E2E) {
@@ -90,6 +94,8 @@ func TestE2EArmDeploy(t *testing.T) {
 		Parameters: "test.bicepparm",
 	})
 
+	e2eImpl.UseRandomRG()
+
 	e2eImpl.bicepFile = `
 param zoneName string
 resource symbolicname 'Microsoft.Network/dnsZones@2018-05-01' = {
@@ -102,5 +108,37 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 `
 
 	persistAndRun(t, &e2eImpl)
-	// Todo: Get created DNS zone
+
+	// Todo move to e2e module, if needed more than once
+	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+	assert.NilError(t, err)
+
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	assert.NilError(t, err)
+
+	rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
+	assert.NilError(t, err)
+
+	existence, err := rgClient.CheckExistence(context.Background(), e2eImpl.rgName, nil)
+	assert.NilError(t, err)
+	assert.Assert(t, existence.Success)
+
+	zonesClient, err := dns.NewZonesClient(subsriptionID, cred, nil)
+	assert.NilError(t, err)
+
+	zoneResp, err := zonesClient.Get(context.Background(), e2eImpl.rgName, "e2etestarmdeploy.foo.bar.example.com", nil)
+	assert.NilError(t, err)
+	assert.Equal(t, *zoneResp.Name, "e2etestarmdeploy.foo.bar.example.com")
+
+	delResponse, err := zonesClient.BeginDelete(context.Background(), e2eImpl.rgName, "e2etestarmdeploy.foo.bar.example.com", nil)
+	assert.NilError(t, err)
+
+	_, err = delResponse.PollUntilDone(context.Background(), nil)
+	assert.NilError(t, err)
+
+	rgDelResponse, err := rgClient.BeginDelete(context.Background(), e2eImpl.rgName, nil)
+	assert.NilError(t, err)
+
+	_, err = rgDelResponse.PollUntilDone(context.Background(), nil)
+	assert.NilError(t, err)
 }
