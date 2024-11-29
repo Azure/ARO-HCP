@@ -86,9 +86,21 @@ func TestE2EArmDeploy(t *testing.T) {
 	e2eImpl.AddStep(pipeline.Step{
 		Name:       "test",
 		Action:     "ARM",
-		Template:   "test.json",
-		Parameters: "test.parameters.json",
+		Template:   "test.bicep",
+		Parameters: "test.bicepparm",
 	})
 
+	e2eImpl.bicepFile = `
+param zoneName string
+resource symbolicname 'Microsoft.Network/dnsZones@2018-05-01' = {
+  location: 'global'
+  name: zoneName
+}`
+	e2eImpl.paramFile = `
+using 'test.bicep'
+param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
+`
+
 	persistAndRun(t, &e2eImpl)
+	// Todo: Get created DNS zone
 }

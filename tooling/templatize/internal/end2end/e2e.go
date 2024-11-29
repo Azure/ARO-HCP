@@ -22,11 +22,13 @@ type E2E interface {
 }
 
 type e2eImpl struct {
-	config   config.Variables
-	makefile string
-	pipeline pipeline.Pipeline
-	schema   string
-	tmpdir   string
+	config    config.Variables
+	makefile  string
+	pipeline  pipeline.Pipeline
+	bicepFile string
+	paramFile string
+	schema    string
+	tmpdir    string
 }
 
 var _ E2E = &e2eImpl{}
@@ -75,6 +77,7 @@ func (e *e2eImpl) SetOSArgs() {
 		"--pipeline-file", e.tmpdir + "/pipeline.yaml",
 		"--config-file", e.tmpdir + "/config.yaml",
 		"--deploy-env", "dev",
+		"--region", "westus3",
 	}
 }
 
@@ -91,6 +94,18 @@ func (e *e2eImpl) SetConfig(updates config.Variables) {
 }
 
 func (e *e2eImpl) Persist() error {
+	if e.bicepFile != "" && e.paramFile != "" {
+		err := os.WriteFile(e.tmpdir+"/test.bicep", []byte(e.bicepFile), 0644)
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(e.tmpdir+"/test.bicepparm", []byte(e.paramFile), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
 	if e.makefile != "" {
 		err := os.WriteFile(e.tmpdir+"/Makefile", []byte(e.makefile), 0644)
 		if err != nil {
