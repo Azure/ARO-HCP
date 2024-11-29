@@ -10,8 +10,9 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	dns "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
@@ -123,7 +124,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	assert.NilError(t, err)
 	assert.Assert(t, existence.Success)
 
-	zonesClient, err := dns.NewZonesClient(subsriptionID, cred, nil)
+	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)
 	assert.NilError(t, err)
 
 	zoneResp, err := zonesClient.Get(context.Background(), e2eImpl.rgName, "e2etestarmdeploy.foo.bar.example.com", nil)
