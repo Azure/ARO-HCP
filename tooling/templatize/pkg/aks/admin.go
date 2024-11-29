@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -92,6 +93,11 @@ func CheckClusterAdminPermissions(ctx context.Context, kubeconfigPath string) er
 }
 
 func getCurrentUserObjectID(ctx context.Context) (string, error) {
+
+	if os.Getenv("PRINCIPAL_ID") != "" {
+		return os.Getenv("PRINCIPAL_ID"), nil
+	}
+
 	// Create a Graph client using Azure Credentials
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {

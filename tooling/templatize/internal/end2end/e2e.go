@@ -1,10 +1,12 @@
 package testutil
 
 import (
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
@@ -13,61 +15,80 @@ func shouldRunE2E() bool {
 }
 
 type E2E interface {
-	Pipeline(step pipeline.Step, aksName string) error
+	SetConfig(updates config.Variables)
+	AddStep(step pipeline.Step)
+	SetOSArgs()
 	Persist() error
 }
 
 type e2eImpl struct {
-	config   string
+	config   config.Variables
 	makefile string
-	pipeline string
+	pipeline pipeline.Pipeline
 	schema   string
 	tmpdir   string
 }
 
+var _ E2E = &e2eImpl{}
+
 func newE2E(tmpdir string) e2eImpl {
-	return e2eImpl{
+	imp := e2eImpl{
 		tmpdir: tmpdir,
 		schema: `{"type": "object"}`,
-		config: `
-$schema: schema.json
-defaults:
-    region: {{ .ctx.region }}
-    subscription: ARO Hosted Control Planes (EA Subscription 1)
-    rg: hcp-templatize
-    test_env: test_env
-clouds:
-    public:
-        defaults:
-        environments:
-            dev:
-                defaults:
-`}
-}
-
-func (e *e2eImpl) SetPipeline(step pipeline.Step, aksName string) error {
-	p := pipeline.Pipeline{
-		ServiceGroup: "Microsoft.Azure.ARO.Test",
-		RolloutName:  "Test Rollout",
-		ResourceGroups: []*pipeline.ResourceGroup{
-			{
-				Name:         "{{ .rg }}",
-				Subscription: "{{ .subscription }}",
-				Steps: []*pipeline.Step{
-					&step,
+		config: config.Variables{
+			"$schema": "schema.json",
+			"defaults": config.Variables{
+				"region":       "westus3",
+				"subscription": "ARO Hosted Control Planes (EA Subscription 1)",
+				"rg":           "hcp-templatize",
+				"test_env":     "test_env",
+			},
+			"clouds": config.Variables{
+				"public": config.Variables{
+					"defaults": config.Variables{},
+					"environments": config.Variables{
+						"dev": config.Variables{
+							"defaults": config.Variables{},
+						},
+					},
+				},
+			},
+		},
+		pipeline: pipeline.Pipeline{
+			ServiceGroup: "Microsoft.Azure.ARO.Test",
+			RolloutName:  "Test Rollout",
+			ResourceGroups: []*pipeline.ResourceGroup{
+				{
+					Name:         "{{ .rg }}",
+					Subscription: "{{ .subscription }}",
 				},
 			},
 		},
 	}
-	if aksName != "" {
-		p.ResourceGroups[0].AKSCluster = aksName
+
+	imp.SetOSArgs()
+	return imp
+}
+
+func (e *e2eImpl) SetOSArgs() {
+	os.Args = []string{"test",
+		"--cloud", "public",
+		"--pipeline-file", e.tmpdir + "/pipeline.yaml",
+		"--config-file", e.tmpdir + "/config.yaml",
+		"--deploy-env", "dev",
 	}
-	out, err := yaml.Marshal(p)
-	if err != nil {
-		return err
-	}
-	e.pipeline = string(out)
-	return nil
+}
+
+func (e *e2eImpl) SetAKSName(aksName string) {
+	e.pipeline.ResourceGroups[0].AKSCluster = aksName
+}
+
+func (e *e2eImpl) AddStep(step pipeline.Step) {
+	e.pipeline.ResourceGroups[0].Steps = append(e.pipeline.ResourceGroups[0].Steps, &step)
+}
+
+func (e *e2eImpl) SetConfig(updates config.Variables) {
+	config.MergeVariables(e.config, updates)
 }
 
 func (e *e2eImpl) Persist() error {
@@ -77,13 +98,25 @@ func (e *e2eImpl) Persist() error {
 			return err
 		}
 	}
-	err := os.WriteFile(e.tmpdir+"/config.yaml", []byte(e.config), 0644)
+
+	configBytes, err := yaml.Marshal(e.config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	err = os.WriteFile(e.tmpdir+"/config.yaml", configBytes, 0644)
 	if err != nil {
 		return err
 	}
+
 	err = os.WriteFile(e.tmpdir+"/schema.json", []byte(e.schema), 0644)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(e.tmpdir+"/pipeline.yaml", []byte(e.pipeline), 0644)
+
+	pipelineBytes, err := yaml.Marshal(e.pipeline)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pipeline: %w", err)
+	}
+	return os.WriteFile(e.tmpdir+"/pipeline.yaml", []byte(pipelineBytes), 0644)
 }

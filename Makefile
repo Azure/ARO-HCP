@@ -15,7 +15,7 @@ all: test lint
 # There is currently no convenient way to run tests against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 test:
-	RUN_TEMPLATIZE_E2E=true go list -f '{{.Dir}}/...' -m | xargs go test -tags=$(GOTAGS) -cover
+	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -tags=$(GOTAGS) -cover
 .PHONY: test
 
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
