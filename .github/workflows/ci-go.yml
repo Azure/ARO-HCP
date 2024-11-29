@@ -41,8 +41,8 @@ jobs:
           check-latest: true
 
       - name: 'Test'
-        run:  PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
-          
+        run: PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
+
   lint:
     permissions:
       contents: 'read'
