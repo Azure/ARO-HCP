@@ -76,13 +76,13 @@ func InterfaceToVariables(i interface{}) (Variables, bool) {
 // Merges variables, returns merged variables
 // However the return value is only used for recursive updates on the map
 // The actual merged variables are updated in the base map
-func mergeVariables(base, override Variables) Variables {
+func MergeVariables(base, override Variables) Variables {
 	for k, newValue := range override {
 		if baseValue, exists := base[k]; exists {
 			srcMap, srcMapOk := InterfaceToVariables(newValue)
 			dstMap, dstMapOk := InterfaceToVariables(baseValue)
 			if srcMapOk && dstMapOk {
-				newValue = mergeVariables(dstMap, srcMap)
+				newValue = MergeVariables(dstMap, srcMap)
 			}
 		}
 		base[k] = newValue
@@ -158,7 +158,7 @@ func (cp *configProviderImpl) GetVariables(cloud, deployEnv, region string, conf
 	if err != nil {
 		return nil, err
 	}
-	mergeVariables(variables, regionOverrides)
+	MergeVariables(variables, regionOverrides)
 
 	// validate schema
 	err = cp.validateSchema(variables)
@@ -198,9 +198,9 @@ func (cp *configProviderImpl) GetDeployEnvVariables(cloud, deployEnv string, con
 	}
 
 	variables := Variables{}
-	mergeVariables(variables, config.GetDefaults())
-	mergeVariables(variables, config.GetCloudOverrides(cloud))
-	mergeVariables(variables, config.GetDeployEnvOverrides(cloud, deployEnv))
+	MergeVariables(variables, config.GetDefaults())
+	MergeVariables(variables, config.GetCloudOverrides(cloud))
+	MergeVariables(variables, config.GetDeployEnvOverrides(cloud, deployEnv))
 
 	cp.schema = config.GetSchema()
 

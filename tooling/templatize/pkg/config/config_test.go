@@ -151,7 +151,7 @@ func TestMergeVariable(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := mergeVariables(tc.base, tc.override)
+			result := MergeVariables(tc.base, tc.override)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
