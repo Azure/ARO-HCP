@@ -8,6 +8,8 @@ defaults:
   global:
     rg: b-gerdo-global-shared-resources
     subscription: hcp-{{ .ctx.region }}
+    manageTokenCustomRole: false
+    region: uksouth
 
   # General AKS config
   kubernetesVersion: 1.30.6
@@ -16,9 +18,6 @@ defaults:
   subnetPrefix: "10.128.8.0/21"
   podSubnetPrefix: "10.128.64.0/18"
   aksName: aro-hcp-aks
-
-  # ACR
-  serviceComponentAcrResourceGroups: '{{ .ctx.region }}-shared-resources'
 
   # Hypershift
   hypershift:
@@ -70,7 +69,7 @@ defaults:
 
   # Cluster Service
   clusterService:
-    #acrRG: '{{ .ctx.region }}-shared-resources'
+    #acrRG: 'b-gerdo-global-shared-resources'
     acrRG: ''
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
@@ -167,7 +166,6 @@ clouds:
           regionalDNSSubdomain: '{{ .ctx.region }}'
 
           # ACR
-          acrName: arohcpint
           svcAcrName: arohcpsvcint
           ocpAcrName: arohcpocpint
 

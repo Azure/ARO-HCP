@@ -2,8 +2,6 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
-# deploying the global resources does not belong into this pipeline
-# this is just for testing purposes and deserves its own pipeline
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
   aksCluster: {{ .aksName }}
@@ -28,35 +26,12 @@ resourceGroups:
       configRef: monitoring.grafanaName
     dependsOn:
     - svc
+# deploying the global resources does not belong into this pipeline
+# this is just for testing purposes and deserves its own pipeline
 - name: {{ .global.rg }}
   subscription: {{ .global.subscription }}
   steps:
   - name: acr-ocp
     action: ARM
-    template: templates/dev-acr.bicep
-    parameters: configurations/acr-ocp.tmpl.bicepparam
-
-#
-#   A T T E M P T   1
-#
-# failed: because i added a new element under `resourceGroups` at the beginning of the list
-# since the ServiceResourceGroupDefinition are named by index, EV2 rightfully refuses to deploy
-# to a different resource group than before
-#
-# mitigation: move the global RG entry to the end of the list
-# long term mitigation: we might want to name the ServiceResourceGroupDefinition differently so ordering
-# does not matter
-#
-##[error]Failed to register artifacts: Exception calling "UploadArtifacts" with "8" argument(s):
-# Warnings encountered when registering artifacts. Review them and use the '-Force' parameters
-# to override the warnings and register the artifacts. The service model being registered is
-# modifying information that could affect the resources already declared in the registered version.
-#
-# Warnings: ServiceResourceGroupDefinition: 'ResourceGroup0' Warnings: 'AzureResourceGroupName 'hcp-underlay-$location()-svc'
-# in the registered service model is being replaced with 'b-gerdo-global-shared-resources'. This could
-# result in existing resources being deployed to a different azure resource group the next
-# time they are built-out.'. , ServiceResourceDefinition 'svc' is being deleted. All ServiceResources
-# based on this definition will be removed from the service model, this will not affect what has
-# been deployed before., ServiceResourceDefinition 'enable-metrics' is being deleted. All ServiceResources
-# based on this definition will be removed from the service model, this will not affect what has been deployed before."
-#
+    template: templates/global.bicep
+    parameters: configurations/global.tmpl.bicepparam

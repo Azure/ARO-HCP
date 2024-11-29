@@ -378,7 +378,27 @@ global.rg:
 	fi
 .PHONY: global.rg
 
-acr-svc: global.rg
+global: global.rg
+	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr
+	az deployment group create \
+		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/global.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/global.bicepparam
+
+global.what-if: global.rg
+	az deployment group what-if \
+		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/global.bicep \
+		--parameters \
+			configurations/global.bicepparam
+		--parameters \
+			location=westus3
+
+acr-svc: global
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
@@ -398,7 +418,7 @@ acr-svc.what-if: global.rg
 			configurations/acr-svc.bicepparam
 .PHONY: acr-svc.what-if
 
-acr-ocp: global.rg
+acr-ocp: global
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
@@ -504,7 +524,7 @@ operator-roles.what-if:
 # Common
 #
 
-what-if: acr-svc.what-if acr-ocp.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if operator-roles.what-if
+what-if: global.what-if acr-svc.what-if acr-ocp.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if operator-roles.what-if
 .PHONY: what-if
 
 infra: region svc.init mgmt.init
