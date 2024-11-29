@@ -11,6 +11,17 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
+func persistAndRun(t *testing.T, e2eImpl E2E) {
+	err := e2eImpl.Persist()
+	assert.NilError(t, err)
+
+	cmd, err := run.NewCommand()
+	assert.NilError(t, err)
+
+	err = cmd.Execute()
+	assert.NilError(t, err)
+}
+
 func TestE2EMake(t *testing.T) {
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
@@ -31,23 +42,17 @@ func TestE2EMake(t *testing.T) {
 		},
 	})
 
+	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"test_env": "test_env"}})
+
 	e2eImpl.makefile = `
 test:
 	echo ${TEST_ENV} > env.txt
 `
-	err := e2eImpl.Persist()
-	assert.NilError(t, err)
+	persistAndRun(t, &e2eImpl)
 
-	cmd, err := run.NewCommand()
-
+	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NilError(t, err)
-
-	err = cmd.Execute()
-	assert.NilError(t, err)
-
-	fno, err := os.Stat(tmpDir + "/env.txt")
-	assert.NilError(t, err)
-	assert.Equal(t, fno.Size(), int64(9))
+	assert.Equal(t, string(io), "test_env\n")
 }
 
 func TestE2EKubernetes(t *testing.T) {
@@ -67,16 +72,23 @@ func TestE2EKubernetes(t *testing.T) {
 
 	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"rg": "hcp-underlay-dev-svc"}})
 
-	err := e2eImpl.Persist()
-	assert.NilError(t, err)
+	persistAndRun(t, &e2eImpl)
+}
 
-	cmd, err := run.NewCommand()
+func TestE2EArmDeploy(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
 
-	assert.NilError(t, err)
+	tmpDir := t.TempDir()
 
-	e2eImpl.SetOSArgs()
+	e2eImpl := newE2E(tmpDir)
+	e2eImpl.AddStep(pipeline.Step{
+		Name:       "test",
+		Action:     "ARM",
+		Template:   "test.json",
+		Parameters: "test.parameters.json",
+	})
 
-	err = cmd.Execute()
-	assert.NilError(t, err)
-
+	persistAndRun(t, &e2eImpl)
 }

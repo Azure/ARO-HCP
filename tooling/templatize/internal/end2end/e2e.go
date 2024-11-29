@@ -41,7 +41,6 @@ func newE2E(tmpdir string) e2eImpl {
 				"region":       "westus3",
 				"subscription": "ARO Hosted Control Planes (EA Subscription 1)",
 				"rg":           "hcp-templatize",
-				"test_env":     "test_env",
 			},
 			"clouds": config.Variables{
 				"public": config.Variables{
