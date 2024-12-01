@@ -6,8 +6,6 @@ param svcAcrSku string
 
 param location string
 
-param manageTokenRole bool
-
 module ocpAcr '../modules/acr/acr.bicep' = {
   name: '${deployment().name}-${ocpAcrName}'
   params: {
@@ -24,9 +22,4 @@ module svcAcr '../modules/acr/acr.bicep' = {
     acrSku: svcAcrSku
     location: location
   }
-}
-
-module tokenMgmtRole '../modules/acr/token-mgmt-role.bicep' = if (manageTokenRole) {
-  name: 'acr-token-mgmt-role'
-  scope: subscription()
 }
