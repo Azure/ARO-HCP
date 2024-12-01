@@ -8,7 +8,7 @@ defaults:
   global:
     rg: b-gerdo-global-shared-resources
     subscription: hcp-{{ .ctx.region }}
-    manageTokenCustomRole: false
+    manageTokenCustomRole: true
     region: uksouth
 
   # General AKS config
