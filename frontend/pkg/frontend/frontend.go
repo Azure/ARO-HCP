@@ -759,6 +759,15 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		"state":          string(subscription.State),
 	})
 
+	// Clean up resources if subscription is deleted.
+	if subscription.State == arm.SubscriptionStateDeleted {
+		cloudError := f.DeleteAllResources(ctx, subscriptionID)
+		if cloudError != nil {
+			arm.WriteCloudError(writer, cloudError)
+			return
+		}
+	}
+
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
