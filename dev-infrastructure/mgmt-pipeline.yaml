@@ -1,6 +1,13 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Management Cluster Rollout
 resourceGroups:
+- name: {{ .svc.rg }}
+  subscription: {{ .svc.subscription }}
+  steps:
+  - name: regionOutput
+    action: ARM
+    template: templates/outputs/region.bicep
+    parameters: configuration/outputs/region.tmpl.bicepparam
 - name: {{ .mgmt.rg }}
   subscription: {{ .mgmt.subscription }}
   aksCluster: {{ .aksName }}
@@ -9,6 +16,10 @@ resourceGroups:
     action: ARM
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
+    inputs:
+    - name: clusterServiceMIResourceId
+      step: regionOutput
+      output: cs.msi.resourceID
   - name: enable-metrics
     action: Shell
     command: ["scripts/enable-aks-metrics.sh"]
