@@ -759,7 +759,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		"state":          string(subscription.State),
 	})
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusCreated, subscription)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, subscription)
 	if err != nil {
 		f.logger.Error(err.Error())
 	}
