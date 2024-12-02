@@ -70,6 +70,43 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 	return nil
 }
 
+func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) *arm.CloudError {
+	prefix, err := arm.ParseResourceID("/subscriptions/" + subscriptionID)
+	if err != nil {
+		f.logger.Error(err.Error())
+		return arm.NewInternalServerError()
+	}
+
+	dbIterator := f.dbClient.ListResourceDocs(ctx, prefix, -1, nil)
+
+	// Start a deletion operation for all clusters under the subscription.
+	// Cluster Service will delete all node pools belonging to these clusters
+	// so we don't need to explicitly delete node pools here.
+	for item := range dbIterator.Items(ctx) {
+		var resourceDoc *database.ResourceDocument
+
+		err = json.Unmarshal(item, &resourceDoc)
+		if err != nil {
+			f.logger.Error(err.Error())
+			return arm.NewInternalServerError()
+		}
+
+		if !strings.EqualFold(resourceDoc.Key.ResourceType.String(), api.ClusterResourceType.String()) {
+			continue
+		}
+
+		// Allow this method to be idempotent.
+		if resourceDoc.ProvisioningState != arm.ProvisioningStateDeleting {
+			_, cloudError := f.DeleteResource(ctx, resourceDoc)
+			if cloudError != nil {
+				return cloudError
+			}
+		}
+	}
+
+	return nil
+}
+
 func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.ResourceDocument) (string, *arm.CloudError) {
 	const operationRequest = database.OperationRequestDelete
 	var err error
