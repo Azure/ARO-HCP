@@ -141,7 +141,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				Properties:       nil,
 			},
 			subDoc:             nil,
-			expectedStatusCode: http.StatusCreated,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:    "PUT Subscription - Doc Exists",
@@ -161,7 +161,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 					Properties:       nil,
 				},
 			},
-			expectedStatusCode: http.StatusCreated,
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:    "PUT Subscription - Invalid Subscription",
