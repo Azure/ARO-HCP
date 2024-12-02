@@ -29,6 +29,7 @@ type Step struct {
 	Parameters string   `yaml:"parameters,omitempty"`
 	DependsOn  []string `yaml:"dependsOn,omitempty"`
 	DryRun     DryRun   `yaml:"dryRun,omitempty"`
+	Inputs     []Input  `yaml:"inputs,omitempty"`
 	outputFunc outPutHandler
 }
 
@@ -41,4 +42,10 @@ type EnvVar struct {
 	Name      string `yaml:"name"`
 	ConfigRef string `yaml:"configRef,omitempty"`
 	Value     string `yaml:"value,omitempty"`
+}
+
+type Input struct {
+	Name   string `yaml:"name"`
+	Step   string `yaml:"step"`
+	Output string `yaml:"output"`
 }
