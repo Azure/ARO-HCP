@@ -94,13 +94,15 @@ type OperationDocument struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-func NewOperationDocument(request OperationRequest) *OperationDocument {
+func NewOperationDocument(request OperationRequest, externalID *arm.ResourceID, internalID ocm.InternalID) *OperationDocument {
 	now := time.Now().UTC()
 
 	doc := &OperationDocument{
 		BaseDocument:       newBaseDocument(),
 		PartitionKey:       operationsPartitionKey,
 		Request:            request,
+		ExternalID:         externalID,
+		InternalID:         internalID,
 		StartTime:          now,
 		LastTransitionTime: now,
 		Status:             arm.ProvisioningStateAccepted,

@@ -80,7 +80,7 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Request, resourceDoc *database.ResourceDocument, operationRequest database.OperationRequest) (*database.OperationDocument, error) {
 	ctx := request.Context()
 
-	operationDoc := database.NewOperationDocument(operationRequest)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.Key, resourceDoc.InternalID)
 
 	operationID, err := arm.ParseResourceID(path.Join("/",
 		"subscriptions", resourceDoc.Key.SubscriptionID,
@@ -93,8 +93,6 @@ func (f *Frontend) StartOperation(writer http.ResponseWriter, request *http.Requ
 
 	operationDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
 	operationDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	operationDoc.ExternalID = resourceDoc.Key
-	operationDoc.InternalID = resourceDoc.InternalID
 	operationDoc.OperationID = operationID
 	operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 
