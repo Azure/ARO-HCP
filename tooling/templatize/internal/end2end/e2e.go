@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 var defaultRgName = "hcp-templatize"
@@ -19,21 +22,28 @@ func shouldRunE2E() bool {
 
 type E2E interface {
 	SetConfig(updates config.Variables)
-	UseRandomRG()
+	UseRandomRG() func() error
+	AddBicepTemplate(template, templateFileName, paramfile, paramfileName string)
 	AddStep(step pipeline.Step)
 	SetOSArgs()
 	Persist() error
 }
 
+type bicepTemplate struct {
+	bicepFile     string
+	bicepFileName string
+	paramFile     string
+	paramFileName string
+}
+
 type e2eImpl struct {
-	config    config.Variables
-	makefile  string
-	pipeline  pipeline.Pipeline
-	bicepFile string
-	paramFile string
-	schema    string
-	tmpdir    string
-	rgName    string
+	config   config.Variables
+	makefile string
+	pipeline pipeline.Pipeline
+	biceps   []bicepTemplate
+	schema   string
+	tmpdir   string
+	rgName   string
 }
 
 var _ E2E = &e2eImpl{}
@@ -71,13 +81,14 @@ func newE2E(tmpdir string) e2eImpl {
 			},
 		},
 		rgName: defaultRgName,
+		biceps: []bicepTemplate{},
 	}
 
 	imp.SetOSArgs()
 	return imp
 }
 
-func (e *e2eImpl) UseRandomRG() {
+func (e *e2eImpl) UseRandomRG() func() error {
 
 	chars := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 	rg := "templatize-e2e-"
@@ -87,6 +98,30 @@ func (e *e2eImpl) UseRandomRG() {
 	}
 	e.rgName = rg
 	e.SetConfig(config.Variables{"defaults": config.Variables{"rg": rg}})
+
+	return func() error {
+		subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+		if err != nil {
+			return err
+		}
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return err
+		}
+		rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
+		if err != nil {
+			return err
+		}
+		rgDelResponse, err := rgClient.BeginDelete(context.Background(), e.rgName, nil)
+		if err != nil {
+			return err
+		}
+		_, err = rgDelResponse.PollUntilDone(context.Background(), nil)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func (e *e2eImpl) SetOSArgs() {
@@ -111,16 +146,28 @@ func (e *e2eImpl) SetConfig(updates config.Variables) {
 	config.MergeVariables(e.config, updates)
 }
 
-func (e *e2eImpl) Persist() error {
-	if e.bicepFile != "" && e.paramFile != "" {
-		err := os.WriteFile(e.tmpdir+"/test.bicep", []byte(e.bicepFile), 0644)
-		if err != nil {
-			return err
-		}
+func (e *e2eImpl) AddBicepTemplate(template, templateFileName, paramfile, paramfileName string) {
+	e.biceps = append(e.biceps, bicepTemplate{
+		bicepFile:     template,
+		bicepFileName: templateFileName,
+		paramFile:     paramfile,
+		paramFileName: paramfileName,
+	})
+}
 
-		err = os.WriteFile(e.tmpdir+"/test.bicepparm", []byte(e.paramFile), 0644)
-		if err != nil {
-			return err
+func (e *e2eImpl) Persist() error {
+	if len(e.biceps) != 0 {
+		for _, b := range e.biceps {
+
+			err := os.WriteFile(e.tmpdir+"/"+b.bicepFileName, []byte(b.bicepFile), 0644)
+			if err != nil {
+				return err
+			}
+
+			err = os.WriteFile(e.tmpdir+"/"+b.paramFileName, []byte(b.paramFile), 0644)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

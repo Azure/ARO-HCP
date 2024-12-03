@@ -294,3 +294,25 @@ func TestArmGetValue(t *testing.T) {
 	assert.Equal(t, value.Type, "String")
 	assert.NilError(t, err)
 }
+
+func TestAddInputVars(t *testing.T) {
+	mapOutput := map[string]output{}
+	mapOutput["step1"] = armOutput{
+		"output1": map[string]any{
+			"type":  "String",
+			"value": "value1",
+		},
+	}
+	s := &Step{
+		Inputs: []Input{
+			{
+				Name:   "input1",
+				Step:   "step1",
+				Output: "output1",
+			},
+		},
+	}
+
+	envVars := addInputVars(s.Inputs, mapOutput)
+	assert.DeepEqual(t, envVars, map[string]any{"input1": "value1"})
+}

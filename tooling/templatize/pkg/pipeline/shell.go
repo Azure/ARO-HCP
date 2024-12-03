@@ -3,7 +3,6 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"log"
 	"maps"
 	"os/exec"
 
@@ -53,7 +52,10 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 	envVars := utils.GetOsVariable()
 
 	maps.Copy(envVars, stepVars)
-	maps.Copy(envVars, s.addInputVars(inputs))
+
+	for k, v := range addInputVars(s.Inputs, inputs) {
+		envVars[k] = utils.AnyToString(v)
+	}
 	// execute the command
 	cmd, skipCommand := s.createCommand(ctx, options.DryRun, envVars)
 	if skipCommand {
@@ -74,20 +76,6 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 	s.outputFunc(string(output))
 
 	return nil
-}
-
-func (s *Step) addInputVars(inputs map[string]output) map[string]string {
-	envVars := make(map[string]string)
-	for _, i := range s.Inputs {
-		if v, found := inputs[i.Step]; found {
-			value, err := v.GetValue(i.Output)
-			if err != nil {
-				log.Fatal(err)
-			}
-			envVars[i.Name] = utils.AnyToString(value.Value)
-		}
-	}
-	return envVars
 }
 
 func (s *Step) mapStepVariables(vars config.Variables) (map[string]string, error) {

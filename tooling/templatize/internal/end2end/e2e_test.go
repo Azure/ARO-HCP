@@ -13,7 +13,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 func persistAndRun(t *testing.T, e2eImpl E2E) {
@@ -95,18 +94,20 @@ func TestE2EArmDeploy(t *testing.T) {
 		Parameters: "test.bicepparm",
 	})
 
-	e2eImpl.UseRandomRG()
+	cleanup := e2eImpl.UseRandomRG()
+	defer cleanup()
 
-	e2eImpl.bicepFile = `
+	bicepFile := `
 param zoneName string
 resource symbolicname 'Microsoft.Network/dnsZones@2018-05-01' = {
   location: 'global'
   name: zoneName
 }`
-	e2eImpl.paramFile = `
+	paramFile := `
 using 'test.bicep'
 param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 `
+	e2eImpl.AddBicepTemplate(bicepFile, "test.bicep", paramFile, "test.bicepparm")
 
 	persistAndRun(t, &e2eImpl)
 
@@ -117,31 +118,12 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	assert.NilError(t, err)
 
-	rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
-	assert.NilError(t, err)
-
-	existence, err := rgClient.CheckExistence(context.Background(), e2eImpl.rgName, nil)
-	assert.NilError(t, err)
-	assert.Assert(t, existence.Success)
-
 	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)
 	assert.NilError(t, err)
 
 	zoneResp, err := zonesClient.Get(context.Background(), e2eImpl.rgName, "e2etestarmdeploy.foo.bar.example.com", nil)
 	assert.NilError(t, err)
 	assert.Equal(t, *zoneResp.Name, "e2etestarmdeploy.foo.bar.example.com")
-
-	delResponse, err := zonesClient.BeginDelete(context.Background(), e2eImpl.rgName, "e2etestarmdeploy.foo.bar.example.com", nil)
-	assert.NilError(t, err)
-
-	_, err = delResponse.PollUntilDone(context.Background(), nil)
-	assert.NilError(t, err)
-
-	rgDelResponse, err := rgClient.BeginDelete(context.Background(), e2eImpl.rgName, nil)
-	assert.NilError(t, err)
-
-	_, err = rgDelResponse.PollUntilDone(context.Background(), nil)
-	assert.NilError(t, err)
 }
 
 func TestE2EShell(t *testing.T) {
@@ -195,34 +177,94 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 		},
 	})
 
-	e2eImpl.UseRandomRG()
+	cleanup := e2eImpl.UseRandomRG()
+	defer cleanup()
 
-	e2eImpl.bicepFile = `
+	bicepFile := `
 param zoneName string
 output zoneName string = zoneName`
-	e2eImpl.paramFile = `
+	paramFile := `
 using 'test.bicep'
 param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 `
-
+	e2eImpl.AddBicepTemplate(bicepFile, "test.bicep", paramFile, "test.bicepparm")
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NilError(t, err)
 	assert.Equal(t, string(io), "e2etestarmdeploy.foo.bar.example.com\n")
+}
 
-	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
-	assert.NilError(t, err)
+func TestE2EArmDeployWithOutputToArm(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
 
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	assert.NilError(t, err)
+	tmpDir := t.TempDir()
 
-	rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
-	assert.NilError(t, err)
+	e2eImpl := newE2E(tmpDir)
+	e2eImpl.AddStep(pipeline.Step{
+		Name:       "parameterA",
+		Action:     "ARM",
+		Template:   "testa.bicep",
+		Parameters: "testa.bicepparm",
+	})
 
-	rgDelResponse, err := rgClient.BeginDelete(context.Background(), e2eImpl.rgName, nil)
-	assert.NilError(t, err)
+	e2eImpl.AddStep(pipeline.Step{
+		Name:       "parameterB",
+		Action:     "ARM",
+		Template:   "testb.bicep",
+		Parameters: "testb.bicepparm",
+		Inputs: []pipeline.Input{
+			{
+				Name:   "parameterB",
+				Step:   "parameterA",
+				Output: "parameterA",
+				Type:   "string",
+			},
+		},
+	})
 
-	_, err = rgDelResponse.PollUntilDone(context.Background(), nil)
+	e2eImpl.AddStep(pipeline.Step{
+		Name:    "readInput",
+		Action:  "Shell",
+		Command: []string{"/bin/sh", "-c", "echo ${end} > env.txt"},
+		Inputs: []pipeline.Input{
+			{
+				Name:   "end",
+				Step:   "parameterB",
+				Output: "parameterC",
+				Type:   "string",
+			},
+		},
+	})
+
+	e2eImpl.AddBicepTemplate(`
+param parameterA string
+output parameterA string = parameterA`,
+		"testa.bicep",
+		`
+using 'testa.bicep'
+param parameterA = 'Hello Bicep'`,
+		"testa.bicepparm")
+
+	e2eImpl.AddBicepTemplate(`
+param parameterB string
+output parameterC string = parameterB
+`,
+		"testb.bicep",
+		`
+using 'testb.bicep'
+param parameterB = '{{ .parameterB }}'
+`,
+		"testb.bicepparm")
+
+	cleanup := e2eImpl.UseRandomRG()
+	defer cleanup()
+
+	persistAndRun(t, &e2eImpl)
+
+	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NilError(t, err)
+	assert.Equal(t, string(io), "Hello Bicep\n")
 }

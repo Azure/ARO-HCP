@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -177,7 +178,7 @@ func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget E
 		if a == nil {
 			return nil, fmt.Errorf("failed to create ARM client")
 		}
-		output, err := a.runArmStep(ctx, options, s.Name, executionTarget.GetResourceGroup(), s.Parameters, outPuts)
+		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), s, outPuts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
@@ -243,4 +244,18 @@ func (rg *ResourceGroup) Validate() error {
 		return fmt.Errorf("subscription is required")
 	}
 	return nil
+}
+
+func addInputVars(configuredInputs []Input, inputs map[string]output) map[string]any {
+	envVars := make(map[string]any)
+	for _, i := range configuredInputs {
+		if v, found := inputs[i.Step]; found {
+			value, err := v.GetValue(i.Output)
+			if err != nil {
+				log.Fatal(err)
+			}
+			envVars[i.Name] = value.Value
+		}
+	}
+	return envVars
 }

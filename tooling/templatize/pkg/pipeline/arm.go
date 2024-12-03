@@ -28,11 +28,11 @@ func newArmClient(subscriptionID, region string) *armClient {
 	}
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, deploymentName string, rgName string, paramterFile string, input map[string]output) (output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *Step, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARM(ctx, paramterFile, options.Vars)
+	deploymentProperties, err := transformBicepToARM(ctx, step.Parameters, options.Vars, addInputVars(step.Inputs, input))
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
@@ -56,18 +56,18 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 		return nil, fmt.Errorf("failed to create deployments client: %w", err)
 	}
 
-	poller, err := client.BeginCreateOrUpdate(ctx, rgName, deploymentName, deployment, nil)
+	poller, err := client.BeginCreateOrUpdate(ctx, rgName, step.Name, deployment, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
-	logger.Info("Deployment started", "deployment", deploymentName)
+	logger.Info("Deployment started", "deployment", step.Name)
 
 	// Wait for completion
 	resp, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to wait for deployment completion: %w", err)
 	}
-	logger.Info("Deployment finished successfully", "deployment", deploymentName, "responseId", *resp.ID)
+	logger.Info("Deployment finished successfully", "deployment", step.Name, "responseId", *resp.ID)
 
 	if resp.Properties.Outputs != nil {
 		if outputMap, ok := resp.Properties.Outputs.(map[string]any); ok {
