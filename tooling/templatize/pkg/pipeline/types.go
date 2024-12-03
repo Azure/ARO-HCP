@@ -1,6 +1,8 @@
 package pipeline
 
-import "context"
+import (
+	"context"
+)
 
 type subsciptionLookup func(context.Context, string) (string, error)
 
@@ -49,4 +51,5 @@ type Input struct {
 	Name   string `yaml:"name"`
 	Step   string `yaml:"step"`
 	Output string `yaml:"output"`
+	Type   string `yaml:"type,omitempty"`
 }

@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"log"
 	"maps"
 	"os/exec"
 
@@ -34,7 +35,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options *PipelineRunOptions) error {
+func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs map[string]output) error {
 	if s.outputFunc == nil {
 		s.outputFunc = func(output string) {
 			fmt.Println(output)
@@ -52,6 +53,7 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 	envVars := utils.GetOsVariable()
 
 	maps.Copy(envVars, stepVars)
+	maps.Copy(envVars, s.addInputVars(inputs))
 	// execute the command
 	cmd, skipCommand := s.createCommand(ctx, options.DryRun, envVars)
 	if skipCommand {
@@ -72,6 +74,20 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 	s.outputFunc(string(output))
 
 	return nil
+}
+
+func (s *Step) addInputVars(inputs map[string]output) map[string]string {
+	envVars := make(map[string]string)
+	for _, i := range s.Inputs {
+		if v, found := inputs[i.Step]; found {
+			value, err := v.GetValue(i.Output)
+			if err != nil {
+				log.Fatal(err)
+			}
+			envVars[i.Name] = utils.AnyToString(value.Value)
+		}
+	}
+	return envVars
 }
 
 func (s *Step) mapStepVariables(vars config.Variables) (map[string]string, error) {

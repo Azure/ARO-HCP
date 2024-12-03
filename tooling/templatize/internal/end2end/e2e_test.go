@@ -143,3 +143,86 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	_, err = rgDelResponse.PollUntilDone(context.Background(), nil)
 	assert.NilError(t, err)
 }
+
+func TestE2EShell(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl := newE2E(tmpDir)
+
+	e2eImpl.AddStep(pipeline.Step{
+		Name:    "readInput",
+		Action:  "Shell",
+		Command: "/usr/bin/echo ${PWD} > env.txt",
+	})
+
+	persistAndRun(t, &e2eImpl)
+
+	io, err := os.ReadFile(tmpDir + "/env.txt")
+	assert.NilError(t, err)
+	assert.Equal(t, string(io), tmpDir+"\n")
+}
+
+func TestE2EArmDeployWithOutput(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl := newE2E(tmpDir)
+	e2eImpl.AddStep(pipeline.Step{
+		Name:       "createZone",
+		Action:     "ARM",
+		Template:   "test.bicep",
+		Parameters: "test.bicepparm",
+	})
+
+	e2eImpl.AddStep(pipeline.Step{
+		Name:    "readInput",
+		Action:  "Shell",
+		Command: "echo ${zoneName} > env.txt",
+		Inputs: []pipeline.Input{
+			{
+				Name:   "zoneName",
+				Step:   "createZone",
+				Output: "zoneName",
+				Type:   "string",
+			},
+		},
+	})
+
+	e2eImpl.UseRandomRG()
+
+	e2eImpl.bicepFile = `
+param zoneName string
+output zoneName string = zoneName`
+	e2eImpl.paramFile = `
+using 'test.bicep'
+param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
+`
+
+	persistAndRun(t, &e2eImpl)
+
+	io, err := os.ReadFile(tmpDir + "/env.txt")
+	assert.NilError(t, err)
+	assert.Equal(t, string(io), "e2etestarmdeploy.foo.bar.example.com\n")
+
+	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+	assert.NilError(t, err)
+
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	assert.NilError(t, err)
+
+	rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
+	assert.NilError(t, err)
+
+	rgDelResponse, err := rgClient.BeginDelete(context.Background(), e2eImpl.rgName, nil)
+	assert.NilError(t, err)
+
+	_, err = rgDelResponse.PollUntilDone(context.Background(), nil)
+	assert.NilError(t, err)
+}

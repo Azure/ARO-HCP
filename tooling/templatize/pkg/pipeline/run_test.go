@@ -17,7 +17,7 @@ func TestStepRun(t *testing.T) {
 			fooundOutput = output
 		},
 	}
-	err := s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{})
+	_, err := s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{}, nil)
 	assert.NilError(t, err)
 	assert.Equal(t, fooundOutput, "hello\n")
 }
@@ -27,11 +27,11 @@ func TestStepRunSkip(t *testing.T) {
 		Name: "step",
 	}
 	// this should skip
-	err := s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{Step: "skip"})
+	_, err := s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{Step: "skip"}, nil)
 	assert.NilError(t, err)
 
 	// this should fail
-	err = s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{Step: "step"})
+	_, err = s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{Step: "step"}, nil)
 	assert.Error(t, err, "unsupported action type \"\"")
 }
 
@@ -279,4 +279,18 @@ func TestPipelineRun(t *testing.T) {
 
 	assert.NilError(t, err)
 	assert.Equal(t, foundOutput, "hello\n")
+}
+
+func TestArmGetValue(t *testing.T) {
+	output := armOutput{
+		"zoneName": map[string]any{
+			"type":  "String",
+			"value": "test",
+		},
+	}
+
+	value, err := output.GetValue("zoneName")
+	assert.Equal(t, value.Value, "test")
+	assert.Equal(t, value.Type, "String")
+	assert.NilError(t, err)
 }

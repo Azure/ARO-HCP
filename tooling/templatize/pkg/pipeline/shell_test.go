@@ -192,7 +192,7 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.step.runShellStep(context.Background(), "", &PipelineRunOptions{})
+			err := tc.step.runShellStep(context.Background(), "", &PipelineRunOptions{}, map[string]output{})
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
@@ -200,4 +200,27 @@ func TestRunShellStep(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAddInputVars(t *testing.T) {
+	mapOutput := map[string]output{}
+	mapOutput["step1"] = armOutput{
+		"output1": map[string]any{
+			"type":  "String",
+			"value": "value1",
+		},
+	}
+	s := &Step{
+		Name: "step2",
+		Inputs: []Input{
+			{
+				Name:   "input1",
+				Step:   "step1",
+				Output: "output1",
+			},
+		},
+	}
+
+	envVars := s.addInputVars(mapOutput)
+	assert.DeepEqual(t, envVars, map[string]string{"input1": "value1"})
 }
