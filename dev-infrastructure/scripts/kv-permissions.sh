@@ -22,3 +22,9 @@ az role assignment create \
     --assignee ${PRINCIPAL_ID} \
     --scope ${KV_RESOURCE_ID} \
     --only-show-errors
+
+az role assignment create \
+    --role "Key Vault Certificate User" \
+    --assignee ${PRINCIPAL_ID} \
+    --scope ${KV_RESOURCE_ID} \
+    --only-show-errors
