@@ -21,16 +21,17 @@ type ResourceGroup struct {
 type outPutHandler func(string)
 
 type Step struct {
-	Name       string   `yaml:"name"`
-	Action     string   `yaml:"action"`
-	Command    []string `yaml:"command,omitempty"`
-	Env        []EnvVar `yaml:"env,omitempty"`
-	Template   string   `yaml:"template,omitempty"`
-	Parameters string   `yaml:"parameters,omitempty"`
-	DependsOn  []string `yaml:"dependsOn,omitempty"`
-	DryRun     DryRun   `yaml:"dryRun,omitempty"`
-	Inputs     []Input  `yaml:"inputs,omitempty"`
-	outputFunc outPutHandler
+	Name            string   `yaml:"name"`
+	Action          string   `yaml:"action"`
+	Command         []string `yaml:"command,omitempty"`
+	Env             []EnvVar `yaml:"env,omitempty"`
+	Template        string   `yaml:"template,omitempty"`
+	Parameters      string   `yaml:"parameters,omitempty"`
+	DependsOn       []string `yaml:"dependsOn,omitempty"`
+	DryRun          DryRun   `yaml:"dryRun,omitempty"`
+	Inputs          []Input  `yaml:"inputs,omitempty"`
+	DeploymentLevel string   `yaml:"deploymentLevel,omitempty"`
+	outputFunc      outPutHandler
 }
 
 type DryRun struct {
