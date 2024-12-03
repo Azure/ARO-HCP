@@ -53,7 +53,7 @@ resource privateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' =
 
 resource privatEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = [
   for aksNodeSubnetId in subnetIds: {
-    name: '${serviceType}-${uniqueString(aksNodeSubnetId)}'
+    name: '${serviceType}-${uniqueString(aksNodeSubnetId, privateLinkServiceId)}'
     location: location
     properties: {
       privateLinkServiceConnections: [
