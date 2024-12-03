@@ -13,6 +13,6 @@ deploy:
 		--set imageTag=${HO_IMAGE_TAG} \
 		--set registryOverrides="quay.io/openshift-release-dev/ocp-v4.0-art-dev=${ARO_HCP_OCP_ACR}.azurecr.io/openshift/release\,quay.io/openshift-release-dev/ocp-release=${ARO_HCP_OCP_ACR}.azurecr.io/openshift/release-images\,registry.redhat.io/redhat=${ARO_HCP_OCP_ACR}.azurecr.io/redhat" \
 		--set additionalArgs="${HO_ADDITIONAL_INSTALL_ARG}" \
-		--set azureKeyVaultClientId=$${CSI_SECRET_STORE_CLIENT_ID} \
+		--set azureKeyVaultClientId=$${CSI_SECRET_STORE_CLIENT_ID}
 
 .PHONY: helm-chart deploy
