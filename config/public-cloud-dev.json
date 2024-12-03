@@ -20,9 +20,6 @@
     "private": false,
     "softDelete": false
   },
-  "externalDNS": {
-    "imageTag": "v0.14.2"
-  },
   "extraVars": {},
   "firstPartyAppClientId": "57e54810-3138-4f38-bd3b-29cb33f4c358",
   "frontend": {
@@ -36,8 +33,6 @@
   "globalRG": "global",
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
-    "externalDNSManagedIdentityName": "external-dns",
-    "externalDNSServiceAccountName": "external-dns",
     "namespace": "hypershift"
   },
   "hypershiftOperator": {
@@ -48,7 +43,7 @@
     "environmentName": "aro-hcp-image-sync",
     "imageRepo": "image-sync/component-sync",
     "imageTag": "latest",
-    "repositories": "registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
+    "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
     "rg": "hcp-underlay-westus3-imagesync-dev"
   },
   "istioVersion": "asm-1-22",

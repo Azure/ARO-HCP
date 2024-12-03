@@ -23,14 +23,6 @@ param maestroConsumerName = '{{ .maestro.consumerName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroCertDomain = '{{ .maestro.certDomain }}'
 
-// Hypershift
-param hypershiftNamespace = '{{ .hypershift.namespace }}'
-param externalDNSManagedIdentityName = '{{ .hypershift.externalDNSManagedIdentityName }}'
-param externalDNSServiceAccountName = '{{ .hypershift.externalDNSServiceAccountName }}'
-
-// DNS
-param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .baseDnsZoneName }}'
-
 // ACR
 param acrPullResourceGroups = ['{{ .serviceComponentAcrResourceGroups }}']
 

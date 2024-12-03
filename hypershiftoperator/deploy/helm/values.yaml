@@ -8,14 +8,3 @@ imageTag: ""
 registryOverrides: ""
 azureKeyVaultClientId: ""
 additionalArgs: ""
-
-external-dns:
-  image: ""
-  imageTag: ""
-  txtOwnerId: ""
-  domain: ""
-  credentials:
-    tenantId: ""
-    subscriptionId: ""
-    resourceGroup: ""
-    userAssignedIdentityID: ""
