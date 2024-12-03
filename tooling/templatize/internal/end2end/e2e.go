@@ -3,15 +3,17 @@ package testutil
 import (
 	"context"
 	"fmt"
-	"math/rand/v2"
 	"os"
+
+	"math/rand/v2"
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 var defaultRgName = "hcp-templatize"

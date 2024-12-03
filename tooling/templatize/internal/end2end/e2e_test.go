@@ -95,7 +95,10 @@ func TestE2EArmDeploy(t *testing.T) {
 	})
 
 	cleanup := e2eImpl.UseRandomRG()
-	defer cleanup()
+	defer func() {
+		err := cleanup()
+		assert.NilError(t, err)
+	}()
 
 	bicepFile := `
 param zoneName string
@@ -178,7 +181,10 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 	})
 
 	cleanup := e2eImpl.UseRandomRG()
-	defer cleanup()
+	defer func() {
+		err := cleanup()
+		assert.NilError(t, err)
+	}()
 
 	bicepFile := `
 param zoneName string
@@ -260,8 +266,10 @@ param parameterB = '{{ .parameterB }}'
 		"testb.bicepparm")
 
 	cleanup := e2eImpl.UseRandomRG()
-	defer cleanup()
-
+	defer func() {
+		err := cleanup()
+		assert.NilError(t, err)
+	}()
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
