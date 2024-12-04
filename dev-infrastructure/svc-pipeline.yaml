@@ -26,17 +26,3 @@ resourceGroups:
       configRef: monitoring.grafanaName
     dependsOn:
     - svc
-# deploying the global resources does not belong into this pipeline
-# this is just for testing purposes and deserves its own pipeline
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
-  steps:
-  - name: acr-ocp # rename to global
-    action: ARM
-    template: templates/global.bicep
-    parameters: configurations/global.tmpl.bicepparam
-  - name: global-roles
-    action: ARM
-    template: templates/global-roles.bicep
-    parameters: configurations/global-roles.tmpl.bicepparam
-    deploymentLevel: Subscription

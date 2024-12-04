@@ -5,6 +5,7 @@ REGIONAL_RESOURCEGROUP ?= {{ .regionRG }}
 SVC_KV_RESOURCEGROUP ?= {{ .serviceKeyVault.rg }}
 SVC_KV_NAME ?= {{ .serviceKeyVault.name }}
 GLOBAL_RESOURCEGROUP ?= {{ .global.rg }}
+GLOBAL_REGION ?= {{ .global.region }}
 IMAGE_SYNC_RESOURCEGROUP ?= {{ .imageSync.rg }}
 IMAGE_SYNC_ENVIRONMENT ?= {{ .imageSync.environmentName }}
 ARO_HCP_IMAGE_ACR ?= {{ .svcAcrName }}

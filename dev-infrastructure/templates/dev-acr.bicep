@@ -1,3 +1,9 @@
+/*
+Setup caching rules and purge jobs for Azure Container Registry.
+Used in DEV environment only.
+Depends on ACRs being provisioned beforehands by the global-acr.bicep template.
+*/
+
 @minLength(5)
 @maxLength(40)
 @description('Globally unique name of the Azure Container Registry')

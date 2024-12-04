@@ -6,9 +6,9 @@ defaults:
   regionRG: '{{ .ctx.region }}-shared-resources'
 
   global:
-    rg: b-gerdo-global-shared-resources
+    rg: global-shared-resources
     subscription: hcp-{{ .ctx.region }}
-    manageTokenCustomRole: true
+    manageTokenCustomRole: false
     region: uksouth
 
   # General AKS config
@@ -69,8 +69,7 @@ defaults:
 
   # Cluster Service
   clusterService:
-    #acrRG: 'b-gerdo-global-shared-resources'
-    acrRG: ''
+    acrRG: 'global-shared-resources'
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true

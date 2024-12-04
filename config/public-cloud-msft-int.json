@@ -4,7 +4,7 @@
   "baseDnsZoneName": "aro-hcp.azure-test.net",
   "baseDnsZoneRG": "westus3-shared-resources",
   "clusterService": {
-    "acrRG": "",
+    "acrRG": "global-shared-resources",
     "imageRepo": "app-sre/uhc-clusters-service",
     "imageTag": "ecd15ad",
     "postgres": {
@@ -32,7 +32,7 @@
   "global": {
     "manageTokenCustomRole": false,
     "region": "uksouth",
-    "rg": "b-gerdo-global-shared-resources",
+    "rg": "global-shared-resources",
     "subscription": "hcp-westus3"
   },
   "hypershift": {

@@ -70,7 +70,7 @@
             cd dev-infrastructure/
 
             # Manage ACR
-            make global acr-svc acr-ocp
+            make acr acr-svc-cfg acr-ocp-cfg
 
             # Setup operator roles for platform workload identity
             make operator-roles

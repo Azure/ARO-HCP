@@ -378,27 +378,40 @@ global.rg:
 	fi
 .PHONY: global.rg
 
-global: global.rg
+acr: global.rg
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/global.bicep \
+		--template-file templates/global-acr.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/global.bicepparam
+			configurations/global-acr.bicepparam
+	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-roles
+	az deployment sub create \
+		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-roles \
+		--template-file templates/global-roles.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/global-roles.bicepparam \
+		--location ${GLOBAL_REGION}
+.PHONY: acr
 
-global.what-if: global.rg
+acr.what-if: global.rg
 	az deployment group what-if \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--template-file templates/global.bicep \
 		--parameters \
 			configurations/global.bicepparam
+	az deployment sub what-if \
+		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-roles \
+		--template-file templates/global-roles.bicep \
 		--parameters \
-			location=westus3
+			configurations/global-roles.bicepparam
+.PHONY: acr.what-if
 
-acr-svc: global
+acr-svc-cfg: acr
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
@@ -407,18 +420,18 @@ acr-svc: global
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/acr-svc.bicepparam
-.PHONY: acr-svc
+.PHONY: acr-svc-cfg
 
-acr-svc.what-if: global.rg
+acr-svc-cfg.what-if: global.rg
 	az deployment group what-if \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--template-file templates/dev-acr.bicep \
 		--parameters \
 			configurations/acr-svc.bicepparam
-.PHONY: acr-svc.what-if
+.PHONY: acr-svc-cfg.what-if
 
-acr-ocp: global
+acr-ocp-cfg: acr
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
@@ -427,16 +440,16 @@ acr-ocp: global
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/acr-ocp.bicepparam
-.PHONY: acr-ocp
+.PHONY: acr-ocp-cfg
 
-acr-ocp.what-if: global.rg
+acr-ocp-cfg.what-if: global.rg
 	az deployment group what-if \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--template-file templates/dev-acr.bicep \
 		--parameters \
 			configurations/acr-ocp.bicepparam
-.PHONY: acr-ocp.what-if
+.PHONY: acr-ocp-cfg.what-if
 
 #
 # Postgres Authentication Helpers
@@ -524,7 +537,7 @@ operator-roles.what-if:
 # Common
 #
 
-what-if: global.what-if acr-svc.what-if acr-ocp.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if operator-roles.what-if
+what-if: acr.what-if acr-svc-cfg.what-if.what-if acr-ocp-cfg.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if operator-roles.what-if
 .PHONY: what-if
 
 infra: region svc.init mgmt.init

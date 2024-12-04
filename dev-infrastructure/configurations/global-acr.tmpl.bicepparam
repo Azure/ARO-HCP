@@ -1,4 +1,4 @@
-using '../templates/global.bicep'
+using '../templates/global-acr.bicep'
 
 param svcAcrName = '{{ .svcAcrName }}'
 param svcAcrSku = 'Premium'

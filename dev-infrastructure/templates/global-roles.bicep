@@ -1,3 +1,5 @@
+targetScope = 'subscription'
+
 @description('Defines if the ACR token management role should be created')
 param manageTokenRole bool
 

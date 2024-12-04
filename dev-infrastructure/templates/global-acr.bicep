@@ -1,3 +1,7 @@
+/*
+Sets up the global ACRs for SVC and OCP images.
+*/
+
 param ocpAcrName string
 param ocpAcrSku string
 
