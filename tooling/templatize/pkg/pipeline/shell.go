@@ -13,24 +13,25 @@ import (
 )
 
 func (s *Step) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
-	var cmd *exec.Cmd
+	var scriptCommand string = s.Command
 	if dryRun {
-		if s.DryRun.Command == nil && s.DryRun.EnvVars == nil {
+		if s.DryRun.Command == "" && s.DryRun.EnvVars == nil {
 			return nil, true
+		}
+		if s.DryRun.Command != "" {
+			scriptCommand = s.DryRun.Command
 		}
 		for _, e := range s.DryRun.EnvVars {
 			envVars[e.Name] = e.Value
 		}
-		if s.DryRun.Command != nil {
-			cmd = exec.CommandContext(ctx, s.DryRun.Command[0], s.DryRun.Command[1:]...)
-		}
 	}
-	if cmd == nil {
-		// if dry-run is not enabled, use the actual command or also if no dry-run command is defined
-		cmd = exec.CommandContext(ctx, s.Command[0], s.Command[1:]...)
-	}
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", buildBashScript(scriptCommand))
 	cmd.Env = append(cmd.Env, utils.MapToEnvVarArray(envVars)...)
 	return cmd, false
+}
+
+func buildBashScript(command string) string {
+	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
 func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options *PipelineRunOptions) error {
@@ -54,7 +55,7 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 	// execute the command
 	cmd, skipCommand := s.createCommand(ctx, options.DryRun, envVars)
 	if skipCommand {
-		logger.V(5).Info("Skipping step '%s' due to missing dry-run configuiration", s.Name)
+		logger.V(5).Info(fmt.Sprintf("Skipping step '%s' due to missing dry-run configuration", s.Name))
 		return nil
 	}
 

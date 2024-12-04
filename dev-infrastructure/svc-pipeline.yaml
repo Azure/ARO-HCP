@@ -11,7 +11,7 @@ resourceGroups:
     parameters: configurations/svc-cluster.tmpl.bicepparam
   - name: enable-metrics
     action: Shell
-    command: ["scripts/enable-aks-metrics.sh"]
+    command: scripts/enable-aks-metrics.sh
     env:
     - name: RESOURCEGROUP
       configRef: svc.rg

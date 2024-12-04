@@ -2,6 +2,8 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -12,39 +14,36 @@ import (
 func TestCreateCommand(t *testing.T) {
 	ctx := context.Background()
 	testCases := []struct {
-		name            string
-		step            *Step
-		dryRun          bool
-		envVars         map[string]string
-		expectedCommand string
-		expectedArgs    []string
-		expectedEnv     []string
-		skipCommand     bool
+		name           string
+		step           *Step
+		dryRun         bool
+		envVars        map[string]string
+		expectedScript string
+		expectedEnv    []string
+		skipCommand    bool
 	}{
 		{
 			name: "basic",
 			step: &Step{
-				Command: []string{"/usr/bin/echo", "hello"},
+				Command: "/usr/bin/echo hello",
 			},
-			expectedCommand: "/usr/bin/echo",
-			expectedArgs:    []string{"hello"},
+			expectedScript: buildBashScript("/usr/bin/echo hello"),
 		},
 		{
 			name: "dry-run",
 			step: &Step{
-				Command: []string{"/usr/bin/echo", "hello"},
+				Command: "/usr/bin/echo hello",
 				DryRun: DryRun{
-					Command: []string{"/usr/bin/echo", "dry-run"},
+					Command: "/usr/bin/echo dry-run",
 				},
 			},
-			dryRun:          true,
-			expectedCommand: "/usr/bin/echo",
-			expectedArgs:    []string{"dry-run"},
+			dryRun:         true,
+			expectedScript: buildBashScript("/usr/bin/echo dry-run"),
 		},
 		{
 			name: "dry-run-env",
 			step: &Step{
-				Command: []string{"/usr/bin/echo"},
+				Command: "/usr/bin/echo",
 				DryRun: DryRun{
 					EnvVars: []EnvVar{
 						{
@@ -54,15 +53,15 @@ func TestCreateCommand(t *testing.T) {
 					},
 				},
 			},
-			dryRun:          true,
-			expectedCommand: "/usr/bin/echo",
-			envVars:         map[string]string{},
-			expectedEnv:     []string{"DRY_RUN=true"},
+			dryRun:         true,
+			expectedScript: buildBashScript("/usr/bin/echo"),
+			envVars:        map[string]string{},
+			expectedEnv:    []string{"DRY_RUN=true"},
 		},
 		{
 			name: "dry-run fail",
 			step: &Step{
-				Command: []string{"/usr/bin/echo"},
+				Command: "/usr/bin/echo",
 			},
 			dryRun:      true,
 			skipCommand: true,
@@ -73,10 +72,7 @@ func TestCreateCommand(t *testing.T) {
 			cmd, skipCommand := tc.step.createCommand(ctx, tc.dryRun, tc.envVars)
 			assert.Equal(t, skipCommand, tc.skipCommand)
 			if !tc.skipCommand {
-				assert.Equal(t, cmd.Path, tc.expectedCommand)
-			}
-			if tc.expectedArgs != nil {
-				assert.DeepEqual(t, cmd.Args[1:], tc.expectedArgs)
+				assert.Equal(t, strings.Join(cmd.Args, " "), fmt.Sprintf("/bin/bash -c %s", tc.expectedScript))
 			}
 			if tc.expectedEnv != nil {
 				assert.DeepEqual(t, cmd.Env, tc.expectedEnv)
@@ -156,13 +152,52 @@ func TestMapStepVariables(t *testing.T) {
 }
 
 func TestRunShellStep(t *testing.T) {
-	expectedOutput := "hello\n"
-	s := &Step{
-		Command: []string{"echo", "hello"},
-		outputFunc: func(output string) {
-			assert.Equal(t, output, expectedOutput)
+	testCases := []struct {
+		name string
+		vars config.Variables
+		step *Step
+		err  string
+	}{
+		{
+			name: "basic",
+			vars: config.Variables{},
+			step: &Step{
+				Command: "echo hello",
+			},
+		},
+		{
+			name: "test nounset",
+			vars: config.Variables{},
+			step: &Step{
+				Command: "echo $DOES_NOT_EXIST",
+			},
+			err: "DOES_NOT_EXIST: unbound variable\n exit status 1",
+		},
+		{
+			name: "test errexit",
+			vars: config.Variables{},
+			step: &Step{
+				Command: "false ; echo hello",
+			},
+			err: "failed to execute shell command:  exit status 1",
+		},
+		{
+			name: "test pipefail",
+			vars: config.Variables{},
+			step: &Step{
+				Command: "false | echo",
+			},
+			err: "failed to execute shell command: \n exit status 1",
 		},
 	}
-	err := s.runShellStep(context.Background(), "", &PipelineRunOptions{})
-	assert.NilError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.step.runShellStep(context.Background(), "", &PipelineRunOptions{})
+			if tc.err != "" {
+				assert.ErrorContains(t, err, tc.err)
+			} else {
+				assert.NilError(t, err)
+			}
+		})
+	}
 }

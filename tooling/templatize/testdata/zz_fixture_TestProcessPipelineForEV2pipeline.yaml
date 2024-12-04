@@ -7,17 +7,13 @@ resourceGroups:
       steps:
         - name: deploy
           action: Shell
-          command:
-            - make
-            - deploy
+          command: make deploy
           env:
             - name: MAESTRO_IMAGE
               configRef: maestro_image
         - name: dry-run
           action: Shell
-          command:
-            - make
-            - deploy
+          command: make deploy
           dryRun:
             envVars:
                 - name: DRY_RUN

@@ -22,7 +22,7 @@ resourceGroups:
       output: cs.msi.resourceID
   - name: enable-metrics
     action: Shell
-    command: ["scripts/enable-aks-metrics.sh"]
+    command: scripts/enable-aks-metrics.sh
     env:
     - name: RESOURCEGROUP
       configRef: mgmt.rg

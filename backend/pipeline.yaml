@@ -7,7 +7,7 @@ resourceGroups:
   steps:
   - name: deploy
     action: Shell
-    command: ["make", "deploy"]
+    command: make deploy
     env:
     - name: ARO_HCP_IMAGE_ACR
       configRef: svcAcrName

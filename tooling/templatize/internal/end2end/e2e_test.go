@@ -38,7 +38,7 @@ func TestE2EMake(t *testing.T) {
 	e2eImpl.AddStep(pipeline.Step{
 		Name:    "test",
 		Action:  "Shell",
-		Command: []string{"make", "test"},
+		Command: "make test",
 		Env: []pipeline.EnvVar{
 			{
 				Name:      "TEST_ENV",
@@ -71,7 +71,7 @@ func TestE2EKubernetes(t *testing.T) {
 	e2eImpl.AddStep(pipeline.Step{
 		Name:    "test",
 		Action:  "Shell",
-		Command: []string{"kubectl", "get", "namespaces"},
+		Command: "kubectl get namespaces",
 	})
 	e2eImpl.SetAKSName("aro-hcp-aks")
 

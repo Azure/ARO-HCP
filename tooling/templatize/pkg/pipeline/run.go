@@ -153,7 +153,7 @@ func (s *Step) description() string {
 	var details []string
 	switch s.Action {
 	case "Shell":
-		details = append(details, fmt.Sprintf("Command: %v", strings.Join(s.Command, " ")))
+		details = append(details, fmt.Sprintf("Command: %s", s.Command))
 	case "ARM":
 		details = append(details, fmt.Sprintf("Template: %s", s.Template))
 		details = append(details, fmt.Sprintf("Parameters: %s", s.Parameters))

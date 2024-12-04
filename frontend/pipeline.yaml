@@ -7,7 +7,7 @@ resourceGroups:
   steps:
   - name: deploy
     action: Shell
-    command: ["make", "deploy"]
+    command: make deploy
     dryRun:
       envVars:
         - name: HELM_DRY_RUN
