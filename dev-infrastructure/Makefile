@@ -248,12 +248,17 @@ svc.aks.kubeconfigfile:
 .PHONY: svc.aks.kubeconfigfile
 
 svc.oidc.storage.permissions:
-	STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
+	@STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
 	az role assignment create \
 	--role "Storage Blob Data Contributor" \
 	--assignee ${PRINCIPAL_ID} \
-	--scope "$${STORAGEACCOUNTID}"
+	--scope "$${STORAGEACCOUNTID}" \
+	--only-show-errors
 .PHONY: svc.oidc.storage.permissions
+
+svc.kv.permission:
+	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(SVC_KV_RESOURCEGROUP) $(SVC_KV_NAME)
+.PHONY: svc.kv.permission
 
 svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig metrics-infra svc.enable-aks-metrics svc.oidc.storage.permissions
 .PHONY: svc.init
@@ -355,6 +360,12 @@ mgmt.clean:
 		az group delete -g $(MGMT_RESOURCEGROUP); \
 	fi
 .PHONY: mgmt.clean
+
+mgmt.kv.permission:
+	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(MGMT_RESOURCEGROUP) $(CX_KV_NAME)
+	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(MGMT_RESOURCEGROUP) $(MSI_KV_NAME)
+	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(MGMT_RESOURCEGROUP) $(MGMT_KV_NAME)
+.PHONY: mgmt.kv.permission
 
 # ACR
 
@@ -501,3 +512,10 @@ infra: region svc.init mgmt.init
 
 clean: svc.clean mgmt.clean region.clean
 .PHONY: clean
+
+#
+# Local CS Development
+#
+
+local-cs-permissions: svc.oidc.storage.permissions svc.kv.permission mgmt.kv.permission
+.PHONY: local-cs-permissions
