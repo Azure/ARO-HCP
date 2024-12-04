@@ -152,13 +152,52 @@ func TestMapStepVariables(t *testing.T) {
 }
 
 func TestRunShellStep(t *testing.T) {
-	expectedOutput := "hello\n"
-	s := &Step{
-		Command: "echo hello",
-		outputFunc: func(output string) {
-			assert.Equal(t, output, expectedOutput)
+	testCases := []struct {
+		name string
+		vars config.Variables
+		step *Step
+		err  string
+	}{
+		{
+			name: "basic",
+			vars: config.Variables{},
+			step: &Step{
+				Command: "echo hello",
+			},
+		},
+		{
+			name: "test nounset",
+			vars: config.Variables{},
+			step: &Step{
+				Command: "echo $DOES_NOT_EXIST",
+			},
+			err: "DOES_NOT_EXIST: unbound variable\n exit status 1",
+		},
+		{
+			name: "test errexit",
+			vars: config.Variables{},
+			step: &Step{
+				Command: "false ; echo hello",
+			},
+			err: "failed to execute shell command:  exit status 1",
+		},
+		{
+			name: "test pipefail",
+			vars: config.Variables{},
+			step: &Step{
+				Command: "false | echo",
+			},
+			err: "failed to execute shell command: \n exit status 1",
 		},
 	}
-	err := s.runShellStep(context.Background(), "", &PipelineRunOptions{})
-	assert.NilError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.step.runShellStep(context.Background(), "", &PipelineRunOptions{})
+			if tc.err != "" {
+				assert.ErrorContains(t, err, tc.err)
+			} else {
+				assert.NilError(t, err)
+			}
+		})
+	}
 }

@@ -31,10 +31,7 @@ func (s *Step) createCommand(ctx context.Context, dryRun bool, envVars map[strin
 }
 
 func buildBashScript(command string) string {
-	return "set -o errexit\n" +
-		"set -o nounset\n" +
-		"set -o pipefail\n" +
-		command
+	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
 func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options *PipelineRunOptions) error {

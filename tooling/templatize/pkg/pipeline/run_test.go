@@ -133,7 +133,7 @@ func TestResourceGroupError(t *testing.T) {
 		},
 	}
 	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{})
-	assert.Error(t, err, "failed to execute shell command: /bin/bash: line 3: faaaaafffaa: command not found\n exit status 127")
+	assert.ErrorContains(t, err, "faaaaafffaa: command not found\n exit status 127")
 	// Test processing ends after first error
 	assert.Equal(t, len(tmpVals), 1)
 }
