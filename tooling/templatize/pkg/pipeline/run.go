@@ -182,10 +182,7 @@ func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget E
 		if err != nil {
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
-		if output != nil {
-			return output, nil
-		}
-		return nil, nil
+		return output, nil
 	default:
 		return nil, fmt.Errorf("unsupported action type %q", s.Action)
 	}
