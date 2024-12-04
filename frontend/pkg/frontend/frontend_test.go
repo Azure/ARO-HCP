@@ -19,6 +19,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
+var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
 func TestReadiness(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -41,13 +43,12 @@ func TestReadiness(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			f := &Frontend{
 				dbClient: database.NewCache(),
-				logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 			f.ready.Store(test.ready)
 			ts := httptest.NewServer(f.routes())
 			ts.Config.BaseContext = func(net.Listener) context.Context {
-				return ContextWithLogger(context.Background(), f.logger)
+				return ContextWithLogger(context.Background(), testLogger)
 			}
 
 			rs, err := ts.Client().Get(ts.URL + "/healthz")
@@ -93,7 +94,6 @@ func TestSubscriptionsGET(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			f := &Frontend{
 				dbClient: database.NewCache(),
-				logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 
@@ -107,7 +107,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			ts := httptest.NewServer(f.routes())
 			ts.Config.BaseContext = func(net.Listener) context.Context {
 				ctx := context.Background()
-				ctx = ContextWithLogger(ctx, f.logger)
+				ctx = ContextWithLogger(ctx, testLogger)
 				ctx = ContextWithDBClient(ctx, f.dbClient)
 				return ctx
 			}
@@ -211,7 +211,6 @@ func TestSubscriptionsPUT(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			f := &Frontend{
 				dbClient: database.NewCache(),
-				logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 
@@ -230,7 +229,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			ts := httptest.NewServer(f.routes())
 			ts.Config.BaseContext = func(net.Listener) context.Context {
 				ctx := context.Background()
-				ctx = ContextWithLogger(ctx, f.logger)
+				ctx = ContextWithLogger(ctx, testLogger)
 				ctx = ContextWithDBClient(ctx, f.dbClient)
 				return ctx
 			}

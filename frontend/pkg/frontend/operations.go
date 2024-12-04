@@ -20,17 +20,19 @@ import (
 // AddAsyncOperationHeader adds an "Azure-AsyncOperation" header to the ResponseWriter
 // with a URL of the operation status endpoint for the given OperationDocument.
 func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, doc *database.OperationDocument) {
+	logger := LoggerFromContext(request.Context())
+
 	// ARM will always add a Referer header, but
 	// requests from test environments might not.
 	referer := request.Referer()
 	if referer == "" {
-		f.logger.Info("Omitting " + arm.HeaderNameAsyncOperation + " header: no referer")
+		logger.Info("Omitting " + arm.HeaderNameAsyncOperation + " header: no referer")
 		return
 	}
 
 	u, err := url.ParseRequestURI(referer)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -49,17 +51,19 @@ func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *
 // AddLocationHeader adds a "Location" header to the ResponseWriter with a URL of the
 // operation result endpoint for the given OperationDocument.
 func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.Request, doc *database.OperationDocument) {
+	logger := LoggerFromContext(request.Context())
+
 	// ARM will always add a Referer header, but
 	// requests from test environments might not.
 	referer := request.Referer()
 	if referer == "" {
-		f.logger.Info("Omitting Location header: no referer")
+		logger.Info("Omitting Location header: no referer")
 		return
 	}
 
 	u, err := url.ParseRequestURI(referer)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return
 	}
 
@@ -93,7 +97,7 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 			"locations", f.location,
 			api.OperationStatusResourceTypeName, operationID))
 		if err != nil {
-			f.logger.Error(err.Error())
+			LoggerFromContext(ctx).Error(err.Error())
 			return false
 		}
 
@@ -139,7 +143,8 @@ func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *datab
 			return err
 		}
 		if updated {
-			f.logger.Info(fmt.Sprintf("Canceled operation '%s'", resourceDoc.ActiveOperationID))
+			logger := LoggerFromContext(ctx)
+			logger.Info(fmt.Sprintf("Canceled operation '%s'", resourceDoc.ActiveOperationID))
 		}
 	}
 	return nil
@@ -150,27 +155,29 @@ func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *datab
 func (f *Frontend) OperationIsVisible(request *http.Request, doc *database.OperationDocument) bool {
 	var visible = true
 
+	logger := LoggerFromContext(request.Context())
+
 	tenantID := request.Header.Get(arm.HeaderNameHomeTenantID)
 	clientID := request.Header.Get(arm.HeaderNameClientObjectID)
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	if doc.OperationID != nil {
 		if doc.TenantID != "" && !strings.EqualFold(tenantID, doc.TenantID) {
-			f.logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, doc.ID))
+			logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, doc.ID))
 			visible = false
 		}
 
 		if doc.ClientID != "" && !strings.EqualFold(clientID, doc.ClientID) {
-			f.logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, doc.ID))
+			logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, doc.ID))
 			visible = false
 		}
 
 		if !strings.EqualFold(subscriptionID, doc.OperationID.SubscriptionID) {
-			f.logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, doc.ID))
+			logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, doc.ID))
 			visible = false
 		}
 	} else {
-		f.logger.Info(fmt.Sprintf("Status request for implicit operation '%s'", doc.ID))
+		logger.Info(fmt.Sprintf("Status request for implicit operation '%s'", doc.ID))
 		visible = false
 	}
 
