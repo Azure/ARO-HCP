@@ -12,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -82,10 +81,8 @@ func (lrw *logResponseWriter) WriteHeader(code int) {
 // Metrics middleware to capture response time and status code
 func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 	return func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-		logger, err := LoggerFromContext(r.Context())
-		if err != nil {
-			logger = config.DefaultLogger()
-		}
+		ctx := r.Context()
+		logger := LoggerFromContext(ctx)
 
 		startTime := time.Now()
 

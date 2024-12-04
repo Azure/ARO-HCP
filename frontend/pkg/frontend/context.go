@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -69,15 +70,18 @@ func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context
 	return context.WithValue(ctx, contextKeyLogger, logger)
 }
 
-func LoggerFromContext(ctx context.Context) (*slog.Logger, error) {
+func LoggerFromContext(ctx context.Context) *slog.Logger {
 	logger, ok := ctx.Value(contextKeyLogger).(*slog.Logger)
 	if !ok {
 		err := &ContextError{
 			got: logger,
 		}
-		return logger, err
+		// Return the default logger as a fail-safe, but log
+		// the failure to obtain the logger from the context.
+		logger = config.DefaultLogger()
+		logger.Error(err.Error())
 	}
-	return logger, nil
+	return logger
 }
 
 func ContextWithVersion(ctx context.Context, version api.Version) context.Context {

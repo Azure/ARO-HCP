@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -45,18 +44,14 @@ func (w *LoggingResponseWriter) WriteHeader(statusCode int) {
 }
 
 func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	ctx := r.Context()
+	logger := LoggerFromContext(ctx)
+
 	// Capture request and response data for logging
 	r.Body = &LoggingReadCloser{ReadCloser: r.Body}
 	w = &LoggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 	startTime := time.Now()
-
-	logger, err := LoggerFromContext(r.Context())
-	if err != nil {
-		config.DefaultLogger().Error(err.Error())
-		arm.WriteInternalServerError(w)
-		return
-	}
 
 	logger = logger.With(
 		"request_method", r.Method,
@@ -78,6 +73,7 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 
 func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
+	logger := LoggerFromContext(ctx)
 
 	correlationData := arm.NewCorrelationData(r)
 	ctx = ContextWithCorrelationData(ctx, correlationData)
@@ -85,21 +81,11 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 	setHeaders(w, r, correlationData)
 
 	attrs := getLogAttrs(correlationData, r)
+	logger = slog.New(logger.Handler().WithAttrs(attrs))
+	ctx = ContextWithLogger(ctx, logger)
+	r = r.WithContext(ctx)
 
-	logger, err := LoggerFromContext(ctx)
-	if err != nil {
-		config.DefaultLogger().Error(err.Error())
-		arm.WriteInternalServerError(w)
-		return
-	}
-
-	handler := logger.Handler()
-	loggerWithAttrs := slog.New(handler.WithAttrs(attrs))
-	ctx = ContextWithLogger(ctx, loggerWithAttrs)
-
-	reqWithContext := r.WithContext(ctx)
-
-	next(w, reqWithContext)
+	next(w, r)
 }
 
 // setHeaders writes the appropriate headers in the response writer
