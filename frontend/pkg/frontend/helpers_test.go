@@ -6,7 +6,6 @@ package frontend
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"testing"
 
@@ -152,7 +151,6 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				ctx := context.Background()
 
 				frontend := &Frontend{
-					logger:   slog.Default(),
 					dbClient: database.NewCache(),
 				}
 
@@ -187,7 +185,6 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				ctx := context.Background()
 
 				frontend := &Frontend{
-					logger:   slog.Default(),
 					dbClient: database.NewCache(),
 				}
 
