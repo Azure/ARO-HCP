@@ -51,20 +51,6 @@ func TestRGValidate(t *testing.T) {
 			rg:   &ResourceGroup{Name: "test"},
 			err:  "subscription is required",
 		},
-		{
-			name: "missing dependency",
-			rg: &ResourceGroup{
-				Name:         "test",
-				Subscription: "test",
-				Steps: []*Step{
-					{
-						Name:      "step2",
-						DependsOn: []string{"step"},
-					},
-				},
-			},
-			err: "invalid dependency from step step2 to step",
-		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -125,6 +111,32 @@ func TestPipelineValidate(t *testing.T) {
 				},
 			},
 			err: "invalid dependency on step step2: dependency step3 does not exist",
+		},
+		{
+			name: "duplicate step name",
+			pipeline: &Pipeline{
+				ResourceGroups: []*ResourceGroup{
+					{
+						Name:         "rg1",
+						Subscription: "sub1",
+						Steps: []*Step{
+							{
+								Name: "step1",
+							},
+						},
+					},
+					{
+						Name:         "rg2",
+						Subscription: "sub1",
+						Steps: []*Step{
+							{
+								Name: "step1",
+							},
+						},
+					},
+				},
+			},
+			err: "duplicate step name \"step1\"",
 		},
 		{
 			name: "valid step dependencies",
