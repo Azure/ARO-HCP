@@ -57,8 +57,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	logger.Info(fmt.Sprintf("%s: CreateNodePool", versionedInterface))
-
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		logger.Error(err.Error())
