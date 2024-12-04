@@ -23,6 +23,8 @@ import (
 // provisioning state of the resource is non-terminal, or any of its parent resources
 // within the same provider namespace are in a "Deleting" state.
 func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operationRequest database.OperationRequest, doc *database.ResourceDocument) *arm.CloudError {
+	logger := LoggerFromContext(ctx)
+
 	switch operationRequest {
 	case database.OperationRequestCreate:
 		// Resource must already exist for there to be a conflict.
@@ -51,7 +53,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 	for parent.ResourceType.Namespace == doc.Key.ResourceType.Namespace {
 		parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			return arm.NewInternalServerError()
 		}
 
@@ -71,9 +73,11 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 }
 
 func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) *arm.CloudError {
+	logger := LoggerFromContext(ctx)
+
 	prefix, err := arm.ParseResourceID("/subscriptions/" + subscriptionID)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return arm.NewInternalServerError()
 	}
 
@@ -87,7 +91,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 
 		err = json.Unmarshal(item, &resourceDoc)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			return arm.NewInternalServerError()
 		}
 
@@ -111,6 +115,8 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 	const operationRequest = database.OperationRequestDelete
 	var err error
 
+	logger := LoggerFromContext(ctx)
+
 	switch resourceDoc.InternalID.Kind() {
 	case cmv1.ClusterKind:
 		err = f.clusterServiceClient.DeleteCSCluster(ctx, resourceDoc.InternalID)
@@ -119,7 +125,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 		err = f.clusterServiceClient.DeleteCSNodePool(ctx, resourceDoc.InternalID)
 
 	default:
-		f.logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", resourceDoc.InternalID))
+		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", resourceDoc.InternalID))
 		return "", arm.NewInternalServerError()
 	}
 
@@ -128,7 +134,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 			return "", arm.NewResourceNotFoundError(resourceDoc.Key)
 		}
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
 
@@ -147,7 +153,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 
 	err = f.CancelActiveOperation(ctx, resourceDoc)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
 
@@ -155,7 +161,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 
 	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
 
@@ -165,7 +171,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 		return true
 	})
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
 
@@ -209,14 +215,14 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 			return nil
 		}()
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			return "", arm.NewInternalServerError()
 		}
 	}
 
 	err = iterator.GetError()
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
 
@@ -226,9 +232,11 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
 	var responseBody []byte
 
+	logger := LoggerFromContext(ctx)
+
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
 			return nil, arm.NewResourceNotFoundError(resourceID)
 		} else {
@@ -240,7 +248,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 	case cmv1.ClusterKind:
 		csCluster, err := f.clusterServiceClient.GetCSCluster(ctx, doc.InternalID)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			var ocmError *ocmerrors.Error
 			if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 				return nil, arm.NewResourceNotFoundError(resourceID)
@@ -249,14 +257,14 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 		}
 		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()
 		}
 
 	case cmv1.NodePoolKind:
 		csNodePool, err := f.clusterServiceClient.GetCSNodePool(ctx, doc.InternalID)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			var ocmError *ocmerrors.Error
 			if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 				return nil, arm.NewResourceNotFoundError(resourceID)
@@ -265,12 +273,12 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.Resource
 		}
 		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()
 		}
 
 	default:
-		f.logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", doc.InternalID))
+		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", doc.InternalID))
 		return nil, arm.NewInternalServerError()
 	}
 
