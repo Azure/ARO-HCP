@@ -83,18 +83,6 @@
           "softDelete"
         ]
       },
-      "externalDNS": {
-        "type": "object",
-        "properties": {
-          "imageTag": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "imageTag"
-        ]
-      },
       "extraVars": {
         "type": "object",
         "properties": {},
@@ -151,12 +139,6 @@
           "additionalInstallArg": {
             "type": "string"
           },
-          "externalDNSManagedIdentityName": {
-            "type": "string"
-          },
-          "externalDNSServiceAccountName": {
-            "type": "string"
-          },
           "namespace": {
             "type": "string"
           }
@@ -164,8 +146,6 @@
         "additionalProperties": false,
         "required": [
           "additionalInstallArg",
-          "externalDNSManagedIdentityName",
-          "externalDNSServiceAccountName",
           "namespace"
         ]
       },
@@ -607,7 +587,6 @@
       "baseDnsZoneRG",
       "clusterService",
       "cxKeyVault",
-      "externalDNS",
       "firstPartyAppClientId",
       "frontend",
       "globalRG",

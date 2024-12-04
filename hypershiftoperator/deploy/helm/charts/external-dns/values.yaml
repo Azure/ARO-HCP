@@ -1,9 +1,0 @@
-image: ""
-imageTag: ""
-txtOwnerId: ""
-domain: ""
-credentials:
-  tenantId: ""
-  subscriptionId: ""
-  resourceGroup: ""
-  userAssignedIdentityID: ""

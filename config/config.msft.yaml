@@ -20,8 +20,6 @@ defaults:
   hypershift:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
-    externalDNSManagedIdentityName: external-dns
-    externalDNSServiceAccountName: external-dns
 
   svc:
     subscription: hcp-{{ .ctx.region }}
@@ -81,7 +79,7 @@ defaults:
     rg: hcp-underlay-imagesync
     acrRG: '{{ .ctx.region }}-shared-resources'
     environmentName: aro-hcp-image-sync
-    repositories: registry.k8s.io/external-dns/external-dns,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
+    repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
     imageRepo: image-sync/component-sync
     imageTag: latest
   ocMirror:
@@ -131,8 +129,6 @@ clouds:
         imageRepo: app-sre/uhc-clusters-service
       hypershiftOperator:
         imageTag: 9aca808
-      externalDNS:
-        imageTag: v0.14.2
 
     environments:
       int:

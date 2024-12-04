@@ -59,15 +59,6 @@ param aksKeyVaultName string
 @description('Manage soft delete setting for AKS etcd key-value store')
 param aksEtcdKVEnableSoftDelete bool = true
 
-@description('The name of the hypershift namespace.')
-param hypershiftNamespace string
-
-@description('The name of the external DNS managed identity.')
-param externalDNSManagedIdentityName string
-
-@description('The name of the external DNS service account.')
-param externalDNSServiceAccountName string
-
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
@@ -76,9 +67,6 @@ param maestroCertDomain string
 
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
-
-@description('This is a regional DNS zone')
-param regionalDNSZoneName string
 
 @description('The resource group that hosts the regional zone')
 param regionalResourceGroup string
@@ -148,11 +136,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
         namespace: 'maestro'
         serviceAccountName: 'maestro'
       }
-      external_dns_wi: {
-        uamiName: externalDNSManagedIdentityName
-        namespace: hypershiftNamespace
-        serviceAccountName: externalDNSServiceAccountName
-      }
     })
     aksKeyVaultName: aksKeyVaultName
     acrPullResourceGroups: acrPullResourceGroups
@@ -191,24 +174,6 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
   dependsOn: [
     mgmtKeyVault
   ]
-}
-
-//
-//  E X T E R N A L   D N S
-//
-
-var externalDnsManagedIdentityPrincipalId = filter(
-  mgmtCluster.outputs.userAssignedIdentities,
-  id => id.uamiName == externalDNSManagedIdentityName
-)[0].uamiPrincipalID
-
-module dnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
-  name: guid(regionalDNSZoneName, mgmtCluster.name, externalDNSManagedIdentityName)
-  scope: resourceGroup(regionalResourceGroup)
-  params: {
-    zoneName: regionalDNSZoneName
-    zoneContributerManagedIdentityPrincipalId: externalDnsManagedIdentityPrincipalId
-  }
 }
 
 //
