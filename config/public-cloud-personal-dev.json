@@ -7,7 +7,7 @@
   "clusterService": {
     "acrRG": "global",
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "ecd15ad",
+    "imageTag": "6157c57",
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",

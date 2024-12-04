@@ -127,7 +127,7 @@ clouds:
         imageTag: ea066c250a002f0cc458711945165591bc9f6d3f
       # Cluster Service
       clusterService:
-        imageTag: ecd15ad
+        imageTag: 6157c57
         imageRepo: app-sre/uhc-clusters-service
       # Hypershift Operator
       hypershiftOperator:
