@@ -155,8 +155,6 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	logger.Info(fmt.Sprintf("%s: ArmResourceList", versionedInterface))
-
 	var pageSizeHint int32 = 20
 	var continuationToken *string
 	var pagedResponse arm.PagedResponse
@@ -289,8 +287,6 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
 
 	responseBody, cloudError := f.MarshalResource(ctx, resourceID, versionedInterface)
 	if cloudError != nil {
@@ -554,21 +550,12 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
 
 	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
@@ -614,18 +601,6 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 }
 
 func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
-
 	writer.WriteHeader(http.StatusOK)
 }
 
@@ -860,21 +835,12 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		writer.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	logger.Info(fmt.Sprintf("%s: OperationStatus", versionedInterface))
 
 	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
 	if err != nil {
@@ -964,8 +930,6 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	logger.Info(fmt.Sprintf("%s: OperationResult", versionedInterface))
 
 	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
 	if err != nil {
