@@ -162,6 +162,29 @@ func (s *Step) description() string {
 }
 
 func (p *Pipeline) Validate() error {
+	// collect all steps from all resourcegroups and fail if there are duplicates
+	stepMap := make(map[string]*Step)
+	for _, rg := range p.ResourceGroups {
+		for _, step := range rg.Steps {
+			if _, ok := stepMap[step.Name]; ok {
+				return fmt.Errorf("duplicate step name %q", step.Name)
+			}
+			stepMap[step.Name] = step
+		}
+	}
+
+	// validate dependsOn for a step exists
+	for _, step := range stepMap {
+		for _, dep := range step.DependsOn {
+			if _, ok := stepMap[dep]; !ok {
+				return fmt.Errorf("invalid dependency on step %s: dependency %s does not exist", step.Name, dep)
+			}
+		}
+	}
+
+	// todo check for circular dependencies
+
+	// validate resource groups
 	for _, rg := range p.ResourceGroups {
 		err := rg.Validate()
 		if err != nil {
@@ -177,20 +200,6 @@ func (rg *ResourceGroup) Validate() error {
 	}
 	if rg.Subscription == "" {
 		return fmt.Errorf("subscription is required")
-	}
-
-	// validate step dependencies
-	// todo - check for circular dependencies
-	stepMap := make(map[string]bool)
-	for _, step := range rg.Steps {
-		stepMap[step.Name] = true
-	}
-	for _, step := range rg.Steps {
-		for _, dep := range step.DependsOn {
-			if !stepMap[dep] {
-				return fmt.Errorf("invalid dependency from step %s to %s", step.Name, dep)
-			}
-		}
 	}
 	return nil
 }

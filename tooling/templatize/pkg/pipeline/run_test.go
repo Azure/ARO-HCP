@@ -76,11 +76,94 @@ func TestRGValidate(t *testing.T) {
 }
 
 func TestPipelineValidate(t *testing.T) {
-	p := &Pipeline{
-		ResourceGroups: []*ResourceGroup{{}},
+	testCases := []struct {
+		name     string
+		pipeline *Pipeline
+		err      string
+	}{
+		{
+			name: "missing name",
+			pipeline: &Pipeline{
+				ResourceGroups: []*ResourceGroup{{}},
+			},
+			err: "resource group name is required",
+		},
+		{
+			name: "missing subscription",
+			pipeline: &Pipeline{
+				ResourceGroups: []*ResourceGroup{
+					{
+						Name: "rg",
+					},
+				},
+			},
+			err: "subscription is required",
+		},
+		{
+			name: "missing step dependency",
+			pipeline: &Pipeline{
+				ResourceGroups: []*ResourceGroup{
+					{
+						Name:         "rg1",
+						Subscription: "sub1",
+						Steps: []*Step{
+							{
+								Name: "step1",
+							},
+						},
+					},
+					{
+						Name:         "rg2",
+						Subscription: "sub1",
+						Steps: []*Step{
+							{
+								Name:      "step2",
+								DependsOn: []string{"step3"},
+							},
+						},
+					},
+				},
+			},
+			err: "invalid dependency on step step2: dependency step3 does not exist",
+		},
+		{
+			name: "valid step dependencies",
+			pipeline: &Pipeline{
+				ResourceGroups: []*ResourceGroup{
+					{
+						Name:         "rg1",
+						Subscription: "sub1",
+						Steps: []*Step{
+							{
+								Name: "step1",
+							},
+						},
+					},
+					{
+						Name:         "rg2",
+						Subscription: "sub1",
+						Steps: []*Step{
+							{
+								Name:      "step2",
+								DependsOn: []string{"step1"},
+							},
+						},
+					},
+				},
+			},
+			err: "",
+		},
 	}
-	err := p.Validate()
-	assert.Error(t, err, "resource group name is required")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.pipeline.Validate()
+			if tc.err == "" {
+				assert.NilError(t, err)
+			} else {
+				assert.Error(t, err, tc.err)
+			}
+		})
+	}
 }
 
 func TestResourceGroupRun(t *testing.T) {
