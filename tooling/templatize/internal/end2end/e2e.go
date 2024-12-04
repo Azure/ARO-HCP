@@ -114,15 +114,8 @@ func (e *e2eImpl) UseRandomRG() func() error {
 		if err != nil {
 			return err
 		}
-		rgDelResponse, err := rgClient.BeginDelete(context.Background(), e.rgName, nil)
-		if err != nil {
-			return err
-		}
-		_, err = rgDelResponse.PollUntilDone(context.Background(), nil)
-		if err != nil {
-			return err
-		}
-		return nil
+		_, err = rgClient.BeginDelete(context.Background(), e.rgName, nil)
+		return err
 	}
 }
 
