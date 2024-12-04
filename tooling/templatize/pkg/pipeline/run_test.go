@@ -12,7 +12,7 @@ func TestStepRun(t *testing.T) {
 	s := &Step{
 		Name:    "test",
 		Action:  "Shell",
-		Command: []string{"echo", "hello"},
+		Command: "echo hello",
 		outputFunc: func(output string) {
 			fooundOutput = output
 		},
@@ -90,7 +90,7 @@ func TestResourceGroupRun(t *testing.T) {
 			{
 				Name:    "step",
 				Action:  "Shell",
-				Command: []string{"echo", "hello"},
+				Command: "echo hello",
 				outputFunc: func(output string) {
 					foundOutput = output
 				},
@@ -109,7 +109,7 @@ func TestResourceGroupError(t *testing.T) {
 			{
 				Name:    "step",
 				Action:  "Shell",
-				Command: []string{"echo", "hello"},
+				Command: "echo hello",
 				outputFunc: func(output string) {
 					tmpVals = append(tmpVals, output)
 				},
@@ -117,7 +117,7 @@ func TestResourceGroupError(t *testing.T) {
 			{
 				Name:    "step",
 				Action:  "Shell",
-				Command: []string{"faaaaafffaa"},
+				Command: "faaaaafffaa",
 				outputFunc: func(output string) {
 					tmpVals = append(tmpVals, output)
 				},
@@ -125,7 +125,7 @@ func TestResourceGroupError(t *testing.T) {
 			{
 				Name:    "step",
 				Action:  "Shell",
-				Command: []string{"echo", "hallo"},
+				Command: "echo hallo",
 				outputFunc: func(output string) {
 					tmpVals = append(tmpVals, output)
 				},
@@ -133,7 +133,7 @@ func TestResourceGroupError(t *testing.T) {
 		},
 	}
 	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{})
-	assert.Error(t, err, "failed to execute shell command:  exec: \"faaaaafffaa\": executable file not found in $PATH")
+	assert.Error(t, err, "failed to execute shell command: /bin/bash: line 3: faaaaafffaa: command not found\n exit status 127")
 	// Test processing ends after first error
 	assert.Equal(t, len(tmpVals), 1)
 }
@@ -166,7 +166,7 @@ func TestPipelineRun(t *testing.T) {
 					{
 						Name:    "step",
 						Action:  "Shell",
-						Command: []string{"echo", "hello"},
+						Command: "echo hello",
 						outputFunc: func(output string) {
 							foundOutput = output
 						},

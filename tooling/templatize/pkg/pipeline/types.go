@@ -23,7 +23,7 @@ type outPutHandler func(string)
 type Step struct {
 	Name            string   `yaml:"name"`
 	Action          string   `yaml:"action"`
-	Command         []string `yaml:"command,omitempty"`
+	Command         string   `yaml:"command,omitempty"`
 	Env             []EnvVar `yaml:"env,omitempty"`
 	Template        string   `yaml:"template,omitempty"`
 	Parameters      string   `yaml:"parameters,omitempty"`
@@ -36,7 +36,7 @@ type Step struct {
 
 type DryRun struct {
 	EnvVars []EnvVar `yaml:"envVars,omitempty"`
-	Command []string `yaml:"command,omitempty"`
+	Command string   `yaml:"command,omitempty"`
 }
 
 type EnvVar struct {

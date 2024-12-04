@@ -5,15 +5,9 @@ resourceGroups:
   subscription: {{ .svc.subscription }}
   aksCluster: {{ .aksName }}
   steps:
-  #- name: bicepTest
-  #  action: ARM
-  #  template: test.bicep
-  #  parameters: test.bicepparam
   - name: deploy
     action: Shell
-    command: ["make", "deploy"]
-    # pwd is inferred from the location of this file
-    # so all path references in the command are relativ to the files location
+    command: make deploy
     env:
     - name: EVENTGRID_NAME
       configRef: maestro.eventGrid.name
