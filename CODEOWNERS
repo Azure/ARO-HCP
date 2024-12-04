@@ -1,9 +1,9 @@
-* @bennerv @jharrington22 @mjlshen @SudoBrendan @ulrichschlueter @zgalor
-/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @SudoBrendan @ulrichschlueter @weinong @whober0521 @tony-schndr
-/image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @mjlshen @niontive @nwnt @SudoBrendan @ulrichschlueter @weinong @whober0521
-/api/ @bennerv @mbarnes @mjlshen @SudoBrendan
-/frontend/ @bennerv @mbarnes @mjlshen @SudoBrendan
-/backend/ @bennerv @mbarnes @mjlshen @SudoBrendan
-/internal/ @bennerv @mbarnes @mjlshen @SudoBrendan
+* @bennerv @jharrington22 @SudoBrendan @ulrichschlueter @zgalor
+/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @nwnt @SudoBrendan @ulrichschlueter @weinong @whober0521 @tony-schndr
+/image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @nwnt @SudoBrendan @ulrichschlueter @weinong @whober0521
+/api/ @bennerv @mbarnes @SudoBrendan
+/frontend/ @bennerv @mbarnes @SudoBrendan
+/backend/ @bennerv @mbarnes @SudoBrendan
+/internal/ @bennerv @mbarnes @SudoBrendan
 /tooling/ @bennerv @geoberle @janboll @weinong @whober0521 @tony-schndr
 /config/ @bennerv @geoberle @janboll @weinong @whober0521 @tony-schndr
