@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -134,14 +135,15 @@ func TestE2EShell(t *testing.T) {
 		t.Skip("Skipping end-to-end tests")
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
+	assert.NilError(t, err)
 
 	e2eImpl := newE2E(tmpDir)
 
 	e2eImpl.AddStep(pipeline.Step{
 		Name:    "readInput",
 		Action:  "Shell",
-		Command: "/usr/bin/echo ${PWD} > env.txt",
+		Command: "/bin/echo ${PWD} > env.txt",
 	})
 
 	persistAndRun(t, &e2eImpl)

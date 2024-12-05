@@ -11,6 +11,8 @@ import (
 
 //go:embed pipeline.schema.v1.json
 var pipelineSchemaV1Content []byte
+var pipelineSchemaV1Ref = "pipeline.schema.v1"
+var defaultSchemaRef = pipelineSchemaV1Ref
 
 func ValidatePipelineSchema(pipelineContent []byte) error {
 	// unmarshal pipeline content
@@ -21,7 +23,7 @@ func ValidatePipelineSchema(pipelineContent []byte) error {
 	}
 
 	// load pipeline schema
-	pipelineSchema, schemaUrl, err := getSchemaForPipeline(pipelineMap)
+	pipelineSchema, schemaRef, err := getSchemaForPipeline(pipelineMap)
 	if err != nil {
 		return fmt.Errorf("failed to load pipeline schema: %v", err)
 	}
@@ -29,49 +31,46 @@ func ValidatePipelineSchema(pipelineContent []byte) error {
 	// validate pipeline schema
 	err = pipelineSchema.Validate(pipelineMap)
 	if err != nil {
-		return fmt.Errorf("pipeline is not compliant with schema %s: %v", schemaUrl, err)
+		return fmt.Errorf("pipeline is not compliant with schema %s: %v", schemaRef, err)
 	}
 	return nil
 }
 
-func getSchemaForPipeline(pipelineMap map[string]interface{}) (*jsonschema.Schema, string, error) {
+func getSchemaForPipeline(pipelineMap map[string]interface{}) (pipelineSchema *jsonschema.Schema, schemaRef string, err error) {
 	schemaRef, ok := pipelineMap["$schema"].(string)
 	if !ok {
-		return nil, "", fmt.Errorf("pipeline $schema reference is missing - add $schema: pipeline.schema.v1")
+		schemaRef = defaultSchemaRef
 	}
 
 	switch schemaRef {
-	case "pipeline.schema.v1":
-		return compileSchema(pipelineSchemaV1Content)
+	case pipelineSchemaV1Ref:
+		pipelineSchema, err = compileSchema(schemaRef, pipelineSchemaV1Content)
 	default:
 		return nil, "", fmt.Errorf("unsupported schema reference: %s", schemaRef)
 	}
+	return
 }
 
-func compileSchema(schemaBytes []byte) (*jsonschema.Schema, string, error) {
+func compileSchema(schemaRef string, schemaBytes []byte) (*jsonschema.Schema, error) {
 	// parse schema content
 	schemaMap := make(map[string]interface{})
 	err := json.Unmarshal(schemaBytes, &schemaMap)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to unmarshal schema content: %v", err)
-	}
-	schemaUrl, ok := schemaMap["title"].(string)
-	if !ok {
-		return nil, "", fmt.Errorf("failed to get schema title")
+		return nil, fmt.Errorf("failed to unmarshal schema content: %v", err)
 	}
 
 	// compile schema
 	c := jsonschema.NewCompiler()
-	err = c.AddResource(schemaUrl, schemaMap)
+	err = c.AddResource(schemaRef, schemaMap)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to add schema resource %s: %v", schemaUrl, err)
+		return nil, fmt.Errorf("failed to add schema resource %s: %v", schemaRef, err)
 	}
-	pipelineSchema, err := c.Compile(schemaUrl)
+	pipelineSchema, err := c.Compile(schemaRef)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to compile schema %s: %v", schemaUrl, err)
+		return nil, fmt.Errorf("failed to compile schema %s: %v", schemaRef, err)
 	}
 
-	return pipelineSchema, schemaUrl, nil
+	return pipelineSchema, nil
 }
 
 func (p *Pipeline) Validate() error {

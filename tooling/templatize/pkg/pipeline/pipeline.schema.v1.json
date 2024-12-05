@@ -188,7 +188,7 @@
                                                 "command": {
                                                     "type": "string"
                                                 },
-                                                "envVars": {
+                                                "variables": {
                                                     "type": "array",
                                                     "items": {
                                                         "$ref": "#/definitions/variable"
