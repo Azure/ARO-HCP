@@ -200,6 +200,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       }
     })
     aksKeyVaultName: aksKeyVaultName
+    istioCerticiateKeyVaultID: serviceKeyVault.id
     acrPullResourceGroups: acrPullResourceGroups
   }
 }
