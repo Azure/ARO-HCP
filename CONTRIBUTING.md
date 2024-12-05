@@ -11,15 +11,19 @@ Welcome to the ARO HCP project! We appreciate your interest in contributing. Thi
 
 
 ## Getting Started
+
 To contribute to ARO HCP, follow these steps:
 
-1. Fork the repository to your GitHub account.
-2. Clone the forked repository to your local machine.
-3. Create a new branch for your changes.
-4. Make your changes and commit them.
-5. Push your changes to your forked repository.
-6. Submit a pull request to the main repository.
+1. Clone the ARO-HCP repository to your local machine.
+2. Create a new branch for your changes.
+3. Make your changes and commit them.
+4. Push your changes to ARO-HCP repository.
+5. Submit a pull request to the main repository.
 
+If you create a pull request for a branch located in your GitHub fork of
+ARO-HCP repository, GitHub `is_running_on_fork` check will raise an error. You
+need to create your pull from ARO-HCP repository directly. See
+[ARO-8846](https://issues.redhat.com/browse/ARO-8846) for details.
 
 ## Contributing Guidelines
 Please follow these guidelines when contributing to ARO HCP:
