@@ -1,3 +1,4 @@
+$schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
@@ -12,7 +13,7 @@ resourceGroups:
   - name: enable-metrics
     action: Shell
     command: scripts/enable-aks-metrics.sh
-    env:
+    variables:
     - name: RESOURCEGROUP
       configRef: svc.rg
     - name: AKS_NAME

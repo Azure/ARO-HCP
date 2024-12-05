@@ -19,6 +19,12 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 	if err != nil {
 		return nil, fmt.Errorf("failed to preprocess pipeline file %w", err)
 	}
+
+	err = ValidatePipelineSchema(bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate pipeline schema: %w", err)
+	}
+
 	absPath, err := filepath.Abs(pipelineFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for pipeline file %q: %w", pipelineFilePath, err)
@@ -197,49 +203,6 @@ func (s *Step) description() string {
 		details = append(details, fmt.Sprintf("Parameters: %s", s.Parameters))
 	}
 	return fmt.Sprintf("Step %s\n  Kind: %s\n  %s", s.Name, s.Action, strings.Join(details, "\n  "))
-}
-
-func (p *Pipeline) Validate() error {
-	// collect all steps from all resourcegroups and fail if there are duplicates
-	stepMap := make(map[string]*Step)
-	for _, rg := range p.ResourceGroups {
-		for _, step := range rg.Steps {
-			if _, ok := stepMap[step.Name]; ok {
-				return fmt.Errorf("duplicate step name %q", step.Name)
-			}
-			stepMap[step.Name] = step
-		}
-	}
-
-	// validate dependsOn for a step exists
-	for _, step := range stepMap {
-		for _, dep := range step.DependsOn {
-			if _, ok := stepMap[dep]; !ok {
-				return fmt.Errorf("invalid dependency on step %s: dependency %s does not exist", step.Name, dep)
-			}
-		}
-	}
-
-	// todo check for circular dependencies
-
-	// validate resource groups
-	for _, rg := range p.ResourceGroups {
-		err := rg.Validate()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (rg *ResourceGroup) Validate() error {
-	if rg.Name == "" {
-		return fmt.Errorf("resource group name is required")
-	}
-	if rg.Subscription == "" {
-		return fmt.Errorf("subscription is required")
-	}
-	return nil
 }
 
 func getInputValues(configuredVariables []Variable, inputs map[string]output) (map[string]any, error) {

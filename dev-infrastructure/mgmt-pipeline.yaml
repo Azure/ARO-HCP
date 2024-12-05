@@ -1,4 +1,5 @@
-serviceGroup: Microsoft.Azure.ARO.Test
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 resourceGroups:
 - name: {{ .svc.rg }}
@@ -16,14 +17,17 @@ resourceGroups:
     action: ARM
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
-    inputs:
-    - name: clusterServiceMIResourceId
-      step: regionOutput
-      output: cs.msi.resourceID
+    variables:
+    - name: mgmt.clusterServiceResourceId
+      input:
+        step: regionOutput
+        name: cs
+    dependsOn:
+    - regionOutput
   - name: enable-metrics
     action: Shell
     command: scripts/enable-aks-metrics.sh
-    env:
+    variables:
     - name: RESOURCEGROUP
       configRef: mgmt.rg
     - name: AKS_NAME
