@@ -528,6 +528,27 @@
               "kvSoftDelete"
             ]
           },
+          "istio": {
+            "type": "object",
+            "currentVersion": {
+              "type": "string"
+            },
+            "newVersion": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "istioctl": {
+              "type": "object",
+              "version": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
           "userAgentPool": {
             "type": "object",
             "properties": {
