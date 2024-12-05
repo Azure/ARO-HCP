@@ -44,6 +44,7 @@ type PipelineRunOptions struct {
 	Region                string
 	Vars                  config.Variables
 	SubsciptionLookupFunc subsciptionLookup
+	NoPersist             bool
 }
 
 type armOutput map[string]any

@@ -47,7 +47,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	}
 
 	// Ensure resourcegroup exists
-	err = a.ensureResourceGroupExists(ctx, rgName)
+	err = a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
@@ -85,23 +85,20 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	return nil, nil
 }
 
-func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string) error {
-	// Create a new Azure identity client
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return fmt.Errorf("failed to obtain a credential: %w", err)
-	}
-
+func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string, rgNoPersist bool) error {
 	// Create a new ARM client
-	client, err := armresources.NewResourceGroupsClient(a.SubscriptionID, cred, nil)
+	client, err := armresources.NewResourceGroupsClient(a.SubscriptionID, a.creds, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create ARM client: %w", err)
 	}
 
 	// Check if the resource group exists
 	// todo fill tags properly
-	tags := map[string]*string{
-		"persist": to.Ptr("true"),
+	tags := map[string]*string{}
+
+	if !rgNoPersist {
+		// if no-persist is set, don't set the persist tag, needs double negotiate, cause default should be true
+		tags["persist"] = to.Ptr("true")
 	}
 	_, err = client.Get(ctx, rgName, nil)
 	if err != nil {

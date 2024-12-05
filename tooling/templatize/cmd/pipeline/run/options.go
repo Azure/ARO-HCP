@@ -23,12 +23,14 @@ func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
 		return fmt.Errorf("failed to bind options: %w", err)
 	}
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
+	cmd.Flags().BoolVar(&opts.NoPersist, "no-persist-tag", opts.NoPersist, "toggle if persist tag should not be set")
 	return nil
 }
 
 type RawRunOptions struct {
 	PipelineOptions *options.RawPipelineOptions
 	DryRun          bool
+	NoPersist       bool
 }
 
 // validatedRunOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -46,6 +48,7 @@ type ValidatedRunOptions struct {
 type completedRunOptions struct {
 	PipelineOptions *options.PipelineOptions
 	DryRun          bool
+	NoPersist       bool
 }
 
 type RunOptions struct {
@@ -77,6 +80,7 @@ func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
 		completedRunOptions: &completedRunOptions{
 			PipelineOptions: completed,
 			DryRun:          o.DryRun,
+			NoPersist:       o.NoPersist,
 		},
 	}, nil
 }
@@ -102,5 +106,6 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		Region:                rolloutOptions.Region,
 		Step:                  o.PipelineOptions.Step,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID,
+		NoPersist:             o.NoPersist,
 	})
 }
