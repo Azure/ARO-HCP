@@ -8,14 +8,14 @@ resourceGroups:
   - name: deploy
     action: Shell
     command: make deploy
-    env:
+    variables:
     - name: MAESTRO_IMAGE
       configRef: maestro_image
   - name: dry-run
     action: Shell
     command: make deploy
     dryRun:
-      envVars:
+      variables:
       - name: DRY_RUN
         value: "A very dry one"
   - name: svc
