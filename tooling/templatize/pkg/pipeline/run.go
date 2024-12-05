@@ -46,6 +46,30 @@ type PipelineRunOptions struct {
 	SubsciptionLookupFunc subsciptionLookup
 }
 
+type armOutput map[string]any
+
+type output interface {
+	GetValue(key string) (*outPutValue, error)
+}
+
+type outPutValue struct {
+	Type  string `yaml:"type"`
+	Value any    `yaml:"value"`
+}
+
+func (o armOutput) GetValue(key string) (*outPutValue, error) {
+	if v, ok := o[key]; ok {
+		if innerValue, innerConversionOk := v.(map[string]any); innerConversionOk {
+			returnValue := outPutValue{
+				Type:  innerValue["type"].(string),
+				Value: innerValue["value"],
+			}
+			return &returnValue, nil
+		}
+	}
+	return nil, fmt.Errorf("key %q not found", key)
+}
+
 func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -94,6 +118,8 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	outPuts := make(map[string]output)
+
 	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
 	if kubeconfigFile != "" {
 		defer func() {
@@ -107,7 +133,7 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, e
 
 	for _, step := range rg.Steps {
 		// execute
-		err := step.run(
+		output, err := step.run(
 			logr.NewContext(
 				ctx,
 				logger.WithValues(
@@ -119,18 +145,22 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, e
 			),
 			kubeconfigFile,
 			executionTarget, options,
+			outPuts,
 		)
 		if err != nil {
 			return err
+		}
+		if output != nil {
+			outPuts[step.Name] = output
 		}
 	}
 	return nil
 }
 
-func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions) error {
+func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]output) (output, error) {
 	if options.Step != "" && s.Name != options.Step {
 		// skip steps that don't match the specified step name
-		return nil
+		return nil, nil
 	}
 	fmt.Println("\n---------------------")
 	if options.DryRun {
@@ -141,11 +171,19 @@ func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget E
 
 	switch s.Action {
 	case "Shell":
-		return s.runShellStep(ctx, kubeconfigFile, options)
+		return nil, s.runShellStep(ctx, kubeconfigFile, options, outPuts)
 	case "ARM":
-		return s.runArmStep(ctx, executionTarget, options)
+		a := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
+		if a == nil {
+			return nil, fmt.Errorf("failed to create ARM client")
+		}
+		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), s, outPuts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to run ARM step: %w", err)
+		}
+		return output, nil
 	default:
-		return fmt.Errorf("unsupported action type %q", s.Action)
+		return nil, fmt.Errorf("unsupported action type %q", s.Action)
 	}
 }
 
@@ -202,4 +240,22 @@ func (rg *ResourceGroup) Validate() error {
 		return fmt.Errorf("subscription is required")
 	}
 	return nil
+}
+
+func getInputValues(configuredVariables []Variable, inputs map[string]output) (map[string]any, error) {
+	values := make(map[string]any)
+	for _, i := range configuredVariables {
+		if i.Input != nil {
+			if v, found := inputs[i.Input.Step]; found {
+				value, err := v.GetValue(i.Input.Name)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get value for input %s.%s: %w", i.Input.Step, i.Input.Name, err)
+				}
+				values[i.Name] = value.Value
+			} else {
+				return nil, fmt.Errorf("step %s not found in provided outputs", i.Input.Step)
+			}
+		}
+	}
+	return values, nil
 }

@@ -23,7 +23,7 @@ func TestInspectVars(t *testing.T) {
 			name: "basic",
 			caseStep: &Step{
 				Action: "Shell",
-				Env: []EnvVar{
+				Variables: []Variable{
 					{
 						Name:      "FOO",
 						ConfigRef: "foo",
@@ -42,7 +42,7 @@ func TestInspectVars(t *testing.T) {
 			name: "makefile",
 			caseStep: &Step{
 				Action: "Shell",
-				Env: []EnvVar{
+				Variables: []Variable{
 					{
 						Name:      "FOO",
 						ConfigRef: "foo",

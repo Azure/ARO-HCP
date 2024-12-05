@@ -14,11 +14,20 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
-func transformBicepToARM(ctx context.Context, bicepParameterTemplateFile string, vars config.Variables) (*armresources.DeploymentProperties, error) {
+func transformBicepToARM(ctx context.Context, bicepParameterTemplateFile string, vars config.Variables, inputs map[string]any) (*armresources.DeploymentProperties, error) {
 	// preprocess bicep parameter file and store it
-	bicepParamContent, error := config.PreprocessFile(bicepParameterTemplateFile, vars)
-	if error != nil {
-		return nil, fmt.Errorf("failed to preprocess file: %w", error)
+
+	combinedVars := make(map[string]any)
+	for k, v := range vars {
+		combinedVars[k] = v
+	}
+	for k, v := range inputs {
+		combinedVars[k] = v
+	}
+
+	bicepParamContent, err := config.PreprocessFile(bicepParameterTemplateFile, combinedVars)
+	if err != nil {
+		return nil, fmt.Errorf("failed to preprocess file: %w", err)
 	}
 	bicepParamBaseDir := filepath.Dir(bicepParameterTemplateFile)
 	bicepParamFile, err := os.CreateTemp(bicepParamBaseDir, "bicep-params-*.bicepparam")

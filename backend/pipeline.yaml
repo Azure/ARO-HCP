@@ -8,7 +8,7 @@ resourceGroups:
   - name: deploy
     action: Shell
     command: make deploy
-    env:
+    variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: svcAcrName
     - name: LOCATION

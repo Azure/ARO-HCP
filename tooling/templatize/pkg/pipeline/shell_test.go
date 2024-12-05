@@ -45,7 +45,7 @@ func TestCreateCommand(t *testing.T) {
 			step: &Step{
 				Command: "/usr/bin/echo",
 				DryRun: DryRun{
-					EnvVars: []EnvVar{
+					Variables: []Variable{
 						{
 							Name:  "DRY_RUN",
 							Value: "true",
@@ -96,7 +96,7 @@ func TestMapStepVariables(t *testing.T) {
 				"FOO": "bar",
 			},
 			step: Step{
-				Env: []EnvVar{
+				Variables: []Variable{
 					{
 						Name:      "BAZ",
 						ConfigRef: "FOO",
@@ -111,7 +111,7 @@ func TestMapStepVariables(t *testing.T) {
 			name: "missing",
 			vars: config.Variables{},
 			step: Step{
-				Env: []EnvVar{
+				Variables: []Variable{
 					{
 						ConfigRef: "FOO",
 					},
@@ -125,7 +125,7 @@ func TestMapStepVariables(t *testing.T) {
 				"FOO": 42,
 			},
 			step: Step{
-				Env: []EnvVar{
+				Variables: []Variable{
 					{
 						Name:      "BAZ",
 						ConfigRef: "FOO",
@@ -192,7 +192,7 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.step.runShellStep(context.Background(), "", &PipelineRunOptions{})
+			err := tc.step.runShellStep(context.Background(), "", &PipelineRunOptions{}, map[string]output{})
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
