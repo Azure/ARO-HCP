@@ -125,6 +125,7 @@ func (e *e2eImpl) SetOSArgs() {
 		"--pipeline-file", e.tmpdir + "/pipeline.yaml",
 		"--config-file", e.tmpdir + "/config.yaml",
 		"--deploy-env", "dev",
+		"--no-persist-tag",
 		"--region", "westus3",
 	}
 }
