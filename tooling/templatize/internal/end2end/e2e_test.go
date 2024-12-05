@@ -234,7 +234,7 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 	e2eImpl.AddStep(pipeline.Step{
 		Name:    "readInput",
 		Action:  "Shell",
-		Command: []string{"/bin/sh", "-c", "echo ${end} > env.txt"},
+		Command: "echo ${end} > env.txt",
 		Inputs: []pipeline.Input{
 			{
 				Name:   "end",
