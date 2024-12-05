@@ -45,7 +45,7 @@ func TestCreateCommand(t *testing.T) {
 			step: &Step{
 				Command: "/usr/bin/echo",
 				DryRun: DryRun{
-					EnvVars: []EnvVar{
+					Variables: []Variables{
 						{
 							Name:  "DRY_RUN",
 							Value: "true",
@@ -96,7 +96,7 @@ func TestMapStepVariables(t *testing.T) {
 				"FOO": "bar",
 			},
 			step: Step{
-				Env: []EnvVar{
+				Variables: []Variables{
 					{
 						Name:      "BAZ",
 						ConfigRef: "FOO",
@@ -111,7 +111,7 @@ func TestMapStepVariables(t *testing.T) {
 			name: "missing",
 			vars: config.Variables{},
 			step: Step{
-				Env: []EnvVar{
+				Variables: []Variables{
 					{
 						ConfigRef: "FOO",
 					},
@@ -125,7 +125,7 @@ func TestMapStepVariables(t *testing.T) {
 				"FOO": 42,
 			},
 			step: Step{
-				Env: []EnvVar{
+				Variables: []Variables{
 					{
 						Name:      "BAZ",
 						ConfigRef: "FOO",

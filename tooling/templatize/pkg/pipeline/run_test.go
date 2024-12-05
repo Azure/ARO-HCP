@@ -304,22 +304,22 @@ func TestAddInputVars(t *testing.T) {
 		},
 	}
 	s := &Step{
-		Inputs: []Input{
-			{
-				Name:   "input1",
-				Step:   "step1",
-				Output: "output1",
+		Variables: []Variables{{
+			Name: "input1",
+			Input: &Input{
+				Name: "output1",
+				Step: "step1",
 			},
 		},
-	}
+		}}
 
-	envVars, err := getInputValues(s.Inputs, mapOutput)
+	envVars, err := getInputValues(s.Variables, mapOutput)
 	assert.NilError(t, err)
 	assert.DeepEqual(t, envVars, map[string]any{"input1": "value1"})
 
-	_, err = getInputValues([]Input{
+	_, err = getInputValues([]Variables{
 		{
-			Step: "foobar",
+			Input: &Input{Step: "foobar"},
 		},
 	}, mapOutput)
 	assert.Error(t, err, "step foobar not found in provided outputs")

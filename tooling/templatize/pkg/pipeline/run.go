@@ -242,17 +242,19 @@ func (rg *ResourceGroup) Validate() error {
 	return nil
 }
 
-func getInputValues(configuredInputs []Input, inputs map[string]output) (map[string]any, error) {
+func getInputValues(configuredVariables []Variables, inputs map[string]output) (map[string]any, error) {
 	values := make(map[string]any)
-	for _, i := range configuredInputs {
-		if v, found := inputs[i.Step]; found {
-			value, err := v.GetValue(i.Output)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get value for input %s.%s: %w", i.Step, i.Output, err)
+	for _, i := range configuredVariables {
+		if i.Input != nil {
+			if v, found := inputs[i.Input.Step]; found {
+				value, err := v.GetValue(i.Input.Name)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get value for input %s.%s: %w", i.Input.Step, i.Input.Name, err)
+				}
+				values[i.Name] = value.Value
+			} else {
+				return nil, fmt.Errorf("step %s not found in provided outputs", i.Input.Step)
 			}
-			values[i.Name] = value.Value
-		} else {
-			return nil, fmt.Errorf("step %s not found in provided outputs", i.Step)
 		}
 	}
 	return values, nil

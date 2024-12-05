@@ -31,7 +31,7 @@ func newArmClient(subscriptionID, region string) *armClient {
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *Step, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	inputValues, err := getInputValues(step.Inputs, input)
+	inputValues, err := getInputValues(step.Variables, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}

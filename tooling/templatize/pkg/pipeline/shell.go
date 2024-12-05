@@ -15,13 +15,13 @@ import (
 func (s *Step) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
 	var scriptCommand string = s.Command
 	if dryRun {
-		if s.DryRun.Command == "" && s.DryRun.EnvVars == nil {
+		if s.DryRun.Command == "" && s.DryRun.Variables == nil {
 			return nil, true
 		}
 		if s.DryRun.Command != "" {
 			scriptCommand = s.DryRun.Command
 		}
-		for _, e := range s.DryRun.EnvVars {
+		for _, e := range s.DryRun.Variables {
 			envVars[e.Name] = e.Value
 		}
 	}
@@ -53,7 +53,7 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 
 	maps.Copy(envVars, stepVars)
 
-	inputValues, err := getInputValues(s.Inputs, inputs)
+	inputValues, err := getInputValues(s.Variables, inputs)
 	if err != nil {
 		return fmt.Errorf("failed to get input values: %w", err)
 	}
@@ -84,12 +84,14 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 
 func (s *Step) mapStepVariables(vars config.Variables) (map[string]string, error) {
 	envVars := make(map[string]string)
-	for _, e := range s.Env {
-		value, found := vars.GetByPath(e.ConfigRef)
-		if !found {
-			return nil, fmt.Errorf("failed to lookup config reference %s for %s", e.ConfigRef, e.Name)
+	for _, e := range s.Variables {
+		if e.ConfigRef != "" { // not all Variables are Environment variables
+			value, found := vars.GetByPath(e.ConfigRef)
+			if !found {
+				return nil, fmt.Errorf("failed to lookup config reference %s for %s", e.ConfigRef, e.Name)
+			}
+			envVars[e.Name] = utils.AnyToString(value)
 		}
-		envVars[e.Name] = utils.AnyToString(value)
 	}
 	return envVars, nil
 }

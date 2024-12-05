@@ -38,7 +38,7 @@ func TestE2EMake(t *testing.T) {
 		Name:    "test",
 		Action:  "Shell",
 		Command: "make test",
-		Env: []pipeline.EnvVar{
+		Variables: []pipeline.Variables{
 			{
 				Name:      "TEST_ENV",
 				ConfigRef: "test_env",
@@ -170,12 +170,13 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 		Name:    "readInput",
 		Action:  "Shell",
 		Command: "echo ${zoneName} > env.txt",
-		Inputs: []pipeline.Input{
+		Variables: []pipeline.Variables{
 			{
-				Name:   "zoneName",
-				Step:   "createZone",
-				Output: "zoneName",
-				Type:   "string",
+				Name: "zoneName",
+				Input: &pipeline.Input{
+					Name: "zoneName",
+					Step: "createZone",
+				},
 			},
 		},
 	})
@@ -221,12 +222,13 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 		Action:     "ARM",
 		Template:   "testb.bicep",
 		Parameters: "testb.bicepparm",
-		Inputs: []pipeline.Input{
+		Variables: []pipeline.Variables{
 			{
-				Name:   "parameterB",
-				Step:   "parameterA",
-				Output: "parameterA",
-				Type:   "string",
+				Name: "parameterB",
+				Input: &pipeline.Input{
+					Name: "parameterA",
+					Step: "parameterA",
+				},
 			},
 		},
 	})
@@ -235,12 +237,13 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 		Name:    "readInput",
 		Action:  "Shell",
 		Command: "echo ${end} > env.txt",
-		Inputs: []pipeline.Input{
+		Variables: []pipeline.Variables{
 			{
-				Name:   "end",
-				Step:   "parameterB",
-				Output: "parameterC",
-				Type:   "string",
+				Name: "end",
+				Input: &pipeline.Input{
+					Name: "parameterC",
+					Step: "parameterB",
+				},
 			},
 		},
 	})
