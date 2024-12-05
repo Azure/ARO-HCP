@@ -3,7 +3,6 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -243,16 +242,18 @@ func (rg *ResourceGroup) Validate() error {
 	return nil
 }
 
-func addInputVars(configuredInputs []Input, inputs map[string]output) map[string]any {
-	envVars := make(map[string]any)
+func getInputValues(configuredInputs []Input, inputs map[string]output) (map[string]any, error) {
+	values := make(map[string]any)
 	for _, i := range configuredInputs {
 		if v, found := inputs[i.Step]; found {
 			value, err := v.GetValue(i.Output)
 			if err != nil {
-				log.Fatal(err)
+				return nil, fmt.Errorf("failed to get value for input %s.%s: %w", i.Step, i.Output, err)
 			}
-			envVars[i.Name] = value.Value
+			values[i.Name] = value.Value
+		} else {
+			return nil, fmt.Errorf("step %s not found in provided outputs", i.Step)
 		}
 	}
-	return envVars
+	return values, nil
 }

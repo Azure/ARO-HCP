@@ -31,8 +31,12 @@ func newArmClient(subscriptionID, region string) *armClient {
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *Step, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	inputValues, err := getInputValues(step.Inputs, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get input values: %w", err)
+	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARM(ctx, step.Parameters, options.Vars, addInputVars(step.Inputs, input))
+	deploymentProperties, err := transformBicepToARM(ctx, step.Parameters, options.Vars, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}

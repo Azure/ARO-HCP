@@ -53,7 +53,11 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 
 	maps.Copy(envVars, stepVars)
 
-	for k, v := range addInputVars(s.Inputs, inputs) {
+	inputValues, err := getInputValues(s.Inputs, inputs)
+	if err != nil {
+		return fmt.Errorf("failed to get input values: %w", err)
+	}
+	for k, v := range inputValues {
 		envVars[k] = utils.AnyToString(v)
 	}
 	// execute the command
