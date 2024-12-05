@@ -304,7 +304,7 @@ func TestAddInputVars(t *testing.T) {
 		},
 	}
 	s := &Step{
-		Variables: []Variables{{
+		Variables: []Variable{{
 			Name: "input1",
 			Input: &Input{
 				Name: "output1",
@@ -317,7 +317,7 @@ func TestAddInputVars(t *testing.T) {
 	assert.NilError(t, err)
 	assert.DeepEqual(t, envVars, map[string]any{"input1": "value1"})
 
-	_, err = getInputValues([]Variables{
+	_, err = getInputValues([]Variable{
 		{
 			Input: &Input{Step: "foobar"},
 		},

@@ -38,7 +38,7 @@ func TestE2EMake(t *testing.T) {
 		Name:    "test",
 		Action:  "Shell",
 		Command: "make test",
-		Variables: []pipeline.Variables{
+		Variables: []pipeline.Variable{
 			{
 				Name:      "TEST_ENV",
 				ConfigRef: "test_env",
@@ -170,7 +170,7 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 		Name:    "readInput",
 		Action:  "Shell",
 		Command: "echo ${zoneName} > env.txt",
-		Variables: []pipeline.Variables{
+		Variables: []pipeline.Variable{
 			{
 				Name: "zoneName",
 				Input: &pipeline.Input{
@@ -222,7 +222,7 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 		Action:     "ARM",
 		Template:   "testb.bicep",
 		Parameters: "testb.bicepparm",
-		Variables: []pipeline.Variables{
+		Variables: []pipeline.Variable{
 			{
 				Name: "parameterB",
 				Input: &pipeline.Input{
@@ -237,7 +237,7 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 		Name:    "readInput",
 		Action:  "Shell",
 		Command: "echo ${end} > env.txt",
-		Variables: []pipeline.Variables{
+		Variables: []pipeline.Variable{
 			{
 				Name: "end",
 				Input: &pipeline.Input{

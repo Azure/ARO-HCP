@@ -23,24 +23,24 @@ type ResourceGroup struct {
 type outPutHandler func(string)
 
 type Step struct {
-	Name            string      `yaml:"name"`
-	Action          string      `yaml:"action"`
-	Command         string      `yaml:"command,omitempty"`
-	Variables       []Variables `yaml:"env,omitempty"`
-	Template        string      `yaml:"template,omitempty"`
-	Parameters      string      `yaml:"parameters,omitempty"`
-	DependsOn       []string    `yaml:"dependsOn,omitempty"`
-	DryRun          DryRun      `yaml:"dryRun,omitempty"`
-	DeploymentLevel string      `yaml:"deploymentLevel,omitempty"`
+	Name            string     `yaml:"name"`
+	Action          string     `yaml:"action"`
+	Command         string     `yaml:"command,omitempty"`
+	Variables       []Variable `yaml:"env,omitempty"`
+	Template        string     `yaml:"template,omitempty"`
+	Parameters      string     `yaml:"parameters,omitempty"`
+	DependsOn       []string   `yaml:"dependsOn,omitempty"`
+	DryRun          DryRun     `yaml:"dryRun,omitempty"`
+	DeploymentLevel string     `yaml:"deploymentLevel,omitempty"`
 	outputFunc      outPutHandler
 }
 
 type DryRun struct {
-	Variables []Variables `yaml:"envVars,omitempty"`
-	Command   string      `yaml:"command,omitempty"`
+	Variables []Variable `yaml:"envVars,omitempty"`
+	Command   string     `yaml:"command,omitempty"`
 }
 
-type Variables struct {
+type Variable struct {
 	Name      string `yaml:"name"`
 	ConfigRef string `yaml:"configRef,omitempty"`
 	Value     string `yaml:"value,omitempty"`

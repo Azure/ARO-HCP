@@ -242,7 +242,7 @@ func (rg *ResourceGroup) Validate() error {
 	return nil
 }
 
-func getInputValues(configuredVariables []Variables, inputs map[string]output) (map[string]any, error) {
+func getInputValues(configuredVariables []Variable, inputs map[string]output) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {
