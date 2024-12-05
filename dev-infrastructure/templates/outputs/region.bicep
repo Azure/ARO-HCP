@@ -3,8 +3,4 @@ resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   location: resourceGroup().location
 }
 
-output cs object = {
-  msi: {
-    resourceID: csMSI.id
-  }
-}
+output cs string = csMSI.id

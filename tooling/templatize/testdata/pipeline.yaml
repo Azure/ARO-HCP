@@ -1,3 +1,4 @@
+$schema: pipeline.schema.v1
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:

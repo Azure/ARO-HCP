@@ -25,25 +25,25 @@ func TestCreateCommand(t *testing.T) {
 		{
 			name: "basic",
 			step: &Step{
-				Command: "/usr/bin/echo hello",
+				Command: "/bin/echo hello",
 			},
-			expectedScript: buildBashScript("/usr/bin/echo hello"),
+			expectedScript: buildBashScript("/bin/echo hello"),
 		},
 		{
 			name: "dry-run",
 			step: &Step{
-				Command: "/usr/bin/echo hello",
+				Command: "/bin/echo hello",
 				DryRun: DryRun{
-					Command: "/usr/bin/echo dry-run",
+					Command: "/bin/echo dry-run",
 				},
 			},
 			dryRun:         true,
-			expectedScript: buildBashScript("/usr/bin/echo dry-run"),
+			expectedScript: buildBashScript("/bin/echo dry-run"),
 		},
 		{
 			name: "dry-run-env",
 			step: &Step{
-				Command: "/usr/bin/echo",
+				Command: "/bin/echo",
 				DryRun: DryRun{
 					Variables: []Variable{
 						{
@@ -54,14 +54,14 @@ func TestCreateCommand(t *testing.T) {
 				},
 			},
 			dryRun:         true,
-			expectedScript: buildBashScript("/usr/bin/echo"),
+			expectedScript: buildBashScript("/bin/echo"),
 			envVars:        map[string]string{},
 			expectedEnv:    []string{"DRY_RUN=true"},
 		},
 		{
 			name: "dry-run fail",
 			step: &Step{
-				Command: "/usr/bin/echo",
+				Command: "/bin/echo",
 			},
 			dryRun:      true,
 			skipCommand: true,
