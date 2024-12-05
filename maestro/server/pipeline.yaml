@@ -8,7 +8,7 @@ resourceGroups:
   - name: deploy
     action: Shell
     command: make deploy
-    env:
+    variables:
     - name: EVENTGRID_NAME
       configRef: maestro.eventGrid.name
     - name: REGION_RG

@@ -9,10 +9,10 @@ resourceGroups:
     action: Shell
     command: make deploy
     dryRun:
-      envVars:
+      variables:
         - name: HELM_DRY_RUN
           value: "--dry-run=server --debug"
-    env:
+    variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: svcAcrName
     - name: LOCATION
