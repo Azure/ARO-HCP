@@ -1,0 +1,12 @@
+serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
+rolloutName: Service Infra Rollout
+resourceGroups:
+- name: {{ .svc.rg }}
+  subscription: {{ .svc.subscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  - name: svc-infra
+    action: ARM
+    template: templates/svc-infra.bicep
+    parameters: configurations/svc-infra.tmpl.bicepparam
+
