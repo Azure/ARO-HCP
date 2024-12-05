@@ -574,9 +574,6 @@ type OperationListResult struct {
 
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
-	// REQUIRED; ResourceId for the network security group attached to the cluster subnet
-	NetworkSecurityGroupID *string
-
 	// REQUIRED; ResourceId for the subnet used by the control plane
 	SubnetID *string
 
@@ -586,6 +583,9 @@ type PlatformProfile struct {
 
 	// Resource group to put cluster resources
 	ManagedResourceGroup *string
+
+	// ResourceId for the network security group attached to the cluster subnet
+	NetworkSecurityGroupID *string
 
 	// The core outgoing configuration
 	OutboundType *OutboundType
