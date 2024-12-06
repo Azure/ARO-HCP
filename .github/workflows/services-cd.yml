@@ -78,7 +78,7 @@
 
         - name: 'Deploy Istio Configuration'
           run: |
-            make isto.deploy
+            make istio.deploy
 
         - name: 'Deploy Frontend'
           run: |
