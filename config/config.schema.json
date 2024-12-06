@@ -3,9 +3,6 @@
     "title": "Generated schema for Root",
     "type": "object",
     "properties": {
-      "acrName": {
-        "type": "string"
-      },
       "aksName": {
         "type": "string"
       },
@@ -130,8 +127,28 @@
           "cosmosDB"
         ]
       },
-      "globalRG": {
-        "type": "string"
+      "global": {
+        "type": "object",
+        "properties": {
+          "rg": {
+            "type": "string"
+          },
+          "subscription": {
+            "type": "string"
+          },
+          "manageTokenCustomRole": {
+            "type": "boolean"
+          },
+          "region": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rg",
+          "subscription",
+          "manageTokenCustomRole",
+          "region"
+        ]
       },
       "hypershift": {
         "type": "object",
@@ -475,9 +492,6 @@
       "regionalDNSSubdomain": {
         "type": "string"
       },
-      "serviceComponentAcrResourceGroups": {
-        "type": "string"
-      },
       "serviceKeyVault": {
         "type": "object",
         "properties": {
@@ -580,7 +594,6 @@
     },
     "additionalProperties": false,
     "required": [
-      "acrName",
       "aksName",
       "aroDevopsMsiId",
       "baseDnsZoneName",
@@ -589,7 +602,7 @@
       "cxKeyVault",
       "firstPartyAppClientId",
       "frontend",
-      "globalRG",
+      "global",
       "hypershift",
       "hypershiftOperator",
       "imageSync",
@@ -607,7 +620,6 @@
       "region",
       "regionRG",
       "regionalDNSSubdomain",
-      "serviceComponentAcrResourceGroups",
       "serviceKeyVault",
       "subnetPrefix",
       "svc",
