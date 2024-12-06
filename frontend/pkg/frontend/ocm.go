@@ -149,14 +149,6 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, h
 				ID(f.location)).
 			CloudProvider(cmv1.NewCloudProvider().
 				ID(csCloudProvider)).
-			Azure(cmv1.NewAzure().
-				TenantID(tenantID).
-				SubscriptionID(resourceID.SubscriptionID).
-				ResourceGroupName(resourceID.ResourceGroupName).
-				ResourceName(hcpCluster.Name).
-				ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
-				SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
-				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID)).
 			Product(cmv1.NewProduct().
 				ID(csProductId)).
 			Hypershift(cmv1.NewHypershift().
@@ -176,6 +168,22 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, h
 				Listening(convertVisibilityToListening(hcpCluster.Properties.Spec.API.Visibility))).
 			FIPS(hcpCluster.Properties.Spec.FIPS).
 			EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption)
+
+		azureBuilder := cmv1.NewAzure().
+			TenantID(tenantID).
+			SubscriptionID(resourceID.SubscriptionID).
+			ResourceGroupName(resourceID.ResourceGroupName).
+			ResourceName(hcpCluster.Name).
+			ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
+			SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID)
+
+		// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
+		if hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID != "" {
+			azureBuilder = azureBuilder.
+				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID)
+		}
+
+		clusterBuilder = clusterBuilder.Azure(azureBuilder)
 
 		// Cluster Service rejects an empty DomainPrefix string.
 		if hcpCluster.Properties.Spec.DNS.BaseDomainPrefix != "" {

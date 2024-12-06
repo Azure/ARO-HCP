@@ -316,7 +316,7 @@ model PlatformProfile {
   outboundType?: OutboundType = OutboundType.loadBalancer;
 
   /** ResourceId for the network security group attached to the cluster subnet */
-  networkSecurityGroupId: NetworkSecurityGroupResourceId;
+  networkSecurityGroupId?: NetworkSecurityGroupResourceId;
 
   /** The id of the disk encryption set to be used for etcd.
    * Configure this when `etcdEncryption` is set to true

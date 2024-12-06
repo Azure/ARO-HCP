@@ -1952,8 +1952,7 @@
         }
       },
       "required": [
-        "subnetId",
-        "networkSecurityGroupId"
+        "subnetId"
       ]
     },
     "ProvisioningState": {
