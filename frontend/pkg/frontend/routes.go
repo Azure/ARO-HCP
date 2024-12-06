@@ -68,6 +68,9 @@ func (f *Frontend) routes() *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
 	// Resource ID endpoints
 	// Request context holds an azcorearm.ResourceID
