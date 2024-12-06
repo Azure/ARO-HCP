@@ -239,14 +239,14 @@ There are more fine grained cleanup tasks available as well
 To followup sections describe how to deploy the components individually. But if you are looking for a quick and easy way to install or update ALL components on both clusters with one command, then run this:
 
   ```bash
-  make deploy.svc.all
-  make deploy.mgmt.all
+  make svc.deployall
+  make mgmt.deployall
   ```
 
 Or even simpler with
 
   ```bash
-  make deploy.all
+  make deployall
   ```
 
 ## Deploy Services to the service cluster
@@ -273,7 +273,7 @@ To access the HTTP and GRPC endpoints of maestro, run
 > This might not work with `oc` 4.17.0, please use oc 4.16.x until this is fixed in 4.17
 
    ```bash
-   make cs.deploy
+   make cluster-service.deploy
    ```
 
 To validate, have a look at the `cluster-service` namespace or the service cluster.
@@ -283,8 +283,8 @@ To validate, have a look at the `cluster-service` namespace or the service clust
 The ARO-HCP resource provider consists of independent frontend and backend components.
 
   ```bash
-  make rp.frontend.deploy
-  make rp.backend.deploy
+  make frontend.deploy
+  make backend.deploy
   ```
 
 To validate, have a look at the `aro-hcp` namespace on the service cluster.
@@ -300,7 +300,7 @@ To validate, have a look at the `aro-hcp` namespace on the service cluster.
 ### Hypershift Operator and External DNS
 
   ```bash
-  make hypershift.deploy
+  make hypershiftoperator.deploy
   ```
 
 ### Maestro Agent

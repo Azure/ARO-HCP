@@ -82,97 +82,51 @@ infra.clean:
 .PHONY: infra.clean
 
 #
-# Istio
+# Services
 #
 
-isto.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) istio svc
-.PHONY: isto.deploy
-
+# Service Deployment Conventions:
 #
-# Metrics
-#
+# - Services are deployed in aks clusters (either svc or mgmt), which are
+#   provisioned via infra section above
+# - Makefile targets to deploy services ends with ".deploy" suffix
+# - To deploy all services on svc or mgmt cluster, we have special targets
+#   `svc.deployall` and `mgmt.deployall`, and `deployall` deploys everithing.
+# - Placement of a service is controlled via services_svc and services_mgmt
+#   variables
+# - If the name of the service contains a dot, it's interpreted as directory
+#   separator "/" (used for maestro only).
 
-metrics.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) metrics svc
-.PHONY: metrics.deploy
+# Services deployed on "svc" aks cluster
+services_svc = istio metrics maestro.server maestro.registration cluster-service frontend backend
+# Services deployed on "mgmt" aks cluster(s)
+services_mgmt = acm maestro.agent pko hypershiftoperator
+# List of all services
+services_all = $(join services_svc,services_mgmt)
 
-#
-# Cluster Service
-#
+.PHONY: $(addsuffix .deploy, $(services_all)) deployall svc.deployall mgmt.deployall listall list clean
 
-cs.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) cluster-service svc
-.PHONY: cs.deploy
+# Service deployment on either svc or mgmt aks cluster, a service name
+# needs to be listed either in services_svc or services_mgmt variable (wich
+# defines where it will be deployed).
+%.deploy:
+	$(eval export dirname=$(subst .,/,$(basename $@)))
+	@if [ $(words $(filter $(basename $@), $(services_svc))) = 1 ]; then\
+	    ./svc-deploy.sh $(DEPLOY_ENV) $(dirname) svc;\
+	elif [ $(words $(filter $(basename $@), $(services_mgmt))) = 1 ]; then\
+	    ./svc-deploy.sh $(DEPLOY_ENV) $(dirname) mgmt;\
+	else\
+	    echo "'$(basename $@)' is not to be deployed on neither svc nor mgmt cluster";\
+	    exit 1;\
+	fi
 
-#
-# Maestro
-#
+svc.deployall:  $(addsuffix .deploy, $(services_svc))
+mgmt.deployall: $(addsuffix .deploy, $(services_mgmt))
+deployall: svc.deployall mgmt.deployall
 
-maestro.server.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) maestro/server svc
-.PHONY: maestro.server.deploy
-
-maestro.agent.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) maestro/agent mgmt
-.PHONY: maestro.agent.deploy
-
-maestro.registration.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) maestro/registration svc
-.PHONY: maestro.registration.deploy
-
-maestro: maestro.server.deploy maestro.agent.deploy maestro.registration.deploy
-.PHONY: maestro
-
-#
-# Resource Provider
-#
-
-rp.frontend.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) frontend svc
-.PHONY: rp.frontend.deploy
-
-rp.backend.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) backend svc
-.PHONY: rp.backend.deploy
-
-#
-# PKO
-#
-
-pko.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) pko mgmt
-.PHONY: pko.deploy
-
-#
-# ACM
-#
-
-acm.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) acm mgmt
-.PHONY: acm.deploy
-
-#
-# Hypershift
-#
-
-hypershift.deploy:
-	@./svc-deploy.sh $(DEPLOY_ENV) hypershiftoperator mgmt
-.PHONY: hypershift.deploy
-
-#
-# Deploy ALL components
-#
-
-deploy.svc.all: isto.deploy metrics.deploy maestro.server.deploy maestro.registration.deploy cs.deploy rp.frontend.deploy rp.backend.deploy
-.PHONY: deploy.svc.all
-
-deploy.mgmt.all: acm.deploy maestro.agent.deploy hypershift.deploy
-.PHONY: deploy.mgmt.all
-
-deploy.all: deploy.svc.all deploy.mgmt.all
-.PHONY: deploy.all
+listall:
+	@echo svc: ${services_svc}
+	@echo mgmt: ${services_mgmt}
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
-.PHONY: list
