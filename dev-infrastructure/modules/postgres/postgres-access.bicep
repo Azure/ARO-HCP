@@ -6,8 +6,8 @@ The user will also be enabled for entra authentication.
 @description('The name of the postgres server that will be managed')
 param postgresServerName string
 
-@description('The name of the managed identity that will be used to manage access in the database')
-param postgresAdminManagedIdentityName string
+@description('The resource ID of the managed identity that will be used to manage access in the database')
+param postgresAdministrationManagedIdentityId string
 
 @description('The principal ID / object ID of the managed identity that will be granted access to')
 param newUserPrincipalId string
@@ -42,7 +42,7 @@ module csManagedIdentityDatabaseAccess 'postgres-sql.bicep' = {
   params: {
     postgresServerName: postgres.properties.fullyQualifiedDomainName
     databaseName: 'postgres' // access configuration is managed in the postgres DB
-    postgresAdminManagedIdentityName: postgresAdminManagedIdentityName
+    postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
     sqlScript: string(join(sqlScriptLines, '\n'))
   }
 }

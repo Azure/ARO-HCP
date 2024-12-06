@@ -250,6 +250,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     postgresServerPrivate: maestroPostgresPrivate
+    postgresAdministrationManagedIdentityId: aroDevopsMsiId
     maestroServerManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-server'
@@ -258,7 +259,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-server'
     )[0].uamiName
-    location: location
   }
   dependsOn: [
     serviceKeyVault
@@ -307,7 +307,6 @@ var csManagedIdentityPrincipalId = filter(
 module cs '../modules/cluster-service.bicep' = {
   name: 'cluster-service'
   params: {
-    location: location
     postgresServerName: csPostgresServerName
     postgresServerMinTLSVersion: csPostgresServerMinTLSVersion
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
@@ -321,6 +320,7 @@ module cs '../modules/cluster-service.bicep' = {
     regionalDNSZoneName: regionalDNSZoneName
     regionalResourceGroup: regionalResourceGroup
     acrResourceGroupNames: clustersServiceAcrResourceGroupNames
+    postgresAdministrationManagedIdentityId: aroDevopsMsiId
   }
   dependsOn: [
     maestroServer

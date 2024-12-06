@@ -1,6 +1,3 @@
-@description('The location for the PostGres DB')
-param location string
-
 @description('The managed identity name CS will use to interact with Azure resources')
 param clusterServiceManagedIdentityName string
 
@@ -43,25 +40,23 @@ param regionalResourceGroup string
 @description('The names of the ACR resource groups / will be refactored soon into dedicated ACR Resource IDs')
 param acrResourceGroupNames array = []
 
+@description('The resource ID of the managed identity used to manage the Postgres server')
+param postgresAdministrationManagedIdentityId string
+
 //
 //   P O S T G R E S
 //
 
-resource postgresAdminManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${postgresServerName}-db-admin-msi'
-  location: location
-}
+import * as res from 'resource.bicep'
 
 module postgres 'postgres/postgres.bicep' = if (deployPostgres) {
   name: '${deployment().name}-postgres'
   params: {
     name: postgresServerName
     databaseAdministrators: [
-      // add the dedicated admin managed identity as administrator
-      // this one is going to be used to manage DB access
       {
-        principalId: postgresAdminManagedIdentity.properties.principalId
-        principalName: postgresAdminManagedIdentity.name
+        principalId: reference(postgresAdministrationManagedIdentityId, '2023-01-31').principalId
+        principalName: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
         principalType: 'ServicePrincipal'
       }
     ]
@@ -108,7 +103,7 @@ module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = if (de
   name: '${deployment().name}-cs-db-access'
   params: {
     postgresServerName: postgresServerName
-    postgresAdminManagedIdentityName: postgresAdminManagedIdentity.name
+    postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
     databaseName: csDatabaseName
     newUserName: clusterServiceManagedIdentityName
     newUserPrincipalId: clusterServiceManagedIdentityPrincipalId

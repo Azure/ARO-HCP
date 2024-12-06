@@ -8,17 +8,15 @@ param postgresServerName string
 @description('The database name where an SQL script will be executed')
 param databaseName string
 
-@description('The name of the user-assigned managed identity that will be used to execute the SQL script')
-param postgresAdminManagedIdentityName string
+@description('The resource ID of the user-assigned managed identity that will be used to execute the SQL script')
+param postgresAdministrationManagedIdentityId string
 
 @description('The SQL script to execute on the PostgreSQL server')
 param sqlScript string
 
-param forceUpdateTag string = guid('${sqlScript}/${postgresServerName}/${databaseName}+${postgresAdminManagedIdentityName}')
+param forceUpdateTag string = guid('${sqlScript}/${postgresServerName}/${databaseName}/${postgresAdministrationManagedIdentityId}')
 
-resource postgresAdminManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: postgresAdminManagedIdentityName
-}
+import * as res from '../resource.bicep'
 
 resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: deployment().name
@@ -27,7 +25,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${postgresAdminManagedIdentity.id}': {}
+      '${postgresAdministrationManagedIdentityId}': {}
     }
   }
 
@@ -58,7 +56,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       }
       {
         name: 'PGUSER'
-        value: postgresAdminManagedIdentity.name
+        value: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
       }
     ]
     timeout: 'PT30M'

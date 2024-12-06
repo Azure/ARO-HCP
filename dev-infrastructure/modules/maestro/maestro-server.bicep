@@ -60,16 +60,14 @@ param maestroServerManagedIdentityName string
 @description('The principal ID of the Managed Identity for the Maestro cluster service')
 param maestroServerManagedIdentityPrincipalId string
 
-param location string
+@description('The resource ID of the managed identity used to manage the Postgres server')
+param postgresAdministrationManagedIdentityId string
 
 //
 //   P O S T G R E S
 //
 
-resource postgresAdminManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${postgresServerName}-db-admin-msi'
-  location: location
-}
+import * as res from '../resource.bicep'
 
 module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
   name: '${deployment().name}-postgres'
@@ -80,8 +78,8 @@ module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
       // add the dedicated admin managed identity as administrator
       // this one is going to be used to manage DB access
       {
-        principalId: postgresAdminManagedIdentity.properties.principalId
-        principalName: postgresAdminManagedIdentity.name
+        principalId: reference(postgresAdministrationManagedIdentityId, '2023-01-31').principalId
+        principalName: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
         principalType: 'ServicePrincipal'
       }
     ]
@@ -121,7 +119,7 @@ module csManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' = if 
   name: '${deployment().name}-maestro-db-access'
   params: {
     postgresServerName: postgresServerName
-    postgresAdminManagedIdentityName: postgresAdminManagedIdentity.name
+    postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
     databaseName: maestroDatabaseName
     newUserName: maestroServerManagedIdentityName
     newUserPrincipalId: maestroServerManagedIdentityPrincipalId
