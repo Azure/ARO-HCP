@@ -47,7 +47,7 @@
     "rg": "hcp-underlay-westus3-imagesync-dev"
   },
   "istioVersion": "asm-1-22",
-  "kubernetesVersion": "1.30.5",
+  "kubernetesVersion": "1.30.6",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-dev-mgmt-1",
