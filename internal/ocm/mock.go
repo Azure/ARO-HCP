@@ -42,7 +42,7 @@ func NewMockClusterServiceClient() MockClusterServiceClient {
 func (mcsc *MockClusterServiceClient) GetConn() *sdk.Connection { panic("GetConn not implemented") }
 
 func (csc *MockClusterServiceClient) AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder {
-	additionalProperties := getDefaultAdditionalProperities()
+	additionalProperties := map[string]string{}
 	return builder.Properties(additionalProperties)
 }
 
