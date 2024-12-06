@@ -7,8 +7,8 @@ resourceGroups:
   steps:
   - name: regionOutput
     action: ARM
-    template: templates/outputs/region.bicep
-    parameters: configurations/outputs/region.tmpl.bicepparam
+    template: templates/output-region.bicep
+    parameters: configurations/output-region.tmpl.bicepparam
 - name: {{ .mgmt.rg }}
   subscription: {{ .mgmt.subscription }}
   aksCluster: {{ .aksName }}

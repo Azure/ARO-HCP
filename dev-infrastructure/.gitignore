@@ -7,4 +7,5 @@ configurations/acr-ocp.bicepparam
 configurations/image-sync.bicepparam
 configurations/dev-role-assignments.bicepparam
 configurations/cs-integ-msi.bicepparam
+configurations/output-region.bicepparam
 config.mk
