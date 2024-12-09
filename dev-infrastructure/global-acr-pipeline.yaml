@@ -21,3 +21,5 @@ resourceGroups:
     action: ARM
     template: templates/image-sync.bicep
     parameters: configurations/image-sync.tmpl.bicepparam
+    dependsOn:
+    - global-acrs

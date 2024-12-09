@@ -187,14 +187,69 @@
           "environmentName": {
             "type": "string"
           },
-          "imageRepo": {
-            "type": "string"
+          "componentSync": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "imageRepo": {
+                "type": "string"
+              },
+              "imageTag": {
+                "type": "string"
+              },
+              "repositories": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "enabled",
+              "imageRepo",
+              "imageTag",
+              "repositories"
+            ]
           },
-          "imageTag": {
-            "type": "string"
+          "ocMirror": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "imageRepo": {
+                "type": "string"
+              },
+              "imageTag": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "enabled",
+              "imageRepo",
+              "imageTag"
+            ]
           },
-          "repositories": {
-            "type": "string"
+          "keyVault": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "private": {
+                "type": "boolean"
+              },
+              "softDelete": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "private",
+              "softDelete"
+            ]
           },
           "rg": {
             "type": "string"
@@ -204,9 +259,9 @@
         "required": [
           "acrRG",
           "environmentName",
-          "imageRepo",
-          "imageTag",
-          "repositories",
+          "componentSync",
+          "ocMirror",
+          "keyVault",
           "rg"
         ]
       },
@@ -458,22 +513,6 @@
           "softDelete"
         ]
       },
-      "ocMirror": {
-        "type": "object",
-        "properties": {
-          "imageRepo": {
-            "type": "string"
-          },
-          "imageTag": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "imageRepo",
-          "imageTag"
-        ]
-      },
       "ocpAcrName": {
         "type": "string"
       },
@@ -613,7 +652,6 @@
       "mgmtKeyVault",
       "monitoring",
       "msiKeyVault",
-      "ocMirror",
       "ocpAcrName",
       "oidcStorageAccountName",
       "podSubnetPrefix",

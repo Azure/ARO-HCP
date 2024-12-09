@@ -22,8 +22,11 @@ param ocpAcrName string
 @description('Name of the keyvault where the pull secret is stored')
 param keyVaultName string
 
-@description('Name of the KeyVault RG')
-param keyVaultResourceGroup string
+@description('Resource group of the keyvault')
+param keyVaultPrivate bool
+
+@description('Defines if the keyvault should have soft delete enabled')
+param keyVaultSoftDelete bool
 
 @description('The name of the pull secret for the component sync job')
 param componentSyncPullSecretName string
@@ -34,6 +37,9 @@ param bearerSecretName string
 @description('The image to use for the component sync job')
 param componentSyncImage string
 
+@description('Defines if the component sync job should be enabled')
+param componentSyncEnabed bool
+
 @description('A CSV of the repositories to sync')
 param repositoriesToSync string
 
@@ -43,12 +49,27 @@ param numberOfTags int = 10
 @description('The image to use for the oc-mirror job')
 param ocMirrorImage string
 
+@description('Defines if the oc-mirror job should be enabled')
+param ocMirrorEnabled bool
+
 @description('The name of the pull secret for the oc-mirror job')
 param ocpPullSecretName string
 
 //
 // Container App Infra
 //
+
+module kv '../modules/keyvault/keyvault.bicep' = {
+  name: '${deployment().name}-imagesync-kv'
+  params: {
+    location: location
+    keyVaultName: keyVaultName
+    private: keyVaultPrivate
+    enableSoftDelete: keyVaultSoftDelete
+    purpose: 'imagesync'
+  }
+}
+
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
   name: containerAppLogAnalyticsName
@@ -105,13 +126,15 @@ module acrPullRole '../modules/acr/acr-permissions.bicep' = {
 module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' = [
   for secretName in [componentSyncPullSecretName, bearerSecretName, ocpPullSecretName]: {
     name: guid(imageSyncManagedIdentity, location, keyVaultName, secretName, 'secret-user')
-    scope: resourceGroup(keyVaultResourceGroup)
     params: {
       keyVaultName: keyVaultName
       secretName: secretName
       roleName: 'Key Vault Secrets User'
       managedIdentityPrincipalId: uami.properties.principalId
     }
+    dependsOn: [
+      kv
+    ]
   }
 ]
 
@@ -122,7 +145,7 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
 var componentSyncJobName = 'component-sync'
 var pullSecretFile = 'quayio-auth.json'
 
-resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
+resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEnabed) {
   name: componentSyncJobName
   location: location
 
@@ -221,6 +244,9 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
       ]
     }
   }
+  dependsOn: [
+    kv
+  ]
 }
 
 // oc-mirror jobs
@@ -291,7 +317,7 @@ var acmMirrorConfig = {
   }
 }
 
-var ocMirrorJobConfiguration = [
+var ocMirrorJobConfiguration = ocMirrorEnabled ? [
   {
     name: 'oc-mirror'
     cron: '0 * * * *'
@@ -306,7 +332,7 @@ var ocMirrorJobConfiguration = [
     targetRegistry: svcAcrName
     imageSetConfig: acmMirrorConfig
   }
-]
+] : []
 
 resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
   for i in range(0, length(ocMirrorJobConfiguration)): {
@@ -405,5 +431,8 @@ resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
         ]
       }
     }
+    dependsOn: [
+      kv
+    ]
   }
 ]

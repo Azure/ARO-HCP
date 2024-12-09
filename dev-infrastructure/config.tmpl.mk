@@ -9,7 +9,6 @@ GLOBAL_REGION ?= {{ .global.region }}
 IMAGE_SYNC_RESOURCEGROUP ?= {{ .imageSync.rg }}
 IMAGE_SYNC_ENVIRONMENT ?= {{ .imageSync.environmentName }}
 ARO_HCP_IMAGE_ACR ?= {{ .svcAcrName }}
-REPOSITORIES_TO_SYNC ?= '{{ .imageSync.repositories }}'
 AKS_NAME ?= {{ .aksName }}
 CS_PG_NAME ?= {{ .clusterService.postgres.name }}
 MAESTRO_PG_NAME ?= {{ .maestro.postgres.name }}

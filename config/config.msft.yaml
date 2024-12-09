@@ -79,14 +79,19 @@ defaults:
   # Image Sync
   imageSync:
     rg: hcp-underlay-imagesync
-    acrRG: '{{ .ctx.region }}-shared-resources'
-    environmentName: aro-hcp-image-sync
-    repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
-    imageRepo: image-sync/component-sync
-    imageTag: latest
-  ocMirror:
-    imageRepo: image-sync/oc-mirror
-    imageTag: 7abc8af
+    acrRG: global-shared-resources
+    environmentName: global-shared-resources
+    componentSync:
+      enabled: true
+      imageRepo: image-sync/component-sync
+      repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
+    ocMirror:
+      enabled: true
+      imageRepo: image-sync/oc-mirror
+    keyVault:
+      name: arohcp-imagesync-int
+      private: false
+      softDelete: true
 
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
@@ -131,6 +136,11 @@ clouds:
         imageRepo: app-sre/uhc-clusters-service
       hypershiftOperator:
         imageTag: 9aca808
+      imageSync:
+        componentSync:
+          imageTag: 0b3c08f
+        ocMirror:
+          imageTag: 7abc8af
 
     environments:
       int:

@@ -43,11 +43,24 @@
     "imageTag": "9aca808"
   },
   "imageSync": {
-    "acrRG": "westus3-shared-resources",
-    "environmentName": "aro-hcp-image-sync",
-    "imageRepo": "image-sync/component-sync",
-    "imageTag": "latest",
-    "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
+    "acrRG": "global-shared-resources",
+    "componentSync": {
+      "enabled": true,
+      "imageRepo": "image-sync/component-sync",
+      "imageTag": "0b3c08f",
+      "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package"
+    },
+    "environmentName": "global-shared-resources",
+    "keyVault": {
+      "name": "arohcp-imagesync-int",
+      "private": false,
+      "softDelete": true
+    },
+    "ocMirror": {
+      "enabled": true,
+      "imageRepo": "image-sync/oc-mirror",
+      "imageTag": "7abc8af"
+    },
     "rg": "hcp-underlay-imagesync"
   },
   "istioVersion": "asm-1-22",
@@ -112,10 +125,6 @@
     "name": "arohcp-msi-int-1",
     "private": false,
     "softDelete": false
-  },
-  "ocMirror": {
-    "imageRepo": "image-sync/oc-mirror",
-    "imageTag": "7abc8af"
   },
   "ocpAcrName": "arohcpocpint",
   "oidcStorageAccountName": "arohcpoidcintint",
