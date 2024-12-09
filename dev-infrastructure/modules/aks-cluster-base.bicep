@@ -32,8 +32,6 @@ param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
 
-param istioCerticiateKeyVaultID string
-
 @maxLength(24)
 param aksKeyVaultName string
 
@@ -337,15 +335,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
       ? {
           mode: 'Istio'
           istio: {
-            certificateAuthority: {
-              plugin: {
-                certChainObjectName: 'cert-chain'
-                certObjectName: 'ca-cert'
-                keyObjectName: 'ca-key'
-                keyVaultId: (istioCerticiateKeyVaultID)
-                rootCertObjectName: 'root-cert'
-              }
-            }
             components: {
               ingressGateways: [
                 {
