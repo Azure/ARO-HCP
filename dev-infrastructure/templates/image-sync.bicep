@@ -70,7 +70,6 @@ module kv '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
-
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
   name: containerAppLogAnalyticsName
   location: location
@@ -317,22 +316,24 @@ var acmMirrorConfig = {
   }
 }
 
-var ocMirrorJobConfiguration = ocMirrorEnabled ? [
-  {
-    name: 'oc-mirror'
-    cron: '0 * * * *'
-    timeout: 4 * 60 * 60
-    targetRegistry: ocpAcrName
-    imageSetConfig: ocpMirrorConfig
-  }
-  {
-    name: 'acm-mirror'
-    cron: '0 10 * * *'
-    timeout: 4 * 60 * 60
-    targetRegistry: svcAcrName
-    imageSetConfig: acmMirrorConfig
-  }
-] : []
+var ocMirrorJobConfiguration = ocMirrorEnabled
+  ? [
+      {
+        name: 'oc-mirror'
+        cron: '0 * * * *'
+        timeout: 4 * 60 * 60
+        targetRegistry: ocpAcrName
+        imageSetConfig: ocpMirrorConfig
+      }
+      {
+        name: 'acm-mirror'
+        cron: '0 10 * * *'
+        timeout: 4 * 60 * 60
+        targetRegistry: svcAcrName
+        imageSetConfig: acmMirrorConfig
+      }
+    ]
+  : []
 
 resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
   for i in range(0, length(ocMirrorJobConfiguration)): {

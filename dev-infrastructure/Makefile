@@ -401,14 +401,15 @@ acr.what-if: global.rg
 	az deployment group what-if \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/global.bicep \
+		--template-file templates/global-acr.bicep \
 		--parameters \
-			configurations/global.bicepparam
+			configurations/global-acr.bicepparam
 	az deployment sub what-if \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-roles \
 		--template-file templates/global-roles.bicep \
 		--parameters \
-			configurations/global-roles.bicepparam
+			configurations/global-roles.bicepparam \
+		--location ${GLOBAL_REGION}
 .PHONY: acr.what-if
 
 acr-svc-cfg: acr
@@ -537,7 +538,7 @@ operator-roles.what-if:
 # Common
 #
 
-what-if: acr.what-if acr-svc-cfg.what-if.what-if acr-ocp-cfg.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if operator-roles.what-if
+what-if: acr.what-if acr-svc-cfg.what-if acr-ocp-cfg.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if operator-roles.what-if
 .PHONY: what-if
 
 infra: region svc.init mgmt.init
