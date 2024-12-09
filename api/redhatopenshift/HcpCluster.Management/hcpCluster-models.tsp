@@ -323,6 +323,9 @@ model PlatformProfile {
    * Is used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
    */
   etcdEncryptionSetId?: string;
+
+  /** The configuration that the operators of the cluster have to authenticate to Azure */
+  operatorsAuthentication: OperatorsAuthenticationProfile;
 }
 
 scalar SubnetResourceId
@@ -338,6 +341,7 @@ scalar NetworkSecurityGroupResourceId
       type: "Microsoft.Network/networkSecurityGroups",
     }
   ]>;
+
 /** The outbound routing strategy used to provide your cluster egress to the internet. */
 union OutboundType {
   string,
@@ -345,6 +349,41 @@ union OutboundType {
   /** The load balancer configuration */
   loadBalancer: "loadBalancer",
 }
+
+/** The configuration that the operators of the cluster have to authenticate to Azure. */
+model OperatorsAuthenticationProfile {
+  /** Represents the information related to Azure User-Assigned managed identities needed
+   * to perform Operators authentication based on Azure User-Assigned Managed Identities */
+  userAssignedIdentities: UserAssignedIdentitiesProfile;
+}
+
+/** Represents the information related to Azure User-Assigned managed identities needed
+ * to perform Operators authentication based on Azure User-Assigned Managed Identities */
+model UserAssignedIdentitiesProfile {
+  /** The set of Azure User-Assigned Managed Identities leveraged for the Control Plane
+   * operators of the cluster. The set of required managed identities is dependent on the
+   * Cluster's OpenShift version. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
+  controlPlaneOperators: Record<UserAssignedIdentityResourceId>;
+
+  /** The set of Azure User-Assigned Managed Identities leveraged for the Data Plane
+   * operators of the cluster. The set of required managed identities is dependent on the
+   * Cluster's OpenShift version. */
+  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
+  dataPlaneOperators: Record<UserAssignedIdentityResourceId>;
+
+  /** Represents the information associated to an Azure User-Assigned Managed Identity whose
+   * purpose is to perform service level actions. */
+  @visibility("create", "read")
+  serviceManagedIdentity: UserAssignedIdentityResourceId;
+}
+
+scalar UserAssignedIdentityResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.ManagedIdentity/userAssignedIdentities",
+    }
+  ]>;
 
 /*
  * =======================================

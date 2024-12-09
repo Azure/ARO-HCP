@@ -1914,6 +1914,19 @@
         "platform"
       ]
     },
+    "OperatorsAuthenticationProfile": {
+      "type": "object",
+      "description": "The configuration that the operators of the cluster have to authenticate to Azure.",
+      "properties": {
+        "userAssignedIdentities": {
+          "$ref": "#/definitions/UserAssignedIdentitiesProfile",
+          "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators authentication based on Azure User-Assigned Managed Identities"
+        }
+      },
+      "required": [
+        "userAssignedIdentities"
+      ]
+    },
     "PlatformProfile": {
       "type": "object",
       "description": "Azure specific configuration",
@@ -1952,10 +1965,15 @@
         "etcdEncryptionSetId": {
           "type": "string",
           "description": "The id of the disk encryption set to be used for etcd.\nConfigure this when `etcdEncryption` is set to true\nIs used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview"
+        },
+        "operatorsAuthentication": {
+          "$ref": "#/definitions/OperatorsAuthenticationProfile",
+          "description": "The configuration that the operators of the cluster have to authenticate to Azure"
         }
       },
       "required": [
-        "subnetId"
+        "subnetId",
+        "operatorsAuthentication"
       ]
     },
     "ProvisioningState": {
@@ -2129,6 +2147,51 @@
         "audiences",
         "ca"
       ]
+    },
+    "UserAssignedIdentitiesProfile": {
+      "type": "object",
+      "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators authentication based on Azure User-Assigned Managed Identities",
+      "properties": {
+        "controlPlaneOperators": {
+          "type": "object",
+          "description": "The set of Azure User-Assigned Managed Identities leveraged for the Control Plane\noperators of the cluster. The set of required managed identities is dependent on the\nCluster's OpenShift version.",
+          "additionalProperties": {
+            "$ref": "#/definitions/UserAssignedIdentityResourceId"
+          }
+        },
+        "dataPlaneOperators": {
+          "type": "object",
+          "description": "The set of Azure User-Assigned Managed Identities leveraged for the Data Plane\noperators of the cluster. The set of required managed identities is dependent on the\nCluster's OpenShift version.",
+          "additionalProperties": {
+            "$ref": "#/definitions/UserAssignedIdentityResourceId"
+          }
+        },
+        "serviceManagedIdentity": {
+          "$ref": "#/definitions/UserAssignedIdentityResourceId",
+          "description": "Represents the information associated to an Azure User-Assigned Managed Identity whose\npurpose is to perform service level actions.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "controlPlaneOperators",
+        "dataPlaneOperators",
+        "serviceManagedIdentity"
+      ]
+    },
+    "UserAssignedIdentityResourceId": {
+      "type": "string",
+      "format": "arm-id",
+      "description": "A type definition that refers the id to an Azure Resource Manager resource.",
+      "x-ms-arm-id-details": {
+        "allowedResources": [
+          {
+            "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+          }
+        ]
+      }
     },
     "VersionProfile": {
       "type": "object",
