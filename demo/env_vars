@@ -1,0 +1,16 @@
+#!/bin/bash
+
+
+export CUSTOMER_RG_NAME="$USER-net-rg"
+export CUSTOMER_VNET_NAME="customer-vnet"
+export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
+export CUSTOMER_NSG="customer-nsg"
+export LOCATION="westus3"
+if [ -z "$CLUSTER_NAME" ]; then
+    export CLUSTER_NAME="$USER"
+fi
+MANAGED_RESOURCE_GROUP="$CLUSTER_NAME-rg"
+
+if [ -z "$NP_NAME" ]; then
+    export NP_NAME="np-1"
+fi
