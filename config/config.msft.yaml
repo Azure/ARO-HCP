@@ -140,7 +140,7 @@ clouds:
         componentSync:
           imageTag: 0b3c08f
         ocMirror:
-          imageTag: 7abc8af
+          imageTag: 0b3c08f
 
     environments:
       int:

@@ -59,7 +59,7 @@
     "ocMirror": {
       "enabled": true,
       "imageRepo": "image-sync/oc-mirror",
-      "imageTag": "7abc8af"
+      "imageTag": "0b3c08f"
     },
     "rg": "hcp-underlay-imagesync"
   },

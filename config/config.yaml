@@ -80,14 +80,14 @@ defaults:
     acrRG: global
     environmentName: aro-hcp-image-sync
     componentSync:
-      enabled: false
+      enabled: true
       imageRepo: image-sync/component-sync
       imageTag: latest
       repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
     ocMirror:
-      enabled: false
+      enabled: true
       imageRepo: image-sync/oc-mirror
-      imageTag: 7abc8af
+      imageTag: 0b3c08f
     keyVault:
       name: arohcp-imagesync-dev
       private: false
