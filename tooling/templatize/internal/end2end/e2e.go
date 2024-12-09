@@ -91,15 +91,17 @@ func newE2E(tmpdir string) e2eImpl {
 }
 
 func (e *e2eImpl) UseRandomRG() func() error {
-
-	chars := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
-	rg := "templatize-e2e-"
-
-	for i := 0; i < 10; i++ {
-		rg += string(chars[rand.IntN(len(chars))])
+	rgSuffx := ""
+	if jobID := os.Getenv("GITHUB_JOB_ID"); jobID != "" {
+		rgSuffx = jobID
 	}
-	e.rgName = rg
-	e.SetConfig(config.Variables{"defaults": config.Variables{"rg": rg}})
+	chars := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+	for i := 0; i < 3; i++ {
+		rgSuffx += string(chars[rand.IntN(len(chars))])
+	}
+
+	e.rgName = "templatize-e2e-" + rgSuffx
+	e.SetConfig(config.Variables{"defaults": config.Variables{"rg": e.rgName}})
 
 	return func() error {
 		subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
