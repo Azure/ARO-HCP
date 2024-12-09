@@ -24,7 +24,7 @@ param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroCertDomain = '{{ .maestro.certDomain }}'
 
 // ACR
-param acrPullResourceGroups = ['{{ .serviceComponentAcrResourceGroups }}']
+param acrPullResourceGroups = ['{{ .global.rg }}']
 
 // Region
 param regionalResourceGroup = '{{ .regionRG }}'
