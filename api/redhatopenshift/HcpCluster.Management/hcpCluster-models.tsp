@@ -148,7 +148,7 @@ model ClusterSpec {
    * to authenticate against user Azure cloud account
    */
   @visibility("read")
-  issuerUrl: string;
+  issuerUrl: url;
 
   /** Configuration to override the openshift-oauth-apiserver inside cluster
    *  This changes user login into the cluster to external provider
@@ -264,14 +264,14 @@ union NetworkType {
 model ConsoleProfile {
   /** The cluster web console URL endpoint */
   @visibility("read")
-  url: string;
+  url: url;
 }
 
 /** Information about the API of a cluster. */
 model ApiProfile {
   /** URL endpoint for the API server */
   @visibility("read")
-  url: string;
+  url: url;
 
   /** should the API server be accessible from the internet */
   @visibility("create", "read")
@@ -292,10 +292,10 @@ union Visibility {
 /** OpenShift cluster proxy configuration */
 model ProxyProfile {
   /** http proxy config */
-  httpProxy?: string;
+  httpProxy?: url;
 
   /** https proxy config */
-  httpsProxy?: string;
+  httpsProxy?: url;
 
   /** no proxy config */
   noProxy?: string;
@@ -385,7 +385,7 @@ model ExternalAuthProfile {
 /** Token issuer profile */
 model TokenIssuerProfile {
   /** The URL of the token issuer */
-  url: string;
+  url: url;
 
   /** The audience of the token issuer */
   audiences: string[];
