@@ -90,7 +90,7 @@
 
         - name: 'Deploy Cluster Service'
           run: |
-            make cs.deploy
+            make cluster-service.deploy
 
         - name: 'Deploy Maestro'
           run: |
@@ -155,4 +155,4 @@
 
       - name: 'Deploy Hypershift Operator and External DNS Operator'
         run: |
-          make hypershift.deploy
+          make hypershiftoperator.deploy
