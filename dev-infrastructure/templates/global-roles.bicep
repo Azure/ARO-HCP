@@ -9,7 +9,7 @@ resource tokenManagementRole 'Microsoft.Authorization/roleDefinitions@2022-04-01
   name: guid(tmr.tokenManagementRoleName)
   properties: {
     roleName: 'ARO HCP ACR Token Management'
-    type: 'customRole'
+    type: 'CustomRole'
     assignableScopes: [
       subscription().id
     ]
