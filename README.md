@@ -3,7 +3,7 @@
 # Description
 The RP for the ARO-HCP project.
 
-The components for HCP are each encpasulated in a top-level directory and each directory contains it's own makefile.
+The components for HCP are each encapsulated in a top-level directory and each directory contains it's own makefile.
 
 ## Development setup
 
