@@ -393,12 +393,6 @@ Then register it with the Maestro Server
         "subnet_resource_id": "$SUBNETRESOURCEID",
         "network_security_group_resource_id":"$NSG"
       },
-      "properties": {
-        "provisioner_hostedcluster_step_enabled": "true",
-        "provisioner_managedcluster_step_enabled": "true",
-        "np_provisioner_provision_enabled": "true",
-        "np_provisioner_deprovision_enabled": "true"
-      },
       "version": {
         "id": "openshift-v4.17.0"
       }
