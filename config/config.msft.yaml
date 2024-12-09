@@ -115,7 +115,7 @@ defaults:
     private: false
 
   # DNS
-  baseDnsZoneRG: '{{ .ctx.region }}-shared-resources'
+  baseDnsZoneRG: global-shared-resources
   regionalDNSSubdomain: '{{ .ctx.region }}'
 
   # Metrics
@@ -171,7 +171,7 @@ clouds:
               osDiskSizeGB: 100
               azCount: 3
           # DNS
-          baseDnsZoneName: aro-hcp.azure-test.net
+          baseDnsZoneName: aroapp-hcp.azure-test.net
           regionalDNSSubdomain: '{{ .ctx.region }}'
 
           # ACR

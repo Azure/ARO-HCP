@@ -1,8 +1,8 @@
 {
   "aksName": "aro-hcp-aks",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aroint-int-public-oidc",
-  "baseDnsZoneName": "aro-hcp.azure-test.net",
-  "baseDnsZoneRG": "westus3-shared-resources",
+  "baseDnsZoneName": "aroapp-hcp.azure-test.net",
+  "baseDnsZoneRG": "global-shared-resources",
   "clusterService": {
     "acrRG": "global-shared-resources",
     "imageRepo": "app-sre/uhc-clusters-service",
