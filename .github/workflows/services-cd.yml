@@ -82,11 +82,11 @@
 
         - name: 'Deploy Frontend'
           run: |
-            make rp.frontend.deploy
+            make frontend.deploy
 
         - name: 'Deploy Backend'
           run: |
-            make rp.backend.deploy
+            make backend.deploy
 
         - name: 'Deploy Cluster Service'
           run: |
