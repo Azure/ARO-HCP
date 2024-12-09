@@ -7,4 +7,3 @@ metadata:
 data:
   azure-operators-managed-identities-config.yaml: |
 {{ .Values.azureOperatorsManagedIdentitiesConfig | b64dec | indent 4 }}
-# yamllint disable syntax
