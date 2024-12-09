@@ -120,6 +120,9 @@ clouds:
       # Mock Managed Identities Service Princiapl
       miMockClientId: 4daa4e3b-abc1-4f9c-812c-77bd37e06741
       miMockPrincipalId: a03f690c-4b2e-4eef-841e-f1904efe0e37
+      # ARM Helper
+      armHelperClientId: 2c6ca254-36bd-43c8-a7a8-fe880bc2c489
+      armHelperFPAPrincipalId: bc17c825-6cf8-40d0-8bd6-5536a993115e
       # Maestro
       maestro:
         postgres:
