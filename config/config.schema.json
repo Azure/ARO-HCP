@@ -97,6 +97,12 @@
       "miMockPrincipalId": {
         "type": "string"
       },
+      "armHelperClientId": {
+        "type": "string"
+      },
+      "armHelperFPAPrincipalId": {
+        "type": "string"
+      },
       "frontend": {
         "type": "object",
         "properties": {

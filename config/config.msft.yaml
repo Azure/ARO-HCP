@@ -180,6 +180,11 @@ clouds:
           miMockClientId: ''
           miMockPrincipalId: ''
 
+          # ARM Helper
+          # This is a helper identity for DEV not required in higher envs.
+          armHelperClientId: ''
+          armHelperFPAPrincipalId: ''
+
           # disable KV softdelete for easy cleanup and recreate in INT
           cxKeyVault:
             softDelete: false

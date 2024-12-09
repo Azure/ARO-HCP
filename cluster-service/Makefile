@@ -11,8 +11,6 @@ deploy: deploy-namespace-template deploy-istio-configurations-template ${DB_SECR
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
 	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
 	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
-	AZURE_ARM_HELPER_IDENTITY_CLIENT_ID=$(shell az ad app list --display-name aro-dev-arm-helper --query '[*]'.appId -o tsv) && \
-	AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID=$(shell az ad sp list --display-name aro-dev-first-party --query "[*].id" -o tsv) && \
 	oc process --local -f deploy/openshift-templates/arohcp-service-template.yml \
 	  -p AZURE_CS_MI_CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
 	  -p TENANT_ID=$${TENANT_ID} \
@@ -33,9 +31,9 @@ deploy: deploy-namespace-template deploy-istio-configurations-template ${DB_SECR
 	  -p AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
 	  -p AZURE_MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME=${MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME} \
 	  -p DATABASE_AUTH_METHOD=${DATABASE_AUTH_METHOD} \
-	  -p AZURE_ARM_HELPER_IDENTITY_CLIENT_ID=$${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
+	  -p AZURE_ARM_HELPER_IDENTITY_CLIENT_ID=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
 	  -p AZURE_ARM_HELPER_IDENTITY_CERT_NAME=${ARM_HELPER_CERT_NAME} \
-	  -p AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID=$${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
+	  -p AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
 	  | oc apply -f -
 
 deploy-namespace-template:
