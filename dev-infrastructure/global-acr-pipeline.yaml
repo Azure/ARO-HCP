@@ -1,6 +1,6 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.Global
-rolloutName: Service Cluster Rollout
+serviceGroup: Microsoft.Azure.ARO.HCP.Global.ACR
+rolloutName: Global ACR Resource Rollout
 resourceGroups:
 - name: {{ .global.rg }}
   subscription: {{ .global.subscription }}
