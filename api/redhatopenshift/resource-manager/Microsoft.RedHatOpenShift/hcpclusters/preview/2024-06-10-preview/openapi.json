@@ -927,6 +927,7 @@
       "properties": {
         "url": {
           "type": "string",
+          "format": "uri",
           "description": "URL endpoint for the API server",
           "readOnly": true
         },
@@ -1097,6 +1098,7 @@
         },
         "issuerUrl": {
           "type": "string",
+          "format": "uri",
           "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
           "readOnly": true
         },
@@ -1122,6 +1124,7 @@
       "properties": {
         "url": {
           "type": "string",
+          "format": "uri",
           "description": "The cluster web console URL endpoint",
           "readOnly": true
         }
@@ -2017,10 +2020,12 @@
       "properties": {
         "httpProxy": {
           "type": "string",
+          "format": "uri",
           "description": "http proxy config"
         },
         "httpsProxy": {
           "type": "string",
+          "format": "uri",
           "description": "https proxy config"
         },
         "noProxy": {
@@ -2105,6 +2110,7 @@
       "properties": {
         "url": {
           "type": "string",
+          "format": "uri",
           "description": "The URL of the token issuer"
         },
         "audiences": {
