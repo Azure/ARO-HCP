@@ -93,6 +93,21 @@ type ConsoleProfile struct {
 	URL *string
 }
 
+// ControlPlaneOperatorsElement - Pairs a control plane operator name with its user assigned identity
+type ControlPlaneOperatorsElement struct {
+	// REQUIRED; The control plane operator name
+	OperatorName *string
+
+	// REQUIRED; The resource ID of the assigned identity
+	ResourceID *string
+
+	// READ-ONLY; The client ID of the assigned identity
+	ClientID *string
+
+	// READ-ONLY; The principal ID of the assigned identity
+	PrincipalID *string
+}
+
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
 	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
@@ -101,6 +116,15 @@ type DNSProfile struct {
 
 	// READ-ONLY; BaseDomain is the base DNS domain of the cluster.
 	BaseDomain *string
+}
+
+// DataPlaneOperatorsElement - Pairs a data plane operator name with the resource ID of its user assigned identity
+type DataPlaneOperatorsElement struct {
+	// REQUIRED; The data plane operator name
+	OperatorName *string
+
+	// REQUIRED; The resource ID of the user assigned identity for the data plane operator
+	ResourceID *string
 }
 
 // ErrorAdditionalInfo - The resource management error additional info.
@@ -366,6 +390,26 @@ type Label struct {
 	Value *string
 }
 
+// ManagedIdentitiesProfile - Represents the information related to Azure User-Assigned managed identities needed to perform
+// Operators authentication based on Azure User-Assigned Managed Identities
+type ManagedIdentitiesProfile struct {
+	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The
+// set of required managed identities is dependent on the Cluster's OpenShift version.
+	ControlPlaneOperators []*ControlPlaneOperatorsElement
+
+	// REQUIRED; The Managed Identities Data Plane Identity URL associated with the cluster. It is the URL that will be used to
+// communicate with the Managed Identities Resource Provider (MI RP).
+	DataPlaneIdentityURL *string
+
+	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Data Plane operators of the cluster. The
+// set of required managed identities is dependent on the Cluster's OpenShift version.
+	DataPlaneOperators []*DataPlaneOperatorsElement
+
+	// REQUIRED; Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform
+// service level actions.
+	ServiceManagedIdentity *UserAssignedManagedIdentity
+}
+
 // ManagedServiceIdentity - Managed service identity (system assigned and/or user assigned identities)
 type ManagedServiceIdentity struct {
 	// REQUIRED; Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
@@ -572,10 +616,20 @@ type OperationListResult struct {
 	Value []*Operation
 }
 
+// OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
+type OperatorsAuthenticationProfile struct {
+	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
+// based on Azure User-Assigned Managed Identities
+	ManagedIdentities *ManagedIdentitiesProfile
+}
+
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
 	// REQUIRED; ResourceId for the network security group attached to the cluster subnet
 	NetworkSecurityGroupID *string
+
+	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
+	OperatorsAuthentication *OperatorsAuthenticationProfile
 
 	// REQUIRED; ResourceId for the subnet used by the control plane
 	SubnetID *string
@@ -728,6 +782,18 @@ type UserAssignedIdentity struct {
 	ClientID *string
 
 	// READ-ONLY; The principal ID of the assigned identity.
+	PrincipalID *string
+}
+
+// UserAssignedManagedIdentity - User-assigned managed identity
+type UserAssignedManagedIdentity struct {
+	// REQUIRED; The resource ID of the assigned identity
+	ResourceID *string
+
+	// READ-ONLY; The client ID of the assigned identity
+	ClientID *string
+
+	// READ-ONLY; The principal ID of the assigned identity
 	PrincipalID *string
 }
 

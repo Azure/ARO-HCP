@@ -252,6 +252,47 @@ func (c *ConsoleProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type ControlPlaneOperatorsElement.
+func (c ControlPlaneOperatorsElement) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "clientId", c.ClientID)
+	populate(objectMap, "operatorName", c.OperatorName)
+	populate(objectMap, "principalId", c.PrincipalID)
+	populate(objectMap, "resourceId", c.ResourceID)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type ControlPlaneOperatorsElement.
+func (c *ControlPlaneOperatorsElement) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", c, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "clientId":
+				err = unpopulate(val, "ClientID", &c.ClientID)
+			delete(rawMsg, key)
+		case "operatorName":
+				err = unpopulate(val, "OperatorName", &c.OperatorName)
+			delete(rawMsg, key)
+		case "principalId":
+				err = unpopulate(val, "PrincipalID", &c.PrincipalID)
+			delete(rawMsg, key)
+		case "resourceId":
+				err = unpopulate(val, "ResourceID", &c.ResourceID)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", c, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type DNSProfile.
 func (d DNSProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -274,6 +315,39 @@ func (d *DNSProfile) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "baseDomainPrefix":
 				err = unpopulate(val, "BaseDomainPrefix", &d.BaseDomainPrefix)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", d, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", d, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type DataPlaneOperatorsElement.
+func (d DataPlaneOperatorsElement) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "operatorName", d.OperatorName)
+	populate(objectMap, "resourceId", d.ResourceID)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type DataPlaneOperatorsElement.
+func (d *DataPlaneOperatorsElement) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", d, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "operatorName":
+				err = unpopulate(val, "OperatorName", &d.OperatorName)
+			delete(rawMsg, key)
+		case "resourceId":
+				err = unpopulate(val, "ResourceID", &d.ResourceID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", d, key)
@@ -1095,6 +1169,47 @@ func (l *Label) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type ManagedIdentitiesProfile.
+func (m ManagedIdentitiesProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "controlPlaneOperators", m.ControlPlaneOperators)
+	populate(objectMap, "dataPlaneIdentityUrl", m.DataPlaneIdentityURL)
+	populate(objectMap, "dataPlaneOperators", m.DataPlaneOperators)
+	populate(objectMap, "serviceManagedIdentity", m.ServiceManagedIdentity)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type ManagedIdentitiesProfile.
+func (m *ManagedIdentitiesProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", m, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "controlPlaneOperators":
+				err = unpopulate(val, "ControlPlaneOperators", &m.ControlPlaneOperators)
+			delete(rawMsg, key)
+		case "dataPlaneIdentityUrl":
+				err = unpopulate(val, "DataPlaneIdentityURL", &m.DataPlaneIdentityURL)
+			delete(rawMsg, key)
+		case "dataPlaneOperators":
+				err = unpopulate(val, "DataPlaneOperators", &m.DataPlaneOperators)
+			delete(rawMsg, key)
+		case "serviceManagedIdentity":
+				err = unpopulate(val, "ServiceManagedIdentity", &m.ServiceManagedIdentity)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", m, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", m, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type ManagedServiceIdentity.
 func (m ManagedServiceIdentity) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -1591,12 +1706,42 @@ func (o *OperationListResult) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type OperatorsAuthenticationProfile.
+func (o OperatorsAuthenticationProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "managedIdentities", o.ManagedIdentities)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type OperatorsAuthenticationProfile.
+func (o *OperatorsAuthenticationProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", o, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "managedIdentities":
+				err = unpopulate(val, "ManagedIdentities", &o.ManagedIdentities)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", o, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type PlatformProfile.
 func (p PlatformProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "etcdEncryptionSetId", p.EtcdEncryptionSetID)
 	populate(objectMap, "managedResourceGroup", p.ManagedResourceGroup)
 	populate(objectMap, "networkSecurityGroupId", p.NetworkSecurityGroupID)
+	populate(objectMap, "operatorsAuthentication", p.OperatorsAuthentication)
 	populate(objectMap, "outboundType", p.OutboundType)
 	populate(objectMap, "subnetId", p.SubnetID)
 	return json.Marshal(objectMap)
@@ -1619,6 +1764,9 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "networkSecurityGroupId":
 				err = unpopulate(val, "NetworkSecurityGroupID", &p.NetworkSecurityGroupID)
+			delete(rawMsg, key)
+		case "operatorsAuthentication":
+				err = unpopulate(val, "OperatorsAuthentication", &p.OperatorsAuthentication)
 			delete(rawMsg, key)
 		case "outboundType":
 				err = unpopulate(val, "OutboundType", &p.OutboundType)
@@ -2019,6 +2167,43 @@ func (u *UserAssignedIdentity) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "principalId":
 				err = unpopulate(val, "PrincipalID", &u.PrincipalID)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", u, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type UserAssignedManagedIdentity.
+func (u UserAssignedManagedIdentity) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "clientId", u.ClientID)
+	populate(objectMap, "principalId", u.PrincipalID)
+	populate(objectMap, "resourceId", u.ResourceID)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type UserAssignedManagedIdentity.
+func (u *UserAssignedManagedIdentity) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", u, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "clientId":
+				err = unpopulate(val, "ClientID", &u.ClientID)
+			delete(rawMsg, key)
+		case "principalId":
+				err = unpopulate(val, "PrincipalID", &u.PrincipalID)
+			delete(rawMsg, key)
+		case "resourceId":
+				err = unpopulate(val, "ResourceID", &u.ResourceID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)

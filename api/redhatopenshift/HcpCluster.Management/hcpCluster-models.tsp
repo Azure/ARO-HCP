@@ -323,6 +323,9 @@ model PlatformProfile {
    * Is used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
    */
   etcdEncryptionSetId?: string;
+
+  /** The configuration that the operators of the cluster have to authenticate to Azure */
+  operatorsAuthentication: OperatorsAuthenticationProfile;
 }
 
 scalar SubnetResourceId
@@ -338,6 +341,7 @@ scalar NetworkSecurityGroupResourceId
       type: "Microsoft.Network/networkSecurityGroups",
     }
   ]>;
+
 /** The outbound routing strategy used to provide your cluster egress to the internet. */
 union OutboundType {
   string,
@@ -345,6 +349,77 @@ union OutboundType {
   /** The load balancer configuration */
   loadBalancer: "loadBalancer",
 }
+
+/** The configuration that the operators of the cluster have to authenticate to Azure. */
+model OperatorsAuthenticationProfile {
+  /** Represents the information related to Azure User-Assigned managed identities needed
+   * to perform Operators authentication based on Azure User-Assigned Managed Identities */
+  managedIdentities: ManagedIdentitiesProfile;
+}
+
+/** Represents the information related to Azure User-Assigned managed identities needed
+ * to perform Operators authentication based on Azure User-Assigned Managed Identities */
+model ManagedIdentitiesProfile {
+  /** The set of Azure User-Assigned Managed Identities leveraged for the Control Plane
+   * operators of the cluster. The set of required managed identities is dependent on the
+   * Cluster's OpenShift version. */
+  @OpenAPI.extension("x-ms-identifiers", ["operatorName"])
+  controlPlaneOperators: ControlPlaneOperatorsElement[];
+
+  /** The set of Azure User-Assigned Managed Identities leveraged for the Data Plane
+   * operators of the cluster. The set of required managed identities is dependent on the
+   * Cluster's OpenShift version. */
+  @OpenAPI.extension("x-ms-identifiers", ["operatorName"])
+  dataPlaneOperators: DataPlaneOperatorsElement[];
+
+  /** The Managed Identities Data Plane Identity URL associated with the cluster. It is the URL
+   * that will be used to communicate with the Managed Identities Resource Provider (MI RP). */
+  @visibility("create", "read")
+  dataPlaneIdentityUrl: url;
+
+  /** Represents the information associated to an Azure User-Assigned Managed Identity whose
+   * purpose is to perform service level actions. */
+  @visibility("create", "read")
+  serviceManagedIdentity: UserAssignedManagedIdentity;
+}
+
+/** Pairs a control plane operator name with its user assigned identity */
+model ControlPlaneOperatorsElement {
+  /** The control plane operator name */
+  operatorName: string;
+
+  ...UserAssignedManagedIdentity;
+}
+
+/** Pairs a data plane operator name with the resource ID of its user assigned identity */
+model DataPlaneOperatorsElement {
+  /** The data plane operator name */
+  operatorName: string;
+
+  /** The resource ID of the user assigned identity for the data plane operator */
+  resourceId: UserAssignedIdentityResourceId;
+}
+
+/** User-assigned managed identity */
+model UserAssignedManagedIdentity {
+  /** The client ID of the assigned identity */
+  @visibility("read")
+  clientId: Azure.Core.uuid;
+
+  /** The principal ID of the assigned identity */
+  @visibility("read")
+  principalId: Azure.Core.uuid;
+
+  /** The resource ID of the assigned identity */
+  resourceId: UserAssignedIdentityResourceId;
+}
+
+scalar UserAssignedIdentityResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.ManagedIdentity/userAssignedIdentities",
+    }
+  ]>;
 
 /*
  * =======================================
