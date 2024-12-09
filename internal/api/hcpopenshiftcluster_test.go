@@ -48,8 +48,7 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 					Visibility: "public",
 				},
 				Platform: PlatformProfile{
-					SubnetID:               "/something/something/virtualNetworks/subnets",
-					NetworkSecurityGroupID: "/something/something/networkSecurityGroups",
+					SubnetID: "/something/something/virtualNetworks/subnets",
 				},
 			},
 		},
@@ -103,10 +102,6 @@ func TestClusterRequiredForPut(t *testing.T) {
 				{
 					Message: "Missing required field 'subnetId'",
 					Target:  "properties.spec.platform.subnetId",
-				},
-				{
-					Message: "Missing required field 'networkSecurityGroupId'",
-					Target:  "properties.spec.platform.networkSecurityGroupId",
 				},
 			},
 		},
