@@ -41,10 +41,7 @@
             },
             "minTLSVersion": {
               "type": "string",
-              "enum": [
-                "TLSV1.2",
-                "TLSV1.3"
-              ]
+              "enum": ["TLSV1.2", "TLSV1.3"]
             }
           },
           "required": [
@@ -338,10 +335,7 @@
             },
             "minTLSVersion": {
               "type": "string",
-              "enum": [
-                "TLSV1.2",
-                "TLSV1.3"
-              ]
+              "enum": ["TLSV1.2", "TLSV1.3"]
             }
           },
           "additionalProperties": false,
@@ -577,26 +571,6 @@
     "svc": {
       "type": "object",
       "properties": {
-        "istio": {
-          "type": "object",
-          "properties": {
-            "istioctlUrl": {
-              "type": "string"
-            },
-            "istioctlVersion": {
-              "type": "string"
-            },
-            "tag": {
-              "type": "string"
-            },
-            "currentVersion": {
-              "type": "string"
-            },
-            "newVersion": {
-              "type": "string"
-            }
-          }
-        },
         "etcd": {
           "type": "object",
           "properties": {
@@ -640,6 +614,26 @@
             "osDiskSizeGB",
             "vmSize"
           ]
+        },
+        "istio": {
+          "type": "object",
+          "properties": {
+            "istioctlUrl": {
+              "type": "string"
+            },
+            "istioctlVersion": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "currentVersion": {
+              "type": "string"
+            },
+            "newVersion": {
+              "type": "string"
+            }
+          }
         },
         "rg": {
           "type": "string"
