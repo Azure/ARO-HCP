@@ -31,6 +31,18 @@
       "private": false
     }
   },
+  "geographies": [
+    {
+      "name": "United Kingdom",
+      "regions": [
+        {
+          "mgmt": 3,
+          "name": "uksouth",
+          "settings": null
+        }
+      ]
+    }
+  ],
   "global": {
     "manageTokenCustomRole": false,
     "region": "uksouth",
@@ -146,6 +158,13 @@
     "etcd": {
       "kvName": "arohcp-etcd-int",
       "kvSoftDelete": true
+    },
+    "istio": {
+      "istioctlVersion": "1.23.1",
+      "newVersion": "",
+      "tag": "prod-stable",
+      "url": "https://istio.io/downloadIstio",
+      "version": "asm-1-22"
     },
     "rg": "hcp-underlay-westus3-svc",
     "subscription": "hcp-westus3",
