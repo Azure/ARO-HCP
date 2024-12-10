@@ -162,6 +162,12 @@ clouds:
               vmSize: 'Standard_D2s_v3'
               osDiskSizeGB: 32
               azCount: 3
+            istio:
+              istioctlUrl: "https://istio.io/downloadIstio"
+              istioctlVersion: "1.23.1"
+              tag: "prod-stable"
+              currentVersion: "asm-1-22"
+              newVersion: ""
           # MC
           mgmt:
             # MGMTM AKS nodepools - big enough for 2 HCPs
