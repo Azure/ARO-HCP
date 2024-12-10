@@ -637,6 +637,30 @@
       "type": "string"
     }
   },
+  "geographies": {
+    "type": "array",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "regions": {
+        "type": "array",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "properties": {
+              "mgmt": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "additionalProperties": false,
   "required": [
     "aksName",
