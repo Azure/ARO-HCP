@@ -18,6 +18,8 @@ param purgeJobs array = []
 @description('Name of the global key vault.')
 param keyVaultName string = ''
 
+param location string = resourceGroup().location
+
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
@@ -76,7 +78,7 @@ resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04
 resource purgeCached 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' = [
   for purgeJob in purgeJobs: {
     name: '${purgeJob.name}'
-    location: resourceGroup().location
+    location: location
     parent: acrResource
     properties: {
       agentConfiguration: {
