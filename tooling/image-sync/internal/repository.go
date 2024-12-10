@@ -129,6 +129,45 @@ func (q *QuayRegistry) GetTags(ctx context.Context, image string) ([]string, err
 	return tags, nil
 }
 
+type AccessSecret struct {
+	AccessToken string `json:"access_token"`
+}
+
+func getACRBearerToken(ctx context.Context, secret AzureSecretFile, acrName string) (string, error) {
+	scope := "repository:*:*"
+	path := fmt.Sprintf("https://%s/oauth2/token?service=%s&scope=%s", acrName, acrName, scope)
+
+	Log().Debugw("Creating request", "path", path)
+	req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
+	req.Header.Add("Authorization", fmt.Sprintf("Basic %s", secret.BasicAuthEncoded()))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// todo replace with timeout enabled client
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %v", err)
+	}
+
+	var accessSecret AccessSecret
+
+	err = json.Unmarshal(body, &accessSecret)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal response: %v", err)
+	}
+
+	return accessSecret.AccessToken, nil
+}
+
 type getAccessToken func(context.Context, azcore.TokenCredential) (string, error)
 type getACRUrl func(string) string
 
@@ -163,13 +202,13 @@ func NewAzureContainerRegistry(cfg *SyncConfig) *AzureContainerRegistry {
 		}
 	}
 
-	client, err := azcontainerregistry.NewClient(fmt.Sprintf("https://%s", cfg.AcrRegistry), cred, nil)
+	client, err := azcontainerregistry.NewClient(fmt.Sprintf("https://%s", cfg.AcrTargetRegistry), cred, nil)
 	if err != nil {
 		Log().Fatalf("failed to create client: %v", err)
 	}
 
 	return &AzureContainerRegistry{
-		acrName:      cfg.AcrRegistry,
+		acrName:      cfg.AcrTargetRegistry,
 		acrClient:    client,
 		credential:   cred,
 		httpClient:   &http.Client{Timeout: time.Duration(cfg.RequestTimeout) * time.Second},
@@ -300,13 +339,15 @@ type OCIRegistry struct {
 	httpclient   *http.Client
 	baseURL      string
 	numberOftags int
+	bearerToken  string
 }
 
 // NewOCIRegistry creates a new OCIRegistry access client
-func NewOCIRegistry(cfg *SyncConfig, baseURL string) *OCIRegistry {
+func NewOCIRegistry(cfg *SyncConfig, baseURL, bearerToken string) *OCIRegistry {
 	o := &OCIRegistry{
 		httpclient:   &http.Client{Timeout: time.Duration(cfg.RequestTimeout) * time.Second},
 		numberOftags: cfg.NumberOfTags,
+		bearerToken:  bearerToken,
 	}
 	if !strings.HasPrefix(o.baseURL, "https://") {
 		o.baseURL = fmt.Sprintf("https://%s", baseURL)
@@ -361,6 +402,9 @@ func (o *OCIRegistry) GetTags(ctx context.Context, image string) ([]string, erro
 
 	path := fmt.Sprintf("%s/v2/%s/tags/list", o.baseURL, image)
 	req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
+	if o.bearerToken != "" {
+		req.Header.Add("Authorization: Bearer", o.bearerToken)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}

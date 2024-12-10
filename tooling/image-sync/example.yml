@@ -3,6 +3,10 @@ repositories:
     - quay.io/acm-d/rhtap-hypershift-operator
     - quay.io/app-sre/uhc-clusters-service
 numberOfTags: 40
-quaySecretfile: /home/jboll/workspace/opensource/quay-secret.json
-acrRegistry: testing.azurecr.io
+acrTargetRegistry: testing.azurecr.io
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
+secrets:
+    - registry: quay.io
+      secretfile: /home/jboll/workspace/opensource/quay-secret.json
+    - registry: testingone.azurecr.io
+      azureSecretfile: /home/jboll/workspace/opensource/other-secret.json
