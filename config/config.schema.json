@@ -620,7 +620,27 @@
           },
           "subscription": {
             "type": "string"
-          }
+          },
+          "istio": {
+            "type": "object",
+            "properties": {
+              "istioctlUrl": {
+                "type": "string"
+              },
+              "istioctlVersion": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "string"
+              },
+              "currentVersion": {
+                "type": "string"
+              },
+              "newVersion": {
+                "type": "string"
+              }
+            }
+        }
         },
         "additionalProperties": false,
         "required": [
@@ -635,6 +655,30 @@
       },
       "vnetAddressPrefix": {
         "type": "string"
+      },
+      "geographies": {
+        "type": "array",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "regions": {
+            "type": "array",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "mgmt": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "additionalProperties": false,
