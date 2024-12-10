@@ -91,6 +91,10 @@ func (mcsc *MockClusterServiceClient) DeleteCSCluster(ctx context.Context, inter
 	return nil
 }
 
+func (mcsc *MockClusterServiceClient) ListCSClusters(searchExpression string) ClusterListIterator {
+	return ClusterListIterator{err: fmt.Errorf("ListCSClusters not implemented")}
+}
+
 func (mcsc *MockClusterServiceClient) GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
 	nodePool, ok := mcsc.nodePools[internalID]
 	if !ok {
@@ -132,4 +136,8 @@ func (mcsc *MockClusterServiceClient) DeleteCSNodePool(ctx context.Context, inte
 	}
 	delete(mcsc.nodePools, internalID)
 	return nil
+}
+
+func (mcsc *MockClusterServiceClient) ListCSNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
+	return NodePoolListIterator{err: fmt.Errorf("ListCSClusters not implemented")}
 }
