@@ -1,3 +1,5 @@
+make[1]: Entering directory '/home/jonathan/microsoft/ARO-HCP/tooling/templatize'
+make[1]: Leaving directory '/home/jonathan/microsoft/ARO-HCP/tooling/templatize'
 {
   "aksName": "aro-hcp-aks",
   "armHelperClientId": "",
@@ -38,6 +40,18 @@
     },
     "imageTag": "0b3c08f"
   },
+  "geographies": [
+    {
+      "name": "United Kingdom",
+      "regions": [
+        {
+          "mgmt": 3,
+          "name": "uksouth",
+          "settings": null
+        }
+      ]
+    }
+  ],
   "global": {
     "globalMSIName": "global-ev2-identity",
     "manageTokenCustomRole": false,
@@ -157,6 +171,13 @@
     "etcd": {
       "kvName": "arohcp-etcd-int",
       "kvSoftDelete": true
+    },
+    "istio": {
+      "istioctlUrl": "https://istio.io/downloadIstio",
+      "istioctlVersion": "1.23.1",
+      "newVersion": "",
+      "tag": "prod-stable",
+      "version": "asm-1-22"
     },
     "rg": "hcp-underlay-westus3-svc",
     "subscription": "hcp-westus3",
