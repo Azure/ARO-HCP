@@ -35,3 +35,5 @@ param purgeJobs = [
 ]
 
 param keyVaultName = '{{ .serviceKeyVault.name }}'
+
+param location = '{{ .global.region }}'
