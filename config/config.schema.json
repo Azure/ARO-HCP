@@ -571,6 +571,26 @@
       "svc": {
         "type": "object",
         "properties": {
+          "istio": {
+            "type": "object",
+            "properties": {
+              "istioctlUrl": {
+                "type": "string"
+              },
+              "istioctlVersion": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "string"
+              },
+              "currentVersion":  {
+                "type": "string"
+              },
+              "newVersion":  {
+                "type": "string"
+              }
+            }
+          },
           "etcd": {
             "type": "object",
             "properties": {
