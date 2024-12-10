@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestDeleteOperationCompleted(t *testing.T) {
@@ -48,6 +49,12 @@ func TestDeleteOperationCompleted(t *testing.T) {
 		},
 	}
 
+	// Placeholder InternalID for NewOperationDocument
+	internalID, err := ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/placeholder")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var request *http.Request
@@ -71,8 +78,7 @@ func TestDeleteOperationCompleted(t *testing.T) {
 				notificationClient: server.Client(),
 			}
 
-			operationDoc := database.NewOperationDocument(database.OperationRequestDelete)
-			operationDoc.ExternalID = resourceID
+			operationDoc := database.NewOperationDocument(database.OperationRequestDelete, resourceID, internalID)
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.operationStatus
 
@@ -190,6 +196,12 @@ func TestUpdateOperationStatus(t *testing.T) {
 		},
 	}
 
+	// Placeholder InternalID for NewOperationDocument
+	internalID, err := ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/placeholder")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var request *http.Request
@@ -213,8 +225,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 				notificationClient: server.Client(),
 			}
 
-			operationDoc := database.NewOperationDocument(database.OperationRequestCreate)
-			operationDoc.ExternalID = resourceID
+			operationDoc := database.NewOperationDocument(database.OperationRequestCreate, resourceID, internalID)
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.currentOperationStatus
 

@@ -11,6 +11,9 @@ import (
 )
 
 func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	ctx := r.Context()
+	logger := LoggerFromContext(ctx)
+
 	apiVersion := r.URL.Query().Get(APIVersionKey)
 	if apiVersion == "" {
 		arm.WriteError(
@@ -26,7 +29,9 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 			api.ClusterResourceType,
 			apiVersion)
 	} else {
-		ctx := ContextWithVersion(r.Context(), version)
+		logger = logger.With("api_version", apiVersion)
+		ctx = ContextWithLogger(ctx, logger)
+		ctx = ContextWithVersion(ctx, version)
 		r = r.WithContext(ctx)
 		next(w, r)
 	}
