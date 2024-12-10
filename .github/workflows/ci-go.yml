@@ -41,7 +41,7 @@ jobs:
           check-latest: true
 
       - name: 'Test'
-        run: GITHUB_JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
+        run: JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
 
   lint:
     permissions:

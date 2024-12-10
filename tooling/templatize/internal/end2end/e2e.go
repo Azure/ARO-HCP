@@ -92,7 +92,7 @@ func newE2E(tmpdir string) e2eImpl {
 
 func (e *e2eImpl) UseRandomRG() func() error {
 	rgSuffx := ""
-	if jobID := os.Getenv("GITHUB_JOB_ID"); jobID != "" {
+	if jobID := os.Getenv("JOB_ID"); jobID != "" {
 		rgSuffx = jobID
 	}
 	chars := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
