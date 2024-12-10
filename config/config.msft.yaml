@@ -221,3 +221,11 @@ clouds:
           # lets create this MSI manually for the time being and automate soon
           # but we should use the MSI name as an input and not the resource ID of the MSI
           aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aroint-int-public-oidc'
+
+          # Geographies
+          geographies:
+            - name: "United Kingdom"
+              regions:
+                - name: "uksouth"
+                  settings:
+                  mgmt: 3
