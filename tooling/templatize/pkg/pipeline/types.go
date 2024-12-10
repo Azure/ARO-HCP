@@ -16,6 +16,7 @@ type Pipeline struct {
 type ResourceGroup struct {
 	Name         string  `yaml:"name"`
 	Subscription string  `yaml:"subscription"`
+	Stamp        string  `yaml:"stamp"`
 	AKSCluster   string  `yaml:"aksCluster,omitempty"`
 	Steps        []*Step `yaml:"steps"`
 }
