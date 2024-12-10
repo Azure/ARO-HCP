@@ -1,8 +1,6 @@
 using '../templates/dev-acr.bicep'
 
 param acrName = '{{ .svcAcrName }}'
-param acrSku = 'Premium'
-param location = '{{ .region }}'
 
 param quayRepositoriesToCache = [
   {

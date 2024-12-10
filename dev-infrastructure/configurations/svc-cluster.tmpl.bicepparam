@@ -41,8 +41,9 @@ param serviceKeyVaultLocation = '{{ .serviceKeyVault.region }}'
 param serviceKeyVaultSoftDelete = {{ .serviceKeyVault.softDelete }}
 param serviceKeyVaultPrivate = {{ .serviceKeyVault.private }}
 
-param acrPullResourceGroups = ['{{ .serviceComponentAcrResourceGroups }}']
+param acrPullResourceGroups = ['{{ .global.rg }}']
 param clustersServiceAcrResourceGroupNames = ['{{ .clusterService.acrRG }}']
+param useCustomACRTokenManagementRole = {{ .global.manageTokenCustomRole }}
 
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'

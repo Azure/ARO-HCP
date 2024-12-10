@@ -1,13 +1,12 @@
 {
-  "acrName": "arohcpint",
   "aksName": "aro-hcp-aks",
   "armHelperClientId": "",
   "armHelperFPAPrincipalId": "",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aroint-int-public-oidc",
-  "baseDnsZoneName": "aro-hcp.azure-test.net",
-  "baseDnsZoneRG": "westus3-shared-resources",
+  "baseDnsZoneName": "aroapp-hcp.azure-test.net",
+  "baseDnsZoneRG": "global-shared-resources",
   "clusterService": {
-    "acrRG": "",
+    "acrRG": "global-shared-resources",
     "imageRepo": "app-sre/uhc-clusters-service",
     "imageTag": "ecd15ad",
     "postgres": {
@@ -32,7 +31,12 @@
       "private": false
     }
   },
-  "globalRG": "global-shared-resources",
+  "global": {
+    "manageTokenCustomRole": false,
+    "region": "uksouth",
+    "rg": "global-shared-resources",
+    "subscription": "hcp-westus3"
+  },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
     "namespace": "hypershift"
@@ -41,11 +45,24 @@
     "imageTag": "9aca808"
   },
   "imageSync": {
-    "acrRG": "westus3-shared-resources",
-    "environmentName": "aro-hcp-image-sync",
-    "imageRepo": "image-sync/component-sync",
-    "imageTag": "latest",
-    "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
+    "acrRG": "global-shared-resources",
+    "componentSync": {
+      "enabled": true,
+      "imageRepo": "image-sync/component-sync",
+      "imageTag": "0b3c08f",
+      "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package"
+    },
+    "environmentName": "global-shared-resources",
+    "keyVault": {
+      "name": "arohcp-imagesync-int",
+      "private": false,
+      "softDelete": true
+    },
+    "ocMirror": {
+      "enabled": true,
+      "imageRepo": "image-sync/oc-mirror",
+      "imageTag": "0b3c08f"
+    },
     "rg": "hcp-underlay-imagesync"
   },
   "istioVersion": "asm-1-22",
@@ -111,17 +128,12 @@
     "private": false,
     "softDelete": false
   },
-  "ocMirror": {
-    "imageRepo": "image-sync/oc-mirror",
-    "imageTag": "7abc8af"
-  },
   "ocpAcrName": "arohcpocpint",
   "oidcStorageAccountName": "arohcpoidcintint",
   "podSubnetPrefix": "10.128.64.0/18",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
   "regionalDNSSubdomain": "westus3",
-  "serviceComponentAcrResourceGroups": "westus3-shared-resources",
   "serviceKeyVault": {
     "name": "arohcp-svc-int",
     "private": false,

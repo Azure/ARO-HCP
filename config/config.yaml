@@ -1,9 +1,13 @@
 $schema: config.schema.json
 defaults:
   region: {{ .ctx.region }}
-  # Resourcegroups
-  globalRG: global
   regionRG: hcp-underlay-{{ .ctx.regionShort }}
+
+  global:
+    rg: global
+    subscription: hcp-{{ .ctx.region }}
+    manageTokenCustomRole: true
+    region: westus3
 
   # General AKS config
   kubernetesVersion: 1.30.6
@@ -12,9 +16,6 @@ defaults:
   subnetPrefix: "10.128.8.0/21"
   podSubnetPrefix: "10.128.64.0/18"
   aksName: aro-hcp-aks
-
-  # ACR
-  serviceComponentAcrResourceGroups: global
 
   # Hypershift
   hypershift:
@@ -78,12 +79,19 @@ defaults:
     rg: hcp-underlay-{{ .ctx.regionShort }}-imagesync
     acrRG: global
     environmentName: aro-hcp-image-sync
-    repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
-    imageRepo: image-sync/component-sync
-    imageTag: latest
-  ocMirror:
-    imageRepo: image-sync/oc-mirror
-    imageTag: 7abc8af
+    componentSync:
+      enabled: true
+      imageRepo: image-sync/component-sync
+      imageTag: latest
+      repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
+    ocMirror:
+      enabled: true
+      imageRepo: image-sync/oc-mirror
+      imageTag: 0b3c08f
+    keyVault:
+      name: arohcp-imagesync-dev
+      private: false
+      softDelete: false
 
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
@@ -179,7 +187,6 @@ clouds:
           kvSoftDelete: false
         subscription: ARO Hosted Control Planes (EA Subscription 1)
       # Shared ACRs
-      acrName: arohcpdev
       svcAcrName: arohcpsvcdev
       ocpAcrName: arohcpocpdev
       # Shared Image Sync

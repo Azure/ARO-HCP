@@ -1,5 +1,4 @@
 {
-  "acrName": "arohcpdev",
   "aksName": "aro-hcp-aks",
   "armHelperClientId": "2c6ca254-36bd-43c8-a7a8-fe880bc2c489",
   "armHelperFPAPrincipalId": "bc17c825-6cf8-40d0-8bd6-5536a993115e",
@@ -32,7 +31,12 @@
       "private": false
     }
   },
-  "globalRG": "global",
+  "global": {
+    "manageTokenCustomRole": true,
+    "region": "westus3",
+    "rg": "global",
+    "subscription": "hcp-westus3"
+  },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
     "namespace": "hypershift"
@@ -42,10 +46,23 @@
   },
   "imageSync": {
     "acrRG": "global",
+    "componentSync": {
+      "enabled": true,
+      "imageRepo": "image-sync/component-sync",
+      "imageTag": "latest",
+      "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package"
+    },
     "environmentName": "aro-hcp-image-sync",
-    "imageRepo": "image-sync/component-sync",
-    "imageTag": "latest",
-    "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
+    "keyVault": {
+      "name": "arohcp-imagesync-dev",
+      "private": false,
+      "softDelete": false
+    },
+    "ocMirror": {
+      "enabled": true,
+      "imageRepo": "image-sync/oc-mirror",
+      "imageTag": "0b3c08f"
+    },
     "rg": "hcp-underlay-westus3-imagesync-dev"
   },
   "istioVersion": "asm-1-22",
@@ -111,17 +128,12 @@
     "private": false,
     "softDelete": false
   },
-  "ocMirror": {
-    "imageRepo": "image-sync/oc-mirror",
-    "imageTag": "7abc8af"
-  },
   "ocpAcrName": "arohcpocpdev",
   "oidcStorageAccountName": "arohcpoidcdev",
   "podSubnetPrefix": "10.128.64.0/18",
   "region": "westus3",
   "regionRG": "hcp-underlay-dev",
   "regionalDNSSubdomain": "westus3",
-  "serviceComponentAcrResourceGroups": "global",
   "serviceKeyVault": {
     "name": "aro-hcp-dev-svc-kv",
     "private": false,

@@ -3,9 +3,6 @@
     "title": "Generated schema for Root",
     "type": "object",
     "properties": {
-      "acrName": {
-        "type": "string"
-      },
       "aksName": {
         "type": "string"
       },
@@ -136,8 +133,28 @@
           "cosmosDB"
         ]
       },
-      "globalRG": {
-        "type": "string"
+      "global": {
+        "type": "object",
+        "properties": {
+          "rg": {
+            "type": "string"
+          },
+          "subscription": {
+            "type": "string"
+          },
+          "manageTokenCustomRole": {
+            "type": "boolean"
+          },
+          "region": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rg",
+          "subscription",
+          "manageTokenCustomRole",
+          "region"
+        ]
       },
       "hypershift": {
         "type": "object",
@@ -176,14 +193,69 @@
           "environmentName": {
             "type": "string"
           },
-          "imageRepo": {
-            "type": "string"
+          "componentSync": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "imageRepo": {
+                "type": "string"
+              },
+              "imageTag": {
+                "type": "string"
+              },
+              "repositories": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "enabled",
+              "imageRepo",
+              "imageTag",
+              "repositories"
+            ]
           },
-          "imageTag": {
-            "type": "string"
+          "ocMirror": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "imageRepo": {
+                "type": "string"
+              },
+              "imageTag": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "enabled",
+              "imageRepo",
+              "imageTag"
+            ]
           },
-          "repositories": {
-            "type": "string"
+          "keyVault": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "private": {
+                "type": "boolean"
+              },
+              "softDelete": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "private",
+              "softDelete"
+            ]
           },
           "rg": {
             "type": "string"
@@ -193,9 +265,9 @@
         "required": [
           "acrRG",
           "environmentName",
-          "imageRepo",
-          "imageTag",
-          "repositories",
+          "componentSync",
+          "ocMirror",
+          "keyVault",
           "rg"
         ]
       },
@@ -447,22 +519,6 @@
           "softDelete"
         ]
       },
-      "ocMirror": {
-        "type": "object",
-        "properties": {
-          "imageRepo": {
-            "type": "string"
-          },
-          "imageTag": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "imageRepo",
-          "imageTag"
-        ]
-      },
       "ocpAcrName": {
         "type": "string"
       },
@@ -479,9 +535,6 @@
         "type": "string"
       },
       "regionalDNSSubdomain": {
-        "type": "string"
-      },
-      "serviceComponentAcrResourceGroups": {
         "type": "string"
       },
       "serviceKeyVault": {
@@ -586,7 +639,6 @@
     },
     "additionalProperties": false,
     "required": [
-      "acrName",
       "aksName",
       "aroDevopsMsiId",
       "baseDnsZoneName",
@@ -595,7 +647,7 @@
       "cxKeyVault",
       "firstPartyAppClientId",
       "frontend",
-      "globalRG",
+      "global",
       "hypershift",
       "hypershiftOperator",
       "imageSync",
@@ -606,14 +658,12 @@
       "mgmtKeyVault",
       "monitoring",
       "msiKeyVault",
-      "ocMirror",
       "ocpAcrName",
       "oidcStorageAccountName",
       "podSubnetPrefix",
       "region",
       "regionRG",
       "regionalDNSSubdomain",
-      "serviceComponentAcrResourceGroups",
       "serviceKeyVault",
       "subnetPrefix",
       "svc",

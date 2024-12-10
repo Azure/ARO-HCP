@@ -43,6 +43,12 @@ param acrResourceGroupNames array = []
 @description('The resource ID of the managed identity used to manage the Postgres server')
 param postgresAdministrationManagedIdentityId string
 
+@description('''
+  Defines if the custom ACR token management role should be used to grant
+  CS token management permissions on the OCP ACR
+  ''')
+param useCustomACRTokenManagementRole bool
+
 //
 //   P O S T G R E S
 //
@@ -152,7 +158,7 @@ resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@20
   }
 ]
 
-module acrManageTokenRole '../modules/acr-permissions.bicep' = [
+module acrManageTokenRole '../modules/acr/acr-permissions.bicep' = [
   for (_, i) in acrResourceGroupNames: if (acrResourceGroupNames[i] != '') {
     // temp hack for MSFT pipelines
     name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'manage-tokens')
@@ -160,6 +166,7 @@ module acrManageTokenRole '../modules/acr-permissions.bicep' = [
     params: {
       principalId: clusterServiceManagedIdentityPrincipalId
       grantManageTokenAccess: true
+      useCustomManageTokenRole: useCustomACRTokenManagementRole
       acrResourceGroupid: clustersServiceAcrResourceGroups[i].id
     }
   }
