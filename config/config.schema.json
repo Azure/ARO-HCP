@@ -676,7 +676,7 @@
           "istio": {
             "type": "object",
             "properties": {
-              "istioctlUrl": {
+              "url": {
                 "type": "string"
               },
               "istioctlVersion": {
@@ -685,7 +685,7 @@
               "tag": {
                 "type": "string"
               },
-              "currentVersion": {
+              "version": {
                 "type": "string"
               },
               "newVersion": {

@@ -173,10 +173,10 @@ make[1]: Leaving directory '/home/jonathan/microsoft/ARO-HCP/tooling/templatize'
       "kvSoftDelete": true
     },
     "istio": {
-      "istioctlUrl": "https://istio.io/downloadIstio",
       "istioctlVersion": "1.23.1",
       "newVersion": "",
       "tag": "prod-stable",
+      "url": "https://istio.io/downloadIstio",
       "version": "asm-1-22"
     },
     "rg": "hcp-underlay-westus3-svc",
