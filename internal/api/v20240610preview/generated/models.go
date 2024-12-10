@@ -572,8 +572,18 @@ type OperationListResult struct {
 	Value []*Operation
 }
 
+// OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
+type OperatorsAuthenticationProfile struct {
+	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
+// based on Azure User-Assigned Managed Identities
+	UserAssignedIdentities *UserAssignedIdentitiesProfile
+}
+
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
+	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
+	OperatorsAuthentication *OperatorsAuthenticationProfile
+
 	// REQUIRED; ResourceId for the subnet used by the control plane
 	SubnetID *string
 
@@ -720,6 +730,22 @@ type TrackedResource struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// UserAssignedIdentitiesProfile - Represents the information related to Azure User-Assigned managed identities needed to
+// perform Operators authentication based on Azure User-Assigned Managed Identities
+type UserAssignedIdentitiesProfile struct {
+	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The
+// set of required managed identities is dependent on the Cluster's OpenShift version.
+	ControlPlaneOperators map[string]*string
+
+	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Data Plane operators of the cluster. The
+// set of required managed identities is dependent on the Cluster's OpenShift version.
+	DataPlaneOperators map[string]*string
+
+	// REQUIRED; Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform
+// service level actions.
+	ServiceManagedIdentity *string
 }
 
 // UserAssignedIdentity - User assigned identity properties
