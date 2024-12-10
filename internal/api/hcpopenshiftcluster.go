@@ -84,12 +84,11 @@ type ProxyProfile struct {
 // PlatformProfile represents the Azure platform configuration.
 // Visibility for the entire struct is "read create".
 type PlatformProfile struct {
-	ManagedResourceGroup string       `json:"managedResourceGroup,omitempty"`
-	SubnetID             string       `json:"subnetId,omitempty"             validate:"required_for_put"`
-	OutboundType         OutboundType `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
-	//TODO: Is nsg required for PUT, or will we create if not specified?
-	NetworkSecurityGroupID string `json:"networkSecurityGroupId,omitempty" validate:"required_for_put"`
-	EtcdEncryptionSetID    string `json:"etcdEncryptionSetId,omitempty"`
+	ManagedResourceGroup   string       `json:"managedResourceGroup,omitempty"`
+	SubnetID               string       `json:"subnetId,omitempty"             validate:"required_for_put"`
+	OutboundType           OutboundType `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
+	NetworkSecurityGroupID string       `json:"networkSecurityGroupId,omitempty"`
+	EtcdEncryptionSetID    string       `json:"etcdEncryptionSetId,omitempty"`
 }
 
 // ExternalAuthConfigProfile represents the external authentication configuration.
