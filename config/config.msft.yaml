@@ -227,7 +227,7 @@ clouds:
           # Grafana
           monitoring:
             grafanaAdminGroupPrincipalId: '2fdb57d4-3fd3-415d-b604-1d0e37a188fe' # Azure Red Hat OpenShift MSFT Engineering
-            
+             
           # Global MSI
           # Will move this MSI creationg to this repo. Currently it's in the hcp repo
           aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
