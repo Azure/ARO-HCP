@@ -1,0 +1,23 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-resources-config
+  namespace: {{ .Release.Namespace }}
+data:
+  instance-types.yaml: |
+    instance_types:
+      - id: Standard_D8s_v3
+        name: Standard_D8s_v3 - General purpose
+        cloud_provider_id: azure
+        cpu_cores: 8
+        memory: 34359738368
+        category: general_purpose
+        size: d8s_v3
+        generic_name: standard-d8s_v3
+  cloud-regions.yaml: |
+    cloud_regions:
+      - id: {{ .Values.region }}
+        cloud_provider_id: azure
+        display_name: Azure East US
+        supports_multi_az: true

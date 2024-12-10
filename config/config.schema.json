@@ -50,6 +50,9 @@
               "private",
               "minTLSVersion"
             ]
+          },
+          "azureOperatorsManagedIdentitiesConfig":{
+            "type": "string" 
           }
         },
         "additionalProperties": false,
