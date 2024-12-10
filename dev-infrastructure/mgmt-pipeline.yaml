@@ -11,6 +11,7 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
 - name: {{ .mgmt.rg }}
   subscription: {{ .mgmt.subscription }}
+  stamp: {{ .mgmt.stamp }}
   aksCluster: {{ .aksName }}
   steps:
   - name: mgmt
