@@ -100,9 +100,24 @@
       "armHelperFPAPrincipalId": {
         "type": "string"
       },
+      "backend": {
+        "type": "object",
+        "properties": {
+          "imageTag": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "imageTag"
+        ]
+      },
       "frontend": {
         "type": "object",
         "properties": {
+          "imageTag": {
+            "type": "string"
+          },
           "cosmosDB": {
             "type": "object",
             "properties": {
@@ -142,6 +157,7 @@
         },
         "additionalProperties": false,
         "required": [
+          "imageTag",
           "cosmosDB",
           "cert"
         ]

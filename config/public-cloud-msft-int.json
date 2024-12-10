@@ -3,6 +3,9 @@
   "armHelperClientId": "",
   "armHelperFPAPrincipalId": "",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aroint-int-public-oidc",
+  "backend": {
+    "imageTag": "0b3c08f"
+  },
   "baseDnsZoneName": "aroapp-hcp.azure-test.net",
   "baseDnsZoneRG": "global-shared-resources",
   "clusterService": {
@@ -32,7 +35,8 @@
       "disableLocalAuth": true,
       "name": "arohcp-rp-int",
       "private": false
-    }
+    },
+    "imageTag": "0b3c08f"
   },
   "global": {
     "manageTokenCustomRole": false,

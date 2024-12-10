@@ -20,3 +20,5 @@ resourceGroups:
       configRef: aksName
     - name: DB_NAME
       configRef: frontend.cosmosDB.name
+    - name: COMMIT
+      configRef: backend.imageTag
