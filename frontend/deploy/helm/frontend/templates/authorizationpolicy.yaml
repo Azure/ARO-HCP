@@ -3,3 +3,37 @@ kind: AuthorizationPolicy
 metadata:
   name: allow-nothing
 spec: {}
+
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-frontend
+spec:
+  action: "ALLOW"
+  rules:
+    - to:
+      - operation:
+          paths: ["/metrics"]
+          methods: ["GET"]
+          ports: ["8081"]
+  selector:
+    matchLabels:
+      app: "aro-hcp-frontend"
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-istio-ingress
+  namespace: aro-hcp
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        namespaces: ["aks-istio-ingress"]
+    to:
+    - operation:
+        ports:
+        - "8443"
