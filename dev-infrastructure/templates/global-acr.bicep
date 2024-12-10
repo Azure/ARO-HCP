@@ -11,8 +11,8 @@ param svcAcrSku string
 param location string
 
 module ocpAcr '../modules/acr/acr.bicep' = {
-  // The provided deployment name '0694A46E80A94DE4907CFD718CABFCB20global-acrs-uksouth-1-arohcpocpint' has a length of '67' which exceeds the maximum length of '64'.
-  name: '${resourceGroup().name}-${ocpAcrName}'
+  // The provided deployment name '0694A46E80A94DE4907CFD718CABFCB20global-acrs-uksouth-1-arohcpocpint' has a length of '67' which exceeds the maximum length of '64'
+  name: ocpAcrName
   params: {
     acrName: ocpAcrName
     acrSku: ocpAcrSku

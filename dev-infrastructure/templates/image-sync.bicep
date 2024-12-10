@@ -60,7 +60,8 @@ param ocpPullSecretName string
 //
 
 module kv '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-imagesync-kv'
+  // The provided deployment name '23CA71C4E94A44C0A917A465D92D68CB0imagesync-uksouth-1-imagesync-kv' has a length of '65' which exceeds the maximum length of '64'
+  name: 'imagesync-kv'
   params: {
     location: location
     keyVaultName: keyVaultName
