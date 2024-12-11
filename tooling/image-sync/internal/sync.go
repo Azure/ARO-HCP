@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,32 +22,17 @@ func Log() *zap.SugaredLogger {
 type SyncConfig struct {
 	Repositories            []string
 	NumberOfTags            int
-	Secrets                 []Secrets
-	AcrTargetRegistry       string
+	QuaySecretFile          string
+	AcrRegistry             string
 	TenantId                string
 	RequestTimeout          int
 	AddLatest               bool
 	ManagedIdentityClientID string
 }
-type Secrets struct {
-	Registry        string
-	SecretFile      string
-	AzureSecretfile string
-}
 
-// BearerSecret is the secret for the source OCI registry
-type BearerSecret struct {
+// QuaySecret is the secret for quay.io
+type QuaySecret struct {
 	BearerToken string
-}
-
-// AzureSecret is the token configured in the ACR
-type AzureSecretFile struct {
-	Username string
-	Password string
-}
-
-func (a AzureSecretFile) BasicAuthEncoded() string {
-	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", a.Username, a.Password)))
 }
 
 // Copy copies an image from one registry to another
@@ -84,26 +68,12 @@ func Copy(ctx context.Context, dstreference, srcreference string, dstauth, srcau
 	return err
 }
 
-func readBearerSecret(filename string) (*BearerSecret, error) {
+func readQuaySecret(filename string) (*QuaySecret, error) {
 	secretBytes, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	var secret BearerSecret
-	err = json.Unmarshal(secretBytes, &secret)
-	if err != nil {
-		return nil, err
-	}
-
-	return &secret, nil
-}
-
-func readAzureSecret(filename string) (*AzureSecretFile, error) {
-	secretBytes, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	var secret AzureSecretFile
+	var secret QuaySecret
 	err = json.Unmarshal(secretBytes, &secret)
 	if err != nil {
 		return nil, err
@@ -133,48 +103,19 @@ func DoSync(cfg *SyncConfig) error {
 	Log().Infow("Syncing images", "images", cfg.Repositories, "numberoftags", cfg.NumberOfTags)
 	ctx := context.Background()
 
-	srcRegistries := make(map[string]Registry)
-	var err error
-
-	for _, secret := range cfg.Secrets {
-		if secret.Registry == "quay.io" {
-			quaySecret, err := readBearerSecret(secret.SecretFile)
-			if err != nil {
-				return fmt.Errorf("error reading secret file: %w %s", err, secret.SecretFile)
-			}
-			qr := NewQuayRegistry(cfg, quaySecret.BearerToken)
-			srcRegistries[secret.Registry] = qr
-		} else {
-			if strings.HasSuffix(secret.Registry, "azurecr.io") ||
-				strings.HasSuffix(secret.Registry, "azurecr.cn") ||
-				strings.HasSuffix(secret.Registry, "azurecr.us") {
-				azureSecret, err := readAzureSecret(secret.AzureSecretfile)
-				if err != nil {
-					return fmt.Errorf("error reading azure secret file: %w %s", err, secret.AzureSecretfile)
-				}
-				bearerSecret, err := getACRBearerToken(ctx, *azureSecret, secret.Registry)
-				if err != nil {
-					return fmt.Errorf("error getting ACR bearer token: %w", err)
-				}
-				srcRegistries[secret.Registry] = NewACRWithTokenAuth(cfg, secret.Registry, bearerSecret)
-			} else {
-				s, err := readBearerSecret(secret.SecretFile)
-				bearerSecret := s.BearerToken
-				if err != nil {
-					return fmt.Errorf("error reading secret file: %w %s", err, secret.SecretFile)
-				}
-				srcRegistries[secret.Registry] = NewOCIRegistry(cfg, secret.Registry, bearerSecret)
-			}
-		}
+	quaySecret, err := readQuaySecret(cfg.QuaySecretFile)
+	if err != nil {
+		return fmt.Errorf("error reading secret file: %w %s", err, cfg.QuaySecretFile)
 	}
+	qr := NewQuayRegistry(cfg, quaySecret.BearerToken)
 
-	targetACR := NewAzureContainerRegistry(cfg)
-	acrPullSecret, err := targetACR.GetPullSecret(ctx)
+	acr := NewAzureContainerRegistry(cfg)
+	acrPullSecret, err := acr.GetPullSecret(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting pull secret: %w", err)
 	}
 
-	targetACRAuth := types.DockerAuthConfig{Username: "00000000-0000-0000-0000-000000000000", Password: acrPullSecret.RefreshToken}
+	acrAuth := types.DockerAuthConfig{Username: "00000000-0000-0000-0000-000000000000", Password: acrPullSecret.RefreshToken}
 
 	for _, repoName := range cfg.Repositories {
 		var srcTags, acrTags []string
@@ -184,15 +125,14 @@ func DoSync(cfg *SyncConfig) error {
 
 		Log().Infow("Syncing repository", "repository", repoName, "baseurl", baseURL)
 
-		if client, ok := srcRegistries[baseURL]; ok {
-			srcTags, err = client.GetTags(ctx, repoName)
+		if baseURL == "quay.io" {
+			srcTags, err = qr.GetTags(ctx, repoName)
 			if err != nil {
 				return fmt.Errorf("error getting quay tags: %w", err)
 			}
 			Log().Debugw("Got tags from quay", "tags", srcTags)
 		} else {
-			// No secret defined, create a default client without auth
-			oci := NewOCIRegistry(cfg, baseURL, "")
+			oci := NewOCIRegistry(cfg, baseURL)
 			srcTags, err = oci.GetTags(ctx, repoName)
 			if err != nil {
 				return fmt.Errorf("error getting oci tags: %w", err)
@@ -200,13 +140,13 @@ func DoSync(cfg *SyncConfig) error {
 			Log().Debugw(fmt.Sprintf("Got tags from %s", baseURL), "repo", repoName, "tags", srcTags)
 		}
 
-		exists, err := targetACR.RepositoryExists(ctx, repoName)
+		exists, err := acr.RepositoryExists(ctx, repoName)
 		if err != nil {
 			return fmt.Errorf("error getting ACR repository information: %w", err)
 		}
 
 		if exists {
-			acrTags, err = targetACR.GetTags(ctx, repoName)
+			acrTags, err = acr.GetTags(ctx, repoName)
 			if err != nil {
 				return fmt.Errorf("error getting ACR tags: %w", err)
 			}
@@ -221,10 +161,10 @@ func DoSync(cfg *SyncConfig) error {
 
 		for _, tagToSync := range tagsToSync {
 			source := fmt.Sprintf("%s/%s:%s", baseURL, repoName, tagToSync)
-			target := fmt.Sprintf("%s/%s:%s", cfg.AcrTargetRegistry, repoName, tagToSync)
+			target := fmt.Sprintf("%s/%s:%s", cfg.AcrRegistry, repoName, tagToSync)
 			Log().Infow("Copying images", "images", tagToSync, "from", source, "to", target)
 
-			err = Copy(ctx, target, source, &targetACRAuth, nil)
+			err = Copy(ctx, target, source, &acrAuth, nil)
 			if err != nil {
 				return fmt.Errorf("error copying image: %w", err)
 			}
