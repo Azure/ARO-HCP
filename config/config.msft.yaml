@@ -171,6 +171,8 @@ clouds:
           frontend:
             cosmosDB:
               private: false
+            cert:
+              name: frontend-cert-{{ .ctx.regionShort }}
 
           # 1P app
           firstPartyAppClientId: '??? the one used by CS to do first party stuff ???'

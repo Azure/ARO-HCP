@@ -44,6 +44,8 @@ defaults:
       disableLocalAuth: true
       name: arohcp-rp-{{ .ctx.regionShort }}
       private: true
+    cert:
+      name: frontend-cert-{{ .ctx.regionShort }}
 
   # Maestro
   maestro:

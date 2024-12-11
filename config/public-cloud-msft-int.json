@@ -23,6 +23,9 @@
   "extraVars": {},
   "firstPartyAppClientId": "??? the one used by CS to do first party stuff ???",
   "frontend": {
+    "cert": {
+      "name": "frontend-cert-int"
+    },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
