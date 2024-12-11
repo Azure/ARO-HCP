@@ -177,7 +177,10 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
             { name: 'TENANT_ID', value: tenant().tenantId }
             { name: 'DOCKER_CONFIG', value: '/auth' }
             { name: 'MANAGED_IDENTITY_CLIENT_ID', value: uami.properties.clientId }
-            { name: 'SECRETS', value:'{"secrets":[{"registry": "quay.io", "azureSecretfile": "/auth/${pullSecretFile}"}]}'}
+            {
+              name: 'SECRETS'
+              value: '{"secrets":[{"registry": "quay.io", "azureSecretfile": "/auth/${pullSecretFile}"}]}'
+            }
           ]
         }
       ]
