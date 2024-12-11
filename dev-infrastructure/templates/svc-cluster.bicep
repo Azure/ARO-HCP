@@ -133,7 +133,6 @@ param regionalDNSZoneName string
 
 var clusterServiceMIName = 'clusters-service'
 
-
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -265,7 +264,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
 //
 //   K E Y V A U L T S
 //
-
 
 module serviceKeyVaultPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: '${deployment().name}-svcs-kv-pe'

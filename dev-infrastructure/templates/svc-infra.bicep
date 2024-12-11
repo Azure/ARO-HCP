@@ -13,7 +13,6 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
-
 //
 //   K E Y V A U L T S
 //
