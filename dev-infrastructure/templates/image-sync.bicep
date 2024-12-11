@@ -60,7 +60,7 @@ param ocpPullSecretName string
 //
 
 module kv '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-imagesync-kv'
+  name: 'imagesync-kv'
   params: {
     location: location
     keyVaultName: keyVaultName

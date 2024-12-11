@@ -11,7 +11,7 @@ param svcAcrSku string
 param location string
 
 module ocpAcr '../modules/acr/acr.bicep' = {
-  name: '${deployment().name}-${ocpAcrName}'
+  name: ocpAcrName
   params: {
     acrName: ocpAcrName
     acrSku: ocpAcrSku
@@ -20,7 +20,7 @@ module ocpAcr '../modules/acr/acr.bicep' = {
 }
 
 module svcAcr '../modules/acr/acr.bicep' = {
-  name: '${deployment().name}-${svcAcrSku}'
+  name: svcAcrSku
   params: {
     acrName: svcAcrName
     acrSku: svcAcrSku
