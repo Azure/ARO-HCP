@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,17 +23,32 @@ func Log() *zap.SugaredLogger {
 type SyncConfig struct {
 	Repositories            []string
 	NumberOfTags            int
-	QuaySecretFile          string
-	AcrRegistry             string
+	Secrets                 []Secrets
+	AcrTargetRegistry       string
 	TenantId                string
 	RequestTimeout          int
 	AddLatest               bool
 	ManagedIdentityClientID string
 }
+type Secrets struct {
+	Registry        string
+	SecretFile      string
+	AzureSecretfile string
+}
 
-// QuaySecret is the secret for quay.io
-type QuaySecret struct {
+// BearerSecret is the secret for quay.io
+type BearerSecret struct {
 	BearerToken string
+}
+
+// AzureSecret is the token configured in the ACR
+type AzureSecretFile struct {
+	Username string
+	Password string
+}
+
+func (a AzureSecretFile) BasicAuthEncoded() string {
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", a.Username, a.Password)))
 }
 
 // Copy copies an image from one registry to another
@@ -68,12 +84,26 @@ func Copy(ctx context.Context, dstreference, srcreference string, dstauth, srcau
 	return err
 }
 
-func readQuaySecret(filename string) (*QuaySecret, error) {
+func readBearerSecret(filename string) (*BearerSecret, error) {
 	secretBytes, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	var secret QuaySecret
+	var secret BearerSecret
+	err = json.Unmarshal(secretBytes, &secret)
+	if err != nil {
+		return nil, err
+	}
+
+	return &secret, nil
+}
+
+func readAzureSecret(filename string) (*AzureSecretFile, error) {
+	secretBytes, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	var secret AzureSecretFile
 	err = json.Unmarshal(secretBytes, &secret)
 	if err != nil {
 		return nil, err
@@ -103,19 +133,46 @@ func DoSync(cfg *SyncConfig) error {
 	Log().Infow("Syncing images", "images", cfg.Repositories, "numberoftags", cfg.NumberOfTags)
 	ctx := context.Background()
 
-	quaySecret, err := readQuaySecret(cfg.QuaySecretFile)
-	if err != nil {
-		return fmt.Errorf("error reading secret file: %w %s", err, cfg.QuaySecretFile)
-	}
-	qr := NewQuayRegistry(cfg, quaySecret.BearerToken)
+	srcRegistries := make(map[string]Registry)
+	var err error
 
-	acr := NewAzureContainerRegistry(cfg)
-	acrPullSecret, err := acr.GetPullSecret(ctx)
+	for _, secret := range cfg.Secrets {
+		if secret.Registry == "quay.io" {
+			quaySecret, err := readBearerSecret(secret.SecretFile)
+			if err != nil {
+				return fmt.Errorf("error reading secret file: %w %s", err, secret.SecretFile)
+			}
+			qr := NewQuayRegistry(cfg, quaySecret.BearerToken)
+			srcRegistries[secret.Registry] = qr
+		} else {
+			if strings.HasSuffix(secret.Registry, "azurecr.io") {
+				azureSecret, err := readAzureSecret(secret.AzureSecretfile)
+				if err != nil {
+					return fmt.Errorf("error reading azure secret file: %w %s", err, secret.AzureSecretfile)
+				}
+				bearerSecret, err := getACRBearerToken(ctx, *azureSecret, secret.Registry)
+				if err != nil {
+					return fmt.Errorf("error getting ACR bearer token: %w", err)
+				}
+				srcRegistries[secret.Registry] = NewACRWithTokenAuth(cfg, secret.Registry, bearerSecret)
+			} else {
+				s, err := readBearerSecret(secret.SecretFile)
+				bearerSecret := s.BearerToken
+				if err != nil {
+					return fmt.Errorf("error reading secret file: %w %s", err, secret.SecretFile)
+				}
+				srcRegistries[secret.Registry] = NewOCIRegistry(cfg, secret.Registry, bearerSecret)
+			}
+		}
+	}
+
+	targetACR := NewAzureContainerRegistry(cfg)
+	acrPullSecret, err := targetACR.GetPullSecret(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting pull secret: %w", err)
 	}
 
-	acrAuth := types.DockerAuthConfig{Username: "00000000-0000-0000-0000-000000000000", Password: acrPullSecret.RefreshToken}
+	targetACRAuth := types.DockerAuthConfig{Username: "00000000-0000-0000-0000-000000000000", Password: acrPullSecret.RefreshToken}
 
 	for _, repoName := range cfg.Repositories {
 		var srcTags, acrTags []string
@@ -125,14 +182,15 @@ func DoSync(cfg *SyncConfig) error {
 
 		Log().Infow("Syncing repository", "repository", repoName, "baseurl", baseURL)
 
-		if baseURL == "quay.io" {
-			srcTags, err = qr.GetTags(ctx, repoName)
+		if client, ok := srcRegistries[baseURL]; ok {
+			srcTags, err = client.GetTags(ctx, repoName)
 			if err != nil {
 				return fmt.Errorf("error getting quay tags: %w", err)
 			}
 			Log().Debugw("Got tags from quay", "tags", srcTags)
 		} else {
-			oci := NewOCIRegistry(cfg, baseURL)
+			// No secret defined, create a default client without auth
+			oci := NewOCIRegistry(cfg, baseURL, "")
 			srcTags, err = oci.GetTags(ctx, repoName)
 			if err != nil {
 				return fmt.Errorf("error getting oci tags: %w", err)
@@ -140,13 +198,13 @@ func DoSync(cfg *SyncConfig) error {
 			Log().Debugw(fmt.Sprintf("Got tags from %s", baseURL), "repo", repoName, "tags", srcTags)
 		}
 
-		exists, err := acr.RepositoryExists(ctx, repoName)
+		exists, err := targetACR.RepositoryExists(ctx, repoName)
 		if err != nil {
 			return fmt.Errorf("error getting ACR repository information: %w", err)
 		}
 
 		if exists {
-			acrTags, err = acr.GetTags(ctx, repoName)
+			acrTags, err = targetACR.GetTags(ctx, repoName)
 			if err != nil {
 				return fmt.Errorf("error getting ACR tags: %w", err)
 			}
@@ -161,10 +219,10 @@ func DoSync(cfg *SyncConfig) error {
 
 		for _, tagToSync := range tagsToSync {
 			source := fmt.Sprintf("%s/%s:%s", baseURL, repoName, tagToSync)
-			target := fmt.Sprintf("%s/%s:%s", cfg.AcrRegistry, repoName, tagToSync)
+			target := fmt.Sprintf("%s/%s:%s", cfg.AcrTargetRegistry, repoName, tagToSync)
 			Log().Infow("Copying images", "images", tagToSync, "from", source, "to", target)
 
-			err = Copy(ctx, target, source, &acrAuth, nil)
+			err = Copy(ctx, target, source, &targetACRAuth, nil)
 			if err != nil {
 				return fmt.Errorf("error copying image: %w", err)
 			}
