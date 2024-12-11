@@ -1,4 +1,4 @@
-include ../setup-env.mk
+-include ../setup-env.mk
 
 ifndef COMMIT
 COMMIT := $(shell git rev-parse --short=7 HEAD)
