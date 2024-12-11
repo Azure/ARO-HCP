@@ -137,7 +137,7 @@ clouds:
       maestro:
         postgres:
           deploy: false
-        imageTag: ea066c250a002f0cc458711945165591bc9f6d3f
+        imageTag: 3a56948922f4bc5f8d921b6975f750f55c0cb88d
       # Cluster Service
       clusterService:
         imageTag: 6157c57
