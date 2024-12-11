@@ -64,33 +64,18 @@ module clientCertificate '../modules/keyvault/key-vault-cert.bicep' = {
 //  C E R T I F I C A T E   A C C E S S   P E R M I S S I O N
 //
 
-var keyVaultSecretUserRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions/',
-  '4633458b-17de-408a-b874-0445c86b69e6'
-)
-
-resource kv 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: serviceKeyVaultName
-}
-
 resource frontendMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'frontend'
   location: resourceGroup().location
 }
 
-// grant permissions on the secret that contains the certificate
-
-resource secret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' existing = {
-  parent: kv
-  name: certName
-}
-
-resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: secret
-  name: guid('frontend', keyVaultSecretUserRoleId, kv.id, certName)
-  properties: {
-    roleDefinitionId: keyVaultSecretUserRoleId
-    principalId: frontendMSI.properties.principalId
-    principalType: 'ServicePrincipal'
+module certificateOfficerAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'frontendMI-cert-access-${certName}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalId: frontendMSI.properties.principalId
+    secretName: certName
   }
 }
