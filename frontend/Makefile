@@ -1,6 +1,8 @@
-include ../setup-env.mk
+-include ../setup-env.mk
 
-COMMIT ?= $(shell git rev-parse --short=7 HEAD)
+ifndef COMMIT
+COMMIT := $(shell git rev-parse --short=7 HEAD)
+endif
 ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
@@ -8,6 +10,10 @@ ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpfrontend:$(COMMIT)
 
 frontend:
 	go build -o aro-hcp-frontend .
+
+info:
+	@echo "ARO_HCP_FRONTEND_IMAGE: ${ARO_HCP_FRONTEND_IMAGE}"
+	@echo "COMMIT: ${COMMIT}"
 
 run:
 	./aro-hcp-frontend --use-cache --location ${LOCATION} \

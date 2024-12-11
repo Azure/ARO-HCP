@@ -1,6 +1,8 @@
-include ../setup-env.mk
+-include ../setup-env.mk
 
-COMMIT ?= $(shell git rev-parse --short=7 HEAD)
+ifndef COMMIT
+COMMIT := $(shell git rev-parse --short=7 HEAD)
+endif
 ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_BACKEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpbackend:$(COMMIT)
 

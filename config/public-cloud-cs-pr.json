@@ -3,6 +3,9 @@
   "armHelperClientId": "2c6ca254-36bd-43c8-a7a8-fe880bc2c489",
   "armHelperFPAPrincipalId": "bc17c825-6cf8-40d0-8bd6-5536a993115e",
   "aroDevopsMsiId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops",
+  "backend": {
+    "imageTag": ""
+  },
   "baseDnsZoneName": "hcp.osadev.cloud",
   "baseDnsZoneRG": "global",
   "clusterService": {
@@ -32,7 +35,8 @@
       "disableLocalAuth": true,
       "name": "arohcp-rp-cspr",
       "private": false
-    }
+    },
+    "imageTag": ""
   },
   "global": {
     "manageTokenCustomRole": true,

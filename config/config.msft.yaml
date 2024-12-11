@@ -141,6 +141,10 @@ clouds:
           imageTag: 0b3c08f
         ocMirror:
           imageTag: 0b3c08f
+      frontend:
+        imageTag: 0b3c08f
+      backend:
+        imageTag: 0b3c08f
 
     environments:
       int:

@@ -145,6 +145,12 @@ clouds:
       # Hypershift Operator
       hypershiftOperator:
         imageTag: 9aca808
+      # Frontend
+      frontend:
+        imageTag: '' # if empty uses commit sha of repo
+      # Backend
+      backend:
+        imageTag: '' # if empty uses commit sha of repo
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
