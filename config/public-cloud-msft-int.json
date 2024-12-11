@@ -38,18 +38,6 @@
     },
     "imageTag": "0b3c08f"
   },
-  "geographies": [
-    {
-      "name": "United Kingdom",
-      "regions": [
-        {
-          "mgmt": 3,
-          "name": "uksouth",
-          "settings": null
-        }
-      ]
-    }
-  ],
   "global": {
     "globalMSIName": "global-ev2-identity",
     "manageTokenCustomRole": false,
