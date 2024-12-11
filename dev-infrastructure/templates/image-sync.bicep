@@ -173,11 +173,11 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = {
           env: [
             { name: 'NUMBER_OF_TAGS', value: '${numberOfTags}' }
             { name: 'REPOSITORIES', value: repositoriesToSync }
-            { name: 'QUAY_SECRET_FILE', value: '/auth/${pullSecretFile}' }
-            { name: 'ACR_REGISTRY', value: '${svcAcrName}${environment().suffixes.acrLoginServer}' }
+            { name: 'ACR_TARGET_REGISTRY', value: '${svcAcrName}${environment().suffixes.acrLoginServer}' }
             { name: 'TENANT_ID', value: tenant().tenantId }
             { name: 'DOCKER_CONFIG', value: '/auth' }
             { name: 'MANAGED_IDENTITY_CLIENT_ID', value: uami.properties.clientId }
+            { name: 'SECRETS', value:'{"secrets":[{"registry": "quay.io", "azureSecretfile": "/auth/${pullSecretFile}"}]}'}
           ]
         }
       ]
