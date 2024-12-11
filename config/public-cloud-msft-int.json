@@ -31,18 +31,6 @@
       "private": false
     }
   },
-  "geographies": [
-    {
-      "name": "United Kingdom",
-      "regions": [
-        {
-          "mgmt": 3,
-          "name": "uksouth",
-          "settings": null
-        }
-      ]
-    }
-  ],
   "global": {
     "manageTokenCustomRole": false,
     "region": "uksouth",
