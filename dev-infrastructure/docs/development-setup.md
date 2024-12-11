@@ -10,7 +10,7 @@ The idea of this repo is to provide means to create a development environment th
 
 * `az` version >= 2.60, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version >= 1.30, `helm`
 * `az login` with your Red Hat email
-* Register the needed [AFEC](https://aka.ms/afec) feature flags using `cd dev-infrastructure && make feature-registration
+* Register the needed [AFEC](https://aka.ms/afec) feature flags using `cd dev-infrastructure && make feature-registration`
 * __NOTE:__ This will take awhile, you will have to wait until they're in a registered state.
 * Your Red Hat account has been added to the ARO HCP Engineering App Developer group in Azure portal. This will give your account access to resources on Azure for development purposes. Please reach out to your manager or team lead to add you to this group.
 
@@ -333,13 +333,13 @@ Then register it with the Maestro Server
 2) Create pre-requisite resources for cluster creation
 
     Replace `resource-group`, `vnet-name`, `nsg-name` and `subnet-name` with any valid names.
-  
+
   - Create a resource group for your ARO HCP cluster. This is used, alongside the resource name and subscription ID, to represent
-    your ARO HCP cluster resource in Azure. 
+    your ARO HCP cluster resource in Azure.
     ```
     az group create --name <resource-group> --location "westus3"
     ```
-  - Create a Virtual Network. 
+  - Create a Virtual Network.
     > NOTE: This may be created in the same resource group above, or a different one.
     ```
     az network vnet create -n <vnet-name> -g <resource-group> --subnet-name <subnet-name>

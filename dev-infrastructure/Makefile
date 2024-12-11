@@ -197,6 +197,13 @@ svc.wait:
 svc: svc.wait svc.rg
 	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
 	az deployment group create \
+		--name $(SVC_RG_DEPLOYMENT_NAME)-infra \
+		--resource-group $(SVC_RESOURCEGROUP) \
+		--template-file templates/svc-infra.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/svc-infra.bicepparam
+	az deployment group create \
 		--name $(SVC_RG_DEPLOYMENT_NAME) \
 		--resource-group $(SVC_RESOURCEGROUP) \
 		--template-file templates/svc-cluster.bicep \

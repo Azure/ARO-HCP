@@ -116,15 +116,6 @@ param serviceKeyVaultName string
 @description('The name of the resourcegroup for the service keyvault')
 param serviceKeyVaultResourceGroup string = resourceGroup().name
 
-@description('The location of the resourcegroup for the service keyvault')
-param serviceKeyVaultLocation string = resourceGroup().location
-
-@description('Soft delete setting for service keyvault')
-param serviceKeyVaultSoftDelete bool = true
-
-@description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
-param serviceKeyVaultPrivate bool = true
-
 @description('OIDC Storage Account name')
 param oidcStorageAccountName string
 
@@ -147,6 +138,11 @@ param aroDevopsMsiId string
 param regionalDNSZoneName string
 
 var clusterServiceMIName = 'clusters-service'
+
+resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+  name: serviceKeyVaultName
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+}
 
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
@@ -275,27 +271,13 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
 //   K E Y V A U L T S
 //
 
-module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-svcs-kv'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    location: serviceKeyVaultLocation
-    keyVaultName: serviceKeyVaultName
-    private: serviceKeyVaultPrivate
-    enableSoftDelete: serviceKeyVaultSoftDelete
-    purpose: 'service'
-  }
-}
-
-output svcKeyVaultName string = serviceKeyVault.outputs.kvName
-
 module serviceKeyVaultPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: '${deployment().name}-svcs-kv-pe'
   params: {
     location: location
     subnetIds: [svcCluster.outputs.aksNodeSubnetId]
     vnetId: svcCluster.outputs.aksVnetId
-    privateLinkServiceId: serviceKeyVault.outputs.kvId
+    privateLinkServiceId: serviceKeyVault.id
     serviceType: 'keyvault'
     groupId: 'vault'
   }
@@ -321,7 +303,7 @@ module cs '../modules/cluster-service.bicep' = {
     postgresServerPrivate: clusterServicePostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
     clusterServiceManagedIdentityName: clusterServiceMIName
-    serviceKeyVaultName: serviceKeyVaultName
+    serviceKeyVaultName: serviceKeyVault.name
     serviceKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     regionalDNSZoneName: regionalDNSZoneName
     regionalResourceGroup: regionalResourceGroup
@@ -332,7 +314,6 @@ module cs '../modules/cluster-service.bicep' = {
   dependsOn: [
     maestroServer
     svcCluster
-    serviceKeyVault
   ]
 }
 
