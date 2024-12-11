@@ -36,7 +36,7 @@ type Secrets struct {
 	AzureSecretfile string
 }
 
-// BearerSecret is the secret for quay.io
+// BearerSecret is the secret for the source OCI registry
 type BearerSecret struct {
 	BearerToken string
 }
@@ -145,7 +145,9 @@ func DoSync(cfg *SyncConfig) error {
 			qr := NewQuayRegistry(cfg, quaySecret.BearerToken)
 			srcRegistries[secret.Registry] = qr
 		} else {
-			if strings.HasSuffix(secret.Registry, "azurecr.io") {
+			if strings.HasSuffix(secret.Registry, "azurecr.io") ||
+				strings.HasSuffix(secret.Registry, "azurecr.cn") ||
+				strings.HasSuffix(secret.Registry, "azurecr.us") {
 				azureSecret, err := readAzureSecret(secret.AzureSecretfile)
 				if err != nil {
 					return fmt.Errorf("error reading azure secret file: %w %s", err, secret.AzureSecretfile)
