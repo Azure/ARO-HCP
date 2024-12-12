@@ -1,0 +1,7 @@
+database:
+  containerizedDb: true
+  ssl: disable
+  authMethod: password
+  password: "TheBlurstOfTimes"
+  containerizedDbImage: docker.io/library/postgres:14.2
+  containerizedDbPvcCapacity: 512Mi

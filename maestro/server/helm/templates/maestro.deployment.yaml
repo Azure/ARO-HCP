@@ -19,6 +19,7 @@ spec:
     metadata:
       labels:
         app: maestro
+        azure.workload.identity/use: "true"
       annotations:
         checksum/credsstore: {{ include (print $.Template.BasePath "/maestro.secretproviderclass.yaml") . | sha256sum }}
         checksum/config: {{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum }}
@@ -56,6 +57,7 @@ spec:
         - --db-sslmode={{ .Values.database.ssl }}
         - --alsologtostderr
         - -v={{ .Values.maestro.glog_v }}
+        - --db-auth-method={{ .Values.database.authMethod }}
       containers:
       - name: service
         image: "{{ .Values.image.base }}:{{ .Values.image.tag }}"
@@ -110,6 +112,7 @@ spec:
         - --label-metrics-inclusion-duration={{ .Values.maestro.labelMetricsInclusionDuration }}
         - --alsologtostderr
         - -v={{ .Values.maestro.glog_v }}
+        - --db-auth-method={{ .Values.database.authMethod }}
         resources:
           requests:
             cpu: {{ .Values.deployment.requests.cpu }}

@@ -1,0 +1,4 @@
+database:
+  containerizedDb: false
+  ssl: require
+  authMethod: az-entra

@@ -11,16 +11,17 @@ broker:
   port: 8883
 database:
   containerizedDb: false
-  containerizedDbImage: docker.io/library/postgres:14.2
-  containerizedDbPvcCapacity: 512Mi
-  host: "maestro-db"
+  containerizedDbImage: ""
+  containerizedDbPvcCapacity: ""
+  host: ""
   port: 5432
   name: "maestro"
-  user: "maestro"
-  password: "TheBlurstOfTimes"
-  ssl: "require"
+  user: "maestro-server"
+  password: ""
+  ssl: ""
   maxOpenConnections: 50
   debug: false
+  authMethod: ""
 maestro:
   serviceAccount: maestro
   httpReadTimeout: 60s
