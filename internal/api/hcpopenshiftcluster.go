@@ -84,11 +84,26 @@ type ProxyProfile struct {
 // PlatformProfile represents the Azure platform configuration.
 // Visibility for the entire struct is "read create".
 type PlatformProfile struct {
-	ManagedResourceGroup   string       `json:"managedResourceGroup,omitempty"`
-	SubnetID               string       `json:"subnetId,omitempty"             validate:"required_for_put"`
-	OutboundType           OutboundType `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
-	NetworkSecurityGroupID string       `json:"networkSecurityGroupId,omitempty"`
-	EtcdEncryptionSetID    string       `json:"etcdEncryptionSetId,omitempty"`
+	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
+	SubnetID                string                         `json:"subnetId,omitempty"             validate:"required_for_put"`
+	OutboundType            OutboundType                   `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
+	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
+	EtcdEncryptionSetID     string                         `json:"etcdEncryptionSetId,omitempty"`
+	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
+}
+
+// OperatorsAuthenticationProfile represents authentication configuration for
+// OpenShift operators.
+type OperatorsAuthenticationProfile struct {
+	UserAssignedIdentities UserAssignedIdentitiesProfile `json:"userAssignedIdentities,omitempty"`
+}
+
+// UserAssignedIdentitiesProfile represents authentication configuration for
+// OpenShift operators using user-assigned managed identities.
+type UserAssignedIdentitiesProfile struct {
+	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"`
+	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"`
+	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
 }
 
 // ExternalAuthConfigProfile represents the external authentication configuration.
