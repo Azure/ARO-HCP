@@ -162,6 +162,7 @@
       "istioctlVersion": "1.23.1",
       "newVersion": "",
       "tag": "prod-stable",
+      "targetVersion": "asm-1-22",
       "url": "https://istio.io/downloadIstio",
       "version": "asm-1-22"
     },
