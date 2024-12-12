@@ -1,3 +1,5 @@
+make[1]: Entering directory '/home/jonathan/microsoft/ARO-HCP/tooling/templatize'
+make[1]: Leaving directory '/home/jonathan/microsoft/ARO-HCP/tooling/templatize'
 {
   "aksName": "aro-hcp-aks",
   "armHelperClientId": "",
@@ -76,7 +78,6 @@
     },
     "rg": "hcp-underlay-imagesync"
   },
-  "istioVersion": "asm-1-22",
   "kubernetesVersion": "1.30.6",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
@@ -162,7 +163,6 @@
       "istioctlVersion": "1.23.1",
       "newVersion": "",
       "tag": "prod-stable",
-      "targetVersion": "asm-1-22",
       "url": "https://istio.io/downloadIstio",
       "version": "asm-1-22"
     },

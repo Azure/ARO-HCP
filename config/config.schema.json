@@ -323,9 +323,6 @@
           "rg"
         ]
       },
-      "istioVersion": {
-        "type": "string"
-      },
       "kubernetesVersion": {
         "type": "string"
       },
@@ -695,10 +692,6 @@
               "newVersion": {
                 "description": "The new istio version that will be updated to",
                 "type": "string"
-              },
-              "targetVersion": {
-                "description": "The target version to be used in the istio",
-                "type": "string"
               }
             }
         }
@@ -732,7 +725,6 @@
       "hypershift",
       "hypershiftOperator",
       "imageSync",
-      "istioVersion",
       "kubernetesVersion",
       "maestro",
       "mgmt",

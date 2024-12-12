@@ -12,7 +12,6 @@ defaults:
 
   # General AKS config
   kubernetesVersion: 1.30.6
-  istioVersion: "asm-1-22"
   vnetAddressPrefix: "10.128.0.0/14"
   subnetPrefix: "10.128.8.0/21"
   podSubnetPrefix: "10.128.64.0/18"
@@ -29,6 +28,12 @@ defaults:
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}
       kvSoftDelete: true
+    istio:
+      url: "https://istio.io/downloadIstio"
+      istioctlVersion: "1.23.1"
+      tag: "prod-stable"
+      newVersion: ""
+      version: "asm-1-22"
 
   # MGMT cluster specifics
   mgmt:
@@ -262,6 +267,12 @@ clouds:
           vmSize: 'Standard_D2s_v3'
           osDiskSizeGB: 32
           azCount: 3
+        istio:
+          url: "https://istio.io/downloadIstio"
+          istioctlVersion: "1.23.1"
+          tag: "prod-stable"
+          version: "asm-1-22"
+          newVersion: ""
       mgmt:
         # MGMTM AKS nodepools - big enough for 2 HCPs
         systemAgentPool:
