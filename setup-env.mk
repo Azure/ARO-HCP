@@ -8,7 +8,7 @@ PROJECT_ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 DEPLOY_ENV ?= personal-dev
 PIPELINE ?= pipeline.yaml
 PIPELINE_STEP ?= deploy
-HASH = $(shell echo -n "$(DEPLOY_ENV)$(PIPELINE)$(PIPELINE_STEP)" | sha256sum | cut -d " " -f 1)
+HASH = $(shell echo -n "$(DEPLOY_ENV)$(PIPELINE)$(PIPELINE_STEP)$(PWD)" | sha256sum | cut -d " " -f 1)
 ENV_VARS_FILE ?= /tmp/deploy.${HASH}.cfg
 
 # Target to generate the environment variables file
