@@ -43,6 +43,12 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 	if h.Location != nil {
 		out.TrackedResource.Location = *h.Location
 	}
+	// Per RPC-Patch-V1-04, the Tags field does NOT follow
+	// JSON merge-patch (RFC 7396) semantics:
+	//
+	//   When Tags are patched, the tags from the request
+	//   replace all existing tags for the resource
+	//
 	out.Tags = api.StringPtrMapToStringMap(h.Tags)
 	if h.Properties != nil {
 		if h.Properties.ProvisioningState != nil {
