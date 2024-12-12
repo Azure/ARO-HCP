@@ -17,38 +17,6 @@ type HcpOpenShiftClusterResource struct {
 	generated.HcpOpenShiftClusterResource
 }
 
-type VersionProfile struct {
-	generated.VersionProfile
-}
-
-type DNSProfile struct {
-	generated.DNSProfile
-}
-
-type NetworkProfile struct {
-	generated.NetworkProfile
-}
-
-type ConsoleProfile struct {
-	generated.ConsoleProfile
-}
-
-type APIProfile struct {
-	generated.APIProfile
-}
-
-type ProxyProfile struct {
-	generated.ProxyProfile
-}
-
-type PlatformProfile struct {
-	generated.PlatformProfile
-}
-
-type ExternalAuthConfigProfile struct {
-	generated.ExternalAuthConfigProfile
-}
-
 func newVersionProfile(from *api.VersionProfile) *generated.VersionProfile {
 	return &generated.VersionProfile{
 		ID:                api.Ptr(from.ID),
@@ -342,10 +310,6 @@ func (c *HcpOpenShiftClusterResource) ValidateStatic(current api.VersionedHCPOpe
 	return cloudError
 }
 
-func (p *VersionProfile) Normalize(out *api.VersionProfile) {
-	normalizeVersion(&p.VersionProfile, out)
-}
-
 func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
 	if p.ID != nil {
 		out.ID = *p.ID
@@ -356,10 +320,6 @@ func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
 	out.AvailableUpgrades = api.StringPtrSliceToStringSlice(p.AvailableUpgrades)
 }
 
-func (p *DNSProfile) Normalize(out *api.DNSProfile) {
-	normailzeDNS(&p.DNSProfile, out)
-}
-
 func normailzeDNS(p *generated.DNSProfile, out *api.DNSProfile) {
 	if p.BaseDomain != nil {
 		out.BaseDomain = *p.BaseDomain
@@ -367,10 +327,6 @@ func normailzeDNS(p *generated.DNSProfile, out *api.DNSProfile) {
 	if p.BaseDomainPrefix != nil {
 		out.BaseDomainPrefix = *p.BaseDomainPrefix
 	}
-}
-
-func (p *NetworkProfile) Normalize(out *api.NetworkProfile) {
-	normalizeNetwork(&p.NetworkProfile, out)
 }
 
 func normalizeNetwork(p *generated.NetworkProfile, out *api.NetworkProfile) {
@@ -391,18 +347,10 @@ func normalizeNetwork(p *generated.NetworkProfile, out *api.NetworkProfile) {
 	}
 }
 
-func (p *ConsoleProfile) Normalize(out *api.ConsoleProfile) {
-	normalizeConsole(&p.ConsoleProfile, out)
-}
-
 func normalizeConsole(p *generated.ConsoleProfile, out *api.ConsoleProfile) {
 	if p.URL != nil {
 		out.URL = *p.URL
 	}
-}
-
-func (p *APIProfile) Normalize(out *api.APIProfile) {
-	normalizeAPI(&p.APIProfile, out)
 }
 
 func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
@@ -412,10 +360,6 @@ func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
 	if p.Visibility != nil {
 		out.Visibility = api.Visibility(*p.Visibility)
 	}
-}
-
-func (p *ProxyProfile) Normalize(out *api.ProxyProfile) {
-	normalizeProxy(&p.ProxyProfile, out)
 }
 
 func normalizeProxy(p *generated.ProxyProfile, out *api.ProxyProfile) {
@@ -431,10 +375,6 @@ func normalizeProxy(p *generated.ProxyProfile, out *api.ProxyProfile) {
 	if p.TrustedCa != nil {
 		out.TrustedCA = *p.TrustedCa
 	}
-}
-
-func (p *PlatformProfile) Normalize(out *api.PlatformProfile) {
-	normalizePlatform(&p.PlatformProfile, out)
 }
 
 func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
@@ -453,10 +393,6 @@ func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
 	if p.EtcdEncryptionSetID != nil {
 		out.EtcdEncryptionSetID = *p.EtcdEncryptionSetID
 	}
-}
-
-func (p *ExternalAuthConfigProfile) Normalize(out *api.ExternalAuthConfigProfile) {
-	normalizeExternalAuthConfig(&p.ExternalAuthConfigProfile, out)
 }
 
 func normalizeExternalAuthConfig(p *generated.ExternalAuthConfigProfile, out *api.ExternalAuthConfigProfile) {
