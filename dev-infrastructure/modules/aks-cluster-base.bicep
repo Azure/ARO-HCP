@@ -47,16 +47,31 @@ param userOsDiskSizeGB int
 
 param acrPullResourceGroups array = []
 
+@description('MSI that will take actions on the AKS cluster during service deployment time')
+param aroDevopsMsiId string
+
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '12338af0-0e69-4776-bea7-57ae8d297424'
 )
 
+// Azure Kubernetes Service Cluster Admin Role
+// https://www.azadvertizer.net/azrolesadvertizer/0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8.html
 var aksClusterAdminRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8'
 )
+
+// Azure Kubernetes Service RBAC Cluster Admin Role
+// https://www.azadvertizer.net/azrolesadvertizer/b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b.html
+var aksClusterAdminRBACRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions/',
+  'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b'
+)
+
+// Network Contributor Role
+// https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
 var networkContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
@@ -453,6 +468,18 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
     }
   }
 ]
+
+// grant aroDevopsMsi the aksClusterAdmin role on the aksCluster so it can
+// deploy services to the cluster
+resource aroDevopsMSIClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aksCluster.id, aroDevopsMsiId, aksClusterAdminRBACRoleId)
+  scope: aksCluster
+  properties: {
+    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: aksClusterAdminRBACRoleId
+  }
+}
 
 // Outputs
 output userAssignedIdentities array = [
