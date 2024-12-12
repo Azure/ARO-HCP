@@ -206,6 +206,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     })
     aksKeyVaultName: aksKeyVaultName
     acrPullResourceGroups: acrPullResourceGroups
+    aroDevopsMsiId: aroDevopsMsiId
   }
 }
 
@@ -313,7 +314,6 @@ module cs '../modules/cluster-service.bicep' = {
   }
   dependsOn: [
     maestroServer
-    svcCluster
   ]
 }
 
