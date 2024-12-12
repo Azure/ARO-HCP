@@ -37,6 +37,7 @@ defaults:
       tag: "prod-stable"
       version: "asm-1-22"
       newVersion: ""
+      targetVersion: "asm-1-22"
 
   # MGMT cluster specifics
   mgmt:

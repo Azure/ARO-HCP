@@ -693,7 +693,11 @@
                 "type": "string"
               },
               "newVersion": {
-                "description": "The istio version that will be updated to",
+                "description": "The new istio version that will be updated to",
+                "type": "string"
+              },
+              "targetVersion": {
+                "description": "The target version to be used in the istio",
                 "type": "string"
               }
             }
