@@ -190,12 +190,9 @@ svc.rg:
 	fi
 .PHONY: svc.rg
 
-svc.wait:
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)
-.PHONY: svc.wait
-
-svc: svc.wait svc.rg
+svc: svc.rg
 	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
+	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)-infra
 	az deployment group create \
 		--name $(SVC_RG_DEPLOYMENT_NAME)-infra \
 		--resource-group $(SVC_RESOURCEGROUP) \
@@ -203,6 +200,7 @@ svc: svc.wait svc.rg
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/svc-infra.bicepparam
+	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)
 	az deployment group create \
 		--name $(SVC_RG_DEPLOYMENT_NAME) \
 		--resource-group $(SVC_RESOURCEGROUP) \
