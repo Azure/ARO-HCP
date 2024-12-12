@@ -112,6 +112,30 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv1.Cl
 		},
 	}
 
+	// Each managed identity retrieved from Cluster Service needs to be added
+	// to the HCPOpenShiftCluster in two places:
+	// - The top-level Identity.UserAssignedIdentities map will need both the
+	//   resourceID (as keys) and principal+client IDs (as values).
+	// - The operator-specific maps under OperatorsAuthentication mimics the
+	//   Cluster Service maps but just has operator-to-resourceID pairings.
+	if cluster.Azure().OperatorsAuthentication() != nil {
+		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
+			// TODO: Initialize a hcpcluster.Identity.UserAssignedIdentities map.
+			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
+			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
+			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
+				// TODO: Add to hcpcluster.Identity.UserAssignedIdentities map.
+				hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[operatorName] = operatorIdentity.ResourceID()
+			}
+			for operatorName, operatorIdentity := range mi.DataPlaneOperatorsManagedIdentities() {
+				// TODO: Add to hcpcluster.Identity.UserAssignedIdentities map.
+				hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorName] = operatorIdentity.ResourceID()
+			}
+			// TODO: Add to hcpcluster.Identity.UserAssignedIdentities map.
+			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = mi.ServiceManagedIdentity().ResourceID()
+		}
+	}
+
 	return hcpcluster
 }
 
@@ -188,6 +212,32 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, requestHeader http
 		if hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID != "" {
 			azureBuilder = azureBuilder.
 				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID)
+		}
+
+		// Only pass managed identity information if the x-ms-identity-url header is present.
+		if requestHeader.Get(arm.HeaderNameIdentityURL) != "" {
+			controlPlaneOperators := make(map[string]*cmv1.AzureControlPlaneManagedIdentityBuilder)
+			for operatorName, identityResourceID := range hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+				controlPlaneOperators[operatorName] = cmv1.NewAzureControlPlaneManagedIdentity().ResourceID(identityResourceID)
+			}
+
+			dataPlaneOperators := make(map[string]*cmv1.AzureDataPlaneManagedIdentityBuilder)
+			for operatorName, identityResourceID := range hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+				dataPlaneOperators[operatorName] = cmv1.NewAzureDataPlaneManagedIdentity().ResourceID(identityResourceID)
+			}
+
+			managedIdentitiesBuilder := cmv1.NewAzureOperatorsAuthenticationManagedIdentities().
+				ManagedIdentitiesDataPlaneIdentityUrl(requestHeader.Get(arm.HeaderNameIdentityURL)).
+				ControlPlaneOperatorsManagedIdentities(controlPlaneOperators).
+				DataPlaneOperatorsManagedIdentities(dataPlaneOperators)
+
+			if hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != "" {
+				managedIdentitiesBuilder = managedIdentitiesBuilder.ServiceManagedIdentity(cmv1.NewAzureServiceManagedIdentity().
+					ResourceID(hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity))
+			}
+
+			azureBuilder = azureBuilder.OperatorsAuthentication(
+				cmv1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
 		}
 
 		clusterBuilder = clusterBuilder.Azure(azureBuilder)
