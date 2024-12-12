@@ -1,4 +1,5 @@
-serviceGroup: Microsoft.Azure.ARO.Test
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
 rolloutName: Maestro Server Rollout
 resourceGroups:
 - name: {{ .svc.rg }}
@@ -8,6 +9,12 @@ resourceGroups:
   - name: deploy
     action: Shell
     command: make deploy
+    dryRun:
+      variables:
+      - name: HELM_DRY_RUN
+        value: "--dry-run=server --debug"
+      - name: KUBECTL_DRY_RUN
+        value: "--dry-run=server"
     variables:
     - name: EVENTGRID_NAME
       configRef: maestro.eventGrid.name
@@ -22,7 +29,9 @@ resourceGroups:
     - name: IMAGE_TAG
       configRef: maestro.imageTag
     - name: USE_AZURE_DB
-      configRef: maestroPostgresDeploy
+      configRef: maestro.postgres.deploy
+    - name: DATABASE_NAME
+      configRef: maestro.postgres.name
     - name: ISTIO_RESTRICT_INGRESS
       configRef: maestro.restrictIstioIngress
     - name: KEYVAULT_NAME
