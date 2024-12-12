@@ -66,11 +66,26 @@ func newProxyProfile(from *api.ProxyProfile) *generated.ProxyProfile {
 
 func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
 	return &generated.PlatformProfile{
-		ManagedResourceGroup:   api.Ptr(from.ManagedResourceGroup),
-		SubnetID:               api.Ptr(from.SubnetID),
-		OutboundType:           api.Ptr(generated.OutboundType(from.OutboundType)),
-		NetworkSecurityGroupID: api.Ptr(from.NetworkSecurityGroupID),
-		EtcdEncryptionSetID:    api.Ptr(from.EtcdEncryptionSetID),
+		ManagedResourceGroup:    api.Ptr(from.ManagedResourceGroup),
+		SubnetID:                api.Ptr(from.SubnetID),
+		OutboundType:            api.Ptr(generated.OutboundType(from.OutboundType)),
+		NetworkSecurityGroupID:  api.Ptr(from.NetworkSecurityGroupID),
+		EtcdEncryptionSetID:     api.Ptr(from.EtcdEncryptionSetID),
+		OperatorsAuthentication: newOperatorsAuthenticationProfile(&from.OperatorsAuthentication),
+	}
+}
+
+func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile) *generated.OperatorsAuthenticationProfile {
+	return &generated.OperatorsAuthenticationProfile{
+		UserAssignedIdentities: newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities),
+	}
+}
+
+func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) *generated.UserAssignedIdentitiesProfile {
+	return &generated.UserAssignedIdentitiesProfile{
+		ControlPlaneOperators:  api.StringMapToStringPtrMap(from.ControlPlaneOperators),
+		DataPlaneOperators:     api.StringMapToStringPtrMap(from.DataPlaneOperators),
+		ServiceManagedIdentity: api.Ptr(from.ServiceManagedIdentity),
 	}
 }
 
@@ -398,6 +413,23 @@ func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
 	}
 	if p.EtcdEncryptionSetID != nil {
 		out.EtcdEncryptionSetID = *p.EtcdEncryptionSetID
+	}
+	if p.OperatorsAuthentication != nil {
+		normalizeOperatorsAuthentication(p.OperatorsAuthentication, &out.OperatorsAuthentication)
+	}
+}
+
+func normalizeOperatorsAuthentication(p *generated.OperatorsAuthenticationProfile, out *api.OperatorsAuthenticationProfile) {
+	if p.UserAssignedIdentities != nil {
+		normalizeUserAssignedIdentities(p.UserAssignedIdentities, &out.UserAssignedIdentities)
+	}
+}
+
+func normalizeUserAssignedIdentities(p *generated.UserAssignedIdentitiesProfile, out *api.UserAssignedIdentitiesProfile) {
+	api.MergeStringPtrMap(p.ControlPlaneOperators, &out.ControlPlaneOperators)
+	api.MergeStringPtrMap(p.DataPlaneOperators, &out.DataPlaneOperators)
+	if p.ServiceManagedIdentity != nil {
+		out.ServiceManagedIdentity = *p.ServiceManagedIdentity
 	}
 }
 
