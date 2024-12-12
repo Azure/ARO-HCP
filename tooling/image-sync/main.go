@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	defaultlog "log"
 	"os"
 	"time"
@@ -64,8 +65,7 @@ func newSyncConfig() *internal.SyncConfig {
 		"RequestTimeout":          "REQUEST_TIMEOUT",
 		"AddLatest":               "ADD_LATEST",
 		"Repositories":            "REPOSITORIES",
-		"QuaySecretFile":          "QUAY_SECRET_FILE",
-		"AcrRegistry":             "ACR_REGISTRY",
+		"AcrTargetRegistry":       "ACR_TARGET_REGISTRY",
 		"TenantId":                "TENANT_ID",
 		"ManagedIdentityClientID": "MANAGED_IDENTITY_CLIENT_ID",
 	}
@@ -78,6 +78,19 @@ func newSyncConfig() *internal.SyncConfig {
 	if err := v.Unmarshal(&sc); err != nil {
 		Log().Fatalw("Error while unmarshalling configuration %s", err.Error())
 	}
+
+	if secretEnv := os.Getenv("SECRETS"); secretEnv != "" {
+		type listOfSecrets struct {
+			Secrets []internal.Secrets
+		}
+		var s listOfSecrets
+		err := json.Unmarshal([]byte(secretEnv), &s)
+		if err != nil {
+			Log().Fatal("Error unmarshalling configuration")
+		}
+		sc.Secrets = append(sc.Secrets, s.Secrets...)
+	}
+
 	Log().Debugw("Using configuration", "config", sc)
 	return sc
 }
