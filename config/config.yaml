@@ -135,8 +135,6 @@ clouds:
       armHelperFPAPrincipalId: bc17c825-6cf8-40d0-8bd6-5536a993115e
       # Maestro
       maestro:
-        postgres:
-          deploy: false
         imageTag: bc2f131579c6ffc664c15f48c50a9936f1b4a7ce
       # Cluster Service
       clusterService:
@@ -266,6 +264,8 @@ clouds:
           regionalDNSSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
           maestro:
+            postgres:
+              deploy: false
             serverMqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
           # Frontend
           frontend:
