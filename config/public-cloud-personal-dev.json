@@ -54,14 +54,11 @@
   "imageSync": {
     "acrRG": "global",
     "componentSync": {
-      "bearerSecretNames": [
-        "bearer-secret"
-      ],
       "enabled": true,
       "imageRepo": "image-sync/component-sync",
       "imageTag": "latest",
       "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
-      "secrets": "{\"secrets\":[{\"registry\": \"quay.io\", \"secretfile\": \"/auth/bearer-secret\"}]}"
+      "secrets": "[{\"registry\": \"quay.io\", \"secret\": \"bearer-secret\"}]"
     },
     "environmentName": "aro-hcp-image-sync",
     "keyVault": {

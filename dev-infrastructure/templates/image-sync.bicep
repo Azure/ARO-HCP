@@ -31,9 +31,6 @@ param keyVaultSoftDelete bool
 @description('The name of the pull secret for the component sync job')
 param componentSyncPullSecretName string
 
-@description('The names of the bearer token secrets')
-param bearerSecretNames array
-
 @description('The image to use for the component sync job')
 param componentSyncImage string
 
@@ -57,6 +54,16 @@ param ocpPullSecretName string
 
 @description('Secret configuration to pass into component sync')
 param componentSyncSecrets string
+
+var csSecrets = json(componentSyncSecrets)
+
+var bearerSecrets = [ for css in csSecrets: [  '${css.secret}' ]]
+
+var secretsFodler = '/etc/containers'
+var secretWithFolderPrefix = [ for css in csSecrets: {
+  registry: css.registry
+  secretFile: '${secretsFodler}/${css.secret}'
+}]
 
 //
 // Container App Infra
@@ -126,7 +133,7 @@ module acrPullRole '../modules/acr/acr-permissions.bicep' = {
 }
 
 module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for secretName in union([componentSyncPullSecretName, ocpPullSecretName], bearerSecretNames): {
+  for secretName in union([componentSyncPullSecretName, ocpPullSecretName], bearerSecrets): {
     name: guid(imageSyncManagedIdentity, location, keyVaultName, secretName, 'secret-user')
     params: {
       keyVaultName: keyVaultName
@@ -147,7 +154,7 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
 var componentSyncJobName = 'component-sync'
 
 var componentSecretsArray = [
-  for bearerSecretName in bearerSecretNames: {
+  for bearerSecretName in bearerSecrets: {
     name: 'bearer-secret'
     keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${bearerSecretName}'
     identity: uami.id
@@ -155,7 +162,7 @@ var componentSecretsArray = [
 ]
 
 var componentSecretVolumesArray = [
-  for bearerSecretName in bearerSecretNames: {
+  for bearerSecretName in bearerSecrets: {
     name: bearerSecretName
     storageType: 'Secret'
     secrets: [
@@ -165,9 +172,9 @@ var componentSecretVolumesArray = [
 ]
 
 var componentSecretVolumeMountsArray = [
-  for bearerSecretName in bearerSecretNames: {
+  for bearerSecretName in bearerSecrets: {
     volumeName: bearerSecretName
-    mountPath: '/tmp/${bearerSecretName}'
+    mountPath: '/tmp/secrets/${bearerSecretName}'
   }
 ]
 
@@ -224,7 +231,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
             { name: 'TENANT_ID', value: tenant().tenantId }
             { name: 'DOCKER_CONFIG', value: '/auth' }
             { name: 'MANAGED_IDENTITY_CLIENT_ID', value: uami.properties.clientId }
-            { name: 'SECRETS', value: componentSyncSecrets }
+            { name: 'SECRETS', value: string(secretWithFolderPrefix) }
           ]
         }
       ]
@@ -237,7 +244,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
           ]
           args: [
             '-c'
-            'cat /tmp/secret-orig/pull-secrets |base64 -d > /etc/containers/config.json && for file in $(find . -type f); do; export fn=$(basename $file); cat $file | base64 -d > /etc/containers/$fn; done;'
+            'cat /tmp/secret-orig/pull-secrets |base64 -d > /etc/containers/config.json && cd /tmp/secrets; for file in $(find . -type f); do; export fn=$(basename $file); cat $file | base64 -d > ${secretsFolder}/$fn; done;'
           ]
           volumeMounts: union(
             [

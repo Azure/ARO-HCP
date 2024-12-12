@@ -31,9 +31,8 @@ type SyncConfig struct {
 	ManagedIdentityClientID string
 }
 type Secrets struct {
-	Registry        string
-	SecretFile      string
-	AzureSecretfile string
+	Registry   string
+	SecretFile string
 }
 
 // BearerSecret is the secret for the source OCI registry
@@ -148,9 +147,9 @@ func DoSync(cfg *SyncConfig) error {
 			if strings.HasSuffix(secret.Registry, "azurecr.io") ||
 				strings.HasSuffix(secret.Registry, "azurecr.cn") ||
 				strings.HasSuffix(secret.Registry, "azurecr.us") {
-				azureSecret, err := readAzureSecret(secret.AzureSecretfile)
+				azureSecret, err := readAzureSecret(secret.SecretFile)
 				if err != nil {
-					return fmt.Errorf("error reading azure secret file: %w %s", err, secret.AzureSecretfile)
+					return fmt.Errorf("error reading azure secret file: %w %s", err, secret.SecretFile)
 				}
 				bearerSecret, err := getACRBearerToken(ctx, *azureSecret, secret.Registry)
 				if err != nil {

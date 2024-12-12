@@ -83,10 +83,9 @@ defaults:
     environmentName: global-shared-resources
     componentSync:
       enabled: true
-      bearerSecretNames: []
       imageRepo: image-sync/component-sync
       repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
-      secrets: '{"secrets":[{"registry": "quay.io", "secretfile": "/auth/${pullSecretFile}"}]}'
+      secrets: ""
     ocMirror:
       enabled: true
       imageRepo: image-sync/oc-mirror
