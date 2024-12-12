@@ -18,4 +18,5 @@ const (
 	HeaderNameCorrelationRequestID  = "X-Ms-Correlation-Request-Id"
 	HeaderNameReturnClientRequestID = "X-Ms-Return-Client-Request-Id"
 	HeaderNameARMResourceSystemData = "X-Ms-Arm-Resource-System-Data"
+	HeaderNameIdentityURL           = "X-Ms-Identity-Url"
 )
