@@ -59,10 +59,10 @@ var csSecrets = json(componentSyncSecrets)
 
 var bearerSecrets = [ for css in csSecrets: [  '${css.secret}' ]]
 
-var secretsFodler = '/etc/containers'
+var secretsFolder = '/etc/containers'
 var secretWithFolderPrefix = [ for css in csSecrets: {
   registry: css.registry
-  secretFile: '${secretsFodler}/${css.secret}'
+  secretFile: '${secretsFolder}/${css.secret}'
 }]
 
 //
