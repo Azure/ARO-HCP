@@ -327,13 +327,6 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	tenantID := request.Header.Get(arm.HeaderNameHomeTenantID)
-	if tenantID == "" {
-		f.logger.Error("Missing " + arm.HeaderNameHomeTenantID + " header")
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
 	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
 
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
@@ -432,7 +425,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedRequestCluster.Normalize(hcpCluster)
 
 	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
-	csCluster, err := f.BuildCSCluster(resourceID, tenantID, hcpCluster, updating)
+	csCluster, err := f.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

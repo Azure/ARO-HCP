@@ -94,8 +94,11 @@ func TestCreateNodePool(t *testing.T) {
 			}
 			hcpCluster := api.NewDefaultHCPOpenShiftCluster()
 
+			requestHeader := make(http.Header)
+			requestHeader.Add(arm.HeaderNameHomeTenantID, dummyTenantId)
+
 			hcpCluster.Name = dummyClusterName
-			csCluster, _ := f.BuildCSCluster(clusterResouceID, dummyTenantId, hcpCluster, false)
+			csCluster, _ := f.BuildCSCluster(clusterResouceID, requestHeader, hcpCluster, false)
 
 			if test.subDoc != nil {
 				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), test.subDoc)

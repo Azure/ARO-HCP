@@ -2,6 +2,8 @@ package frontend
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -130,7 +132,12 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
-func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
+func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
+
+	// Ensure required headers are present.
+	if requestHeader.Get(arm.HeaderNameHomeTenantID) == "" {
+		return nil, fmt.Errorf("Missing " + arm.HeaderNameHomeTenantID + " header")
+	}
 
 	clusterBuilder := cmv1.NewCluster()
 
@@ -170,7 +177,7 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, tenantID string, h
 			EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption)
 
 		azureBuilder := cmv1.NewAzure().
-			TenantID(tenantID).
+			TenantID(requestHeader.Get(arm.HeaderNameHomeTenantID)).
 			SubscriptionID(resourceID.SubscriptionID).
 			ResourceGroupName(resourceID.ResourceGroupName).
 			ResourceName(hcpCluster.Name).
