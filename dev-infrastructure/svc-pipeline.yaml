@@ -32,3 +32,19 @@ resourceGroups:
       configRef: monitoring.grafanaName
     dependsOn:
     - svc
+  - name: istio
+    action: Shell
+    command: istio.sh
+    variables:
+    - name: VERSION
+      configRef: svc.istio.versions
+    - name: TARGET_VERSION
+      configRef: svc.istio.targetVersion
+    - name: ISTIOCTL_VERSION
+      configRef: svc.istio.istioctlVersion
+    - name: ISTIOCTL_URL
+      configRef: svc.istio.url
+    - name: TAG
+      configRef: svc.istio.tag
+    dependsOn:
+    - svc
