@@ -139,7 +139,7 @@ clouds:
         imageTag: 9aca808
       imageSync:
         componentSync:
-          imageTag: 0b3c08f
+          imageTag: 34bf09c
         ocMirror:
           imageTag: 0b3c08f
       frontend:
