@@ -7,12 +7,12 @@ param keyVaultName = '{{ .imageSync.keyVault.name}}'
 param keyVaultPrivate = {{ .imageSync.keyVault.private }}
 param keyVaultSoftDelete = {{ .imageSync.keyVault.softDelete }}
 
-param bearerSecretNames = ['bearer-secret']
+param bearerSecretNames = [{{ range $b := .imageSync.componentSync.bearerSecretNames}} {{$b | squote}} {{- end}} ]
 param componentSyncPullSecretName = 'component-sync-pull-secret'
 param componentSyncImage = '{{ .svcAcrName }}.azurecr.io/{{ .imageSync.componentSync.imageRepo }}:{{ .imageSync.componentSync.imageTag }}'
 param componentSyncEnabed = {{ .imageSync.componentSync.enabled }}
-
 param componentSyncSecrets = '{{ .imageSync.componentSync.secrets }}'
+
 param svcAcrName = '{{ .svcAcrName }}'
 
 param ocpAcrName = '{{ .ocpAcrName }}'

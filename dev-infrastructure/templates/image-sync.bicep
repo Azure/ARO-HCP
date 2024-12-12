@@ -145,7 +145,6 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
 //
 
 var componentSyncJobName = 'component-sync'
-var pullSecretFile = 'quayio-auth.json'
 
 var componentSecretsArray = [
   for bearerSecretName in bearerSecretNames: {
@@ -162,6 +161,13 @@ var componentSecretVolumesArray = [
     secrets: [
       { secretRef: bearerSecretName }
     ]
+  }
+]
+
+var componentSecretVolumeMountsArray = [
+  for bearerSecretName in bearerSecretNames: {
+    volumeName: bearerSecretName
+    mountPath: '/tmp/${bearerSecretName}'
   }
 ]
 
@@ -233,11 +239,13 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
             '-c'
             'cat /tmp/secret-orig/pull-secrets |base64 -d > /etc/containers/config.json && for file in $(find . -type f); do; export fn=$(basename $file); cat $file | base64 -d > /etc/containers/$fn; done;'
           ]
-          volumeMounts: [
-            { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
-            { volumeName: 'pull-secrets', mountPath: '/tmp/secret-orig' }
-            { volumeName: 'bearer-secret', mountPath: '/tmp/bearer-secret' }
-          ]
+          volumeMounts: union(
+            [
+              { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
+              { volumeName: 'pull-secrets', mountPath: '/tmp/secret-orig' }
+            ],
+            componentSecretVolumeMountsArray
+          )
         }
       ]
       volumes: union(

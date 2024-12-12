@@ -225,6 +225,9 @@
           "componentSync": {
             "type": "object",
             "properties": {
+              "bearerSecretNames": {
+                "type": "array"
+              },
               "enabled": {
                 "type": "boolean"
               },
@@ -243,6 +246,7 @@
             },
             "additionalProperties": false,
             "required": [
+              "bearerSecretNames",
               "enabled",
               "imageRepo",
               "imageTag",
