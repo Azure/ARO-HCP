@@ -236,6 +236,9 @@
               },
               "repositories": {
                 "type": "string"
+              },
+              "secrets": {
+                "type": "string"
               }
             },
             "additionalProperties": false,
@@ -243,7 +246,8 @@
               "enabled",
               "imageRepo",
               "imageTag",
-              "repositories"
+              "repositories",
+              "secrets"
             ]
           },
           "ocMirror": {

@@ -31,8 +31,8 @@ param keyVaultSoftDelete bool
 @description('The name of the pull secret for the component sync job')
 param componentSyncPullSecretName string
 
-@description('The name of the Quay API bearer token secret')
-param bearerSecretName string
+@description('The names of the bearer token secrets')
+param bearerSecretNames array
 
 @description('The image to use for the component sync job')
 param componentSyncImage string
@@ -54,6 +54,9 @@ param ocMirrorEnabled bool
 
 @description('The name of the pull secret for the oc-mirror job')
 param ocpPullSecretName string
+
+@description('Secret configuration to pass into component sync')
+param componentSyncSecrets string
 
 //
 // Container App Infra
@@ -123,7 +126,7 @@ module acrPullRole '../modules/acr/acr-permissions.bicep' = {
 }
 
 module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for secretName in [componentSyncPullSecretName, bearerSecretName, ocpPullSecretName]: {
+  for secretName in union([componentSyncPullSecretName, ocpPullSecretName], bearerSecretNames): {
     name: guid(imageSyncManagedIdentity, location, keyVaultName, secretName, 'secret-user')
     params: {
       keyVaultName: keyVaultName
@@ -143,6 +146,24 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
 
 var componentSyncJobName = 'component-sync'
 var pullSecretFile = 'quayio-auth.json'
+
+var componentSecretsArray = [
+  for bearerSecretName in bearerSecretNames: {
+    name: 'bearer-secret'
+    keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${bearerSecretName}'
+    identity: uami.id
+  }
+]
+
+var componentSecretVolumesArray = [
+  for bearerSecretName in bearerSecretNames: {
+    name: bearerSecretName
+    storageType: 'Secret'
+    secrets: [
+      { secretRef: bearerSecretName }
+    ]
+  }
+]
 
 resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEnabed) {
   name: componentSyncJobName
@@ -171,18 +192,16 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
           server: '${svcAcrName}${environment().suffixes.acrLoginServer}'
         }
       ]
-      secrets: [
-        {
-          name: 'pull-secrets'
-          keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${componentSyncPullSecretName}'
-          identity: uami.id
-        }
-        {
-          name: 'bearer-secret'
-          keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${bearerSecretName}'
-          identity: uami.id
-        }
-      ]
+      secrets: union(
+        [
+          {
+            name: 'pull-secrets'
+            keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${componentSyncPullSecretName}'
+            identity: uami.id
+          }
+        ],
+        componentSecretsArray
+      )
     }
     template: {
       containers: [
@@ -199,10 +218,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
             { name: 'TENANT_ID', value: tenant().tenantId }
             { name: 'DOCKER_CONFIG', value: '/auth' }
             { name: 'MANAGED_IDENTITY_CLIENT_ID', value: uami.properties.clientId }
-            {
-              name: 'SECRETS'
-              value: '{"secrets":[{"registry": "quay.io", "secretfile": "/auth/${pullSecretFile}"}]}'
-            }
+            { name: 'SECRETS', value: componentSyncSecrets }
           ]
         }
       ]
@@ -215,7 +231,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
           ]
           args: [
             '-c'
-            'cat /tmp/secret-orig/pull-secrets |base64 -d > /etc/containers/config.json && cat /tmp/bearer-secret/bearer-secret | base64 -d > /etc/containers/${pullSecretFile}'
+            'cat /tmp/secret-orig/pull-secrets |base64 -d > /etc/containers/config.json && for file in $(find . -type f); do; export fn=$(basename $file); cat $file | base64 -d > /etc/containers/$fn; done;'
           ]
           volumeMounts: [
             { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
@@ -224,26 +240,22 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
           ]
         }
       ]
-      volumes: [
-        {
-          name: 'pull-secrets-updated'
-          storageType: 'EmptyDir'
-        }
-        {
-          name: 'pull-secrets'
-          storageType: 'Secret'
-          secrets: [
-            { secretRef: 'pull-secrets' }
-          ]
-        }
-        {
-          name: 'bearer-secret'
-          storageType: 'Secret'
-          secrets: [
-            { secretRef: 'bearer-secret' }
-          ]
-        }
-      ]
+      volumes: union(
+        [
+          {
+            name: 'pull-secrets-updated'
+            storageType: 'EmptyDir'
+          }
+          {
+            name: 'pull-secrets'
+            storageType: 'Secret'
+            secrets: [
+              { secretRef: 'pull-secrets' }
+            ]
+          }
+        ],
+        componentSecretVolumesArray
+      )
     }
   }
   dependsOn: [
