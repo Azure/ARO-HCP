@@ -34,10 +34,8 @@ resourceGroups:
     - svc
   - name: istio
     action: Shell
-    command: istio.sh
+    command: scripts/istio.sh
     variables:
-    - name: VERSION
-      configRef: svc.istio.versions
     - name: TARGET_VERSION
       configRef: svc.istio.targetVersion
     - name: ISTIOCTL_VERSION
