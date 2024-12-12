@@ -1,7 +1,7 @@
 using '../templates/svc-cluster.bicep'
 
 param kubernetesVersion = '{{ .kubernetesVersion }}'
-param istioVersion = ['{{ .svc.istio.version }}','{{ .svc.istio.newVersion }}']
+param istioVersion = empty('{{ .svc.istio.newVersion }}') ? ['{{ .svc.istio.version }}'] : ['{{ .svc.istio.version }}', '{{ .svc.istio.newVersion }}']
 param vnetAddressPrefix = '{{ .vnetAddressPrefix }}'
 param subnetPrefix = '{{ .subnetPrefix }}'
 param podSubnetPrefix = '{{ .podSubnetPrefix }}'
