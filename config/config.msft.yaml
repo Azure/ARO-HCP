@@ -10,6 +10,9 @@ defaults:
     subscription: hcp-{{ .ctx.region }}
     manageTokenCustomRole: false
     region: uksouth
+    globalMSIName: "global-ev2-identity"
+    cxParentZoneName: "aroapp-hcp.azure-test.net"
+    svcParentZoneName: "aro-hcp.azure-test.net"
 
   # General AKS config
   kubernetesVersion: 1.30.6
