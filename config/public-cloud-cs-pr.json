@@ -83,7 +83,7 @@
       "private": false
     },
     "imageBase": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
-    "imageTag": "ea066c250a002f0cc458711945165591bc9f6d3f",
+    "imageTag": "bc2f131579c6ffc664c15f48c50a9936f1b4a7ce",
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
