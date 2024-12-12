@@ -201,7 +201,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
             { name: 'MANAGED_IDENTITY_CLIENT_ID', value: uami.properties.clientId }
             {
               name: 'SECRETS'
-              value: '{"secrets":[{"registry": "quay.io", "azureSecretfile": "/auth/${pullSecretFile}"}]}'
+              value: '{"secrets":[{"registry": "quay.io", "secretfile": "/auth/${pullSecretFile}"}]}'
             }
           ]
         }
