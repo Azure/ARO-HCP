@@ -24,27 +24,6 @@ type ClusterServiceClientSpec interface {
 	DeleteCSNodePool(ctx context.Context, internalID InternalID) error
 }
 
-// Get the default set of properties for the Cluster Service
-func getDefaultAdditionalProperities() map[string]string {
-	// additionalProperties should be empty in production, it is configurable for development to pin to specific
-	// provision shards or instruct CS to skip the full provisioning/deprovisioning flow.
-	additionalProperties := map[string]string{
-		// Enable the ARO HCP provisioner during development. For now, if not set a cluster will not progress past the
-		// installing state in CS.
-		"provisioner_hostedcluster_step_enabled": "true",
-		// Enable the provisioning of ACM's ManagedCluster CR associated to the ARO-HCP
-		// cluster during ARO-HCP Cluster provisioning. For now, if not set a cluster will not progress past the
-		// installing state in CS.
-		"provisioner_managedcluster_step_enabled": "true",
-
-		// Enable the provisioning and deprovisioning of ARO-HCP Node Pools. For now, if not set the provisioning
-		// and deprovisioning of day 2 ARO-HCP Node Pools will not be performed on the Management Cluster.
-		"np_provisioner_provision_enabled":   "true",
-		"np_provisioner_deprovision_enabled": "true",
-	}
-	return additionalProperties
-}
-
 type ClusterServiceClient struct {
 	// Conn is an ocm-sdk-go connection to Cluster Service
 	Conn *sdk.Connection
@@ -66,7 +45,7 @@ func (csc *ClusterServiceClient) GetConn() *sdk.Connection { return csc.Conn }
 
 // AddProperties injects the some addtional properties into the CSCluster Object.
 func (csc *ClusterServiceClient) AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder {
-	additionalProperties := getDefaultAdditionalProperities()
+	additionalProperties := map[string]string{}
 	if csc.ProvisionShardID != nil {
 		additionalProperties["provision_shard_id"] = *csc.ProvisionShardID
 	}
