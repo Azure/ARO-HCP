@@ -39,10 +39,13 @@
     "imageTag": ""
   },
   "global": {
+    "cxParentZoneName": "aroapp-hcp.azure-test.net",
+    "globalMSIName": "global-ev2-identity",
     "manageTokenCustomRole": true,
     "region": "westus3",
     "rg": "global",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-westus3",
+    "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
