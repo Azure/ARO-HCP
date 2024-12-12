@@ -63,3 +63,23 @@ func StringPtrMapToStringMap(m map[string]*string) map[string]string {
 	}
 	return out
 }
+
+// MergeStringPtrMap merges a map of string pointers into a map of strings
+// following the rules of JSON merge-patch (RFC 7396). In particular, if a
+// key in src has a nil value, that entry is deleted from dst. The function
+// takes a pointer to the dst map in case the dst map is nil and needs to be
+// initialized.
+func MergeStringPtrMap(src map[string]*string, dst *map[string]string) {
+	if src != nil && dst != nil {
+		for key, val := range src {
+			if val == nil {
+				delete(*dst, key)
+			} else {
+				if *dst == nil {
+					*dst = make(map[string]string)
+				}
+				(*dst)[key] = *val
+			}
+		}
+	}
+}
