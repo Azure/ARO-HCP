@@ -242,6 +242,13 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		if updated {
 			f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
+		// Get the updated resource document for the response.
+		doc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
 	}
 
 	responseBody, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
