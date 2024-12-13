@@ -39,6 +39,7 @@
     "imageTag": "0b3c08f"
   },
   "global": {
+    "globalMSIName": "global-ev2-identity",
     "manageTokenCustomRole": false,
     "region": "uksouth",
     "rg": "global-shared-resources",
@@ -168,5 +169,6 @@
     }
   },
   "svcAcrName": "arohcpsvcint",
+  "svcParentZoneName": "aro-hcp.azure-test.net",
   "vnetAddressPrefix": "10.128.0.0/14"
 }

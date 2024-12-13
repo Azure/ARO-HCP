@@ -12,6 +12,10 @@
       "baseDnsZoneName": {
         "type": "string"
       },
+      "svcParentZoneName": {
+        "type": "string",
+        "description": "The service cluster component domain name"
+      },
       "baseDnsZoneRG": {
         "type": "string"
       },
@@ -179,6 +183,10 @@
           },
           "region": {
             "type": "string"
+          },
+          "globalMSIName": {
+            "type": "string",
+            "description": "The name of the MSI that will be used for ev2"
           }
         },
         "required": [

@@ -2,7 +2,7 @@
   "aksName": "aro-hcp-aks",
   "armHelperClientId": "2c6ca254-36bd-43c8-a7a8-fe880bc2c489",
   "armHelperFPAPrincipalId": "bc17c825-6cf8-40d0-8bd6-5536a993115e",
-  "aroDevopsMsiId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops",
+  "aroDevopsMsiId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity",
   "backend": {
     "imageTag": ""
   },
@@ -40,10 +40,11 @@
     "imageTag": ""
   },
   "global": {
+    "globalMSIName": "global-rollout-identity",
     "manageTokenCustomRole": true,
     "region": "westus3",
     "rg": "global",
-    "subscription": "hcp-westus3"
+    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
@@ -169,5 +170,6 @@
     }
   },
   "svcAcrName": "arohcpsvcdev",
+  "svcParentZoneName": "hcpsvc.osadev.cloud",
   "vnetAddressPrefix": "10.128.0.0/14"
 }

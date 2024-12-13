@@ -10,6 +10,7 @@ defaults:
     subscription: hcp-{{ .ctx.region }}
     manageTokenCustomRole: false
     region: uksouth
+    globalMSIName: "global-ev2-identity"
 
   # General AKS config
   kubernetesVersion: 1.30.6
@@ -180,6 +181,7 @@ clouds:
           # DNS
           baseDnsZoneName: aroapp-hcp.azure-test.net
           regionalDNSSubdomain: '{{ .ctx.region }}'
+          svcParentZoneName: "aro-hcp.azure-test.net"
 
           # ACR
           svcAcrName: arohcpsvcint
