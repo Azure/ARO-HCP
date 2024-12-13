@@ -143,6 +143,87 @@ clouds:
       clusterService:
         imageTag: 9f7fef3
         imageRepo: app-sre/uhc-clusters-service
+        azureOperatorsManagedIdentitiesConfig: |
+          controlPlaneOperatorsIdentities:
+            cloud-controller-manager:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/ebe170ec-1247-536a-86d9-74c829dd9844'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Cloud Controller Manager - Dev'
+              optional: false
+            ingress:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/589ca160-4fac-501e-ad6c-006a19583727'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Cluster Ingress Operator - Dev'
+              optional: false
+            disk-csi-driver:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/4367fe74-0b43-5033-b629-15d9f28415ac'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Disk Storage Operator - Dev'
+              optional: false
+            file-csi-driver:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/fdc0aaaa-1c3e-548e-ad27-0321e5fab18b'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift File Storage Operator - Dev'
+              optional: false
+            image-registry:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/357b9263-656f-5d45-9d7a-ccb825f0683f'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Image Registry Operator - Dev'
+              optional: false
+            cloud-network-config:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/4e4f23fe-3fab-568b-a001-10b233b0f840'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Network Operator - Dev'
+              optional: false
+          dataPlaneOperatorsIdentities:
+            disk-csi-driver:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/4367fe74-0b43-5033-b629-15d9f28415ac'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Disk Storage Operator - Dev'
+              k8sServiceAccounts:
+                - name: 'azure-disk-csi-driver-operator'
+                  namespace: 'openshift-cluster-csi-drivers'
+                - name: 'azure-disk-csi-driver-controller-sa'
+                  namespace: 'openshift-cluster-csi-drivers'
+              optional: false
+            image-registry:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/357b9263-656f-5d45-9d7a-ccb825f0683f'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Image Registry Operator - Dev'
+              k8sServiceAccounts:
+                - name: 'cluster-image-registry-operator'
+                  namespace: 'openshift-image-registry'
+                - name: 'registry'
+                  namespace: 'openshift-image-registry'
+              optional: false
+            file-csi-driver:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/fdc0aaaa-1c3e-548e-ad27-0321e5fab18b'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift File Storage Operator - Dev'
+              k8sServiceAccounts:
+                - name: 'azure-file-csi-driver-operator'
+                  namespace: 'openshift-cluster-csi-drivers'
+                - name: 'azure-file-csi-driver-controller-sa'
+                  namespace: 'openshift-cluster-csi-drivers'
+                - name: 'azure-file-csi-driver-node-sa'
+                  namespace: 'openshift-cluster-csi-drivers'
+              optional: false
+            ingress:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/589ca160-4fac-501e-ad6c-006a19583727'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Cluster Ingress Operator - Dev'
+              k8sServiceAccounts:
+                - name: 'ingress-operator'
+                  namespace: 'openshift-ingress-operator'
+              optional: false
+            cloud-network-config:
+              minOpenShiftVersion: 4.17
+              azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/4e4f23fe-3fab-568b-a001-10b233b0f840'
+              azureRoleDefinitionName: 'Azure Red Hat OpenShift Network Operator - Dev'
+              k8sServiceAccounts:
+                - name: 'cloud-network-config-controller'
+                  namespace: 'openshift-cloud-network-config-controller'
+              optional: false
       # Hypershift Operator
       hypershiftOperator:
         imageTag: 9aca808
