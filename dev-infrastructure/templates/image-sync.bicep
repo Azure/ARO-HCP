@@ -64,7 +64,7 @@ var secretsFolder = '/etc/containers'
 var secretWithFolderPrefix = [
   for css in csSecrets: {
     registry: css.registry
-    secretFile: '${secretsFolder}/${css.secret}'
+    secretFile: '/auth/${css.secret}'
   }
 ]
 
@@ -251,7 +251,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
           ]
           args: [
             '-c'
-            'cat /tmp/secret-orig/pull-secrets |base64 -d > /etc/containers/config.json && cd /tmp/secrets; for file in $(find . -type f); do; export fn=$(basename $file); cat $file | base64 -d > ${secretsFolder}/$fn; done;'
+            'cat /tmp/secret-orig/pull-secrets |base64 -d > /etc/containers/config.json && cd /tmp/secrets; for file in $(find . -type f); do export fn=$(basename $file); cat $file | base64 -d > ${secretsFolder}/$fn; done;'
           ]
           volumeMounts: union(
             [
