@@ -168,7 +168,7 @@ var componentSyncJobName = 'component-sync'
 
 var componentSecretsArray = [
   for bearerSecretName in bearerSecrets: {
-    name: 'bearer-secret'
+    name: bearerSecretName
     keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${bearerSecretName}'
     identity: uami.id
   }
