@@ -2,13 +2,17 @@ apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: aro-hcp-gateway-external
+  namespace: aks-istio-ingress
 spec:
   selector:
     istio: aks-istio-ingressgateway-external
   servers:
-    - port:
-        number: 80
-        name: http
-        protocol: HTTP
-      hosts:
-        - "*"
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: frontend-credential
+    hosts:
+    - "*"
