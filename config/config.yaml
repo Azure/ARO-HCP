@@ -5,10 +5,10 @@ defaults:
 
   global:
     rg: global
-    subscription: hcp-{{ .ctx.region }}
+    subscription: ARO Hosted Control Planes (EA Subscription 1)
     manageTokenCustomRole: true
     region: westus3
-    globalMSIName: "global-ev2-identity"
+    globalMSIName: "global-rollout-identity"
 
   # General AKS config
   kubernetesVersion: 1.30.6
@@ -24,7 +24,7 @@ defaults:
     additionalInstallArg: '--tech-preview-no-upgrade'
 
   svc:
-    subscription: hcp-{{ .ctx.region }}
+    subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-svc
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}
@@ -33,7 +33,7 @@ defaults:
   # MGMT cluster specifics
   mgmt:
     clusterServiceResourceId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-{{ .ctx.regionShort }}-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service
-    subscription: hcp-{{ .ctx.region }}
+    subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
@@ -126,7 +126,7 @@ clouds:
     defaults:
       # DNS
       baseDnsZoneName: 'hcp.osadev.cloud'
-      svcParentZoneName: "aro-hcp.azure-test.net"
+      svcParentZoneName: "hcpsvc.osadev.cloud"
       # 1P app
       firstPartyAppClientId: 57e54810-3138-4f38-bd3b-29cb33f4c358
       # Mock Managed Identities Service Princiapl
@@ -209,7 +209,7 @@ clouds:
         msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
         grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
       # DEVOPS MSI
-      aroDevopsMsiId: '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aro-hcp-devops'
+      aroDevopsMsiId: '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity'
     environments:
       dev:
         # this is the integrated DEV environment
