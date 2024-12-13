@@ -56,7 +56,7 @@
     "componentSync": {
       "enabled": true,
       "imageRepo": "image-sync/component-sync",
-      "imageTag": "34bf09c",
+      "imageTag": "8d3c113",
       "pullSecretName": "component-sync-pull-secret",
       "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
       "secrets": "[{\"registry\": \"quay.io\", \"secret\": \"bearer-secret\"}]"
