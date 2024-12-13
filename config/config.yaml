@@ -9,8 +9,6 @@ defaults:
     manageTokenCustomRole: true
     region: westus3
     globalMSIName: "global-ev2-identity"
-    cxParentZoneName: "aroapp-hcp.azure-test.net"
-    svcParentZoneName: "aro-hcp.azure-test.net"
 
   # General AKS config
   kubernetesVersion: 1.30.6
@@ -128,6 +126,7 @@ clouds:
     defaults:
       # DNS
       baseDnsZoneName: 'hcp.osadev.cloud'
+      svcParentZoneName: "aro-hcp.azure-test.net"
       # 1P app
       firstPartyAppClientId: 57e54810-3138-4f38-bd3b-29cb33f4c358
       # Mock Managed Identities Service Princiapl
