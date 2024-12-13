@@ -186,7 +186,7 @@ func DoSync(cfg *SyncConfig) error {
 		if client, ok := srcRegistries[baseURL]; ok {
 			srcTags, err = client.GetTags(ctx, repoName)
 			if err != nil {
-				return fmt.Errorf("error getting quay tags: %w", err)
+				return fmt.Errorf("error getting tags from %s: %w", baseURL, err)
 			}
 			Log().Debugw("Got tags from quay", "tags", srcTags)
 		} else {
