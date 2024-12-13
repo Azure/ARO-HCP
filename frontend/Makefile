@@ -42,16 +42,25 @@ deploy:
 	FRONTEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend \
-			--query clientId -o tsv);\
+			--query clientId -o tsv); \
+	SECRET_STORE_MI_CLIENT_ID=$$(az aks show --resource-group ${RESOURCEGROUP} \
+			--name ${AKS_NAME} \
+			--query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId \
+			--output tsv); \
 	ISTO_VERSION=$$(az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
+	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
 	helm upgrade --install ${HELM_DRY_RUN} aro-hcp-frontend-dev \
 		deploy/helm/frontend/ \
+		--set azure.clientId=$${SECRET_STORE_MI_CLIENT_ID} \
+		--set azure.tenantId=$${TENANT_ID} \
 		--set configMap.databaseName=${DB_NAME} \
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.frontendMiClientId="$${FRONTEND_MI_CLIENT_ID}" \
+		--set credsKeyVault.name=${SERVICE_KEY_VAULT} \
+		--set credsKeyVault.secret=${CERTIFICATE_NAME} \
 		--set serviceAccount.workloadIdentityClientId="$${FRONTEND_MI_CLIENT_ID}" \
 		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE} \
 		--set configMap.location=${LOCATION}  \
