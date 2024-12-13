@@ -5,7 +5,7 @@ set -euxo pipefail
 echo "********** ISTIO Upgrade Started **************"
 # Get the current istio and check if it match target version
 export CURRENTVERSION=$(kubectl get pods -n aks-istio-system | tail -n +2 | tail -n 1 | cut -d '-' -f 2,3,4)
-if [ "$CURRENTVERSION" == "$TARGET_VERSION" ]; then
+if [ "$CURRENTVERSION" == "$TARGET_VERSION" ] || [ -z "$TARGET_VERSION" ]; then
     echo "Istio is using Target Version. Exiting script."
     exit 0
 fi
