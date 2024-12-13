@@ -7,7 +7,7 @@ param keyVaultName = '{{ .imageSync.keyVault.name}}'
 param keyVaultPrivate = {{ .imageSync.keyVault.private }}
 param keyVaultSoftDelete = {{ .imageSync.keyVault.softDelete }}
 
-param componentSyncPullSecretName = 'component-sync-pull-secret'
+param componentSyncPullSecretName = '{{ .imageSync.componentSync.pullSecretName }}'
 param componentSyncImage = '{{ .svcAcrName }}.azurecr.io/{{ .imageSync.componentSync.imageRepo }}:{{ .imageSync.componentSync.imageTag }}'
 param componentSyncEnabed = {{ .imageSync.componentSync.enabled }}
 param componentSyncSecrets = '{{ .imageSync.componentSync.secrets }}'
@@ -15,7 +15,7 @@ param componentSyncSecrets = '{{ .imageSync.componentSync.secrets }}'
 param svcAcrName = '{{ .svcAcrName }}'
 
 param ocpAcrName = '{{ .ocpAcrName }}'
-param ocpPullSecretName = 'pull-secret'
+param ocpPullSecretName = '{{ .imageSync.ocMirror.pullSecretName }}
 param repositoriesToSync = '{{ .imageSync.componentSync.repositories }}'
 param ocMirrorImage = '{{ .svcAcrName }}.azurecr.io/{{ .imageSync.ocMirror.imageRepo }}:{{ .imageSync.ocMirror.imageTag }}'
 param ocMirrorEnabled = {{ .imageSync.ocMirror.enabled }}

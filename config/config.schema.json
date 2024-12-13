@@ -239,6 +239,9 @@
               },
               "secrets": {
                 "type": "string"
+              },
+              "pullSecretName": {
+                "type": "string"
               }
             },
             "additionalProperties": false,
@@ -247,7 +250,8 @@
               "imageRepo",
               "imageTag",
               "repositories",
-              "secrets"
+              "secrets",
+              "pullSecretName"
             ]
           },
           "ocMirror": {
@@ -261,13 +265,17 @@
               },
               "imageTag": {
                 "type": "string"
+              },
+              "pullSecretName": {
+                "type": "string"
               }
             },
             "additionalProperties": false,
             "required": [
               "enabled",
               "imageRepo",
-              "imageTag"
+              "imageTag",
+              "pullSecretName"
             ]
           },
           "keyVault": {
