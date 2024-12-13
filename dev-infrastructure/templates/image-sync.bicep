@@ -56,7 +56,12 @@ param ocpPullSecretName string
 #disable-next-line secure-secrets-in-params   // Doesn't contain a secret
 param componentSyncSecrets string
 
-var csSecrets = json(componentSyncSecrets)
+var csSecrets = [
+  for secret in split(componentSyncSecrets, ','): {
+    registry: split(secret, ':')[0]
+    secret: split(secret, ':')[1]
+  }
+]
 
 var bearerSecrets = [for css in csSecrets: '${css.secret}']
 
