@@ -34,8 +34,8 @@ defaults:
       url: "https://istio.io/downloadIstio"
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
-      newVersion: "asm-1-22"
-      version: "asm-1-21"
+      newVersion: ""
+      version: "asm-1-22"
 
   # MGMT cluster specifics
   mgmt:
