@@ -141,6 +141,7 @@ param regionalDNSZoneName string
 param frontendIngressCertName string
 
 var clusterServiceMIName = 'clusters-service'
+var istio = empty(istioVersion[1]) ? [istioVersion[0]] : istioVersion
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -169,7 +170,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     kubernetesVersion: kubernetesVersion
     deployIstio: true
-    istioVersion: istioVersion
+    istioVersion: istio
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
