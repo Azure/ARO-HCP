@@ -57,9 +57,11 @@ param componentSyncSecrets string
 
 var csSecrets = json(componentSyncSecrets)
 
-var bearerSecrets = [ for css in csSecrets: [  '${css.secret}' ]]
+var bearerSecrets = [ for css in csSecrets:  '${css.secret}']
+
 
 var secretsFolder = '/etc/containers'
+
 var secretWithFolderPrefix = [ for css in csSecrets: {
   registry: css.registry
   secretFile: '${secretsFolder}/${css.secret}'
