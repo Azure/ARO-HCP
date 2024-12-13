@@ -15,7 +15,7 @@ param componentSyncSecrets = '{{ .imageSync.componentSync.secrets }}'
 param svcAcrName = '{{ .svcAcrName }}'
 
 param ocpAcrName = '{{ .ocpAcrName }}'
-param ocpPullSecretName = '{{ .imageSync.ocMirror.pullSecretName }}
+param ocpPullSecretName = '{{ .imageSync.ocMirror.pullSecretName }}'
 param repositoriesToSync = '{{ .imageSync.componentSync.repositories }}'
 param ocMirrorImage = '{{ .svcAcrName }}.azurecr.io/{{ .imageSync.ocMirror.imageRepo }}:{{ .imageSync.ocMirror.imageTag }}'
 param ocMirrorEnabled = {{ .imageSync.ocMirror.enabled }}

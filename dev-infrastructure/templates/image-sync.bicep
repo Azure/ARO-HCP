@@ -53,6 +53,7 @@ param ocMirrorEnabled bool
 param ocpPullSecretName string
 
 @description('Secret configuration to pass into component sync')
+#disable-next-line secure-secrets-in-params   // Doesn't contain a secret
 param componentSyncSecrets string
 
 var csSecrets = json(componentSyncSecrets)
