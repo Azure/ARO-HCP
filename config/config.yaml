@@ -87,7 +87,7 @@ defaults:
       imageRepo: image-sync/component-sync
       imageTag: 8d3c113
       repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
-      secrets: '[{"registry": "quay.io", "secret": "bearer-secret"}]'
+      secrets: 'quay.io:bearer-secret'
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true

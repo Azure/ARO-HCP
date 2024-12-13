@@ -86,7 +86,7 @@ defaults:
       enabled: true
       imageRepo: image-sync/component-sync
       repositories: arohcpsvcdev.azurecr.io/image-sync,arohcpsvcdev.azurecr.io/arohcpfrontend,arohcpsvcdev.azurecr.io/arohcpbackend,quay.io/acm-d/rhtap-hypershift-operator,arohcpsvcdev.azurecr.io/image-sync/oc-mirror,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
-      secrets: '[{"registry": "quay.io", "secret": "quay-io-bearer"},{"registry": "arohcpsvcdev.azurecr.io", "secret": "arohcpsvcdev-bearer"}]'
+      secrets: 'quay.io:quay-io-bearer,arohcpsvcdev.azurecr.io:arohcpsvcdev-bearer'
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
