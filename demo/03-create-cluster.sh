@@ -7,7 +7,7 @@ CURRENT_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 CLUSTER_TMPL_FILE="cluster.tmpl.json"
 CLUSTER_FILE="cluster.json"
 
-NSG_ID=$(az network nsg list --query "[?name=='${CUSTOMER_NSG}'].id" -o tsv)
+NSG_ID=$(az network nsg list -g ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" -o tsv)
 SUBNET_ID=$(az network vnet subnet show -g ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id -o tsv)
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
