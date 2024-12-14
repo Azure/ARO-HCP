@@ -1,7 +1,9 @@
 #!/bin/bash
 
 
-export CUSTOMER_RG_NAME="$USER-net-rg"
+if [ -z "$CUSTOMER_RG_NAME" ]; then
+    export CUSTOMER_RG_NAME="$USER-net-rg"
+fi
 export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
