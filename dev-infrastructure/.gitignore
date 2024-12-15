@@ -1,5 +1,7 @@
 configurations/mgmt-cluster.bicepparam
+configurations/mgmt-infra.bicepparam
 configurations/svc-cluster.bicepparam
+configurations/svc-infra.bicepparam
 configurations/region.bicepparam
 configurations/metrics.bicepparam
 configurations/acr-svc.bicepparam

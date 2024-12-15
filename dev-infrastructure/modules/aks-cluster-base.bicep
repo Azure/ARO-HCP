@@ -494,3 +494,4 @@ output aksVnetId string = vnet.id
 output aksNodeSubnetId string = aksNodeSubnet.id
 output aksOidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
 output aksClusterName string = aksClusterName
+output aksClusterKeyVaultSecretsProviderPrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId

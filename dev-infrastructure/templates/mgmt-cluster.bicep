@@ -74,49 +74,17 @@ param regionalResourceGroup string
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
 
-@description('Defines if the CX KeyVault is private')
-param cxKeyVaultPrivate bool
-
-@description('Defines if the CX KeyVault has soft delete enabled')
-param cxKeyVaultSoftDelete bool
-
 @description('The name of the MSI KeyVault')
 param msiKeyVaultName string
-
-@description('Defines if the MSI KeyVault is private')
-param msiKeyVaultPrivate bool
-
-@description('Defines if the MSI KeyVault has soft delete enabled')
-param msiKeyVaultSoftDelete bool
 
 @description('The name of the MGMT KeyVault')
 param mgmtKeyVaultName string
 
-@description('Defines if the MGMT KeyVault is private')
-param mgmtKeyVaultPrivate bool
-
-@description('Defines if the MGMT KeyVault has soft delete enabled')
-param mgmtKeyVaultSoftDelete bool
-
-@description('Cluster user assigned identity resource id, used to grant KeyVault access')
-param clusterServiceMIResourceId string
-
 @description('MSI that will be used to run deploymentScripts')
 param aroDevopsMsiId string
 
-// Tags the resource group
-resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
-  name: 'default'
-  scope: resourceGroup()
-  properties: {
-    tags: {
-      persist: toLower(string(persist))
-    }
-  }
-}
-
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
-  name: 'mgmt-cluster'
+  name: 'cluster'
   scope: resourceGroup()
   params: {
     location: location
@@ -155,6 +123,44 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
 output aksClusterName string = mgmtCluster.outputs.aksClusterName
 
 //
+//   K E Y V A U L T S
+//
+
+module cxCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+  for role in [
+    'Key Vault Secrets Officer'
+    'Key Vault Certificate User'
+    'Key Vault Certificates Officer'
+  ]: {
+    name: guid(cxKeyVaultName, 'aks-kv-csi-mi', role)
+    params: {
+      keyVaultName: cxKeyVaultName
+      roleName: role
+      managedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    }
+  }
+]
+
+module msiCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+  for role in [
+    'Key Vault Secrets Officer'
+    'Key Vault Certificate User'
+    'Key Vault Certificates Officer'
+  ]: {
+    name: guid(msiKeyVaultName, 'aks-kv-csi-mi', role)
+    params: {
+      keyVaultName: msiKeyVaultName
+      roleName: role
+      managedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    }
+  }
+]
+
+resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+  name: mgmtKeyVaultName
+}
+
+//
 //   M A E S T R O
 //
 
@@ -176,88 +182,6 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
     mgmtKeyVault
   ]
 }
-
-//
-//   K E Y V A U L T S
-//
-
-module cxKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-cx-kv'
-  params: {
-    location: location
-    keyVaultName: cxKeyVaultName
-    private: cxKeyVaultPrivate
-    enableSoftDelete: cxKeyVaultSoftDelete
-    purpose: 'cx'
-  }
-}
-
-module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-msi-kv'
-  params: {
-    location: location
-    keyVaultName: msiKeyVaultName
-    private: msiKeyVaultPrivate
-    enableSoftDelete: msiKeyVaultSoftDelete
-    purpose: 'msi'
-  }
-}
-
-module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-mgmt-kv'
-  params: {
-    location: location
-    keyVaultName: mgmtKeyVaultName
-    private: mgmtKeyVaultPrivate
-    enableSoftDelete: mgmtKeyVaultSoftDelete
-    purpose: 'mgmt'
-  }
-}
-
-var clusterServiceMISplit = split(clusterServiceMIResourceId, '/')
-var clusterServiceMIResourceGroup = clusterServiceMISplit[4]
-var clusterServiceMIName = last(clusterServiceMISplit)
-
-resource clusterServiceMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(clusterServiceMIResourceGroup)
-  name: clusterServiceMIName
-}
-
-module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for role in [
-    'Key Vault Secrets Officer'
-    'Key Vault Certificate User'
-    'Key Vault Certificates Officer'
-  ]: {
-    name: guid(cxKeyVaultName, clusterServiceMIResourceId, role)
-    params: {
-      keyVaultName: cxKeyVaultName
-      roleName: role
-      managedIdentityPrincipalId: clusterServiceMI.properties.principalId
-    }
-    dependsOn: [
-      cxKeyVault
-    ]
-  }
-]
-
-module msiClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for role in [
-    'Key Vault Secrets Officer'
-    'Key Vault Certificate User'
-    'Key Vault Certificates Officer'
-  ]: {
-    name: guid(msiKeyVaultName, clusterServiceMIResourceId, role)
-    params: {
-      keyVaultName: msiKeyVaultName
-      roleName: role
-      managedIdentityPrincipalId: clusterServiceMI.properties.principalId
-    }
-    dependsOn: [
-      msiKeyVault
-    ]
-  }
-]
 
 //
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
