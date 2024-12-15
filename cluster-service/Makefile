@@ -32,7 +32,7 @@ deploy: provision-shard
 	  --set ocpAcrUrl=$${OCP_ACR_URL} \
 	  --set databaseDisableTls=${DATABASE_DISABLE_TLS} \
 	  --set databaseAuthMethod=${DATABASE_AUTH_METHOD} \
-	  --set provisionShardsConfig="$(shell base64 -i -w 0 deploy/provisioning-shards.yml)" \
+	  --set provisionShardsConfig="$(shell base64 -i deploy/provisioning-shards.yml | tr -d '\n')" \
 	  --set deployLocalDatabase=${DEPLOY_LOCAL_DB} \
 	  --set databaseHost=${DB_HOST} \
 	  --set databaseName=${DB_NAME} \
