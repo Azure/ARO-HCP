@@ -266,6 +266,12 @@ svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig metrics-infra svc.e
 
 svc.what-if: svc.rg
 	az deployment group what-if \
+		--name $(SVC_RG_DEPLOYMENT_NAME)-infra \
+		--resource-group $(SVC_RESOURCEGROUP) \
+		--template-file templates/svc-infra.bicep \
+		--parameters \
+			configurations/svc-infra.bicepparam
+	az deployment group what-if \
 		--name $(SVC_RG_DEPLOYMENT_NAME) \
 		--resource-group $(SVC_RESOURCEGROUP) \
 		--template-file templates/svc-cluster.bicep \
@@ -307,6 +313,14 @@ mgmt.wait:
 .PHONY: mgmt.wait
 
 mgmt: mgmt.wait mgmt.rg
+	@./ensure-no-running-deployment.sh $(MGMT_RESOURCEGROUP) $(MGMT_RESOURCEGROUP)-infra
+	az deployment group create \
+		--name $(MGMT_RESOURCEGROUP)-infra \
+		--resource-group $(MGMT_RESOURCEGROUP) \
+		--template-file templates/mgmt-infra.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/mgmt-infra.bicepparam
 	@scripts/cleanup-orphaned-rolebindings.sh $(MGMT_RESOURCEGROUP)
 	az deployment group create \
 		--name $(MGMG_RG_DEPLOYMENT_NAME) \
@@ -348,6 +362,12 @@ mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig metrics-infra m
 .PHONY: mgmt.init
 
 mgmt.what-if: mgmt.rg
+	az deployment group what-if \
+		--name $(MGMG_RG_DEPLOYMENT_NAME)-infra \
+		--resource-group $(MGMT_RESOURCEGROUP) \
+		--template-file templates/mgmt-infra.bicep \
+		--parameters \
+			configurations/mgmt-infra.bicepparam
 	az deployment group what-if \
 		--name $(MGMG_RG_DEPLOYMENT_NAME) \
 		--resource-group $(MGMT_RESOURCEGROUP) \

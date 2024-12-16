@@ -156,7 +156,7 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
 }
 
 module svcCluster '../modules/aks-cluster-base.bicep' = {
-  name: 'svc-cluster'
+  name: 'cluster'
   scope: resourceGroup()
   params: {
     location: location

@@ -5,7 +5,7 @@ resourceGroups:
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
   steps:
-  - name: regionOutput
+  - name: region-output
     action: ARM
     template: templates/output-region.bicep
     parameters: configurations/output-region.tmpl.bicepparam
@@ -13,17 +13,23 @@ resourceGroups:
   subscription: {{ .mgmt.subscription }}
   aksCluster: {{ .aksName }}
   steps:
-  - name: mgmt
+  - name: mgmt-infra
     action: ARM
-    template: templates/mgmt-cluster.bicep
-    parameters: configurations/mgmt-cluster.tmpl.bicepparam
+    template: templates/mgmt-infra.bicep
+    parameters: configurations/mgmt-infra.tmpl.bicepparam
     variables:
     - name: mgmt.clusterServiceResourceId
       input:
-        step: regionOutput
+        step: region-output
         name: cs
     dependsOn:
-    - regionOutput
+    - region-output
+  - name: mgmt-cluster
+    action: ARM
+    template: templates/mgmt-cluster.bicep
+    parameters: configurations/mgmt-cluster.tmpl.bicepparam
+    dependsOn:
+    - mgmt-infra
   - name: enable-metrics
     action: Shell
     command: scripts/enable-aks-metrics.sh
@@ -39,4 +45,4 @@ resourceGroups:
     - name: GRAFANA_NAME
       configRef: monitoring.grafanaName
     dependsOn:
-    - mgmt
+    - mgmt-cluster
