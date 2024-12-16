@@ -686,11 +686,11 @@
                 "type": "string"
               },
               "version": {
-                "description": "The current istio version in the aks cluster",
+                "description": "The current istio version in the AKS cluster",
                 "type": "string"
               },
-              "newVersion": {
-                "description": "The new istio version that will be updated to",
+              "targetVersion": {
+                "description": "The target istio version that will be updated to",
                 "type": "string"
               }
             }
