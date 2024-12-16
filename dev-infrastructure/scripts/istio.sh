@@ -3,6 +3,7 @@
 set -euxo pipefail
 
 echo "********** ISTIO Upgrade Started **************"
+# Followed this guide for istio upgrade https://learn.microsoft.com/en-us/azure/aks/istio-upgrade
 # Get the current istio and check if it match target version
 export CURRENTVERSION=$(kubectl get pods -n aks-istio-system -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | tail -n +2 | head -n 1 | cut -d '-' -f 2,3,4)
 if [[ "$CURRENTVERSION" == "$TARGET_VERSION" ]] || [[ -z "$TARGET_VERSION" ]]; then
@@ -27,6 +28,7 @@ istioctl tag set prod-canary --revision "${NEWVERSION}" --istioNamespace aks-ist
 # Get the namespaces with the label istio.io/rev=$TAG
 export namespaces=$(kubectl get namespaces --selector=istio.io/rev="$TAG") 
 
+# Label the current namespace the TAG
 for ns in $namespaces; do
     kubectl label "$ns" default istio.io/rev="$TAG" --overwrite
 done
