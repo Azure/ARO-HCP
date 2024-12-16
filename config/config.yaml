@@ -32,7 +32,7 @@ defaults:
       url: "https://istio.io/downloadIstio"
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
-      newVersion: ""
+      targetVersion: ""
       version: "asm-1-22"
 
   # MGMT cluster specifics
@@ -272,7 +272,7 @@ clouds:
           istioctlVersion: "1.23.1"
           tag: "prod-stable"
           version: "asm-1-22"
-          newVersion: ""
+          targetVersion: ""
       mgmt:
         # MGMTM AKS nodepools - big enough for 2 HCPs
         systemAgentPool:

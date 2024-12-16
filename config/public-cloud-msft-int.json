@@ -158,9 +158,9 @@
       "kvSoftDelete": true
     },
     "istio": {
-      "istioctlVersion": "1.23.1",
-      "newVersion": "",
+      "istioctlVersion": "1.24.1",
       "tag": "prod-stable",
+      "targetVersion": "asm-1-23",
       "url": "https://istio.io/downloadIstio",
       "version": "asm-1-22"
     },
