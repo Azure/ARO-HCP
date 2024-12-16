@@ -11,5 +11,6 @@ spec:
         namespaces: ["aks-istio-ingress"]
     to:
     - operation:
+        methods: ["GET"]
         ports:
         - "8443"
