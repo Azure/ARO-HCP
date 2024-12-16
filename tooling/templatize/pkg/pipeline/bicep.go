@@ -14,9 +14,31 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
-func transformBicepToARM(ctx context.Context, bicepParameterTemplateFile string, vars config.Variables, inputs map[string]any) (*armresources.DeploymentProperties, error) {
-	// preprocess bicep parameter file and store it
+func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemplateFile string, vars config.Variables, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
+	template, params, err := transformParameters(ctx, vars, inputs, bicepParameterTemplateFile)
+	if err != nil {
+		return nil, err
+	}
+	return &armresources.DeploymentWhatIfProperties{
+		Mode:       to.Ptr(armresources.DeploymentModeIncremental),
+		Template:   template,
+		Parameters: params,
+	}, nil
+}
 
+func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFile string, vars config.Variables, inputs map[string]any) (*armresources.DeploymentProperties, error) {
+	template, params, err := transformParameters(ctx, vars, inputs, bicepParameterTemplateFile)
+	if err != nil {
+		return nil, err
+	}
+	return &armresources.DeploymentProperties{
+		Mode:       to.Ptr(armresources.DeploymentModeIncremental),
+		Template:   template,
+		Parameters: params,
+	}, nil
+}
+
+func transformParameters(ctx context.Context, vars config.Variables, inputs map[string]any, bicepParameterTemplateFile string) (map[string]interface{}, map[string]interface{}, error) {
 	combinedVars := make(map[string]any)
 	for k, v := range vars {
 		combinedVars[k] = v
@@ -27,45 +49,39 @@ func transformBicepToARM(ctx context.Context, bicepParameterTemplateFile string,
 
 	bicepParamContent, err := config.PreprocessFile(bicepParameterTemplateFile, combinedVars)
 	if err != nil {
-		return nil, fmt.Errorf("failed to preprocess file: %w", err)
+		return nil, nil, fmt.Errorf("failed to preprocess file: %w", err)
 	}
 	bicepParamBaseDir := filepath.Dir(bicepParameterTemplateFile)
 	bicepParamFile, err := os.CreateTemp(bicepParamBaseDir, "bicep-params-*.bicepparam")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
+		return nil, nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer os.Remove(bicepParamFile.Name())
 	_, err = bicepParamFile.Write(bicepParamContent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to write to target file: %w", err)
+		return nil, nil, fmt.Errorf("failed to write to target file: %w", err)
 	}
 
-	// transform to json
 	cmd := exec.CommandContext(ctx, "az", "bicep", "build-params", "-f", bicepParamFile.Name(), "--stdout")
 	output, err := cmd.Output()
 	if err != nil {
 		combinedOutput, _ := cmd.CombinedOutput()
-		return nil, fmt.Errorf("failed to get output from command: %w\n%s", err, string(combinedOutput))
+		return nil, nil, fmt.Errorf("failed to get output from command: %w\n%s", err, string(combinedOutput))
 	}
 
-	// parse json and build DeploymentProperties
 	var result generationResult
 	if err := json.Unmarshal(output, &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal output: %w", err)
+		return nil, nil, fmt.Errorf("failed to unmarshal output: %w", err)
 	}
 	template, err := result.Template()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get template: %w", err)
+		return nil, nil, fmt.Errorf("failed to get template: %w", err)
 	}
 	params, err := result.Parameters()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get parameters: %w", err)
+		return nil, nil, fmt.Errorf("failed to get parameters: %w", err)
 	}
-	return &armresources.DeploymentProperties{
-		Mode:       to.Ptr(armresources.DeploymentModeIncremental),
-		Template:   template,
-		Parameters: params,
-	}, nil
+	return template, params, nil
 }
 
 type generationResult struct {
