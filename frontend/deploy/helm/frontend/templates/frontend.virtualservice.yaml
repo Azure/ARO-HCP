@@ -7,10 +7,11 @@ spec:
   hosts:
     - "*"
   gateways:
-    - aro-hcp-gateway-external
+    - aks-istio-ingress/aro-hcp-gateway-external
   http:
     - match:
-        - port: 80
+        - uri:
+            regex: '.+'
       route:
         - destination:
             host: aro-hcp-frontend
