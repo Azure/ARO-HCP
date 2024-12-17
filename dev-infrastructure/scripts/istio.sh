@@ -35,25 +35,17 @@ cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="
 
-export NEWVERSION="$TARGET_VERSION"
-export OLDVERSION="$CURRENT_VERSION"
+NEWVERSION="$TARGET_VERSION"
 echo "********** Istio UpGrade Started with version ${NEWVERSION} **************"
 
-# Use revision tag to upgrade istio. 
-istioctl tag set "$TAG" --revision "${OLDVERSION}" --istioNamespace aks-istio-system --overwrite
-istioctl tag set prod-canary --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
-
-# Get the namespaces with the label istio.io/rev=$TAG or istio.io/rev=$OLDVERSION(If istio upgrade has never run before, the tag will be the old istio version)
-export namespaces=$(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo)
-
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
+# Get the namespaces with the label istio.io/rev=$TAG
+namespaces=$(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}')
 
 for ns in $namespaces; do
-    pods=$(kubectl get pods -n "$ns")
-    for pod in $pods; do
-        pod_name=$(kubectl get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}')
+    pods=$(kubectl get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}')
+    for pod_name in $pods; do
         istio_version=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -oP '(?<="revision":")[^"]*')
-        
         if [[ "$istio_version" != "$NEWVERSION" ]]; then
             owner_kind=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].kind}')
             owner_name=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].name}')
@@ -79,7 +71,5 @@ for ns in $namespaces; do
         fi
     done
 done
-
-istioctl tag remove prod-canary --istioNamespace aks-istio-system 
 
 echo "********** ISTIO Upgrade Finished**************"
