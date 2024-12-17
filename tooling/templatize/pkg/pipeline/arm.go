@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -48,15 +49,27 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	return doWaitForDeployment(ctx, client, rgName, step, options.Vars, input)
 }
 
-func recursivePrint(logger Logger, change *armresources.WhatIfPropertyChange) {
-	logger.Info(change.PropertyChangeType, change.Path)
+func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
+	fmt.Printf("%s%s:\n", strings.Repeat("\t", level), *change.Path)
+	fmt.Printf("%s\tBefore:%s\n", strings.Repeat("\t", level), change.Before)
+	fmt.Printf("%s\tAfter:%s\n", strings.Repeat("\t", level), change.After)
 	for _, child := range change.Children {
-		recursivePrint(logger, child)
+		level += level
+		recursivePrint(level, child)
 	}
-
 }
-
+func printChanges(t armresources.ChangeType, changes []*armresources.WhatIfChange) {
+	for _, change := range changes {
+		if *change.ChangeType == t {
+			fmt.Printf("%s %s\n", strings.Repeat("\t", 1), *change.ResourceID)
+			for _, delta := range change.Delta {
+				recursivePrint(2, delta)
+			}
+		}
+	}
+}
 func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *Step, vars config.Variables, input map[string]output) (output, error) {
+
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, input)
@@ -76,22 +89,38 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 
 	poller, err := client.BeginWhatIf(ctx, rgName, step.Name, deployment, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create whatif deployment: %w", err)
+		return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
 	}
-	logger.Info("Whatif Deployment started", "deployment", step.Name)
+	logger.Info("WhatIf Deployment started", "deployment", step.Name)
 
 	resp, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to wait for deployment completion: %w", err)
 	}
-	logger.Info("Whatif Deployment finished successfully", "deployment", step.Name)
+	logger.Info("WhatIf Deployment finished successfully", "deployment", step.Name)
 
-	for _, change := range resp.Properties.Changes {
-		logger.Info("%s %s", change.ChangeType, *change.ResourceID)
-		for _, delta := range change.Delta {
-			recursivePrint(logger, delta)
-		}
-	}
+	fmt.Println("Change report for WhatIf deployment")
+	fmt.Println("----------")
+	fmt.Println("Creating")
+	printChanges(armresources.ChangeTypeCreate, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Deploy")
+	printChanges(armresources.ChangeTypeDeploy, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Modify")
+	printChanges(armresources.ChangeTypeModify, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Delete")
+	printChanges(armresources.ChangeTypeDelete, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Ignoring")
+	printChanges(armresources.ChangeTypeIgnore, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("NoChange")
+	printChanges(armresources.ChangeTypeNoChange, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Unsupported")
+	printChanges(armresources.ChangeTypeUnsupported, resp.Properties.Changes)
 
 	return nil, nil
 }
