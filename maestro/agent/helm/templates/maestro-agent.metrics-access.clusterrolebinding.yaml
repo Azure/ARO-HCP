@@ -1,0 +1,13 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: maestro-agent-metrics-access-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: maestro-agent-metrics-access
+subjects:
+  - kind: ServiceAccount
+    name: aad-msi-auth-token
+    namespace: kube-system

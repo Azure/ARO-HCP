@@ -27,6 +27,10 @@ spec:
         - --cloudevents-client-id={{ .Values.consumerName }}-work-agent
         image: "{{ .Values.image.base }}:{{ .Values.image.tag }}"
         imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8443 
+          name: metrics 
+          protocol: TCP
         name: maestro-agent
         volumeMounts:
         - mountPath: /secrets/maestro
