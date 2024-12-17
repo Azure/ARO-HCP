@@ -35,7 +35,7 @@ cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="
 
-NEWVERSION="$TARGET_VERSION"
+NEWVERSION="${ISTIOCTL_VERSION}"
 echo "********** Istio UpGrade Started with version ${NEWVERSION} **************"
 
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
@@ -55,6 +55,7 @@ for ns in $namespaces; do
                     deployment=$(kubectl get replicaset "$owner_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].name}')
                     if [[ -n "$deployment" ]]; then
                         kubectl rollout restart deployment "$deployment" -n "$ns"
+                        break 2
                     else
                         kubectl delete pod "$pod_name" -n "$ns"
                     fi
@@ -62,6 +63,7 @@ for ns in $namespaces; do
                 "StatefulSet")
                     deployment=$(kubectl get replicaset "$owner_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].name}')
                     kubectl rollout restart deployment "$deployment" -n "$ns"
+                    break 2
                 ;;
                 *)
                     # Don't do anything for (Cron)Job, or no owner pod for now.
