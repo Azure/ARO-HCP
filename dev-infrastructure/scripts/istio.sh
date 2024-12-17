@@ -40,8 +40,8 @@ export OLDVERSION="$CURRENT_VERSION"
 echo "********** Istio UpGrade Started with version ${NEWVERSION} **************"
 
 # Use revision tag to upgrade istio. 
-istioctl tag set "$TAG" --revision "${OLDVERSION}" --istioNamespace aks-istio-system
-istioctl tag set prod-canary --revision "${NEWVERSION}" --istioNamespace aks-istio-system
+istioctl tag set "$TAG" --revision "${OLDVERSION}" --istioNamespace aks-istio-system --overwrite
+istioctl tag set prod-canary --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
 
 # Get the namespaces with the label istio.io/rev=$TAG or istio.io/rev=$OLDVERSION(If istio upgrade has never run before, the tag will be the old istio version)
 export namespaces=$(kubectl get namespaces --selector=istio.io/rev="$OLDVERSION" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo; kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo)
