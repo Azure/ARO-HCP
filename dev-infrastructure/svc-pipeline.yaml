@@ -36,6 +36,8 @@ resourceGroups:
     action: Shell
     command: scripts/istio.sh
     variables:
+    - name: CURRENT_VERSION
+      configRef: svc.istio.version
     - name: TARGET_VERSION
       configRef: svc.istio.targetVersion
     - name: ISTIOCTL_VERSION
