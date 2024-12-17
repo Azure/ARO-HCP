@@ -26,3 +26,7 @@ resourceGroups:
       configRef: frontend.cosmosDB.name
     - name: COMMIT
       configRef: frontend.imageTag
+    - name: SERVICE_KEY_VAULT
+      configRef: serviceKeyVault.name
+    - name: CERTIFICATE_NAME
+      configRef: frontend.cert.name

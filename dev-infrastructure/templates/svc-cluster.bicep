@@ -137,6 +137,9 @@ param aroDevopsMsiId string
 @description('This is a regional DNS zone')
 param regionalDNSZoneName string
 
+@description('Frontend Ingress Certificate Name')
+param frontendIngressCertName string
+
 var clusterServiceMIName = 'clusters-service'
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
@@ -353,5 +356,20 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
     serviceType: 'eventgrid'
     groupId: 'topicspace'
     vnetId: svcCluster.outputs.aksVnetId
+  }
+}
+
+//
+//  C E R T I F I C A T E   A C C E S S   P E R M I S S I O N
+//
+
+module certificateOfficerAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'aksClusterKeyVaultSecretsProviderMI-${frontendIngressCertName}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    secretName: frontendIngressCertName
   }
 }

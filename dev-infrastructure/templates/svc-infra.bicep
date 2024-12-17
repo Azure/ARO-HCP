@@ -59,23 +59,3 @@ module clientCertificate '../modules/keyvault/key-vault-cert.bicep' = {
     issuerName: 'Self' // TODO: Change to OneCertV2-PublicCA when we get the issuer approved.
   }
 }
-
-//
-//  C E R T I F I C A T E   A C C E S S   P E R M I S S I O N
-//
-
-resource frontendMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'frontend'
-  location: resourceGroup().location
-}
-
-module certificateOfficerAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: 'frontendMI-cert-access-${certName}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: frontendMSI.properties.principalId
-    secretName: certName
-  }
-}

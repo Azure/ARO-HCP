@@ -48,3 +48,5 @@ param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .baseDnsZoneName }}'
 
 param regionalResourceGroup = '{{ .regionRG }}'
+
+param frontendIngressCertName = '{{ .frontend.cert.name }}'
