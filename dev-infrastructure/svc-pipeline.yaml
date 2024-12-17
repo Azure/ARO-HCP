@@ -46,5 +46,5 @@ resourceGroups:
       configRef: svc.istio.url
     - name: TAG
       configRef: svc.istio.tag
-    dependsOn:
-    - svc
+    # dependsOn:
+    # - svc
