@@ -1,9 +1,15 @@
+azure:
+  clientId: ""
+  tenantId: ""
 configMap:
   databaseUrl: ""
   frontendMiClientId: ""
   currentVersion: ""
   databaseName: ""
   location: ""
+credsKeyVault:
+  name: ""
+  secret: ""
 deployment:
   imageName: ""
 serviceAccount:
