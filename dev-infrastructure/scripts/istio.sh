@@ -4,9 +4,8 @@ set -euxo pipefail
 
 echo "********** ISTIO Upgrade Started **************"
 # Followed this guide for istio upgrade https://learn.microsoft.com/en-us/azure/aks/istio-upgrade
-# Get the current istio and check if it match target version
-export CURRENTVERSION=$(kubectl get pods -n aks-istio-system -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | tail -n +2 | head -n 1 | cut -d '-' -f 2,3,4)
-if [[ "$CURRENTVERSION" == "$TARGET_VERSION" ]] || [[ -z "$TARGET_VERSION" ]]; then
+# To upgrade or rollback, change the targetVersion to the desire version, and version to the current version.
+if [[ -z "$TARGET_VERSION" ]]; then
     echo "Istio is using Target Version. Exiting script."
     exit 0
 fi
@@ -25,24 +24,18 @@ echo "********** Istio UpGrade Started with version ${NEWVERSION} **************
 istioctl tag set "$TAG" --revision "${OLDVERSION}" --istioNamespace aks-istio-system
 istioctl tag set prod-canary --revision "${NEWVERSION}" --istioNamespace aks-istio-system
 
-# Get the namespaces with the label istio.io/rev=$TAG
-export namespaces=$(kubectl get namespaces --selector=istio.io/rev="$TAG") 
+# Get the namespaces with the label istio.io/rev=$TAG or istio.io/rev=$OLDVERSION(If istio upgrade has never run before, the tag will be the old istio version)
+export namespaces=$(kubectl get namespaces --selector=istio.io/rev="$OLDVERSION" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo; kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo)
 
 # Label the current namespace the TAG
 for ns in $namespaces; do
-    kubectl label "$ns" default istio.io/rev="$TAG" --overwrite
+    kubectl label namespace "$ns" default istio.io/rev="$TAG" --overwrite
 done
 
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
 
-for ns in $namespaces; do
-    # Get all deployments in the namespace
-    deployments=$(kubectl get deployments -n "$ns" -o jsonpath='{.items[*].metadata.name}')
-    # Iterate over each deployment and restart it
-    for deployment in $deployments; do
-        kubectl rollout restart deployment "$deployment" -n "$ns"
-    done
-done
+# Restart all pods 
+kubectl get pods --all-namespaces -l istio.io/rev="$TAG" -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' | xargs -n2 sh -c "kubectl delete pod -n $0 $1"
 
 istioctl tag remove prod-canary --istioNamespace aks-istio-system 
 
