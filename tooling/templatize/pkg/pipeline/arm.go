@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
