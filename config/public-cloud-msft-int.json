@@ -110,15 +110,15 @@
     "systemAgentPool": {
       "maxCount": 4,
       "minCount": 1,
-      "osDiskSizeGB": 32,
-      "vmSize": "Standard_D2s_v3"
+      "osDiskSizeGB": 128,
+      "vmSize": "Standard_E8s_v3"
     },
     "userAgentPool": {
       "azCount": 3,
       "maxCount": 12,
       "minCount": 2,
-      "osDiskSizeGB": 100,
-      "vmSize": "Standard_D4s_v3"
+      "osDiskSizeGB": 128,
+      "vmSize": "Standard_D16s_v3"
     }
   },
   "mgmtKeyVault": {
