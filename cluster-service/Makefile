@@ -4,7 +4,7 @@ $(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
 include config.mk
 
 deploy: provision-shard
-	ISTO_VERSION=$(shell az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
+	@ISTO_VERSION=$(shell az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
 	kubectl create namespace cluster-service --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace cluster-service "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
