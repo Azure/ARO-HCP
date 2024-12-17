@@ -87,6 +87,13 @@ create-mock-identities:
 	ROLE_DEFINITION_NAME=Contributor \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
+
+	APPLICATION_NAME=aro-hcp-dev-sp-new \
+	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+	CERTIFICATE_NAME=aro-hcp-dev-sp-new \
+	ROLE_DEFINITION_NAME=Contributor \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh
 .PHONY: create-mock-identities
 
 #
