@@ -32,9 +32,9 @@ defaults:
       kvSoftDelete: true
     istio:
       url: "https://github.com/istio/istio/releases/download"
-      istioctlVersion: "1.24.1"
+      istioctlVersion: "1.23.1"
       tag: "prod-stable"
-      targetVersion: "asm-1-23"
+      targetVersion: ""
       version: "asm-1-22"
 
   # MGMT cluster specifics
