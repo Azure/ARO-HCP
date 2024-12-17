@@ -11,7 +11,26 @@ if [[ -z "$TARGET_VERSION" ]]; then
 fi
 
 echo "********** Download istioctl**************"
-curl -L "{$ISTIOCTL_URL}" | ISTIO_VERSION="${ISTIOCTL_VERSION}" TARGET_ARCH=x86_64 sh -
+ISTIO_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-linux-amd64.tar.gz"
+SHA256_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-linux-amd64.tar.gz.sha256"
+# Download the Istioctl binary
+wget $ISTIO_URL -O istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz
+
+# Download the SHA-256 checksum file
+wget $SHA256_URL -O istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz.sha256
+
+# Verify the downloaded file
+sha256sum -c istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz.sha256
+
+# Check the result of the verification
+if [ $? -eq 0 ]; then
+    echo "Verification successful: The file is intact."
+else
+    echo "Verification failed: The file is corrupted."
+    exit 1
+fi
+
+# curl -L "{$ISTIOCTL_URL}" | ISTIO_VERSION="${ISTIOCTL_VERSION}" TARGET_ARCH=x86_64 sh -
 cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="
