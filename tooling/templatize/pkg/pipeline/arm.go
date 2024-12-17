@@ -3,6 +3,9 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strings"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -29,6 +32,45 @@ func newArmClient(subscriptionID, region string) *armClient {
 }
 
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *Step, input map[string]output) (output, error) {
+	// Ensure resourcegroup exists
+	err := a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
+	}
+
+	// Run deployment
+	client, err := armresources.NewDeploymentsClient(a.SubscriptionID, a.creds, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deployments client: %w", err)
+	}
+	if options.DryRun {
+		return doDryRun(ctx, client, rgName, step, options.Vars, input)
+	}
+
+	return doWaitForDeployment(ctx, client, rgName, step, options.Vars, input)
+}
+
+func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
+	fmt.Printf("%s%s:\n", strings.Repeat("\t", level), *change.Path)
+	fmt.Printf("%s\tBefore:%s\n", strings.Repeat("\t", level), change.Before)
+	fmt.Printf("%s\tAfter:%s\n", strings.Repeat("\t", level), change.After)
+	for _, child := range change.Children {
+		level += level
+		recursivePrint(level, child)
+	}
+}
+func printChanges(t armresources.ChangeType, changes []*armresources.WhatIfChange) {
+	for _, change := range changes {
+		if *change.ChangeType == t {
+			fmt.Printf("%s %s\n", strings.Repeat("\t", 1), *change.ResourceID)
+			for _, delta := range change.Delta {
+				recursivePrint(2, delta)
+			}
+		}
+	}
+}
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *Step, vars config.Variables, input map[string]output) (output, error) {
+
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, input)
@@ -36,7 +78,63 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARM(ctx, step.Parameters, options.Vars, inputValues)
+	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, step.Parameters, vars, inputValues)
+	if err != nil {
+		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
+	}
+
+	// Create the deployment
+	deployment := armresources.DeploymentWhatIf{
+		Properties: deploymentProperties,
+	}
+
+	poller, err := client.BeginWhatIf(ctx, rgName, step.Name, deployment, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
+	}
+	logger.Info("WhatIf Deployment started", "deployment", step.Name)
+
+	resp, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for deployment completion: %w", err)
+	}
+	logger.Info("WhatIf Deployment finished successfully", "deployment", step.Name)
+
+	fmt.Println("Change report for WhatIf deployment")
+	fmt.Println("----------")
+	fmt.Println("Creating")
+	printChanges(armresources.ChangeTypeCreate, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Deploy")
+	printChanges(armresources.ChangeTypeDeploy, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Modify")
+	printChanges(armresources.ChangeTypeModify, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Delete")
+	printChanges(armresources.ChangeTypeDelete, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Ignoring")
+	printChanges(armresources.ChangeTypeIgnore, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("NoChange")
+	printChanges(armresources.ChangeTypeNoChange, resp.Properties.Changes)
+	fmt.Println("----------")
+	fmt.Println("Unsupported")
+	printChanges(armresources.ChangeTypeUnsupported, resp.Properties.Changes)
+
+	return nil, nil
+}
+
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *Step, vars config.Variables, input map[string]output) (output, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	inputValues, err := getInputValues(step.Variables, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get input values: %w", err)
+	}
+	// Transform Bicep to ARM
+	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, vars, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
@@ -46,27 +144,12 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 		Properties: deploymentProperties,
 	}
 
-	// Ensure resourcegroup exists
-	err = a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
-	if err != nil {
-		return nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
-	}
-
-	// TODO handle dry-run
-
-	// Run deployment
-	client, err := armresources.NewDeploymentsClient(a.SubscriptionID, a.creds, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create deployments client: %w", err)
-	}
-
 	poller, err := client.BeginCreateOrUpdate(ctx, rgName, step.Name, deployment, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
 	logger.Info("Deployment started", "deployment", step.Name)
 
-	// Wait for completion
 	resp, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to wait for deployment completion: %w", err)
