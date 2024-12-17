@@ -35,7 +35,7 @@ cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="
 
-NEWVERSION="${ISTIOCTL_VERSION}"
+NEWVERSION="$TARGET_VERSION"
 echo "********** Istio UpGrade Started with version ${NEWVERSION} **************"
 
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
