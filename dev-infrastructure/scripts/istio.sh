@@ -54,7 +54,39 @@ done
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
 
 # Restart all pods 
-kubectl get pods --all-namespaces -l istio.io/rev="$TAG" -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' | xargs -n2 sh -c "kubectl delete pod -n $0 $1"
+# kubectl get pods --all-namespaces -l istio.io/rev="$TAG" -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' | xargs -n2 sh -c "kubectl delete pod -n $0 $1"
+pods=$(kubectl get pods --all-namespaces -o json)
+
+for ns in $namespaces; do
+    pods=$(kubectl get pods -n "$ns")
+    for pod in $pods; do
+        pod_name=$(kubectl get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}')
+        istio_version=$(kubectl get pod "$pod_name" -n "$namespace" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -o '"revision":"[^"]*"' | sed 's/"revision":"\([^"]*\)"/\1/')
+        if [[ "$istio_version" != "$NEWVERSION" ]]; then
+            owner_kind=$(echo "$pod" | jq -r '.metadata.ownerReferences[0].kind')
+            owner_name=$(echo "$pod" | jq -r '.metadata.ownerReferences[0].name')
+
+            case "$owner_kind" in
+                "ReplicaSet")
+                    deployment=$(kubectl get replicaset "$owner_name" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
+                    if [[ -n "$deployment" ]]; then
+                        kubectl rollout restart deployment "$deployment" -n "$namespace"
+                    else
+                        kubectl delete pod "$pod_name" -n "$namespace"
+                    fi
+                ;;
+                "StatefulSet")
+                    deployment=$(kubectl get replicaset "$owner_name" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
+                    kubectl rollout restart deployment "$deployment" -n "$namespace"
+                ;;
+                *)
+                    # Don't do anything for (Cron)Job, or no owner pod for now.
+                ;;
+            esac
+
+        fi
+    done
+done
 
 istioctl tag remove prod-canary --istioNamespace aks-istio-system 
 
