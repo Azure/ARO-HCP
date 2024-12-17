@@ -54,6 +54,7 @@ spec:
         - --db-user-file=/secrets/db/db.user
         - --db-password-file=/secrets/db/db.password
         - --db-name-file=/secrets/db/db.name
+        - --db-rootcert=
         - --db-sslmode={{ .Values.database.ssl }}
         - --alsologtostderr
         - -v={{ .Values.maestro.glog_v }}
@@ -88,7 +89,7 @@ spec:
         - --db-user-file=/secrets/db/db.user
         - --db-password-file=/secrets/db/db.password
         - --db-name-file=/secrets/db/db.name
-        - --db-rootcert=/secrets/db/db.ca_cert
+        - --db-rootcert=
         - --db-sslmode={{ .Values.database.ssl }}
         - --db-max-open-connections={{ .Values.database.maxOpenConnections }}
         - --message-broker-config-file=/secrets/maestro/config.yaml
