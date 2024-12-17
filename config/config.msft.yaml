@@ -170,13 +170,13 @@ clouds:
             systemAgentPool:
               minCount: 1
               maxCount: 4
-              vmSize: 'Standard_D2s_v3'
-              osDiskSizeGB: 32
+              vmSize: 'Standard_E8s_v3'
+              osDiskSizeGB: 128
             userAgentPool:
               minCount: 2
               maxCount: 12
-              vmSize: 'Standard_D4s_v3'
-              osDiskSizeGB: 100
+              vmSize: 'Standard_D16s_v3'
+              osDiskSizeGB: 128
               azCount: 3
           # DNS
           baseDnsZoneName: aroapp-hcp.azure-test.net
