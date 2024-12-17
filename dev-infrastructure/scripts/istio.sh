@@ -30,7 +30,7 @@ else
     exit 1
 fi
 
-# curl -L "{$ISTIOCTL_URL}" | ISTIO_VERSION="${ISTIOCTL_VERSION}" TARGET_ARCH=x86_64 sh -
+tar -xzf istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz
 cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="
