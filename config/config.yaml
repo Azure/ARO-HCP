@@ -140,7 +140,7 @@ clouds:
       armHelperFPAPrincipalId: bc17c825-6cf8-40d0-8bd6-5536a993115e
       # Maestro
       maestro:
-        imageTag: 15b3dcff1c9a96a02c516b787e847757dac8c1af
+        imageTag: eddc46d1f49ccc2d3298fed0d4b8ab25c159e357
       # Cluster Service
       clusterService:
         imageTag: 9f7fef3
