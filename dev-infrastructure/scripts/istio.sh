@@ -40,10 +40,10 @@ echo "********** Istio UpGrade Started with version ${NEWVERSION} **************
 
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
 # Get the namespaces with the label istio.io/rev=$TAG
-namespaces=$(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}')
+namespaces=$(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo)
 
 for ns in $namespaces; do
-    pods=$(kubectl get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}')
+    pods=$(kubectl get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}'| xargs -n1 echo)
     for pod_name in $pods; do
         istio_version=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -oP '(?<="revision":")[^"]*')
         if [[ "$istio_version" != "$NEWVERSION" ]]; then
