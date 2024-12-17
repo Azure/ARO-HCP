@@ -17,7 +17,37 @@ spec:
         checksum/credsstore: {{ include (print $.Template.BasePath "/maestro.secretproviderclass.yaml") . | sha256sum }}
         checksum/config: {{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum }}
     spec:
+      initContainers:
+      - name: init
+        image: "{{ .Values.sideCar.imageBase }}:{{ .Values.sideCar.imageTag }}"
+        env:
+          - name: TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: metrics-access-token
+                key: token
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/
+        - name: nginx-config-tmp
+          mountPath: /tmp/nginx/nginx.conf
+          subPath: nginx.conf
+        command:
+          - sh
+          - -c
+          - cp /tmp/nginx/nginx.conf /etc/nginx/nginx.conf && sed -i "s/TOKEN/$TOKEN/g" /etc/nginx/nginx.conf
       containers:
+      - name: metrics-proxy
+        image: "{{ .Values.sideCar.imageBase }}:{{ .Values.sideCar.imageTag }}"
+        ports:
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        command: ["/bin/sh", "-c", "nginx -g 'daemon off;'"]
       - command:
         - /usr/local/bin/maestro
         - agent
@@ -36,6 +66,11 @@ spec:
           readOnly: true
       serviceAccountName: maestro
       volumes:
+      - name: nginx-config-tmp
+        configMap:
+          name: nginx-config
+      - name: nginx-config
+        emptyDir: {}
       - name: maestro
         secret:
           secretName: maestro

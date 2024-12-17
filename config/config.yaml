@@ -89,6 +89,9 @@ defaults:
     restrictIstioIngress: true
     consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     imageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+    agentSideCar:
+      imageBase: mcr.microsoft.com/azurelinux/base/nginx
+      imageTag: '1.25'
 
   pko:
     image: arohcpsvcdev.azurecr.io/package-operator/package-operator-package

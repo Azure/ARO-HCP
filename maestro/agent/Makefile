@@ -16,5 +16,7 @@ deploy:
 		--set azure.clientId=$${MAESTRO_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
 		--set image.base=${IMAGE_BASE} \
-		--set image.tag=${IMAGE_TAG}
+		--set image.tag=${IMAGE_TAG} \
+		--set sideCar.imageBase=${SIDECAR_IMAGE_BASE} \
+		--set sideCar.imageTag=${SIDECAR_IMAGE_TAG}
 .PHONY: deploy

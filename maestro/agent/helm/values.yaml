@@ -12,3 +12,6 @@ credsKeyVault:
   secret: ""
 consumerName: ""
 installAppliedManifestWorkCRD: false
+sideCar:
+  imageBase: ""
+  imageTag: ""
