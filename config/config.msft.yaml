@@ -173,7 +173,7 @@ clouds:
               vmSize: 'Standard_E8s_v3'
               osDiskSizeGB: 128
             userAgentPool:
-              minCount: 2
+              minCount: 1
               maxCount: 12
               vmSize: 'Standard_D16s_v3'
               osDiskSizeGB: 128

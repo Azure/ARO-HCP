@@ -116,7 +116,7 @@
     "userAgentPool": {
       "azCount": 3,
       "maxCount": 12,
-      "minCount": 2,
+      "minCount": 1,
       "osDiskSizeGB": 128,
       "vmSize": "Standard_D16s_v3"
     }
