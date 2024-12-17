@@ -31,7 +31,7 @@ defaults:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}
       kvSoftDelete: true
     istio:
-      url: "https://istio.io/downloadIstio"
+      url: "https://github.com/istio/istio/releases/download"
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
       targetVersion: "asm-1-23"

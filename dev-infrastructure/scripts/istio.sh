@@ -11,19 +11,19 @@ if [[ -z "$TARGET_VERSION" ]]; then
 fi
 
 echo "********** Download istioctl**************"
-ISTIO_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-linux-amd64.tar.gz"
-SHA256_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-linux-amd64.tar.gz.sha256"
+ISTIO_URL="${ISTIOCTL_URL}/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-linux-amd64.tar.gz"
+SHA256_URL="${ISTIOCTL_URL}/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-linux-amd64.tar.gz.sha256"
 # Download the Istioctl binary
-wget $ISTIO_URL -O istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz
+wget "$ISTIO_URL" -O istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz
 
 # Download the SHA-256 checksum file
-wget $SHA256_URL -O istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz.sha256
+wget "$SHA256_URL" -O istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz.sha256
 
 # Verify the downloaded file
 sha256sum -c istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz.sha256
 
 # Check the result of the verification
-if [ $? -eq 0 ]; then
+if sha256sum -c istio-"${ISTIOCTL_VERSION}"-linux-amd64.tar.gz.sha256; then
     echo "Verification successful: The file is intact."
 else
     echo "Verification failed: The file is corrupted."
@@ -44,27 +44,19 @@ istioctl tag set "$TAG" --revision "${OLDVERSION}" --istioNamespace aks-istio-sy
 istioctl tag set prod-canary --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
 
 # Get the namespaces with the label istio.io/rev=$TAG or istio.io/rev=$OLDVERSION(If istio upgrade has never run before, the tag will be the old istio version)
-export namespaces=$(kubectl get namespaces --selector=istio.io/rev="$OLDVERSION" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo; kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo)
-
-# Label the current namespace the TAG
-for ns in $namespaces; do
-    kubectl label namespace "$ns" default istio.io/rev="$TAG" --overwrite
-done
+export namespaces=$(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo)
 
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace aks-istio-system --overwrite
-
-# Restart all pods 
-# kubectl get pods --all-namespaces -l istio.io/rev="$TAG" -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' | xargs -n2 sh -c "kubectl delete pod -n $0 $1"
-pods=$(kubectl get pods --all-namespaces -o json)
 
 for ns in $namespaces; do
     pods=$(kubectl get pods -n "$ns")
     for pod in $pods; do
         pod_name=$(kubectl get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}')
-        istio_version=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -o '"revision":"[^"]*"' | sed 's/"revision":"\([^"]*\)"/\1/')
+        istio_version=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -oP '(?<="revision":")[^"]*')
+        
         if [[ "$istio_version" != "$NEWVERSION" ]]; then
-            owner_kind=$(echo "$pod" | jq -r '.metadata.ownerReferences[0].kind')
-            owner_name=$(echo "$pod" | jq -r '.metadata.ownerReferences[0].name')
+            owner_kind=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].kind}')
+            owner_name=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].name}')
 
             case "$owner_kind" in
                 "ReplicaSet")
