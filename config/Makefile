@@ -15,7 +15,7 @@ detect-change: materialize
 		echo "Please review the diffs below:\n\n"; \
 		echo "$$diff_output"; \
 		echo "\n\n===================================================="; \
-		echo "\n\nOnce you reviewed the changes and consider them meaningful, commit them by running "make -C config/ materialize" and commit your changes."; \
+		echo "\n\nOnce you reviewed the changes and consider them meaningful, update them by running "make -C config/ materialize" and commit your changes."; \
 		echo "\n\n===================================================="; \
 		exit 1; \
 	else \
