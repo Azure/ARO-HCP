@@ -72,37 +72,6 @@ echo "********** Istio Upgrade Started with version ${NEWVERSION} **************
 
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace ${ISTIO_NAMESPACE} --overwrite
 
-#Get the namespaces with the label istio.io/rev=$TAG
-# for namespace in $( kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' ); do
-#     for pod in $( kubectl get pods -n "$namespace" -o jsonpath='{.items[*].metadata.name}' ); do
-#         istio_version=$(kubectl get pod "$pod" -n "$namespace" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -oP '(?<="revision":")[^"]*')
-#         if [[ "$istio_version" != "$NEWVERSION" ]]; then
-#             owner_kind=$(kubectl get pod "$pod" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].kind}')
-#             owner_name=$(kubectl get pod "$pod" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
-
-#             case "$owner_kind" in
-#                 "ReplicaSet")
-#                     deployment=$(kubectl get replicaset "$owner_name" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
-#                     if [[ -n "$deployment" ]]; then
-#                         kubectl rollout restart deployment "$deployment" -n "$namespace"
-#                         continue 2
-#                     else
-#                         kubectl delete pod "$pod" -n "$namespace"
-#                     fi
-#                 ;;
-#                 "StatefulSet")
-#                     deployment=$(kubectl get replicaset "$owner_name" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
-#                     kubectl rollout restart deployment "$deployment" -n "$namespace"
-#                     continue 2
-#                 ;;
-#                 *)
-#                     # Don't do anything for (Cron)Job, or no owner pod for now.
-#                 ;;
-#             esac
-
-#         fi
-#     done
-# done
 for namespace in $(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}'); do
     pods="$(kubectl get pods --namespace "${namespace}" -o json)"
     for pod in $(jq <<<"${pods}" --raw-output --arg NEWVERSION "${NEWVERSION}" '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | .metadata.name'); do
