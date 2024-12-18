@@ -12,3 +12,5 @@ configurations/mock-identities.bicepparam
 configurations/global-acr.bicepparam
 configurations/global-roles.bicepparam
 config.mk
+
+istio-*
