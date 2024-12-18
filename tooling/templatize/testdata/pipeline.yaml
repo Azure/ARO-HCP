@@ -26,16 +26,16 @@ resourceGroups:
   - name: DelegateChildZoneBase
     action: DelegateChildZoneExtension
     parentZoneName:
-      value: bla
+      configRef: parentZone
     childZoneName:
-      value: blub
+      value: childZone
     dependsOn:
     - deploy
   - name: issuerTest
     action: SetCertificateIssuer
     vaultBaseUrl:
-      value: bla
+      configRef: vaultBaseUrl
     provider:
-      value: blub
+      configRef: provider
     dependsOn:
     - deploy

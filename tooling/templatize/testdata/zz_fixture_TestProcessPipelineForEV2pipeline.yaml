@@ -27,14 +27,14 @@ resourceGroups:
           dependsOn:
             - deploy
           parentZoneName:
-            value: bla
+            configRef: parentZone
           childZoneName:
-            value: blub
+            value: childZone
         - name: issuerTest
           action: SetCertificateIssuer
           dependsOn:
             - deploy
           vaultBaseUrl:
-            value: bla
+            configRef: vaultBaseUrl
           provider:
-            value: blub
+            configRef: provider

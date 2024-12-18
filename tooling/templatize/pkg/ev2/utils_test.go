@@ -16,16 +16,20 @@ func TestScopeBindingVariables(t *testing.T) {
 	}
 	expectedVars := map[string]string{
 		"__aksName__":                       "$config(aksName)",
+		"__childZone__":                     "$config(childZone)",
 		"__globalRG__":                      "$config(globalRG)",
 		"__imageSyncRG__":                   "$config(imageSyncRG)",
 		"__maestro_helm_chart__":            "$config(maestro_helm_chart)",
 		"__maestro_image__":                 "$config(maestro_image)",
 		"__managementClusterRG__":           "$config(managementClusterRG)",
 		"__managementClusterSubscription__": "$config(managementClusterSubscription)",
+		"__parentZone__":                    "$config(parentZone)",
+		"__provider__":                      "$config(provider)",
 		"__region__":                        "$config(region)",
 		"__regionRG__":                      "$config(regionRG)",
 		"__serviceClusterRG__":              "$config(serviceClusterRG)",
 		"__serviceClusterSubscription__":    "$config(serviceClusterSubscription)",
+		"__vaultBaseUrl__":                  "$config(vaultBaseUrl)",
 		"__clusterService.imageTag__":       "$config(clusterService.imageTag)",
 		"__clusterService.replicas__":       "$config(clusterService.replicas)",
 	}
