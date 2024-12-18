@@ -146,7 +146,7 @@ func (e *e2eImpl) SetAKSName(aksName string) {
 }
 
 func (e *e2eImpl) AddStep(step pipeline.Step, rg int) {
-	e.pipeline.ResourceGroups[rg].Steps = append(e.pipeline.ResourceGroups[rg].Steps, &step)
+	e.pipeline.ResourceGroups[rg].Steps = append(e.pipeline.ResourceGroups[rg].Steps, step)
 }
 
 func (e *e2eImpl) SetConfig(updates config.Variables) {

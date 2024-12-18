@@ -64,20 +64,15 @@ func TestPipelineValidate(t *testing.T) {
 					{
 						Name:         "rg1",
 						Subscription: "sub1",
-						Steps: []*Step{
-							{
-								Name: "step1",
-							},
+						Steps: []Step{
+							NewShellStep("step1", "echo foo"),
 						},
 					},
 					{
 						Name:         "rg2",
 						Subscription: "sub1",
-						Steps: []*Step{
-							{
-								Name:      "step2",
-								DependsOn: []string{"step3"},
-							},
+						Steps: []Step{
+							NewShellStep("step2", "echo bar").WithDependsOn("step3"),
 						},
 					},
 				},
@@ -91,19 +86,15 @@ func TestPipelineValidate(t *testing.T) {
 					{
 						Name:         "rg1",
 						Subscription: "sub1",
-						Steps: []*Step{
-							{
-								Name: "step1",
-							},
+						Steps: []Step{
+							NewShellStep("step1", "echo foo"),
 						},
 					},
 					{
 						Name:         "rg2",
 						Subscription: "sub1",
-						Steps: []*Step{
-							{
-								Name: "step1",
-							},
+						Steps: []Step{
+							NewShellStep("step1", "echo bar").WithDependsOn("step1"),
 						},
 					},
 				},
@@ -117,20 +108,15 @@ func TestPipelineValidate(t *testing.T) {
 					{
 						Name:         "rg1",
 						Subscription: "sub1",
-						Steps: []*Step{
-							{
-								Name: "step1",
-							},
+						Steps: []Step{
+							NewShellStep("step1", "echo foo"),
 						},
 					},
 					{
 						Name:         "rg2",
 						Subscription: "sub1",
-						Steps: []*Step{
-							{
-								Name:      "step2",
-								DependsOn: []string{"step1"},
-							},
+						Steps: []Step{
+							NewShellStep("step2", "echo bar").WithDependsOn("step1"),
 						},
 					},
 				},

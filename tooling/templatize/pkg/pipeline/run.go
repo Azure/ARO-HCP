@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -77,7 +76,7 @@ func (o armOutput) GetValue(key string) (*outPutValue, error) {
 	return nil, fmt.Errorf("key %q not found", key)
 }
 
-func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
+func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	outPuts := make(map[string]output)
@@ -89,7 +88,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(p.pipelineFilePath)
+	dir := filepath.Dir(pipeline.pipelineFilePath)
 	logger.V(7).Info("switch current dir to pipeline file directory", "path", dir)
 	err = os.Chdir(dir)
 	if err != nil {
@@ -103,7 +102,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 		}
 	}()
 
-	for _, rg := range p.ResourceGroups {
+	for _, rg := range pipeline.ResourceGroups {
 		// prepare execution context
 		subscriptionID, err := options.SubsciptionLookupFunc(ctx, rg.Subscription)
 		if err != nil {
@@ -116,7 +115,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 			resourceGroup:    rg.Name,
 			aksClusterName:   rg.AKSCluster,
 		}
-		err = rg.run(ctx, options, &executionTarget, outPuts)
+		err = RunResourceGroup(rg, ctx, options, &executionTarget, outPuts)
 		if err != nil {
 			return err
 		}
@@ -124,7 +123,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	return nil
 }
 
-func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]output) error {
+func RunResourceGroup(rg *ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]output) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
@@ -140,11 +139,12 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, e
 
 	for _, step := range rg.Steps {
 		// execute
-		output, err := step.run(
+		output, err := RunStep(
+			step,
 			logr.NewContext(
 				ctx,
 				logger.WithValues(
-					"step", step.Name,
+					"step", step.StepName(),
 					"subscription", executionTarget.GetSubscriptionID(),
 					"resourceGroup", executionTarget.GetResourceGroup(),
 					"aksCluster", executionTarget.GetAkSClusterName(),
@@ -158,14 +158,15 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, e
 			return err
 		}
 		if output != nil {
-			outputs[step.Name] = output
+
+			outputs[step.StepName()] = output
 		}
 	}
 	return nil
 }
 
-func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]output) (output, error) {
-	if options.Step != "" && s.Name != options.Step {
+func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]output) (output, error) {
+	if options.Step != "" && s.StepName() != options.Step {
 		// skip steps that don't match the specified step name
 		return nil, nil
 	}
@@ -173,37 +174,25 @@ func (s *Step) run(ctx context.Context, kubeconfigFile string, executionTarget E
 	if options.DryRun {
 		fmt.Println("This is a dry run!")
 	}
-	fmt.Println(s.description())
+	fmt.Println(s.Description())
 	fmt.Print("\n")
 
-	switch s.Action {
-	case "Shell":
-		return nil, s.runShellStep(ctx, kubeconfigFile, options, outPuts)
-	case "ARM":
+	switch step := s.(type) {
+	case *ShellStep:
+		return nil, runShellStep(step, ctx, kubeconfigFile, options, outPuts)
+	case *ARMStep:
 		a := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
 		if a == nil {
 			return nil, fmt.Errorf("failed to create ARM client")
 		}
-		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), s, outPuts)
+		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), step, outPuts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
 		return output, nil
 	default:
-		return nil, fmt.Errorf("unsupported action type %q", s.Action)
+		return nil, fmt.Errorf("unsupported action type %q", s.ActionType())
 	}
-}
-
-func (s *Step) description() string {
-	var details []string
-	switch s.Action {
-	case "Shell":
-		details = append(details, fmt.Sprintf("Command: %s", s.Command))
-	case "ARM":
-		details = append(details, fmt.Sprintf("Template: %s", s.Template))
-		details = append(details, fmt.Sprintf("Parameters: %s", s.Parameters))
-	}
-	return fmt.Sprintf("Step %s\n  Kind: %s\n  %s", s.Name, s.Action, strings.Join(details, "\n  "))
 }
 
 func getInputValues(configuredVariables []Variable, inputs map[string]output) (map[string]any, error) {

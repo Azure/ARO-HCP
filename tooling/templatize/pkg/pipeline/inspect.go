@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
-type StepInspectScope func(*Step, *InspectOptions, io.Writer) error
+type StepInspectScope func(Step, *InspectOptions, io.Writer) error
 
 func NewStepInspectScopes() map[string]StepInspectScope {
 	return map[string]StepInspectScope{
@@ -41,7 +41,7 @@ func NewInspectOptions(vars config.Variables, region, step, scope, format string
 func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer io.Writer) error {
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
-			if step.Name == options.Step {
+			if step.StepName() == options.Step {
 				if inspectFunc, ok := options.ScopeFunctions[options.Scope]; ok {
 					err := inspectFunc(step, options, writer)
 					if err != nil {
@@ -57,14 +57,14 @@ func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer 
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(s *Step, options *InspectOptions, writer io.Writer) error {
+func inspectVars(s Step, options *InspectOptions, writer io.Writer) error {
 	var envVars map[string]string
 	var err error
-	switch s.Action {
-	case "Shell":
-		envVars, err = s.mapStepVariables(options.Vars)
+	switch step := s.(type) {
+	case *ShellStep:
+		envVars, err = step.mapStepVariables(options.Vars)
 	default:
-		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.Action)
+		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
 	}
 	if err != nil {
 		return err

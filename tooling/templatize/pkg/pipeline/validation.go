@@ -75,21 +75,21 @@ func compileSchema(schemaRef string, schemaBytes []byte) (*jsonschema.Schema, er
 
 func (p *Pipeline) Validate() error {
 	// collect all steps from all resourcegroups and fail if there are duplicates
-	stepMap := make(map[string]*Step)
+	stepMap := make(map[string]Step)
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
-			if _, ok := stepMap[step.Name]; ok {
-				return fmt.Errorf("duplicate step name %q", step.Name)
+			if _, ok := stepMap[step.StepName()]; ok {
+				return fmt.Errorf("duplicate step name %q", step.StepName())
 			}
-			stepMap[step.Name] = step
+			stepMap[step.StepName()] = step
 		}
 	}
 
 	// validate dependsOn for a step exists
 	for _, step := range stepMap {
-		for _, dep := range step.DependsOn {
+		for _, dep := range step.Dependencies() {
 			if _, ok := stepMap[dep]; !ok {
-				return fmt.Errorf("invalid dependency on step %s: dependency %s does not exist", step.Name, dep)
+				return fmt.Errorf("invalid dependency on step %s: dependency %s does not exist", step.StepName(), dep)
 			}
 		}
 	}

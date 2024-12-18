@@ -14,22 +14,17 @@ import (
 func TestInspectVars(t *testing.T) {
 	testCases := []struct {
 		name     string
-		caseStep *Step
+		caseStep Step
 		options  *InspectOptions
 		expected string
 		err      string
 	}{
 		{
 			name: "basic",
-			caseStep: &Step{
-				Action: "Shell",
-				Variables: []Variable{
-					{
-						Name:      "FOO",
-						ConfigRef: "foo",
-					},
-				},
-			},
+			caseStep: NewShellStep("step", "echo hello").WithVariables(Variable{
+				Name:      "FOO",
+				ConfigRef: "foo",
+			}),
 			options: &InspectOptions{
 				Vars: config.Variables{
 					"foo": "bar",
@@ -40,15 +35,10 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name: "makefile",
-			caseStep: &Step{
-				Action: "Shell",
-				Variables: []Variable{
-					{
-						Name:      "FOO",
-						ConfigRef: "foo",
-					},
-				},
-			},
+			caseStep: NewShellStep("step", "echo hello").WithVariables(Variable{
+				Name:      "FOO",
+				ConfigRef: "foo",
+			}),
 			options: &InspectOptions{
 				Vars: config.Variables{
 					"foo": "bar",
@@ -59,12 +49,12 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name:     "failed action",
-			caseStep: &Step{Action: "Unknown"},
-			err:      "inspecting step variables not implemented for action type Unknown",
+			caseStep: NewARMStep("step", "test.bicep", "test.bicepparam"),
+			err:      "inspecting step variables not implemented for action type ARM",
 		},
 		{
 			name:     "failed format",
-			caseStep: &Step{Action: "Shell"},
+			caseStep: NewShellStep("step", "echo hello"),
 			options:  &InspectOptions{Format: "unknown"},
 			err:      "unknown output format \"unknown\"",
 		},
@@ -87,10 +77,8 @@ func TestInspectVars(t *testing.T) {
 func TestInspect(t *testing.T) {
 	p := Pipeline{
 		ResourceGroups: []*ResourceGroup{{
-			Steps: []*Step{
-				{
-					Name: "step1",
-				},
+			Steps: []Step{
+				NewShellStep("step1", "echo hello"),
 			},
 		},
 		},
@@ -98,8 +86,8 @@ func TestInspect(t *testing.T) {
 	opts := NewInspectOptions(config.Variables{}, "", "step1", "scope", "format")
 
 	opts.ScopeFunctions = map[string]StepInspectScope{
-		"scope": func(s *Step, o *InspectOptions, w io.Writer) error {
-			assert.Equal(t, s.Name, "step1")
+		"scope": func(s Step, o *InspectOptions, w io.Writer) error {
+			assert.Equal(t, s.StepName(), "step1")
 			return nil
 		},
 	}
@@ -111,10 +99,8 @@ func TestInspect(t *testing.T) {
 func TestInspectWrongScope(t *testing.T) {
 	p := Pipeline{
 		ResourceGroups: []*ResourceGroup{{
-			Steps: []*Step{
-				{
-					Name: "step1",
-				},
+			Steps: []Step{
+				NewShellStep("step1", "echo hello"),
 			},
 		},
 		},

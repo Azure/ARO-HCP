@@ -15,3 +15,5 @@ configurations/global-acr.bicepparam
 configurations/global-roles.bicepparam
 configurations/global-infra.bicepparam
 config.mk
+
+istio-*

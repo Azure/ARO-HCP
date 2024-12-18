@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
-func (s *Step) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
+func (s *ShellStep) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
 	var scriptCommand string = s.Command
 	if dryRun {
 		if s.DryRun.Command == "" && s.DryRun.Variables == nil {
@@ -34,7 +34,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs map[string]output) error {
+func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs map[string]output) error {
 	if s.outputFunc == nil {
 		s.outputFunc = func(output string) {
 			fmt.Println(output)
@@ -82,7 +82,7 @@ func (s *Step) runShellStep(ctx context.Context, kubeconfigFile string, options 
 	return nil
 }
 
-func (s *Step) mapStepVariables(vars config.Variables) (map[string]string, error) {
+func (s *ShellStep) mapStepVariables(vars config.Variables) (map[string]string, error) {
 	envVars := make(map[string]string)
 	for _, e := range s.Variables {
 		if e.ConfigRef != "" { // not all Variables are Environment variables

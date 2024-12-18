@@ -31,7 +31,7 @@ func newArmClient(subscriptionID, region string) *armClient {
 	}
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *Step, input map[string]output) (output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *ARMStep, input map[string]output) (output, error) {
 	// Ensure resourcegroup exists
 	err := a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
 	if err != nil {
@@ -69,7 +69,7 @@ func printChanges(t armresources.ChangeType, changes []*armresources.WhatIfChang
 		}
 	}
 }
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *Step, vars config.Variables, input map[string]output) (output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
 
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -126,7 +126,7 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *Step, vars config.Variables, input map[string]output) (output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, input)

@@ -8,83 +8,46 @@ import (
 )
 
 func TestStepRun(t *testing.T) {
-	fooundOutput := ""
-	s := &Step{
-		Name:    "test",
-		Action:  "Shell",
-		Command: "echo hello",
-		outputFunc: func(output string) {
-			fooundOutput = output
+	foundOutput := ""
+	s := NewShellStep("step", "echo hello").WithOutputFunc(
+		func(output string) {
+			foundOutput = output
 		},
-	}
-	_, err := s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{}, nil)
+	)
+	_, err := RunStep(s, context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{}, nil)
 	assert.NilError(t, err)
-	assert.Equal(t, fooundOutput, "hello\n")
-}
-
-func TestStepRunSkip(t *testing.T) {
-	s := &Step{
-		Name: "step",
-	}
-	// this should skip
-	_, err := s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{Step: "skip"}, nil)
-	assert.NilError(t, err)
-
-	// this should fail
-	_, err = s.run(context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{Step: "step"}, nil)
-	assert.Error(t, err, "unsupported action type \"\"")
+	assert.Equal(t, foundOutput, "hello\n")
 }
 
 func TestResourceGroupRun(t *testing.T) {
 	foundOutput := ""
 	rg := &ResourceGroup{
-		Steps: []*Step{
-			{
-				Name:    "step",
-				Action:  "Shell",
-				Command: "echo hello",
-				outputFunc: func(output string) {
+		Steps: []Step{
+			NewShellStep("step", "echo hello").WithOutputFunc(
+				func(output string) {
 					foundOutput = output
 				},
-			},
+			),
 		},
 	}
-	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, make(map[string]output))
+	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, make(map[string]output))
 	assert.NilError(t, err)
 	assert.Equal(t, foundOutput, "hello\n")
 }
 
 func TestResourceGroupError(t *testing.T) {
 	tmpVals := make([]string, 0)
+	outputFunc := func(output string) {
+		tmpVals = append(tmpVals, output)
+	}
 	rg := &ResourceGroup{
-		Steps: []*Step{
-			{
-				Name:    "step",
-				Action:  "Shell",
-				Command: "echo hello",
-				outputFunc: func(output string) {
-					tmpVals = append(tmpVals, output)
-				},
-			},
-			{
-				Name:    "step",
-				Action:  "Shell",
-				Command: "faaaaafffaa",
-				outputFunc: func(output string) {
-					tmpVals = append(tmpVals, output)
-				},
-			},
-			{
-				Name:    "step",
-				Action:  "Shell",
-				Command: "echo hallo",
-				outputFunc: func(output string) {
-					tmpVals = append(tmpVals, output)
-				},
-			},
+		Steps: []Step{
+			NewShellStep("step1", "echo hello").WithOutputFunc(outputFunc),
+			NewShellStep("step2", "faaaaafffaa").WithOutputFunc(outputFunc),
+			NewShellStep("step3", "echo hallo").WithOutputFunc(outputFunc),
 		},
 	}
-	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, make(map[string]output))
+	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, make(map[string]output))
 	assert.ErrorContains(t, err, "faaaaafffaa: command not found\n exit status 127")
 	// Test processing ends after first error
 	assert.Equal(t, len(tmpVals), 1)
@@ -101,9 +64,8 @@ func (t *testExecutionTarget) GetResourceGroup() string  { return "test" }
 func (t *testExecutionTarget) GetRegion() string         { return "test" }
 
 func TestResourceGroupRunRequireKubeconfig(t *testing.T) {
-
-	rg := &ResourceGroup{Steps: []*Step{}}
-	err := rg.run(context.Background(), &PipelineRunOptions{}, &testExecutionTarget{}, make(map[string]output))
+	rg := &ResourceGroup{Steps: []Step{}}
+	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &testExecutionTarget{}, make(map[string]output))
 	assert.NilError(t, err)
 }
 
@@ -114,21 +76,18 @@ func TestPipelineRun(t *testing.T) {
 			{
 				Name:         "test",
 				Subscription: "test",
-				Steps: []*Step{
-					{
-						Name:    "step",
-						Action:  "Shell",
-						Command: "echo hello",
-						outputFunc: func(output string) {
+				Steps: []Step{
+					NewShellStep("step", "echo hello").WithOutputFunc(
+						func(output string) {
 							foundOutput = output
 						},
-					},
+					),
 				},
 			},
 		},
 	}
 
-	err := pipeline.Run(context.Background(), &PipelineRunOptions{
+	err := RunPipeline(pipeline, context.Background(), &PipelineRunOptions{
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -160,7 +119,7 @@ func TestAddInputVars(t *testing.T) {
 			"value": "value1",
 		},
 	}
-	s := &Step{
+	s := &ShellStep{
 		Variables: []Variable{{
 			Name: "input1",
 			Input: &Input{
