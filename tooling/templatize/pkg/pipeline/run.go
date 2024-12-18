@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
@@ -29,10 +27,7 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 		return nil, fmt.Errorf("failed to get absolute path for pipeline file %q: %w", pipelineFilePath, err)
 	}
 
-	pipeline := &Pipeline{
-		pipelineFilePath: absPath,
-	}
-	err = yaml.Unmarshal(bytes, pipeline)
+	pipeline, err := NewPlainPipelineFromBytes(absPath, bytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal pipeline file %w", err)
 	}

@@ -24,41 +24,58 @@ type ResourceGroup struct {
 	Steps        []Step `yaml:"steps"`
 }
 
-func (rg *ResourceGroup) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	rawRg := &struct {
-		Name         string `yaml:"name"`
-		Subscription string `yaml:"subscription"`
-		AKSCluster   string `yaml:"aksCluster,omitempty"`
-		Steps        []any  `yaml:"steps"`
+func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error) {
+	rawPipeline := &struct {
+		ServiceGroup   string `yaml:"serviceGroup"`
+		RolloutName    string `yaml:"rolloutName"`
+		ResourceGroups []struct {
+			Name         string `yaml:"name"`
+			Subscription string `yaml:"subscription"`
+			AKSCluster   string `yaml:"aksCluster,omitempty"`
+			Steps        []any  `yaml:"steps"`
+		} `yaml:"resourceGroups"`
 	}{}
-	if err := unmarshal(&rawRg); err != nil {
-		return err
+	err := yaml.Unmarshal(bytes, rawPipeline)
+	if err != nil {
+		return nil, err
 	}
-	rg.Name = rawRg.Name
-	rg.Subscription = rawRg.Subscription
-	rg.AKSCluster = rawRg.AKSCluster
-	rg.Steps = make([]Step, len(rawRg.Steps))
-	for i, rawStep := range rawRg.Steps {
-		// unmarshal the map into a StepMeta
-		stepMeta := &StepMeta{}
-		err := mapToStruct(rawStep, stepMeta)
-		if err != nil {
-			return err
-		}
-		switch stepMeta.Action {
-		case "Shell":
-			rg.Steps[i] = &ShellStep{}
-		case "ARM":
-			rg.Steps[i] = &ARMStep{}
-		default:
-			return fmt.Errorf("unknown action type %s", stepMeta.Action)
-		}
-		err = mapToStruct(rawStep, rg.Steps[i])
-		if err != nil {
-			return err
+	pipeline := &Pipeline{
+		pipelineFilePath: filepath,
+		ServiceGroup:     rawPipeline.ServiceGroup,
+		RolloutName:      rawPipeline.RolloutName,
+		ResourceGroups:   make([]*ResourceGroup, len(rawPipeline.ResourceGroups)),
+	}
+
+	for i, rawRg := range rawPipeline.ResourceGroups {
+		rg := &ResourceGroup{}
+		pipeline.ResourceGroups[i] = rg
+		rg.Name = rawRg.Name
+		rg.Subscription = rawRg.Subscription
+		rg.AKSCluster = rawRg.AKSCluster
+		rg.Steps = make([]Step, len(rawRg.Steps))
+		for i, rawStep := range rawRg.Steps {
+			// unmarshal the map into a StepMeta
+			stepMeta := &StepMeta{}
+			err := mapToStruct(rawStep, stepMeta)
+			if err != nil {
+				return nil, err
+			}
+			switch stepMeta.Action {
+			case "Shell":
+				rg.Steps[i] = &ShellStep{}
+			case "ARM":
+				rg.Steps[i] = &ARMStep{}
+			default:
+				return nil, fmt.Errorf("unknown action type %s", stepMeta.Action)
+			}
+			err = mapToStruct(rawStep, rg.Steps[i])
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
-	return nil
+
+	return pipeline, nil
 }
 
 func mapToStruct(m any, s interface{}) error {

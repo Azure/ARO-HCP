@@ -8,16 +8,15 @@ import (
 )
 
 func (p *Pipeline) DeepCopy(newPipelineFilePath string) (*Pipeline, error) {
-	copy := new(Pipeline)
 	data, err := yaml.Marshal(p)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal pipeline: %v", err)
 	}
-	err = yaml.Unmarshal(data, copy)
+
+	copy, err := NewPlainPipelineFromBytes(newPipelineFilePath, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal pipeline: %v", err)
 	}
-	copy.pipelineFilePath = newPipelineFilePath
 	return copy, nil
 }
 
