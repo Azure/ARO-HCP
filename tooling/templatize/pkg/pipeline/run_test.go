@@ -49,7 +49,7 @@ func TestResourceGroupRun(t *testing.T) {
 			},
 		},
 	}
-	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{})
+	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, make(map[string]output))
 	assert.NilError(t, err)
 	assert.Equal(t, foundOutput, "hello\n")
 }
@@ -84,7 +84,7 @@ func TestResourceGroupError(t *testing.T) {
 			},
 		},
 	}
-	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{})
+	err := rg.run(context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, make(map[string]output))
 	assert.ErrorContains(t, err, "faaaaafffaa: command not found\n exit status 127")
 	// Test processing ends after first error
 	assert.Equal(t, len(tmpVals), 1)
@@ -103,7 +103,7 @@ func (t *testExecutionTarget) GetRegion() string         { return "test" }
 func TestResourceGroupRunRequireKubeconfig(t *testing.T) {
 
 	rg := &ResourceGroup{Steps: []*Step{}}
-	err := rg.run(context.Background(), &PipelineRunOptions{}, &testExecutionTarget{})
+	err := rg.run(context.Background(), &PipelineRunOptions{}, &testExecutionTarget{}, make(map[string]output))
 	assert.NilError(t, err)
 }
 

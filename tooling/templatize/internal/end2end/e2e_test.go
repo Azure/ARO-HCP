@@ -45,7 +45,7 @@ func TestE2EMake(t *testing.T) {
 				ConfigRef: "test_env",
 			},
 		},
-	})
+	}, 0)
 
 	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"test_env": "test_env"}})
 
@@ -72,7 +72,7 @@ func TestE2EKubernetes(t *testing.T) {
 		Name:    "test",
 		Action:  "Shell",
 		Command: "kubectl get namespaces",
-	})
+	}, 0)
 	e2eImpl.SetAKSName("aro-hcp-aks")
 
 	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"rg": "hcp-underlay-dev-svc"}})
@@ -93,7 +93,7 @@ func TestE2EArmDeploy(t *testing.T) {
 		Action:     "ARM",
 		Template:   "test.bicep",
 		Parameters: "test.bicepparm",
-	})
+	}, 0)
 
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
@@ -144,7 +144,7 @@ func TestE2EShell(t *testing.T) {
 		Name:    "readInput",
 		Action:  "Shell",
 		Command: "/bin/echo ${PWD} > env.txt",
-	})
+	}, 0)
 
 	persistAndRun(t, &e2eImpl)
 
@@ -166,7 +166,7 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 		Action:     "ARM",
 		Template:   "test.bicep",
 		Parameters: "test.bicepparm",
-	})
+	}, 0)
 
 	e2eImpl.AddStep(pipeline.Step{
 		Name:    "readInput",
@@ -181,7 +181,7 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, 0)
 
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
@@ -217,7 +217,7 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 		Action:     "ARM",
 		Template:   "testa.bicep",
 		Parameters: "testa.bicepparm",
-	})
+	}, 0)
 
 	e2eImpl.AddStep(pipeline.Step{
 		Name:       "parameterB",
@@ -233,7 +233,7 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, 0)
 
 	e2eImpl.AddStep(pipeline.Step{
 		Name:    "readInput",
@@ -248,7 +248,7 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, 0)
 
 	e2eImpl.AddBicepTemplate(`
 param parameterA string
@@ -269,6 +269,59 @@ using 'testb.bicep'
 param parameterB = '{{ .parameterB }}'
 `,
 		"testb.bicepparm")
+
+	cleanup := e2eImpl.UseRandomRG()
+	defer func() {
+		err := cleanup()
+		assert.NilError(t, err)
+	}()
+	persistAndRun(t, &e2eImpl)
+
+	io, err := os.ReadFile(tmpDir + "/env.txt")
+	assert.NilError(t, err)
+	assert.Equal(t, string(io), "Hello Bicep\n")
+}
+
+func TestE2EArmDeployWithOutputRGOverlap(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl := newE2E(tmpDir)
+	e2eImpl.AddStep(pipeline.Step{
+		Name:       "parameterA",
+		Action:     "ARM",
+		Template:   "testa.bicep",
+		Parameters: "testa.bicepparm",
+	}, 0)
+
+	e2eImpl.AddResourceGroup()
+
+	e2eImpl.AddStep(pipeline.Step{
+		Name:    "readInput",
+		Action:  "Shell",
+		Command: "echo ${end} > env.txt",
+		Variables: []pipeline.Variable{
+			{
+				Name: "end",
+				Input: &pipeline.Input{
+					Name: "parameterA",
+					Step: "parameterA",
+				},
+			},
+		},
+	}, 1)
+
+	e2eImpl.AddBicepTemplate(`
+param parameterA string
+output parameterA string = parameterA`,
+		"testa.bicep",
+		`
+using 'testa.bicep'
+param parameterA = 'Hello Bicep'`,
+		"testa.bicepparm")
 
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
