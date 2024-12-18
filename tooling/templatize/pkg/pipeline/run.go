@@ -186,7 +186,8 @@ func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget
 		}
 		return output, nil
 	default:
-		return nil, fmt.Errorf("unsupported action type %q", s.ActionType())
+		fmt.Println("No implementation for action type - skip", s.ActionType())
+		return nil, nil
 	}
 }
 

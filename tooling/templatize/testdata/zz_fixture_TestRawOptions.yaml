@@ -23,3 +23,19 @@ resourceGroups:
     action: ARM
     template: templates/svc-cluster.bicep
     parameters: test.bicepparam
+  - name: DelegateChildZoneBase
+    action: DelegateChildZoneExtension
+    parentZoneName:
+      value: bla
+    childZoneName:
+      value: blub
+    dependsOn:
+    - deploy
+  - name: issuerTest
+    action: SetCertificateIssuer
+    vaultBaseUrl:
+      value: bla
+    provider:
+      value: blub
+    dependsOn:
+    - deploy

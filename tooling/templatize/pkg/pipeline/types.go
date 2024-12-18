@@ -65,6 +65,10 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 				rg.Steps[i] = &ShellStep{}
 			case "ARM":
 				rg.Steps[i] = &ARMStep{}
+			case "DelegateChildZoneExtension":
+				rg.Steps[i] = &DelegateChildZoneStep{}
+			case "SetCertificateIssuer":
+				rg.Steps[i] = &SetCertificateIssuerStep{}
 			default:
 				return nil, fmt.Errorf("unknown action type %s", stepMeta.Action)
 			}
@@ -85,6 +89,7 @@ func mapToStruct(m any, s interface{}) error {
 	}
 	if err := yaml.Unmarshal(bytes, s); err != nil {
 		return err
+
 	}
 	return nil
 }
@@ -200,6 +205,26 @@ func (s *ARMStep) Description() string {
 	return fmt.Sprintf("Step %s\n  Kind: %s\n  %s", s.Name, s.Action, strings.Join(details, "\n  "))
 }
 
+type DelegateChildZoneStep struct {
+	StepMeta       `yaml:",inline"`
+	ParentZoneName VariableRef `yaml:"parentZoneName"`
+	ChildZoneName  VariableRef `yaml:"childZoneName"`
+}
+
+func (s *DelegateChildZoneStep) Description() string {
+	return fmt.Sprintf("Step %s\n  Kind: %s", s.Name, s.Action)
+}
+
+type SetCertificateIssuerStep struct {
+	StepMeta     `yaml:",inline"`
+	VaultBaseUrl VariableRef `yaml:"vaultBaseUrl"`
+	Provider     VariableRef `yaml:"provider"`
+}
+
+func (s *SetCertificateIssuerStep) Description() string {
+	return fmt.Sprintf("Step %s\n  Kind: %s", s.Name, s.Action)
+}
+
 type DryRun struct {
 	Variables []Variable `yaml:"variables,omitempty"`
 	Command   string     `yaml:"command,omitempty"`
@@ -207,6 +232,12 @@ type DryRun struct {
 
 type Variable struct {
 	Name      string `yaml:"name"`
+	ConfigRef string `yaml:"configRef,omitempty"`
+	Value     string `yaml:"value,omitempty"`
+	Input     *Input `yaml:"input,omitempty"`
+}
+
+type VariableRef struct {
 	ConfigRef string `yaml:"configRef,omitempty"`
 	Value     string `yaml:"value,omitempty"`
 	Input     *Input `yaml:"input,omitempty"`
