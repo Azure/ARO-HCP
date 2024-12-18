@@ -40,8 +40,6 @@ resourceGroups:
       configRef: svc.istio.targetVersion
     - name: ISTIOCTL_VERSION
       configRef: svc.istio.istioctlVersion
-    - name: ISTIOCTL_URL
-      configRef: svc.istio.url
     - name: TAG
       configRef: svc.istio.tag
     # dependsOn:
