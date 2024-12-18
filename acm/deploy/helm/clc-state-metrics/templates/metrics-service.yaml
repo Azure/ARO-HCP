@@ -1,0 +1,20 @@
+# Copyright Contributors to the Open Cluster Management project
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: clusterlifecycle-state-metrics-v2
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    clc-app: clusterlifecycle-state-metrics-v2
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: clusterlifecycle-state-metrics-certs
+spec:
+  type: ClusterIP
+  ports:
+  - name: https
+    port: 8443
+    targetPort: 8443
+    protocol: TCP
+  selector:
+    app: clusterlifecycle-state-metrics-v2
