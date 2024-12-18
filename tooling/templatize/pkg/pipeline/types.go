@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type subsciptionLookup func(context.Context, string) (string, error)
@@ -24,10 +26,10 @@ type ResourceGroup struct {
 
 func (rg *ResourceGroup) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	rawRg := &struct {
-		Name         string    `yaml:"name"`
-		Subscription string    `yaml:"subscription"`
-		AKSCluster   string    `yaml:"aksCluster,omitempty"`
-		Steps        []rawStep `yaml:"steps"`
+		Name         string `yaml:"name"`
+		Subscription string `yaml:"subscription"`
+		AKSCluster   string `yaml:"aksCluster,omitempty"`
+		Steps        []any  `yaml:"steps"`
 	}{}
 	if err := unmarshal(&rawRg); err != nil {
 		return err
@@ -37,18 +39,35 @@ func (rg *ResourceGroup) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	rg.AKSCluster = rawRg.AKSCluster
 	rg.Steps = make([]Step, len(rawRg.Steps))
 	for i, rawStep := range rawRg.Steps {
-		switch rawStep.meta.Action {
+		// unmarshal the map into a StepMeta
+		stepMeta := &StepMeta{}
+		err := mapToStruct(rawStep, stepMeta)
+		if err != nil {
+			return err
+		}
+		switch stepMeta.Action {
 		case "Shell":
 			rg.Steps[i] = &ShellStep{}
 		case "ARM":
 			rg.Steps[i] = &ARMStep{}
 		default:
-			return fmt.Errorf("unknown action type %s", rawStep.meta.Action)
+			return fmt.Errorf("unknown action type %s", stepMeta.Action)
 		}
-		err := rawStep.unmarshal(rg.Steps[i])
+		err = mapToStruct(rawStep, rg.Steps[i])
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func mapToStruct(m any, s interface{}) error {
+	bytes, err := yaml.Marshal(m)
+	if err != nil {
+		return err
+	}
+	if err := yaml.Unmarshal(bytes, s); err != nil {
+		return err
 	}
 	return nil
 }
@@ -71,24 +90,6 @@ func (m *StepMeta) ActionType() string {
 
 func (m *StepMeta) Dependencies() []string {
 	return m.DependsOn
-}
-
-type rawStep struct {
-	meta      *StepMeta
-	unmarshal func(interface{}) error
-}
-
-func (msg *rawStep) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	msg.meta = &StepMeta{}
-	if err := unmarshal(msg.meta); err != nil {
-		return err
-	}
-	msg.unmarshal = unmarshal
-	return nil
-}
-
-func (msg *rawStep) Unmarshal(v interface{}) error {
-	return msg.unmarshal(v)
 }
 
 type Step interface {
