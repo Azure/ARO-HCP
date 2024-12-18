@@ -268,7 +268,7 @@ clouds:
           osDiskSizeGB: 32
           azCount: 3
         istio:
-          url: "https://istio.io/downloadIstio"
+          url: "https://github.com/istio/istio/releases/download"
           istioctlVersion: "1.23.1"
           tag: "prod-stable"
           version: "asm-1-22"
