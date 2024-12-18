@@ -9,7 +9,7 @@ require (
 	github.com/go-playground/validator/v10 v10.22.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/openshift-online/ocm-sdk-go v0.1.447
+	github.com/openshift-online/ocm-sdk-go v0.1.451
 	github.com/openshift/api v0.0.0-20240429104249-ac9356ba1784
 )
 
