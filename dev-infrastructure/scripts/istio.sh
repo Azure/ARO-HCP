@@ -59,7 +59,7 @@ echo "==========================================================================
 
 ISTIO_NAMESPACE="aks-istio-system"
 CURRENT_TAG_REVISION=$(istioctl tag list --istioNamespace "${ISTIO_NAMESPACE}" -o json | jq --arg tag "${TAG}" '.[] | select(.tag == $tag).revision' -r)
-
+CURRENT_VERSION=$(kubectl get pods -n aks-istio-system -o jsonpath="{.items[0].metadata.name}" | grep -oP '(?<=istiod-)[^-]+-[^-]+-[^-]+')
 echo "********** Ensure tag ${TAG} exists **************"
 if [ -z "$CURRENT_TAG_REVISION" ]; then
     echo "Tag ${TAG} does not exist yet. Creating it with version ${CURRENT_VERSION}"
@@ -81,7 +81,7 @@ echo "********** Istio Upgrade Started with version ${NEWVERSION} **************
 
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace ${ISTIO_NAMESPACE} --overwrite
 
-# Get the namespaces with the label istio.io/rev=$TAG
+#Get the namespaces with the label istio.io/rev=$TAG
 for namespace in $( kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' ); do
     for pod in $( kubectl get pods -n "$namespace" -o jsonpath='{.items[*].metadata.name}' ); do
         istio_version=$(kubectl get pod "$pod" -n "$namespace" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -oP '(?<="revision":")[^"]*')
@@ -112,5 +112,6 @@ for namespace in $( kubectl get namespaces --selector=istio.io/rev="$TAG" -o jso
         fi
     done
 done
+
 
 echo "********** ISTIO Upgrade Finished**************"
