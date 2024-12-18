@@ -80,6 +80,8 @@ func (o armOutput) GetValue(key string) (*outPutValue, error) {
 func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	outPuts := make(map[string]output)
+
 	// set working directory to the pipeline file directory for the
 	// duration of the execution so that all commands and file references
 	// within the pipeline file are resolved relative to the pipeline file
@@ -114,7 +116,7 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 			resourceGroup:    rg.Name,
 			aksClusterName:   rg.AKSCluster,
 		}
-		err = rg.run(ctx, options, &executionTarget)
+		err = rg.run(ctx, options, &executionTarget, outPuts)
 		if err != nil {
 			return err
 		}
@@ -122,10 +124,8 @@ func (p *Pipeline) Run(ctx context.Context, options *PipelineRunOptions) error {
 	return nil
 }
 
-func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget) error {
+func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]output) error {
 	logger := logr.FromContextOrDiscard(ctx)
-
-	outPuts := make(map[string]output)
 
 	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
 	if kubeconfigFile != "" {
@@ -152,13 +152,13 @@ func (rg *ResourceGroup) run(ctx context.Context, options *PipelineRunOptions, e
 			),
 			kubeconfigFile,
 			executionTarget, options,
-			outPuts,
+			outputs,
 		)
 		if err != nil {
 			return err
 		}
 		if output != nil {
-			outPuts[step.Name] = output
+			outputs[step.Name] = output
 		}
 	}
 	return nil

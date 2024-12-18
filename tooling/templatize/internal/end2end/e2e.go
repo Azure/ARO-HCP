@@ -26,7 +26,7 @@ type E2E interface {
 	SetConfig(updates config.Variables)
 	UseRandomRG() func() error
 	AddBicepTemplate(template, templateFileName, paramfile, paramfileName string)
-	AddStep(step pipeline.Step)
+	AddStep(step pipeline.Step, rg int)
 	SetOSArgs()
 	Persist() error
 }
@@ -132,12 +132,21 @@ func (e *e2eImpl) SetOSArgs() {
 	}
 }
 
+func (e *e2eImpl) AddResourceGroup() {
+	numRgs := len(e.pipeline.ResourceGroups)
+	e.pipeline.ResourceGroups = append(e.pipeline.ResourceGroups, &pipeline.ResourceGroup{
+		Name:         fmt.Sprintf("{{ .rg }}-%d", numRgs+1),
+		Subscription: "{{ .subscription }}",
+	},
+	)
+}
+
 func (e *e2eImpl) SetAKSName(aksName string) {
 	e.pipeline.ResourceGroups[0].AKSCluster = aksName
 }
 
-func (e *e2eImpl) AddStep(step pipeline.Step) {
-	e.pipeline.ResourceGroups[0].Steps = append(e.pipeline.ResourceGroups[0].Steps, &step)
+func (e *e2eImpl) AddStep(step pipeline.Step, rg int) {
+	e.pipeline.ResourceGroups[rg].Steps = append(e.pipeline.ResourceGroups[rg].Steps, &step)
 }
 
 func (e *e2eImpl) SetConfig(updates config.Variables) {
