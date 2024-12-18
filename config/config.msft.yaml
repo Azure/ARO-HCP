@@ -31,11 +31,10 @@ defaults:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}
       kvSoftDelete: true
     istio:
-      url: "https://github.com/istio/istio/releases/download"
-      istioctlVersion: "1.23.1"
+      istioctlVersion: "1.24.1"
       tag: "prod-stable"
-      targetVersion: ""
-      version: "asm-1-22"
+      targetVersion: "asm-1-23"
+      versions: ["asm-1-22", "asm-1-23"]
 
   # MGMT cluster specifics
   mgmt:

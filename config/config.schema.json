@@ -673,10 +673,6 @@
           "istio": {
             "type": "object",
             "properties": {
-              "url": {
-                "description": "The download Url for istioctl",
-                "type": "string"
-              },
               "istioctlVersion": {
                 "description": "Latest version of istioctl. This is used to download the istioctl",
                 "type": "string"
@@ -685,9 +681,9 @@
                 "description": "The revision tag used in istioctl",
                 "type": "string"
               },
-              "version": {
+              "versions": {
                 "description": "The current istio version in the AKS cluster",
-                "type": "string"
+                "type": "array"
               },
               "targetVersion": {
                 "description": "The target istio version that will be updated to",

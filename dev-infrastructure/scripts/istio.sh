@@ -29,8 +29,8 @@ case "${LOCAL_ARCH}" in
 esac
 
 
-ISTIO_URL="${ISTIOCTL_URL}/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz"
-SHA256_URL="${ISTIOCTL_URL}/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256"
+ISTIO_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz"
+SHA256_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256"
 # Download the Istioctl binary
 wget -q "$ISTIO_URL" -O istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz
 
@@ -58,12 +58,12 @@ echo "==========================================================================
 #
 
 ISTIO_NAMESPACE="aks-istio-system"
-CURRENT_TAG_REVISION=$(istioctl tag list --istioNamespace ${ISTIO_NAMESPACE} -o json | jq --arg tag ${TAG} '.[] | select(.tag == $tag).revision' -r)
+CURRENT_TAG_REVISION=$(istioctl tag list --istioNamespace "${ISTIO_NAMESPACE}" -o json | jq --arg tag "${TAG}" '.[] | select(.tag == $tag).revision' -r)
 
 echo "********** Ensure tag ${TAG} exists **************"
 if [ -z "$CURRENT_TAG_REVISION" ]; then
     echo "Tag ${TAG} does not exist yet. Creating it with version ${CURRENT_VERSION}"
-    istioctl tag set ${TAG} --revision ${CURRENT_VERSION} --istioNamespace ${ISTIO_NAMESPACE}
+    istioctl tag set "${TAG}" --revision "${CURRENT_VERSION}" --istioNamespace "${ISTIO_NAMESPACE}"
 else
     echo "Tag ${TAG} already exists and refers to version ${CURRENT_TAG_REVISION}"
 fi
@@ -73,37 +73,35 @@ echo "********** ISTIO Upgrade **************"
 # To upgrade or rollback, change the targetVersion to the desire version, and version to the current version.
 if [[ -z "$TARGET_VERSION" ]]; then
     echo "Istio is using Target Version. Exiting script."
-    exit 0
+    exit 1
 fi
 
 NEWVERSION="$TARGET_VERSION"
 echo "********** Istio Upgrade Started with version ${NEWVERSION} **************"
 
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace ${ISTIO_NAMESPACE} --overwrite
-# Get the namespaces with the label istio.io/rev=$TAG
-namespaces=$(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' | xargs -n1 echo)
 
-for ns in $namespaces; do
-    pods=$(kubectl get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}'| xargs -n1 echo)
-    for pod_name in $pods; do
-        istio_version=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -oP '(?<="revision":")[^"]*')
+# Get the namespaces with the label istio.io/rev=$TAG
+for namespace in $( kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}' ); do
+    for pod in $( kubectl get pods -n "$namespace" -o jsonpath='{.items[*].metadata.name}' ); do
+        istio_version=$(kubectl get pod "$pod" -n "$namespace" -o jsonpath='{.metadata.annotations.sidecar\.istio\.io/status}' | grep -oP '(?<="revision":")[^"]*')
         if [[ "$istio_version" != "$NEWVERSION" ]]; then
-            owner_kind=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].kind}')
-            owner_name=$(kubectl get pod "$pod_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].name}')
+            owner_kind=$(kubectl get pod "$pod" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].kind}')
+            owner_name=$(kubectl get pod "$pod" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
 
             case "$owner_kind" in
                 "ReplicaSet")
-                    deployment=$(kubectl get replicaset "$owner_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].name}')
+                    deployment=$(kubectl get replicaset "$owner_name" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
                     if [[ -n "$deployment" ]]; then
-                        kubectl rollout restart deployment "$deployment" -n "$ns"
+                        kubectl rollout restart deployment "$deployment" -n "$namespace"
                         continue 2
                     else
-                        kubectl delete pod "$pod_name" -n "$ns"
+                        kubectl delete pod "$pod" -n "$namespace"
                     fi
                 ;;
                 "StatefulSet")
-                    deployment=$(kubectl get replicaset "$owner_name" -n "$ns" -o jsonpath='{.metadata.ownerReferences[0].name}')
-                    kubectl rollout restart deployment "$deployment" -n "$ns"
+                    deployment=$(kubectl get replicaset "$owner_name" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
+                    kubectl rollout restart deployment "$deployment" -n "$namespace"
                     continue 2
                 ;;
                 *)
