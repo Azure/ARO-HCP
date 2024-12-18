@@ -118,6 +118,11 @@
     "restrictIstioIngress": false,
     "serverMqttClientName": "maestro-server-cspr-cs"
   },
+  "mce": {
+    "clcStateMetrics": {
+      "imageDigest": "bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7"
+    }
+  },
   "mgmt": {
     "clusterServiceResourceId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-cspr-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service",
     "etcd": {
