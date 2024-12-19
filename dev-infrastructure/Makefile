@@ -164,6 +164,7 @@ region: region.wait regional.rg
 
 region.clean:
 	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP))" = "true" ]; then \
+		echo "Will delete Azure resource group $(REGIONAL_RESOURCEGROUP)"; \
 		az group delete -g $(REGIONAL_RESOURCEGROUP); \
 	fi
 .PHONY: region.clean
@@ -291,6 +292,7 @@ svc.dev-role-assignments:
 
 svc.clean:
 	@if [ "$$(az group exists --name $(SVC_RESOURCEGROUP))" = "true" ]; then \
+		echo "Will delete Azure resource group $(SVC_RESOURCEGROUP)"; \
 		az group delete -g $(SVC_RESOURCEGROUP); \
 	fi
 .PHONY: svc.clean
@@ -378,6 +380,7 @@ mgmt.what-if: mgmt.rg
 
 mgmt.clean:
 	@if [ "$$(az group exists --name $(MGMT_RESOURCEGROUP))" = "true" ]; then \
+		echo "Will delete Azure resource group $(MGMT_RESOURCEGROUP)"; \
 		az group delete -g $(MGMT_RESOURCEGROUP); \
 	fi
 .PHONY: mgmt.clean
