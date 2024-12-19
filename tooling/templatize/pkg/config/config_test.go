@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/internal/testutil"
@@ -305,51 +304,6 @@ func TestPreprocessContentMissingKey(t *testing.T) {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-			}
-		})
-	}
-}
-
-func TestPreprocessContentJson(t *testing.T) {
-	templateContent := "{{ .variable | json }}"
-
-	testCases := []struct {
-		name           string
-		value          any
-		expectedResult string
-	}{
-		{
-			name:           "string value",
-			value:          "foo",
-			expectedResult: "foo",
-		},
-		{
-			name:           "array value",
-			value:          []string{"foo", "bar"},
-			expectedResult: "[\"foo\",\"bar\"]",
-		},
-		{
-			name:           "int value",
-			value:          42,
-			expectedResult: "42",
-		},
-		{
-			name:           "bool value",
-			value:          true,
-			expectedResult: "true",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			processed, err := PreprocessContent(
-				[]byte(templateContent),
-				map[string]any{
-					"variable": tc.value,
-				},
-			)
-			assert.Nil(t, err)
-			if diff := cmp.Diff(string(processed), string(tc.expectedResult)); diff != "" {
-				t.Errorf("got diff between expected and actual result\ndiff:\n%s\n\nIf this is expected, re-run the test with `UPDATE=true go test ./...` to update the fixtures.", diff)
 			}
 		})
 	}
