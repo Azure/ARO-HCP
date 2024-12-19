@@ -1,3 +1,0 @@
-pythonImage: "mcr.microsoft.com/cbl-mariner/base/python:3.9"
-consumerName: ""
-maestroBaseUrl: "http://maestro.maestro.svc.cluster.local:8000"

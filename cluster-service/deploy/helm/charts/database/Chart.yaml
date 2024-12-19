@@ -1,5 +1,0 @@
-apiVersion: v2
-name: database
-description: A Helm chart for a Local Cluster Service Database
-type: application
-version: 0.1.0

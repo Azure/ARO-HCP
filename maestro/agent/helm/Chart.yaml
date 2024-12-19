@@ -1,7 +1,0 @@
-apiVersion: v2
-name: maestro-agent
-description: A Helm chart for Maestro Agent
-type: application
-
-version: 0.1.0
-appVersion: "ae149df618cb0812d2072b20658a9cff84c087eb"

@@ -1,9 +1,0 @@
-{
-    "Description": "ARO HCP Dev Role for mock 1p service principal",
-    "Actions": [
-        "Microsoft.Resources/subscriptions/resourceGroups/read",
-        "Microsoft.Resources/subscriptions/resourceGroups/write",
-        "Microsoft.Authorization/*/action",
-        "Microsoft.Authorization/*/read"
-    ]
-}

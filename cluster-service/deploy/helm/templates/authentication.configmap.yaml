@@ -1,9 +1,0 @@
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: authentication
-  namespace: {{ .Release.Namespace }}
-data:
-  jwks.json: ""
-  acl.yml: ""
