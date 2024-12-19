@@ -6,12 +6,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"text/template"
 
-	"github.com/Masterminds/sprig/v3"
 	"github.com/spf13/cobra"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
 func DefaultGenerationOptions() *RawGenerationOptions {
@@ -113,16 +112,9 @@ func (o *ValidatedGenerationOptions) Complete() (*GenerationOptions, error) {
 }
 
 func (opts *GenerationOptions) ExecuteTemplate() error {
-	tmpl := template.New(opts.InputFile).Funcs(sprig.FuncMap())
 	content, err := fs.ReadFile(opts.InputFS, opts.InputFile)
 	if err != nil {
 		return err
 	}
-
-	tmpl, err = tmpl.Parse(string(content))
-	if err != nil {
-		return err
-	}
-
-	return tmpl.Option("missingkey=error").ExecuteTemplate(opts.OutputFile, opts.InputFile, opts.RolloutOptions.Config)
+	return config.PreprocessContentIntoWriter(content, opts.RolloutOptions.Config, opts.OutputFile)
 }

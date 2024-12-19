@@ -2,7 +2,9 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -260,15 +262,36 @@ func PreprocessFile(templateFilePath string, vars map[string]any) ([]byte, error
 
 // PreprocessContent processes a gotemplate from memory
 func PreprocessContent(content []byte, vars map[string]any) ([]byte, error) {
-	tmpl := template.New("file")
-	tmpl, err := tmpl.Parse(string(content))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse template: %w", err)
-	}
-
 	var tmplBytes bytes.Buffer
-	if err := tmpl.Option("missingkey=error").Execute(&tmplBytes, vars); err != nil {
-		return nil, fmt.Errorf("failed to execute template: %w", err)
+	if err := PreprocessContentIntoWriter(content, vars, &tmplBytes); err != nil {
+		return nil, err
 	}
 	return tmplBytes.Bytes(), nil
+}
+
+func PreprocessContentIntoWriter(content []byte, vars map[string]any, writer io.Writer) error {
+	funcMap := template.FuncMap{
+		"json": jsonEncoder,
+	}
+	tmpl, err := template.New("file").Funcs(funcMap).Parse(string(content))
+	if err != nil {
+		return fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	if err := tmpl.Option("missingkey=error").Execute(writer, vars); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
+	}
+	return nil
+}
+
+func jsonEncoder(value interface{}) (string, error) {
+	valueType := reflect.TypeOf(value)
+	if valueType.Kind() == reflect.String {
+		return value.(string), nil
+	}
+	jsonBytes, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonBytes), nil
 }
