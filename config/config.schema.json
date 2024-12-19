@@ -682,8 +682,8 @@
                 "type": "string"
               },
               "versions": {
-                "description": "The current istio version in the AKS cluster",
-                "type": "array"
+                "description": "The current istio version in the AKS cluster, will need to change to array once tooling is ready",
+                "type": "string"
               },
               "targetVersion": {
                 "description": "The target istio version that will be updated to",

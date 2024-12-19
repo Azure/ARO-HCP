@@ -34,7 +34,7 @@ defaults:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
       targetVersion: "asm-1-23"
-      versions: ["\"asm-1-22\"", "\"asm-1-23\""]
+      versions: "asm-1-22,asm-1-23"
 
   # MGMT cluster specifics
   mgmt:
