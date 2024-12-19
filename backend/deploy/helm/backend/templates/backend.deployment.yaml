@@ -6,7 +6,7 @@ metadata:
   name: aro-hcp-backend
 spec:
   progressDeadlineSeconds: 600
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -44,6 +44,10 @@ spec:
               configMapKeyRef:
                 name: backend-config
                 key: LOCATION
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
           ports:
             - containerPort: 8081
               protocol: TCP
