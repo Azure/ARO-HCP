@@ -296,13 +296,7 @@ func TestE2EArmDeploySubscriptionScope(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.Step{
-		Name:            "parameterA",
-		Action:          "ARM",
-		Template:        "testa.bicep",
-		Parameters:      "testa.bicepparm",
-		DeploymentLevel: "Subscription",
-	}, 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm").WithDeploymentLevel("Subscription"), 0)
 	rgName := GenerateRandomRGName()
 	e2eImpl.AddBicepTemplate(fmt.Sprintf(`
 targetScope='subscription'
