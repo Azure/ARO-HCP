@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -59,6 +60,7 @@ func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
 		recursivePrint(level, child)
 	}
 }
+
 func printChanges(t armresources.ChangeType, changes []*armresources.WhatIfChange) {
 	for _, change := range changes {
 		if *change.ChangeType == t {
@@ -69,8 +71,49 @@ func printChanges(t armresources.ChangeType, changes []*armresources.WhatIfChang
 		}
 	}
 }
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
 
+func printChangeReport(changes []*armresources.WhatIfChange) {
+	fmt.Println("Change report for WhatIf deployment")
+	fmt.Println("----------")
+	fmt.Println("Creating")
+	printChanges(armresources.ChangeTypeCreate, changes)
+	fmt.Println("----------")
+	fmt.Println("Deploy")
+	printChanges(armresources.ChangeTypeDeploy, changes)
+	fmt.Println("----------")
+	fmt.Println("Modify")
+	printChanges(armresources.ChangeTypeModify, changes)
+	fmt.Println("----------")
+	fmt.Println("Delete")
+	printChanges(armresources.ChangeTypeDelete, changes)
+	fmt.Println("----------")
+	fmt.Println("Ignoring")
+	printChanges(armresources.ChangeTypeIgnore, changes)
+	fmt.Println("----------")
+	fmt.Println("NoChange")
+	printChanges(armresources.ChangeTypeNoChange, changes)
+	fmt.Println("----------")
+	fmt.Println("Unsupported")
+	printChanges(armresources.ChangeTypeUnsupported, changes)
+}
+
+func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
+	resp, err := p.PollUntilDone(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to wait for deployment completion: %w", err)
+	}
+	switch m := any(resp).(type) {
+	case armresources.DeploymentsClientWhatIfResponse:
+		printChangeReport(m.Properties.Changes)
+	case armresources.DeploymentsClientWhatIfAtSubscriptionScopeResponse:
+		printChangeReport(m.Properties.Changes)
+	default:
+		return fmt.Errorf("Unknown type %T", m)
+	}
+	return nil
+}
+
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, input)
@@ -88,41 +131,59 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 		Properties: deploymentProperties,
 	}
 
-	poller, err := client.BeginWhatIf(ctx, rgName, step.Name, deployment, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
+	if step.DeploymentLevel == "Subscription" {
+		// Hardcode until schema is adapted
+		deployment.Location = to.Ptr("eastus2")
+		poller, err := client.BeginWhatIfAtSubscriptionScope(ctx, step.Name, deployment, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
+		}
+		logger.Info("WhatIf Deployment started", "deployment", step.Name)
+		err = pollAndPrint(ctx, poller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to poll and print: %w", err)
+		}
+	} else {
+		poller, err := client.BeginWhatIf(ctx, rgName, step.Name, deployment, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
+		}
+		logger.Info("WhatIf Deployment started", "deployment", step.Name)
+		err = pollAndPrint(ctx, poller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to poll and print: %w", err)
+		}
 	}
-	logger.Info("WhatIf Deployment started", "deployment", step.Name)
 
-	resp, err := poller.PollUntilDone(ctx, nil)
+	return nil, nil
+}
+
+func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutput, error) {
+	respRaw, err := p.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to wait for deployment completion: %w", err)
 	}
-	logger.Info("WhatIf Deployment finished successfully", "deployment", step.Name)
 
-	fmt.Println("Change report for WhatIf deployment")
-	fmt.Println("----------")
-	fmt.Println("Creating")
-	printChanges(armresources.ChangeTypeCreate, resp.Properties.Changes)
-	fmt.Println("----------")
-	fmt.Println("Deploy")
-	printChanges(armresources.ChangeTypeDeploy, resp.Properties.Changes)
-	fmt.Println("----------")
-	fmt.Println("Modify")
-	printChanges(armresources.ChangeTypeModify, resp.Properties.Changes)
-	fmt.Println("----------")
-	fmt.Println("Delete")
-	printChanges(armresources.ChangeTypeDelete, resp.Properties.Changes)
-	fmt.Println("----------")
-	fmt.Println("Ignoring")
-	printChanges(armresources.ChangeTypeIgnore, resp.Properties.Changes)
-	fmt.Println("----------")
-	fmt.Println("NoChange")
-	printChanges(armresources.ChangeTypeNoChange, resp.Properties.Changes)
-	fmt.Println("----------")
-	fmt.Println("Unsupported")
-	printChanges(armresources.ChangeTypeUnsupported, resp.Properties.Changes)
+	var outputs any
 
+	switch resp := any(respRaw).(type) {
+	case armresources.DeploymentsClientCreateOrUpdateResponse:
+		outputs = resp.Properties.Outputs
+	case armresources.DeploymentsClientCreateOrUpdateAtSubscriptionScopeResponse:
+		outputs = resp.Properties.Outputs
+	default:
+		return nil, fmt.Errorf("Unknown type %T", resp)
+	}
+
+	if outputs != nil {
+		if outputMap, ok := outputs.(map[string]any); ok {
+			returnMap := armOutput{}
+			for k, v := range outputMap {
+				returnMap[k] = v
+			}
+			return returnMap, nil
+		}
+	}
 	return nil, nil
 }
 
@@ -144,28 +205,25 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		Properties: deploymentProperties,
 	}
 
-	poller, err := client.BeginCreateOrUpdate(ctx, rgName, step.Name, deployment, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create deployment: %w", err)
-	}
-	logger.Info("Deployment started", "deployment", step.Name)
-
-	resp, err := poller.PollUntilDone(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to wait for deployment completion: %w", err)
-	}
-	logger.Info("Deployment finished successfully", "deployment", step.Name, "responseId", *resp.ID)
-
-	if resp.Properties.Outputs != nil {
-		if outputMap, ok := resp.Properties.Outputs.(map[string]any); ok {
-			returnMap := armOutput{}
-			for k, v := range outputMap {
-				returnMap[k] = v
-			}
-			return returnMap, nil
+	if step.DeploymentLevel == "Subscription" {
+		// Hardcode until schema is adapted
+		deployment.Location = to.Ptr("eastus2")
+		poller, err := client.BeginCreateOrUpdateAtSubscriptionScope(ctx, step.Name, deployment, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
+		logger.Info("Deployment started", "deployment", step.Name)
+
+		return pollAndGetOutput(ctx, poller)
+	} else {
+		poller, err := client.BeginCreateOrUpdate(ctx, rgName, step.Name, deployment, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create deployment: %w", err)
+		}
+		logger.Info("Deployment started", "deployment", step.Name)
+
+		return pollAndGetOutput(ctx, poller)
 	}
-	return nil, nil
 }
 
 func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string, rgNoPersist bool) error {
