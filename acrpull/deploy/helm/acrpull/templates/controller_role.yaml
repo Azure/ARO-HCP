@@ -1,0 +1,79 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: acrpull-controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts/token
+  verbs:
+  - create
+- apiGroups:
+  - acrpull.microsoft.com
+  resources:
+  - acrpullbindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - acrpull.microsoft.com
+  resources:
+  - acrpullbindings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - acrpull.microsoft.com
+  resources:
+  - acrpullbindings/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - msi-acrpull.microsoft.com
+  resources:
+  - acrpullbindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - msi-acrpull.microsoft.com
+  resources:
+  - acrpullbindings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - msi-acrpull.microsoft.com
+  resources:
+  - acrpullbindings/status
+  verbs:
+  - get
+  - patch
+  - update

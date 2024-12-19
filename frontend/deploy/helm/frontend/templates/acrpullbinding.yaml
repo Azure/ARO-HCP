@@ -1,0 +1,15 @@
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: pull-binding
+spec:
+  acr:
+    environment: PublicCloud
+    scope: {{ .Values.pullBinding.registry }}
+    server: {{ .Values.pullBinding.scope }}
+  auth:
+    workloadIdentity:
+      serviceAccountRef: frontend
+      clientID: {{ .Values.pullBinding.workloadIdentityClientId }}
+      tenantID: {{ .Values.pullBinding.workloadIdentityTenantId }}
+  serviceAccountName: frontend
