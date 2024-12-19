@@ -146,6 +146,7 @@ resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
 }
+// TODO(jonachang) Once tooling support array, need to remove this
 var istio = split(istioVersion[0], ', ')
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
