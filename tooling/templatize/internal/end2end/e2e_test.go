@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 func persistAndRun(t *testing.T, e2eImpl E2E) {
@@ -284,4 +286,46 @@ param parameterA = 'Hello Bicep'`,
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NilError(t, err)
 	assert.Equal(t, string(io), "Hello Bicep\n")
+}
+
+func TestE2EArmDeploySubscriptionScope(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl := newE2E(tmpDir)
+	e2eImpl.AddStep(pipeline.Step{
+		Name:            "parameterA",
+		Action:          "ARM",
+		Template:        "testa.bicep",
+		Parameters:      "testa.bicepparm",
+		DeploymentLevel: "Subscription",
+	}, 0)
+	rgName := GenerateRandomRGName()
+	e2eImpl.AddBicepTemplate(fmt.Sprintf(`
+targetScope='subscription'
+
+resource newRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+  name: '%s'
+  location: 'westus3'
+}`, rgName),
+		"testa.bicep",
+		"using 'testa.bicep'",
+		"testa.bicepparm")
+
+	persistAndRun(t, &e2eImpl)
+
+	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+	assert.NilError(t, err)
+
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	assert.NilError(t, err)
+
+	rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
+	assert.NilError(t, err)
+
+	_, err = rgClient.BeginDelete(context.Background(), rgName, nil)
+	assert.NilError(t, err)
 }

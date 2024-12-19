@@ -90,7 +90,7 @@ func newE2E(tmpdir string) e2eImpl {
 	return imp
 }
 
-func (e *e2eImpl) UseRandomRG() func() error {
+func GenerateRandomRGName() string {
 	rgSuffx := ""
 	if jobID := os.Getenv("JOB_ID"); jobID != "" {
 		rgSuffx = jobID
@@ -99,8 +99,11 @@ func (e *e2eImpl) UseRandomRG() func() error {
 	for i := 0; i < 3; i++ {
 		rgSuffx += string(chars[rand.IntN(len(chars))])
 	}
+	return "templatize-e2e-" + rgSuffx
+}
 
-	e.rgName = "templatize-e2e-" + rgSuffx
+func (e *e2eImpl) UseRandomRG() func() error {
+	e.rgName = GenerateRandomRGName()
 	e.SetConfig(config.Variables{"defaults": config.Variables{"rg": e.rgName}})
 
 	return func() error {
