@@ -53,10 +53,6 @@ cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="
 
-#
-# Create the tag if it does not exist yet
-#
-
 ISTIO_NAMESPACE="aks-istio-system"
 
 echo "********** ISTIO Upgrade **************"
