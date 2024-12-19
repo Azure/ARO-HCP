@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -270,10 +269,7 @@ func PreprocessContent(content []byte, vars map[string]any) ([]byte, error) {
 }
 
 func PreprocessContentIntoWriter(content []byte, vars map[string]any, writer io.Writer) error {
-	funcMap := template.FuncMap{
-		"json": jsonEncoder,
-	}
-	tmpl, err := template.New("file").Funcs(funcMap).Parse(string(content))
+	tmpl, err := template.New("file").Parse(string(content))
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -282,16 +278,4 @@ func PreprocessContentIntoWriter(content []byte, vars map[string]any, writer io.
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 	return nil
-}
-
-func jsonEncoder(value interface{}) (string, error) {
-	valueType := reflect.TypeOf(value)
-	if valueType.Kind() == reflect.String {
-		return value.(string), nil
-	}
-	jsonBytes, err := json.Marshal(value)
-	if err != nil {
-		return "", err
-	}
-	return string(jsonBytes), nil
 }
