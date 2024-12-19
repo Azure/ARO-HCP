@@ -3,6 +3,7 @@
   env:
     DEPLOY_ENV: ${{ inputs.deploy_env }}
     SKIP_CONFIRM: true
+    DRY_RUN: 
   on:
     workflow_call:
       inputs:
@@ -82,7 +83,7 @@
 
         - name: 'Deploy Frontend'
           run: |
-            make frontend.deploy
+            ./run_pipeline.sh dev ./frontend/pipeline.yaml deploy -c public
 
         - name: 'Deploy Backend'
           run: |
