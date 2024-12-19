@@ -6,7 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.16.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.2.0
 	github.com/openshift-online/ocm-sdk-go v0.1.447
 	github.com/spf13/cobra v1.8.1
 )
