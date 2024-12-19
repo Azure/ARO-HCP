@@ -73,8 +73,13 @@ echo "********** Istio Upgrade Started with version ${NEWVERSION} **************
 istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace ${ISTIO_NAMESPACE} --overwrite
 for namespace in $(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}'); do
     echo "in namespace $namespace"
-    pods="$(kubectl get pods --namespace "${namespace}" -o json)"
-    for owner in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION ${NEWVERSION} '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | "\(.metadata.ownerReferences[0].kind)/\(.metadata.ownerReferences[0].name)"' | sort | uniq); do
+    # bare pods
+    for pod in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION ${NEWVERSION} '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences | length == 0) | .metadata.name'); do
+        echo "recycle pod $pod"
+        kubectl delete pod "$pod" -n "$namespace"
+    done
+    # pods with owners
+    for owner in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION ${NEWVERSION} '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences) | "\(.metadata.ownerReferences[0].kind)/\(.metadata.ownerReferences[0].name)"' | sort | uniq); do
         echo "process pod owner ${owner}"
         case "$owner" in
             "ReplicaSet"*)
