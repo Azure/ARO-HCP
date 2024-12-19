@@ -28,7 +28,6 @@ import (
 
 type Frontend struct {
 	clusterServiceClient ocm.ClusterServiceClientSpec
-	logger               *slog.Logger
 	listener             net.Listener
 	metricsListener      net.Listener
 	server               http.Server
@@ -43,7 +42,6 @@ type Frontend struct {
 func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csClient ocm.ClusterServiceClientSpec) *Frontend {
 	f := &Frontend{
 		clusterServiceClient: csClient,
-		logger:               logger,
 		listener:             listener,
 		metricsListener:      metricsListener,
 		metrics:              emitter,
@@ -83,8 +81,11 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 		}()
 	}
 
-	f.logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
-	f.logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
+	// This just digs up the logger passed to NewFrontend.
+	logger := LoggerFromContext(f.server.BaseContext(f.listener))
+
+	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
+	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 	f.ready.Store(true)
 
 	errs, ctx := errgroup.WithContext(ctx)
@@ -96,7 +97,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	})
 
 	if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		os.Exit(1)
 	}
 
@@ -108,12 +109,14 @@ func (f *Frontend) Join() {
 }
 
 func (f *Frontend) CheckReady(ctx context.Context) bool {
+	logger := LoggerFromContext(ctx)
+
 	// Verify the DB is available and accessible
 	if err := f.dbClient.DBConnectionTest(ctx); err != nil {
-		f.logger.Error(fmt.Sprintf("Database test failed: %v", err))
+		logger.Error(fmt.Sprintf("Database test failed: %v", err))
 		return false
 	}
-	f.logger.Debug("Database check completed")
+	logger.Debug("Database check completed")
 
 	return f.ready.Load().(bool)
 }
@@ -143,15 +146,14 @@ func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 
 func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceList", versionedInterface))
 
 	var pageSizeHint int32 = 20
 	var continuationToken *string
@@ -187,22 +189,34 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 	prefix, err := arm.ParseResourceID(prefixString)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	documentList, continuationToken, err := f.dbClient.ListResourceDocs(ctx, prefix, &api.ClusterResourceType, pageSizeHint, continuationToken)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	iterator := f.dbClient.ListResourceDocs(ctx, prefix, pageSizeHint, continuationToken)
 
 	// Build a map of cluster documents by Cluster Service cluster ID.
 	documentMap := make(map[string]*database.ResourceDocument)
-	for _, doc := range documentList {
-		documentMap[doc.InternalID.ID()] = doc
+	for item := range iterator.Items(ctx) {
+		var doc database.ResourceDocument
+
+		err = json.Unmarshal(item, &doc)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		if strings.EqualFold(doc.Key.ResourceType.String(), api.ClusterResourceType.String()) {
+			documentMap[doc.InternalID.ID()] = &doc
+		}
+	}
+
+	err = iterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
 	}
 
 	// Build a Cluster Service query that looks for
@@ -212,7 +226,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		queryIDs = append(queryIDs, "'"+key+"'")
 	}
 	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
-	f.logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
 
 	listRequest := f.clusterServiceClient.GetConn().ClustersMgmt().V1().Clusters().List().Search(query)
 
@@ -223,7 +237,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 	listResponse, err := listRequest.SendContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -232,7 +246,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		if doc, ok := documentMap[csCluster.ID()]; ok {
 			value, err := marshalCSCluster(csCluster, doc, versionedInterface)
 			if err != nil {
-				f.logger.Error(err.Error())
+				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
 				return
 			}
@@ -240,18 +254,16 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		}
 	}
 
-	if continuationToken != nil {
-		err = pagedResponse.SetNextLink(request.Referer(), *continuationToken)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+	err = pagedResponse.SetNextLink(request.Referer(), iterator.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
@@ -260,22 +272,21 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 // * 404 If the resource does not exist
 func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceRead", versionedInterface))
 
 	responseBody, cloudError := f.MarshalResource(ctx, resourceID, versionedInterface)
 	if cloudError != nil {
@@ -285,7 +296,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
@@ -305,33 +316,32 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	// that represents an existing resource to be updated.
 
 	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceCreateOrUpdate", versionedInterface))
-
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -352,7 +362,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// appropriate to fail.
 		csCluster, err := f.clusterServiceClient.GetCSCluster(ctx, doc.InternalID)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
+			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -386,7 +396,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
-			f.logger.Error("Resource not found")
+			logger.Error("Resource not found")
 			arm.WriteResourceNotFoundError(writer, resourceID)
 			return
 		}
@@ -404,19 +414,19 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 	if err = json.Unmarshal(body, versionedRequestCluster); err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInvalidRequestContentError(writer, err)
 		return
 	}
 
 	cloudError = versionedRequestCluster.ValidateStatic(versionedCurrentCluster, updating, request.Method)
 	if cloudError != nil {
-		f.logger.Error(cloudError.Error())
+		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
@@ -427,39 +437,48 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
 	csCluster, err := f.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	if updating {
-		f.logger.Info(fmt.Sprintf("updating resource %s", resourceID))
+		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
 		csCluster, err = f.clusterServiceClient.UpdateCSCluster(ctx, doc.InternalID, csCluster)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 	} else {
-		f.logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
 		csCluster, err = f.clusterServiceClient.PostCSCluster(ctx, csCluster)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 
 		doc.InternalID, err = ocm.NewInternalID(csCluster.HREF())
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 	}
 
-	operationDoc, err := f.StartOperation(writer, request, doc, operationRequest)
+	operationDoc := database.NewOperationDocument(operationRequest, doc.Key, doc.InternalID)
+
+	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.ExposeOperation(writer, request, operationDoc.ID)
+	if err != nil {
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -491,33 +510,33 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		updateResourceMetadata(doc)
 		err = f.dbClient.CreateResourceDoc(ctx, doc)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		f.logger.Info(fmt.Sprintf("document created for %s", resourceID))
+		logger.Info(fmt.Sprintf("document created for %s", resourceID))
 	} else {
 		updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, updateResourceMetadata)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 		if updated {
-			f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
+			logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
 	}
 
 	responseBody, err := marshalCSCluster(csCluster, doc, versionedInterface)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
@@ -526,25 +545,40 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 // * 202 if an asynchronous delete is initiated
 // * 204 if a well-formed request attempts to delete a nonexistent resource
 func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
+	const operationRequest = database.OperationRequestDelete
 
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceDelete", versionedInterface))
+	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		// For resource not found errors on deletion, ARM requires
+		// us to simply return 204 No Content and no response body.
+		if errors.Is(err, database.ErrNotFound) {
+			writer.WriteHeader(http.StatusNoContent)
+		} else {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
 
-	resourceDoc, cloudError := f.DeleteResource(ctx, resourceID)
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	operationID, cloudError := f.DeleteResource(ctx, resourceDoc)
 	if cloudError != nil {
 		// For resource not found errors on deletion, ARM requires
 		// us to simply return 204 No Content and no response body.
@@ -556,91 +590,36 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	operationRequest := database.OperationRequestDelete
-
-	// CheckForProvisioningStateConflict does not log conflict errors
-	// but does log unexpected errors like database failures.
-	cloudError = f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
-	if cloudError != nil {
-		arm.WriteCloudError(writer, cloudError)
-		return
-	}
-
-	err = f.clusterServiceClient.DeleteCSCluster(ctx, resourceDoc.InternalID)
+	err = f.ExposeOperation(writer, request, operationID)
 	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to delete cluster %s: %v", resourceID, err))
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
-	}
-
-	// Deletion is underway; mark any active operation as canceled.
-	if resourceDoc.ActiveOperationID != "" {
-		updated, err := f.dbClient.UpdateOperationDoc(ctx, resourceDoc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
-			return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, nil)
-		})
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		if updated {
-			f.logger.Info(fmt.Sprintf("canceled operation '%s'", resourceDoc.ActiveOperationID))
-		}
-	}
-
-	operationDoc, err := f.StartOperation(writer, request, resourceDoc, operationRequest)
-	if err != nil {
-		f.logger.Error(fmt.Sprintf("failed to write operation document: %v", err))
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, func(updateDoc *database.ResourceDocument) bool {
-		updateDoc.ActiveOperationID = operationDoc.ID
-		updateDoc.ProvisioningState = operationDoc.Status
-		return true
-	})
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if updated {
-		f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 	}
 
 	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	f.logger.Info(fmt.Sprintf("%s: ArmResourceAction", versionedInterface))
-
 	writer.WriteHeader(http.StatusOK)
 }
 
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	logger := LoggerFromContext(ctx)
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+
 	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
@@ -651,16 +630,17 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, &doc.Subscription)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
 func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -668,14 +648,14 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	var subscription arm.Subscription
 	err = json.Unmarshal(body, &subscription)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInvalidRequestContentError(writer, err)
 		return
 	}
 
 	cloudError := api.ValidateSubscription(&subscription)
 	if cloudError != nil {
-		f.logger.Error(cloudError.Error())
+		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
@@ -687,20 +667,20 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		doc := database.NewSubscriptionDocument(subscriptionID, &subscription)
 		err = f.dbClient.CreateSubscriptionDoc(ctx, doc)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		f.logger.Info(fmt.Sprintf("created document for subscription %s", subscriptionID))
+		logger.Info(fmt.Sprintf("created document for subscription %s", subscriptionID))
 	} else if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	} else {
 		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(doc *database.SubscriptionDocument) bool {
 			messages := getSubscriptionDifferences(doc.Subscription, &subscription)
 			for _, message := range messages {
-				f.logger.Info(message)
+				logger.Info(message)
 			}
 
 			doc.Subscription = &subscription
@@ -708,12 +688,12 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			return len(messages) > 0
 		})
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 		if updated {
-			f.logger.Info(fmt.Sprintf("updated document for subscription %s", subscriptionID))
+			logger.Info(fmt.Sprintf("updated document for subscription %s", subscriptionID))
 		}
 	}
 
@@ -723,9 +703,18 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		"state":          string(subscription.State),
 	})
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusCreated, subscription)
+	// Clean up resources if subscription is deleted.
+	if subscription.State == arm.SubscriptionStateDeleted {
+		cloudError := f.DeleteAllResources(ctx, subscriptionID)
+		if cloudError != nil {
+			arm.WriteCloudError(writer, cloudError)
+			return
+		}
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, subscription)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
@@ -735,19 +724,20 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	var apiVersion string = request.URL.Query().Get("api-version")
 
 	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
 
-	f.logger.Info(fmt.Sprintf("%s: ArmDeploymentPreflight", apiVersion))
+	logger.Info(fmt.Sprintf("%s: ArmDeploymentPreflight", apiVersion))
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	deploymentPreflight, cloudError := arm.UnmarshalDeploymentPreflight(body)
 	if cloudError != nil {
-		f.logger.Error(cloudError.Error())
+		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
@@ -761,7 +751,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		if err != nil {
 			cloudError = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
-			f.logger.Warn(cloudError.Message)
+			logger.Warn(cloudError.Message)
 		}
 
 		// This is just "preliminary" validation to ensure all the base resource
@@ -769,7 +759,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		resourceErrors := api.ValidateRequest(validate, request.Method, resource)
 		if len(resourceErrors) > 0 {
 			// Preflight is best-effort: a malformed resource is not a validation failure.
-			f.logger.Warn(
+			logger.Warn(
 				fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
 				"details", resourceErrors)
 			continue
@@ -782,7 +772,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		err = json.Unmarshal(raw, versionedCluster)
 		if err != nil {
 			// Preflight is best effort: failure to parse a resource is not a validation failure.
-			f.logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", resource.Type, resource.Name, err))
+			logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", resource.Type, resource.Name, err))
 			continue
 		}
 
@@ -843,26 +833,18 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		f.logger.Error(err.Error())
-		writer.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	logger := LoggerFromContext(ctx)
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: OperationStatus", versionedInterface))
-
 	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
@@ -880,7 +862,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, doc.ToStatus())
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
@@ -933,26 +915,25 @@ func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
 
 func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: OperationResult", versionedInterface))
-
 	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
@@ -990,7 +971,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		writer.WriteHeader(http.StatusNoContent)
 		return
 	default:
-		f.logger.Error(fmt.Sprintf("Unhandled request type: %s", doc.Request))
+		logger.Error(fmt.Sprintf("Unhandled request type: %s", doc.Request))
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -1003,7 +984,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
