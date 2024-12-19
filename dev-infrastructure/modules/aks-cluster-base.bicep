@@ -25,7 +25,7 @@ param persist bool = false
 
 param kubernetesVersion string
 param deployIstio bool
-param istioVersion array = ['asm-1-22']
+param istioVersions array = []
 param vnetAddressPrefix string
 param subnetPrefix string
 param podSubnetPrefix string
@@ -358,7 +358,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
                 }
               ]
             }
-            revisions: istioVersion
+            revisions: istioVersions
           }
         }
       : null

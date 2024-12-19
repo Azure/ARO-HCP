@@ -31,8 +31,8 @@ defaults:
     istio:
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
-      targetVersion: ""
-      versions: ["asm-1-22"]
+      targetVersion: "asm-1-22"
+      versions: "asm-1-22"
 
   # MGMT cluster specifics
   mgmt:
@@ -266,12 +266,6 @@ clouds:
           vmSize: 'Standard_D2s_v3'
           osDiskSizeGB: 32
           azCount: 3
-        istio:
-          url: "https://github.com/istio/istio/releases/download"
-          istioctlVersion: "1.23.1"
-          tag: "prod-stable"
-          version: "asm-1-22"
-          targetVersion: ""
       mgmt:
         # MGMTM AKS nodepools - big enough for 2 HCPs
         systemAgentPool:

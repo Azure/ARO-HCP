@@ -682,12 +682,14 @@
                 "type": "string"
               },
               "versions": {
-                "description": "The current istio version in the AKS cluster, will need to change to array once tooling is ready",
-                "type": "array"
+                "description": "The current istio version in the AKS cluster as CSV, will need to change to array once tooling is ready",
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
               },
               "targetVersion": {
                 "description": "The target istio version that will be updated to",
-                "type": "string"
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9-]+$"
               }
             }
         }

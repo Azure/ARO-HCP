@@ -161,12 +161,8 @@
     "istio": {
       "istioctlVersion": "1.23.1",
       "tag": "prod-stable",
-      "targetVersion": "",
-      "url": "https://github.com/istio/istio/releases/download",
-      "version": "asm-1-22",
-      "versions": [
-        "asm-1-22"
-      ]
+      "targetVersion": "asm-1-22",
+      "versions": "asm-1-22"
     },
     "rg": "hcp-underlay-dev-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)",
