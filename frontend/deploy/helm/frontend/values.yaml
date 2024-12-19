@@ -14,3 +14,9 @@ deployment:
   imageName: ""
 serviceAccount:
   workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""
+pullBinding:
+  registry: ""
+  scope: ""
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""
