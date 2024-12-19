@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
@@ -18,13 +17,7 @@ func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next htt
 	var lockClient *database.LockClient
 
 	ctx := r.Context()
-
-	logger, err := LoggerFromContext(ctx)
-	if err != nil {
-		config.DefaultLogger().Error(err.Error())
-		arm.WriteInternalServerError(w)
-		return
-	}
+	logger := LoggerFromContext(ctx)
 
 	dbClient, err := DBClientFromContext(ctx)
 	if err != nil {
