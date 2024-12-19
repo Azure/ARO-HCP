@@ -469,6 +469,36 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
   }
 ]
 
+resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+    location: location
+    name: 'image-puller'
+}
+
+module acrPullRole 'acr/acr-permissions.bicep' = [
+  for (_, i) in acrPullResourceGroups: {
+    name: guid(acrRg[i].id, aksCluster.id, acrPullRoleDefinitionId)
+    scope: acrRg[i]
+    params: {
+      principalId: pullerIdentity.properties.principalId
+      acrResourceGroupid: acrRg[i].id
+    }
+  }
+]
+
+resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
+  for i in range(0, length(workloadIdentities)): {
+    parent: uami[i]
+    name: '${workloadIdentities[i].value.uamiName}-${location}-puller-fedcred'
+    properties: {
+      audiences: [
+        'api://AzureCRTokenExchange'
+      ]
+      issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+      subject: 'system:serviceaccount:${workloadIdentities[i].value.namespace}:${workloadIdentities[i].value.serviceAccountName}'
+    }
+  }
+]
+
 // grant aroDevopsMsi the aksClusterAdmin role on the aksCluster so it can
 // deploy services to the cluster
 resource aroDevopsMSIClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

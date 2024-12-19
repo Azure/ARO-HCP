@@ -1,0 +1,131 @@
+# This policy validates the configuration of the tokens that are created by the msi-acrpull controller.
+# It requires the parameters controllerServiceAccountName, controllerNamespace, token expiration, and token audiences
+# to be set in the ConfigMap admission-policies-controller-config.
+# The user must configure:
+#   the token audiences
+#   the controllerServiceAccountName and controllerNamespace parameters
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "controller-token-request-policy"
+  labels:
+    app.kubernetes.io/name: acrpull
+    app.kubernetes.io/managed-by: Helm
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConditions:
+    - name: 'userIsController'
+      expression: "request.userInfo.username == 'system:serviceaccount:'+params.data.controllerNamespace+':'+params.data.controllerServiceAccountName"
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   [""]
+        apiVersions: ["v1"]
+        operations:  ["CREATE"]
+        resources:   ["serviceaccounts/token"]
+  variables:
+    - name: requestHasOnlyOneAudience
+      expression: "object.spec.audiences.size() == 1"
+    - name: hasCorrectAudience
+      expression: "object.spec.audiences.exists(w, w == params.data.tokenAudience)"
+  validations:
+    - expression: "variables.hasCorrectAudience == true && variables.requestHasOnlyOneAudience == true" # if the expression evaluates to false, the validation check is enforced according to the failurePolicy
+      messageExpression: "string(params.data.controllerServiceAccountName)  + ' has failed to ' +  string(request.operation) + ' ' + string(request.name) + ' token in the ' + string(request.namespace) + ' namespace. Check the configuration.'"
+      reason: "Forbidden"
+---
+# This policy is used to restrict the types of secrets that the controller can create or update. We only allow the controller
+# to create dockerconfigjson secret types, as allowing other types would allow privilege escalations and unwanted behavior.
+# (For example, service account token secret types get auto-populated with tokens.)
+# We furthermore restrict the controller to creating and updating secrets with the label we use for limiting our informers.
+# It requires the parameter controllerName, controllerNamespace and the list of secret types to allow to be set in the
+# ConfigMap admission-policies-controller-config.
+# The user must configure:
+#   the controllerServiceAccountName and controllerNamespace parameters
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "controller-secret-mutation-policy"
+  labels:
+    app.kubernetes.io/name: acrpull
+    app.kubernetes.io/managed-by: Helm
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConditions:
+    - name: 'userIsController'
+      expression: "request.userInfo.username == 'system:serviceaccount:'+params.data.controllerNamespace+':'+params.data.controllerServiceAccountName"
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   [""]
+        apiVersions: ["v1"]
+        operations:  ["CREATE","UPDATE"]
+        resources:   ["secrets"]
+  variables:
+    - name: hasOwner
+      expression: "has(object.metadata.ownerReferences) && (size(object.metadata.ownerReferences) == 1 && object.metadata.ownerReferences.all(o, o.kind == 'AcrPullBinding' && (o.apiVersion.startsWith('msi-acrpull.microsoft.com/') || o.apiVersion.startsWith('acrpull.microsoft.com/'))))"
+    - name: matchesPreviousOwner
+      expression: "has(oldObject.metadata) ? oldObject.metadata.ownerReferences == object.metadata.ownerReferences : true"
+    - name: hasSecretType
+      expression: "object.type == 'kubernetes.io/dockerconfigjson'"
+    - name: matchesPreviousSecretType
+      expression: "has(oldObject.metadata) ? oldObject.type == object.type : true"
+    - name: hasLabel
+      expression: "has(object.metadata.labels) && ('acr.microsoft.com/binding' in object.metadata.labels)"
+    - name: matchesPreviousLabel
+      expression: "has(oldObject.metadata) ? oldObject.metadata.labels == object.metadata.labels : true"
+  validations:
+    - expression: "variables.hasOwner == true && variables.matchesPreviousOwner == true && variables.hasSecretType == true && variables.matchesPreviousSecretType == true && variables.hasLabel == true && variables.matchesPreviousLabel == true"
+      messageExpression: "string(params.data.controllerServiceAccountName)  + ' has failed to ' +  string(request.operation) + ' secret with ' + string(object.type) + ' type ' + 'in the ' + string(request.namespace) + ' namespace. The controller can only create or update secrets that it owns, with the correct type and having the correct label.'"
+      reason: "Forbidden"
+---
+# This policy will deny updates to serviceAccounts that do something other than changing the list of managed pull secrets.
+# It requires the parameter controllerServiceAccountName and controllerNamespace to be set in the
+# ConfigMap admission-policies-controller-config.
+# The user must configure:
+#   the controllerServiceAccountName and controllerNamespace parameters
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "controller-service-account-mutation-policy"
+  labels:
+    app.kubernetes.io/name: acrpull
+    app.kubernetes.io/managed-by: Helm
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConditions:
+    - name: 'userIsController'
+      expression: "request.userInfo.username == 'system:serviceaccount:'+params.data.controllerNamespace+':'+params.data.controllerServiceAccountName"
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   [""]
+        apiVersions: ["v1"]
+        operations:  ["UPDATE"]
+        resources:   ["serviceaccounts"]
+  variables:
+    - name: secretsUnchanged
+      expression: "oldObject.?secrets == object.?secrets"
+    - name: automountUnchanged
+      expression: "oldObject.?automountServiceAccountToken == object.?automountServiceAccountToken"
+    - name: previousPullSecretNames
+      expression: "oldObject.?imagePullSecrets.orValue([]).map(s, s.name)"
+    - name: pullSecretNames
+      expression: "object.?imagePullSecrets.orValue([]).map(s, s.name)"
+    - name: addedPullSecrets
+      expression: "variables.pullSecretNames.filter(s, !(s in variables.previousPullSecretNames))"
+    - name: removedPullSecrets
+      expression: "variables.previousPullSecretNames.filter(s, !(s in variables.pullSecretNames))"
+    - name: onlyCorrectPullSecretsAdded
+      expression: "variables.addedPullSecrets.all(s, s.matches('^acr-pull-.{1,44}-[a-zA-Z0-9]{10}$'))"
+    - name: onlyCorrectPullSecretsRemoved
+      expression: "variables.removedPullSecrets.all(s, s.matches('^acr-pull-.{1,44}-[a-zA-Z0-9]{10}$'))"
+  validations:
+    - expression: "variables.secretsUnchanged == true && variables.automountUnchanged == true && variables.onlyCorrectPullSecretsAdded == true && variables.onlyCorrectPullSecretsRemoved == true"
+      messageExpression: "string(params.data.controllerServiceAccountName) + ' has failed to ' + string(request.operation) + ' service account ' + string(request.name) + ' in the ' + string(request.namespace) + ' namespace. The controller may only update service accounts to add or remove pull secrets that the controller manages.' + string(variables.automountUnchanged == true) + string(variables.automountUnchanged == true) + string(variables.onlyCorrectPullSecretsAdded == true) + string(variables.onlyCorrectPullSecretsRemoved == true)"
+      reason: "Forbidden"
