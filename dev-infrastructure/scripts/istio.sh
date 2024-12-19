@@ -74,29 +74,31 @@ istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace ${ISTIO_NAME
 for namespace in $(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}'); do
     echo "in namespace $namespace"
     # bare pods
-    for pod in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION ${NEWVERSION} '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences | length == 0) | .metadata.name'); do
+    for pod in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION "${NEWVERSION}" '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences | length == 0) | .metadata.name'); do
         echo "recycle pod $pod"
         kubectl delete pod "$pod" -n "$namespace"
     done
     # pods with owners
-    for owner in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION ${NEWVERSION} '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences) | "\(.metadata.ownerReferences[0].kind)/\(.metadata.ownerReferences[0].name)"' | sort | uniq); do
+    currentDeloyment=""
+    for owner in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION "${NEWVERSION}" '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences) | "\(.metadata.ownerReferences[0].kind)/\(.metadata.ownerReferences[0].name)"' | sort | uniq); do
         echo "process pod owner ${owner}"
         case "$owner" in
             "ReplicaSet"*)
-                deployment=$(kubectl get ${owner} -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
-                if [[ -n "$deployment" ]]; then
+                deployment=$(kubectl get "${owner}" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')
+                if [[ -n "$deployment" ]] && [[ "$currentDeloyment" != "$deployment" ]]; then
+                    currentDeloyment="$deployment"
                     echo "in ReplicaSet restart deployment $deployment"
                     kubectl rollout restart deployment "$deployment" -n "$namespace"
-                    kubectl rollout status deploy/${deployment}
+                    kubectl rollout status deployment "${deployment}" -n "$namespace"  
                 else
-                    echo "in ReplicaSet delete pod $pod"
-                    kubectl delete pod "$pod" -n "$namespace"
+                    echo "in ReplicaSet delete pod $owner"
+                    kubectl delete pod "$owner" -n "$namespace"
                 fi
             ;;
             "StatefulSet"*)
                 echo "restart statefulset $owner"
-                kubectl rollout restart ${owner} -n "$namespace"
-                kubectl rollout status ${owner} -n "$namespace"
+                kubectl rollout restart "${owner}" -n "$namespace"
+                kubectl rollout status "${owner}" -n "$namespace"
             ;;
             *)
                 # Don't do anything for (Cron)Job, or no owner pod for now.
