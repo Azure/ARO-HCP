@@ -100,7 +100,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return o.PipelineOptions.Pipeline.Run(ctx, &pipeline.PipelineRunOptions{
+	return pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
 		DryRun:                o.DryRun,
 		Vars:                  variables,
 		Region:                rolloutOptions.Region,

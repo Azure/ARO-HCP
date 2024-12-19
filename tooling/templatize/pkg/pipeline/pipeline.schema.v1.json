@@ -3,6 +3,50 @@
     "title": "pipeline.schema.v1",
     "type": "object",
     "definitions": {
+        "variableRef": {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "step": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "step",
+                        "name"
+                    ]
+                },
+                "configRef": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            },
+            "oneOf": [
+                {
+                    "required": [
+                        "input"
+                    ]
+                },
+                {
+                    "required": [
+                        "configRef"
+                    ]
+                },
+                {
+                    "required": [
+                        "value"
+                    ]
+                }
+            ]
+        },
         "variable": {
             "type": "object",
             "properties": {
@@ -86,7 +130,7 @@
                                 },
                                 "action": {
                                     "type": "string",
-                                    "enum": ["ARM", "Shell"]
+                                    "enum": ["ARM", "Shell", "DelegateChildZoneExtension", "SetCertificateIssuer"]
                                 },
                                 "template": {
                                     "type": "string"
@@ -115,6 +159,18 @@
                                 },
                                 "dryRun": {
                                     "type": "object"
+                                },
+                                "vaultBaseUrl": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "provider": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "parentZoneName": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "childZoneName": {
+                                    "$ref": "#/definitions/variableRef"
                                 }
                             },
                             "oneOf": [
@@ -199,6 +255,62 @@
                                     },
                                     "required": [
                                         "command"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "type": "string",
+                                            "enum": ["DelegateChildZoneExtension"]
+                                        },
+                                        "parentZoneName": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "childZoneName": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "parentZoneName",
+                                        "childZoneName"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "type": "string",
+                                            "enum": ["SetCertificateIssuer"]
+                                        },
+                                        "vaultBaseUrl": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "provider": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "vaultBaseUrl",
+                                        "provider"
                                     ]
                                 }
                             ],

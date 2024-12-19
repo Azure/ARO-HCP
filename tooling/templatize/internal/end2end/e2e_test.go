@@ -35,17 +35,13 @@ func TestE2EMake(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.Step{
-		Name:    "test",
-		Action:  "Shell",
-		Command: "make test",
-		Variables: []pipeline.Variable{
-			{
-				Name:      "TEST_ENV",
-				ConfigRef: "test_env",
-			},
-		},
-	}, 0)
+	e2eImpl.AddStep(
+		pipeline.NewShellStep("test", "make test").WithVariables(pipeline.Variable{
+			Name:      "TEST_ENV",
+			ConfigRef: "test_env",
+		}),
+		0,
+	)
 
 	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"test_env": "test_env"}})
 
@@ -68,11 +64,7 @@ func TestE2EKubernetes(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.Step{
-		Name:    "test",
-		Action:  "Shell",
-		Command: "kubectl get namespaces",
-	}, 0)
+	e2eImpl.AddStep(pipeline.NewShellStep("test", "kubectl get namespaces"), 0)
 	e2eImpl.SetAKSName("aro-hcp-aks")
 
 	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"rg": "hcp-underlay-dev-svc"}})
@@ -88,13 +80,7 @@ func TestE2EArmDeploy(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.Step{
-		Name:       "test",
-		Action:     "ARM",
-		Template:   "test.bicep",
-		Parameters: "test.bicepparm",
-	}, 0)
-
+	e2eImpl.AddStep(pipeline.NewARMStep("test", "test.bicep", "test.bicepparm"), 0)
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
@@ -140,11 +126,10 @@ func TestE2EShell(t *testing.T) {
 
 	e2eImpl := newE2E(tmpDir)
 
-	e2eImpl.AddStep(pipeline.Step{
-		Name:    "readInput",
-		Action:  "Shell",
-		Command: "/bin/echo ${PWD} > env.txt",
-	}, 0)
+	e2eImpl.AddStep(
+		pipeline.NewShellStep("readInput", "/bin/echo ${PWD} > env.txt"),
+		0,
+	)
 
 	persistAndRun(t, &e2eImpl)
 
@@ -161,27 +146,20 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.Step{
-		Name:       "createZone",
-		Action:     "ARM",
-		Template:   "test.bicep",
-		Parameters: "test.bicepparm",
-	}, 0)
 
-	e2eImpl.AddStep(pipeline.Step{
-		Name:    "readInput",
-		Action:  "Shell",
-		Command: "echo ${zoneName} > env.txt",
-		Variables: []pipeline.Variable{
-			{
+	e2eImpl.AddStep(pipeline.NewARMStep("createZone", "test.bicep", "test.bicepparm"), 0)
+
+	e2eImpl.AddStep(pipeline.NewShellStep(
+		"readInput", "echo ${zoneName} > env.txt",
+	).WithVariables(
+		pipeline.Variable{
+			Name: "zoneName",
+			Input: &pipeline.Input{
 				Name: "zoneName",
-				Input: &pipeline.Input{
-					Name: "zoneName",
-					Step: "createZone",
-				},
+				Step: "createZone",
 			},
 		},
-	}, 0)
+	), 0)
 
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
@@ -212,43 +190,26 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.Step{
-		Name:       "parameterA",
-		Action:     "ARM",
-		Template:   "testa.bicep",
-		Parameters: "testa.bicepparm",
-	}, 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm"), 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterB", "testb.bicep", "testb.bicepparm").WithVariables(pipeline.Variable{
+		Name: "parameterB",
+		Input: &pipeline.Input{
+			Name: "parameterA",
+			Step: "parameterA",
+		},
+	}), 0)
 
-	e2eImpl.AddStep(pipeline.Step{
-		Name:       "parameterB",
-		Action:     "ARM",
-		Template:   "testb.bicep",
-		Parameters: "testb.bicepparm",
-		Variables: []pipeline.Variable{
-			{
-				Name: "parameterB",
-				Input: &pipeline.Input{
-					Name: "parameterA",
-					Step: "parameterA",
-				},
+	e2eImpl.AddStep(pipeline.NewShellStep(
+		"readInput", "echo ${end} > env.txt",
+	).WithVariables(
+		pipeline.Variable{
+			Name: "end",
+			Input: &pipeline.Input{
+				Name: "parameterC",
+				Step: "parameterB",
 			},
 		},
-	}, 0)
-
-	e2eImpl.AddStep(pipeline.Step{
-		Name:    "readInput",
-		Action:  "Shell",
-		Command: "echo ${end} > env.txt",
-		Variables: []pipeline.Variable{
-			{
-				Name: "end",
-				Input: &pipeline.Input{
-					Name: "parameterC",
-					Step: "parameterB",
-				},
-			},
-		},
-	}, 0)
+	), 0)
 
 	e2eImpl.AddBicepTemplate(`
 param parameterA string
@@ -290,29 +251,19 @@ func TestE2EArmDeployWithOutputRGOverlap(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.Step{
-		Name:       "parameterA",
-		Action:     "ARM",
-		Template:   "testa.bicep",
-		Parameters: "testa.bicepparm",
-	}, 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm"), 0)
 
 	e2eImpl.AddResourceGroup()
 
-	e2eImpl.AddStep(pipeline.Step{
-		Name:    "readInput",
-		Action:  "Shell",
-		Command: "echo ${end} > env.txt",
-		Variables: []pipeline.Variable{
-			{
-				Name: "end",
-				Input: &pipeline.Input{
-					Name: "parameterA",
-					Step: "parameterA",
-				},
+	e2eImpl.AddStep(pipeline.NewShellStep("readInput", "echo ${end} > env.txt").WithVariables(
+		pipeline.Variable{
+			Name: "end",
+			Input: &pipeline.Input{
+				Name: "parameterA",
+				Step: "parameterA",
 			},
 		},
-	}, 1)
+	), 1)
 
 	e2eImpl.AddBicepTemplate(`
 param parameterA string

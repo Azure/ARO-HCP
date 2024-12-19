@@ -4,9 +4,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"gotest.tools/v3/assert"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"gotest.tools/v3/assert"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
@@ -31,7 +32,7 @@ func TestDeepCopy(t *testing.T) {
 	assert.Assert(t, pipeline != pipelineCopy, "expected pipeline and copy to be different")
 	assert.Equal(t, pipelineCopy.PipelineFilePath(), newPipelinePath, "expected pipeline copy to have new path")
 
-	if diff := cmp.Diff(pipeline, pipelineCopy, cmpopts.IgnoreUnexported(Pipeline{}, Step{})); diff != "" {
+	if diff := cmp.Diff(pipeline, pipelineCopy, cmpopts.IgnoreUnexported(Pipeline{}, ShellStep{}, ARMStep{})); diff != "" {
 		t.Errorf("got diffs after pipeline deep copy: %v", diff)
 	}
 }

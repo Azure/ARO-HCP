@@ -15,7 +15,7 @@ func TestCreateCommand(t *testing.T) {
 	ctx := context.Background()
 	testCases := []struct {
 		name           string
-		step           *Step
+		step           *ShellStep
 		dryRun         bool
 		envVars        map[string]string
 		expectedScript string
@@ -24,14 +24,14 @@ func TestCreateCommand(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			step: &Step{
+			step: &ShellStep{
 				Command: "/bin/echo hello",
 			},
 			expectedScript: buildBashScript("/bin/echo hello"),
 		},
 		{
 			name: "dry-run",
-			step: &Step{
+			step: &ShellStep{
 				Command: "/bin/echo hello",
 				DryRun: DryRun{
 					Command: "/bin/echo dry-run",
@@ -42,7 +42,7 @@ func TestCreateCommand(t *testing.T) {
 		},
 		{
 			name: "dry-run-env",
-			step: &Step{
+			step: &ShellStep{
 				Command: "/bin/echo",
 				DryRun: DryRun{
 					Variables: []Variable{
@@ -60,7 +60,7 @@ func TestCreateCommand(t *testing.T) {
 		},
 		{
 			name: "dry-run fail",
-			step: &Step{
+			step: &ShellStep{
 				Command: "/bin/echo",
 			},
 			dryRun:      true,
@@ -86,7 +86,7 @@ func TestMapStepVariables(t *testing.T) {
 	testCases := []struct {
 		name     string
 		vars     config.Variables
-		step     Step
+		step     *ShellStep
 		expected map[string]string
 		err      string
 	}{
@@ -95,7 +95,7 @@ func TestMapStepVariables(t *testing.T) {
 			vars: config.Variables{
 				"FOO": "bar",
 			},
-			step: Step{
+			step: &ShellStep{
 				Variables: []Variable{
 					{
 						Name:      "BAZ",
@@ -110,7 +110,7 @@ func TestMapStepVariables(t *testing.T) {
 		{
 			name: "missing",
 			vars: config.Variables{},
-			step: Step{
+			step: &ShellStep{
 				Variables: []Variable{
 					{
 						ConfigRef: "FOO",
@@ -124,7 +124,7 @@ func TestMapStepVariables(t *testing.T) {
 			vars: config.Variables{
 				"FOO": 42,
 			},
-			step: Step{
+			step: &ShellStep{
 				Variables: []Variable{
 					{
 						Name:      "BAZ",
@@ -155,20 +155,20 @@ func TestRunShellStep(t *testing.T) {
 	testCases := []struct {
 		name string
 		vars config.Variables
-		step *Step
+		step *ShellStep
 		err  string
 	}{
 		{
 			name: "basic",
 			vars: config.Variables{},
-			step: &Step{
+			step: &ShellStep{
 				Command: "echo hello",
 			},
 		},
 		{
 			name: "test nounset",
 			vars: config.Variables{},
-			step: &Step{
+			step: &ShellStep{
 				Command: "echo $DOES_NOT_EXIST",
 			},
 			err: "DOES_NOT_EXIST: unbound variable\n exit status 1",
@@ -176,7 +176,7 @@ func TestRunShellStep(t *testing.T) {
 		{
 			name: "test errexit",
 			vars: config.Variables{},
-			step: &Step{
+			step: &ShellStep{
 				Command: "false ; echo hello",
 			},
 			err: "failed to execute shell command:  exit status 1",
@@ -184,7 +184,7 @@ func TestRunShellStep(t *testing.T) {
 		{
 			name: "test pipefail",
 			vars: config.Variables{},
-			step: &Step{
+			step: &ShellStep{
 				Command: "false | echo",
 			},
 			err: "failed to execute shell command: \n exit status 1",
@@ -192,7 +192,7 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.step.runShellStep(context.Background(), "", &PipelineRunOptions{}, map[string]output{})
+			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, map[string]output{})
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {

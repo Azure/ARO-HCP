@@ -68,16 +68,17 @@ func readReferencedPipelineFiles(p *pipeline.Pipeline) (map[string][]byte, error
 	referencedFiles := make(map[string][]byte)
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
-			if step.Parameters != "" {
-				absFilePath, err := p.AbsoluteFilePath(step.Parameters)
+			switch concreteStep := step.(type) {
+			case *pipeline.ARMStep:
+				absFilePath, err := p.AbsoluteFilePath(concreteStep.Parameters)
 				if err != nil {
-					return nil, fmt.Errorf("failed to get absolute file path for %q: %w", step.Parameters, err)
+					return nil, fmt.Errorf("failed to get absolute file path for %q: %w", concreteStep.Parameters, err)
 				}
 				paramFileContent, err := os.ReadFile(absFilePath)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read parameter file %q: %w", step.Parameters, err)
+					return nil, fmt.Errorf("failed to read parameter file %q: %w", concreteStep.Parameters, err)
 				}
-				referencedFiles[step.Parameters] = paramFileContent
+				referencedFiles[concreteStep.Parameters] = paramFileContent
 			}
 		}
 	}
@@ -94,18 +95,19 @@ func processPipelineForEV2(p *pipeline.Pipeline, referencedFiles map[string][]by
 	for _, rg := range processingPipeline.ResourceGroups {
 		for _, step := range rg.Steps {
 			// preprocess the parameters file with scopebinding variables
-			if step.Parameters != "" {
-				paramFileContent, ok := referencedFiles[step.Parameters]
+			switch concreteStep := step.(type) {
+			case *pipeline.ARMStep:
+				paramFileContent, ok := referencedFiles[concreteStep.Parameters]
 				if !ok {
-					return nil, nil, fmt.Errorf("parameter file %q not found", step.Parameters)
+					return nil, nil, fmt.Errorf("parameter file %q not found", concreteStep.Parameters)
 				}
 				preprocessedBytes, err := config.PreprocessContent(paramFileContent, scopeBoundBicepParamVars)
 				if err != nil {
 					return nil, nil, err
 				}
-				newParameterFilePath := buildPrefixedFilePath(step.Parameters, precompiledPrefix)
+				newParameterFilePath := buildPrefixedFilePath(concreteStep.Parameters, precompiledPrefix)
 				processedFiles[newParameterFilePath] = preprocessedBytes
-				step.Parameters = newParameterFilePath
+				concreteStep.Parameters = newParameterFilePath
 			}
 		}
 	}

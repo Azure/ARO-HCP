@@ -12,6 +12,10 @@ defaults:
   clusterService:
     imageTag: abcdef
     replicas: 3
+  parentZone: example.com
+  childZone: child.example.com
+  vaultBaseUrl: myvault.azure.com
+  provider: Self
 clouds:
   fairfax:
     defaults:

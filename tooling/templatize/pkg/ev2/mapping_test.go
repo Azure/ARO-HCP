@@ -128,6 +128,14 @@ func TestPlaceholderGenerators(t *testing.T) {
 			expectedFlattened: "__foo.bar__",
 			expectedReplace:   "any('__foo.bar__')",
 		},
+		{
+			name:              "bicep array param",
+			generator:         NewBicepParamPlaceholders(),
+			key:               []string{"foo", "bar"},
+			valueType:         reflect.TypeOf([]any{}),
+			expectedFlattened: "__foo.bar__",
+			expectedReplace:   "any('__foo.bar__')",
+		},
 	}
 
 	for _, tc := range tests {
