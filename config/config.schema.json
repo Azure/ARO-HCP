@@ -329,6 +329,9 @@
       "kubernetesVersion": {
         "type": "string"
       },
+      "acrPullImageDigest": {
+        "type": "string"
+      },
       "maestro": {
         "type": "object",
         "properties": {
@@ -705,6 +708,7 @@
       "imageSync",
       "istioVersion",
       "kubernetesVersion",
+      "acrPullImageDigest",
       "maestro",
       "mgmt",
       "mgmtKeyVault",
