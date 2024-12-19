@@ -323,9 +323,6 @@
           "rg"
         ]
       },
-      "istioVersion": {
-        "type": "string"
-      },
       "kubernetesVersion": {
         "type": "string"
       },
@@ -672,7 +669,30 @@
           },
           "subscription": {
             "type": "string"
-          }
+          },
+          "istio": {
+            "type": "object",
+            "properties": {
+              "istioctlVersion": {
+                "description": "Latest version of istioctl. This is used to download the istioctl",
+                "type": "string"
+              },
+              "tag": {
+                "description": "The revision tag used in istioctl",
+                "type": "string"
+              },
+              "versions": {
+                "description": "The current istio version in the AKS cluster as CSV, will need to change to array once tooling is ready",
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
+              },
+              "targetVersion": {
+                "description": "The target istio version that will be updated to",
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9-]+$"
+              }
+            }
+        }
         },
         "additionalProperties": false,
         "required": [
@@ -703,7 +723,6 @@
       "hypershift",
       "hypershiftOperator",
       "imageSync",
-      "istioVersion",
       "kubernetesVersion",
       "maestro",
       "mgmt",

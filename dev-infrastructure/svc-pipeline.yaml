@@ -32,3 +32,15 @@ resourceGroups:
       configRef: monitoring.grafanaName
     dependsOn:
     - svc
+  - name: istio
+    action: Shell
+    command: scripts/istio.sh
+    variables:
+    - name: TARGET_VERSION
+      configRef: svc.istio.targetVersion
+    - name: ISTIOCTL_VERSION
+      configRef: svc.istio.istioctlVersion
+    - name: TAG
+      configRef: svc.istio.tag
+    dependsOn:
+    - enable-metrics
