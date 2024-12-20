@@ -1,7 +1,7 @@
 ---
   name: ARO HCP Service PR Check
   env:
-    DEPLOY_ENV: ${{ inputs.deploy_env }}
+    DEPLOY_ENV: dev
     SKIP_CONFIRM: true
   on:
     pull_request:
@@ -30,13 +30,8 @@
         - opened
         - synchronize
         - reopened
-
-  concurrency:
-    group: ${{ github.workflow }}-service-cd-${{ inputs.deploy_env }}
-    cancel-in-progress: false
-
+  
   jobs:
-
     service_cluster_pr_check:
       permissions:
         id-token: 'write'
