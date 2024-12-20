@@ -41,6 +41,15 @@
     cancel-in-progress: false
 
   jobs:
+    is_running_on_fork:
+      name: 'Ensure PR is submitted from Azure/ARO-HCP'
+      if: github.event_name != 'workflow_dispatch'
+      runs-on: ubuntu-latest
+      steps:
+        - name: Fail if PR submitted from fork
+          if: ${{ github.event.pull_request.head.repo.full_name != 'Azure/ARO-HCP' }}
+          run: core.setFailed('Expected source repository to be Azure/ARO-HCP, not ${{ github.event.pull_request.head.repo.full_name }}, re-create PR as a branch of Azure/ARO-HCP')
+
     deploy_global_rg:
       name: 'Deploy global resources'
       if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
