@@ -2,7 +2,7 @@ apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: maestro-agent-metrics
-  namespace: maestro
+  namespace: kube-system
 spec:
   selector:
     matchLabels:
@@ -15,7 +15,7 @@ spec:
       port: metrics
       scheme: https
       bearerTokenSecret:
-        name: maestro-agent-metrics-sa-token
+        name: ama-metrics-mtls-secret
         key: token
       tlsConfig:
         insecureSkipVerify: true
