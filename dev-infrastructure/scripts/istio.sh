@@ -3,7 +3,7 @@
 set -euo pipefail
 ISTIO_NAMESPACE="aks-istio-system"
 echo "********** Check istio is up and running **************"
-ISTIO_PODS_COUNT=$(kubectl get pods -n ${ISTIO_NAMESPACE} -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\n"}{end}' | grep -c "${TARGET_VERSION}")
+ISTIO_PODS_COUNT=$(kubectl get pods -n ${ISTIO_NAMESPACE} -l istio.io/rev="${TARGET_VERSION}" --field-selector=status.phase=Running --no-headers | wc -l)
 if [[ $ISTIO_PODS_COUNT -lt 2 ]]; then
     echo "Istio pods are not running, Please check the istio pods"
     exit 1
