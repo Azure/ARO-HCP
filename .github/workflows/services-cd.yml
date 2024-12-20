@@ -82,7 +82,7 @@
 
         - name: 'Deploy Frontend'
           run: |
-            ./run_pipeline.sh dev ./frontend/pipeline.yaml deploy -c public
+            make frontend.deploy
 
         - name: 'Deploy Backend'
           run: |

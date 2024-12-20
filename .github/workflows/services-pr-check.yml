@@ -78,4 +78,4 @@
           env:
             PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
-            ./run_pipeline.sh dev ./frontend/pipeline.yaml deploy -c public -d
+            make frontend.dry_run
