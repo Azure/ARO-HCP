@@ -1,6 +1,13 @@
 #!/bin/bash
 
 set -euo pipefail
+ISTIO_NAMESPACE="aks-istio-system"
+echo "********** Check istio is up and running **************"
+ISTIO_PODS_COUNT=$(kubectl get pods -n ${ISTIO_NAMESPACE} -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\n"}{end}' | grep -c "${TARGET_VERSION}")
+if [[ $ISTIO_PODS_COUNT -lt 2 ]]; then
+    echo "Istio pods are not running, Please check the istio pods"
+    exit 1
+fi
 
 echo "********** Download istioctl **************"
 # Determines the operating system.
@@ -53,7 +60,7 @@ cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="
 
-ISTIO_NAMESPACE="aks-istio-system"
+
 
 echo "********** ISTIO Upgrade **************"
 # Followed this guide for istio upgrade https://learn.microsoft.com/en-us/azure/aks/istio-upgrade
