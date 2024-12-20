@@ -12,7 +12,7 @@ resourceGroups:
     dryRun:
       variables:
         - name: HELM_DRY_RUN
-          value: "--dry-run=server --debug"
+          value: "--suppress-secrets"
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: svcAcrName
