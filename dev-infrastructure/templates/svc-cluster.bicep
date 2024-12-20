@@ -40,7 +40,7 @@ param subnetPrefix string
 @description('Specifies the address prefix of the subnet hosting the pods of the AKS cluster.')
 param podSubnetPrefix string
 
-@description('Kuberentes version to use with AKS')
+@description('Kubernetes version to use with AKS')
 param kubernetesVersion string
 
 @description('Istio control plane versions to use with AKS. CSV format')
