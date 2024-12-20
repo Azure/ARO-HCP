@@ -22,6 +22,20 @@ param certName string
 @description('This is a regional DNS zone')
 param regionalDNSZoneName string
 
+@description('Set to true to prevent resources from being pruned after 48 hours')
+param persist bool = false
+
+// Tags the resource group
+resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
+  name: 'default'
+  scope: resourceGroup()
+  properties: {
+    tags: {
+      persist: toLower(string(persist))
+    }
+  }
+}
+
 //
 //   K E Y V A U L T S
 //

@@ -200,7 +200,9 @@ svc: svc.rg
 		--template-file templates/svc-infra.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/svc-infra.bicepparam
+			configurations/svc-infra.bicepparam \
+		--parameters \
+			persist=${PERSIST}
 	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)
 	az deployment group create \
 		--name $(SVC_RG_DEPLOYMENT_NAME) \
@@ -322,7 +324,9 @@ mgmt: mgmt.wait mgmt.rg
 		--template-file templates/mgmt-infra.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/mgmt-infra.bicepparam
+			configurations/mgmt-infra.bicepparam \
+		--parameters \
+			persist=${PERSIST}
 	@scripts/cleanup-orphaned-rolebindings.sh $(MGMT_RESOURCEGROUP)
 	az deployment group create \
 		--name $(MGMG_RG_DEPLOYMENT_NAME) \

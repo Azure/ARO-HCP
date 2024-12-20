@@ -147,17 +147,6 @@ resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing
   scope: resourceGroup(serviceKeyVaultResourceGroup)
 }
 
-// Tags the resource group
-resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
-  name: 'default'
-  scope: resourceGroup()
-  properties: {
-    tags: {
-      persist: toLower(string(persist))
-    }
-  }
-}
-
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster'
   scope: resourceGroup()
