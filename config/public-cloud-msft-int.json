@@ -76,7 +76,6 @@
     },
     "rg": "hcp-underlay-imagesync"
   },
-  "istioVersion": "asm-1-22",
   "kubernetesVersion": "1.30.6",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
@@ -157,6 +156,12 @@
     "etcd": {
       "kvName": "arohcp-etcd-int",
       "kvSoftDelete": true
+    },
+    "istio": {
+      "istioctlVersion": "1.24.1",
+      "tag": "prod-stable",
+      "targetVersion": "asm-1-23",
+      "versions": "asm-1-22,asm-1-23"
     },
     "rg": "hcp-underlay-westus3-svc",
     "subscription": "hcp-westus3",

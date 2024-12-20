@@ -43,8 +43,8 @@ param podSubnetPrefix string
 @description('Kuberentes version to use with AKS')
 param kubernetesVersion string
 
-@description('Istio control plane version to use with AKS')
-param istioVersion array
+@description('Istio control plane versions to use with AKS. CSV format')
+param istioVersions string
 
 @description('The name of the keyvault for AKS.')
 @maxLength(24)
@@ -158,7 +158,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     kubernetesVersion: kubernetesVersion
     deployIstio: true
-    istioVersion: istioVersion
+    istioVersions: split(istioVersions, ',')
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
