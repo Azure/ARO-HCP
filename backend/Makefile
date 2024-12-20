@@ -1,10 +1,15 @@
 -include ../setup-env.mk
 
-ifndef COMMIT
-COMMIT := $(shell git rev-parse --short=7 HEAD)
+ARO_HCP_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
+ARO_HCP_REPOSITORY := arohcpbackend
+ARO_HCP_BACKEND_IMAGE ?= $(ARO_HCP_REGISTRY)/$(ARO_HCP_REPOSITORY)
+
+ifeq ($(strip $(COMMIT)),)
+COMMIT := $(shell az acr repository show-tags --name ${ARO_HCP_IMAGE_ACR} --repository ${ARO_HCP_REPOSITORY} --orderby time_desc --top 1 --output tsv)
 endif
-ARO_HCP_BASE_IMAGE ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-ARO_HCP_BACKEND_IMAGE ?= $(ARO_HCP_BASE_IMAGE)/arohcpbackend:$(COMMIT)
+
+BUILD_TAG := $(ARO_HCP_BACKEND_IMAGE):$(shell git rev-parse --short=7 HEAD)
+DEPLOY_TAG := $(ARO_HCP_BACKEND_IMAGE):$(COMMIT)
 
 .DEFAULT_GOAL := backend
 
@@ -23,13 +28,13 @@ clean:
 
 image:
 	pushd .. && git archive --output backend/archive.tar.gz HEAD && popd
-	docker build -f "./Dockerfile" -t ${ARO_HCP_BACKEND_IMAGE} .
+	docker build -f "./Dockerfile" -t ${ARO_HCP_BACKEND_IMAGE}:${BUILD_TAG} .
 	rm -f archive.tar.gz
 .PHONY: image
 
 push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ARO_HCP_BACKEND_IMAGE}
+	docker push ${ARO_HCP_BACKEND_IMAGE}:${BUILD_TAG}
 .PHONY: push
 
 deploy:
@@ -47,9 +52,9 @@ deploy:
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE} \
+		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE}:${DEPLOY_IMAGE} \
 		--set configMap.location=${LOCATION} \
-		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE} \
+		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE}:${DEPLOY_IMAGE} \
 		--namespace aro-hcp
 .PHONY: deploy
 
