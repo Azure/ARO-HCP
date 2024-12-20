@@ -11,8 +11,8 @@ resourceGroups:
     command: make deploy
     dryRun:
       variables:
-        - name: HELM_DRY_RUN
-          value: "--suppress-secrets"
+        - name: DRY_RUN
+          value: "true"
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: svcAcrName

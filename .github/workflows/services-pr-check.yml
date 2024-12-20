@@ -30,7 +30,7 @@
         - opened
         - synchronize
         - reopened
-  
+
   jobs:
     service_cluster_pr_check:
       permissions:
@@ -70,8 +70,12 @@
           with:
             kubelogin-version: 'v0.1.3'
 
+        - name: 'Install helm diff'
+          run: |
+            helm plugin install https://github.com/databus23/helm-diff
+
         - name: 'Deploy Frontend'
-          env: 
+          env:
             PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             ./run_pipeline.sh dev ./frontend/pipeline.yaml deploy -c public -d
