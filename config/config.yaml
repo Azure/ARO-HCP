@@ -235,10 +235,10 @@ clouds:
         imageTag: 9aca808
       # Frontend
       frontend:
-        imageTag: '' # if empty uses commit sha of repo
+        imageTag: '' # if empty will use the most recent tag
       # Backend
       backend:
-        imageTag: '' # if empty uses commit sha of repo
+        imageTag: '' # if empty will use the most recent tag
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'

@@ -13,6 +13,12 @@ DEPLOY_TAG := $(ARO_HCP_FRONTEND_IMAGE):$(COMMIT)
 
 .DEFAULT_GOAL := frontend
 
+testjfc:
+	@echo "BUILD_TAG: $(BUILD_TAG)"
+	@echo "DEPLOY_TAG: $(DEPLOY_TAG)"
+	@echo "ARO_HCP_FRONTEND_IMAGE: $(ARO_HCP_FRONTEND_IMAGE)"
+
+
 frontend:
 	go build -o aro-hcp-frontend .
 

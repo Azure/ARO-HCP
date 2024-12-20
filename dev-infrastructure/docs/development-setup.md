@@ -287,6 +287,15 @@ The ARO-HCP resource provider consists of independent frontend and backend compo
   make backend.deploy
   ```
 
+This will deploy the most recent image tags of the frontend and backend components.
+
+Optionally, a commit hash can be provided to the `frontend.deploy` and `backend.deploy` targets to deploy a specific version of the components. This is useful for testing changes in the frontend or backend components.
+
+  ```bash
+  make frontend.deploy COMMIT=<short-sha>
+  make backend.deploy  COMMIT=<short-sha>
+  ```
+
 To validate, have a look at the `aro-hcp` namespace on the service cluster.
 
 ## Deploy Services to the management cluster
