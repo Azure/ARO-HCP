@@ -2,6 +2,20 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Generated schema for Root",
     "type": "object",
+    "definitions": {
+      "operatorConfig": {
+        "type": "object",
+        "properties": {
+          "roleName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "roleName"
+        ]
+      }
+    },
     "properties": {
       "aksName": {
         "type": "string"
@@ -55,8 +69,37 @@
               "minTLSVersion"
             ]
           },
-          "azureOperatorsManagedIdentitiesConfig":{
-            "type": "string" 
+          "azureOperatorsManagedIdentities": {
+            "type": "object",
+            "properties": {
+              "cloudControllerManager": {
+                "$ref": "#/definitions/operatorConfig"
+              },
+              "ingress": {
+                "$ref": "#/definitions/operatorConfig"
+              },
+              "diskCsiDriver": {
+                "$ref": "#/definitions/operatorConfig"
+              },
+              "fileCsiDriver": {
+                "$ref": "#/definitions/operatorConfig"
+              },
+              "imageRegistry": {
+                "$ref": "#/definitions/operatorConfig"
+              },
+              "cloudNetworkConfig": {
+                "$ref": "#/definitions/operatorConfig"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "cloudControllerManager",
+              "ingress",
+              "diskCsiDriver",
+              "fileCsiDriver",
+              "imageRegistry",
+              "cloudNetworkConfig"
+            ]
           }
         },
         "additionalProperties": false,

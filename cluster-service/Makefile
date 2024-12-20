@@ -1,7 +1,7 @@
-SHELL = /bin/bash
-DEPLOY_ENV ?= personal-dev
-$(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
-include config.mk
+-include ../setup-env.mk
+
+ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${BASE_DNS_ZONE_NAME}"
+
 
 deploy: provision-shard
 	@ISTO_VERSION=$(shell az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
@@ -14,8 +14,17 @@ deploy: provision-shard
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
 	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
 	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
-	helm upgrade --install cluster-service --namespace cluster-service \
-	  deploy/helm/ \
+	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
+	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
+	OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_INGRESS_ROLE_ID=$(shell az role definition list --name "${OP_INGRESS_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_DISK_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
+	helm upgrade --install --wait ${HELM_DRY_RUN} cluster-service deploy/helm \
+	  --namespace cluster-service \
+	  -f deploy/helm/$${OVERRIDES} \
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
 	  --set oidcIssuerBlobServiceUrl=$${OIDC_BLOB_SERVICE_ENDPOINT} \
 	  --set oidcIssuerBaseUrl=$${OIDC_ISSUER_BASE_ENDPOINT} \
@@ -30,21 +39,26 @@ deploy: provision-shard
 	  --set fpaCertName=${FPA_CERT_NAME} \
 	  --set ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID} \
 	  --set ocpAcrUrl=$${OCP_ACR_URL} \
-	  --set databaseDisableTls=${DATABASE_DISABLE_TLS} \
-	  --set databaseAuthMethod=${DATABASE_AUTH_METHOD} \
 	  --set provisionShardsConfig="$(shell base64 -i deploy/provisioning-shards.yml | tr -d '\n')" \
-	  --set deployLocalDatabase=${DEPLOY_LOCAL_DB} \
-	  --set databaseHost=${DB_HOST} \
-	  --set databaseName=${DB_NAME} \
-	  --set databaseUser=${DB_USERNAME} \
-	  --set databasePassword=${DB_PASSWORD} \
+	  --set databaseHost=$${DB_HOST} \
 	  --set azureMiMockServicePrincipalPrincipalId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} \
 	  --set azureMiMockServicePrincipalClientId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
 	  --set azureMiMockServicePrincipalCertName=${MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME} \
 	  --set azureArmHelperIdentityCertName=${ARM_HELPER_CERT_NAME} \
 	  --set azureArmHelperIdentityClientId=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
 	  --set azureArmHelperMockFpaPrincipalId=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
-	  --set azureOperatorsManagedIdentitiesConfig=${AZURE_OPERATORS_MANAGED_IDENTITIES_CONFIG}
+	  --set azureOperatorsMI.cloudControllerManager.roleName="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudControllerManager.roleId="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
+	  --set azureOperatorsMI.ingress.roleName="${OP_INGRESS_ROLE_NAME}" \
+	  --set azureOperatorsMI.ingress.roleId="$${OP_INGRESS_ROLE_ID}" \
+	  --set azureOperatorsMI.diskCsiDriver.roleName="${OP_DISK_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.diskCsiDriver.roleId="$${OP_DISK_CSI_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.fileCsiDriver.roleName="${OP_FILE_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.fileCsiDriver.roleId="$${OP_FILE_CSI_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.imageRegistry.roleName="${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.imageRegistry.roleId="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.cloudNetworkConfig.roleName="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}"
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \

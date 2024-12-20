@@ -1,0 +1,6 @@
+databaseDisableTls: true
+databaseAuthMethod: postgres
+deployLocalDatabase: true
+databaseName: ocm-cs-db
+databaseUser: ocm
+databasePassword: TheBlurstOfTimes

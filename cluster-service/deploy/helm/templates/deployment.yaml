@@ -16,6 +16,14 @@ spec:
       labels:
         app: clusters-service
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/db: {{ include (print $.Template.BasePath "/database.secret.yaml") . | sha256sum }}
+        checksum/azurecreds: {{ include (print $.Template.BasePath "/azure-credentials.secret.yaml") . | sha256sum }}
+        checksum/operatorcfg: {{ include (print $.Template.BasePath "/azure-operators-managed-identities-config.configmap.yaml") . | sha256sum }}
+        checksum/cskv: {{ include (print $.Template.BasePath "/cs-keyvault.secret.yaml") . | sha256sum }}
+        checksum/provisionshard: {{ include (print $.Template.BasePath "/provisioning-shards.secret.yaml") . | sha256sum }}
+        checksum/cs: {{ include (print $.Template.BasePath "/clusters-service.secret.yaml") . | sha256sum }}
+        checksum/runtime: {{ include (print $.Template.BasePath "/azure-runtime-config.configmap.yaml") . | sha256sum }}
     spec:
       serviceAccount: clusters-service
       serviceAccountName: clusters-service

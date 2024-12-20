@@ -91,7 +91,10 @@ func (s *ShellStep) mapStepVariables(vars config.Variables) (map[string]string, 
 				return nil, fmt.Errorf("failed to lookup config reference %s for %s", e.ConfigRef, e.Name)
 			}
 			envVars[e.Name] = utils.AnyToString(value)
+		} else if e.Value != "" {
+			envVars[e.Name] = e.Value
 		}
+		// what about output chaining? :(
 	}
 	return envVars, nil
 }

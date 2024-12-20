@@ -262,4 +262,22 @@ databasePort: "5432"
 managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
 
 # The Azure Operator Managed Identities.
-azureOperatorsManagedIdentitiesConfig: ""
+azureOperatorsMI:
+  cloudControllerManager:
+    roleName: ''
+    roleId: ''
+  ingress:
+    roleName: ''
+    roleId: ''
+  diskCsiDriver:
+    roleName: ''
+    roleId: ''
+  fileCsiDriver:
+    roleName: ''
+    roleId: ''
+  imageRegistry:
+    roleName: ''
+    roleId: ''
+  cloudNetworkConfig:
+    roleName: ''
+    roleId: ''
