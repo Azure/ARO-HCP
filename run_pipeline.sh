@@ -111,7 +111,6 @@ fi
 
 make -s -C ${PROJECT_ROOT_DIR}/tooling/templatize templatize
 TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize"
-helm plugin install https://github.com/databus23/helm-diff
 
 CONFIG_FILE=${CONFIG_FILE:-${PROJECT_ROOT_DIR}/config/config.yaml}
 $TEMPLATIZE pipeline run \
