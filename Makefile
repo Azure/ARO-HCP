@@ -127,12 +127,12 @@ services_all = $(join services_svc,services_mgmt)
 services_svc_pipelines = frontend
 %.deploy:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./run_pipeline.sh $(DEPLOY_ENV) ./$(dirname)/pipeline.yaml deploy -c public
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -s deploy -P run -c public
 
 services_svc_pipelines = frontend
 %.dry_run:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./run_pipeline.sh $(DEPLOY_ENV) ./$(dirname)/pipeline.yaml deploy -c public -d
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -s deploy -P run -c public -d
 
 services_svc_all = $(join services_svc, services_svc_pipelines)
 
