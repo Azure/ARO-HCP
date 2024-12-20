@@ -33,20 +33,18 @@
         - closed
 
   jobs:
-    is_running_on_fork:
-      name: 'Ensure PR is submitted from Azure/ARO-HCP'
+    azure_login:
+      name: 'Azure login'
       if: github.event_name != 'workflow_dispatch'
       runs-on: ubuntu-latest
       permissions:
         id-token: 'write'
         contents: 'read'
       steps:
-        - name: 'Az CLI login - will fail if PR is submitted from a fork of the repo'
-          uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
+        - uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
           with:
             client-id: ${{ secrets.AZURE_CLIENT_ID }}
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        - name: Fail if PR submitted from fork
-          if: failure()
-          run: core.setFailed('Expected source repository to be Azure/ARO-HCP, not ${{ github.event.pull_request.head.repo.full_name }}, re-create PR as a branch of Azure/ARO-HCP')
+        - if: failure()
+          run: core.setFailed('Failed to login to Azure')
