@@ -70,12 +70,8 @@
           with:
             kubelogin-version: 'v0.1.3'
 
-        # Prepare kubeconfig
-        - name: 'Prepare kubeconfig'
-          run: |
-            cd dev-infrastructure/
-            make svc.aks.kubeconfig
-
         - name: 'Deploy Frontend'
+          env: 
+            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             ./run_pipeline.sh dev ./frontend/pipeline.yaml deploy -c public -d
