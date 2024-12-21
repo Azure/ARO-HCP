@@ -213,6 +213,7 @@ svc: svc.rg
 			configurations/svc-cluster.bicepparam \
 		--parameters \
 			persist=${PERSIST}
+	@TARGET_VERSION=$(ISTIO_TARGET_VERSION) ISTIOCTL_VERSION=$(ISTIOCTL_VERSION) TAG=$(ISTIO_TAG) scripts/istio.sh
 .PHONY: svc
 
 svc.enable-aks-metrics:
