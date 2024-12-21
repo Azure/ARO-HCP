@@ -19,7 +19,7 @@ portalocker==2.8.2
 pycparser==2.21
 PyJWT==2.8.0
 pytest==7.4.4
-requests==2.32.0
+requests==2.32.3
 six==1.16.0
 tomli==2.0.1
 typing_extensions==4.9.0
