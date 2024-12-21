@@ -9,8 +9,6 @@ import (
 	"iter"
 	"strings"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -24,14 +22,14 @@ type Cache struct {
 	subscription map[string]*SubscriptionDocument
 }
 
-type operationCacheIterator struct {
-	operation map[string]*OperationDocument
-	err       error
+type cacheIterator struct {
+	docs []any
+	err  error
 }
 
-func (iter operationCacheIterator) Items(ctx context.Context) iter.Seq[[]byte] {
+func (iter cacheIterator) Items(ctx context.Context) iter.Seq[[]byte] {
 	return func(yield func([]byte) bool) {
-		for _, doc := range iter.operation {
+		for _, doc := range iter.docs {
 			// Marshalling the document struct only to immediately unmarshal
 			// it back to a document struct is a little silly but this is to
 			// conform to the DBClientIterator interface.
@@ -48,7 +46,11 @@ func (iter operationCacheIterator) Items(ctx context.Context) iter.Seq[[]byte] {
 	}
 }
 
-func (iter operationCacheIterator) GetError() error {
+func (iter cacheIterator) GetContinuationToken() string {
+	return ""
+}
+
+func (iter cacheIterator) GetError() error {
 	return iter.err
 }
 
@@ -108,21 +110,19 @@ func (c *Cache) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceI
 	return nil
 }
 
-func (c *Cache) ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, resourceType *azcorearm.ResourceType, pageSizeHint int32, continuationToken *string) ([]*ResourceDocument, *string, error) {
-	var resourceList []*ResourceDocument
+func (c *Cache) ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator {
+	var iterator cacheIterator
 
 	// Make sure key prefix is lowercase.
 	prefixString := strings.ToLower(prefix.String() + "/")
 
 	for key, doc := range c.resource {
 		if strings.HasPrefix(key, prefixString) {
-			if resourceType == nil || strings.EqualFold(resourceType.String(), doc.Key.ResourceType.String()) {
-				resourceList = append(resourceList, doc)
-			}
+			iterator.docs = append(iterator.docs, doc)
 		}
 	}
 
-	return resourceList, nil, nil
+	return iterator
 }
 
 func (c *Cache) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
@@ -164,7 +164,11 @@ func (c *Cache) DeleteOperationDoc(ctx context.Context, operationID string) erro
 }
 
 func (c *Cache) ListAllOperationDocs(ctx context.Context) DBClientIterator {
-	return operationCacheIterator{operation: c.operation}
+	var iterator cacheIterator
+	for _, doc := range c.operation {
+		iterator.docs = append(iterator.docs, doc)
+	}
+	return iterator
 }
 
 func (c *Cache) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
