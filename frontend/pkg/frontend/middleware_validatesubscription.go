@@ -6,7 +6,6 @@ package frontend
 import (
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -20,13 +19,7 @@ const (
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/subscription-lifecycle-api-reference.md
 func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-
-	logger, err := LoggerFromContext(ctx)
-	if err != nil {
-		config.DefaultLogger().Error(err.Error())
-		arm.WriteInternalServerError(w)
-		return
-	}
+	logger := LoggerFromContext(ctx)
 
 	dbClient, err := DBClientFromContext(ctx)
 	if err != nil {
