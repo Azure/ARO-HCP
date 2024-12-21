@@ -142,6 +142,19 @@ clouds:
       clusterService:
         imageTag: ecd15ad
         imageRepo: app-sre/uhc-clusters-service
+        azureOperatorsManagedIdentities:
+          cloudControllerManager:
+            roleName: Azure Red Hat OpenShift Cloud Controller Manager Role
+          ingress:
+            roleName: Azure Red Hat OpenShift Cluster Ingress Operator Role
+          diskCsiDriver:
+            roleName: Azure Red Hat OpenShift Disk Storage Operator Role
+          fileCsiDriver:
+            roleName: Azure Red Hat OpenShift File Storage Operator Role
+          imageRegistry:
+            roleName: Azure Red Hat OpenShift Image Registry Operator Role
+          cloudNetworkConfig:
+            roleName: Azure Red Hat OpenShift Network Operator Role
       hypershiftOperator:
         imageTag: 9aca808
       imageSync:
