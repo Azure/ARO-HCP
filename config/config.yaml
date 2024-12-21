@@ -103,6 +103,11 @@ defaults:
       private: false
       softDelete: false
 
+  # MCE
+  mce:
+    clcStateMetrics:
+      imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
+
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
     rg: hcp-underlay-{{ .ctx.regionShort }}
