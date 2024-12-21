@@ -277,7 +277,7 @@ clouds:
           # Cluster Service
           clusterService:
             postgres:
-              deploy: true
+              deploy: false
           # DNS
           regionalDNSSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
