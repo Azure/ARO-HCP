@@ -7,6 +7,8 @@ CLOUD="${CLOUD:-public}"
 REGION="${REGION:-westus3}"
 CXSTAMP="${CXSTAMP:-1}"
 EXTRA_ARGS=""
+PIPELINE_MODE="inspect"
+DRY_RUN=""
 
 # Function to display usage
 usage() {
@@ -14,6 +16,7 @@ usage() {
     echo "  deploy_env  Deployment environment"
     echo "  input       Optional input file"
     echo "  output      Optional output file"
+    echo "  -d          Dry run"
     echo "  -i          Set the input file same as second arg"
     echo "  -o          Set the output file same as third arg"
     echo "  -c          Set the cloud (default: public)"
@@ -45,10 +48,13 @@ if [ "$#" -ge 1 ] && [[ ! "$1" =~ ^- ]]; then
 fi
 
 # Parse optional flags
-while getopts "c:r:x:e:i:o:p:s:" opt; do
+while getopts "c:dr:x:e:i:o:p:P:s:" opt; do
     case ${opt} in
         c)
             CLOUD=${OPTARG}
+            ;;
+        d)
+            DRY_RUN="--dry-run"
             ;;
         r)
             REGION=${OPTARG}
@@ -67,6 +73,9 @@ while getopts "c:r:x:e:i:o:p:s:" opt; do
             ;;
         p)
             PIPELINE=${OPTARG}
+            ;;
+        P)
+            PIPELINE_MODE=${OPTARG}
             ;;
         s)
             PIPELINE_STEP=${OPTARG}
@@ -127,7 +136,7 @@ if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
         --input=${INPUT} \
         --output=${OUTPUT} \
         ${EXTRA_ARGS}
-elif [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
+elif [ $PIPELINE_MODE == "inspect" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
     $TEMPLATIZE pipeline inspect \
         --config-file=${CONFIG_FILE} \
         --cloud=${CLOUD} \
@@ -139,6 +148,17 @@ elif [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
         --step=${PIPELINE_STEP} \
         --scope vars \
         --format makefile
+elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
+    $TEMPLATIZE pipeline run \
+        --config-file=${CONFIG_FILE} \
+        --cloud=${CLOUD} \
+        --deploy-env=${DEPLOY_ENV} \
+        --region=${REGION} \
+        --region-short=${REGION_STAMP} \
+        --stamp=${CXSTAMP} \
+        --pipeline-file=${PIPELINE} \
+        --step=${PIPELINE_STEP} \
+        ${DRY_RUN}
 else
     $TEMPLATIZE inspect \
         --config-file=${CONFIG_FILE} \
