@@ -49,11 +49,10 @@ deploy:
 			--name ${AKS_NAME} \
 			--query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId \
 			--output tsv); \
-	ISTO_VERSION=$$(az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
-	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
+	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	${HELM_CMD} aro-hcp-frontend-dev \
 		deploy/helm/frontend/ \
 		--set azure.clientId=$${SECRET_STORE_MI_CLIENT_ID} \
