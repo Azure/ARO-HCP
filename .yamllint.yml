@@ -5,6 +5,7 @@ yaml-files:
   - '.yamllint'
 ignore:
   - 'cluster-service/deploy/helm/templates/azure-operators-managed-identities-config.configmap.yaml'
+  - 'acrpull/deploy/helm/acrpull/templates/deployment.yaml'
 
 rules:
   brackets: enable

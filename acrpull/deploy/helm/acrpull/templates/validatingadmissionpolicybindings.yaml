@@ -1,0 +1,44 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "controller-token-request-policy-binding"
+  labels:
+    app.kubernetes.io/name: acrpull
+    app.kubernetes.io/managed-by: Helm
+spec:
+  policyName: "controller-token-request-policy"
+  validationActions: [Deny]
+  paramRef:
+    name: "admission-policies-controller-config"
+    namespace: {{ .Values.namespace }}
+    parameterNotFoundAction: "Deny"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "controller-secret-mutation-policy-binding"
+  labels:
+    app.kubernetes.io/name: acrpull
+    app.kubernetes.io/managed-by: Helm
+spec:
+  policyName: "controller-secret-mutation-policy"
+  validationActions: [Deny]
+  paramRef:
+    name: "admission-policies-controller-config"
+    namespace: {{ .Values.namespace }}
+    parameterNotFoundAction: "Deny"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "controller-service-account-mutation-policy-binding"
+  labels:
+    app.kubernetes.io/name: acrpull
+    app.kubernetes.io/managed-by: Helm
+spec:
+  policyName: "controller-service-account-mutation-policy"
+  validationActions: [Deny]
+  paramRef:
+    name: "admission-policies-controller-config"
+    namespace: {{ .Values.namespace }}
+    parameterNotFoundAction: "Deny"
