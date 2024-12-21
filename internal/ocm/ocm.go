@@ -43,7 +43,7 @@ type ClusterServiceClient struct {
 
 func (csc *ClusterServiceClient) GetConn() *sdk.Connection { return csc.Conn }
 
-// AddProperties injects the some addtional properties into the CSCluster Object.
+// AddProperties injects the some additional properties into the CSCluster Object.
 func (csc *ClusterServiceClient) AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder {
 	additionalProperties := map[string]string{}
 	if csc.ProvisionShardID != nil {
