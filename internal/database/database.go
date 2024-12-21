@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -51,6 +50,7 @@ func isResponseError(err error, statusCode int) bool {
 
 type DBClientIterator interface {
 	Items(ctx context.Context) iter.Seq[[]byte]
+	GetContinuationToken() string
 	GetError() error
 }
 
@@ -71,7 +71,7 @@ type DBClient interface {
 	// DeleteResourceDoc deletes a ResourceDocument from the database given the resourceID
 	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource or NodePools child resource.
 	DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error
-	ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, resourceType *azcorearm.ResourceType, pageSizeHint int32, continuationToken *string) ([]*ResourceDocument, *string, error)
+	ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
@@ -269,13 +269,23 @@ func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.
 	return nil
 }
 
-func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, resourceType *azcorearm.ResourceType, pageSizeHint int32, continuationToken *string) ([]*ResourceDocument, *string, error) {
+// ListResourceDocs searches for resource documents that match the given resource ID prefix.
+// maxItems can limit the number of items returned at once. A negative value will cause the
+// returned iterator to yield all matching items. A positive value will cause the returned
+// iterator to include a continuation token if additional items are available.
+func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator {
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(prefix.SubscriptionID))
 
+	// XXX The Cosmos DB REST API gives special meaning to -1 for "x-ms-max-item-count"
+	//     but it's not clear if it treats all negative values equivalently. The Go SDK
+	//     passes the PageSizeHint value as provided so normalize negative values to -1
+	//     to be safe.
+	maxItems = max(maxItems, -1)
+
 	query := "SELECT * FROM c WHERE STARTSWITH(c.key, @prefix, true)"
 	opt := azcosmos.QueryOptions{
-		PageSizeHint:      pageSizeHint,
+		PageSizeHint:      maxItems,
 		ContinuationToken: continuationToken,
 		QueryParameters: []azcosmos.QueryParameter{
 			{
@@ -285,39 +295,13 @@ func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *arm.Resou
 		},
 	}
 
-	var response azcosmos.QueryItemsResponse
-	resourceDocs := make([]*ResourceDocument, 0, pageSizeHint)
+	pager := d.resources.NewQueryItemsPager(query, pk, &opt)
 
-	// Loop until we fill the pre-allocated resourceDocs slice,
-	// or until we run out of items from the resources container.
-	for opt.PageSizeHint > 0 {
-		var err error
-
-		response, err = d.resources.NewQueryItemsPager(query, pk, &opt).NextPage(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to advance page while querying Resources container for items with a key prefix of '%s': %w", prefix, err)
-		}
-
-		for _, item := range response.Items {
-			var doc ResourceDocument
-			err = json.Unmarshal(item, &doc)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal item while querying Resources container for items with a key prefix of '%s': %w", prefix, err)
-			}
-			if resourceType == nil || strings.EqualFold(resourceType.String(), doc.Key.ResourceType.String()) {
-				resourceDocs = append(resourceDocs, &doc)
-			}
-		}
-
-		if response.ContinuationToken == nil {
-			break
-		}
-
-		opt.PageSizeHint = int32(cap(resourceDocs) - len(resourceDocs))
-		opt.ContinuationToken = response.ContinuationToken
+	if maxItems > 0 {
+		return NewQueryItemsSinglePageIterator(pager)
+	} else {
+		return NewQueryItemsIterator(pager)
 	}
-
-	return resourceDocs, response.ContinuationToken, nil
 }
 
 // GetOperationDoc retrieves the asynchronous operation document for the given
