@@ -37,6 +37,19 @@ fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
+helm-lint:
+	# Find all parent directories of directories containing 'Chart.yaml', output via csv without the leading './'
+	CHART_DIRS=$(shell find . -type f -name 'Chart.yaml' -printf '%h\n' |sed 's|^\./||' | xargs -I {} dirname {} | sort -u | tr '\n' ',' | sed 's/,$$//') && \
+	docker run --rm \
+		-v $(PWD)/:/src/:z \
+		-w /src/ \
+		quay.io/helmpack/chart-testing:v3.11.0 ct lint \
+		--chart-dirs="$${CHART_DIRS}" \
+		--all \
+		--validate-maintainers=false; \
+		find . -type f -name 'Chart.lock' | xargs -I {} rm {}; \
+		find . -type f -name '*.tgz' | xargs -I {} rm {}
+
 #
 # Infra
 #
