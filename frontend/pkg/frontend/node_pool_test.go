@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
@@ -89,7 +91,7 @@ func TestCreateNodePool(t *testing.T) {
 			f := &Frontend{
 				dbClient:             database.NewCache(),
 				logger:               slog.New(slog.NewTextHandler(io.Discard, nil)),
-				metrics:              NewPrometheusEmitter(),
+				metrics:              NewPrometheusEmitter(prometheus.NewRegistry()),
 				clusterServiceClient: &mockCSClient,
 			}
 			hcpCluster := api.NewDefaultHCPOpenShiftCluster()

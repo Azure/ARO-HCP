@@ -29,11 +29,11 @@ type PrometheusEmitter struct {
 	registry prometheus.Registerer
 }
 
-func NewPrometheusEmitter() *PrometheusEmitter {
+func NewPrometheusEmitter(r prometheus.Registerer) *PrometheusEmitter {
 	return &PrometheusEmitter{
 		gauges:   make(map[string]*prometheus.GaugeVec),
 		counters: make(map[string]*prometheus.CounterVec),
-		registry: prometheus.NewRegistry(),
+		registry: r,
 	}
 }
 

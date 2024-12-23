@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	sdk "github.com/openshift-online/ocm-sdk-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
@@ -85,7 +86,7 @@ func (opts *FrontendOpts) Run() error {
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version()))
 
 	// Init prometheus emitter
-	prometheusEmitter := frontend.NewPrometheusEmitter()
+	prometheusEmitter := frontend.NewPrometheusEmitter(prometheus.DefaultRegisterer)
 
 	// Configure database configuration and client
 	dbClient := database.NewCache()
