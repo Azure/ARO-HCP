@@ -18,6 +18,21 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum }}
     spec:
       containers:
+      - name: nginx-proxy
+        image: quay.io/rh_ee_tschneid/nginx:latest
+        ports:
+        - containerPort: 8444
+          name: metrics-proxy
+          protocol: TCP
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: ssl-certificates
+          mountPath: /etc/nginx/certs
+        - name: logs
+          mountPath: /var/log/nginx
+        command: ["/bin/sh", "-c", "nginx -g 'daemon off;'"]
       - command:
         - /usr/local/bin/maestro
         - agent
@@ -40,6 +55,14 @@ spec:
           readOnly: true
       serviceAccountName: maestro
       volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+      - name: ssl-certificates
+        secret:
+          secretName: nginx-ssl
+      - name: logs
+        emptyDir: {}
       - name: maestro
         secret:
           secretName: maestro
