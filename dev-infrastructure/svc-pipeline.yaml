@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 buildout:
   isForAutomatedBuildout: "true"
-  Dependencies:
+  dependon:
   - name: Region
     serviceGroup: Microsoft.Azure.ARO.HCP.Region
 resourceGroups:
