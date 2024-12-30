@@ -2,10 +2,9 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 buildout:
-  isForAutomatedBuildout: "true"
-  dependon:
-  - name: Region
-    serviceGroup: Microsoft.Azure.ARO.HCP.Region
+  isForAutomatedBuildout: true
+  dependsOn:
+  - Microsoft.Azure.ARO.HCP.Region
 resourceGroups:
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
