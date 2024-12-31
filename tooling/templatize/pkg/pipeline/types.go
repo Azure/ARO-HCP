@@ -15,6 +15,7 @@ type Pipeline struct {
 	ServiceGroup     string           `yaml:"serviceGroup"`
 	RolloutName      string           `yaml:"rolloutName"`
 	ResourceGroups   []*ResourceGroup `yaml:"resourceGroups"`
+	Buildout         *Buildout        `yaml:"buildout,omitempty"`
 }
 
 type ResourceGroup struct {
@@ -22,6 +23,11 @@ type ResourceGroup struct {
 	Subscription string `yaml:"subscription"`
 	AKSCluster   string `yaml:"aksCluster,omitempty"`
 	Steps        []Step `yaml:"steps"`
+}
+
+type Buildout struct {
+	IsForAutomatedBuildout bool     `yaml:"isForAutomatedBuildout"`
+	DependsOn              []string `yaml:"dependsOn"`
 }
 
 func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error) {
@@ -34,6 +40,10 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 			AKSCluster   string `yaml:"aksCluster,omitempty"`
 			Steps        []any  `yaml:"steps"`
 		} `yaml:"resourceGroups"`
+		Buildout []struct {
+			IsForAutomatedBuildout bool     `yaml:"isForAutomatedBuildout"`
+			DependsOn              []string `yaml:"dependsOn"`
+		} `yaml:"buildout,omitempty"`
 	}{}
 	err := yaml.Unmarshal(bytes, rawPipeline)
 	if err != nil {
@@ -44,6 +54,7 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 		ServiceGroup:     rawPipeline.ServiceGroup,
 		RolloutName:      rawPipeline.RolloutName,
 		ResourceGroups:   make([]*ResourceGroup, len(rawPipeline.ResourceGroups)),
+		Buildout:         make([]*Buildout, len(rawPipeline.Buildout)),
 	}
 
 	for i, rawRg := range rawPipeline.ResourceGroups {
