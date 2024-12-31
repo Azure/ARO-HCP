@@ -40,7 +40,7 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 			AKSCluster   string `yaml:"aksCluster,omitempty"`
 			Steps        []any  `yaml:"steps"`
 		} `yaml:"resourceGroups"`
-		Buildout []struct {
+		Buildout struct {
 			IsForAutomatedBuildout bool     `yaml:"isForAutomatedBuildout"`
 			DependsOn              []string `yaml:"dependsOn"`
 		} `yaml:"buildout,omitempty"`
@@ -54,7 +54,10 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 		ServiceGroup:     rawPipeline.ServiceGroup,
 		RolloutName:      rawPipeline.RolloutName,
 		ResourceGroups:   make([]*ResourceGroup, len(rawPipeline.ResourceGroups)),
-		Buildout:         make([]*Buildout, len(rawPipeline.Buildout)),
+		Buildout: &Buildout{
+			IsForAutomatedBuildout: rawPipeline.Buildout.IsForAutomatedBuildout,
+			DependsOn:              rawPipeline.Buildout.DependsOn,
+		},
 	}
 
 	for i, rawRg := range rawPipeline.ResourceGroups {
