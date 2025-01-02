@@ -26,14 +26,12 @@ type PrometheusEmitter struct {
 	mutex    sync.Mutex
 	gauges   map[string]*prometheus.GaugeVec
 	counters map[string]*prometheus.CounterVec
-	registry prometheus.Registerer
 }
 
 func NewPrometheusEmitter() *PrometheusEmitter {
 	return &PrometheusEmitter{
 		gauges:   make(map[string]*prometheus.GaugeVec),
 		counters: make(map[string]*prometheus.CounterVec),
-		registry: prometheus.NewRegistry(),
 	}
 }
 
@@ -44,7 +42,7 @@ func (pe *PrometheusEmitter) EmitGauge(name string, value float64, labels map[st
 	if !exists {
 		labelKeys := maps.Keys(labels)
 		vec = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: name}, labelKeys)
-		pe.registry.MustRegister(vec)
+		prometheus.MustRegister(vec)
 		pe.gauges[name] = vec
 	}
 	vec.With(labels).Set(value)
