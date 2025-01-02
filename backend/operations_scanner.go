@@ -165,7 +165,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, logger *sl
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && doc.Request == database.OperationRequestDelete {
-			err = s.withSubscriptionLock(ctx, logger, doc.OperationID.SubscriptionID, func(ctx context.Context) error {
+			err = s.withSubscriptionLock(ctx, logger, doc.ExternalID.SubscriptionID, func(ctx context.Context) error {
 				return s.deleteOperationCompleted(ctx, logger, doc)
 			})
 			if err == nil {
@@ -180,7 +180,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, logger *sl
 		logger.Warn(err.Error())
 		err = nil
 	} else {
-		err = s.withSubscriptionLock(ctx, logger, doc.OperationID.SubscriptionID, func(ctx context.Context) error {
+		err = s.withSubscriptionLock(ctx, logger, doc.ExternalID.SubscriptionID, func(ctx context.Context) error {
 			return s.updateOperationStatus(ctx, logger, doc, opStatus, opError)
 		})
 	}
