@@ -2,8 +2,7 @@
 
 deploy:
 	@kubectl create namespace maestro --dry-run=client -o json | kubectl apply -f -
-	@ISTO_VERSION=$(shell az aks show -n ${AKS_NAME} -g ${SVC_RG} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
-	kubectl label ${KUBECTL_DRY_RUN} namespace maestro "istio.io/rev=$${ISTO_VERSION}" --overwrite=true
+	@kubectl label ${KUBECTL_DRY_RUN} namespace maestro "istio.io/rev=${ISTO_TAG}" --overwrite=true
 	@EVENTGRID_HOSTNAME=$(shell az resource show -n ${EVENTGRID_NAME} -g ${REGION_RG} --resource-type "Microsoft.EventGrid/namespaces" --query properties.topicSpacesConfiguration.hostname -o tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${SVC_RG}" -n maestro-server --query clientId -o tsv) && \

@@ -38,3 +38,5 @@ resourceGroups:
       configRef: serviceKeyVault.name
     - name: MQTT_CLIENT_NAME
       configRef: maestro.serverMqttClientName
+    - name: ISTO_TAG
+      configRef: svc.istio.tag

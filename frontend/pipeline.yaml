@@ -30,3 +30,5 @@ resourceGroups:
       configRef: serviceKeyVault.name
     - name: CERTIFICATE_NAME
       configRef: frontend.cert.name
+    - name: ISTO_TAG
+      configRef: svc.istio.tag
