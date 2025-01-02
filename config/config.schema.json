@@ -456,6 +456,19 @@
           "restrictIstioIngress"
         ]
       },
+      "mce": {
+        "type": "object",
+        "properties": {
+          "clcStateMetrics": {
+            "type": "object",
+            "properties": {
+              "imageDigest": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
       "mgmt": {
         "type": "object",
         "properties": {
