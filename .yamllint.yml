@@ -3,7 +3,8 @@ yaml-files:
   - '*.yaml'
   - '*.yml'
   - '.yamllint'
-ignore: []
+ignore:
+  - 'acm/deploy/helm/clc-state-metrics/'
 
 rules:
   brackets: enable
