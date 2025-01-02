@@ -11,6 +11,8 @@ The idea of this repo is to provide means to create a development environment th
 * `az` version >= 2.60, `jq`, `make`, `kubelogin` (from <https://azure.github.io/kubelogin/install.html>), `kubectl` version >= 1.30, `helm`
 * `az login` with your Red Hat email
 * Register the needed [AFEC](https://aka.ms/afec) feature flags using `cd dev-infrastructure && make feature-registration`
+* `openssl` CLI tool
+* `jq` CLI tool
 * __NOTE:__ This will take awhile, you will have to wait until they're in a registered state.
 * Your Red Hat account has been added to the ARO HCP Engineering App Developer group in Azure portal. This will give your account access to resources on Azure for development purposes. Please reach out to your manager or team lead to add you to this group.
 
@@ -353,13 +355,77 @@ Then register it with the Maestro Server
     ```
     az network vnet subnet update -g <resource-group> -n <subnet-name> --vnet-name <vnet-name> --network-security-group <nsg-name>
     ```
+  - Generate a random alphanumeric string used as a suffix for the User-Assigned Managed Identities of the operators of the cluster
+    > NOTE: The random suffix used has to be different for each cluster to be created
+    ```
+    export OPERATORS_UAMIS_SUFFIX=$(openssl rand -hex 3)
+    ```
+  - Define and export an environment variable with the desired name of the ARO-HCP Cluster in CS
+    ```
+    export CS_CLUSTER_NAME="<desired-cluster-name>"
+    ```
+  - Create the User-Assigned Managed Identities for the Control Plane operators. This assumes OCP 4.17 based will be created.
+    > NOTE: Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use
+            a different managed identity, and different clusters must use different managed identities, even for the same
+            operators.
 
-3) Create the cluster
+    > NOTE: Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
+    ```
+    # We create the control plane operators User-Assigned Managed Identities
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+
+    # And then we create variables containing their Azure resource IDs and export them to be used later
+    export CP_CCM_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export CP_INGRESS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export CP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export CP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export CP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export CP_CNC_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    ```
+
+  - Create the User-Assigned Managed Identities for the Data Plane operators. This assumes OCP 4.17 clusters will be created.
+    > NOTE: Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use
+            a different managed identity, and different clusters must use different managed identities, even for the same
+            operators.
+
+    > NOTE: Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
+    ```
+    # We create the data plane operators User-Assigned Managed Identities
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+
+    # And then we create variables containing their Azure resource IDs and export them to be used later
+    export DP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export DP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export DP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export DP_INGRESS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export DP_CNC_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    ```
+  - Create the User-Assigned Service Managed Identity
+    > NOTE: Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use
+            a different managed identity, and different clusters must use different managed identities, even for the same
+            operators.
+
+    > NOTE: Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
+    ```
+    az identity create -n ${USER}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+
+    export SERVICE_MANAGED_IDENTITY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    ```
+
+3) Create the cluster. This assumes OCP 4.17 clusters will be created.
     > **NOTE** See the [Cluster Service API](https://api.openshift.com/#/default/post_api_clusters_mgmt_v1_clusters) documentation
     > for further information on the properties within the payload below
 
     ```bash
-    NAME="<INSERT-NAME-HERE>"
     SUBSCRIPTION_NAME="ARO Hosted Control Planes (EA Subscription 1)"
     RESOURCENAME="<INSERT-NAME>"
     SUBSCRIPTION=$(echo $(az account subscription list | jq '.[] | select(.displayName == $SUBSCRIPTION_NAME)' | jq -r '.subscriptionId'))
@@ -370,7 +436,7 @@ Then register it with the Maestro Server
     NSG="<INSERT-NAME>"
     cat <<EOF > cluster-test.json
     {
-      "name": "$NAME",
+      "name": "$CS_CLUSTER_NAME",
       "product": {
         "id": "aro"
       },
@@ -391,7 +457,52 @@ Then register it with the Maestro Server
         "tenant_id": "$TENANTID",
         "managed_resource_group_name": "$MANAGEDRGNAME",
         "subnet_resource_id": "$SUBNETRESOURCEID",
-        "network_security_group_resource_id":"$NSG"
+        "network_security_group_resource_id":"$NSG",
+        "operators_authentication": {
+          "managed_identities": {
+            "managed_identities_data_plane_identity_url": "https://dummyhost.identity.azure.net",
+            "control_plane_operators_managed_identities": {
+              "cloud-controller-manager": {
+                "resource_id": "$CP_CCM_UAMI"
+              },
+              "ingress": {
+                "resource_id": "$CP_INGRESS_UAMI"
+              },
+              "disk-csi-driver": {
+                "resource_id": "$CP_DISK_CSI_DRIVER_UAMI"
+              },
+              "file-csi-driver": {
+                "resource_id": "$CP_FILE_CSI_DRIVER_UAMI"
+              },
+              "image-registry": {
+                "resource_id": "$CP_IMAGE_REGISTRY_UAMI"
+              },
+              "cloud-network-config": {
+                "resource_id": "$CP_CNC_UAMI"
+              }
+            },
+            "data_plane_operators_managed_identities": {
+              "disk-csi-driver": {
+                "resource_id": "$DP_DISK_CSI_DRIVER_UAMI"
+              },
+              "image-registry": {
+                "resource_id": "$DP_IMAGE_REGISTRY_UAMI"
+              },
+              "file-csi-driver": {
+                "resource_id": "$DP_FILE_CSI_DRIVER_UAMI"
+              },
+              "ingress": {
+                "resource_id": "$DP_INGRESS_UAMI"
+              },
+              "cloud-network-config": {
+                "resource_id": "$DP_CNC_UAMI"
+              }
+            },
+            "service_managed_identity": {
+              "resource_id": "$SERVICE_MANAGED_IDENTITY_UAMI"
+            }
+          }
+        }
       },
       "version": {
         "id": "openshift-v4.17.0"
@@ -434,6 +545,29 @@ You should now have a nodepool for your cluster in Cluster Service. You can veri
 ```
 ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools/$UID
 ```
+
+### Cleaning up a Cluster
+
+1. Delete the cluster
+   ```
+   ocm delete /api/clusters_mgmt/v1/clusters/$CLUSTER_ID
+   ```
+   > NOTE: Deleting it will also delete all of its associated node pools.
+
+2. Delete the created managed identities that were initially created for the cluster:
+   ```
+   az identity delete --ids "${CP_INGRESS_UAMI}"
+   az identity delete --ids "${CP_DISK_CSI_DRIVER_UAMI}"
+   az identity delete --ids "${CP_FILE_CSI_DRIVER_UAMI}"
+   az identity delete --ids "${CP_IMAGE_REGISTRY_UAMI}"
+   az identity delete --ids "${CP_CNC_UAMI}"
+   az identity delete --ids "${DP_DISK_CSI_DRIVER_UAMI}"
+   az identity delete --ids "${DP_IMAGE_REGISTRY_UAMI}"
+   az identity delete --ids "${DP_FILE_CSI_DRIVER_UAMI}"
+   az identity delete --ids "${DP_INGRESS_UAMI}"
+   az identity delete --ids "${DP_CNC_UAMI}"
+   az identity delete --ids "${SERVICE_MANAGED_IDENTITY_UAMI}"
+   ```
 
 ## Creating an ARO HCP Cluster via Frontend
 To create a cluster in CS using a locally running Frontend, see the frontend [README](../../frontend/README.md)
