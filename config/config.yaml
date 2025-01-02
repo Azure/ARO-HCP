@@ -147,7 +147,7 @@ clouds:
         imageTag: eddc46d1f49ccc2d3298fed0d4b8ab25c159e357
       # Cluster Service
       clusterService:
-        imageTag: 9f7fef3
+        imageTag: a51079c
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
           cloudControllerManager:

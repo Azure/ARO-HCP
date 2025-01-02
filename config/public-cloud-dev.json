@@ -31,7 +31,7 @@
       }
     },
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "9f7fef3",
+    "imageTag": "a51079c",
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
