@@ -38,3 +38,7 @@ resourceGroups:
             configRef: vaultBaseUrl
           provider:
             configRef: provider
+buildout:
+    isForAutomatedBuildout: true
+    dependsOn:
+        - Microsoft.Azure.ARO.HCP.Test
