@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -175,6 +176,8 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	resourceName := request.PathValue(PathSegmentResourceName)
+	resourceTypeName := path.Base(request.URL.Path)
 
 	// Even though the bulk of the list content comes from Cluster Service,
 	// we start by querying Cosmos DB because its continuation token meets
@@ -185,6 +188,13 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	if resourceGroupName != "" {
 		prefixString += "/resourceGroups/" + resourceGroupName
 	}
+	if resourceName != "" {
+		// This is a nested resource request. Build a resource ID for
+		// the parent cluster. We use this below to get the cluster's
+		// ResourceDocument from Cosmos DB.
+		prefixString += "/providers/" + api.ProviderNamespace
+		prefixString += "/" + api.ClusterResourceTypeName + "/" + resourceName
+	}
 	prefix, err := arm.ParseResourceID(prefixString)
 	if err != nil {
 		f.logger.Error(err.Error())
@@ -192,17 +202,31 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	documentList, continuationToken, err := f.dbClient.ListResourceDocs(ctx, prefix, &api.ClusterResourceType, pageSizeHint, continuationToken)
-	if err != nil {
-		f.logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	dbIterator := f.dbClient.ListResourceDocs(ctx, prefix, pageSizeHint, continuationToken)
 
 	// Build a map of cluster documents by Cluster Service cluster ID.
 	documentMap := make(map[string]*database.ResourceDocument)
-	for _, doc := range documentList {
-		documentMap[doc.InternalID.ID()] = doc
+	for item := range dbIterator.Items(ctx) {
+		var doc database.ResourceDocument
+
+		err = json.Unmarshal(item, &doc)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		// FIXME This filtering could be made part of the query expression. It would
+		//       require some reworking (or elimination) of the DBClient interface.
+		if strings.HasSuffix(strings.ToLower(doc.Key.ResourceType.Type), resourceTypeName) {
+			documentMap[doc.InternalID.ID()] = &doc
+		}
+	}
+
+	err = dbIterator.GetError()
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
 	}
 
 	// Build a Cluster Service query that looks for
@@ -214,39 +238,65 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
 	f.logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
 
-	listRequest := f.clusterServiceClient.GetConn().ClustersMgmt().V1().Clusters().List().Search(query)
+	switch resourceTypeName {
+	case strings.ToLower(api.ClusterResourceTypeName):
+		csIterator := f.clusterServiceClient.ListCSClusters(query)
 
-	// XXX This SHOULD avoid dealing with pagination from Cluster Service.
-	//     As far I can tell, uhc-cluster-service does not impose its own
-	//     limit on the page size. Further testing is needed to verify.
-	listRequest.Size(len(documentMap))
+		for csCluster := range csIterator.Items(ctx) {
+			if doc, ok := documentMap[csCluster.ID()]; ok {
+				value, err := marshalCSCluster(csCluster, doc, versionedInterface)
+				if err != nil {
+					f.logger.Error(err.Error())
+					arm.WriteInternalServerError(writer)
+					return
+				}
+				pagedResponse.AddValue(value)
+			}
+		}
+		err = csIterator.GetError()
 
-	listResponse, err := listRequest.SendContext(ctx)
+	case strings.ToLower(api.NodePoolResourceTypeName):
+		var resourceDoc *database.ResourceDocument
+
+		// Fetch the cluster document for the Cluster Service ID.
+		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, prefix)
+		if err != nil {
+			f.logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		csIterator := f.clusterServiceClient.ListCSNodePools(resourceDoc.InternalID, query)
+
+		for csNodePool := range csIterator.Items(ctx) {
+			if doc, ok := documentMap[csNodePool.ID()]; ok {
+				value, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
+				if err != nil {
+					f.logger.Error(err.Error())
+					arm.WriteInternalServerError(writer)
+					return
+				}
+				pagedResponse.AddValue(value)
+			}
+		}
+		err = csIterator.GetError()
+
+	default:
+		err = fmt.Errorf("unsupported resource type: %s", resourceTypeName)
+	}
+
+	// Check for iteration error.
 	if err != nil {
 		f.logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	for _, csCluster := range listResponse.Items().Slice() {
-		if doc, ok := documentMap[csCluster.ID()]; ok {
-			value, err := marshalCSCluster(csCluster, doc, versionedInterface)
-			if err != nil {
-				f.logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
-			}
-			pagedResponse.AddValue(value)
-		}
-	}
-
-	if continuationToken != nil {
-		err = pagedResponse.SetNextLink(request.Referer(), *continuationToken)
-		if err != nil {
-			f.logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+	err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
+	if err != nil {
+		f.logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
