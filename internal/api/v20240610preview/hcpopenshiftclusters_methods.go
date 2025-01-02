@@ -167,7 +167,13 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			Type:     api.Ptr(from.Resource.Type),
 			Location: api.Ptr(from.TrackedResource.Location),
 			Tags:     api.StringMapToStringPtrMap(from.TrackedResource.Tags),
-			// FIXME Skipping ManagedServiceIdentity
+			Identity: &generated.ManagedServiceIdentity{
+				Type:        api.Ptr(generated.ManagedServiceIdentityType(from.Identity.Type)),
+				PrincipalID: api.Ptr(from.Identity.PrincipalID),
+				TenantID:    api.Ptr(from.Identity.TenantID),
+				//as UserAssignedIdentities is of a different type so using convertUserAssignedIdentities instead of StringMapToStringPtrMap
+				UserAssignedIdentities: convertUserAssignedIdentities(from.Identity.UserAssignedIdentities),
+			},
 			Properties: &generated.HcpOpenShiftClusterProperties{
 				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Spec: &generated.ClusterSpec{
@@ -237,9 +243,22 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 			out.Resource.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
 		}
 	}
-	// FIXME Skipping ManagedServiceIdentity
 	if c.Location != nil {
 		out.TrackedResource.Location = *c.Location
+	}
+	if c.Identity != nil {
+		if c.Identity.PrincipalID != nil {
+			out.Identity.PrincipalID = *c.Identity.PrincipalID
+		}
+		if c.Identity.TenantID != nil {
+			out.Identity.TenantID = *c.Identity.TenantID
+		}
+		if c.Identity.Type != nil {
+			out.Identity.Type = (arm.ManagedServiceIdentityType)(*c.Identity.Type)
+		}
+		if c.Identity.UserAssignedIdentities != nil {
+			normalizeIdentityUserAssignedIdentities(c.Identity.UserAssignedIdentities, &out.Identity.UserAssignedIdentities)
+		}
 	}
 	// Per RPC-Patch-V1-04, the Tags field does NOT follow
 	// JSON merge-patch (RFC 7396) semantics:
@@ -523,4 +542,27 @@ func normalizeExternalAuthConfig(p *generated.ExternalAuthConfigProfile, out *ap
 
 		out.ExternalAuths = append(out.ExternalAuths, provider)
 	}
+}
+
+func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssignedIdentity, out *map[string]*arm.UserAssignedIdentity) {
+	for key, value := range p {
+		if value != nil {
+			(*out)[key] = &arm.UserAssignedIdentity{
+				ClientID:    value.ClientID,
+				PrincipalID: value.PrincipalID,
+			}
+		}
+	}
+}
+func convertUserAssignedIdentities(from map[string]*arm.UserAssignedIdentity) map[string]*generated.UserAssignedIdentity {
+	converted := make(map[string]*generated.UserAssignedIdentity)
+	for key, value := range from {
+		if value != nil {
+			converted[key] = &generated.UserAssignedIdentity{
+				ClientID:    value.ClientID,
+				PrincipalID: value.PrincipalID,
+			}
+		}
+	}
+	return converted
 }
