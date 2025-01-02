@@ -1,4 +1,5 @@
 -include ../setup-env.mk
+-include ../helm-cmd.mk
 
 ifndef COMMIT
 COMMIT := $(shell git rev-parse --short=7 HEAD)
@@ -52,7 +53,7 @@ deploy:
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
-	helm upgrade --install ${HELM_DRY_RUN} aro-hcp-frontend-dev \
+	${HELM_CMD} aro-hcp-frontend-dev \
 		deploy/helm/frontend/ \
 		--set azure.clientId=$${SECRET_STORE_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
