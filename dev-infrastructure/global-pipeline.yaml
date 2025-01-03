@@ -9,3 +9,4 @@ resourceGroups:
     action: ARM
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
+    deploymentLevel: "ResourceGroup"

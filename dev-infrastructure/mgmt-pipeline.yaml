@@ -17,6 +17,7 @@ resourceGroups:
     action: ARM
     template: templates/mgmt-infra.bicep
     parameters: configurations/mgmt-infra.tmpl.bicepparam
+    deploymentLevel: "ResourceGroup"
     variables:
     - name: mgmt.clusterServiceResourceId
       input:
@@ -28,6 +29,7 @@ resourceGroups:
     action: ARM
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
+    deploymentLevel: "ResourceGroup"
     dependsOn:
     - mgmt-infra
   - name: enable-metrics
