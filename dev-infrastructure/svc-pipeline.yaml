@@ -10,12 +10,12 @@ resourceGroups:
     action: ARM
     template: templates/svc-infra.bicep
     parameters: configurations/svc-infra.tmpl.bicepparam
-    deploymentLevel: "ResourceGroup"
+    deploymentLevel: ResourceGroup
   - name: svc
     action: ARM
     template: templates/svc-cluster.bicep
     parameters: configurations/svc-cluster.tmpl.bicepparam
-    deploymentLevel: "ResourceGroup"
+    deploymentLevel: ResourceGroup
     dependsOn:
     - svc-infra
   - name: enable-metrics

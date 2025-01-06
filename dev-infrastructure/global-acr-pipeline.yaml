@@ -10,6 +10,7 @@ resourceGroups:
     action: ARM
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
   # deploys the custom roles at subscription level
   - name: global-roles
     action: ARM
@@ -21,5 +22,6 @@ resourceGroups:
     action: ARM
     template: templates/image-sync.bicep
     parameters: configurations/image-sync.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
     dependsOn:
     - global-acrs

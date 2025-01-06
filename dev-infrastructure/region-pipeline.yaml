@@ -9,11 +9,11 @@ resourceGroups:
     action: ARM
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
-    deploymentLevel: "ResourceGroup"
+    deploymentLevel: ResourceGroup
   - name: metrics-infra
     action: ARM
     template: modules/metrics/metrics.bicep
     parameters: configurations/metrics.tmpl.bicepparam
-    deploymentLevel: "ResourceGroup"
+    deploymentLevel: ResourceGroup
     dependsOn:
     - region
