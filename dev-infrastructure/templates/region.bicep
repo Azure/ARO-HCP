@@ -21,6 +21,12 @@ param baseDNSZoneResourceGroup string = 'global'
 
 param regionalDNSSubdomain string
 
+param globalRegion string
+param regionalRegion string
+param globalResourceGroup string
+param ocpAcrName string
+param svcAcrName string
+
 // Tags the resource group
 resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -48,6 +54,32 @@ module regionalZoneDelegation '../modules/dns/zone-delegation.bicep' = {
     childZoneName: regionalDNSSubdomain
     childZoneNameservers: regionalZone.properties.nameServers
     parentZoneName: baseDNSZoneName
+  }
+}
+
+//
+// R E G I O N A L   A C R   R E P L I C A T I O N
+//
+
+var ocpAcrReplicationName = '${ocpAcrName}${location}replica'
+module ocpAcrReplication '../modules/acr/acr-replication.bicep' = if (globalRegion != regionalRegion) {
+  name: ocpAcrReplicationName
+  scope: resourceGroup(globalResourceGroup)
+  params: {
+    acrReplicationLocation: location
+    acrReplicationParentAcrName: ocpAcrName
+    acrReplicationReplicaName: ocpAcrReplicationName
+  }
+}
+
+var svcAcrReplicationName = '${svcAcrName}${location}replica'
+module svcAcrReplication '../modules/acr/acr-replication.bicep' = if (globalRegion != regionalRegion) {
+  name: svcAcrReplicationName
+  scope: resourceGroup(globalResourceGroup)
+  params: {
+    acrReplicationLocation: location
+    acrReplicationParentAcrName: svcAcrName
+    acrReplicationReplicaName: svcAcrReplicationName
   }
 }
 
