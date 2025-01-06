@@ -97,6 +97,29 @@ personal-runtime-config:
 	@cat deploy/azure-runtime-config.yaml
 .PHONY: personal-runtime-config
 
+local-azure-operators-managed-identities-config:
+	@OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_INGRESS_ROLE_ID=$(shell az role definition list --name "${OP_INGRESS_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_DISK_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
+	helm template deploy/helm -s templates/azure-operators-managed-identities-config.configmap.yaml \
+	  --set azureOperatorsMI.cloudControllerManager.roleName="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudControllerManager.roleId="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
+	  --set azureOperatorsMI.ingress.roleName="${OP_INGRESS_ROLE_NAME}" \
+	  --set azureOperatorsMI.ingress.roleId="$${OP_INGRESS_ROLE_ID}" \
+	  --set azureOperatorsMI.diskCsiDriver.roleName="${OP_DISK_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.diskCsiDriver.roleId="$${OP_DISK_CSI_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.fileCsiDriver.roleName="${OP_FILE_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.fileCsiDriver.roleId="$${OP_FILE_CSI_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.imageRegistry.roleName="${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.imageRegistry.roleId="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.cloudNetworkConfig.roleName="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
+	  | yq '.data."azure-operators-managed-identities-config.yaml"' >> ./azure-operators-managed-identities-config.yaml
+.PHONY: local-azure-operators-managed-identities-config
+
 #
 # Shared OIDC Storage
 #
