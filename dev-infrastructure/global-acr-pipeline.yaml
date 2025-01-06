@@ -1,6 +1,10 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global.ACR
 rolloutName: Global ACR Resources Rollout
+buildout:
+  isForAutomatedBuildout: true
+  dependsOn:
+  - Microsoft.Azure.ARO.HCP.Global
 resourceGroups:
 - name: {{ .global.rg }}
   subscription: {{ .global.subscription }}
