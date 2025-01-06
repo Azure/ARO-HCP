@@ -383,7 +383,7 @@ Then register it with the Maestro Server
     export CP_CCM_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_INGRESS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export CP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export CP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_CNC_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     ```
@@ -416,7 +416,7 @@ Then register it with the Maestro Server
 
     > NOTE: Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
     ```
-    az identity create -n ${USER}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
 
     export SERVICE_MANAGED_IDENTITY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     ```
