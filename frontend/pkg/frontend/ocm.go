@@ -120,18 +120,24 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv1.Cl
 	//   Cluster Service maps but just has operator-to-resourceID pairings.
 	if cluster.Azure().OperatorsAuthentication() != nil {
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
-			// TODO: Initialize a hcpcluster.Identity.UserAssignedIdentities map.
+			hcpcluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
 			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
 			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
 			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
-				// TODO: Add to hcpcluster.Identity.UserAssignedIdentities map.
+				clientID, _ := operatorIdentity.GetClientID()
+				principalID, _ := operatorIdentity.GetPrincipalID()
+				hcpcluster.Identity.UserAssignedIdentities[operatorIdentity.ResourceID()] = &arm.UserAssignedIdentity{ClientID: &clientID,
+					PrincipalID: &principalID}
 				hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[operatorName] = operatorIdentity.ResourceID()
 			}
 			for operatorName, operatorIdentity := range mi.DataPlaneOperatorsManagedIdentities() {
-				// TODO: Add to hcpcluster.Identity.UserAssignedIdentities map.
+				// Skip adding to hcpcluster.Identity.UserAssignedIdentities map as it is not needed for the dataplane operator MIs.
 				hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorName] = operatorIdentity.ResourceID()
 			}
-			// TODO: Add to hcpcluster.Identity.UserAssignedIdentities map.
+			clientID, _ := mi.ServiceManagedIdentity().GetClientID()
+			principalID, _ := mi.ServiceManagedIdentity().GetPrincipalID()
+			hcpcluster.Identity.UserAssignedIdentities[mi.ServiceManagedIdentity().ResourceID()] = &arm.UserAssignedIdentity{ClientID: &clientID,
+				PrincipalID: &principalID}
 			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = mi.ServiceManagedIdentity().ResourceID()
 		}
 	}
