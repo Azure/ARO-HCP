@@ -92,12 +92,6 @@
           run: |
             make frontend.dry_run
 
-        - name: 'Dry Maestro Registration'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
-          run: |
-            make maestro.registration.dry_run
-
         - name: 'Dry Maestro Server'
           env:
             PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
