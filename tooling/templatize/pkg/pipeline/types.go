@@ -163,14 +163,15 @@ func (s *ShellStep) WithOutputFunc(outputFunc outPutHandler) *ShellStep {
 	return s
 }
 
-func NewARMStep(name string, template string, parameters string) *ARMStep {
+func NewARMStep(name string, template string, parameters string, deploymentLevel string) *ARMStep {
 	return &ARMStep{
 		StepMeta: StepMeta{
 			Name:   name,
 			Action: "ARM",
 		},
-		Template:   template,
-		Parameters: parameters,
+		Template:        template,
+		Parameters:      parameters,
+		DeploymentLevel: deploymentLevel,
 	}
 }
 
@@ -181,11 +182,6 @@ func (s *ARMStep) WithDependsOn(dependsOn ...string) *ARMStep {
 
 func (s *ARMStep) WithVariables(variables ...Variable) *ARMStep {
 	s.Variables = variables
-	return s
-}
-
-func (s *ARMStep) WithDeploymentLevel(deploymentLevel string) *ARMStep {
-	s.DeploymentLevel = deploymentLevel
 	return s
 }
 

@@ -49,7 +49,7 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name:     "failed action",
-			caseStep: NewARMStep("step", "test.bicep", "test.bicepparam"),
+			caseStep: NewARMStep("step", "test.bicep", "test.bicepparam", "ResourceGroup"),
 			err:      "inspecting step variables not implemented for action type ARM",
 		},
 		{

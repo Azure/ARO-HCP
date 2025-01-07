@@ -82,7 +82,7 @@ func TestE2EArmDeploy(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("test", "test.bicep", "test.bicepparm"), 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("test", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
@@ -149,7 +149,7 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 
 	e2eImpl := newE2E(tmpDir)
 
-	e2eImpl.AddStep(pipeline.NewARMStep("createZone", "test.bicep", "test.bicepparm"), 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("createZone", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
 
 	e2eImpl.AddStep(pipeline.NewShellStep(
 		"readInput", "echo ${zoneName} > env.txt",
@@ -192,8 +192,8 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm"), 0)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterB", "testb.bicep", "testb.bicepparm").WithVariables(pipeline.Variable{
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterB", "testb.bicep", "testb.bicepparm", "ResourceGroup").WithVariables(pipeline.Variable{
 		Name: "parameterB",
 		Input: &pipeline.Input{
 			Name: "parameterA",
@@ -253,7 +253,7 @@ func TestE2EArmDeployWithOutputRGOverlap(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm"), 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
 
 	e2eImpl.AddResourceGroup()
 
@@ -296,7 +296,7 @@ func TestE2EArmDeploySubscriptionScope(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm").WithDeploymentLevel("Subscription"), 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "Subscription"), 0)
 	rgName := GenerateRandomRGName()
 	e2eImpl.AddBicepTemplate(fmt.Sprintf(`
 targetScope='subscription'
