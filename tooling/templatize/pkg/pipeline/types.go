@@ -169,8 +169,8 @@ func NewARMStep(name string, template string, parameters string, deploymentLevel
 			Name:   name,
 			Action: "ARM",
 		},
-		Template:   template,
-		Parameters: parameters,
+		Template:        template,
+		Parameters:      parameters,
 		DeploymentLevel: deploymentLevel,
 	}
 }
