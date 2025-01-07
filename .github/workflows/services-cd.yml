@@ -33,6 +33,8 @@
   jobs:
 
     deploy_to_service_cluster:
+      env:
+        PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -106,6 +108,8 @@
             ./svc-deploy.sh ${DEPLOY_ENV} cluster-service svc deploy-pr-env-deps
 
     deploy_to_management_cluster:
+      env:
+        PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
       permissions:
         id-token: 'write'
         contents: 'read'
