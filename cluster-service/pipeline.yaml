@@ -72,6 +72,9 @@ resourceGroups:
       configRef: clusterService.azureOperatorsManagedIdentities.imageRegistry.roleName
     - name: OP_CLOUD_NETWORK_CONFIG_ROLE_NAME
       configRef: clusterService.azureOperatorsManagedIdentities.cloudNetworkConfig.roleName
+    - name: ISTO_TAG
+      configRef: svc.istio.tag
+
 
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process

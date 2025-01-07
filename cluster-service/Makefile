@@ -4,9 +4,8 @@ ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${BASE_DNS_ZONE_NAME}"
 
 
 deploy: provision-shard
-	@ISTO_VERSION=$(shell az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
-	kubectl create namespace cluster-service --dry-run=client -o json | kubectl apply -f - && \
-	kubectl label namespace cluster-service "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
+	@kubectl create namespace cluster-service --dry-run=client -o json | kubectl apply -f - && \
+	kubectl label namespace cluster-service "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
 	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "${SERVICE_KV}" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \

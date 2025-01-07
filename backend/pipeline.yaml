@@ -26,3 +26,5 @@ resourceGroups:
       configRef: frontend.cosmosDB.name
     - name: COMMIT
       configRef: backend.imageTag
+    - name: ISTO_TAG
+      configRef: svc.istio.tag

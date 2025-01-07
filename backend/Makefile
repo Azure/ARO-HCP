@@ -39,10 +39,9 @@ deploy:
 			-g ${RESOURCEGROUP} \
 			-n backend \
 			--query clientId -o tsv) && \
-	ISTO_VERSION=$$(az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query serviceMeshProfile.istio.revisions[-1] -o tsv) && \
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
-	kubectl label namespace aro-hcp "istio.io/rev=$${ISTO_VERSION}" --overwrite=true && \
+	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	${HELM_CMD} aro-hcp-backend-dev \
 		deploy/helm/backend/ \
 		--set configMap.databaseName=${DB_NAME} \
