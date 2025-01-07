@@ -213,11 +213,11 @@ svc: svc.rg
 			configurations/svc-cluster.bicepparam \
 		--parameters \
 			persist=${PERSIST}
-
-	@scripts/aks-admin-access.sh $(SVC_RESOURCEGROUP) $(PRINCIPAL_ID)
-	@scripts/aks-kubeconfig.sh $(SVC_RESOURCEGROUP) $(AKS_NAME) "$(SVC_KUBECONFIG_FILE)"
-	@KUBECONFIG=$(SVC_KUBECONFIG_FILE) TARGET_VERSION=$(ISTIO_TARGET_VERSION) ISTIOCTL_VERSION=$(ISTIOCTL_VERSION) TAG=$(ISTIO_TAG) scripts/istio.sh
 .PHONY: svc
+
+svc.istio: svc.rg svc.aks.admin-access svc.aks.kubeconfig
+	@KUBECONFIG=$(SVC_KUBECONFIG_FILE) TARGET_VERSION=$(ISTIO_TARGET_VERSION) ISTIOCTL_VERSION=$(ISTIOCTL_VERSION) TAG=$(ISTIO_TAG) scripts/istio.sh
+.PHONY: svc.istio
 
 svc.enable-aks-metrics:
 	@if [ "$$(az aks show --resource-group $(SVC_RESOURCEGROUP) --name ${AKS_NAME} --query 'azureMonitorProfile.metrics.enabled' -o tsv)" = "true" ]; then \
@@ -267,7 +267,7 @@ svc.kv.permission:
 	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(SVC_KV_RESOURCEGROUP) $(SVC_KV_NAME)
 .PHONY: svc.kv.permission
 
-svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig metrics-infra svc.enable-aks-metrics svc.oidc.storage.permissions
+svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.istio metrics-infra svc.enable-aks-metrics svc.oidc.storage.permissions
 .PHONY: svc.init
 
 svc.what-if: svc.rg
