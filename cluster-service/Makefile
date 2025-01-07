@@ -5,7 +5,7 @@ HELM_CMD ?= helm upgrade --install
 ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${BASE_DNS_ZONE_NAME}"
 
 
-deploy: provision-shard
+deploy:
 	@kubectl create namespace cluster-service --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace cluster-service "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
@@ -23,6 +23,9 @@ deploy: provision-shard
 	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
+	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
+	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
+	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
 	${HELM_CMD} cluster-service deploy/helm \
 	  --namespace cluster-service \
 	  -f deploy/helm/$${OVERRIDES} \
@@ -40,7 +43,12 @@ deploy: provision-shard
 	  --set fpaCertName=${FPA_CERT_NAME} \
 	  --set ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID} \
 	  --set ocpAcrUrl=$${OCP_ACR_URL} \
-	  --set provisionShardsConfig="$(shell base64 -i deploy/provisioning-shards.yml | tr -d '\n')" \
+	  --set shard.consumerName="${CONSUMER_NAME}" \
+	  --set shard.zoneResourceId="$${ZONE_RESOURCE_ID}" \
+	  --set shard.cxSecretsKeyVaultUrl="$${CX_SECRETS_KV_URL}" \
+	  --set shard.cxMiKeyVaultUrl="$${CX_MI_KV_URL}" \
+	  --set shard.maestroRestUrl="http://maestro.maestro.svc.cluster.local:8000" \
+	  --set shard.maestroGrpUrl="maestro-grpc.maestro.svc.cluster.local:8090" \
 	  --set databaseHost=$${DB_HOST} \
 	  --set azureMiMockServicePrincipalPrincipalId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} \
 	  --set azureMiMockServicePrincipalClientId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
@@ -72,13 +80,6 @@ create-pr-env-sp:
 	--display-name "cs-pr-authentication" \
 	--role 'Azure Kubernetes Service RBAC Admin' \
 	--scopes "$${CLUSTER_ID}"
-
-provision-shard:
-	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
-	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
-	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
-	../templatize.sh $(DEPLOY_ENV) deploy/provisioning-shards.tmpl.yml deploy/provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID},cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL},cxMiKeyVaultUrl=$${CX_MI_KV_URL},maestroRestUrl=http://maestro.maestro.svc.cluster.local:8000,maestroGrpUrl=maestro-grpc.maestro.svc.cluster.local:8090
-	@cat deploy/provisioning-shards.yml
 
 local-deploy-provision-shard:
 	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
@@ -159,4 +160,4 @@ shared-storage-runtime-config:
 	@cat deploy/azure-runtime-config.yaml
 .PHONY: shared-storage-runtime-config
 
-.PHONY: create-pr-env-sp deploy deploy-using-azure-db deploy-integ provision-shard configure-tmp-provision-shard deploy-secrets-template deploy-secrets-template-using-azure-db deploy-istio-configurations-template deploy-namespace-template runtime-config
+.PHONY: create-pr-env-sp deploy deploy-using-azure-db deploy-integ configure-tmp-provision-shard deploy-secrets-template deploy-secrets-template-using-azure-db deploy-istio-configurations-template deploy-namespace-template runtime-config

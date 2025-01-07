@@ -228,8 +228,14 @@ azureMiMockServicePrincipalClientId: ""
 # The principal id of the mock managed identities service principal.
 azureMiMockServicePrincipalPrincipalId: ""
 
-# Base64 encoded provision shards config.
-provisionShardsConfig: ""
+# Details for a provisioning shard
+shard:
+  consumerName: ""
+  zoneResourceId: ""
+  cxSecretsKeyVaultUrl: ""
+  cxMiKeyVaultUrl: ""
+  maestroRestUrl: ""
+  maestroGrpUrl: ""
 
 # ocm client id
 clientId: "foo"

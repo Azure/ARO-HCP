@@ -150,4 +150,4 @@
         - name: 'Deploy rest'
           run: |
             cd dev-infrastructure/
-            PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} mgmt.aks.admin-access mgmt.enable-aks-metrics
+            PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make mgmt.aks.admin-access mgmt.enable-aks-metrics
