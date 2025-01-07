@@ -65,7 +65,7 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 				rg.Steps[i] = &ShellStep{}
 			case "ARM":
 				rg.Steps[i] = &ARMStep{}
-			case "DelegateChildZoneExtension":
+			case "DelegateChildZone":
 				rg.Steps[i] = &DelegateChildZoneStep{}
 			case "SetCertificateIssuer":
 				rg.Steps[i] = &SetCertificateIssuerStep{}

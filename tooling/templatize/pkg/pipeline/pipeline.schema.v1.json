@@ -130,7 +130,7 @@
                                 },
                                 "action": {
                                     "type": "string",
-                                    "enum": ["ARM", "Shell", "DelegateChildZoneExtension", "SetCertificateIssuer"]
+                                    "enum": ["ARM", "Shell", "DelegateChildZone", "SetCertificateIssuer"]
                                 },
                                 "template": {
                                     "type": "string"
@@ -166,10 +166,10 @@
                                 "provider": {
                                     "$ref": "#/definitions/variableRef"
                                 },
-                                "parentZoneName": {
+                                "parentZone": {
                                     "$ref": "#/definitions/variableRef"
                                 },
-                                "childZoneName": {
+                                "childZone": {
                                     "$ref": "#/definitions/variableRef"
                                 }
                             },
@@ -266,12 +266,12 @@
                                         },
                                         "action": {
                                             "type": "string",
-                                            "enum": ["DelegateChildZoneExtension"]
+                                            "enum": ["DelegateChildZone"]
                                         },
-                                        "parentZoneName": {
+                                        "parentZone": {
                                             "$ref": "#/definitions/variableRef"
                                         },
-                                        "childZoneName": {
+                                        "childZone": {
                                             "$ref": "#/definitions/variableRef"
                                         },
                                         "dependsOn": {
@@ -282,8 +282,8 @@
                                         }
                                     },
                                     "required": [
-                                        "parentZoneName",
-                                        "childZoneName"
+                                        "parentZone",
+                                        "childZone"
                                     ]
                                 },
                                 {
