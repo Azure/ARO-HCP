@@ -76,6 +76,10 @@
         - name: "install azure-cli"
           uses: "Azure/ARO-HCP@main"
 
+        - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.3
+          with:
+            kubelogin-version: 'v0.1.3'
+
         - name: 'Az CLI login'
           uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
           with:
