@@ -213,7 +213,10 @@ svc: svc.rg
 			configurations/svc-cluster.bicepparam \
 		--parameters \
 			persist=${PERSIST}
-	@TARGET_VERSION=$(ISTIO_TARGET_VERSION) ISTIOCTL_VERSION=$(ISTIOCTL_VERSION) TAG=$(ISTIO_TAG) scripts/istio.sh
+
+	@scripts/aks-admin-access.sh $(SVC_RESOURCEGROUP) $(PRINCIPAL_ID)
+	@scripts/aks-kubeconfig.sh $(SVC_RESOURCEGROUP) $(AKS_NAME) "$(SVC_KUBECONFIG_FILE)"
+	@KUBEONFIG=$(SVC_KUBECONFIG_FILE) TARGET_VERSION=$(ISTIO_TARGET_VERSION) ISTIOCTL_VERSION=$(ISTIOCTL_VERSION) TAG=$(ISTIO_TAG) scripts/istio.sh
 .PHONY: svc
 
 svc.enable-aks-metrics:
@@ -244,8 +247,7 @@ svc.aks.admin-access:
 .PHONY: svc.aks.admin-access
 
 svc.aks.kubeconfig:
-	@az aks get-credentials --overwrite-existing --only-show-errors -n ${AKS_NAME} -g $(SVC_RESOURCEGROUP) -f "${SVC_KUBECONFIG_FILE}"
-	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${SVC_KUBECONFIG_FILE}"
+	@scripts/aks-kubeconfig.sh $(SVC_RESOURCEGROUP) $(AKS_NAME) "$(SVC_KUBECONFIG_FILE)"
 .PHONY: svc.aks.kubeconfig
 
 svc.aks.kubeconfigfile:
@@ -357,8 +359,7 @@ mgmt.aks.admin-access:
 .PHONY: mgmt.aks.admin-access
 
 mgmt.aks.kubeconfig: mgmt.aks.kubeconfigfile
-	@az aks get-credentials --overwrite-existing --only-show-errors -n ${AKS_NAME} -g $(MGMT_RESOURCEGROUP) -f "${MGMT_KUBECONFIG_FILE}"
-	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${MGMT_KUBECONFIG_FILE}"
+	@scripts/aks-kubeconfig.sh $(MGMT_RESOURCEGROUP) $(AKS_NAME) "$(MGMT_KUBECONFIG_FILE)"
 .PHONY: mgmt.aks.kubeconfig
 
 mgmt.aks.kubeconfigfile:
