@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -40,7 +42,7 @@ func TestReadiness(t *testing.T) {
 			f := &Frontend{
 				dbClient: database.NewCache(),
 				logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-				metrics:  NewPrometheusEmitter(),
+				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 			f.ready.Store(test.ready)
 			ts := httptest.NewServer(f.routes())
@@ -92,7 +94,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			f := &Frontend{
 				dbClient: database.NewCache(),
 				logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-				metrics:  NewPrometheusEmitter(),
+				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 
 			if test.subDoc != nil {
@@ -210,7 +212,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			f := &Frontend{
 				dbClient: database.NewCache(),
 				logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-				metrics:  NewPrometheusEmitter(),
+				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 
 			body, err := json.Marshal(&test.subscription)
