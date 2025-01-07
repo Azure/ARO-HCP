@@ -17,7 +17,7 @@ var boolstring = force == false ? '$false' : '$true'
 param validityInMonths int = 12
 
 module certificateOfficerAccess 'keyvault-secret-access.bicep' = {
-  name: 'kv-cert-officer-access-${keyVaultName}-${uniqueString(keyVaultManagedIdentityId)}'
+  name: 'kv-cert-officer-access-${keyVaultName}-${uniqueString(keyVaultManagedIdentityId, deployment().name)}'
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Certificates Officer'

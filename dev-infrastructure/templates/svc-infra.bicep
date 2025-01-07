@@ -60,7 +60,7 @@ output svcKeyVaultName string = serviceKeyVault.outputs.kvName
 var clientAuthenticationName = 'frontend.${regionalDNSZoneName}'
 
 module clientCertificate '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'frontend-cert-${uniqueString(certName)}'
+  name: 'frontend-cert-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVault.outputs.kvName

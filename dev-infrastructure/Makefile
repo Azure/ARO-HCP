@@ -247,7 +247,8 @@ svc.aks.admin-access:
 .PHONY: svc.aks.admin-access
 
 svc.aks.kubeconfig:
-	@scripts/aks-kubeconfig.sh $(SVC_RESOURCEGROUP) $(AKS_NAME) "$(SVC_KUBECONFIG_FILE)"
+	@az aks get-credentials --overwrite-existing --only-show-errors -n ${AKS_NAME} -g $(SVC_RESOURCEGROUP) -f "${SVC_KUBECONFIG_FILE}"
+	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${SVC_KUBECONFIG_FILE}"
 .PHONY: svc.aks.kubeconfig
 
 svc.aks.kubeconfigfile:
@@ -271,12 +272,14 @@ svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.istio metrics-i
 .PHONY: svc.init
 
 svc.what-if: svc.rg
+	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)-infra
 	az deployment group what-if \
 		--name $(SVC_RG_DEPLOYMENT_NAME)-infra \
 		--resource-group $(SVC_RESOURCEGROUP) \
 		--template-file templates/svc-infra.bicep \
 		--parameters \
 			configurations/svc-infra.bicepparam
+	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)
 	az deployment group what-if \
 		--name $(SVC_RG_DEPLOYMENT_NAME) \
 		--resource-group $(SVC_RESOURCEGROUP) \
@@ -358,8 +361,9 @@ mgmt.aks.admin-access:
 	@scripts/aks-admin-access.sh $(MGMT_RESOURCEGROUP) $(PRINCIPAL_ID)
 .PHONY: mgmt.aks.admin-access
 
-mgmt.aks.kubeconfig: mgmt.aks.kubeconfigfile
-	@scripts/aks-kubeconfig.sh $(MGMT_RESOURCEGROUP) $(AKS_NAME) "$(MGMT_KUBECONFIG_FILE)"
+mgmt.aks.kubeconfig:
+	@az aks get-credentials --overwrite-existing --only-show-errors -n ${AKS_NAME} -g $(MGMT_RESOURCEGROUP) -f "${MGMT_KUBECONFIG_FILE}"
+	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${MGMT_KUBECONFIG_FILE}"
 .PHONY: mgmt.aks.kubeconfig
 
 mgmt.aks.kubeconfigfile:
@@ -370,12 +374,14 @@ mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig metrics-infra m
 .PHONY: mgmt.init
 
 mgmt.what-if: mgmt.rg
+	@./ensure-no-running-deployment.sh $(MGMT_RESOURCEGROUP) $(MGMT_RESOURCEGROUP)-infra
 	az deployment group what-if \
 		--name $(MGMG_RG_DEPLOYMENT_NAME)-infra \
 		--resource-group $(MGMT_RESOURCEGROUP) \
 		--template-file templates/mgmt-infra.bicep \
 		--parameters \
 			configurations/mgmt-infra.bicepparam
+	@./ensure-no-running-deployment.sh $(MGMT_RESOURCEGROUP) $(MGMT_RESOURCEGROUP)
 	az deployment group what-if \
 		--name $(MGMG_RG_DEPLOYMENT_NAME) \
 		--resource-group $(MGMT_RESOURCEGROUP) \
