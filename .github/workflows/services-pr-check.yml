@@ -79,3 +79,9 @@
             PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make frontend.dry_run
+
+        - name: 'Deploy Backend'
+          env:
+            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
+          run: |
+            make backend.dry_run

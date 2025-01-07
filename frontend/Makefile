@@ -1,5 +1,6 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
+HELM_CMD ?= helm upgrade --install
 
 ifndef COMMIT
 COMMIT := $(shell git rev-parse --short=7 HEAD)

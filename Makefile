@@ -98,7 +98,7 @@ infra.clean:
 #   separator "/" (used for maestro only).
 
 # Services deployed on "svc" aks cluster
-services_svc = istio metrics maestro.server maestro.registration cluster-service backend
+services_svc = istio metrics maestro.server maestro.registration cluster-service
 # Services deployed on "mgmt" aks cluster(s)
 services_mgmt = acm maestro.agent pko hypershiftoperator
 # List of all services
@@ -124,12 +124,11 @@ services_all = $(join services_svc,services_mgmt)
 # Pipelines section
 # This sections is used to reference pipeline runs and should replace 
 # the usage of `svc-deploh.sh` script in the future.
-services_svc_pipelines = frontend
+services_svc_pipelines = backend frontend
 %.deploy:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -s deploy -P run -c public
 
-services_svc_pipelines = frontend
 %.dry_run:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -s deploy -P run -c public -d
