@@ -82,15 +82,15 @@
 
         - name: 'Deploy Frontend'
           run: |
-            make frontend.deploy
+            make frontend.deploy_pipeline
 
         - name: 'Deploy Backend'
           run: |
-            make backend.deploy
+            make backend.deploy_pipeline
 
         - name: 'Deploy Cluster Service'
           run: |
-            make cluster-service.deploy
+            make cluster-service.deploy_pipeline
 
         - name: 'Deploy Maestro'
           run: |
