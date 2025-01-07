@@ -60,6 +60,7 @@ func main() {
 
 	if err := cmd.Execute(); err != nil {
 		logger.Error(err, "command failed")
+		os.Exit(1)
 	}
 }
 
