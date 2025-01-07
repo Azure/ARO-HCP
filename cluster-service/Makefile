@@ -67,11 +67,11 @@ deploy-pr-env-deps:
 		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
 
 create-pr-env-sp:
-	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n aro-hcp-aks --query id -o tsv) && \
+	RG_ID=$(shell az group show -g ${RESOURCEGROUP} -o tsv --query id) && \
 	az ad sp create-for-rbac \
 	--display-name "cs-pr-authentication" \
 	--role 'Azure Kubernetes Service RBAC Admin' \
-	--scopes "$${CLUSTER_ID}"
+	--scopes "$${RG_ID}"
 
 provision-shard:
 	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
