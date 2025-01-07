@@ -1,9 +1,9 @@
 * @bennerv @jharrington22 @SudoBrendan @ulrichschlueter @zgalor
 /dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521 @tony-schndr
 /image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521
-/api/ @bennerv @mbarnes @SudoBrendan
-/frontend/ @bennerv @mbarnes @SudoBrendan
-/backend/ @bennerv @mbarnes @SudoBrendan
-/internal/ @bennerv @mbarnes @SudoBrendan
+/api/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat
+/frontend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat
+/backend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat
+/internal/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat
 /tooling/ @bennerv @geoberle @janboll @weinong @whober0521 @tony-schndr
 /config/ @bennerv @geoberle @janboll @weinong @whober0521 @tony-schndr
