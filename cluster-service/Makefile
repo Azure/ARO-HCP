@@ -24,7 +24,7 @@ deploy: provision-shard
 	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
-	${HELM_CMD} --wait cluster-service deploy/helm \
+	${HELM_CMD} cluster-service deploy/helm \
 	  --namespace cluster-service \
 	  -f deploy/helm/$${OVERRIDES} \
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
