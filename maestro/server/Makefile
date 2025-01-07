@@ -1,4 +1,6 @@
 -include ../../setup-env.mk
+-include ../helm-cmd.mk
+HELM_CMD ?= helm upgrade --install
 
 deploy:
 	@kubectl create namespace maestro --dry-run=client -o json | kubectl apply -f -
@@ -8,7 +10,7 @@ deploy:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${SVC_RG}" -n maestro-server --query clientId -o tsv) && \
 	DATABASE_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${SVC_RG} -n ${DATABASE_NAME} --query fullyQualifiedDomainName -o tsv; else echo "maestro-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
-	helm upgrade --install --wait ${HELM_DRY_RUN} maestro-server ./helm \
+	${HELM_CMD} maestro-server ./helm \
 		--namespace maestro \
 		-f helm/$${OVERRIDES} \
 		--set broker.host=$${EVENTGRID_HOSTNAME} \
