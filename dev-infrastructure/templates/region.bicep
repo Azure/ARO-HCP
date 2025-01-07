@@ -48,7 +48,7 @@ resource regionalZone 'Microsoft.Network/dnsZones@2018-05-01' = {
 }
 
 module regionalZoneDelegation '../modules/dns/zone-delegation.bicep' = {
-  name: '${deployment().name}-zone-deleg'
+  name: '${regionalDNSSubdomain}-zone-deleg'
   scope: resourceGroup(baseDNSZoneResourceGroup)
   params: {
     childZoneName: regionalDNSSubdomain
