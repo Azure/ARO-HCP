@@ -23,14 +23,12 @@ resourceGroups:
           template: templates/svc-cluster.bicep
           parameters: ev2-precompiled-test.bicepparam
           deploymentLevel: ResourceGroup
-        - name: DelegateChildZoneBase
-          action: DelegateChildZoneExtension
+        - name: cxChildZone
+          action: DelegateChildZone
           dependsOn:
             - deploy
-          parentZoneName:
-            configRef: parentZone
-          childZoneName:
-            value: childZone
+          parentZoneName: {}
+          childZoneName: {}
         - name: issuerTest
           action: SetCertificateIssuer
           dependsOn:

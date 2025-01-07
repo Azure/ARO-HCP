@@ -24,12 +24,12 @@ resourceGroups:
     template: templates/svc-cluster.bicep
     parameters: test.bicepparam
     deploymentLevel: ResourceGroup
-  - name: DelegateChildZoneBase
-    action: DelegateChildZoneExtension
-    parentZoneName:
+  - name: cxChildZone
+    action: DelegateChildZone
+    parentZone:
       configRef: parentZone
-    childZoneName:
-      value: childZone
+    childZone:
+      configRef: childZone
     dependsOn:
     - deploy
   - name: issuerTest
