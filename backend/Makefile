@@ -1,4 +1,5 @@
 -include ../setup-env.mk
+HELM_CMD ?= helm upgrade --install
 -include ../helm-cmd.mk
 
 ifndef COMMIT
