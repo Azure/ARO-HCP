@@ -88,10 +88,10 @@
           run: |
             make frontend.dry_run
 
-        - name: 'Dry Maestro Server'
+        - name: 'Dry Run Maestro Server'
           run: |
             make maestro.server.dry_run
 
-        - name: 'Dry Maestro Server'
+        - name: 'Dry Run HypershiftOperator'
           run: |
             make hypershiftoperator.dry_run
