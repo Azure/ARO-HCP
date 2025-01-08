@@ -83,26 +83,18 @@
             make istio.deploy
 
         - name: 'Deploy Frontend'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make frontend.deploy_pipeline
 
         - name: 'Deploy Backend'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make backend.deploy_pipeline
 
         - name: 'Deploy Cluster Service'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make cluster-service.deploy_pipeline
 
         - name: 'Deploy Maestro'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make maestro.server.deploy_pipeline maestro.registration.deploy
 
