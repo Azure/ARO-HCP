@@ -5,6 +5,7 @@ yaml-files:
   - '.yamllint'
 ignore:
   - 'acm/deploy/helm/clc-state-metrics/'
+  - 'acrpull/deploy/helm/acrpull/templates/deployment.yaml'
 
 rules:
   brackets: enable
