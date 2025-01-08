@@ -39,10 +39,10 @@ esac
 ISTIO_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz"
 SHA256_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256"
 # Download the Istioctl binary
-wget -q "$ISTIO_URL" -O istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz
+curl -sL "$ISTIO_URL" -o istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz
 
 # Download the SHA-256 checksum file
-wget -q "$SHA256_URL" -O istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256
+curl -sL "$SHA256_URL" -o istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256
 
 # Verify the downloaded file
 sha256sum -c istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256
