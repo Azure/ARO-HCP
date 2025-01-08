@@ -91,3 +91,7 @@
         - name: 'Dry Maestro Server'
           run: |
             make maestro.server.dry_run
+
+        - name: 'Dry Maestro Server'
+          run: |
+            make hypershiftoperator.dry_run

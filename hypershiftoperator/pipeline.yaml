@@ -27,4 +27,4 @@ resourceGroups:
     - name: HYPERSHIFT_NAMESPACE
       configRef: hypershift.namespace
     - name: HO_ADDITIONAL_INSTALL_ARG
-      configRef: hypershift.additionalInstallArg 
+      configRef: hypershift.additionalInstallArg
