@@ -33,6 +33,8 @@
 
   jobs:
     service_cluster_pr_check:
+      env:
+        PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -75,25 +77,17 @@
             helm plugin install https://github.com/databus23/helm-diff
 
         - name: 'Dry Run Cluster Service'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make cluster-service.dry_run
 
         - name: 'Dry Run Backend'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make backend.dry_run
 
         - name: 'Dry Run Frontend'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make frontend.dry_run
 
         - name: 'Dry Maestro Server'
-          env:
-            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make maestro.server.dry_run
