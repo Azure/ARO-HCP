@@ -7,6 +7,7 @@ param kubernetesVersion = '{{ .svc.aks.kubernetesVersion }}'
 param vnetAddressPrefix = '{{ .svc.aks.vnetAddressPrefix }}'
 param subnetPrefix = '{{ .svc.aks.subnetPrefix }}'
 param podSubnetPrefix = '{{ .svc.aks.podSubnetPrefix }}'
+param istioIngressGatewayIPAddressIPTags = '{{ .svc.istio.ingressGatewayIPAddressIPTags }}'
 param aksClusterName = '{{ .aksName }}'
 param aksKeyVaultName = '{{ .svc.aks.etcd.kvName }}'
 param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.kvSoftDelete }}
@@ -19,6 +20,7 @@ param userAgentMaxCount = {{ .svc.aks.userAgentPool.maxCount }}
 param userAgentVMSize = '{{ .svc.aks.userAgentPool.vmSize }}'
 param userAgentPoolAZCount = {{ .svc.aks.userAgentPool.azCount }}
 param aksUserOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
+param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
 
 param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
 param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}

@@ -28,6 +28,7 @@ defaults:
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-23"
+      ingressGatewayIPAddressIPTags: ""
     aks:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
@@ -36,6 +37,7 @@ defaults:
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}
         kvSoftDelete: true
+      clusterOutboundIPAddressIPTags: ""
 
   # MGMT cluster specifics
   mgmt:
@@ -50,6 +52,7 @@ defaults:
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
+      clusterOutboundIPAddressIPTags: ""
 
   # Frontend
   frontend:

@@ -211,7 +211,12 @@ svc: svc.rg
 .PHONY: svc
 
 svc.istio: svc.rg svc.aks.admin-access svc.aks.kubeconfig
-	@KUBECONFIG=$(SVC_KUBECONFIG_FILE) TARGET_VERSION=$(ISTIO_TARGET_VERSION) ISTIOCTL_VERSION=$(ISTIOCTL_VERSION) TAG=$(ISTIO_TAG) scripts/istio.sh
+	@KUBECONFIG=$(SVC_KUBECONFIG_FILE) \
+	TARGET_VERSION=$(ISTIO_TARGET_VERSION) \
+	ISTIOCTL_VERSION=$(ISTIOCTL_VERSION) \
+	TAG=$(ISTIO_TAG) \
+	SVC_RESOURCEGROUP=$(SVC_RESOURCEGROUP) \
+	scripts/istio.sh
 .PHONY: svc.istio
 
 svc.enable-aks-metrics:

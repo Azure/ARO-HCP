@@ -39,5 +39,7 @@ resourceGroups:
       configRef: svc.istio.istioctlVersion
     - name: TAG
       configRef: svc.istio.tag
+    - name: SVC_RESOURCEGROUP
+      configRef: svc.rg
     dependsOn:
     - svc
