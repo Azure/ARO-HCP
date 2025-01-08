@@ -469,6 +469,10 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
   }
 ]
 
+//
+//  A C R   P U L L   C O N T R O L L E R
+//
+
 resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   location: location
   name: 'image-puller'
@@ -485,6 +489,7 @@ module acrPullerRoles 'acr/acr-permissions.bicep' = [
   }
 ]
 
+@batchSize(1)
 resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [
   for i in range(0, length(workloadIdentities)): {
     parent: pullerIdentity
@@ -498,6 +503,7 @@ resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federa
     }
   }
 ]
+
 
 // grant aroDevopsMsi the aksClusterAdmin role on the aksCluster so it can
 // deploy services to the cluster

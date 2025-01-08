@@ -5,8 +5,8 @@ metadata:
 spec:
   acr:
     environment: PublicCloud
-    scope: {{ .Values.pullBinding.registry }}
-    server: {{ .Values.pullBinding.scope }}
+    server: {{ .Values.pullBinding.registry }}
+    scope: {{ .Values.pullBinding.scope }}
   auth:
     workloadIdentity:
       serviceAccountRef: frontend
