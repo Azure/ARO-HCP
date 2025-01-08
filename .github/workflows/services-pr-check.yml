@@ -91,3 +91,9 @@
             PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
             make frontend.dry_run
+
+        - name: 'Dry Maestro Server'
+          env:
+            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
+          run: |
+            make maestro.server.dry_run

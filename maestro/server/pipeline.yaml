@@ -11,10 +11,8 @@ resourceGroups:
     command: make deploy
     dryRun:
       variables:
-      - name: HELM_DRY_RUN
-        value: "--dry-run=server --debug"
-      - name: KUBECTL_DRY_RUN
-        value: "--dry-run=server"
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: EVENTGRID_NAME
       configRef: maestro.eventGrid.name

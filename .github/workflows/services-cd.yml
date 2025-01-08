@@ -101,8 +101,10 @@
             make cluster-service.deploy_pipeline
 
         - name: 'Deploy Maestro'
+          env:
+            PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
           run: |
-            make maestro.server.deploy maestro.registration.deploy
+            make maestro.server.deploy_pipeline maestro.registration.deploy
 
         - name: 'Deploy Prometheus Config'
           run: |
