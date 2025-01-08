@@ -95,3 +95,7 @@
         - name: 'Dry Run HypershiftOperator'
           run: |
             make hypershiftoperator.dry_run
+
+        - name: 'Dry Run Istio'
+          run: |
+            make istio.dry_run

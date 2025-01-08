@@ -80,7 +80,7 @@
 
         - name: 'Deploy Istio Configuration'
           run: |
-            make istio.deploy
+            make istio.deploy_pipeline
 
         - name: 'Deploy Frontend'
           run: |
