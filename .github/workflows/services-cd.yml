@@ -159,4 +159,4 @@
 
       - name: 'Deploy Hypershift Operator and External DNS Operator'
         run: |
-          make hypershiftoperator.deploy
+          make hypershiftoperator.deploy_pipeline
