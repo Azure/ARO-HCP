@@ -27,8 +27,10 @@ resourceGroups:
           action: DelegateChildZone
           dependsOn:
             - deploy
-          parentZoneName: {}
-          childZoneName: {}
+          parentZone:
+            configRef: parentZone
+          childZone:
+            configRef: childZone
         - name: issuerTest
           action: SetCertificateIssuer
           dependsOn:

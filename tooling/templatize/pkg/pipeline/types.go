@@ -203,8 +203,8 @@ func (s *ARMStep) Description() string {
 
 type DelegateChildZoneStep struct {
 	StepMeta       `yaml:",inline"`
-	ParentZoneName VariableRef `yaml:"parentZoneName"`
-	ChildZoneName  VariableRef `yaml:"childZoneName"`
+	ParentZoneName VariableRef `yaml:"parentZone"`
+	ChildZoneName  VariableRef `yaml:"childZone"`
 }
 
 func (s *DelegateChildZoneStep) Description() string {
