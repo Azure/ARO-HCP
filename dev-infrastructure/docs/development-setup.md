@@ -660,16 +660,16 @@ The integrated DEV environment is hosted in `westus3` and consists of
 To access the SC run
 
 ```sh
-DEPLOY_ENV=dev make svc.aks.admin-access svc.aks.kubeconfig
-export KUBECONFIG=$(DEPLOY_ENV=dev make svc.aks.kubeconfigfile)
+DEPLOY_ENV=dev make --directory=dev-infrastructure svc.aks.admin-access svc.aks.kubeconfig
+export KUBECONFIG=$(DEPLOY_ENV=dev make --directory=dev-infrastructure svc.aks.kubeconfigfile)
 kubectl get ns
 ```
 
 To access the MC run
 
 ```sh
-DEPLOY_ENV=dev make mgmt.aks.admin-access mgmt.aks.kubeconfig
-export KUBECONFIG=$(DEPLOY_ENV=dev make mgmt.aks.kubeconfigfile)
+DEPLOY_ENV=dev make --directory=dev-infrastructure mgmt.aks.admin-access mgmt.aks.kubeconfig
+export KUBECONFIG=$(DEPLOY_ENV=dev make --directory=dev-infrastructure mgmt.aks.kubeconfigfile)
 kubectl get ns
 ```
 
