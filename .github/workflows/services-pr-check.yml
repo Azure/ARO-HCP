@@ -99,3 +99,7 @@
         - name: 'Dry Run Istio'
           run: |
             make istio.dry_run
+
+        - name: 'Dry Run Metrics'
+          run: |
+            make metrics.dry_run
