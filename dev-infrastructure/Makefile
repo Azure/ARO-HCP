@@ -263,7 +263,7 @@ svc.kv.permission:
 	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(SVC_KV_RESOURCEGROUP) $(SVC_KV_NAME)
 .PHONY: svc.kv.permission
 
-svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.istio metrics-infra svc.enable-aks-metrics svc.oidc.storage.permissions
+svc.init: region metrics-infra svc svc.aks.admin-access svc.aks.kubeconfig svc.istio svc.oidc.storage.permissions
 .PHONY: svc.init
 
 svc.what-if: svc.rg
@@ -340,18 +340,6 @@ mgmt: mgmt.wait mgmt.rg
 			persist=${PERSIST}
 .PHONY: mgmt
 
-mgmt.enable-aks-metrics:
-	@if [ "$$(az aks show --resource-group $(MGMT_RESOURCEGROUP) --name ${AKS_NAME} --query 'azureMonitorProfile.metrics.enabled' -o tsv)" = "true" ]; then \
-        echo "Azure Monitor metrics are already enabled."; \
-    else \
-        az aks update --enable-azure-monitor-metrics \
-            --resource-group $(MGMT_RESOURCEGROUP) \
-            --name ${AKS_NAME} \
-            --azure-monitor-workspace-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
-            --grafana-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value); \
-    fi
-.PHONY: mgmt.enable-aks-metrics
-
 mgmt.aks.admin-access:
 	@scripts/aks-admin-access.sh $(MGMT_RESOURCEGROUP) $(PRINCIPAL_ID)
 .PHONY: mgmt.aks.admin-access
@@ -365,7 +353,7 @@ mgmt.aks.kubeconfigfile:
 	@echo ${MGMT_KUBECONFIG_FILE}
 .PHONY: mgmt.aks.kubeconfigfile
 
-mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig metrics-infra mgmt.enable-aks-metrics
+mgmt.init: region metrics-infra mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig 
 .PHONY: mgmt.init
 
 mgmt.what-if: mgmt.rg

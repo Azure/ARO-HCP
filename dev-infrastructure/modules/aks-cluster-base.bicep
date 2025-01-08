@@ -3,6 +3,11 @@ param aksClusterName string
 param aksNodeResourceGroupName string
 param aksEtcdKVEnableSoftDelete bool
 
+// Metrics
+param dcrId string
+param metricLabelsAllowlist string = ''
+param metricAnnotationsAllowList string = ''
+
 // System agentpool spec(Infra)
 param systemAgentMinCount int = 2
 param systemAgentMaxCount int = 3
@@ -302,6 +307,15 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
       nodeOSUpgradeChannel: 'NodeImage'
       upgradeChannel: 'patch'
     }
+    azureMonitorProfile: {
+      metrics: {
+        enabled: true
+        kubeStateMetrics: {
+          metricLabelsAllowlist: metricLabelsAllowlist
+          metricAnnotationsAllowList: metricAnnotationsAllowList
+        }
+      }
+    }
     disableLocalAccounts: true
     dnsPrefix: dnsPrefix
     enableRBAC: true
@@ -514,6 +528,16 @@ resource aroDevopsMSIClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-
     principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: aksClusterAdminRBACRoleId
+  }
+}
+
+// metrics dcr association 
+resource azuremonitormetrics_dcra_clusterResourceId 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = {
+  name: '${resourceGroup().name}-${aksCluster.name}-dcra'
+  scope: aksCluster
+  properties: {
+    description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'
+    dataCollectionRuleId: dcrId
   }
 }
 
