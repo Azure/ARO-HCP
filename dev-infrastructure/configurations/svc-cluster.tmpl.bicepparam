@@ -2,12 +2,14 @@ using '../templates/svc-cluster.bicep'
 
 param kubernetesVersion = '{{ .kubernetesVersion }}'
 param istioVersions = '{{ .svc.istio.versions }}'
+param istioIngressGatewayIpAddressIPTags = '{{ .svc.istio.ingressGatewayIPTags }}'
 param vnetAddressPrefix = '{{ .vnetAddressPrefix }}'
 param subnetPrefix = '{{ .subnetPrefix }}'
 param podSubnetPrefix = '{{ .podSubnetPrefix }}'
 param aksClusterName = '{{ .aksName }}'
 param aksKeyVaultName = '{{ .svc.etcd.kvName }}'
 param aksEtcdKVEnableSoftDelete = {{ .svc.etcd.kvSoftDelete }}
+param aksClusterOutboundIpAddressIPTags = '{{ .svc.outboundIPTags }}'
 
 param userAgentMinCount = {{ .svc.userAgentPool.minCount }}
 param userAgentMaxCount = {{ .svc.userAgentPool.maxCount }}

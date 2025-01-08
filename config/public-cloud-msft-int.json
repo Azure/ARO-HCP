@@ -137,6 +137,7 @@
       "kvName": "arohcp-etcd-int-1",
       "kvSoftDelete": true
     },
+    "outboundIPTags": "FirstPartyUsage:/NonProd",
     "rg": "hcp-underlay-westus3-mgmt-1",
     "subscription": "hcp-westus3",
     "systemAgentPool": {
@@ -190,11 +191,13 @@
       "kvSoftDelete": true
     },
     "istio": {
+      "ingressGatewayIPTags": "FirstPartyUsage:/NonProd",
       "istioctlVersion": "1.24.1",
       "tag": "prod-stable",
       "targetVersion": "asm-1-23",
       "versions": "asm-1-22,asm-1-23"
     },
+    "outboundIPTags": "FirstPartyUsage:/NonProd",
     "rg": "hcp-underlay-westus3-svc",
     "subscription": "hcp-westus3",
     "userAgentPool": {

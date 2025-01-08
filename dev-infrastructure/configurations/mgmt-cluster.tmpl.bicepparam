@@ -17,6 +17,7 @@ param userAgentMaxCount = {{ .mgmt.userAgentPool.maxCount }}
 param userAgentVMSize = '{{ .mgmt.userAgentPool.vmSize }}'
 param aksUserOsDiskSizeGB = {{ .mgmt.userAgentPool.osDiskSizeGB }}
 param userAgentPoolAZCount = {{ .mgmt.userAgentPool.azCount }}
+param aksClusterOutboundIpAddressIPTags = '{{ .mgmt.outboundIPTags }}'
 
 // Maestro
 param maestroConsumerName = '{{ .maestro.consumerName }}'
