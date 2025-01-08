@@ -1,0 +1,30 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
+rolloutName: RP HypershiftOperator Rollout
+resourceGroups:
+- name: {{ .mgmt.rg }}
+  subscription: {{ .svc.subscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    variables:
+    - name: ARO_HCP_SVC_ACR
+      configRef: svcAcrName
+    - name: ARO_HCP_OCP_ACR
+      configRef: ocpAcrName
+    - name: HO_IMAGE_TAG
+      configRef: hypershiftOperator.imageTag
+    - name: RESOURCEGROUP
+      configRef: mgmt.rg
+    - name: AKS_NAME
+      configRef: aksName
+    - name: HYPERSHIFT_NAMESPACE
+      configRef: hypershift.namespace
+    - name: HO_ADDITIONAL_INSTALL_ARG
+      configRef: hypershift.additionalInstallArg 
