@@ -17,7 +17,34 @@ spec:
     singular: acrpullbinding
   scope: Namespaced
   versions:
-  - name: v1beta2
+  - additionalPrinterColumns:
+    - description: FQDN for the ACR.
+      jsonPath: .spec.acr.server
+      name: Server
+      type: string
+    - description: Scope for the ACR token.
+      jsonPath: .spec.acr.scope
+      name: Scope
+      priority: 1
+      type: string
+    - description: ServiceAccount to which the pull credentials are attached.
+      jsonPath: .spec.serviceAccountName
+      name: Target
+      type: string
+    - description: Time the token was last refreshed.
+      jsonPath: .status.lastTokenRefreshTime
+      name: Last Refresh
+      priority: 1
+      type: date
+    - description: Time the current token expires.
+      jsonPath: .status.tokenExpirationTime
+      name: Expiration
+      type: date
+    - description: Errors encountered during token generation, if any.
+      jsonPath: .status.error
+      name: Error
+      type: string
+    name: v1beta2
     schema:
       openAPIV3Schema:
         description: AcrPullBinding is the Schema for the acrpullbindings API
@@ -136,12 +163,35 @@ spec:
                     description: WorkloadIdentity uses Azure Workload Identity to
                       authenticate with Azure.
                     properties:
+                      clientID:
+                        description: |-
+                          ClientID holds an optional client identifier of a federated identity.
+                          Specify this identifier if multiple identities are federated with the
+                          service account and the identity to use for image pulling is not the
+                          default identity stored in the service account's annotations. The
+                          client and tenant ID must be specified together.
+                        example: 1b461305-28be-5271-beda-bd9fd2e24251
+                        type: string
                       serviceAccountRef:
                         description: |-
                           ServiceAccountName specifies the name of the service account
                           that should be used when authenticating with WorkloadIdentity.
                         type: string
+                      tenantID:
+                        description: |-
+                          TenantID holds an optional tenant identifier of a federated identity.
+                          Specify this identifier if multiple identities are federated with the
+                          service account and the identity to use for image pulling is not the
+                          default identity stored in the service account's annotations. The
+                          client and tenant ID must be specified together.
+                        example: 72f988bf-86f1-41af-91ab-2d7cd011db47
+                        type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: custom client and tenant identifiers must be provided
+                        together, if at all
+                      rule: (has(self.clientID) && has(self.tenantID)) || (!has(self.clientID)
+                        && !has(self.tenantID))
                 type: object
                 x-kubernetes-validations:
                 - message: only one authentication type can be set
