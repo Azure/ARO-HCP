@@ -31,8 +31,8 @@ defaults:
     istio:
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
-      targetVersion: "asm-1-22"
-      versions: "asm-1-22"
+      targetVersion: "asm-1-23"
+      versions: "asm-1-23"
 
   # MGMT cluster specifics
   mgmt:
@@ -248,9 +248,10 @@ clouds:
           frontend:
             cosmosDB:
               private: false
-        regions:
-          westus2:
-            mgmtUserAgentPoolMinCount: 5
+          svc:
+            istio:
+              targetVersion: "asm-1-23"
+              versions: "asm-1-22,asm-1-23"
       cs-pr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
@@ -260,6 +261,9 @@ clouds:
             userAgentPool:
               minCount: 2
               maxCount: 12
+            istio:
+              targetVersion: "asm-1-23"
+              versions: "asm-1-22,asm-1-23"
           mgmt:
             # MC AKS nodepools - big enough for multiple HCPs
             userAgentPool:
