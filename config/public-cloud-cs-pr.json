@@ -1,4 +1,5 @@
 {
+  "acrPullImageDigest": "sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca",
   "aksName": "aro-hcp-aks",
   "armHelperClientId": "2c6ca254-36bd-43c8-a7a8-fe880bc2c489",
   "armHelperFPAPrincipalId": "bc17c825-6cf8-40d0-8bd6-5536a993115e",

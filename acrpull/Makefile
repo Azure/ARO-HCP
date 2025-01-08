@@ -1,8 +1,10 @@
 -include ../setup-env.mk
+-include ../helm-cmd.mk
+HELM_CMD ?= helm upgrade --install
 
 deploy:
 	kubectl create namespace acrpull --dry-run=client -o json | kubectl apply -f - && \
-	helm upgrade --install ${HELM_DRY_RUN} acrpull \
+	${HELM_CMD} acrpull \
 		deploy/helm/acrpull/ \
 		--set image=mcr.microsoft.com/aks/msi-acrpull@${ACRPULL_DIGEST} \
 		--namespace acrpull

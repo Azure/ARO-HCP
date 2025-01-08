@@ -11,7 +11,7 @@ spec:
   paramRef:
     name: "admission-policies-controller-config"
     namespace: {{ .Values.namespace }}
-    parameterNotFoundAction: "Deny"
+    parameterNotFoundAction: "Allow"
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
@@ -26,7 +26,7 @@ spec:
   paramRef:
     name: "admission-policies-controller-config"
     namespace: {{ .Values.namespace }}
-    parameterNotFoundAction: "Deny"
+    parameterNotFoundAction: "Allow"
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
@@ -41,4 +41,4 @@ spec:
   paramRef:
     name: "admission-policies-controller-config"
     namespace: {{ .Values.namespace }}
-    parameterNotFoundAction: "Deny"
+    parameterNotFoundAction: "Allow"
