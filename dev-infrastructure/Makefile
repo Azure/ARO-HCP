@@ -27,23 +27,18 @@ list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
 
-fmt:
-	set -e; \
-	FILES="$$(find . -type f -name "*.bicep*" ! -name "*.tmpl.bicepparam")"; \
-	for file in $$FILES; do \
-	echo "az bicep format --file $${file}"; \
-	az bicep format --file $$file; \
-	done
-.PHONY: fmt
+modules := $(wildcard ./templates/*.bicep)
+parameters := $(filter-out $(wildcard ./templates/*.tmpl.bicepparam),$(wildcard ./templates/*.bicepparam))
 
-lint:
-	set -e; \
-	FILES="$$(find . -type f -name "*.bicep*" ! -name "*.tmpl.bicepparam")"; \
-	for file in $$FILES; do \
-	echo "az bicep lint --file $${file}"; \
-	az bicep lint --file $$file; \
-	done
-.PHONY: lint
+fmt: $(modules:.bicep=.bicep.fmt) $(parameters:.bicepparam=.biceparam.fmt)
+
+lint: $(modules:.bicep=.bicep.lint) $(parameters:.bicepparam=.biceparam.lint)
+
+%.bicep.fmt %.bicepparam.fmt:
+	az bicep format --file $(basename $@)
+
+%.bicep.lint %.bicepparam.lint:
+	az bicep lint --file $(basename $@)
 
 feature-registration: # hardcoded to eastus as this is a subscription deployment, not a resource group
 	@az deployment sub create \
