@@ -1,0 +1,8 @@
+Region: 
+  - Service.Infra: 
+    - Management.Infra: 
+      - MaestroAgent 
+      - MaestroServer
+      - Test
+Global: 
+Global.ACR:
