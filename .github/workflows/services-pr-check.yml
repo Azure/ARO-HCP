@@ -96,6 +96,10 @@
           run: |
             make istio.dry_run
 
+        - name: 'Dry Run ACR Pull'
+          run: |
+            make acrpull.dry_run
+
         - name: 'Dry Run Metrics'
           run: |
             make metrics.dry_run

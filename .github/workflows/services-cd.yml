@@ -82,6 +82,10 @@
           run: |
             make istio.deploy_pipeline
 
+        - name: 'Deploy ACR Pull Configuration'
+          run: |
+            make acrpull.deploy_pipeline
+
         - name: 'Deploy Frontend'
           run: |
             make frontend.deploy_pipeline
