@@ -16,6 +16,7 @@ spec:
       annotations:
         checksum/credsstore: {{ include (print $.Template.BasePath "/maestro.secretproviderclass.yaml") . | sha256sum }}
         checksum/config: {{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum }}
+        checksum/envoyconfig: {{ include (print $.Template.BasePath "/metrics-sidecar.configmap.yaml") . | sha256sum }}
     spec:
       containers:
       - command:
@@ -34,6 +35,13 @@ spec:
         - mountPath: /secrets/mqtt-creds
           name: mqtt-creds
           readOnly: true
+      - name: metrics-proxy
+        image: "{{ .Values.metricsProxy.image.base }}:{{ .Values.metricsProxy.image.tag }}"
+        args:
+        - --config-path /etc/envoy/envoy.yaml
+        volumeMounts:
+        - mountPath: /etc/envoy
+          name: envoy-config
       serviceAccountName: maestro
       volumes:
       - name: maestro
@@ -45,3 +53,6 @@ spec:
           volumeAttributes:
             secretProviderClass: maestro
         name: mqtt-creds
+      - name: envoy-config
+        configMap:
+          name: envoy-config

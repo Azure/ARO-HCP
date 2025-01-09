@@ -7,6 +7,11 @@ azure:
 image:
   base: ""
   tag: ""
+metricsProxy:
+  image:
+    base: envoyproxy/envoy
+    tag: v1.32.3
+  port: 8080
 credsKeyVault:
   name: ""
   secret: ""
