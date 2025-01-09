@@ -18,6 +18,14 @@ test:
 	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -tags=$(GOTAGS) -cover
 .PHONY: test
 
+mocks: install-tools
+	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
+.PHONY: mocks
+
+install-tools: $(BINGO)
+	$(BINGO) get
+.PHONY: install-tools
+
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
