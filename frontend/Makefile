@@ -19,7 +19,7 @@ info:
 	@echo "COMMIT: ${COMMIT}"
 
 run:
-	./aro-hcp-frontend --use-cache --location ${LOCATION} \
+	./aro-hcp-frontend --location ${LOCATION} \
 		--clusters-service-url http://localhost:8000 \
 		--cluster-service-provision-shard 1 \
 		--cluster-service-noop-provision \

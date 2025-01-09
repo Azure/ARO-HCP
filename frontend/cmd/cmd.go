@@ -36,7 +36,6 @@ type FrontendOpts struct {
 	metricsPort int
 	port        int
 
-	useCache   bool
 	cosmosName string
 	cosmosURL  string
 }
@@ -61,7 +60,6 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
-	rootCmd.Flags().BoolVar(&opts.useCache, "use-cache", false, "leverage a local cache instead of reaching out to a database")
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database url")
 	rootCmd.Flags().StringVar(&opts.location, "location", os.Getenv("LOCATION"), "Azure location")
@@ -74,8 +72,6 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
 
-	rootCmd.MarkFlagsMutuallyExclusive("use-cache", "cosmos-name")
-	rootCmd.MarkFlagsMutuallyExclusive("use-cache", "cosmos-url")
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
 	return rootCmd
@@ -89,40 +85,36 @@ func (opts *FrontendOpts) Run() error {
 	prometheusEmitter := frontend.NewPrometheusEmitter(prometheus.DefaultRegisterer)
 
 	// Configure database configuration and client
-	dbClient := database.NewCache()
-	if !opts.useCache {
-		var err error
 
-		azcoreClientOptions := azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud: cloud.AzurePublic,
-		}
+	azcoreClientOptions := azcore.ClientOptions{
+		// FIXME Cloud should be determined by other means.
+		Cloud: cloud.AzurePublic,
+	}
 
-		credential, err := azidentity.NewDefaultAzureCredential(
-			&azidentity.DefaultAzureCredentialOptions{
-				ClientOptions: azcoreClientOptions,
-			})
-		if err != nil {
-			return err
-		}
+	credential, err := azidentity.NewDefaultAzureCredential(
+		&azidentity.DefaultAzureCredentialOptions{
+			ClientOptions: azcoreClientOptions,
+		})
+	if err != nil {
+		return err
+	}
 
-		cosmosClient, err := azcosmos.NewClient(opts.cosmosURL, credential,
-			&azcosmos.ClientOptions{
-				ClientOptions: azcoreClientOptions,
-			})
-		if err != nil {
-			return err
-		}
+	cosmosClient, err := azcosmos.NewClient(opts.cosmosURL, credential,
+		&azcosmos.ClientOptions{
+			ClientOptions: azcoreClientOptions,
+		})
+	if err != nil {
+		return err
+	}
 
-		cosmosDatabaseClient, err := cosmosClient.NewDatabase(opts.cosmosName)
-		if err != nil {
-			return err
-		}
+	cosmosDatabaseClient, err := cosmosClient.NewDatabase(opts.cosmosName)
+	if err != nil {
+		return err
+	}
 
-		dbClient, err = database.NewCosmosDBClient(context.Background(), cosmosDatabaseClient)
-		if err != nil {
-			return fmt.Errorf("creating the database client failed: %v", err)
-		}
+	dbClient, err := database.NewCosmosDBClient(context.Background(), cosmosDatabaseClient)
+	if err != nil {
+		return fmt.Errorf("creating the database client failed: %v", err)
 	}
 
 	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", opts.port))
