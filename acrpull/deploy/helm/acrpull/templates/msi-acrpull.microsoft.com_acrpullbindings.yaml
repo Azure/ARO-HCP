@@ -1,0 +1,87 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: acrpullbindings.msi-acrpull.microsoft.com
+spec:
+  group: msi-acrpull.microsoft.com
+  names:
+    kind: AcrPullBinding
+    listKind: AcrPullBindingList
+    plural: acrpullbindings
+    singular: acrpullbinding
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: AcrPullBinding is the Schema for the acrpullbindings API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AcrPullBindingSpec defines the desired state of AcrPullBinding
+            properties:
+              acrServer:
+                description: The full server name for the ACR. For example, test.azurecr.io
+                minLength: 0
+                type: string
+              managedIdentityClientID:
+                description: The Managed Identity client ID that is used to authenticate
+                  with ACR (specify one of ClientID or ResourceID)
+                type: string
+              managedIdentityResourceID:
+                description: The Managed Identity resource ID that is used to authenticate
+                  with ACR (if ClientID is specified, this is ignored)
+                type: string
+              scope:
+                description: |-
+                  The registry scope which the pull token should have. For example, repository:my-repository:pull,push
+                  See docs for details: https://distribution.github.io/distribution/spec/auth/scope/
+                type: string
+              serviceAccountName:
+                description: |-
+                  The Service Account to associate the image pull secret with. If this is not specified, the default Service Account
+                  of the namespace will be used.
+                type: string
+            required:
+            - acrServer
+            type: object
+          status:
+            description: AcrPullBindingStatus defines the observed state of AcrPullBinding
+            properties:
+              error:
+                description: Error message if there was an error updating the token.
+                type: string
+              lastTokenRefreshTime:
+                description: Information when was the last time the ACR token was
+                  refreshed.
+                format: date-time
+                type: string
+              tokenExpirationTime:
+                description: The expiration date of the current ACR token.
+                format: date-time
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

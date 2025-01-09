@@ -1,0 +1,225 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: acrpullbindings.acrpull.microsoft.com
+spec:
+  group: acrpull.microsoft.com
+  names:
+    kind: AcrPullBinding
+    listKind: AcrPullBindingList
+    plural: acrpullbindings
+    shortNames:
+    - apb
+    - apbs
+    singular: acrpullbinding
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: FQDN for the ACR.
+      jsonPath: .spec.acr.server
+      name: Server
+      type: string
+    - description: Scope for the ACR token.
+      jsonPath: .spec.acr.scope
+      name: Scope
+      priority: 1
+      type: string
+    - description: ServiceAccount to which the pull credentials are attached.
+      jsonPath: .spec.serviceAccountName
+      name: Target
+      type: string
+    - description: Time the token was last refreshed.
+      jsonPath: .status.lastTokenRefreshTime
+      name: Last Refresh
+      priority: 1
+      type: date
+    - description: Time the current token expires.
+      jsonPath: .status.tokenExpirationTime
+      name: Expiration
+      type: date
+    - description: Errors encountered during token generation, if any.
+      jsonPath: .status.error
+      name: Error
+      type: string
+    name: v1beta2
+    schema:
+      openAPIV3Schema:
+        description: AcrPullBinding is the Schema for the acrpullbindings API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AcrPullBindingSpec defines the desired state of AcrPullBinding
+            properties:
+              acr:
+                description: ACR holds specifics of the Azure Container Registry for
+                  which credentials are projected.
+                properties:
+                  cloudConfig:
+                    description: AirgappedCloudConfiguration configures a custom cloud
+                      to interact with when running air-gapped.
+                    properties:
+                      entraAuthorityHost:
+                        description: EntraAuthorityHost configures a custom Entra
+                          host endpoint.
+                        minLength: 1
+                        type: string
+                      resourceManagerAudience:
+                        description: ResourceManagerAudience configures the audience
+                          for which tokens will be requested from Entra.
+                        minLength: 1
+                        type: string
+                    required:
+                    - entraAuthorityHost
+                    - resourceManagerAudience
+                    type: object
+                  environment:
+                    default: PublicCloud
+                    description: Environment specifies the Azure Cloud environment
+                      in which the ACR is deployed.
+                    enum:
+                    - PublicCloud
+                    - USGovernmentCloud
+                    - ChinaCloud
+                    - AirgappedCloud
+                    example: PublicCloud
+                    type: string
+                  scope:
+                    description: |-
+                      Scope defines the scope for the access token, e.g. pull/push access for a repository.
+                      Note: you need to pin it down to the repository level, there is no wildcard available,
+                      however a list of space-delimited scopes is acceptable.
+                      See docs for details: https://distribution.github.io/distribution/spec/auth/scope/
+
+
+                      Examples:
+                      repository:my-repository:pull,push
+                      repository:my-repository:pull repository:other-repository:push,pull
+                    example: repository:my-repository:pull,push
+                    minLength: 1
+                    type: string
+                  server:
+                    description: Server is the FQDN for the Azure Container Registry,
+                      e.g. example.azurecr.io
+                    example: example.azurecr.io
+                    type: string
+                    x-kubernetes-validations:
+                    - message: server must be a fully-qualified domain name
+                      rule: isURL('https://' + self) && url('https://' + self).getHostname()
+                        == self
+                required:
+                - environment
+                - scope
+                - server
+                type: object
+                x-kubernetes-validations:
+                - message: a custom cloud configuration must be present for air-gapped
+                    cloud environments
+                  rule: 'self.environment == ''ArigappedCloud'' ? has(self.cloudConfig)
+                    : !has(self.cloudConfig)'
+              auth:
+                description: Auth determines how we will authenticate to the Azure
+                  Container Registry. Only one method may be provided.
+                properties:
+                  managedIdentity:
+                    description: ManagedIdentity uses Azure Managed Identity to authenticate
+                      with Azure.
+                    properties:
+                      clientID:
+                        description: ClientID is the client identifier for the managed
+                          identity. Either provide the client ID or the resource ID.
+                        example: 1b461305-28be-5271-beda-bd9fd2e24251
+                        type: string
+                      resourceID:
+                        description: ResourceID is the resource identifier for the
+                          managed identity. Either provide the client ID or the resource
+                          ID.
+                        example: /subscriptions/sub-name/resourceGroups/rg-name/providers/Microsoft.ManagedIdentity/userAssignedIdentities/1b461305-28be-5271-beda-bd9fd2e24251
+                        type: string
+                    type: object
+                    x-kubernetes-validations:
+                    - message: only client or resource ID can be set
+                      rule: '[has(self.clientID), has(self.resourceID)].exists_one(x,
+                        x)'
+                  workloadIdentity:
+                    description: WorkloadIdentity uses Azure Workload Identity to
+                      authenticate with Azure.
+                    properties:
+                      clientID:
+                        description: |-
+                          ClientID holds an optional client identifier of a federated identity.
+                          Specify this identifier if multiple identities are federated with the
+                          service account and the identity to use for image pulling is not the
+                          default identity stored in the service account's annotations. The
+                          client and tenant ID must be specified together.
+                        example: 1b461305-28be-5271-beda-bd9fd2e24251
+                        type: string
+                      serviceAccountRef:
+                        description: |-
+                          ServiceAccountName specifies the name of the service account
+                          that should be used when authenticating with WorkloadIdentity.
+                        type: string
+                      tenantID:
+                        description: |-
+                          TenantID holds an optional tenant identifier of a federated identity.
+                          Specify this identifier if multiple identities are federated with the
+                          service account and the identity to use for image pulling is not the
+                          default identity stored in the service account's annotations. The
+                          client and tenant ID must be specified together.
+                        example: 72f988bf-86f1-41af-91ab-2d7cd011db47
+                        type: string
+                    type: object
+                    x-kubernetes-validations:
+                    - message: custom client and tenant identifiers must be provided
+                        together, if at all
+                      rule: (has(self.clientID) && has(self.tenantID)) || (!has(self.clientID)
+                        && !has(self.tenantID))
+                type: object
+                x-kubernetes-validations:
+                - message: only one authentication type can be set
+                  rule: '[has(self.managedIdentity), has(self.workloadIdentity)].exists_one(x,
+                    x)'
+              serviceAccountName:
+                description: The name of the service account to associate the image
+                  pull secret with.
+                type: string
+            type: object
+          status:
+            description: AcrPullBindingStatus defines the observed state of AcrPullBinding
+            properties:
+              error:
+                description: Error message if there was an error updating the token.
+                type: string
+              lastTokenRefreshTime:
+                description: Information when was the last time the ACR token was
+                  refreshed.
+                format: date-time
+                type: string
+              tokenExpirationTime:
+                description: The expiration date of the current ACR token.
+                format: date-time
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

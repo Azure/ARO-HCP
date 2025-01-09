@@ -369,6 +369,9 @@
       "kubernetesVersion": {
         "type": "string"
       },
+      "acrPullImageDigest": {
+        "type": "string"
+      },
       "maestro": {
         "type": "object",
         "properties": {
@@ -780,6 +783,7 @@
       "hypershiftOperator",
       "imageSync",
       "kubernetesVersion",
+      "acrPullImageDigest",
       "maestro",
       "mgmt",
       "mgmtKeyVault",
