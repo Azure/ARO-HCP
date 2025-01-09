@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: package-operator-bootstrap
+  namespace: package-operator-system
+spec:
+  # delete right after completion
+  ttlSecondsAfterFinished: 0
+  # set deadline to 30min
+  activeDeadlineSeconds: 1800
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: package-operator
+      containers:
+      - name: package-operator
+        image: "{{ .Values.pkoImageManager }}:{{ .Values.pkoImageTag }}"
+        args: ["-self-bootstrap={{ .Values.pkoImage }}:{{ .Values.pkoImageTag }}"]
+        imagePullPolicy: Always
+        env:
+        - name: PKO_REGISTRY_HOST_OVERRIDES
+          value: ''
+        - name: PKO_CONFIG
+          value: ''
+        - name: PKO_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: PKO_SERVICE_ACCOUNT_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: PKO_SERVICE_ACCOUNT_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+  backoffLimit: 3

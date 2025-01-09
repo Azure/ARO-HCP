@@ -126,6 +126,26 @@
           "regionalSubdomain"
         ]
       },
+      "pko": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "type": "string"
+          },
+          "imageManager": {
+            "type": "string"
+          },
+          "imageTag": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "image",
+          "imageManager",
+          "imageTag"
+        ]
+      },
       "clusterService": {
         "type": "object",
         "properties": {
