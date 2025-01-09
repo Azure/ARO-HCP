@@ -134,7 +134,7 @@ services_mgmt_pipelines = hypershiftoperator
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -s deploy -P run -c public -d
 
-svc.deployall:  $(addsuffix .deploy, $(services_svc)) $(addsuffix .deploy_pipeline, $(services_svc_pipelines))
+svc.deployall: $(addsuffix .deploy_pipeline, $(services_svc_pipelines)) $(addsuffix .deploy, $(services_svc))
 mgmt.deployall: $(addsuffix .deploy, $(services_mgmt)) $(addsuffix .deploy_pipeline, $(services_mgmt_pipelines))
 deployall: svc.deployall mgmt.deployall
 
