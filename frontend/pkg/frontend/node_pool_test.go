@@ -13,12 +13,14 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -86,8 +88,11 @@ func TestCreateNodePool(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+
 			f := &Frontend{
-				dbClient:             database.NewCache(),
+				dbClient:             mockDBClient,
 				metrics:              NewPrometheusEmitter(prometheus.NewRegistry()),
 				clusterServiceClient: &mockCSClient,
 			}
@@ -99,19 +104,8 @@ func TestCreateNodePool(t *testing.T) {
 			hcpCluster.Name = dummyClusterName
 			csCluster, _ := f.BuildCSCluster(clusterResouceID, requestHeader, hcpCluster, false)
 
-			if test.subDoc != nil {
-				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), test.subDoc)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-
 			if test.clusterDoc != nil {
-				err := f.dbClient.CreateResourceDoc(context.TODO(), test.clusterDoc)
-				if err != nil {
-					t.Fatal(err)
-				}
-				_, err = f.clusterServiceClient.PostCSCluster(context.TODO(), csCluster)
+				_, err := f.clusterServiceClient.PostCSCluster(context.TODO(), csCluster)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -128,6 +122,33 @@ func TestCreateNodePool(t *testing.T) {
 
 				return ctx
 			}
+
+			// MiddlewareLockSubscription
+			mockDBClient.EXPECT().
+				GetLockClient()
+			// MiddlewareValidateSubscriptionState and MetricsMiddleware
+			mockDBClient.EXPECT().
+				GetSubscriptionDoc(gomock.Any(), test.subDoc.ID).
+				Return(test.subDoc, nil).
+				Times(2)
+			// CreateOrUpdateNodePool
+			mockDBClient.EXPECT().
+				GetResourceDoc(gomock.Any(), test.nodePoolDoc.ResourceId).
+				Return(nil, database.ErrNotFound)
+			// CheckForProvisioningStateConflict and CreateOrUpdateNodePool
+			mockDBClient.EXPECT().
+				GetResourceDoc(gomock.Any(), equalResourceID(test.clusterDoc.ResourceId)). // defined in frontend_test.go
+				Return(test.clusterDoc, nil).
+				Times(2)
+			// CreateOrUpdateNodePool
+			mockDBClient.EXPECT().
+				CreateOperationDoc(gomock.Any(), gomock.Any())
+			// ExposeOperation
+			mockDBClient.EXPECT().
+				UpdateOperationDoc(gomock.Any(), gomock.Any(), gomock.Any())
+			// CreateOrUpdateNodePool
+			mockDBClient.EXPECT().
+				CreateResourceDoc(gomock.Any(), gomock.Any())
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
 			if err != nil {

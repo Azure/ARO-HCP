@@ -4,7 +4,6 @@ package frontend
 // Licensed under the Apache License 2.0.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,9 +13,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
 func TestMiddlewareValidateSubscription(t *testing.T) {
@@ -154,10 +155,13 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dbClient := database.NewCache()
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+
+			var doc *database.SubscriptionDocument
 
 			if tt.cachedState != "" {
-				if err := dbClient.CreateSubscriptionDoc(context.Background(), &database.SubscriptionDocument{
+				doc = &database.SubscriptionDocument{
 					BaseDocument: database.BaseDocument{
 						ID: subscriptionId,
 					},
@@ -167,8 +171,6 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 							TenantId: &tenantId,
 						},
 					},
-				}); err != nil {
-					t.Fatal(err)
 				}
 			}
 
@@ -182,13 +184,16 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			// Add a logger to the context so parsing errors will be logged.
 			ctx := request.Context()
 			ctx = ContextWithLogger(ctx, slog.Default())
-			ctx = ContextWithDBClient(ctx, dbClient)
+			ctx = ContextWithDBClient(ctx, mockDBClient)
 			request = request.WithContext(ctx)
 			next := func(w http.ResponseWriter, r *http.Request) {
 				request = r // capture modified request
 			}
 			if tt.requestPath == defaultRequestPath {
 				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
+				mockDBClient.EXPECT().
+					GetSubscriptionDoc(gomock.Any(), subscriptionId).
+					Return(getMockDBDoc(doc)) // defined in frontend_test.go
 			}
 
 			MiddlewareValidateSubscriptionState(writer, request, next)
@@ -201,10 +206,6 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 					t.Errorf("unexpected CloudError, wanted %v, got %v", tt.expectedError, actualError)
 				}
 			} else {
-				doc, err := dbClient.GetSubscriptionDoc(request.Context(), subscriptionId)
-				if err != nil {
-					t.Fatal(err.Error())
-				}
 				if doc.Subscription.State != tt.expectedState {
 					t.Error(cmp.Diff(doc.Subscription.State, tt.expectedState))
 				}

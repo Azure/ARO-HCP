@@ -9,17 +9,36 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+const subscriptionID = "00000000-0000-0000-0000-000000000000"
+
+func getMockDBDoc[T any](t *T) (*T, error) {
+	if t != nil {
+		return t, nil
+	} else {
+		return nil, database.ErrNotFound
+	}
+}
+
+func equalResourceID(expectResourceID *arm.ResourceID) gomock.Matcher {
+	return gomock.Cond(func(actualResourceID *arm.ResourceID) bool {
+		return strings.EqualFold(actualResourceID.String(), expectResourceID.String())
+	})
+}
 
 func TestReadiness(t *testing.T) {
 	tests := []struct {
@@ -41,8 +60,11 @@ func TestReadiness(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+
 			f := &Frontend{
-				dbClient: database.NewCache(),
+				dbClient: mockDBClient,
 				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 			f.ready.Store(test.ready)
@@ -50,6 +72,9 @@ func TestReadiness(t *testing.T) {
 			ts.Config.BaseContext = func(net.Listener) context.Context {
 				return ContextWithLogger(context.Background(), testLogger)
 			}
+
+			// Call expected but is irrelevant to the test.
+			mockDBClient.EXPECT().DBConnectionTest(gomock.Any())
 
 			rs, err := ts.Client().Get(ts.URL + "/healthz")
 			if err != nil {
@@ -73,7 +98,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			name: "GET Subscription - Doc Exists",
 			subDoc: &database.SubscriptionDocument{
 				BaseDocument: database.BaseDocument{
-					ID: "00000000-0000-0000-0000-000000000000",
+					ID: subscriptionID,
 				},
 				Subscription: &arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
@@ -92,17 +117,19 @@ func TestSubscriptionsGET(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+
 			f := &Frontend{
-				dbClient: database.NewCache(),
+				dbClient: mockDBClient,
 				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 
-			if test.subDoc != nil {
-				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), test.subDoc)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
+			// ArmSubscriptionGet and MetricsMiddleware
+			mockDBClient.EXPECT().
+				GetSubscriptionDoc(gomock.Any(), gomock.Any()).
+				Return(getMockDBDoc(test.subDoc)).
+				Times(2)
 
 			ts := httptest.NewServer(f.routes())
 			ts.Config.BaseContext = func(net.Listener) context.Context {
@@ -112,7 +139,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				return ctx
 			}
 
-			rs, err := ts.Client().Get(ts.URL + "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0")
+			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + subscriptionID + "?api-version=2.0")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -134,7 +161,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 	}{
 		{
 			name:    "PUT Subscription - Doc does not exist",
-			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -145,7 +172,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Doc Exists",
-			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -153,7 +180,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			},
 			subDoc: &database.SubscriptionDocument{
 				BaseDocument: database.BaseDocument{
-					ID: "00000000-0000-0000-0000-000000000000",
+					ID: subscriptionID,
 				},
 				Subscription: &arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
@@ -176,7 +203,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing State",
-			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
 			subscription: &arm.Subscription{
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -186,7 +213,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Invalid State",
-			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
 			subscription: &arm.Subscription{
 				State:            "Bogus",
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -197,7 +224,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing RegistrationDate",
-			urlPath: "/subscriptions/00000000-0000-0000-0000-000000000000?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
 			subscription: &arm.Subscription{
 				State:      arm.SubscriptionStateRegistered,
 				Properties: nil,
@@ -209,8 +236,11 @@ func TestSubscriptionsPUT(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+
 			f := &Frontend{
-				dbClient: database.NewCache(),
+				dbClient: mockDBClient,
 				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
 			}
 
@@ -219,12 +249,31 @@ func TestSubscriptionsPUT(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if test.subDoc != nil {
-				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), test.subDoc)
-				if err != nil {
-					t.Fatal(err)
+			// MiddlewareLockSubscription
+			// (except when MiddlewareValidateStatic fails)
+			mockDBClient.EXPECT().
+				GetLockClient().
+				MaxTimes(1)
+			if test.expectedStatusCode != http.StatusBadRequest {
+				// ArmSubscriptionPut
+				mockDBClient.EXPECT().
+					GetSubscriptionDoc(gomock.Any(), gomock.Any()).
+					Return(getMockDBDoc(test.subDoc))
+				// ArmSubscriptionPut
+				if test.subDoc == nil {
+					mockDBClient.EXPECT().
+						CreateSubscriptionDoc(gomock.Any(), gomock.Any())
+				} else {
+					mockDBClient.EXPECT().
+						UpdateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any())
 				}
 			}
+			// MiddlewareMetrics
+			// (except when MiddlewareValidateStatic fails)
+			mockDBClient.EXPECT().
+				GetSubscriptionDoc(gomock.Any(), gomock.Any()).
+				Return(database.NewSubscriptionDocument(subscriptionID, test.subscription), nil).
+				MaxTimes(1)
 
 			ts := httptest.NewServer(f.routes())
 			ts.Config.BaseContext = func(net.Listener) context.Context {
