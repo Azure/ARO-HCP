@@ -86,9 +86,10 @@ func TestCreateNodePool(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
 			f := &Frontend{
 				dbClient:             database.NewCache(),
-				metrics:              NewPrometheusEmitter(prometheus.NewRegistry()),
+				metrics:              NewPrometheusEmitter(reg),
 				clusterServiceClient: &mockCSClient,
 			}
 			hcpCluster := api.NewDefaultHCPOpenShiftCluster()
@@ -145,6 +146,8 @@ func TestCreateNodePool(t *testing.T) {
 			if rs.StatusCode != test.expectedStatusCode {
 				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
 			}
+
+			lintMetrics(t, reg)
 		})
 	}
 }
