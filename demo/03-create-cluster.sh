@@ -1,8 +1,7 @@
 #!/bin/bash
 
 source env_vars
-
-CURRENT_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
+source "$(dirname "$0")"/common.sh
 
 CLUSTER_TMPL_FILE="cluster.tmpl.json"
 CLUSTER_FILE="cluster.json"
@@ -17,6 +16,6 @@ jq \
   --arg nsg_id "$NSG_ID" \
   '.properties.spec.platform.managedResourceGroup = $managed_rg | .properties.spec.platform.subnetId = $subnet_id | .properties.spec.platform.networkSecurityGroupId = $nsg_id' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
-curl -i -X PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
-  --header "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"${USER}\", \"createdByType\": \"User\", \"createdAt\": \"${CURRENT_DATE}\"}" \
+(arm_system_data_header; correlation_headers) | curl -si -X PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
+  --header @- \
   --json @${CLUSTER_FILE}
