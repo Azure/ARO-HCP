@@ -18,22 +18,6 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - svc-infra
-  - name: enable-metrics
-    action: Shell
-    command: scripts/enable-aks-metrics.sh
-    variables:
-    - name: RESOURCEGROUP
-      configRef: svc.rg
-    - name: AKS_NAME
-      configRef: aksName
-    - name: GRAFANA_RESOURCEGROUP
-      configRef: regionRG
-    - name: MONITORING_WORKSPACE_NAME
-      configRef: monitoring.workspaceName
-    - name: GRAFANA_NAME
-      configRef: monitoring.grafanaName
-    dependsOn:
-    - svc
   - name: istio
     action: Shell
     command: scripts/istio.sh

@@ -28,7 +28,7 @@ module grafana 'br:arointacr.azurecr.io/grafana.bicep:metrics.20240814.1' = {
   }
 }
 
-module monitor 'br:arointacr.azurecr.io/monitor.bicep:monitor.20241004.1' = {
+module monitor 'monitor.bicep' = {
   name: 'monitor'
   params: {
     globalResourceGroup: globalResourceGroup

@@ -140,6 +140,9 @@ param regionalDNSZoneName string
 @description('Frontend Ingress Certificate Name')
 param frontendIngressCertName string
 
+@description('The name of the Azure Monitor Workspace (stores prometheus metrics)')
+param azureMonitorWorkspaceName string
+
 var clusterServiceMIName = 'clusters-service'
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
@@ -199,10 +202,26 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     acrPullResourceGroups: acrPullResourceGroups
     aroDevopsMsiId: aroDevopsMsiId
+    dcrId: dataCollection.outputs.dcrId
   }
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
+
+//
+// M E T R I C S
+//
+
+module dataCollection '../modules/metrics/datacollection.bicep' = {
+  name: '${resourceGroup().name}-${aksClusterName}'
+  params: {
+    azureMonitorWorkspaceLocation: location
+    azureMonitorWorkspaceName: azureMonitorWorkspaceName
+    regionalResourceGroup: regionalResourceGroup
+    aksClusterName: aksClusterName
+  }
+}
+
 var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]
 var backendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'backend')[0]
 

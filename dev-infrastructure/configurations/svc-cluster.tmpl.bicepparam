@@ -50,3 +50,6 @@ param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .baseDnsZoneName }}'
 param regionalResourceGroup = '{{ .regionRG }}'
 
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
+
+// Azure Monitor Workspace
+param azureMonitorWorkspaceName = '{{ .monitoring.workspaceName }}'

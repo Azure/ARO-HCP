@@ -83,6 +83,9 @@ param mgmtKeyVaultName string
 @description('MSI that will be used to run deploymentScripts')
 param aroDevopsMsiId string
 
+@description('The name of the Azure Monitor Workspace (stores prometheus metrics)')
+param azureMonitorWorkspaceName string
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster'
   scope: resourceGroup()
@@ -117,13 +120,28 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     userOsDiskSizeGB: aksUserOsDiskSizeGB
     aroDevopsMsiId: aroDevopsMsiId
+    dcrId: dataCollection.outputs.dcrId
   }
 }
 
 output aksClusterName string = mgmtCluster.outputs.aksClusterName
 
 //
-//   K E Y V A U L T S
+// M E T R I C S
+//
+
+module dataCollection '../modules/metrics/datacollection.bicep' = {
+  name: '${resourceGroup().name}-aksClusterName'
+  params: {
+    azureMonitorWorkspaceLocation: location
+    azureMonitorWorkspaceName: azureMonitorWorkspaceName
+    regionalResourceGroup: regionalResourceGroup
+    aksClusterName: aksClusterName
+  }
+}
+
+//
+// K E Y V A U L T S
 //
 
 module cxCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
