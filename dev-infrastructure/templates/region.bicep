@@ -19,6 +19,12 @@ param persist bool = false
   ''')
 param cxBaseDNSZoneName string
 
+@description('''
+  This is the global parent DNS zone for ARO HCP service DNS records.
+  It is prefixed with regionalDNSSubdomain to form the actual regional DNS zone name
+  ''')
+param svcBaseDNSZoneName string
+
 @description('The resource group to deploy the base DNS zone to')
 param baseDNSZoneResourceGroup string = 'global'
 
@@ -42,7 +48,7 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
 }
 
 //
-// R E G I O N A L   C X  D N S   Z O N E
+// R E G I O N A L   C X   D N S   Z O N E
 //
 
 resource regionalCxZone 'Microsoft.Network/dnsZones@2018-05-01' = {
@@ -51,11 +57,30 @@ resource regionalCxZone 'Microsoft.Network/dnsZones@2018-05-01' = {
 }
 
 module regionalCxZoneDelegation '../modules/dns/zone-delegation.bicep' = {
-  name: '${regionalDNSSubdomain}-zone-deleg'
+  name: '${regionalDNSSubdomain}-cx-zone-deleg'
   scope: resourceGroup(baseDNSZoneResourceGroup)
   params: {
     childZoneName: regionalDNSSubdomain
     childZoneNameservers: regionalCxZone.properties.nameServers
+    parentZoneName: cxBaseDNSZoneName
+  }
+}
+
+//
+// R E G I O N A L   S V C   D N S   Z O N E
+//
+
+resource regionalSvcZone 'Microsoft.Network/dnsZones@2018-05-01' = {
+  name: '${regionalDNSSubdomain}.${svcBaseDNSZoneName}'
+  location: 'global'
+}
+
+module regionalSvcZoneDelegation '../modules/dns/zone-delegation.bicep' = {
+  name: '${regionalDNSSubdomain}-svc-zone-deleg'
+  scope: resourceGroup(baseDNSZoneResourceGroup)
+  params: {
+    childZoneName: regionalDNSSubdomain
+    childZoneNameservers: regionalSvcZone.properties.nameServers
     parentZoneName: cxBaseDNSZoneName
   }
 }

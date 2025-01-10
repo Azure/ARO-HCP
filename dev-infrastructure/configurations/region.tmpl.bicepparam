@@ -11,6 +11,7 @@ param svcAcrName = '{{ .svcAcrName }}'
 
 // dns
 param cxBaseDNSZoneName = '{{ .dns.cxParentZoneName }}'
+param svcBaseDNSZoneName = '{{ .dns.svcParentZoneName }}'
 param baseDNSZoneResourceGroup = '{{ .dns.baseDnsZoneRG }}'
 param regionalDNSSubdomain = '{{ .dns.regionalSubdomain }}'
 
