@@ -31,8 +31,13 @@ param serviceKeyVaultName string
 @description('The resource group of the service keyvault')
 param serviceKeyVaultResourceGroup string
 
-@description('The name of the regional DNS zone')
-param regionalDNSZoneName string
+@description(
+  '''
+  The regional DNS zone to hold ARO HCP customer cluster DNS records.
+  CS requires write access to this zone to provision the DNS records for HCPs.
+  '''
+)
+param regionalCXDNSZoneName string
 
 @description('The regional resourece group')
 param regionalResourceGroup string
@@ -138,10 +143,10 @@ module csServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep
 //
 
 module csDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
-  name: guid(regionalDNSZoneName, clusterServiceManagedIdentityPrincipalId)
+  name: guid(regionalCXDNSZoneName, clusterServiceManagedIdentityPrincipalId)
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    zoneName: regionalDNSZoneName
+    zoneName: regionalCXDNSZoneName
     zoneContributerManagedIdentityPrincipalId: clusterServiceManagedIdentityPrincipalId
   }
 }

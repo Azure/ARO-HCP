@@ -45,7 +45,7 @@ param useCustomACRTokenManagementRole = {{ .global.manageTokenCustomRole }}
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
-param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .baseDnsZoneName }}'
+param regionalCXDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.cxParentZoneName }}'
 
 param regionalResourceGroup = '{{ .regionRG }}'
 

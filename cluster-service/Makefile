@@ -2,7 +2,7 @@
 -include ../helm-cmd.mk
 HELM_CMD ?= helm upgrade --install
 
-ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${BASE_DNS_ZONE_NAME}"
+ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 
 
 deploy:

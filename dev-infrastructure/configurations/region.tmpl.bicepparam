@@ -10,9 +10,9 @@ param ocpAcrName = '{{ .ocpAcrName }}'
 param svcAcrName = '{{ .svcAcrName }}'
 
 // dns
-param baseDNSZoneName = '{{ .baseDnsZoneName }}'
-param baseDNSZoneResourceGroup = '{{ .baseDnsZoneRG }}'
-param regionalDNSSubdomain = '{{ .regionalDNSSubdomain }}'
+param cxBaseDNSZoneName = '{{ .dns.cxParentZoneName }}'
+param baseDNSZoneResourceGroup = '{{ .dns.baseDnsZoneRG }}'
+param regionalDNSSubdomain = '{{ .dns.regionalSubdomain }}'
 
 // maestro
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'

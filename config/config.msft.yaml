@@ -124,8 +124,9 @@ defaults:
     private: false
 
   # DNS
-  baseDnsZoneRG: global-shared-resources
-  regionalDNSSubdomain: '{{ .ctx.region }}'
+  dns:
+    baseDnsZoneRG: global-shared-resources
+    regionalSubdomain: '{{ .ctx.region }}'
 
   # Metrics
   monitoring:
@@ -196,10 +197,11 @@ clouds:
               vmSize: 'Standard_D16s_v3'
               osDiskSizeGB: 128
               azCount: 3
+
           # DNS
-          baseDnsZoneName: aroapp-hcp.azure-test.net
-          regionalDNSSubdomain: '{{ .ctx.region }}'
-          svcParentZoneName: "aro-hcp.azure-test.net"
+          dns:
+            cxParentZoneName: aroapp-hcp.azure-test.net
+            svcParentZoneName: aro-hcp.azure-test.net
 
           # ACR
           svcAcrName: arohcpsvcint

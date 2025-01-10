@@ -23,15 +23,33 @@
       "aroDevopsMsiId": {
         "type": "string"
       },
-      "baseDnsZoneName": {
-        "type": "string"
-      },
-      "svcParentZoneName": {
-        "type": "string",
-        "description": "The service cluster component domain name"
-      },
-      "baseDnsZoneRG": {
-        "type": "string"
+      "dns": {
+        "type": "object",
+        "properties": {
+          "baseDnsZoneRG": {
+            "type": "string",
+            "description": "The Azure RG that holds the parent DNS zones"
+          },
+          "cxParentZoneName": {
+            "type": "string",
+            "description": "The parent DNS zone name for regional HCP cluster DNS zones"
+          },
+          "svcParentZoneName": {
+            "type": "string",
+            "description": "The parent DNS zone name for regional ARO-HCP infrastructure, e.g. the RP"
+          },
+          "regionalSubdomain": {
+            "type": "string",
+            "description": "The regional subdomain to be used to construct the regional hcp and svc zones under their respective parents, e.g. regionalSubdomain.svcParentZoneName"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "baseDnsZoneRG",
+          "cxParentZoneName",
+          "svcParentZoneName",
+          "regionalSubdomain"
+        ]
       },
       "clusterService": {
         "type": "object",
@@ -642,9 +660,6 @@
       "regionRG": {
         "type": "string"
       },
-      "regionalDNSSubdomain": {
-        "type": "string"
-      },
       "serviceKeyVault": {
         "type": "object",
         "properties": {
@@ -772,8 +787,6 @@
     "required": [
       "aksName",
       "aroDevopsMsiId",
-      "baseDnsZoneName",
-      "baseDnsZoneRG",
       "clusterService",
       "cxKeyVault",
       "firstPartyAppClientId",
@@ -794,7 +807,6 @@
       "podSubnetPrefix",
       "region",
       "regionRG",
-      "regionalDNSSubdomain",
       "serviceKeyVault",
       "subnetPrefix",
       "svc",

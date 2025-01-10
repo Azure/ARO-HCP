@@ -7,7 +7,7 @@ param serviceKeyVaultLocation = '{{ .serviceKeyVault.region }}'
 param serviceKeyVaultSoftDelete = {{ .serviceKeyVault.softDelete }}
 param serviceKeyVaultPrivate = {{ .serviceKeyVault.private }}
 
-param regionalDNSZoneName = '{{ .regionalDNSSubdomain}}.{{ .svcParentZoneName }}'
+param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
 
 
 // MI for deployment scripts

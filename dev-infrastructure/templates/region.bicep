@@ -13,8 +13,11 @@ param maestroEventGridPrivate bool
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
-@description('This is a global DNS zone name that will be the parent of regional DNS zones to host ARO HCP customer cluster DNS records')
-param baseDNSZoneName string
+@description('''
+  This is the global parent DNS zone for ARO HCP customer cluster DNS.
+  It is prefixed with regionalDNSSubdomain to form the actual regional DNS zone name
+  ''')
+param cxBaseDNSZoneName string
 
 @description('The resource group to deploy the base DNS zone to')
 param baseDNSZoneResourceGroup string = 'global'
@@ -39,21 +42,21 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
 }
 
 //
-// R E G I O N A L   D N S   Z O N E
+// R E G I O N A L   C X  D N S   Z O N E
 //
 
-resource regionalZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: '${regionalDNSSubdomain}.${baseDNSZoneName}'
+resource regionalCxZone 'Microsoft.Network/dnsZones@2018-05-01' = {
+  name: '${regionalDNSSubdomain}.${cxBaseDNSZoneName}'
   location: 'global'
 }
 
-module regionalZoneDelegation '../modules/dns/zone-delegation.bicep' = {
+module regionalCxZoneDelegation '../modules/dns/zone-delegation.bicep' = {
   name: '${regionalDNSSubdomain}-zone-deleg'
   scope: resourceGroup(baseDNSZoneResourceGroup)
   params: {
     childZoneName: regionalDNSSubdomain
-    childZoneNameservers: regionalZone.properties.nameServers
-    parentZoneName: baseDNSZoneName
+    childZoneNameservers: regionalCxZone.properties.nameServers
+    parentZoneName: cxBaseDNSZoneName
   }
 }
 
