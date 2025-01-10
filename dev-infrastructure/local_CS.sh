@@ -17,7 +17,7 @@ cp ./configs/development.yml .
 yq -i '(.aws-access-key-id, .aws-secret-access-key, .route53-access-key-id, .route53-secret-access-key, .oidc-access-key-id, .oidc-secret-access-key, .network-verifier-access-key-id, .network-verifier-secret-access-key, .client-id, .client-secret) = "none"' development.yml
 
 # Generate a provision_shards.config for port-forwarded maestro ...
-make -C ../ARO-HCP/cluster-service provision-shard > provision_shards.config
+make -C ../ARO-HCP/cluster-service local-deploy-provision-shard > provision_shards.config
 
 # Enable the westus3 region in cloud region config
 
@@ -28,7 +28,7 @@ cat <<EOF>> ./configs/cloud-resources/cloud-regions.yaml
     supports_multi_az: true
 EOF
 
-cat <<EOF>> ./configs/cloud-resources/cloud-regions-constraints.yaml
+cat <<EOF>> ./configs/cloud-resource-constraints/cloud-region-constraints.yaml
   - id: westus3
     enabled: true
     govcloud: false
