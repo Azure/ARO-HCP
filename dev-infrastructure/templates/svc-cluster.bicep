@@ -7,23 +7,32 @@ param persist bool = false
 @description('AKS cluster name')
 param aksClusterName string
 
+@description('Minimum node count for system agent pool')
+param systemAgentMinCount int
+
+@description('Maximum node count for system agent pool')
+param systemAgentMaxCount int
+
+@description('VM instance type for the system nodes')
+param systemAgentVMSize string
+
 @description('Disk size for the AKS system nodes')
-param aksSystemOsDiskSizeGB int = 32
+param aksSystemOsDiskSizeGB int
 
 @description('Disk size for the AKS user nodes')
-param aksUserOsDiskSizeGB int = 32
+param aksUserOsDiskSizeGB int
 
 @description('Min replicas for the worker nodes')
-param userAgentMinCount int = 1
+param userAgentMinCount int
 
 @description('Max replicas for the worker nodes')
-param userAgentMaxCount int = 3
+param userAgentMaxCount int
 
 @description('VM instance type for the worker nodes')
-param userAgentVMSize string = 'Standard_D2s_v3'
+param userAgentVMSize string
 
-@description('Availability Zone count for worker nodes')
-param userAgentPoolAZCount int = 3
+@description('Number of availability zones to use for the AKS clusters user agent pool')
+param userAgentPoolAZCount int
 
 @description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
 param acrPullResourceGroups array = []
@@ -182,9 +191,12 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     userOsDiskSizeGB: aksUserOsDiskSizeGB
     userAgentMinCount: userAgentMinCount
-    userAgentPoolAZCount: userAgentPoolAZCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
+    userAgentPoolAZCount: userAgentPoolAZCount
+    systemAgentMinCount: systemAgentMinCount
+    systemAgentMaxCount: systemAgentMaxCount
+    systemAgentVMSize: systemAgentVMSize
     workloadIdentities: items({
       frontend_wi: {
         uamiName: 'frontend'

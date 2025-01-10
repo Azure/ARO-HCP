@@ -10,11 +10,9 @@ defaults:
     globalMSIName: "global-rollout-identity"
 
   # General AKS config
-  kubernetesVersion: 1.31.2
-  vnetAddressPrefix: "10.128.0.0/14"
-  subnetPrefix: "10.128.8.0/21"
-  podSubnetPrefix: "10.128.64.0/18"
   aksName: aro-hcp-aks
+
+  # ACR Pull
   acrPullImageDigest: sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca #v0.1.7
 
   # Hypershift
@@ -25,23 +23,33 @@ defaults:
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-svc
-    etcd:
-      kvName: arohcp-etcd-{{ .ctx.regionShort }}
-      kvSoftDelete: true
     istio:
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-23"
+    aks:
+      vnetAddressPrefix: "10.128.0.0/14"
+      subnetPrefix: "10.128.8.0/21"
+      podSubnetPrefix: "10.128.64.0/18"
+      kubernetesVersion: 1.31.2
+      etcd:
+        kvName: arohcp-etcd-{{ .ctx.regionShort }}
+        kvSoftDelete: true
 
   # MGMT cluster specifics
   mgmt:
     clusterServiceResourceId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-{{ .ctx.regionShort }}-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
-    etcd:
-      kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-      kvSoftDelete: true
+    aks:
+      vnetAddressPrefix: "10.128.0.0/14"
+      subnetPrefix: "10.128.8.0/21"
+      podSubnetPrefix: "10.128.64.0/18"
+      kubernetesVersion: 1.31.2
+      etcd:
+        kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+        kvSoftDelete: true
 
   # Frontend
   frontend:
@@ -205,29 +213,37 @@ clouds:
       # disable soft delete on etcd KVs in DEV
       svc:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
-        etcd:
-          kvSoftDelete: false
-        userAgentPool:
-          minCount: 1
-          maxCount: 3
-          vmSize: 'Standard_D2s_v3'
-          osDiskSizeGB: 32
-          azCount: 3
+        aks:
+          etcd:
+            kvSoftDelete: false
+          systemAgentPool:
+            minCount: 1
+            maxCount: 3
+            vmSize: 'Standard_D2s_v3'
+            osDiskSizeGB: 32
+          userAgentPool:
+            minCount: 1
+            maxCount: 3
+            vmSize: 'Standard_D2s_v3'
+            osDiskSizeGB: 32
+            azCount: 3
+
       mgmt:
-        # MGMTM AKS nodepools - big enough for 2 HCPs
-        systemAgentPool:
-          minCount: 1
-          maxCount: 4
-          vmSize: 'Standard_D2s_v3'
-          osDiskSizeGB: 32
-        userAgentPool:
-          minCount: 1
-          maxCount: 6
-          vmSize: 'Standard_D4s_v3'
-          osDiskSizeGB: 100
-          azCount: 3
-        etcd:
-          kvSoftDelete: false
+        aks:
+          # MGMTM AKS nodepools - big enough for 2 HCPs
+          systemAgentPool:
+            minCount: 1
+            maxCount: 4
+            vmSize: 'Standard_D2s_v3'
+            osDiskSizeGB: 32
+          userAgentPool:
+            minCount: 1
+            maxCount: 6
+            vmSize: 'Standard_D4s_v3'
+            osDiskSizeGB: 100
+            azCount: 3
+          etcd:
+            kvSoftDelete: false
         subscription: ARO Hosted Control Planes (EA Subscription 1)
       # Shared ACRs
       svcAcrName: arohcpsvcdev
@@ -249,11 +265,12 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
-          # MGMTM AKS nodepools - big enough for multiple HCPs
           mgmt:
-            userAgentPool:
-              minCount: 2
-              maxCount: 12
+            aks:
+              # MGMTM AKS nodepools - big enough for multiple HCPs
+              userAgentPool:
+                minCount: 2
+                maxCount: 12
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
@@ -269,16 +286,19 @@ clouds:
         # this is the cluster service PR check and full cycle test environment
         defaults:
           svc:
-            # MC AKS nodepools
-            # big enough for multiple CS instances during PR checks
-            userAgentPool:
-              minCount: 2
-              maxCount: 12
+            aks:
+              # MC AKS nodepools
+              # big enough for multiple CS instances during PR checks
+              userAgentPool:
+                minCount: 2
+                maxCount: 12
           mgmt:
-            # MC AKS nodepools - big enough for multiple HCPs
-            userAgentPool:
-              minCount: 2
-              maxCount: 12
+            aks:
+              # MC AKS nodepools
+              # big enough for multiple HCPs
+              userAgentPool:
+                minCount: 2
+                maxCount: 12
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'

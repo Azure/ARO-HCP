@@ -1,22 +1,22 @@
 using '../templates/mgmt-cluster.bicep'
 
 // AKS
-param kubernetesVersion = '{{ .kubernetesVersion}}'
-param vnetAddressPrefix = '{{ .vnetAddressPrefix }}'
-param subnetPrefix = '{{ .subnetPrefix }}'
-param podSubnetPrefix = '{{ .podSubnetPrefix }}'
+param kubernetesVersion = '{{ .mgmt.aks.kubernetesVersion }}'
+param vnetAddressPrefix = '{{ .mgmt.aks.vnetAddressPrefix }}'
+param subnetPrefix = '{{ .mgmt.aks.subnetPrefix }}'
+param podSubnetPrefix = '{{ .mgmt.aks.podSubnetPrefix }}'
 param aksClusterName = '{{ .aksName }}'
-param aksKeyVaultName = '{{ .mgmt.etcd.kvName }}'
-param aksEtcdKVEnableSoftDelete = {{ .mgmt.etcd.kvSoftDelete }}
-param systemAgentMinCount = {{ .mgmt.systemAgentPool.minCount}}
-param systemAgentMaxCount = {{ .mgmt.systemAgentPool.maxCount }}
-param systemAgentVMSize = '{{ .mgmt.systemAgentPool.vmSize }}'
-param aksSystemOsDiskSizeGB = {{ .mgmt.systemAgentPool.osDiskSizeGB }}
-param userAgentMinCount = {{ .mgmt.userAgentPool.minCount }}
-param userAgentMaxCount = {{ .mgmt.userAgentPool.maxCount }}
-param userAgentVMSize = '{{ .mgmt.userAgentPool.vmSize }}'
-param aksUserOsDiskSizeGB = {{ .mgmt.userAgentPool.osDiskSizeGB }}
-param userAgentPoolAZCount = {{ .mgmt.userAgentPool.azCount }}
+param aksKeyVaultName = '{{ .mgmt.aks.etcd.kvName }}'
+param aksEtcdKVEnableSoftDelete = {{ .mgmt.aks.etcd.kvSoftDelete }}
+param systemAgentMinCount = {{ .mgmt.aks.systemAgentPool.minCount}}
+param systemAgentMaxCount = {{ .mgmt.aks.systemAgentPool.maxCount }}
+param systemAgentVMSize = '{{ .mgmt.aks.systemAgentPool.vmSize }}'
+param aksSystemOsDiskSizeGB = {{ .mgmt.aks.systemAgentPool.osDiskSizeGB }}
+param userAgentMinCount = {{ .mgmt.aks.userAgentPool.minCount }}
+param userAgentMaxCount = {{ .mgmt.aks.userAgentPool.maxCount }}
+param userAgentVMSize = '{{ .mgmt.aks.userAgentPool.vmSize }}'
+param userAgentPoolAZCount = {{ .mgmt.aks.userAgentPool.azCount }}
+param aksUserOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 
 // Maestro
 param maestroConsumerName = '{{ .maestro.consumerName }}'
