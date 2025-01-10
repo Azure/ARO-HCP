@@ -7,13 +7,6 @@ param grantPushAccess bool = false
 @description('Whether to grant manage token access to the ACR')
 param grantManageTokenAccess bool = false
 
-@description('''
-  The custom token management role might not be available in an environment due to quota limitations.
-  In such cases, the default ACR Contributor and Data Access Configuration Administrator role will
-  be used for token management permissions.
-  ''')
-param useCustomManageTokenRole bool = false
-
 @description('ACR Namespace Resource Group Id')
 param acrResourceGroupid string
 
@@ -68,30 +61,7 @@ resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
   }
 }
 
-//
-// Custom role for token management permissions
-//
-
-import * as tmr from 'token-role-name.bicep'
-
-resource tokenManagementRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = if (grantManageTokenAccess && useCustomManageTokenRole) {
-  name: guid(tmr.tokenManagementRoleName)
-}
-
-resource acrContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantManageTokenAccess && useCustomManageTokenRole) {
-  name: guid(acrResourceGroupid, principalId, 'token-creation-role')
-  properties: {
-    roleDefinitionId: tokenManagementRole.id
-    principalId: principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-//
-// Built-in wider role for token management permissions
-//
-
-resource acrContributorAndDataAccessConfigurationAdministratorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantManageTokenAccess && !useCustomManageTokenRole) {
+resource acrContributorAndDataAccessConfigurationAdministratorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantManageTokenAccess) {
   name: guid(acrResourceGroupid, principalId, acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId)
   properties: {
     roleDefinitionId: acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId

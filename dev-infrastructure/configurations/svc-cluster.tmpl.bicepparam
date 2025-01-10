@@ -40,7 +40,6 @@ param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 
 param acrPullResourceGroups = ['{{ .global.rg }}']
 param clustersServiceAcrResourceGroupNames = ['{{ .clusterService.acrRG }}']
-param useCustomACRTokenManagementRole = {{ .global.manageTokenCustomRole }}
 
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'

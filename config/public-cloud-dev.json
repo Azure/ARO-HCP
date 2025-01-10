@@ -61,7 +61,6 @@
   },
   "global": {
     "globalMSIName": "global-rollout-identity",
-    "manageTokenCustomRole": true,
     "region": "westus3",
     "rg": "global",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"

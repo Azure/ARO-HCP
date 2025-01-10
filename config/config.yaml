@@ -6,7 +6,6 @@ defaults:
   global:
     rg: global
     subscription: ARO Hosted Control Planes (EA Subscription 1)
-    manageTokenCustomRole: true
     region: westus3
     globalMSIName: "global-rollout-identity"
 

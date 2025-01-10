@@ -61,7 +61,6 @@
   },
   "global": {
     "globalMSIName": "global-ev2-identity",
-    "manageTokenCustomRole": false,
     "region": "uksouth",
     "rg": "global-shared-resources",
     "subscription": "hcp-westus3"

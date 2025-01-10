@@ -8,7 +8,6 @@ defaults:
   global:
     rg: global-shared-resources
     subscription: hcp-{{ .ctx.region }}
-    manageTokenCustomRole: false
     region: uksouth
     globalMSIName: "global-ev2-identity"
 

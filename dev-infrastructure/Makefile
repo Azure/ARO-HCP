@@ -418,14 +418,6 @@ acr: global.rg
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/global-acr.bicepparam
-	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-roles
-	az deployment sub create \
-		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-roles \
-		--template-file templates/global-roles.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/global-roles.bicepparam \
-		--location ${GLOBAL_REGION}
 .PHONY: acr
 
 acr.what-if: global.rg
@@ -435,12 +427,6 @@ acr.what-if: global.rg
 		--template-file templates/global-acr.bicep \
 		--parameters \
 			configurations/global-acr.bicepparam
-	az deployment sub what-if \
-		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-roles \
-		--template-file templates/global-roles.bicep \
-		--parameters \
-			configurations/global-roles.bicepparam \
-		--location ${GLOBAL_REGION}
 .PHONY: acr.what-if
 
 acr-svc-cfg: acr

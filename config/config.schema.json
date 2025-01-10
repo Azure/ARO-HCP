@@ -221,9 +221,6 @@
           "subscription": {
             "type": "string"
           },
-          "manageTokenCustomRole": {
-            "type": "boolean"
-          },
           "region": {
             "type": "string"
           },
@@ -235,7 +232,6 @@
         "required": [
           "rg",
           "subscription",
-          "manageTokenCustomRole",
           "region"
         ]
       },
