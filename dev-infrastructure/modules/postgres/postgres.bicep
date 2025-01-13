@@ -110,6 +110,15 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
   }
 }
 
+resource postgres_allow_public_access 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-01-preview' = if (!private) {
+  name: 'AllowPublicAccess'
+  parent: postgres
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '255.255.255.255'
+  }
+}
+
 resource postgres_allow_azure_firewall 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-01-preview' = {
   name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
   parent: postgres
@@ -117,6 +126,7 @@ resource postgres_allow_azure_firewall 'Microsoft.DBforPostgreSQL/flexibleServer
     startIpAddress: '0.0.0.0'
     endIpAddress: '0.0.0.0'
   }
+  dependsOn: [postgres_allow_public_access]
 }
 
 @batchSize(1)
