@@ -139,7 +139,7 @@ clouds:
     # the following vars need approprivate overrides:
     defaults:
       maestro:
-        imageTag: bc2f131579c6ffc664c15f48c50a9936f1b4a7ce
+        imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       clusterService:
         imageTag: ecd15ad
         imageRepo: app-sre/uhc-clusters-service
