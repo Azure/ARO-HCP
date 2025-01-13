@@ -16,3 +16,6 @@ resourceGroups:
         variables:
           - name: ACRPULL_DIGEST
             configRef: acrPullImageDigest
+      - name: undeploy
+        action: Shell
+        command: make undeploy
