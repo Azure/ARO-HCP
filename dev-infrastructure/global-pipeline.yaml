@@ -7,6 +7,22 @@ resourceGroups:
   steps:
   - name: global-infra
     action: ARM
-    template: templates/global-infra.bicep
-    parameters: configurations/global-infra.tmpl.bicepparam
+    template: Templates/Resources.bicep
+    parameters: Parameters/resources.bicepparam
     deploymentLevel: ResourceGroup
+  - name: svcChildZone
+    action: DelegateChildZone
+    dependsOn:
+      - global-infra
+    parentZone:
+      configRef: parentZoneName
+    childZone:
+      configRef: svcParentZoneName
+  - name: cxChildZone
+    action: DelegateChildZone
+    dependsOn:
+      - global-infra
+    parentZone:
+      configRef: parentZoneName
+    childZone:
+      configRef: baseDnsZoneName
