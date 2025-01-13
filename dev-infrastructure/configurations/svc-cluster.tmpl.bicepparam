@@ -20,13 +20,17 @@ param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 
+param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
+param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
+param maestroServiceAccountName = '{{ .maestro.server.k8s.serviceAccountName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
-param maestroServerMqttClientName = '{{ .maestro.serverMqttClientName }}'
+param maestroServerMqttClientName = '{{ .maestro.server.mqttClientName }}'
 param maestroCertDomain = '{{ .maestro.certDomain}}'
 param maestroPostgresServerName = '{{ .maestro.postgres.name }}'
 param maestroPostgresServerMinTLSVersion = '{{ .maestro.postgres.minTLSVersion }}'
 param maestroPostgresServerVersion = '{{ .maestro.postgres.serverVersion }}'
 param maestroPostgresServerStorageSizeGB = {{ .maestro.postgres.serverStorageSizeGB }}
+param maestroPostgresDatabaseName = '{{ .maestro.postgres.databaseName }}'
 param deployMaestroPostgres = {{ .maestro.postgres.deploy }}
 param maestroPostgresPrivate = {{ .maestro.postgres.private }}
 
