@@ -134,6 +134,7 @@ shared-oidc-storage:
 		az group create \
 			--name $(SHARED_OIDC_RG_NAME)  \
 			--location westus3 \
+			--tags persist=true \
 			--output none; \
 	fi
 	az deployment group create \
