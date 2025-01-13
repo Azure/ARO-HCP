@@ -54,7 +54,22 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
     purpose: 'service'
   }
 }
+
+module serviceKeyVaultDevopsCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: '${deployment().name}-svc-kv-cert-officer'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Certificates Officer'
+    managedIdentityPrincipalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+  }
+  dependsOn: [
+    serviceKeyVault
+  ]
+}
+
 output svcKeyVaultName string = serviceKeyVault.outputs.kvName
+output svcKeyVaultUrl string = serviceKeyVault.outputs.kvUrl
 
 //
 //   C E R T I F I C A T E   C R E A T I O N
