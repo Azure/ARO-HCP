@@ -37,6 +37,10 @@ spec:
           readOnly: true
       - name: metrics-proxy
         image: "{{ .Values.metricsProxy.image.base }}:{{ .Values.metricsProxy.image.tag }}"
+        ports:
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
         args:
         - --config-path /etc/envoy/envoy.yaml
         volumeMounts:
