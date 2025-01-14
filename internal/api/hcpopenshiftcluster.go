@@ -124,8 +124,5 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 				},
 			},
 		},
-		Identity: arm.Identity{
-			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
-		},
 	}
 }

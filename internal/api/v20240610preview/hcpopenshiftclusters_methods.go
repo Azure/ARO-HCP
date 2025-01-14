@@ -545,6 +545,9 @@ func normalizeExternalAuthConfig(p *generated.ExternalAuthConfigProfile, out *ap
 }
 
 func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssignedIdentity, out *map[string]*arm.UserAssignedIdentity) {
+	if *out == nil {
+		*out = make(map[string]*arm.UserAssignedIdentity)
+	}
 	for key, value := range p {
 		if value != nil {
 			(*out)[key] = &arm.UserAssignedIdentity{
