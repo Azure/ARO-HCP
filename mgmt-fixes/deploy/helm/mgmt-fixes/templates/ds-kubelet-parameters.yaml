@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    component: kubelet-parameters
+  name: kubelet-parameters
+  namespace: kube-system
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      component: kubelet-parameters
+      tier: node
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        component: kubelet-parameters
+        tier: node
+    spec:
+      containers:
+      - command:
+        - nsenter
+        - --target
+        - "1"
+        - --mount
+        - --uts
+        - --ipc
+        - --net
+        - --pid
+        - --
+        - sh
+        - -c
+        - |
+          if cat /etc/default/kubelet | grep -q '\-\-system-reserved=cpu=3000m,memory=7550Mi,pid=1000';then
+             echo "kube-reserved parameter already updated to system-reserved in kubelet configuration"
+          else
+             sed -i -E 's/--kube-reserved=[^ ]+/--system-reserved=cpu=3000m,memory=7550Mi,pid=1000/g' /etc/default/kubelet
+             systemctl daemon-reload
+             systemctl restart kubelet
+             echo "kube-reserved parameter has been updated to system-reserved in kubelet configuration"
+          fi
+          if grep -q '\-\-collector.netclass.netlink' /usr/local/bin/node-exporter-startup.sh;then
+             echo "collector.netclass.netlink parameter already updated in node-exporter configuration"
+          else
+             sed -i 's/--no-collector.arp.netlink/--no-collector.arp.netlink --collector.netclass.netlink/g' /usr/local/bin/node-exporter-startup.sh
+             systemctl daemon-reload
+             systemctl restart node-exporter
+             echo "collector.netclass.netlink parameter has been updated in node-exporter configuration"
+          fi
+          sleep infinity
+        image: alpine
+        imagePullPolicy: IfNotPresent
+        name: kubelet-parameters
+        resources:
+          requests:
+            cpu: 10m
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      hostPID: true
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
