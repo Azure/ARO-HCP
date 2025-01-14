@@ -44,7 +44,7 @@ resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
 //
 
 module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-svcs-kv'
+  name: 'svc-kv'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     location: serviceKeyVaultLocation
@@ -56,7 +56,7 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
 }
 
 module serviceKeyVaultDevopsCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: '${deployment().name}-svc-kv-cert-officer'
+  name: 'svc-kv-cert-officer'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
