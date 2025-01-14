@@ -146,8 +146,8 @@ param useCustomACRTokenManagementRole bool
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
-@description('This is a regional DNS zone')
-param regionalDNSZoneName string
+@description('The regional DNS zone to hold ARO HCP customer cluster DNS records')
+param regionalCXDNSZoneName string
 
 @description('Frontend Ingress Certificate Name')
 param frontendIngressCertName string
@@ -327,7 +327,7 @@ module cs '../modules/cluster-service.bicep' = {
     clusterServiceManagedIdentityName: clusterServiceMIName
     serviceKeyVaultName: serviceKeyVault.name
     serviceKeyVaultResourceGroup: serviceKeyVaultResourceGroup
-    regionalDNSZoneName: regionalDNSZoneName
+    regionalCXDNSZoneName: regionalCXDNSZoneName
     regionalResourceGroup: regionalResourceGroup
     acrResourceGroupNames: clustersServiceAcrResourceGroupNames
     postgresAdministrationManagedIdentityId: aroDevopsMsiId

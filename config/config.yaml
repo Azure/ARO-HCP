@@ -136,16 +136,16 @@ defaults:
     softDelete: true
     private: true
 
-  # DNS
-  baseDnsZoneRG: 'global'
 clouds:
   public:
     # this configuration serves as a template for for all RH DEV subscription deployments
     # the following vars need approprivate overrides:
     defaults:
       # DNS
-      baseDnsZoneName: 'hcp.osadev.cloud'
-      svcParentZoneName: "hcpsvc.osadev.cloud"
+      dns:
+        baseDnsZoneRG: global
+        cxParentZoneName: hcp.osadev.cloud
+        svcParentZoneName: hcpsvc.osadev.cloud
       # 1P app
       firstPartyAppClientId: 57e54810-3138-4f38-bd3b-29cb33f4c358
       # Mock Managed Identities Service Princiapl
@@ -252,7 +252,8 @@ clouds:
               minCount: 2
               maxCount: 12
           # DNS
-          regionalDNSSubdomain: '{{ .ctx.region }}'
+          dns:
+            regionalSubdomain: '{{ .ctx.region }}'
           # Maestro
           maestro:
             server:
@@ -276,7 +277,8 @@ clouds:
               minCount: 2
               maxCount: 12
           # DNS
-          regionalDNSSubdomain: '{{ .ctx.region }}-cs'
+          dns:
+            regionalSubdomain: '{{ .ctx.region }}-cs'
           # Maestro
           maestro:
             restrictIstioIngress: false
@@ -294,7 +296,8 @@ clouds:
             postgres:
               deploy: false
           # DNS
-          regionalDNSSubdomain: '{{ .ctx.regionShort }}'
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
           maestro:
             postgres:

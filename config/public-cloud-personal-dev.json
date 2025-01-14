@@ -7,8 +7,6 @@
   "backend": {
     "imageTag": ""
   },
-  "baseDnsZoneName": "hcp.osadev.cloud",
-  "baseDnsZoneRG": "global",
   "clusterService": {
     "acrRG": "global",
     "azureOperatorsManagedIdentities": {
@@ -44,6 +42,12 @@
     "name": "arohcp-cx-usw3tst-1",
     "private": false,
     "softDelete": false
+  },
+  "dns": {
+    "baseDnsZoneRG": "global",
+    "cxParentZoneName": "hcp.osadev.cloud",
+    "regionalSubdomain": "usw3tst",
+    "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
   "firstPartyAppClientId": "57e54810-3138-4f38-bd3b-29cb33f4c358",
@@ -177,7 +181,6 @@
   "podSubnetPrefix": "10.128.64.0/18",
   "region": "westus3",
   "regionRG": "hcp-underlay-usw3tst",
-  "regionalDNSSubdomain": "usw3tst",
   "serviceKeyVault": {
     "name": "aro-hcp-dev-svc-kv",
     "private": false,
@@ -208,6 +211,5 @@
     }
   },
   "svcAcrName": "arohcpsvcdev",
-  "svcParentZoneName": "hcpsvc.osadev.cloud",
   "vnetAddressPrefix": "10.128.0.0/14"
 }

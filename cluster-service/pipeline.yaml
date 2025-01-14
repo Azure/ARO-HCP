@@ -48,10 +48,10 @@ resourceGroups:
       value: msiMockCert
     - name: ARM_HELPER_CERT_NAME
       value: armHelperCert
-    - name: BASE_DNS_ZONE_NAME
-      configRef: baseDnsZoneName
+    - name: CX_PARENT_DNS_ZONE_NAME
+      configRef: dns.cxParentZoneName
     - name: REGIONAL_DNS_SUBDOMAIN
-      configRef: regionalDNSSubdomain
+      configRef: dns.regionalSubdomain
     - name: USE_AZURE_DB
       configRef: clusterService.postgres.deploy
     - name: DATABASE_SERVER_NAME

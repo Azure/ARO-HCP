@@ -120,11 +120,13 @@ defaults: (1)
 clouds:
   public: (2)
     defaults: (3)
-      baseDnsZoneName: "arohcp.azure.com"
+      dns:
+        cxParentZoneName: "arohcp.azure.com"
     environments:
       personal-dev: (4)
         defaults:
-          baseDnsZoneName: "hcp.osadev.cloud" (5)
+          dns:
+            cxParentZoneName: "hcp.osadev.cloud" (5)
       production:
         defaults:
         regions:

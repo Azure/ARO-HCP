@@ -19,8 +19,11 @@ param aroDevopsMsiId string
 @description('Frontend Certificate Name')
 param certName string
 
-@description('This is a regional DNS zone')
-param regionalDNSZoneName string
+@description('''
+  This is a regional DNS zone name to hold records for ARO HCP service components,
+  e.g. the RP
+  ''')
+param regionalSvcDNSZoneName string
 
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
@@ -57,7 +60,7 @@ output svcKeyVaultName string = serviceKeyVault.outputs.kvName
 //   C E R T I F I C A T E   C R E A T I O N
 //
 
-var clientAuthenticationName = 'frontend.${regionalDNSZoneName}'
+var clientAuthenticationName = 'frontend.${regionalSvcDNSZoneName}'
 
 module clientCertificate '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'frontend-cert-${uniqueString(resourceGroup().name)}'

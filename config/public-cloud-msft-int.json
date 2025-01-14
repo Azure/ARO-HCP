@@ -7,8 +7,6 @@
   "backend": {
     "imageTag": "0b3c08f"
   },
-  "baseDnsZoneName": "aroapp-hcp.azure-test.net",
-  "baseDnsZoneRG": "global-shared-resources",
   "clusterService": {
     "acrRG": "global-shared-resources",
     "azureOperatorsManagedIdentities": {
@@ -44,6 +42,12 @@
     "name": "arohcp-cx-int-1",
     "private": false,
     "softDelete": false
+  },
+  "dns": {
+    "baseDnsZoneRG": "global-shared-resources",
+    "cxParentZoneName": "aroapp-hcp.azure-test.net",
+    "regionalSubdomain": "westus3",
+    "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "extraVars": {},
   "firstPartyAppClientId": "??? the one used by CS to do first party stuff ???",
@@ -172,7 +176,6 @@
   "podSubnetPrefix": "10.128.64.0/18",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
-  "regionalDNSSubdomain": "westus3",
   "serviceKeyVault": {
     "name": "arohcp-svc-int",
     "private": false,
@@ -203,6 +206,5 @@
     }
   },
   "svcAcrName": "arohcpsvcint",
-  "svcParentZoneName": "aro-hcp.azure-test.net",
   "vnetAddressPrefix": "10.128.0.0/14"
 }
