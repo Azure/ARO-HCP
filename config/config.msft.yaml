@@ -56,6 +56,12 @@ defaults:
 
   # Maestro
   maestro:
+    server:
+      mqttClientName: maestro-server
+      managedIdentityName: maestro-server
+      k8s:
+        namespace: maestro
+        serviceAccountName: maestro
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       maxClientSessionsPerAuthName: 4
@@ -68,9 +74,9 @@ defaults:
       deploy: false
       private: false
       minTLSVersion: 'TLSV1.2'
+      databaseName: maestro
     restrictIstioIngress: true
     consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
-    serverMqttClientName: maestro-server
     imageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
 
   # Cluster Service

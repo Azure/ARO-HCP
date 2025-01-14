@@ -56,6 +56,12 @@ defaults:
 
   # Maestro
   maestro:
+    server:
+      mqttClientName: maestro-server
+      managedIdentityName: maestro-server
+      k8s:
+        namespace: maestro
+        serviceAccountName: maestro
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       maxClientSessionsPerAuthName: 4
@@ -68,8 +74,8 @@ defaults:
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
+      databaseName: maestro
     restrictIstioIngress: true
-    serverMqttClientName: maestro-server
     consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     imageBase: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
 
@@ -249,7 +255,8 @@ clouds:
           regionalDNSSubdomain: '{{ .ctx.region }}'
           # Maestro
           maestro:
-            serverMqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
+            server:
+              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
           # Frontend
           frontend:
             cosmosDB:
@@ -273,7 +280,8 @@ clouds:
           # Maestro
           maestro:
             restrictIstioIngress: false
-            serverMqttClientName: 'maestro-server-{{ .ctx.regionShort }}-cs'
+            server:
+              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-cs'
           # Frontend
           frontend:
             cosmosDB:
@@ -291,7 +299,8 @@ clouds:
           maestro:
             postgres:
               deploy: false
-            serverMqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+            server:
+              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
           # Frontend
           frontend:
             cosmosDB:

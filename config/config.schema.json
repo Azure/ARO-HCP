@@ -381,8 +381,38 @@
           "consumerName": {
             "type": "string"
           },
-          "serverMqttClientName": {
-            "type": "string"
+          "server": {
+            "type": "object",
+            "properties": {
+              "mqttClientName": {
+                "type": "string"
+              },
+              "managedIdentityName": {
+                "type": "string"
+              },
+              "k8s": {
+                "type": "object",
+                "properties": {
+                  "namespace": {
+                    "type": "string"
+                  },
+                  "serviceAccountName": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "namespace",
+                  "serviceAccountName"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "mqttClientName",
+              "managedIdentityName",
+              "k8s"
+            ]
           },
           "eventGrid": {
             "type": "object",
@@ -431,6 +461,9 @@
               "minTLSVersion": {
                 "type": "string",
                 "enum": ["TLSV1.2", "TLSV1.3"]
+              },
+              "databaseName": {
+                "type": "string"
               }
             },
             "additionalProperties": false,
@@ -440,7 +473,8 @@
               "private",
               "serverStorageSizeGB",
               "serverVersion",
-              "minTLSVersion"
+              "minTLSVersion",
+              "databaseName"
             ]
           },
           "restrictIstioIngress": {
@@ -451,7 +485,7 @@
         "required": [
           "certDomain",
           "consumerName",
-          "serverMqttClientName",
+          "server",
           "eventGrid",
           "imageBase",
           "imageTag",

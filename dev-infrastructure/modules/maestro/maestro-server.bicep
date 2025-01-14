@@ -52,7 +52,7 @@ param privateEndpointSubnetId string = ''
 param privateEndpointVnetId string = ''
 
 @description('The name of the database to create for Maestro')
-param maestroDatabaseName string = 'maestro'
+param maestroDatabaseName string
 
 @description('The name of the Managed Identity for the Maestro cluster service')
 param maestroServerManagedIdentityName string

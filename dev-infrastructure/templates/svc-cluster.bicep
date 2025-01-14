@@ -107,8 +107,20 @@ param maestroPostgresServerMinTLSVersion string
 @description('The size of the Postgres server for Maestro')
 param maestroPostgresServerStorageSizeGB int
 
+@description('The name of the Maestro Postgres database')
+param maestroPostgresDatabaseName string
+
 @description('The name of Maestro Server MQTT client')
 param maestroServerMqttClientName string
+
+@description('The name of the maestro managed identity')
+param maestroMIName string
+
+@description('The namespace of the maestro managed identity')
+param maestroNamespace string
+
+@description('The service account name of the maestro managed identity')
+param maestroServiceAccountName string
 
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
@@ -184,9 +196,9 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         serviceAccountName: 'backend'
       }
       maestro_wi: {
-        uamiName: 'maestro-server'
-        namespace: 'maestro'
-        serviceAccountName: 'maestro'
+        uamiName: maestroMIName
+        namespace: maestroNamespace
+        serviceAccountName: maestroServiceAccountName
       }
       cs_wi: {
         uamiName: clusterServiceMIName
@@ -263,16 +275,14 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
+    maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
     postgresAdministrationManagedIdentityId: aroDevopsMsiId
     maestroServerManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-server'
+      id => id.uamiName == maestroMIName
     )[0].uamiPrincipalID
-    maestroServerManagedIdentityName: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-server'
-    )[0].uamiName
+    maestroServerManagedIdentityName: maestroMIName
   }
   dependsOn: [
     serviceKeyVault

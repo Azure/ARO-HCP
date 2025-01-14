@@ -28,13 +28,21 @@ resourceGroups:
       configRef: maestro.imageTag
     - name: USE_AZURE_DB
       configRef: maestro.postgres.deploy
-    - name: DATABASE_NAME
+    - name: DATABASE_SERVER_NAME
       configRef: maestro.postgres.name
+    - name: DATABASE_NAME
+      configRef: maestro.postgres.databaseName
     - name: ISTIO_RESTRICT_INGRESS
       configRef: maestro.restrictIstioIngress
     - name: KEYVAULT_NAME
       configRef: serviceKeyVault.name
     - name: MQTT_CLIENT_NAME
-      configRef: maestro.serverMqttClientName
+      configRef: maestro.server.mqttClientName
     - name: ISTO_TAG
       configRef: svc.istio.tag
+    - name: NAMESPACE
+      configRef: maestro.server.k8s.namespace
+    - name: SERVICE_ACCOUNT_NAME
+      configRef: maestro.server.k8s.serviceAccountName
+    - name: MANAGED_IDENTITY_NAME
+      configRef: maestro.server.managedIdentityName

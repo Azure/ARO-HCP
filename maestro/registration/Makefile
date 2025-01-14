@@ -6,11 +6,11 @@ include config.mk
 HELM_CMD ?= helm upgrade --install
 
 deploy:
-	@if ! kubectl get service maestro -n maestro > /dev/null 2>&1; then \
-		echo "Error: Service 'maestro' not found in namespace 'maestro'"; \
+	@if ! kubectl get service maestro -n ${NAMESPACE} > /dev/null 2>&1; then \
+		echo "Error: Service 'maestro' not found in namespace '${NAMESPACE}'"; \
 		exit 1; \
 	fi
 	${HELM_CMD} ${CONSUMER_NAME} ./helm \
-		--namespace maestro \
+		--namespace ${NAMESPACE} \
 		--set consumerName=${CONSUMER_NAME}
 .PHONY: deploy
