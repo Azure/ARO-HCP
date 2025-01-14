@@ -81,7 +81,7 @@ module regionalSvcZoneDelegation '../modules/dns/zone-delegation.bicep' = {
   params: {
     childZoneName: regionalDNSSubdomain
     childZoneNameservers: regionalSvcZone.properties.nameServers
-    parentZoneName: cxBaseDNSZoneName
+    parentZoneName: svcBaseDNSZoneName
   }
 }
 
