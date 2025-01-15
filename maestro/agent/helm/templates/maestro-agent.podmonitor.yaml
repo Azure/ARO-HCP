@@ -1,0 +1,17 @@
+---
+apiVersion: azmonitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: maestro-agent-metrics
+  namespace: maestro
+spec:
+  selector:
+    matchLabels:
+      app: maestro-agent
+  namespaceSelector:
+    matchNames:
+      - maestro
+  podMetricsEndpoints:
+    - path: /metrics
+      port: metrics
+      scheme: http
