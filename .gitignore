@@ -15,3 +15,5 @@ env
 */archive.tar.gz
 tooling/bin
 tooling/image-sync/config.yml
+**/venv
+**/__pycache__

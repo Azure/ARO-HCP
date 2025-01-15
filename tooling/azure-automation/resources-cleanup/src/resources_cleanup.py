@@ -120,10 +120,10 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
         result_poller = resource_client.resource_groups.begin_delete(resource_group_name)
         print(f"result_poller of resource group deletion: {result_poller}")
     except HttpResponseError as err:
-        target_error_code = "DenyAssignmentAuthorizationFailed"
-        if err.error.code == target_error_code:
-            print("skipping deletion of resource group due to deny assignment in the resource group")
-        else: 
+        error_codes = ("DenyAssignmentAuthorizationFailed", "ScopeLocked")
+        if err.error.code in error_codes:
+            print(f"skipping deletion of resource group due to error code {err.error.code}")
+        else:
             raise err
             
     
