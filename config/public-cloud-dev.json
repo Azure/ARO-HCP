@@ -182,6 +182,11 @@
   },
   "ocpAcrName": "arohcpocpdev",
   "oidcStorageAccountName": "arohcpoidcdev",
+  "pko": {
+    "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
+    "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
+    "imageTag": "v1.15.0"
+  },
   "podSubnetPrefix": "10.128.64.0/18",
   "region": "westus3",
   "regionRG": "hcp-underlay-dev",

@@ -1,6 +1,15 @@
-SHELL = /bin/bash
+-include ../setup-env.mk
+-include ../helm-cmd.mk
+HELM_CMD ?= helm upgrade --install
+
+NAMESPACE ?= package-operator-system
 
 deploy:
-	kubectl apply -f https://github.com/package-operator/package-operator/releases/download/v1.15.0/self-bootstrap-job.yaml
+	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
+	${HELM_CMD} package-operator ./helm \
+	--namespace ${NAMESPACE} \
+	--set pkoImage=${PKO_IMAGE} \
+	--set pkoImageManager=${PKO_IMAGE_MANAGER} \
+	--set pkoImageTag=${PKO_IMAGE_TAG}
 
 .PHONY: deploy
