@@ -106,6 +106,7 @@
     "rg": "hcp-underlay-imagesync"
   },
   "kubernetesVersion": "1.30.6",
+  "kvCertOfficerPrincipalId": "0cfe7b03-3a43-4f68-84a0-2a4d9227d5ee",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-int-mgmt-1",

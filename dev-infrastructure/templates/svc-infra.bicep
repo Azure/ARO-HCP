@@ -16,6 +16,9 @@ param serviceKeyVaultPrivate bool = true
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
+@description('SVC KV certificate officer principal ID')
+param svcKvCertOfficerPrincipalId string
+
 @description('Frontend Certificate Name')
 param certName string
 
@@ -44,7 +47,7 @@ resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
 //
 
 module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-svcs-kv'
+  name: 'svc-kv'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     location: serviceKeyVaultLocation
@@ -54,7 +57,22 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
     purpose: 'service'
   }
 }
+
+module serviceKeyVaultDevopsCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'svc-kv-cert-officer'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Certificates Officer'
+    managedIdentityPrincipalId: svcKvCertOfficerPrincipalId
+  }
+  dependsOn: [
+    serviceKeyVault
+  ]
+}
+
 output svcKeyVaultName string = serviceKeyVault.outputs.kvName
+output svcKeyVaultUrl string = serviceKeyVault.outputs.kvUrl
 
 //
 //   C E R T I F I C A T E   C R E A T I O N
