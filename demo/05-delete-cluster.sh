@@ -15,7 +15,7 @@ delete_managed_identities_from_cluster() {
   CP_UAMIS_ENTRIES=$(echo ${UAMIS_JSON_MAP}| jq -c '.controlPlaneOperators | to_entries | .[]')
   echo -n "${CP_UAMIS_ENTRIES}" | while read cp_uami_entry; do
     cp_operator_name=$(echo -n "${cp_uami_entry}" | jq .key)
-    cp_operator_mi=$(echo -n "${cp_uami_entry}" | jq .value)
+    cp_operator_mi=$(echo -n "${cp_uami_entry}" | jq .value -r)
     echo "deleting $cp_operator_name operator's managed identity $cp_operator_mi"
     az identity delete --ids $cp_operator_mi
     echo "deleted managed identity $cp_operator_mi"
@@ -24,13 +24,13 @@ delete_managed_identities_from_cluster() {
   DP_UAMIS_ENTRIES=$(echo ${UAMIS_JSON_MAP} | jq -c '.dataPlaneOperators | to_entries | .[]')
   echo -n "${DP_UAMIS_ENTRIES}" | while read dp_uami_entry; do
     dp_operator_name=$(echo -n "${dp_uami_entry}" | jq .key)
-    dp_operator_mi=$(echo -n "${dp_uami_entry}" | jq .value)
+    dp_operator_mi=$(echo -n "${dp_uami_entry}" | jq .value -r)
     echo "deleting $dp_operator_name operator's managed identity $dp_operator_mi"
     az identity delete --ids $dp_operator_mi
     echo "deleted managed identity $dp_operator_mi"
   done
 
-  SMI_UAMI_ENTRY=$(echo ${UAMIS_JSON_MAP} | jq .serviceManagedIdentity)
+  SMI_UAMI_ENTRY=$(echo ${UAMIS_JSON_MAP} | jq .serviceManagedIdentity -r)
   echo "deleting service managed identity ${SMI_UAMI_ENTRY}"
   az identity delete --ids ${SMI_UAMI_ENTRY}
   echo "deleted service managed identity ${SMI_UAMI_ENTRY}"
