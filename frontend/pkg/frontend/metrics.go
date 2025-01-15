@@ -5,6 +5,7 @@ package frontend
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -17,7 +18,7 @@ import (
 
 // Emitter emits different types of metrics
 type Emitter interface {
-	EmitCounter(metricName string, value float64, labels map[string]string)
+	AddCounter(metricName string, value float64, labels map[string]string)
 	EmitGauge(metricName string, value float64, labels map[string]string)
 }
 
@@ -49,7 +50,7 @@ func (pe *PrometheusEmitter) EmitGauge(name string, value float64, labels map[st
 	vec.With(labels).Set(value)
 }
 
-func (pe *PrometheusEmitter) EmitCounter(name string, value float64, labels map[string]string) {
+func (pe *PrometheusEmitter) AddCounter(name string, value float64, labels map[string]string) {
 	pe.mutex.Lock()
 	defer pe.mutex.Unlock()
 	vec, exists := pe.counters[name]
@@ -61,6 +62,9 @@ func (pe *PrometheusEmitter) EmitCounter(name string, value float64, labels map[
 	}
 	vec.With(labels).Add(value)
 }
+
+// patternRe is used to strip the METHOD string from the [ServerMux] pattern string.
+var patternRe = regexp.MustCompile(`^[^\s]*\s+`)
 
 type MetricsMiddleware struct {
 	Emitter
@@ -90,9 +94,11 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 
 		next(lrw, r) // Process the request
 
+		duration := time.Since(startTime).Seconds()
+
 		// Get the route pattern that matched
-		routePattern := r.URL.Path
-		duration := time.Since(startTime).Milliseconds()
+		routePattern := r.Pattern
+		routePattern = patternRe.ReplaceAllString(routePattern, "")
 
 		subscriptionState := "Unknown"
 		subscriptionId := r.PathValue(PathSegmentSubscriptionID)
@@ -100,13 +106,13 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 			sub, err := mm.dbClient.GetSubscriptionDoc(r.Context(), subscriptionId)
 			if err != nil {
 				// If we can't determine the subscription state, we can still expose a metric for subscriptionState "Unknown"
-				logger.Info("unable to retrieve subscription document for the `frontend_count` metric", "subscriptionId", subscriptionId, "error", err)
+				logger.Info("unable to retrieve subscription document for the `frontend_requests_total` metric", "subscriptionId", subscriptionId, "error", err)
 			} else {
 				subscriptionState = string(sub.Subscription.State)
 			}
 		}
 
-		mm.Emitter.EmitCounter("frontend_count", 1.0, map[string]string{
+		mm.Emitter.AddCounter("frontend_requests_total", 1.0, map[string]string{
 			"verb":        r.Method,
 			"api_version": r.URL.Query().Get(APIVersionKey),
 			"code":        strconv.Itoa(lrw.statusCode),
