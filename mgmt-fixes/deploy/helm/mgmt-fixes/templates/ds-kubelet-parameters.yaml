@@ -3,7 +3,7 @@ kind: DaemonSet
 metadata:
   labels:
     component: kubelet-parameters
-  name: kubelet-parameters
+  name: set-kubelet-parameters-for-scale
   namespace: kube-system
 spec:
   revisionHistoryLimit: 10
