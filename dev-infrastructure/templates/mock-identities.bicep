@@ -20,10 +20,11 @@ module firstPartyIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     location: location
     keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
-    certName: 'firstPartyCert'
+    certName: 'firstPartyCert2'
     subjectName: 'CN=firstparty.hcp.osadev.cloud'
     issuerName: 'Self'
     dnsNames: ['firstparty.hcp.osadev.cloud']
+    validityInMonths: 120
   }
 }
 
@@ -60,11 +61,11 @@ module armHelperIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     location: location
     keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
-    certName: 'armHelperCert'
+    certName: 'armHelperCert2'
     subjectName: 'CN=armhelper.hcp.osadev.cloud'
     dnsNames: ['armhelper.hcp.osadev.cloud']
     issuerName: 'Self'
-    validityInMonths: 1000
+    validityInMonths: 120
   }
 }
 
@@ -78,11 +79,11 @@ module msiRPMockIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     location: location
     keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
-    certName: 'msiMockCert'
+    certName: 'msiMockCert2'
     subjectName: 'CN=msimock.hcp.osadev.cloud'
     dnsNames: ['msimock.hcp.osadev.cloud']
     issuerName: 'Self'
-    validityInMonths: 1000
+    validityInMonths: 120
   }
 }
 
