@@ -125,7 +125,7 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace 
 # the usage of `svc-deploh.sh` script in the future.
 services_svc_pipelines = istio acrpull metrics backend frontend cluster-service maestro.server
-services_mgmt_pipelines = hypershiftoperator
+services_mgmt_pipelines = hypershiftoperator mgmt-fixes
 %.deploy_pipeline:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -s deploy -P run -c public
