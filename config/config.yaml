@@ -86,6 +86,10 @@ defaults:
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
+    managedIdentityName: clusters-service
+    k8s:
+      namespace: cluster-service
+      serviceAccountName: clusters-service
 
   # Image Sync
   imageSync:

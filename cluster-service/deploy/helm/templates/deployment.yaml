@@ -25,8 +25,8 @@ spec:
         checksum/cs: {{ include (print $.Template.BasePath "/clusters-service.secret.yaml") . | sha256sum }}
         checksum/runtime: {{ include (print $.Template.BasePath "/azure-runtime-config.configmap.yaml") . | sha256sum }}
     spec:
-      serviceAccount: clusters-service
-      serviceAccountName: clusters-service
+      serviceAccount: {{ .Values.serviceAccountName }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
       volumes:
       - name: service
         secret:

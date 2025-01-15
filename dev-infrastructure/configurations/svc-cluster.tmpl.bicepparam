@@ -38,6 +38,9 @@ param csPostgresDeploy = {{ .clusterService.postgres.deploy }}
 param csPostgresServerName = '{{ .clusterService.postgres.name }}'
 param csPostgresServerMinTLSVersion = '{{ .clusterService.postgres.minTLSVersion }}'
 param clusterServicePostgresPrivate = {{ .clusterService.postgres.private }}
+param csMIName = '{{ .clusterService.managedIdentityName }}'
+param csNamespace = '{{ .clusterService.k8s.namespace }}'
+param csServiceAccountName = '{{ .clusterService.k8s.serviceAccountName }}'
 
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'

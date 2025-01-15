@@ -1,3 +1,7 @@
+# service account name
+serviceAccountName: clusters-service
+
+
 # TODO: This parameter isn't currently used, but kept to avoid failures in the
 # execution of saasherder. It will be removed once the version of the service
 # that doesn't use it is deployed to all environments.

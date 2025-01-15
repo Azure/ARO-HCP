@@ -475,7 +475,7 @@ cs-current-user-pg-connect:
 .PHONY: cs-current-user-pg-connect
 
 cs-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME) "clusters-service" "cluster-service" "clusters-service"
+	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME) $(CS_MI_NAME) $(CS_NS_NAME) $(CS_SA_NAME)
 .PHONY: cs-miwi-pg-connect
 
 maestro-current-user-pg-connect:

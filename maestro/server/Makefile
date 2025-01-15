@@ -23,5 +23,7 @@ deploy:
 		--set image.base=${IMAGE_BASE} \
 		--set image.tag=${IMAGE_TAG} \
 		--set database.host=$${DATABASE_HOST} \
-		--set database.name=${DATABASE_NAME}
+		--set database.name=${DATABASE_NAME} \
+		--set clusterService.namespace=${CS_NAMESPACE} \
+		--set clusterService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME}
 .PHONY: deploy

@@ -32,3 +32,7 @@ resourceGroups:
       configRef: frontend.cert.name
     - name: ISTO_TAG
       configRef: svc.istio.tag
+    - name: CS_NAMESPACE
+      configRef: clusterService.k8s.namespace
+    - name: CS_SERVICE_ACCOUNT_NAME
+      configRef: clusterService.k8s.serviceAccountName
