@@ -11,7 +11,7 @@ inputs:
   version:
     description: 'Azure CLI Version to install'
     required: false
-    default: "2.63.0" # pin to 2.63.0 because of https://github.com/Azure/azure-cli/issues/29828
+    default: "latest"
 runs:
   using: "composite"
   steps:
