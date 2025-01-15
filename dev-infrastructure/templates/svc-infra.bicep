@@ -16,6 +16,9 @@ param serviceKeyVaultPrivate bool = true
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
+@description('SVC KV certificate officer principal ID')
+param svcKvCertOfficerPrincipalId string
+
 @description('Frontend Certificate Name')
 param certName string
 
@@ -61,7 +64,7 @@ module serviceKeyVaultDevopsCertOfficer '../modules/keyvault/keyvault-secret-acc
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    managedIdentityPrincipalId: svcKvCertOfficerPrincipalId
   }
   dependsOn: [
     serviceKeyVault

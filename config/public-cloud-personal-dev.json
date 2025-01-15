@@ -105,6 +105,7 @@
     },
     "rg": "hcp-underlay-westus3-imagesync-dev"
   },
+  "kvCertOfficerPrincipalId": "876db5bd-9a48-4bf7-a6a7-088437afa993",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-usw3tst-mgmt-1",

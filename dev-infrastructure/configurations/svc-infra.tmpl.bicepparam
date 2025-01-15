@@ -12,3 +12,5 @@ param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZo
 
 // MI for deployment scripts
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+// SP for KV certificate issuer registration
+param svcKvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
