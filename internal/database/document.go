@@ -77,7 +77,8 @@ type OperationDocument struct {
 	ExternalID *arm.ResourceID `json:"externalId,omitempty"`
 	// InternalID is the Cluster Service resource identifier in the form of a URL path
 	InternalID ocm.InternalID `json:"internalId,omitempty"`
-	// OperationID is the Azure resource ID of the operation's status
+	// OperationID is the Azure resource ID of the operation status (may be nil if the
+	// operation was implicit, such as deleting a child resource along with the parent)
 	OperationID *arm.ResourceID `json:"operationId,omitempty"`
 	// NotificationURI is provided by the Azure-AsyncNotificationUri header if the
 	// Async Operation Callbacks ARM feature is enabled
@@ -94,13 +95,15 @@ type OperationDocument struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-func NewOperationDocument(request OperationRequest) *OperationDocument {
+func NewOperationDocument(request OperationRequest, externalID *arm.ResourceID, internalID ocm.InternalID) *OperationDocument {
 	now := time.Now().UTC()
 
 	doc := &OperationDocument{
 		BaseDocument:       newBaseDocument(),
 		PartitionKey:       operationsPartitionKey,
 		Request:            request,
+		ExternalID:         externalID,
+		InternalID:         internalID,
 		StartTime:          now,
 		LastTransitionTime: now,
 		Status:             arm.ProvisioningStateAccepted,
