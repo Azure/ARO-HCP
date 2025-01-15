@@ -23,6 +23,10 @@
       "aroDevopsMsiId": {
         "type": "string"
       },
+      "kvCertOfficerPrincipalId": {
+        "type": "string",
+        "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
+      },
       "dns": {
         "type": "object",
         "properties": {
@@ -840,6 +844,7 @@
     "required": [
       "aksName",
       "aroDevopsMsiId",
+      "kvCertOfficerPrincipalId",
       "clusterService",
       "cxKeyVault",
       "firstPartyAppClientId",
