@@ -251,12 +251,15 @@ svc.aks.kubeconfigfile:
 .PHONY: svc.aks.kubeconfigfile
 
 svc.oidc.storage.permissions:
-	@STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
-	az role assignment create \
-	--role "Storage Blob Data Contributor" \
-	--assignee ${PRINCIPAL_ID} \
-	--scope "$${STORAGEACCOUNTID}" \
-	--only-show-errors
+	@USER_TYPE=$(shell az account show -o json | jq -r '.user.type') && \
+	if [ "$${USER_TYPE}" = "user" ]; then \
+		STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
+		az role assignment create \
+		--role "Storage Blob Data Contributor" \
+		--assignee ${PRINCIPAL_ID} \
+		--scope "$${STORAGEACCOUNTID}" \
+		--only-show-errors; \
+	fi
 .PHONY: svc.oidc.storage.permissions
 
 svc.kv.permission:
