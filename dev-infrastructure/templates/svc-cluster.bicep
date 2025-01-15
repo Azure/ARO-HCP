@@ -155,7 +155,14 @@ param frontendIngressCertName string
 @description('The name of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitorWorkspaceName string
 
-var clusterServiceMIName = 'clusters-service'
+@description('The name of the CS managed identity')
+param csMIName string
+
+@description('The namespace of the CS managed identity')
+param csNamespace string
+
+@description('The service account name of the CS managed identity')
+param csServiceAccountName string
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -201,9 +208,9 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         serviceAccountName: maestroServiceAccountName
       }
       cs_wi: {
-        uamiName: clusterServiceMIName
-        namespace: 'cluster-service'
-        serviceAccountName: 'clusters-service'
+        uamiName: csMIName
+        namespace: csNamespace
+        serviceAccountName: csServiceAccountName
       }
       image_sync_wi: {
         uamiName: 'image-sync'
@@ -309,10 +316,7 @@ module serviceKeyVaultPrivateEndpoint '../modules/private-endpoint.bicep' = {
 //   C L U S T E R   S E R V I C E
 //
 
-var csManagedIdentityPrincipalId = filter(
-  svcCluster.outputs.userAssignedIdentities,
-  id => id.uamiName == clusterServiceMIName
-)[0].uamiPrincipalID
+var csManagedIdentityPrincipalId = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == csMIName)[0].uamiPrincipalID
 
 module cs '../modules/cluster-service.bicep' = {
   name: 'cluster-service'
@@ -324,7 +328,7 @@ module cs '../modules/cluster-service.bicep' = {
     deployPostgres: csPostgresDeploy
     postgresServerPrivate: clusterServicePostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
-    clusterServiceManagedIdentityName: clusterServiceMIName
+    clusterServiceManagedIdentityName: csMIName
     serviceKeyVaultName: serviceKeyVault.name
     serviceKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     regionalCXDNSZoneName: regionalCXDNSZoneName
@@ -345,7 +349,7 @@ module oidc '../modules/oidc/main.bicep' = {
   params: {
     location: location
     storageAccountName: oidcStorageAccountName
-    rpMsiName: clusterServiceMIName
+    rpMsiName: csMIName
     skuName: oidcStorageAccountSku
     msiId: aroDevopsMsiId
     deploymentScriptLocation: location

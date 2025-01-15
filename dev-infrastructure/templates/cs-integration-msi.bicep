@@ -7,6 +7,9 @@ param clusterServiceManagedIdentityName string
 @description('The name of the cluster to integrate with')
 param clusterName string
 
+@description('The name of the CS service account')
+param clusterServiceServiceAccountName string
+
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: clusterServiceManagedIdentityName
 }
@@ -25,7 +28,7 @@ resource uami_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federate
         'api://AzureADTokenExchange'
       ]
       issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
-      subject: 'system:serviceaccount:${format(namespaceFormatString, i)}:clusters-service'
+      subject: 'system:serviceaccount:${format(namespaceFormatString, i)}:${clusterServiceServiceAccountName}'
     }
   }
 ]

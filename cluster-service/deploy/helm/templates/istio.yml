@@ -2,7 +2,7 @@ apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
   name: default
-  namespace: cluster-service
+  namespace: {{ .Release.Namespace }}
 spec:
   selector:
     matchLabels:
@@ -15,7 +15,7 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-metrics
-  namespace: cluster-service
+  namespace: {{ .Release.Namespace }}
 spec:
   action: "ALLOW"
   rules:
@@ -32,14 +32,14 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-nothing
-  namespace: cluster-service
+  namespace: {{ .Release.Namespace }}
 spec: {}
 ---
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-frontend
-  namespace: cluster-service
+  namespace: {{ .Release.Namespace }}
 spec:
   action: "ALLOW"
   rules:
@@ -61,13 +61,13 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-intra-namespace
-  namespace: cluster-service
+  namespace: {{ .Release.Namespace }}
 spec:
   action: "ALLOW"
   rules:
     - from:
       - source:
-          principals: ["cluster.local/ns/cluster-service/sa/clusters-service"]
+          principals: ["cluster.local/ns/{{ .Release.Namespace }}/sa/{{ .Values.serviceAccountName }}"]
       to:
       - operation:
           ports:

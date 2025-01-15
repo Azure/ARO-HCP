@@ -63,6 +63,26 @@
           "imageTag": {
             "type": "string"
           },
+          "managedIdentityName": {
+            "type": "string",
+            "description": "The name of the MSI that will be used by CS to interact with Azure"
+          },
+          "k8s": {
+            "type": "object",
+            "properties": {
+              "namespace": {
+                "type": "string"
+              },
+              "serviceAccountName": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "namespace",
+              "serviceAccountName"
+            ]
+          },
           "postgres": {
             "type": "object",
             "properties": {
@@ -125,6 +145,9 @@
           "acrRG",
           "imageRepo",
           "imageTag",
+          "managedIdentityName",
+          "k8s",
+          "azureOperatorsManagedIdentities",
           "postgres"
         ]
       },

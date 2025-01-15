@@ -31,6 +31,11 @@
     },
     "imageRepo": "app-sre/uhc-clusters-service",
     "imageTag": "ecd15ad",
+    "k8s": {
+      "namespace": "cluster-service",
+      "serviceAccountName": "clusters-service"
+    },
+    "managedIdentityName": "clusters-service",
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",

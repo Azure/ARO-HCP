@@ -6,9 +6,9 @@ ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 
 
 deploy:
-	@kubectl create namespace cluster-service --dry-run=client -o json | kubectl apply -f - && \
-	kubectl label namespace cluster-service "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
-	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
+	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
+	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
 	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "${SERVICE_KV}" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
@@ -27,8 +27,9 @@ deploy:
 	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
 	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
 	${HELM_CMD} cluster-service deploy/helm \
-	  --namespace cluster-service \
+	  --namespace ${NAMESPACE} \
 	  -f deploy/helm/$${OVERRIDES} \
+	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
 	  --set oidcIssuerBlobServiceUrl=$${OIDC_BLOB_SERVICE_ENDPOINT} \
 	  --set oidcIssuerBaseUrl=$${OIDC_ISSUER_BASE_ENDPOINT} \

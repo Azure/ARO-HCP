@@ -72,6 +72,12 @@ resourceGroups:
       configRef: clusterService.azureOperatorsManagedIdentities.cloudNetworkConfig.roleName
     - name: ISTO_TAG
       configRef: svc.istio.tag
+    - name: MI_NAME
+      configRef: clusterService.managedIdentityName
+    - name: NAMESPACE
+      configRef: clusterService.k8s.namespace
+    - name: SERVICE_ACCOUNT_NAME
+      configRef: clusterService.k8s.serviceAccountName
 
 
     # this is maestro consumer registration stuff

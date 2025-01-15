@@ -20,3 +20,6 @@ pullBinding:
   scope: ""
   workloadIdentityClientId: ""
   workloadIdentityTenantId: ""
+clusterService:
+  namespace: cluster-service
+  serviceAccount: clusters-service
