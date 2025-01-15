@@ -7,6 +7,7 @@ then
 fi
 
 az ad sp create-for-rbac \
+--years 10 \
 --display-name "${APPLICATION_NAME}" \
 --keyvault "${KEY_VAULT_NAME}" \
 --cert "${CERTIFICATE_NAME}" \
