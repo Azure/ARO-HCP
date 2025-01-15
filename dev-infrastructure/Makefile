@@ -251,19 +251,25 @@ svc.aks.kubeconfigfile:
 .PHONY: svc.aks.kubeconfigfile
 
 svc.oidc.storage.permissions:
-	@STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
-	az role assignment create \
-	--role "Storage Blob Data Contributor" \
-	--assignee ${PRINCIPAL_ID} \
-	--scope "$${STORAGEACCOUNTID}" \
-	--only-show-errors
+	@USER_TYPE=$(shell az account show -o json | jq -r '.user.type') && \
+	if [ "$${USER_TYPE}" = "user" ]; then \
+		STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
+		az role assignment create \
+		--role "Storage Blob Data Contributor" \
+		--assignee ${PRINCIPAL_ID} \
+		--scope "$${STORAGEACCOUNTID}" \
+		--only-show-errors; \
+	fi
 .PHONY: svc.oidc.storage.permissions
 
 svc.kv.permission:
 	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(SVC_KV_RESOURCEGROUP) $(SVC_KV_NAME)
 .PHONY: svc.kv.permission
 
-svc.init: region metrics-infra svc svc.aks.admin-access svc.aks.kubeconfig svc.istio svc.oidc.storage.permissions
+svc.dev.permissions: svc.oidc.storage.permissions svc.kv.permission
+.PHONY: svc.dev.permissions
+
+svc.init: region metrics-infra svc svc.aks.admin-access svc.aks.kubeconfig svc.istio svc.dev.permissions
 .PHONY: svc.init
 
 svc.what-if: svc.rg
@@ -353,7 +359,7 @@ mgmt.aks.kubeconfigfile:
 	@echo ${MGMT_KUBECONFIG_FILE}
 .PHONY: mgmt.aks.kubeconfigfile
 
-mgmt.init: region metrics-infra mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig 
+mgmt.init: region metrics-infra mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permissions
 .PHONY: mgmt.init
 
 mgmt.what-if: mgmt.rg
@@ -385,6 +391,9 @@ mgmt.kv.permission:
 	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(MGMT_RESOURCEGROUP) $(MSI_KV_NAME)
 	@scripts/kv-permissions.sh $(PRINCIPAL_ID) $(MGMT_RESOURCEGROUP) $(MGMT_KV_NAME)
 .PHONY: mgmt.kv.permission
+
+mgmt.dev.permissions: mgmt.kv.permission
+.PHONY: mgmt.dev.permissions
 
 # ACR
 
@@ -570,5 +579,5 @@ clean: svc.clean mgmt.clean region.clean
 # Local CS Development
 #
 
-local-cs-permissions: svc.oidc.storage.permissions svc.kv.permission mgmt.kv.permission
+local-cs-permissions: svc.dev.permissions mgmt.dev.permissions
 .PHONY: local-cs-permissions
