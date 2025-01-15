@@ -60,7 +60,16 @@ cd istio-"${ISTIOCTL_VERSION}"
 export PATH=$PWD/bin:$PATH
 echo "=========================================================================="
 
-
+echo "********** ISTIO IngressGateway IP Address assignment **************"
+ISTIO_IG_ANNOTATIONS="
+  service.beta.kubernetes.io/azure-load-balancer-resource-group=${SVC_RESOURCEGROUP}
+  service.beta.kubernetes.io/azure-pip-name=aro-hcp-istio-ingress
+"
+for annotation in $ISTIO_IG_ANNOTATIONS; do
+  kubectl annotate svc aks-istio-ingressgateway-external \
+    "$annotation" \
+    -n aks-istio-ingress
+done
 
 echo "********** ISTIO Upgrade **************"
 # Followed this guide for istio upgrade https://learn.microsoft.com/en-us/azure/aks/istio-upgrade

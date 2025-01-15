@@ -33,6 +33,8 @@ defaults:
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-23"
+      ingressGatewayIPTags: ""
+    outboundIPTags: ""
 
   # MGMT cluster specifics
   mgmt:
@@ -42,6 +44,7 @@ defaults:
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
       kvSoftDelete: true
+    outboundIPTags: ""
 
   # Frontend
   frontend:

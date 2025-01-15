@@ -35,6 +35,8 @@ defaults:
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-22,asm-1-23"
+      ingressGatewayIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
+    outboundIPTags: "FirstPartyUsage:arohcpprodoutboundsvc"
 
   # MGMT cluster specifics
   mgmt:
@@ -44,6 +46,7 @@ defaults:
     etcd:
       kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
       kvSoftDelete: true
+    outboundIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
 
   # Frontend
   frontend:
@@ -192,6 +195,9 @@ clouds:
               vmSize: 'Standard_D2s_v3'
               osDiskSizeGB: 32
               azCount: 3
+            istio:
+              ingressGatewayIPTags: "FirstPartyUsage:/NonProd"
+            outboundIPTags: "FirstPartyUsage:/NonProd"
           # MC
           mgmt:
             # MGMTM AKS nodepools - big enough for 2 HCPs
@@ -206,7 +212,7 @@ clouds:
               vmSize: 'Standard_D16s_v3'
               osDiskSizeGB: 128
               azCount: 3
-
+            outboundIPTags: "FirstPartyUsage:/NonProd"
           # DNS
           dns:
             cxParentZoneName: aroapp-hcp.azure-test.net

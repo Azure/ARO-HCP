@@ -14,6 +14,10 @@
         "required": [
           "roleName"
         ]
+      },
+      "keyColonValueCSV": {
+        "type": "string",
+        "pattern": "^$|^[\\w-]+:[\\w\\/-]+(,[\\w-]+:[\\w\\/-]+)*$"
       }
     },
     "properties": {
@@ -571,6 +575,9 @@
           "clusterServiceResourceId": {
             "type": "string"
           },
+          "outboundIPTags": {
+            "$ref": "#/definitions/keyColonValueCSV"
+          },
           "systemAgentPool": {
             "type": "object",
             "properties": {
@@ -763,6 +770,9 @@
               "kvSoftDelete"
             ]
           },
+          "outboundIPTags": {
+            "$ref": "#/definitions/keyColonValueCSV"
+          },
           "userAgentPool": {
             "type": "object",
             "properties": {
@@ -817,6 +827,9 @@
                 "description": "The target istio version that will be updated to",
                 "type": "string",
                 "pattern": "^[a-zA-Z0-9-]+$"
+              },
+              "ingressGatewayIPTags": {
+                "$ref": "#/definitions/keyColonValueCSV"
               }
             }
         }
