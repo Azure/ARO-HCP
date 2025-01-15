@@ -6,8 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -90,7 +88,6 @@ func TestCreateNodePool(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			f := &Frontend{
 				dbClient:             database.NewCache(),
-				logger:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 				metrics:              NewPrometheusEmitter(prometheus.NewRegistry()),
 				clusterServiceClient: &mockCSClient,
 			}
@@ -125,7 +122,7 @@ func TestCreateNodePool(t *testing.T) {
 			ts := httptest.NewServer(f.routes())
 			ts.Config.BaseContext = func(net.Listener) context.Context {
 				ctx := context.Background()
-				ctx = ContextWithLogger(ctx, f.logger)
+				ctx = ContextWithLogger(ctx, testLogger) // defined in frontend_test.go
 				ctx = ContextWithDBClient(ctx, f.dbClient)
 				ctx = ContextWithSystemData(ctx, test.systemData)
 

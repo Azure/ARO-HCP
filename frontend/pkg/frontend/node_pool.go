@@ -34,33 +34,32 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	// that represents an existing resource to be updated.
 
 	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	f.logger.Info(fmt.Sprintf("%s: CreateNodePool", versionedInterface))
-
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -81,7 +80,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// appropriate to fail.
 		csNodePool, err := f.clusterServiceClient.GetCSNodePool(ctx, doc.InternalID)
 		if err != nil {
-			f.logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
+			logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -115,7 +114,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
-			f.logger.Error("Resource not found")
+			logger.Error("Resource not found")
 			arm.WriteResourceNotFoundError(writer, resourceID)
 			return
 		}
@@ -133,19 +132,19 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 	if err = json.Unmarshal(body, versionedRequestNodePool); err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInvalidRequestContentError(writer, err)
 		return
 	}
 
 	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, updating, request.Method)
 	if cloudError != nil {
-		f.logger.Error(cloudError.Error())
+		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
@@ -156,38 +155,38 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	hcpNodePool.Name = request.PathValue(PathSegmentNodePoolName)
 	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	if updating {
-		f.logger.Info(fmt.Sprintf("updating resource %s", resourceID))
+		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
 		csNodePool, err = f.clusterServiceClient.UpdateCSNodePool(ctx, doc.InternalID, csNodePool)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 	} else {
-		f.logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
 		clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.GetParent())
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 
 		csNodePool, err = f.clusterServiceClient.PostCSNodePool(ctx, clusterDoc.InternalID, csNodePool)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 
 		doc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -197,14 +196,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	err = f.ExposeOperation(writer, request, operationDoc.ID)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
@@ -236,25 +235,25 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		updateResourceMetadata(doc)
 		err = f.dbClient.CreateResourceDoc(ctx, doc)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-		f.logger.Info(fmt.Sprintf("document created for %s", resourceID))
+		logger.Info(fmt.Sprintf("document created for %s", resourceID))
 	} else {
 		updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, updateResourceMetadata)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 		if updated {
-			f.logger.Info(fmt.Sprintf("document updated for %s", resourceID))
+			logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
 		// Get the updated resource document for the response.
 		doc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
 		if err != nil {
-			f.logger.Error(err.Error())
+			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
@@ -262,14 +261,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	responseBody, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
-		f.logger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
