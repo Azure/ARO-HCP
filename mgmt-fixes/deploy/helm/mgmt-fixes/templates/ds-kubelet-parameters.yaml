@@ -1,3 +1,5 @@
+# Alter kubelet config for better stability at higher scales
+# Ref: https://issues.redhat.com/browse/ARO-13357
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
