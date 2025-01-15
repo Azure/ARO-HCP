@@ -1,0 +1,7 @@
+Region: 
+  - Service.Infra: 
+    - Management.Infra: 
+      - MaestroAgent 
+      - MaestroServer
+Global: 
+  - Global.ACR
