@@ -85,7 +85,7 @@ func (c *Cache) GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) 
 
 func (c *Cache) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {
 	// Make sure lookup keys are lowercase.
-	key := strings.ToLower(doc.Key.String())
+	key := strings.ToLower(doc.ResourceId.String())
 
 	c.resource[key] = doc
 	return nil
