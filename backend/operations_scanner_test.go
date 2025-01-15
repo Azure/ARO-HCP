@@ -5,16 +5,17 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -60,6 +61,8 @@ func TestDeleteOperationCompleted(t *testing.T) {
 			var request *http.Request
 
 			ctx := context.Background()
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
 
 			resourceID, err := arm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
 			if err != nil {
@@ -74,7 +77,7 @@ func TestDeleteOperationCompleted(t *testing.T) {
 			defer server.Close()
 
 			scanner := &OperationsScanner{
-				dbClient:           database.NewCache(),
+				dbClient:           mockDBClient,
 				notificationClient: server.Client(),
 			}
 
@@ -82,12 +85,18 @@ func TestDeleteOperationCompleted(t *testing.T) {
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.operationStatus
 
-			_ = scanner.dbClient.CreateOperationDoc(ctx, operationDoc)
+			var resourceDocDeleted bool
 
-			if tt.resourceDocPresent {
-				resourceDoc := database.NewResourceDocument(resourceID)
-				_ = scanner.dbClient.CreateResourceDoc(ctx, resourceDoc)
-			}
+			mockDBClient.EXPECT().
+				DeleteResourceDoc(gomock.Any(), resourceID).
+				Do(func(ctx context.Context, resourceID *arm.ResourceID) {
+					resourceDocDeleted = tt.resourceDocPresent
+				})
+			mockDBClient.EXPECT().
+				UpdateOperationDoc(gomock.Any(), operationDoc.ID, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
+					return callback(operationDoc), nil
+				})
 
 			err = scanner.deleteOperationCompleted(ctx, slog.Default(), operationDoc)
 
@@ -103,18 +112,11 @@ func TestDeleteOperationCompleted(t *testing.T) {
 				t.Errorf("Got unexpected error: %v", err)
 			}
 
-			if err == nil && tt.resourceDocPresent {
-				_, getErr := scanner.dbClient.GetResourceDoc(ctx, resourceID)
-				if !errors.Is(getErr, database.ErrNotFound) {
-					t.Error("Expected resource document to be deleted")
-				}
+			if err == nil && tt.resourceDocPresent && !resourceDocDeleted {
+				t.Error("Expected resource document to be deleted")
 			}
 
 			if err == nil && tt.expectAsyncNotification {
-				operationDoc, getErr := scanner.dbClient.GetOperationDoc(ctx, operationDoc.ID)
-				if getErr != nil {
-					t.Fatal(getErr)
-				}
 				if operationDoc.Status != arm.ProvisioningStateSucceeded {
 					t.Errorf("Expected updated operation status to be %s but got %s",
 						arm.ProvisioningStateSucceeded,
@@ -207,6 +209,8 @@ func TestUpdateOperationStatus(t *testing.T) {
 			var request *http.Request
 
 			ctx := context.Background()
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
 
 			resourceID, err := arm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
 			if err != nil {
@@ -221,7 +225,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			defer server.Close()
 
 			scanner := &OperationsScanner{
-				dbClient:           database.NewCache(),
+				dbClient:           mockDBClient,
 				notificationClient: server.Client(),
 			}
 
@@ -229,18 +233,32 @@ func TestUpdateOperationStatus(t *testing.T) {
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.currentOperationStatus
 
-			_ = scanner.dbClient.CreateOperationDoc(ctx, operationDoc)
+			var resourceDoc *database.ResourceDocument
 
 			if tt.resourceDocPresent {
-				resourceDoc := database.NewResourceDocument(resourceID)
+				resourceDoc = database.NewResourceDocument(resourceID)
 				if tt.resourceMatchOperationID {
 					resourceDoc.ActiveOperationID = operationDoc.ID
 				} else {
 					resourceDoc.ActiveOperationID = "another operation"
 				}
 				resourceDoc.ProvisioningState = tt.resourceProvisioningState
-				_ = scanner.dbClient.CreateResourceDoc(ctx, resourceDoc)
 			}
+
+			mockDBClient.EXPECT().
+				UpdateOperationDoc(gomock.Any(), operationDoc.ID, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
+					return callback(operationDoc), nil
+				})
+			mockDBClient.EXPECT().
+				UpdateResourceDoc(gomock.Any(), resourceID, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, resourceID *arm.ResourceID, callback func(*database.ResourceDocument) bool) (bool, error) {
+					if resourceDoc != nil {
+						return callback(resourceDoc), nil
+					} else {
+						return false, database.ErrNotFound
+					}
+				})
 
 			err = scanner.updateOperationStatus(ctx, slog.Default(), operationDoc, tt.updatedOperationStatus, nil)
 
@@ -257,10 +275,6 @@ func TestUpdateOperationStatus(t *testing.T) {
 			}
 
 			if err == nil && tt.expectAsyncNotification {
-				operationDoc, getErr := scanner.dbClient.GetOperationDoc(ctx, operationDoc.ID)
-				if getErr != nil {
-					t.Fatal(getErr)
-				}
 				if operationDoc.Status != tt.updatedOperationStatus {
 					t.Errorf("Expected updated operation status to be %s but got %s",
 						tt.updatedOperationStatus,
@@ -269,10 +283,6 @@ func TestUpdateOperationStatus(t *testing.T) {
 			}
 
 			if err == nil && tt.resourceDocPresent {
-				resourceDoc, getErr := scanner.dbClient.GetResourceDoc(ctx, resourceID)
-				if getErr != nil {
-					t.Fatal(getErr)
-				}
 				if resourceDoc.ActiveOperationID == "" && !tt.expectResourceOperationIDCleared {
 					t.Error("Resource's active operation ID is unexpectedly empty")
 				} else if resourceDoc.ActiveOperationID != "" && tt.expectResourceOperationIDCleared {

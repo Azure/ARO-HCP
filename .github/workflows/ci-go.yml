@@ -40,6 +40,11 @@ jobs:
           go-version-file: 'go.work'
           check-latest: true
 
+      - name: 'Install Bingo'
+        run: |
+          go install github.com/bwplotka/bingo@latest
+          bingo get --link github.com/bwplotka/bingo
+
       - name: 'Test'
         run: JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
 

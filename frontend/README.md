@@ -5,11 +5,6 @@
 make frontend
 ```
 
-## Run the frontend binary locally (requires a local running CS to fully function)
-```
-make run
-```
-
 ## Build the frontend container
 ```bash
 # Note: for testing changes, please use your own registry
