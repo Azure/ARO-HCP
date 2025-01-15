@@ -137,12 +137,6 @@ param oidcStorageAccountSku string = 'Standard_ZRS'
 @description('Clusters Service ACR RG names')
 param clustersServiceAcrResourceGroupNames array = []
 
-@description('''
-  Defines if the custom ACR token management role should be used to grant
-  CS token management permissions on the OCP ACR
-  ''')
-param useCustomACRTokenManagementRole bool
-
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
@@ -331,7 +325,6 @@ module cs '../modules/cluster-service.bicep' = {
     regionalResourceGroup: regionalResourceGroup
     acrResourceGroupNames: clustersServiceAcrResourceGroupNames
     postgresAdministrationManagedIdentityId: aroDevopsMsiId
-    useCustomACRTokenManagementRole: useCustomACRTokenManagementRole
   }
   dependsOn: [
     maestroServer
