@@ -39,7 +39,45 @@ delete_managed_identities_from_cluster() {
 delete_cluster() {
   echo "deleting cluster ${CLUSTER_RESOURCE_ID}"
   correlation_headers | curl -si -H @- -X DELETE "${FRONTEND_HOST}:${FRONTEND_PORT}${CLUSTER_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}"
-  echo "deleted cluster ${CLUSTER_RESOURCE_ID}"
+  if [ "${WAIT_FOR_CLUSTER_DELETION}" -eq "0" ]; then
+    echo "wait for cluster deletion disabled. Continuing"
+    return
+  fi
+
+  echo "waiting for cluster to be fully deleted ..."
+  SLEEP_DURATION_SECONDS=10
+  while true ; do
+    CLUSTER_GET_RESP=$(curl -s "${FRONTEND_HOST}:${FRONTEND_PORT}${CLUSTER_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}")
+    CLUSTER_GET_RESP_PAYLOAD=$(echo ${CLUSTER_GET_RESP} | jq -r .)
+    if [ "$?" -ne "0" ]; then
+      echo "HTTP GET ${CLUSTER_RESOURCE_ID} returned invalid json:"
+      echo "${CLUSTER_GET_RESP_PAYLOAD}"
+      exit 1
+    fi
+    RESP_ID_ATTR=$(echo ${CLUSTER_GET_RESP_PAYLOAD} | jq -r '. | .id')
+    if [ "${RESP_ID_ATTR}" == "null" ]; then
+      RESP_ERR_CODE_ATTR=$(echo ${CLUSTER_GET_RESP_PAYLOAD} | jq -r '.error.code')
+      if [ "${RESP_ERR_CODE_ATTR}" == "ResourceNotFound" ]; then
+        # Cluster has been fully deleted so we return
+        echo "deleted cluster ${CLUSTER_RESOURCE_ID}"
+        return
+      else
+        echo "unexpected response when performing HTTP GET ${CLUSTER_RESOURCE_ID}":
+        echo "${CLUSTER_GET_RESP_PAYLOAD}"
+        exit 1
+      fi
+    fi
+
+    if [ "${RESP_ID_ATTR}" != "${CLUSTER_RESOURCE_ID}" ]; then
+        echo "unexpected cluster resource id when performing HTTP GET ${CLUSTER_RESOURCE_ID}":
+        echo "${RESP_ID_ATTR}"
+        exit 1
+    fi
+
+    echo "cluster not fully deleted yet. waiting for ${SLEEP_DURATION_SECONDS} seconds ..."
+    sleep ${SLEEP_DURATION_SECONDS}
+
+  done
 }
 
 main() {
@@ -56,6 +94,19 @@ main() {
     echo "cluster with resource id ${CLUSTER_RESOURCE_ID} not found"
     exit 0
   fi
+
+  # WAIT_FOR_CLUSTER_DELETION controls whether the script
+  # should wait until the cluster is fully deleted before
+  # continuing with the managed identities deletion.
+  # By default it is set to 1, which signals
+  # that the script should wait until the cluster is
+  # fully deleted before continuing.
+  # To disable the wait set it to 0. However, this means
+  # that the managed identities will be deleted while the
+  # cluster is being deleted but still exists, which can
+  # cause unexpected behavior / consequences, so use
+  # with caution.
+  WAIT_FOR_CLUSTER_DELETION=${WAIT_FOR_CLUSTER_DELETION:=1}
 
   delete_cluster
   delete_managed_identities_from_cluster
