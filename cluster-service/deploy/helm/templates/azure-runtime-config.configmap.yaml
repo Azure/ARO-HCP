@@ -7,13 +7,13 @@ metadata:
 data:
   config.json: |
     {
-      "cloudEnvironment": "AzurePublicCloud",
-      "managedIdentitiesDataPlaneAudienceResource": "{{ .Values.managedIdentitiesDataPlaneAudienceResource }}",
-      "tenantId": "{{ .Values.tenantId }}",
-      "ocpImagesAcr": {
-        "resourceId": "{{ .Values.ocpAcrResourceId }}",
+      "cloud_environment": "AzurePublicCloud",
+      "managed_identities_data_plane_audience_resource": "{{ .Values.managedIdentitiesDataPlaneAudienceResource }}",
+      "tenant_id": "{{ .Values.tenantId }}",
+      "ocp_images_acr": {
+        "resource_id": "{{ .Values.ocpAcrResourceId }}",
         "url": "{{ .Values.ocpAcrUrl }}",
-        "scopeMapName": "_repositories_pull"
+        "scope_map_name": "_repositories_pull"
       },
       "dataplane_identities_oidc_configuration": {
         "storage_account_blob_container_name": "$web",
