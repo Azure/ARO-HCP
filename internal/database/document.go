@@ -37,6 +37,7 @@ func newBaseDocument() BaseDocument {
 type ResourceDocument struct {
 	BaseDocument
 
+        // FIXME: Change the JSON field name when we're ready to break backward-compat.
 	ResourceId        *arm.ResourceID       `json:"key,omitempty"`
 	PartitionKey      string                `json:"partitionKey,omitempty"`
 	InternalID        ocm.InternalID        `json:"internalId,omitempty"`
