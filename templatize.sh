@@ -109,6 +109,9 @@ case ${REGION} in
     westus3)
         REGION_SHORT="usw3"
         ;;
+    uksouth)
+        REGION_SHORT="ln"
+        ;;
     *)
         echo "unsupported region: ${REGION}"
         exit 1
@@ -123,6 +126,11 @@ fi
 
 make -s -C ${PROJECT_ROOT_DIR}/tooling/templatize templatize
 TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize"
+
+PERSIST_FLAG=""
+if [ -z "$PERSIST" ] || [ "$PERSIST" == "false" ]; then
+    PERSIST_FLAG="--no-persist-tag"
+fi
 
 CONFIG_FILE=${CONFIG_FILE:-${PROJECT_ROOT_DIR}/config/config.yaml}
 if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
@@ -158,6 +166,18 @@ elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" 
         --stamp=${CXSTAMP} \
         --pipeline-file=${PIPELINE} \
         --step=${PIPELINE_STEP} \
+        ${PERSIST_FLAG} \
+        ${DRY_RUN}
+elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ]; then
+    $TEMPLATIZE pipeline run \
+        --config-file=${CONFIG_FILE} \
+        --cloud=${CLOUD} \
+        --deploy-env=${DEPLOY_ENV} \
+        --region=${REGION} \
+        --region-short=${REGION_STAMP} \
+        --stamp=${CXSTAMP} \
+        --pipeline-file=${PIPELINE} \
+        ${PERSIST_FLAG} \
         ${DRY_RUN}
 else
     $TEMPLATIZE inspect \

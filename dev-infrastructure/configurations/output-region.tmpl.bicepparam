@@ -1,3 +1,4 @@
 using '../templates/output-region.bicep'
 
-param csMIName = '{{ .clusterService.managedIdentityName }}'
+param azureMonitorWorkspaceName = '{{ .monitoring.workspaceName }}'
+param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'

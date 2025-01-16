@@ -1,7 +1,24 @@
 $schema: "pipeline.schema.v1"
+
+# This pipelines prepares general regional resources for ARO HCP
+#
+# - create regional SVC and CX DNS zones and delegates them to the global ones
+# - create Eventgrid MQTT for Maestro
+# - create regional replication for the OCP and SVC ACRs
+# - create regional Azure Monitor workspace and Grafana instance
+
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
+- name: {{ .global.rg }}
+  subscription: {{ .global.subscription }}
+  steps:
+  # Query parameters from global deployment, e.g. DNS hzone and ACR resource IDs
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
 - name: {{ .regionRG }}
   subscription: {{ .svc.subscription }}
   steps:
@@ -10,6 +27,25 @@ resourceGroups:
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+      - name: ocpAcrResourceId
+        input:
+          step: global-output
+          name: ocpAcrResourceId
+      - name: svcAcrResourceId
+        input:
+          step: global-output
+          name: svcAcrResourceId
+      - name: cxParentZoneResourceId
+        input:
+          step: global-output
+          name: cxParentZoneResourceId
+      - name: svcParentZoneResourceId
+        input:
+          step: global-output
+          name: svcParentZoneResourceId
+    dependsOn:
+    - global-output
   - name: metrics-infra
     action: ARM
     template: modules/metrics/metrics.bicep
@@ -17,3 +53,17 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - region
+  - name: add-grafana-datasource
+    action: Shell
+    command: scripts/add-grafana-datasource.sh
+    variables:
+      - name: GRAFANA_NAME
+        configRef: monitoring.grafanaName
+      - name: GRAFANA_RG
+        configRef: global.rg
+      - name: WORKSPACE_NAME
+        configRef: monitoring.workspaceName
+      - name: MONITOR_RG
+        configRef: regionRG
+    dependsOn:
+    - metrics-infra

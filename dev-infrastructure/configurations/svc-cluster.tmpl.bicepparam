@@ -53,8 +53,9 @@ param csServiceAccountName = '{{ .clusterService.k8s.serviceAccountName }}'
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 
-param acrPullResourceGroups = ['{{ .global.rg }}']
-param clustersServiceAcrResourceGroupNames = ['{{ .clusterService.acrRG }}']
+// ACR Resource IDs
+param ocpAcrResourceId = '__ocpAcrResourceId__'
+param svcAcrResourceId = '__svcAcrResourceId__'
 
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
@@ -66,4 +67,4 @@ param regionalResourceGroup = '{{ .regionRG }}'
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
 
 // Azure Monitor Workspace
-param azureMonitorWorkspaceName = '{{ .monitoring.workspaceName }}'
+param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'

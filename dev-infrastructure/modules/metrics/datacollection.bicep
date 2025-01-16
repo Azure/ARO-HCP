@@ -1,15 +1,9 @@
-param azureMonitorWorkspaceName string
+param azureMonitoringWorkspaceId string
 param azureMonitorWorkspaceLocation string
 param aksClusterName string
-param regionalResourceGroup string
 
 var dceName = take('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
 var dcrName = take('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
-
-resource amw 'microsoft.monitor/accounts@2021-06-03-preview' existing = {
-  name: azureMonitorWorkspaceName
-  scope: resourceGroup(regionalResourceGroup)
-}
 
 resource dce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = {
   name: dceName
@@ -49,7 +43,7 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
     destinations: {
       monitoringAccounts: [
         {
-          accountResourceId: amw.id 
+          accountResourceId: azureMonitoringWorkspaceId
           name: 'MonitoringAccount1'
         }
       ]

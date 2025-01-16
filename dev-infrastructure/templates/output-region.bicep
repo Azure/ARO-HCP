@@ -1,9 +1,16 @@
-@description('The name of the CS managed identity')
-param csMIName string
+@description('The name of the Azure Monitor Workspace (stores prometheus metrics)')
+param azureMonitorWorkspaceName string
 
-resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: csMIName
-  location: resourceGroup().location
+@description('The name of the eventgrid namespace for Maestro.')
+param maestroEventGridNamespacesName string
+
+resource monitor 'microsoft.monitor/accounts@2021-06-03-preview' existing = {
+  name: azureMonitorWorkspaceName
 }
 
-output cs string = csMSI.id
+resource maestroEventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' existing = {
+  name: maestroEventGridNamespacesName
+}
+
+output azureMonitoringWorkspaceId string = monitor.id
+output maestroEventGridNamespaceId string = maestroEventGridNamespace.id

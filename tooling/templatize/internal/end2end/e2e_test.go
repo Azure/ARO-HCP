@@ -192,12 +192,12 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterB", "testb.bicep", "testb.bicepparm", "ResourceGroup").WithVariables(pipeline.Variable{
+	e2eImpl.AddStep(pipeline.NewARMStep("stepA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("stepB", "testb.bicep", "testb.bicepparm", "ResourceGroup").WithVariables(pipeline.Variable{
 		Name: "parameterB",
 		Input: &pipeline.Input{
 			Name: "parameterA",
-			Step: "parameterA",
+			Step: "stepA",
 		},
 	}), 0)
 
@@ -208,7 +208,7 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 			Name: "end",
 			Input: &pipeline.Input{
 				Name: "parameterC",
-				Step: "parameterB",
+				Step: "stepB",
 			},
 		},
 	), 0)
@@ -229,7 +229,7 @@ output parameterC string = parameterB
 		"testb.bicep",
 		`
 using 'testb.bicep'
-param parameterB = '{{ .parameterB }}'
+param parameterB = '< provided at runtime >'
 `,
 		"testb.bicepparm")
 

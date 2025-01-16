@@ -8,7 +8,6 @@
     "imageTag": ""
   },
   "clusterService": {
-    "acrRG": "global",
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
         "roleName": "Azure Red Hat OpenShift Cloud Controller Manager - Dev"
@@ -165,7 +164,6 @@
       },
       "vnetAddressPrefix": "10.128.0.0/14"
     },
-    "clusterServiceResourceId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-usw3tst-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service",
     "rg": "hcp-underlay-usw3tst-mgmt-1",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },

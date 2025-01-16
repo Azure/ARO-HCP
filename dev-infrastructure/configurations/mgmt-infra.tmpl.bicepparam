@@ -17,4 +17,4 @@ param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVault.softDelete }}
 
 // Cluster Service identity
 // used for Key Vault access
-param clusterServiceMIResourceId = '{{ .mgmt.clusterServiceResourceId }}'
+param clusterServiceMIResourceId = '__clusterServiceMIResourceId__'

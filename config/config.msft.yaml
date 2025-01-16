@@ -44,7 +44,6 @@ defaults:
 
   # MGMT cluster specifics
   mgmt:
-    clusterServiceResourceId: 'todo'
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
     aks:
@@ -82,7 +81,7 @@ defaults:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       serverVersion: '15'
       serverStorageSizeGB: 32
-      deploy: false
+      deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
@@ -92,7 +91,6 @@ defaults:
 
   # Cluster Service
   clusterService:
-    acrRG: 'global-shared-resources'
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true
@@ -105,7 +103,7 @@ defaults:
 
   # Image Sync
   imageSync:
-    rg: hcp-underlay-imagesync
+    rg: global-shared-resources
     acrRG: global-shared-resources
     environmentName: global-shared-resources
     componentSync:
@@ -122,6 +120,11 @@ defaults:
       name: arohcp-imagesync-int
       private: false
       softDelete: true
+
+  # MCE
+  mce:
+    clcStateMetrics:
+      imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
 
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
@@ -163,7 +166,7 @@ clouds:
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       clusterService:
-        imageTag: ecd15ad
+        imageTag: a51079c
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
           cloudControllerManager:
@@ -182,13 +185,13 @@ clouds:
         imageTag: 9aca808
       imageSync:
         componentSync:
-          imageTag: 8d3c113
+          imageTag: 0b076bf
         ocMirror:
-          imageTag: 0b3c08f
+          imageTag: 0b076bf
       frontend:
-        imageTag: 0b3c08f
+        imageTag: 0b076bf
       backend:
-        imageTag: 0b3c08f
+        imageTag: 0b076bf
 
     environments:
       int:

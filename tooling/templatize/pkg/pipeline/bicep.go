@@ -39,15 +39,7 @@ func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFi
 }
 
 func transformParameters(ctx context.Context, vars config.Variables, inputs map[string]any, bicepParameterTemplateFile string) (map[string]interface{}, map[string]interface{}, error) {
-	combinedVars := make(map[string]any)
-	for k, v := range vars {
-		combinedVars[k] = v
-	}
-	for k, v := range inputs {
-		combinedVars[k] = v
-	}
-
-	bicepParamContent, err := config.PreprocessFile(bicepParameterTemplateFile, combinedVars)
+	bicepParamContent, err := config.PreprocessFile(bicepParameterTemplateFile, vars)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to preprocess file: %w", err)
 	}
@@ -80,6 +72,11 @@ func transformParameters(ctx context.Context, vars config.Variables, inputs map[
 	params, err := result.Parameters()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get parameters: %w", err)
+	}
+	for k, v := range inputs {
+		params[k] = map[string]interface{}{
+			"value": v,
+		}
 	}
 	return template, params, nil
 }

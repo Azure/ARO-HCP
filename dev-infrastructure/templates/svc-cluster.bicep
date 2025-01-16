@@ -34,8 +34,11 @@ param userAgentVMSize string
 @description('Number of availability zones to use for the AKS clusters user agent pool')
 param userAgentPoolAZCount int
 
-@description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
-param acrPullResourceGroups array = []
+@description('The resource ID of the OCP ACR')
+param ocpAcrResourceId string
+
+@description('The resource ID of the SVC ACR')
+param svcAcrResourceId string
 
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
@@ -152,9 +155,6 @@ param oidcStorageAccountName string
 @description('OIDC Storage Account SKU')
 param oidcStorageAccountSku string = 'Standard_ZRS'
 
-@description('Clusters Service ACR RG names')
-param clustersServiceAcrResourceGroupNames array = []
-
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
@@ -164,8 +164,8 @@ param regionalCXDNSZoneName string
 @description('Frontend Ingress Certificate Name')
 param frontendIngressCertName string
 
-@description('The name of the Azure Monitor Workspace (stores prometheus metrics)')
-param azureMonitorWorkspaceName string
+@description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
+param azureMonitoringWorkspaceId string
 
 @description('The name of the CS managed identity')
 param csMIName string
@@ -237,7 +237,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       }
     })
     aksKeyVaultName: aksKeyVaultName
-    acrPullResourceGroups: acrPullResourceGroups
+    pullAcrResourceIds: [svcAcrResourceId]
     aroDevopsMsiId: aroDevopsMsiId
     dcrId: dataCollection.outputs.dcrId
   }
@@ -253,8 +253,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   name: '${resourceGroup().name}-${aksClusterName}'
   params: {
     azureMonitorWorkspaceLocation: location
-    azureMonitorWorkspaceName: azureMonitorWorkspaceName
-    regionalResourceGroup: regionalResourceGroup
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     aksClusterName: aksClusterName
   }
 }
@@ -351,7 +350,7 @@ module cs '../modules/cluster-service.bicep' = {
     serviceKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     regionalCXDNSZoneName: regionalCXDNSZoneName
     regionalResourceGroup: regionalResourceGroup
-    acrResourceGroupNames: clustersServiceAcrResourceGroupNames
+    ocpAcrResourceId: ocpAcrResourceId
     postgresAdministrationManagedIdentityId: aroDevopsMsiId
   }
   dependsOn: [
