@@ -37,7 +37,8 @@ func newBaseDocument() BaseDocument {
 type ResourceDocument struct {
 	BaseDocument
 
-	Key               *arm.ResourceID       `json:"key,omitempty"`
+	// FIXME: Change the JSON field name when we're ready to break backward-compat.
+	ResourceId        *arm.ResourceID       `json:"key,omitempty"`
 	PartitionKey      string                `json:"partitionKey,omitempty"`
 	InternalID        ocm.InternalID        `json:"internalId,omitempty"`
 	ActiveOperationID string                `json:"activeOperationId,omitempty"`
@@ -49,7 +50,7 @@ type ResourceDocument struct {
 func NewResourceDocument(resourceID *arm.ResourceID) *ResourceDocument {
 	return &ResourceDocument{
 		BaseDocument: newBaseDocument(),
-		Key:          resourceID,
+		ResourceId:   resourceID,
 		PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 	}
 }

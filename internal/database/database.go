@@ -175,7 +175,7 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *arm.Res
 		// normalize or return a toupper or tolower form of the resource
 		// group or resource name. The resource group name and resource
 		// name must come from the URL and not the request body.
-		doc.Key = resourceID
+		doc.ResourceId = resourceID
 		return doc, nil
 	}
 	return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, ErrNotFound)
@@ -188,12 +188,12 @@ func (d *CosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 
 	data, err := json.Marshal(doc)
 	if err != nil {
-		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.Key, err)
+		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.ResourceId, err)
 	}
 
 	_, err = d.resources.CreateItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.Key, err)
+		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.ResourceId, err)
 	}
 
 	return nil

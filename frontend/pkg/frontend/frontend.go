@@ -220,7 +220,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 		// FIXME This filtering could be made part of the query expression. It would
 		//       require some reworking (or elimination) of the DBClient interface.
-		if strings.HasSuffix(strings.ToLower(doc.Key.ResourceType.Type), resourceTypeName) {
+		if strings.HasSuffix(strings.ToLower(doc.ResourceId.ResourceType.Type), resourceTypeName) {
 			documentMap[doc.InternalID.ID()] = &doc
 		}
 	}
@@ -507,7 +507,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, doc.Key, doc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceId, doc.InternalID)
 
 	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
@@ -916,7 +916,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.Key, csCluster)
+	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.ResourceId, csCluster)
 	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
 	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
