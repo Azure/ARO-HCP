@@ -105,7 +105,6 @@
     },
     "rg": "hcp-underlay-westus3-imagesync-dev"
   },
-  "kubernetesVersion": "1.31.2",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-dev-mgmt-1",
@@ -141,26 +140,32 @@
     }
   },
   "mgmt": {
+    "aks": {
+      "etcd": {
+        "kvName": "arohcp-etcd-dev-1",
+        "kvSoftDelete": false
+      },
+      "kubernetesVersion": "1.31.2",
+      "podSubnetPrefix": "10.128.64.0/18",
+      "subnetPrefix": "10.128.8.0/21",
+      "systemAgentPool": {
+        "maxCount": 4,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
+      "userAgentPool": {
+        "azCount": 3,
+        "maxCount": 12,
+        "minCount": 2,
+        "osDiskSizeGB": 100,
+        "vmSize": "Standard_D4s_v3"
+      },
+      "vnetAddressPrefix": "10.128.0.0/14"
+    },
     "clusterServiceResourceId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-dev-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service",
-    "etcd": {
-      "kvName": "arohcp-etcd-dev-1",
-      "kvSoftDelete": false
-    },
     "rg": "hcp-underlay-dev-mgmt-1",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)",
-    "systemAgentPool": {
-      "maxCount": 4,
-      "minCount": 1,
-      "osDiskSizeGB": 32,
-      "vmSize": "Standard_D2s_v3"
-    },
-    "userAgentPool": {
-      "azCount": 3,
-      "maxCount": 12,
-      "minCount": 2,
-      "osDiskSizeGB": 100,
-      "vmSize": "Standard_D4s_v3"
-    }
+    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
     "name": "arohcp-mgmt-dev-1",
@@ -182,7 +187,6 @@
   },
   "ocpAcrName": "arohcpocpdev",
   "oidcStorageAccountName": "arohcpoidcdev",
-  "podSubnetPrefix": "10.128.64.0/18",
   "region": "westus3",
   "regionRG": "hcp-underlay-dev",
   "serviceKeyVault": {
@@ -192,11 +196,29 @@
     "rg": "global",
     "softDelete": true
   },
-  "subnetPrefix": "10.128.8.0/21",
   "svc": {
-    "etcd": {
-      "kvName": "arohcp-etcd-dev",
-      "kvSoftDelete": false
+    "aks": {
+      "etcd": {
+        "kvName": "arohcp-etcd-dev",
+        "kvSoftDelete": false
+      },
+      "kubernetesVersion": "1.31.2",
+      "podSubnetPrefix": "10.128.64.0/18",
+      "subnetPrefix": "10.128.8.0/21",
+      "systemAgentPool": {
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
+      "userAgentPool": {
+        "azCount": 3,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
+      "vnetAddressPrefix": "10.128.0.0/14"
     },
     "istio": {
       "istioctlVersion": "1.23.1",
@@ -205,15 +227,7 @@
       "versions": "asm-1-23"
     },
     "rg": "hcp-underlay-dev-svc",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)",
-    "userAgentPool": {
-      "azCount": 3,
-      "maxCount": 3,
-      "minCount": 1,
-      "osDiskSizeGB": 32,
-      "vmSize": "Standard_D2s_v3"
-    }
+    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
-  "svcAcrName": "arohcpsvcdev",
-  "vnetAddressPrefix": "10.128.0.0/14"
+  "svcAcrName": "arohcpsvcdev"
 }

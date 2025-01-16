@@ -105,7 +105,6 @@
     },
     "rg": "hcp-underlay-imagesync"
   },
-  "kubernetesVersion": "1.30.6",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-int-mgmt-1",
@@ -136,26 +135,32 @@
     }
   },
   "mgmt": {
+    "aks": {
+      "etcd": {
+        "kvName": "arohcp-etcd-int-1",
+        "kvSoftDelete": true
+      },
+      "kubernetesVersion": "1.30.6",
+      "podSubnetPrefix": "10.128.64.0/18",
+      "subnetPrefix": "10.128.8.0/21",
+      "systemAgentPool": {
+        "maxCount": 4,
+        "minCount": 1,
+        "osDiskSizeGB": 128,
+        "vmSize": "Standard_E8s_v3"
+      },
+      "userAgentPool": {
+        "azCount": 3,
+        "maxCount": 12,
+        "minCount": 1,
+        "osDiskSizeGB": 128,
+        "vmSize": "Standard_D16s_v3"
+      },
+      "vnetAddressPrefix": "10.128.0.0/14"
+    },
     "clusterServiceResourceId": "todo",
-    "etcd": {
-      "kvName": "arohcp-etcd-int-1",
-      "kvSoftDelete": true
-    },
     "rg": "hcp-underlay-westus3-mgmt-1",
-    "subscription": "hcp-westus3",
-    "systemAgentPool": {
-      "maxCount": 4,
-      "minCount": 1,
-      "osDiskSizeGB": 128,
-      "vmSize": "Standard_E8s_v3"
-    },
-    "userAgentPool": {
-      "azCount": 3,
-      "maxCount": 12,
-      "minCount": 1,
-      "osDiskSizeGB": 128,
-      "vmSize": "Standard_D16s_v3"
-    }
+    "subscription": "hcp-westus3"
   },
   "mgmtKeyVault": {
     "name": "arohcp-mgmt-int-1",
@@ -177,7 +182,6 @@
   },
   "ocpAcrName": "arohcpocpint",
   "oidcStorageAccountName": "arohcpoidcintint",
-  "podSubnetPrefix": "10.128.64.0/18",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
   "serviceKeyVault": {
@@ -187,11 +191,29 @@
     "rg": "hcp-underlay-westus3-svc",
     "softDelete": false
   },
-  "subnetPrefix": "10.128.8.0/21",
   "svc": {
-    "etcd": {
-      "kvName": "arohcp-etcd-int",
-      "kvSoftDelete": true
+    "aks": {
+      "etcd": {
+        "kvName": "arohcp-etcd-int",
+        "kvSoftDelete": true
+      },
+      "kubernetesVersion": "1.30.6",
+      "podSubnetPrefix": "10.128.64.0/18",
+      "subnetPrefix": "10.128.8.0/21",
+      "systemAgentPool": {
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
+      "userAgentPool": {
+        "azCount": 3,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
+      "vnetAddressPrefix": "10.128.0.0/14"
     },
     "istio": {
       "istioctlVersion": "1.24.1",
@@ -200,15 +222,7 @@
       "versions": "asm-1-22,asm-1-23"
     },
     "rg": "hcp-underlay-westus3-svc",
-    "subscription": "hcp-westus3",
-    "userAgentPool": {
-      "azCount": 3,
-      "maxCount": 3,
-      "minCount": 1,
-      "osDiskSizeGB": 32,
-      "vmSize": "Standard_D2s_v3"
-    }
+    "subscription": "hcp-westus3"
   },
-  "svcAcrName": "arohcpsvcint",
-  "vnetAddressPrefix": "10.128.0.0/14"
+  "svcAcrName": "arohcpsvcint"
 }

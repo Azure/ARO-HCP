@@ -14,6 +14,81 @@
         "required": [
           "roleName"
         ]
+      },
+      "aksAgentPool": {
+        "type": "object",
+        "properties": {
+          "maxCount": {
+            "type": "number"
+          },
+          "minCount": {
+            "type": "number"
+          },
+          "osDiskSizeGB": {
+            "type": "number"
+          },
+          "vmSize": {
+            "type": "string"
+          },
+          "azCount": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "maxCount",
+          "minCount",
+          "osDiskSizeGB",
+          "vmSize"
+        ]
+      },
+      "aksConfig": {
+        "type": "object",
+        "properties": {
+          "vnetAddressPrefix": {
+            "type": "string"
+          },
+          "subnetPrefix": {
+            "type": "string"
+          },
+          "podSubnetPrefix": {
+            "type": "string"
+          },
+          "kubernetesVersion": {
+            "type": "string"
+          },
+          "etcd": {
+            "type": "object",
+            "properties": {
+              "kvName": {
+                "type": "string"
+              },
+              "kvSoftDelete": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kvName",
+              "kvSoftDelete"
+            ]
+          },
+          "userAgentPool": {
+            "$ref": "#/definitions/aksAgentPool"
+          },
+          "systemAgentPool": {
+            "$ref": "#/definitions/aksAgentPool"
+          }
+        },
+        "required": [
+          "vnetAddressPrefix",
+          "subnetPrefix",
+          "podSubnetPrefix",
+          "kubernetesVersion",
+          "etcd",
+          "userAgentPool",
+          "systemAgentPool"
+        ]
       }
     },
     "properties": {
@@ -403,9 +478,6 @@
           "rg"
         ]
       },
-      "kubernetesVersion": {
-        "type": "string"
-      },
       "acrPullImageDigest": {
         "type": "string"
       },
@@ -546,21 +618,8 @@
       "mgmt": {
         "type": "object",
         "properties": {
-          "etcd": {
-            "type": "object",
-            "properties": {
-              "kvName": {
-                "type": "string"
-              },
-              "kvSoftDelete": {
-                "type": "boolean"
-              }
-            },
-            "additionalProperties": false,
-            "required": [
-              "kvName",
-              "kvSoftDelete"
-            ]
+          "aks": {
+            "$ref": "#/definitions/aksConfig"
           },
           "rg": {
             "type": "string"
@@ -570,68 +629,14 @@
           },
           "clusterServiceResourceId": {
             "type": "string"
-          },
-          "systemAgentPool": {
-            "type": "object",
-            "properties": {
-              "maxCount": {
-                "type": "number"
-              },
-              "minCount": {
-                "type": "number"
-              },
-              "osDiskSizeGB": {
-                "type": "number"
-              },
-              "vmSize": {
-                "type": "string"
-              }
-            },
-            "additionalProperties": false,
-            "required": [
-              "maxCount",
-              "minCount",
-              "osDiskSizeGB",
-              "vmSize"
-            ]
-          },
-          "userAgentPool": {
-            "type": "object",
-            "properties": {
-              "azCount": {
-                "type": "number"
-              },
-              "maxCount": {
-                "type": "number"
-              },
-              "minCount": {
-                "type": "number"
-              },
-              "osDiskSizeGB": {
-                "type": "number"
-              },
-              "vmSize": {
-                "type": "string"
-              }
-            },
-            "additionalProperties": false,
-            "required": [
-              "azCount",
-              "maxCount",
-              "minCount",
-              "osDiskSizeGB",
-              "vmSize"
-            ]
           }
         },
         "additionalProperties": false,
         "required": [
+          "aks",
           "clusterServiceResourceId",
-          "etcd",
           "rg",
-          "systemAgentPool",
-          "subscription",
-          "userAgentPool"
+          "subscription"
         ]
       },
       "mgmtKeyVault": {
@@ -704,9 +709,6 @@
       "oidcStorageAccountName": {
         "type": "string"
       },
-      "podSubnetPrefix": {
-        "type": "string"
-      },
       "region": {
         "type": "string"
       },
@@ -741,55 +743,11 @@
           "softDelete"
         ]
       },
-      "subnetPrefix": {
-        "type": "string"
-      },
       "svc": {
         "type": "object",
         "properties": {
-          "etcd": {
-            "type": "object",
-            "properties": {
-              "kvName": {
-                "type": "string"
-              },
-              "kvSoftDelete": {
-                "type": "boolean"
-              }
-            },
-            "additionalProperties": false,
-            "required": [
-              "kvName",
-              "kvSoftDelete"
-            ]
-          },
-          "userAgentPool": {
-            "type": "object",
-            "properties": {
-              "azCount": {
-                "type": "number"
-              },
-              "maxCount": {
-                "type": "number"
-              },
-              "minCount": {
-                "type": "number"
-              },
-              "osDiskSizeGB": {
-                "type": "number"
-              },
-              "vmSize": {
-                "type": "string"
-              }
-            },
-            "additionalProperties": false,
-            "required": [
-              "azCount",
-              "maxCount",
-              "minCount",
-              "osDiskSizeGB",
-              "vmSize"
-            ]
+          "aks": {
+            "$ref": "#/definitions/aksConfig"
           },
           "rg": {
             "type": "string"
@@ -823,16 +781,13 @@
         },
         "additionalProperties": false,
         "required": [
-          "etcd",
           "rg",
           "subscription",
-          "userAgentPool"
+          "aks",
+          "istio"
         ]
       },
       "svcAcrName": {
-        "type": "string"
-      },
-      "vnetAddressPrefix": {
         "type": "string"
       }
     },
@@ -848,7 +803,6 @@
       "hypershift",
       "hypershiftOperator",
       "imageSync",
-      "kubernetesVersion",
       "acrPullImageDigest",
       "maestro",
       "mgmt",
@@ -857,13 +811,10 @@
       "msiKeyVault",
       "ocpAcrName",
       "oidcStorageAccountName",
-      "podSubnetPrefix",
       "region",
       "regionRG",
       "serviceKeyVault",
-      "subnetPrefix",
       "svc",
-      "svcAcrName",
-      "vnetAddressPrefix"
+      "svcAcrName"
     ]
   }

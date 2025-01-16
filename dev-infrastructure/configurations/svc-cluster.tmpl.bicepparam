@@ -1,19 +1,24 @@
 using '../templates/svc-cluster.bicep'
 
-param kubernetesVersion = '{{ .kubernetesVersion }}'
 param istioVersions = '{{ .svc.istio.versions }}'
-param vnetAddressPrefix = '{{ .vnetAddressPrefix }}'
-param subnetPrefix = '{{ .subnetPrefix }}'
-param podSubnetPrefix = '{{ .podSubnetPrefix }}'
-param aksClusterName = '{{ .aksName }}'
-param aksKeyVaultName = '{{ .svc.etcd.kvName }}'
-param aksEtcdKVEnableSoftDelete = {{ .svc.etcd.kvSoftDelete }}
 
-param userAgentMinCount = {{ .svc.userAgentPool.minCount }}
-param userAgentMaxCount = {{ .svc.userAgentPool.maxCount }}
-param userAgentVMSize = '{{ .svc.userAgentPool.vmSize }}'
-param aksUserOsDiskSizeGB = {{ .svc.userAgentPool.osDiskSizeGB }}
-param userAgentPoolAZCount = {{ .svc.userAgentPool.azCount }}
+// AKS
+param kubernetesVersion = '{{ .svc.aks.kubernetesVersion }}'
+param vnetAddressPrefix = '{{ .svc.aks.vnetAddressPrefix }}'
+param subnetPrefix = '{{ .svc.aks.subnetPrefix }}'
+param podSubnetPrefix = '{{ .svc.aks.podSubnetPrefix }}'
+param aksClusterName = '{{ .aksName }}'
+param aksKeyVaultName = '{{ .svc.aks.etcd.kvName }}'
+param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.kvSoftDelete }}
+param systemAgentMinCount = {{ .svc.aks.systemAgentPool.minCount}}
+param systemAgentMaxCount = {{ .svc.aks.systemAgentPool.maxCount }}
+param systemAgentVMSize = '{{ .svc.aks.systemAgentPool.vmSize }}'
+param aksSystemOsDiskSizeGB = {{ .svc.aks.systemAgentPool.osDiskSizeGB }}
+param userAgentMinCount = {{ .svc.aks.userAgentPool.minCount }}
+param userAgentMaxCount = {{ .svc.aks.userAgentPool.maxCount }}
+param userAgentVMSize = '{{ .svc.aks.userAgentPool.vmSize }}'
+param userAgentPoolAZCount = {{ .svc.aks.userAgentPool.azCount }}
+param aksUserOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 
 param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
 param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}

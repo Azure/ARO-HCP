@@ -12,11 +12,9 @@ defaults:
     globalMSIName: "global-ev2-identity"
 
   # General AKS config
-  kubernetesVersion: 1.30.6
-  vnetAddressPrefix: "10.128.0.0/14"
-  subnetPrefix: "10.128.8.0/21"
-  podSubnetPrefix: "10.128.64.0/18"
   aksName: aro-hcp-aks
+
+  # ACR Pull
   acrPullImageDigest: sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca #v0.1.7
 
   # Hypershift
@@ -27,9 +25,14 @@ defaults:
   svc:
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
-    etcd:
-      kvName: arohcp-etcd-{{ .ctx.regionShort }}
-      kvSoftDelete: true
+    aks:
+      vnetAddressPrefix: "10.128.0.0/14"
+      subnetPrefix: "10.128.8.0/21"
+      podSubnetPrefix: "10.128.64.0/18"
+      kubernetesVersion: 1.30.6
+      etcd:
+        kvName: arohcp-etcd-{{ .ctx.regionShort }}
+        kvSoftDelete: true
     istio:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
@@ -41,9 +44,14 @@ defaults:
     clusterServiceResourceId: 'todo'
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
-    etcd:
-      kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-      kvSoftDelete: true
+    aks:
+      vnetAddressPrefix: "10.128.0.0/14"
+      subnetPrefix: "10.128.8.0/21"
+      podSubnetPrefix: "10.128.64.0/18"
+      kubernetesVersion: 1.30.6
+      etcd:
+        kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+        kvSoftDelete: true
 
   # Frontend
   frontend:
@@ -186,26 +194,33 @@ clouds:
           oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }}
           # SVC
           svc:
-            userAgentPool:
-              minCount: 1
-              maxCount: 3
-              vmSize: 'Standard_D2s_v3'
-              osDiskSizeGB: 32
-              azCount: 3
+            aks:
+              systemAgentPool:
+                minCount: 1
+                maxCount: 3
+                vmSize: 'Standard_D2s_v3'
+                osDiskSizeGB: 32
+              userAgentPool:
+                minCount: 1
+                maxCount: 3
+                vmSize: 'Standard_D2s_v3'
+                osDiskSizeGB: 32
+                azCount: 3
           # MC
           mgmt:
-            # MGMTM AKS nodepools - big enough for 2 HCPs
-            systemAgentPool:
-              minCount: 1
-              maxCount: 4
-              vmSize: 'Standard_E8s_v3'
-              osDiskSizeGB: 128
-            userAgentPool:
-              minCount: 1
-              maxCount: 12
-              vmSize: 'Standard_D16s_v3'
-              osDiskSizeGB: 128
-              azCount: 3
+            aks:
+              # MGMTM AKS nodepools - big enough for 2 HCPs
+              systemAgentPool:
+                minCount: 1
+                maxCount: 4
+                vmSize: 'Standard_E8s_v3'
+                osDiskSizeGB: 128
+              userAgentPool:
+                minCount: 1
+                maxCount: 12
+                vmSize: 'Standard_D16s_v3'
+                osDiskSizeGB: 128
+                azCount: 3
 
           # DNS
           dns:
