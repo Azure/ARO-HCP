@@ -126,24 +126,28 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
 // ACRs can be in different RGs or even subscriptions. ideally we should
 // be able to deal with ACR resource IDs as input instead of RG and ACR names
 
-module acrContributorRole '../modules/acr/acr-permissions.bicep' = {
-  name: guid(imageSyncManagedIdentity, location, 'acr', 'readwrite')
-  scope: resourceGroup(acrResourceGroup)
-  params: {
-    principalId: uami.properties.principalId
-    grantPushAccess: true
-    acrResourceGroupid: acrResourceGroup
+module acrPushPermissions '../modules/acr/acr-permissions.bicep' = [
+  for acrName in [svcAcrName, ocpAcrName]: {
+    name: guid(imageSyncManagedIdentity, acrName, location, 'acr', 'readwrite')
+    scope: resourceGroup(acrResourceGroup)
+    params: {
+      principalId: uami.properties.principalId
+      grantPushAccess: true
+      acrName: ocpAcrName
+    }
   }
-}
+]
 
-module acrPullRole '../modules/acr/acr-permissions.bicep' = {
-  name: guid(imageSyncManagedIdentity, location, 'acr', 'pull')
-  scope: resourceGroup(acrResourceGroup)
-  params: {
-    principalId: uami.properties.principalId
-    acrResourceGroupid: acrResourceGroup
+module acrPullPermissions '../modules/acr/acr-permissions.bicep' = [
+  for acrName in [svcAcrName, ocpAcrName]: {
+    name: guid(imageSyncManagedIdentity, acrName, location, 'acr', 'pull')
+    scope: resourceGroup(acrResourceGroup)
+    params: {
+      principalId: uami.properties.principalId
+      acrName: ocpAcrName
+    }
   }
-}
+]
 
 module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' = [
   for secretName in union([componentSyncPullSecretName, ocpPullSecretName], bearerSecrets): {

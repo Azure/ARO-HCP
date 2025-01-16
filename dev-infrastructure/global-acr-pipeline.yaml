@@ -11,6 +11,9 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+- name: {{ .imageSync.rg }}
+  subscription: {{ .global.subscription }}
+  steps:
   # imagesync
   - name: imagesync
     action: ARM

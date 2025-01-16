@@ -18,7 +18,6 @@ DEPLOYMENT_NAME_SUFFIX ?=
 GLOBAL_RG_DEPLOYMENT_NAME ?= global${DEPLOYMENT_NAME_SUFFIX}
 MGMG_RG_DEPLOYMENT_NAME ?= mgmt${DEPLOYMENT_NAME_SUFFIX}
 SVC_RG_DEPLOYMENT_NAME ?= svc${DEPLOYMENT_NAME_SUFFIX}
-IMAGE_SYNC_RG_DEPLOYMENT_NAME ?= image-sync${DEPLOYMENT_NAME_SUFFIX}
 REGIONAL_RG_DEPLOYMENT_NAME ?= region${DEPLOYMENT_NAME_SUFFIX}
 METRICS_INFRA_RG_DEPLOYMENT_NAME ?= metrics-infra${DEPLOYMENT_NAME_SUFFIX}
 ROLE_ASSIGNMENTS_DEPLOYMENT_NAME ?= role-assignments${DEPLOYMENT_NAME_SUFFIX}
@@ -85,76 +84,12 @@ create-mock-identities:
 .PHONY: create-mock-identities
 
 #
-# Image Sync
-#
-
-imagesync.rg:
-	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP) --output json)" = "false" ]; then \
-		az group create \
-			--name $(IMAGE_SYNC_RESOURCEGROUP)  \
-			--location $(REGION) \
-			--tags persist=$(PERSIST) \
-			--output none; \
-	fi
-.PHONY: imagesyncRg
-
-imagesync.wait:
-	@./ensure-no-running-deployment.sh $(IMAGE_SYNC_RESOURCEGROUP) $(IMAGE_SYNC_RG_DEPLOYMENT_NAME)
-.PHONY: imagesync.wait
-
-imagesync: imagesync.rg imagesync.wait
-	az deployment group create \
-		--name $(IMAGE_SYNC_RG_DEPLOYMENT_NAME) \
-		--resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
-		--template-file templates/image-sync.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/image-sync.bicepparam
-.PHONY: imagesync
-
-imagesync.what-if: imagesync.rg imagesync.wait
-	az deployment group what-if \
-		--name $(IMAGE_SYNC_RG_DEPLOYMENT_NAME) \
-		--resource-group $(IMAGE_SYNC_RESOURCEGROUP) \
-		--template-file templates/image-sync.bicep \
-		--parameters \
-			configurations/image-sync.bicepparam
-.PHONY: imagesync.what-if
-
-imagesync.clean:
-	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP)  --output json)" = "true" ]; then \
-		az group delete -g $(IMAGE_SYNC_RESOURCEGROUP); \
-	fi
-.PHONY: imagesync.clean
-
-#
 # Region
 #
 
-regional.rg:
-	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP) --output json)" = "false" ]; then \
-		az group create \
-			--name $(REGIONAL_RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: regional.rg
-
-region.wait:
-	@./ensure-no-running-deployment.sh $(REGIONAL_RESOURCEGROUP) $(REGIONAL_RG_DEPLOYMENT_NAME)
-.PHONY: region.wait
-
-region: region.wait regional.rg
+region:
 	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
-	az deployment group create \
-		--name $(REGIONAL_RG_DEPLOYMENT_NAME) \
-		--resource-group $(REGIONAL_RESOURCEGROUP) \
-		--template-file templates/region.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/region.bicepparam \
-		--parameters \
-			persist=${PERSIST}
+	../templatize.sh $(DEPLOY_ENV) -p region-pipeline.yaml -P run -c public
 .PHONY: region
 
 region.clean:
@@ -164,53 +99,20 @@ region.clean:
 	fi
 .PHONY: region.clean
 
-region.what-if: region.wait regional.rg
-	az deployment group what-if \
-		--name $(REGIONAL_RG_DEPLOYMENT_NAME) \
-		--resource-group $(REGIONAL_RESOURCEGROUP) \
-		--template-file templates/region.bicep \
-		--parameters \
-			configurations/region.bicepparam
+region.what-if:
+	../templatize.sh $(DEPLOY_ENV) -p region-pipeline.yaml -P run -c public -d
 .PHONY: region.what-if
 
 #
 # Service Cluster
 #
 
-svc.rg:
-	@if [ "$$(az group exists --name $(SVC_RESOURCEGROUP) --output json)" = "false" ]; then \
-		az group create \
-			--name $(SVC_RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: svc.rg
-
-svc: svc.rg
+svc:
 	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)-infra
-	az deployment group create \
-		--name $(SVC_RG_DEPLOYMENT_NAME)-infra \
-		--resource-group $(SVC_RESOURCEGROUP) \
-		--template-file templates/svc-infra.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/svc-infra.bicepparam \
-		--parameters \
-			persist=${PERSIST}
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)
-	az deployment group create \
-		--name $(SVC_RG_DEPLOYMENT_NAME) \
-		--resource-group $(SVC_RESOURCEGROUP) \
-		--template-file templates/svc-cluster.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/svc-cluster.bicepparam \
-		--parameters \
-			persist=${PERSIST}
+	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run -c public
 .PHONY: svc
 
-svc.istio: svc.rg svc.aks.admin-access svc.aks.kubeconfig
+svc.istio: svc.aks.admin-access svc.aks.kubeconfig
 	@KUBECONFIG=$(SVC_KUBECONFIG_FILE) \
 	TARGET_VERSION=$(ISTIO_TARGET_VERSION) \
 	ISTIOCTL_VERSION=$(ISTIOCTL_VERSION) \
@@ -232,7 +134,7 @@ svc.enable-aks-metrics:
     fi
 .PHONY: svc.enable-aks-metrics
 
-svc.cs-pr-check-msi: svc.rg
+svc.cs-pr-check-msi:
 	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) cs-integ-msi
 	az deployment group create \
 		--name cs-integ-msi \
@@ -275,24 +177,11 @@ svc.kv.permission:
 svc.dev.permissions: svc.oidc.storage.permissions svc.kv.permission
 .PHONY: svc.dev.permissions
 
-svc.init: region metrics-infra svc svc.aks.admin-access svc.aks.kubeconfig svc.istio svc.dev.permissions
+svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.istio svc.dev.permissions
 .PHONY: svc.init
 
-svc.what-if: svc.rg
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)-infra
-	az deployment group what-if \
-		--name $(SVC_RG_DEPLOYMENT_NAME)-infra \
-		--resource-group $(SVC_RESOURCEGROUP) \
-		--template-file templates/svc-infra.bicep \
-		--parameters \
-			configurations/svc-infra.bicepparam
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)
-	az deployment group what-if \
-		--name $(SVC_RG_DEPLOYMENT_NAME) \
-		--resource-group $(SVC_RESOURCEGROUP) \
-		--template-file templates/svc-cluster.bicep \
-		--parameters \
-			configurations/svc-cluster.bicepparam
+svc.what-if:
+	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run -c public -d
 .PHONY: svc.what-if
 
 svc.dev-role-assignments:
@@ -316,40 +205,8 @@ svc.clean:
 # Management Cluster
 #
 
-mgmt.rg:
-	@if [ "$$(az group exists --name $(MGMT_RESOURCEGROUP) --output json)" = "false" ]; then \
-		az group create \
-			--name $(MGMT_RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: mgmt.rg
-
-mgmt.wait:
-	@./ensure-no-running-deployment.sh $(MGMT_RESOURCEGROUP) $(MGMG_RG_DEPLOYMENT_NAME)
-.PHONY: mgmt.wait
-
-mgmt: mgmt.wait mgmt.rg
-	@./ensure-no-running-deployment.sh $(MGMT_RESOURCEGROUP) $(MGMT_RESOURCEGROUP)-infra
-	az deployment group create \
-		--name $(MGMT_RESOURCEGROUP)-infra \
-		--resource-group $(MGMT_RESOURCEGROUP) \
-		--template-file templates/mgmt-infra.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/mgmt-infra.bicepparam \
-		--parameters \
-			persist=${PERSIST}
-	@scripts/cleanup-orphaned-rolebindings.sh $(MGMT_RESOURCEGROUP)
-	az deployment group create \
-		--name $(MGMG_RG_DEPLOYMENT_NAME) \
-		--resource-group $(MGMT_RESOURCEGROUP) \
-		--template-file templates/mgmt-cluster.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/mgmt-cluster.bicepparam \
-		--parameters \
-			persist=${PERSIST}
+mgmt:
+	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run -c public
 .PHONY: mgmt
 
 mgmt.aks.admin-access:
@@ -365,24 +222,11 @@ mgmt.aks.kubeconfigfile:
 	@echo ${MGMT_KUBECONFIG_FILE}
 .PHONY: mgmt.aks.kubeconfigfile
 
-mgmt.init: region metrics-infra mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permissions
+mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permissions
 .PHONY: mgmt.init
 
-mgmt.what-if: mgmt.rg
-	@./ensure-no-running-deployment.sh $(MGMT_RESOURCEGROUP) $(MGMT_RESOURCEGROUP)-infra
-	az deployment group what-if \
-		--name $(MGMG_RG_DEPLOYMENT_NAME)-infra \
-		--resource-group $(MGMT_RESOURCEGROUP) \
-		--template-file templates/mgmt-infra.bicep \
-		--parameters \
-			configurations/mgmt-infra.bicepparam
-	@./ensure-no-running-deployment.sh $(MGMT_RESOURCEGROUP) $(MGMT_RESOURCEGROUP)
-	az deployment group what-if \
-		--name $(MGMG_RG_DEPLOYMENT_NAME) \
-		--resource-group $(MGMT_RESOURCEGROUP) \
-		--template-file templates/mgmt-cluster.bicep \
-		--parameters \
-			configurations/mgmt-cluster.bicepparam
+mgmt.what-if:
+	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run -c public
 .PHONY: mgmt.what-if
 
 mgmt.clean:
@@ -403,36 +247,15 @@ mgmt.dev.permissions: mgmt.kv.permission
 
 # ACR
 
-global.rg:
-	@if [ "$$(az group exists --name $(GLOBAL_RESOURCEGROUP) --output json)" = "false" ]; then \
-		az group create \
-			--name $(GLOBAL_RESOURCEGROUP)  \
-			--location $(REGION) \
-			--output none; \
-	fi
-.PHONY: global.rg
-
-acr: global.rg
-	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr
-	az deployment group create \
-		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/global-acr.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/global-acr.bicepparam
+acr:
+	../templatize.sh $(DEPLOY_ENV) -p global-acr-pipeline.yaml -P run -c public
 .PHONY: acr
 
 acr.what-if: global.rg
-	az deployment group what-if \
-		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/global-acr.bicep \
-		--parameters \
-			configurations/global-acr.bicepparam
+	../templatize.sh $(DEPLOY_ENV) -p global-acr-pipeline.yaml -P run -c public -d
 .PHONY: acr.what-if
 
-acr-svc-cfg: acr
+acr-svc-cfg: acr # DEV only setup of caching rules in OCP ACR
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
@@ -452,7 +275,7 @@ acr-svc-cfg.what-if: global.rg
 			configurations/acr-svc.bicepparam
 .PHONY: acr-svc-cfg.what-if
 
-acr-ocp-cfg: acr
+acr-ocp-cfg: acr # DEV only setup of caching rules in OCP ACR
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
@@ -491,28 +314,6 @@ maestro-current-user-pg-connect:
 maestro-miwi-pg-connect:
 	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
 .PHONY: maestro-miwi-pg-connect
-
-#
-# Metrics
-#
-
-metrics-infra: regional.rg
-	@./ensure-no-running-deployment.sh $(REGIONAL_RESOURCEGROUP) $(METRICS_INFRA_RG_DEPLOYMENT_NAME)
-	az deployment group create \
-		--name $(METRICS_INFRA_RG_DEPLOYMENT_NAME) \
-		--resource-group $(REGIONAL_RESOURCEGROUP) \
-		--template-file modules/metrics/metrics.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters configurations/metrics.bicepparam
-.PHONY: metrics-infra
-
-metrics-infra.what-if: regional.rg
-	az deployment group what-if \
-		--name $(METRICS_INFRA_RG_DEPLOYMENT_NAME) \
-		--resource-group $(REGIONAL_RESOURCEGROUP) \
-		--template-file modules/metrics/metrics.bicep \
-		--parameters configurations/metrics.bicepparam
-.PHONY: metrics-infra.what-if
 
 #
 # Secrets
@@ -558,7 +359,7 @@ operator-roles.what-if:
 # Common
 #
 
-what-if: acr.what-if acr-svc-cfg.what-if acr-ocp-cfg.what-if region.what-if svc.what-if mgmt.what-if metrics-infra.what-if imagesync.what-if operator-roles.what-if
+what-if: acr.what-if acr-svc-cfg.what-if acr-ocp-cfg.what-if region.what-if svc.what-if mgmt.what-if operator-roles.what-if
 .PHONY: what-if
 
 infra: region svc.init mgmt.init

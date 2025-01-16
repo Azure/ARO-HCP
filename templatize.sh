@@ -159,6 +159,16 @@ elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" 
         --pipeline-file=${PIPELINE} \
         --step=${PIPELINE_STEP} \
         ${DRY_RUN}
+elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ]; then
+    $TEMPLATIZE pipeline run \
+        --config-file=${CONFIG_FILE} \
+        --cloud=${CLOUD} \
+        --deploy-env=${DEPLOY_ENV} \
+        --region=${REGION} \
+        --region-short=${REGION_STAMP} \
+        --stamp=${CXSTAMP} \
+        --pipeline-file=${PIPELINE} \
+        ${DRY_RUN}
 else
     $TEMPLATIZE inspect \
         --config-file=${CONFIG_FILE} \

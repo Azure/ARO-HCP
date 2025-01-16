@@ -160,9 +160,6 @@
       "clusterService": {
         "type": "object",
         "properties": {
-          "acrRG": {
-            "type": "string"
-          },
           "imageRepo": {
             "type": "string"
           },
@@ -248,7 +245,6 @@
         },
         "additionalProperties": false,
         "required": [
-          "acrRG",
           "imageRepo",
           "imageTag",
           "managedIdentityName",
@@ -657,15 +653,11 @@
           },
           "subscription": {
             "type": "string"
-          },
-          "clusterServiceResourceId": {
-            "type": "string"
           }
         },
         "additionalProperties": false,
         "required": [
           "aks",
-          "clusterServiceResourceId",
           "rg",
           "subscription"
         ]

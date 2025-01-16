@@ -89,7 +89,7 @@ import * as res from '../modules/resource.bicep'
 var clusterServiceMIRef = res.msiRefFromId(clusterServiceMIResourceId)
 
 resource clusterServiceMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(clusterServiceMIRef.resourceGroup.name)
+  scope: resourceGroup(clusterServiceMIRef.resourceGroup.subscriptionId, clusterServiceMIRef.resourceGroup.name)
   name: clusterServiceMIRef.name
 }
 

@@ -1,3 +1,5 @@
+// Execution context: the Subscription and Resource Group where the ACR resides
+
 @description('The principal id of the service principal that will be assigned access to the ACR')
 param principalId string
 
@@ -7,8 +9,8 @@ param grantPushAccess bool = false
 @description('Whether to grant manage token access to the ACR')
 param grantManageTokenAccess bool = false
 
-@description('ACR Namespace Resource Group Id')
-param acrResourceGroupid string
+@description('The name of the ACR')
+param acrName string
 
 // https://www.azadvertizer.net/azrolesadvertizer/7f951dda-4ed3-4680-a7ca-43fe172d538d.html
 var acrPullRoleDefinitionId = subscriptionResourceId(
@@ -34,8 +36,13 @@ var acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId = subs
   '3bc748fc-213d-45c1-8d91-9da5725539b9'
 )
 
+resource acrInstance 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
+  name: acrName
+}
+
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!grantPushAccess) {
-  name: guid(acrResourceGroupid, principalId, acrPullRoleDefinitionId)
+  name: guid(acrName, principalId, acrPullRoleDefinitionId)
+  scope: acrInstance
   properties: {
     principalId: principalId
     roleDefinitionId: acrPullRoleDefinitionId
@@ -44,7 +51,8 @@ resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (
 }
 
 resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPushAccess) {
-  name: guid(acrResourceGroupid, principalId, acrPushRoleDefinitionId)
+  name: guid(acrName, principalId, acrPushRoleDefinitionId)
+  scope: acrInstance
   properties: {
     principalId: principalId
     roleDefinitionId: acrPushRoleDefinitionId
@@ -53,7 +61,8 @@ resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (
 }
 
 resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPushAccess) {
-  name: guid(acrResourceGroupid, principalId, acrDeleteRoleDefinitionId)
+  name: guid(acrName, principalId, acrDeleteRoleDefinitionId)
+  scope: acrInstance
   properties: {
     principalId: principalId
     roleDefinitionId: acrDeleteRoleDefinitionId
@@ -62,7 +71,8 @@ resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
 }
 
 resource acrContributorAndDataAccessConfigurationAdministratorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantManageTokenAccess) {
-  name: guid(acrResourceGroupid, principalId, acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId)
+  name: guid(acrName, principalId, acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId)
+  scope: acrInstance
   properties: {
     roleDefinitionId: acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId
     principalId: principalId

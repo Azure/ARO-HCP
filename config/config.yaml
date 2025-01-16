@@ -42,7 +42,6 @@ defaults:
 
   # MGMT cluster specifics
   mgmt:
-    clusterServiceResourceId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-{{ .ctx.regionShort }}-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     aks:
@@ -97,7 +96,6 @@ defaults:
 
   # Cluster Service
   clusterService:
-    acrRG: global
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true
@@ -339,6 +337,12 @@ clouds:
       personal-dev:
         # this is the personal DEV environment
         defaults:
+          #global:
+          #  subscription: ARO Hosted Control Planes (EA Subscription 1)
+          #svc:
+          #  subscription: ARO Hosted Control Planes (EA Subscription 1)
+          #mgmt:
+          #  subscription: ARO SRE Team - InProgress (EA Subscription 2)
           # Cluster Service
           clusterService:
             postgres:
