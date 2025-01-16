@@ -2,6 +2,15 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 resourceGroups:
+- name: {{ .global.rg }}
+  subscription: {{ .global.subscription }}
+  steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
   steps:
@@ -9,6 +18,15 @@ resourceGroups:
     action: ARM
     template: templates/output-svc.bicep
     parameters: configurations/output-svc.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: {{ .regionRG }}
+  subscription: {{ .svc.subscription }}
+  steps:
+  - name: region-output
+    action: ARM
+    template: templates/output-region.bicep
+    parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
 - name: {{ .mgmt.rg }}
@@ -31,8 +49,27 @@ resourceGroups:
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: ocpAcrResourceId
+      input:
+        step: global-output
+        name: ocpAcrResourceId
+    - name: svcAcrResourceId
+      input:
+        step: global-output
+        name: svcAcrResourceId
+    - name: azureMonitoringWorkspaceId
+      input:
+        step: region-output
+        name: azureMonitoringWorkspaceId
+    - name: maestroEventGridNamespaceId
+      input:
+        step: region-output
+        name: maestroEventGridNamespaceId
     dependsOn:
     - mgmt-infra
+    - global-output
+    - region-output
 - name: {{ .mgmt.rg }}
   subscription: {{ .mgmt.subscription }}
   aksCluster: {{ .aksName }}

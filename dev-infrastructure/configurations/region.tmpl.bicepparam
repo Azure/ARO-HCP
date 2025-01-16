@@ -2,17 +2,15 @@ using '../templates/region.bicep'
 
 // general
 param globalRegion = '{{ .global.region }}'
-param globalResourceGroup = '{{ .global.rg }}'
 param regionalRegion = '{{ .region }}'
 
 // acr
-param ocpAcrName = '{{ .ocpAcrName }}'
-param svcAcrName = '{{ .svcAcrName }}'
+param ocpAcrResourceId = '__ocpAcrResourceId__'
+param svcAcrResourceId = '__svcAcrResourceId__'
 
 // dns
-param cxBaseDNSZoneName = '{{ .dns.cxParentZoneName }}'
-param svcBaseDNSZoneName = '{{ .dns.svcParentZoneName }}'
-param baseDNSZoneResourceGroup = '{{ .dns.baseDnsZoneRG }}'
+param cxParentZoneResourceId = '__cxParentZoneResourceId__'
+param svcParentZoneResourceId = '__svcParentZoneResourceId__'
 param regionalDNSSubdomain = '{{ .dns.regionalSubdomain }}'
 
 // maestro

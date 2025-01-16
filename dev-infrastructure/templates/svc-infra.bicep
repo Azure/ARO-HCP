@@ -16,6 +16,9 @@ param serviceKeyVaultPrivate bool = true
 @description('SVC KV certificate officer principal ID')
 param svcKvCertOfficerPrincipalId string
 
+@description('MSI that will be used during pipeline runs to access KVs')
+param aroDevopsMsiId string
+
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
@@ -46,13 +49,39 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
-module serviceKeyVaultDevopsCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'svc-kv-cert-officer'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Certificates Officer'
     managedIdentityPrincipalId: svcKvCertOfficerPrincipalId
+  }
+  dependsOn: [
+    serviceKeyVault
+  ]
+}
+
+module serviceKeyVaultSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'svc-kv-secret-officer'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets Officer'
+    managedIdentityPrincipalId: svcKvCertOfficerPrincipalId
+  }
+  dependsOn: [
+    serviceKeyVault
+  ]
+}
+
+module serviceKeyVaultDevopsSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'svc-kv-devops-secret-officer'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets Officer'
+    managedIdentityPrincipalId: reference(aroDevopsMsiId, '2023-01-31').principalId
   }
   dependsOn: [
     serviceKeyVault

@@ -8,7 +8,6 @@
     "imageTag": "0b076bf"
   },
   "clusterService": {
-    "acrRG": "global-shared-resources",
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
         "roleName": "Azure Red Hat OpenShift Cloud Controller Manager Role"
@@ -173,7 +172,6 @@
       },
       "vnetAddressPrefix": "10.128.0.0/14"
     },
-    "clusterServiceResourceId": "todo",
     "rg": "hcp-underlay-westus3-mgmt-1",
     "subscription": "hcp-westus3"
   },

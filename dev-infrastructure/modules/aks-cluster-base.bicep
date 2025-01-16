@@ -78,7 +78,8 @@ param dnsPrefix string = aksClusterName
 param systemOsDiskSizeGB int
 param userOsDiskSizeGB int
 
-param acrPullResourceGroups array = []
+@description('The resource IDs of ACR instances that the AKS cluster will pull images from')
+param pullAcrResourceIds array = []
 
 @description('MSI that will take actions on the AKS cluster during service deployment time')
 param aroDevopsMsiId string
@@ -109,6 +110,8 @@ var networkContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
 )
+
+import * as res from '../modules/resource.bicep'
 
 module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
   name: aksKeyVaultName
@@ -511,20 +514,17 @@ var acrPullRoleDefinitionId = subscriptionResourceId(
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 )
 
-resource acrRg 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
-  for rg in acrPullResourceGroups: {
-    name: rg
-    scope: subscription()
-  }
+var acrReferences = [
+  for acrId in pullAcrResourceIds: res.acrRefFromId(acrId)
 ]
 
 module acrPullRole 'acr/acr-permissions.bicep' = [
-  for (_, i) in acrPullResourceGroups: {
-    name: guid(acrRg[i].id, aksCluster.id, acrPullRoleDefinitionId)
-    scope: acrRg[i]
+  for acrRef in acrReferences: {
+    name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId)
+    scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
     params: {
       principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
-      acrResourceGroupid: acrRg[i].id
+      acrName: acrRef.name
     }
   }
 ]
@@ -560,12 +560,12 @@ resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
 }
 
 module acrPullerRoles 'acr/acr-permissions.bicep' = [
-  for (_, i) in acrPullResourceGroups: {
-    name: guid(acrRg[i].id, aksCluster.id, acrPullRoleDefinitionId, 'puller-identity')
-    scope: acrRg[i]
+  for acrRef in acrReferences: {
+    name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId, 'puller-identity')
+    scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
     params: {
       principalId: pullerIdentity.properties.principalId
-      acrResourceGroupid: acrRg[i].id
+      acrName: acrRef.name
     }
   }
 ]
@@ -598,7 +598,7 @@ resource aroDevopsMSIClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-// metrics dcr association 
+// metrics dcr association
 resource azuremonitormetrics_dcra_clusterResourceId 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = {
   name: '${resourceGroup().name}-${aksCluster.name}-dcra'
   scope: aksCluster

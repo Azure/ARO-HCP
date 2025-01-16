@@ -42,8 +42,8 @@ param regionalCXDNSZoneName string
 @description('The regional resourece group')
 param regionalResourceGroup string
 
-@description('The names of the ACR resource groups / will be refactored soon into dedicated ACR Resource IDs')
-param acrResourceGroupNames array = []
+@description('The OCP ACR resource ID. CS will manage tokens for HCPs in this ACR')
+param ocpAcrResourceId string
 
 @description('The resource ID of the managed identity used to manage the Postgres server')
 param postgresAdministrationManagedIdentityId string
@@ -149,23 +149,13 @@ module csDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
 //   O C P   A C R   P E R M I S S I O N S
 //
 
-resource clustersServiceAcrResourceGroups 'Microsoft.Resources/resourceGroups@2023-07-01' existing = [
-  for rg in acrResourceGroupNames: if (rg != '') {
-    // temp hack for MSFT pipelines
-    name: rg
-    scope: subscription()
+var ocpAcrRef = res.acrRefFromId(ocpAcrResourceId)
+module acrManageTokenRole '../modules/acr/acr-permissions.bicep' = {
+  name: guid(ocpAcrResourceId, resourceGroup().name, 'clusters-service', 'manage-tokens')
+  scope: resourceGroup(ocpAcrRef.resourceGroup.subscriptionId, ocpAcrRef.resourceGroup.name)
+  params: {
+    principalId: clusterServiceManagedIdentityPrincipalId
+    grantManageTokenAccess: true
+    acrName: ocpAcrRef.name
   }
-]
-
-module acrManageTokenRole '../modules/acr/acr-permissions.bicep' = [
-  for (_, i) in acrResourceGroupNames: if (acrResourceGroupNames[i] != '') {
-    // temp hack for MSFT pipelines
-    name: guid(clustersServiceAcrResourceGroups[i].id, resourceGroup().name, 'clusters-service', 'manage-tokens')
-    scope: clustersServiceAcrResourceGroups[i]
-    params: {
-      principalId: clusterServiceManagedIdentityPrincipalId
-      grantManageTokenAccess: true
-      acrResourceGroupid: clustersServiceAcrResourceGroups[i].id
-    }
-  }
-]
+}

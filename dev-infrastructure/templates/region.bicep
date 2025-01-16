@@ -17,27 +17,29 @@ param persist bool = false
   This is the global parent DNS zone for ARO HCP customer cluster DNS.
   It is prefixed with regionalDNSSubdomain to form the actual regional DNS zone name
   ''')
-param cxBaseDNSZoneName string
+param cxParentZoneResourceId string
 
 @description('''
   This is the global parent DNS zone for ARO HCP service DNS records.
   It is prefixed with regionalDNSSubdomain to form the actual regional DNS zone name
   ''')
-param svcBaseDNSZoneName string
-
-@description('The resource group to deploy the base DNS zone to')
-param baseDNSZoneResourceGroup string = 'global'
+param svcParentZoneResourceId string
 
 param regionalDNSSubdomain string
 
 param globalRegion string
 param regionalRegion string
-param globalResourceGroup string
-param ocpAcrName string
-param svcAcrName string
+
+@description('The resource ID of the OCP ACR')
+param ocpAcrResourceId string
+
+@description('The resource ID of the SVC ACR')
+param svcAcrResourceId string
+
+import * as res from '../modules/resource.bicep'
 
 // Tags the resource group
-resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
+resource resourceGroupTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
   scope: resourceGroup()
   properties: {
@@ -51,18 +53,20 @@ resource subscriptionTags 'Microsoft.Resources/tags@2024-03-01' = {
 // R E G I O N A L   C X   D N S   Z O N E
 //
 
+var cxParentZoneRef = res.dnsZoneRefFromId(cxParentZoneResourceId)
+
 resource regionalCxZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: '${regionalDNSSubdomain}.${cxBaseDNSZoneName}'
+  name: '${regionalDNSSubdomain}.${cxParentZoneRef.name}'
   location: 'global'
 }
 
 module regionalCxZoneDelegation '../modules/dns/zone-delegation.bicep' = {
   name: '${regionalDNSSubdomain}-cx-zone-deleg'
-  scope: resourceGroup(baseDNSZoneResourceGroup)
+  scope: resourceGroup(cxParentZoneRef.resourceGroup.subscriptionId, cxParentZoneRef.resourceGroup.name)
   params: {
     childZoneName: regionalDNSSubdomain
     childZoneNameservers: regionalCxZone.properties.nameServers
-    parentZoneName: cxBaseDNSZoneName
+    parentZoneName: cxParentZoneRef.name
   }
 }
 
@@ -70,18 +74,20 @@ module regionalCxZoneDelegation '../modules/dns/zone-delegation.bicep' = {
 // R E G I O N A L   S V C   D N S   Z O N E
 //
 
+var svcParentZoneRef = res.dnsZoneRefFromId(svcParentZoneResourceId)
+
 resource regionalSvcZone 'Microsoft.Network/dnsZones@2018-05-01' = {
-  name: '${regionalDNSSubdomain}.${svcBaseDNSZoneName}'
+  name: '${regionalDNSSubdomain}.${svcParentZoneRef.name}'
   location: 'global'
 }
 
 module regionalSvcZoneDelegation '../modules/dns/zone-delegation.bicep' = {
   name: '${regionalDNSSubdomain}-svc-zone-deleg'
-  scope: resourceGroup(baseDNSZoneResourceGroup)
+  scope: resourceGroup(svcParentZoneRef.resourceGroup.subscriptionId, svcParentZoneRef.resourceGroup.name)
   params: {
     childZoneName: regionalDNSSubdomain
     childZoneNameservers: regionalSvcZone.properties.nameServers
-    parentZoneName: svcBaseDNSZoneName
+    parentZoneName: svcParentZoneRef.name
   }
 }
 
@@ -89,24 +95,26 @@ module regionalSvcZoneDelegation '../modules/dns/zone-delegation.bicep' = {
 // R E G I O N A L   A C R   R E P L I C A T I O N
 //
 
-var ocpAcrReplicationName = '${ocpAcrName}${location}replica'
+var ocpAcrRef = res.acrRefFromId(ocpAcrResourceId)
+var ocpAcrReplicationName = '${ocpAcrRef.name}${location}replica'
 module ocpAcrReplication '../modules/acr/acr-replication.bicep' = if (globalRegion != regionalRegion) {
   name: ocpAcrReplicationName
-  scope: resourceGroup(globalResourceGroup)
+  scope: resourceGroup(ocpAcrRef.resourceGroup.subscriptionId, ocpAcrRef.resourceGroup.name)
   params: {
     acrReplicationLocation: location
-    acrReplicationParentAcrName: ocpAcrName
+    acrReplicationParentAcrName: ocpAcrRef.name
     acrReplicationReplicaName: ocpAcrReplicationName
   }
 }
 
-var svcAcrReplicationName = '${svcAcrName}${location}replica'
+var svcAcrRef = res.acrRefFromId(svcAcrResourceId)
+var svcAcrReplicationName = '${svcAcrRef.name}${location}replica'
 module svcAcrReplication '../modules/acr/acr-replication.bicep' = if (globalRegion != regionalRegion) {
   name: svcAcrReplicationName
-  scope: resourceGroup(globalResourceGroup)
+  scope: resourceGroup(svcAcrRef.resourceGroup.subscriptionId, svcAcrRef.resourceGroup.name)
   params: {
     acrReplicationLocation: location
-    acrReplicationParentAcrName: svcAcrName
+    acrReplicationParentAcrName: svcAcrRef.name
     acrReplicationReplicaName: svcAcrReplicationName
   }
 }

@@ -9,8 +9,7 @@ Execution scope: the resourcegroup of the MC where the agent is deployed.
 param maestroAgentManagedIdentityPrincipalId string
 @minLength(1)
 param maestroConsumerName string
-param maestroInfraResourceGroup string
-param maestroEventGridNamespaceName string
+param maestroEventGridNamespaceId string
 
 param certKeyVaultName string
 param keyVaultOfficerManagedIdentityName string
@@ -28,11 +27,15 @@ module eventGridClientCert 'maestro-access-cert.bicep' = {
   }
 }
 
+import * as res from '../resource.bicep'
+
+var eventGridNamespaceRef = res.eventgridNamespaceRefFromId(maestroEventGridNamespaceId)
+
 module evengGridAccess 'maestro-eventgrid-access.bicep' = {
   name: '${deployment().name}-eg-access'
-  scope: resourceGroup(maestroInfraResourceGroup)
+  scope: resourceGroup(eventGridNamespaceRef.resourceGroup.subscriptionId, eventGridNamespaceRef.resourceGroup.name)
   params: {
-    eventGridNamespaceName: maestroEventGridNamespaceName
+    eventGridNamespaceName: eventGridNamespaceRef.name
     clientName: maestroConsumerName
     clientRole: 'consumer'
     certificateThumbprint: eventGridClientCert.outputs.certificateThumbprint
