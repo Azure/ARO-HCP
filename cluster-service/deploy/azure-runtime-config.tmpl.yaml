@@ -1,11 +1,11 @@
 {
-  "cloudEnvironment": "AzurePublicCloud",
-  "tenantId": "{{ .extraVars.tenantId }}",
-  "managedIdentitiesDataPlaneAudienceResource": "https://dummy.org",
-  "ocpImagesAcr": {
-    "resourceId": "{{ .extraVars.ocpAcrResourceId }}",
+  "cloud_environment": "AzurePublicCloud",
+  "tenant_id": "{{ .extraVars.tenantId }}",
+  "managed_identities_data_plane_audience_resource": "https://dummy.org",
+  "ocp_images_acr": {
+    "resource_id": "{{ .extraVars.ocpAcrResourceId }}",
     "url": "{{ .extraVars.ocpAcrResourceUrl }}",
-    "scopeMapName": "_repositories_pull"
+    "scope_map_name": "_repositories_pull"
   },
   "dataplane_identities_oidc_configuration": {
     "storage_account_blob_container_name": "{{ .extraVars.oidc_container }}",
