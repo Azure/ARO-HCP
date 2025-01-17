@@ -36,4 +36,11 @@ deploy:
 	--set serviceAccount.workloadIdentityClientId="$${PKO_MI_CLIENT_ID}" \
 	--set serviceAccount.workloadIdentityTenantId="$${PKO_MI_CLIENT_ID}"
 
+image:
+	cd $$(mktemp -d) && \
+	git clone https://github.com/package-operator/package-operator.git && \
+	cd package-operator && \
+	git checkout ${PKO_IMAGE_TAG} && \
+	IMAGE_REGISTRY=${ARO_HCP_IMAGE_REGISTRY}/package-operator ./do ci:release
+
 .PHONY: deploy
