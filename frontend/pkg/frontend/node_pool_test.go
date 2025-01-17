@@ -43,12 +43,12 @@ var dummyChannelGroup = "dummyChannelGroup"
 var dummyVersionID = "dummy"
 
 func TestCreateNodePool(t *testing.T) {
-	clusterResouceID, _ := arm.ParseResourceID(dummyClusterID)
-	clusterDoc := database.NewResourceDocument(clusterResouceID)
+	clusterResourceID, _ := arm.ParseResourceID(dummyClusterID)
+	clusterDoc := database.NewResourceDocument(clusterResourceID)
 	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
 
-	nodePoolResouceID, _ := arm.ParseResourceID(dummyNodePoolID)
-	nodePoolDoc := database.NewResourceDocument(nodePoolResouceID)
+	nodePoolResourceID, _ := arm.ParseResourceID(dummyNodePoolID)
+	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 
 	requestBody := generated.HcpOpenShiftClusterNodePoolResource{
@@ -102,7 +102,7 @@ func TestCreateNodePool(t *testing.T) {
 			requestHeader.Add(arm.HeaderNameHomeTenantID, dummyTenantId)
 
 			hcpCluster.Name = dummyClusterName
-			csCluster, _ := f.BuildCSCluster(clusterResouceID, requestHeader, hcpCluster, false)
+			csCluster, _ := f.BuildCSCluster(clusterResourceID, requestHeader, hcpCluster, false)
 
 			if test.clusterDoc != nil {
 				_, err := f.clusterServiceClient.PostCSCluster(context.TODO(), csCluster)
@@ -173,12 +173,12 @@ func TestCreateNodePool(t *testing.T) {
 // TODO: Fix the update logic for this test.
 
 // func TestUpdateNodePool(t *testing.T) {
-// 	clusterResouceID, _ := arm.ParseResourceID(dummyClusterID)
-// 	clusterDoc := database.NewResourceDocument(clusterResouceID)
+// 	clusterResourceID, _ := arm.ParseResourceID(dummyClusterID)
+// 	clusterDoc := database.NewResourceDocument(clusterResourceID)
 // 	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
 
-// 	nodePoolResouceID, _ := arm.ParseResourceID(dummyNodePoolID)
-// 	nodePoolDoc := database.NewResourceDocument(nodePoolResouceID)
+// 	nodePoolResourceID, _ := arm.ParseResourceID(dummyNodePoolID)
+// 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
 // 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 
 // 	var dummyReplicas int32 = 2
@@ -235,7 +235,7 @@ func TestCreateNodePool(t *testing.T) {
 // 			}
 // 			hcpCluster := api.NewDefaultHCPOpenShiftCluster()
 // 			hcpCluster.Name = dummyCluster
-// 			csCluster, _ := f.BuildCSCluster(clusterResouceID, dummyTenantId, hcpCluster, false)
+// 			csCluster, _ := f.BuildCSCluster(clusterResourceID, dummyTenantId, hcpCluster, false)
 
 // 			hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
 // 			hcpNodePool.Name = dummyNodePool
