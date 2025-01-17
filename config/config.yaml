@@ -267,10 +267,18 @@ clouds:
         defaults:
           mgmt:
             aks:
-              # MGMTM AKS nodepools - big enough for multiple HCPs
+              systemAgentPool:
+                minCount: 1
+                maxCount: 4
+                vmSize: 'Standard_E8s_v3'
+                osDiskSizeGB: 128
+              # MC AKS nodepools
+              # big enough for multiple HCPs
               userAgentPool:
-                minCount: 2
-                maxCount: 12
+                minCount: 1
+                maxCount: 3
+                vmSize: 'Standard_D16s_v3'
+                osDiskSizeGB: 128
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
