@@ -37,7 +37,6 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' 
     capacity: 1
   }
   properties: {
-    isZoneRedundant: true
     publicNetworkAccess: publicNetworkAccess
     topicSpacesConfiguration: {
       state: 'Enabled'
