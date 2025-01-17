@@ -95,7 +95,7 @@
       },
       "keyColonValueCSV": {
         "type": "string",
-        "pattern": "^$|^[\\w-]+:[\\w\\/-]+(,[\\w-]+:[\\w\\/-]+)*$"
+        "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
       }
     },
     "properties": {
@@ -435,7 +435,7 @@
                 "type": "string"
               },
               "secrets": {
-                "type": "string"
+                "$ref": "#/definitions/keyColonValueCSV"
               },
               "pullSecretName": {
                 "type": "string"
