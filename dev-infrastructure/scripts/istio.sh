@@ -63,7 +63,7 @@ echo "==========================================================================
 echo "********** ISTIO IngressGateway IP Address assignment **************"
 ISTIO_IG_ANNOTATIONS="
   service.beta.kubernetes.io/azure-load-balancer-resource-group=${SVC_RESOURCEGROUP}
-  service.beta.kubernetes.io/azure-pip-name=aro-hcp-istio-ingress
+  service.beta.kubernetes.io/azure-pip-name=${ISTIO_INGRESS_GATEWAY_IP_ADDRESS_NAME}
 "
 for annotation in $ISTIO_IG_ANNOTATIONS; do
   kubectl annotate svc aks-istio-ingressgateway-external \

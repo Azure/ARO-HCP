@@ -807,10 +807,17 @@
                 "type": "string",
                 "pattern": "^[a-zA-Z0-9-]+$"
               },
+              "ingressGatewayIPAddressName": {
+                "type": "string"
+              },
               "ingressGatewayIPAddressIPTags": {
                 "$ref": "#/definitions/keyColonValueCSV"
               }
-            }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ingressGatewayIPAddressName"
+            ]
         }
         },
         "additionalProperties": false,

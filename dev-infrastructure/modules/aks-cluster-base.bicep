@@ -37,6 +37,9 @@ param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
 
+@description('Istio Ingress Gateway Public IP Address resource name')
+param istioIngressGatewayIPAddressName string = ''
+
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
 var aksClusterOutboundIPAddressIPTagsArray = [
@@ -243,7 +246,6 @@ resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@
   }
 }
 
-var istioIngressGatewayIPAddressName = 'aro-hcp-istio-ingress'
 module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (deployIstio) {
   name: istioIngressGatewayIPAddressName
   params: {

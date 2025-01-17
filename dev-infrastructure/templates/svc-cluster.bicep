@@ -65,6 +65,9 @@ param aksEtcdKVEnableSoftDelete bool = true
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
 
+@description('The name of the Istio Ingress Gateway IP address resource')
+param istioIngressGatewayIPAddressName string = ''
+
 @description('IPTags to be set on the Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
 param istioIngressGatewayIPAddressIPTags string = ''
 
@@ -191,6 +194,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     kubernetesVersion: kubernetesVersion
     deployIstio: true
     istioVersions: split(istioVersions, ',')
+    istioIngressGatewayIPAddressName: istioIngressGatewayIPAddressName
     istioIngressGatewayIPAddressIPTags: istioIngressGatewayIPAddressIPTags
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix

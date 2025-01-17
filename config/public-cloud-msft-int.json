@@ -220,6 +220,7 @@
     },
     "istio": {
       "ingressGatewayIPAddressIPTags": "FirstPartyUsage:/NonProd",
+      "ingressGatewayIPAddressName": "aro-hcp-istio-ingress",
       "istioctlVersion": "1.24.1",
       "tag": "prod-stable",
       "targetVersion": "asm-1-23",

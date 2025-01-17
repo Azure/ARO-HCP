@@ -39,6 +39,7 @@ defaults:
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-22,asm-1-23"
+      ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
 
   # MGMT cluster specifics

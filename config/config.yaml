@@ -28,6 +28,7 @@ defaults:
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-23"
+      ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     aks:
       vnetAddressPrefix: "10.128.0.0/14"
