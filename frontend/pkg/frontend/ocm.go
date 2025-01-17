@@ -7,6 +7,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -23,28 +24,28 @@ const (
 	csCCSEnabled       bool   = true
 )
 
-func convertListeningToVisibility(listening cmv1.ListeningMethod) (visibility api.Visibility) {
+func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
 	switch listening {
-	case cmv1.ListeningMethodExternal:
+	case arohcpv1alpha1.ListeningMethodExternal:
 		visibility = api.VisibilityPublic
-	case cmv1.ListeningMethodInternal:
+	case arohcpv1alpha1.ListeningMethodInternal:
 		visibility = api.VisibilityPrivate
 	}
 	return
 }
 
-func convertVisibilityToListening(visibility api.Visibility) (listening cmv1.ListeningMethod) {
+func convertVisibilityToListening(visibility api.Visibility) (listening arohcpv1alpha1.ListeningMethod) {
 	switch visibility {
 	case api.VisibilityPublic:
-		listening = cmv1.ListeningMethodExternal
+		listening = arohcpv1alpha1.ListeningMethodExternal
 	case api.VisibilityPrivate:
-		listening = cmv1.ListeningMethodInternal
+		listening = arohcpv1alpha1.ListeningMethodInternal
 	}
 	return
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *cmv1.Cluster) *api.HCPOpenShiftCluster {
+func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) *api.HCPOpenShiftCluster {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
 	// HCPOpenShiftCluster struct along with the ARM metadata that
@@ -162,14 +163,14 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
-func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
+func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.Cluster, error) {
 
 	// Ensure required headers are present.
 	if requestHeader.Get(arm.HeaderNameHomeTenantID) == "" {
 		return nil, fmt.Errorf("Missing " + arm.HeaderNameHomeTenantID + " header")
 	}
 
-	clusterBuilder := cmv1.NewCluster()
+	clusterBuilder := arohcpv1alpha1.NewCluster()
 
 	// FIXME HcpOpenShiftCluster attributes not being passed:
 	//       PlatformProfile.OutboundType        (no CS equivalent?)
@@ -188,25 +189,25 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 				ID(csCloudProvider)).
 			Product(cmv1.NewProduct().
 				ID(csProductId)).
-			Hypershift(cmv1.NewHypershift().
+			Hypershift(arohcpv1alpha1.NewHypershift().
 				Enabled(csHypershifEnabled)).
 			MultiAZ(csMultiAzEnabled).
-			CCS(cmv1.NewCCS().Enabled(csCCSEnabled)).
+			CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 			Version(cmv1.NewVersion().
 				ID(hcpCluster.Properties.Spec.Version.ID).
 				ChannelGroup(hcpCluster.Properties.Spec.Version.ChannelGroup)).
-			Network(cmv1.NewNetwork().
+			Network(arohcpv1alpha1.NewNetwork().
 				Type(string(hcpCluster.Properties.Spec.Network.NetworkType)).
 				PodCIDR(hcpCluster.Properties.Spec.Network.PodCIDR).
 				ServiceCIDR(hcpCluster.Properties.Spec.Network.ServiceCIDR).
 				MachineCIDR(hcpCluster.Properties.Spec.Network.MachineCIDR).
 				HostPrefix(int(hcpCluster.Properties.Spec.Network.HostPrefix))).
-			API(cmv1.NewClusterAPI().
+			API(arohcpv1alpha1.NewClusterAPI().
 				Listening(convertVisibilityToListening(hcpCluster.Properties.Spec.API.Visibility))).
 			FIPS(hcpCluster.Properties.Spec.FIPS).
 			EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption)
 
-		azureBuilder := cmv1.NewAzure().
+		azureBuilder := arohcpv1alpha1.NewAzure().
 			TenantID(requestHeader.Get(arm.HeaderNameHomeTenantID)).
 			SubscriptionID(resourceID.SubscriptionID).
 			ResourceGroupName(resourceID.ResourceGroupName).
@@ -222,28 +223,28 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 
 		// Only pass managed identity information if the x-ms-identity-url header is present.
 		if requestHeader.Get(arm.HeaderNameIdentityURL) != "" {
-			controlPlaneOperators := make(map[string]*cmv1.AzureControlPlaneManagedIdentityBuilder)
+			controlPlaneOperators := make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)
 			for operatorName, identityResourceID := range hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-				controlPlaneOperators[operatorName] = cmv1.NewAzureControlPlaneManagedIdentity().ResourceID(identityResourceID)
+				controlPlaneOperators[operatorName] = arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().ResourceID(identityResourceID)
 			}
 
-			dataPlaneOperators := make(map[string]*cmv1.AzureDataPlaneManagedIdentityBuilder)
+			dataPlaneOperators := make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)
 			for operatorName, identityResourceID := range hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
-				dataPlaneOperators[operatorName] = cmv1.NewAzureDataPlaneManagedIdentity().ResourceID(identityResourceID)
+				dataPlaneOperators[operatorName] = arohcpv1alpha1.NewAzureDataPlaneManagedIdentity().ResourceID(identityResourceID)
 			}
 
-			managedIdentitiesBuilder := cmv1.NewAzureOperatorsAuthenticationManagedIdentities().
+			managedIdentitiesBuilder := arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
 				ManagedIdentitiesDataPlaneIdentityUrl(requestHeader.Get(arm.HeaderNameIdentityURL)).
 				ControlPlaneOperatorsManagedIdentities(controlPlaneOperators).
 				DataPlaneOperatorsManagedIdentities(dataPlaneOperators)
 
 			if hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != "" {
-				managedIdentitiesBuilder = managedIdentitiesBuilder.ServiceManagedIdentity(cmv1.NewAzureServiceManagedIdentity().
+				managedIdentitiesBuilder = managedIdentitiesBuilder.ServiceManagedIdentity(arohcpv1alpha1.NewAzureServiceManagedIdentity().
 					ResourceID(hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity))
 			}
 
 			azureBuilder = azureBuilder.OperatorsAuthentication(
-				cmv1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
+				arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
 		}
 
 		clusterBuilder = clusterBuilder.Azure(azureBuilder)
@@ -255,7 +256,7 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		}
 	}
 
-	proxyBuilder := cmv1.NewProxy()
+	proxyBuilder := arohcpv1alpha1.NewProxy()
 	// Cluster Service allows an empty HTTPProxy on PATCH but not PUT.
 	if updating || hcpCluster.Properties.Spec.Proxy.HTTPProxy != "" {
 		proxyBuilder = proxyBuilder.

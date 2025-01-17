@@ -6,17 +6,17 @@ package ocm
 import (
 	"context"
 	"fmt"
-
 	sdk "github.com/openshift-online/ocm-sdk-go"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
 
 type ClusterServiceClientSpec interface {
 	GetConn() *sdk.Connection
-	AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder
-	GetCSCluster(ctx context.Context, internalID InternalID) (*cmv1.Cluster, error)
-	PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error)
-	UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *cmv1.Cluster) (*cmv1.Cluster, error)
+	AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder
+	GetCSCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error)
+	PostCSCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
+	UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
 	DeleteCSCluster(ctx context.Context, internalID InternalID) error
 	ListCSClusters(searchExpression string) ClusterListIterator
 	GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error)
@@ -46,7 +46,7 @@ type ClusterServiceClient struct {
 func (csc *ClusterServiceClient) GetConn() *sdk.Connection { return csc.Conn }
 
 // AddProperties injects the some additional properties into the CSCluster Object.
-func (csc *ClusterServiceClient) AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder {
+func (csc *ClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
 	additionalProperties := map[string]string{}
 	if csc.ProvisionShardID != nil {
 		additionalProperties["provision_shard_id"] = *csc.ProvisionShardID
@@ -61,12 +61,8 @@ func (csc *ClusterServiceClient) AddProperties(builder *cmv1.ClusterBuilder) *cm
 }
 
 // GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
-func (csc *ClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*cmv1.Cluster, error) {
-	client, ok := internalID.GetClusterClient(csc.Conn)
-	if !ok {
-		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
-	}
-	clusterGetResponse, err := client.Get().SendContext(ctx)
+func (csc *ClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
+	clusterGetResponse, err := csc.Conn.AroHCP().V1alpha1().Clusters().Cluster(internalID.ID()).Get().SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +91,8 @@ func (csc *ClusterServiceClient) GetCSClusterStatus(ctx context.Context, interna
 }
 
 // PostCSCluster creates and sends a POST request to create a cluster in Clusters Service
-func (csc *ClusterServiceClient) PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
-	clustersAddResponse, err := csc.Conn.ClustersMgmt().V1().Clusters().Add().Body(cluster).SendContext(ctx)
+func (csc *ClusterServiceClient) PostCSCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+	clustersAddResponse, err := csc.Conn.AroHCP().V1alpha1().Clusters().Add().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -108,16 +104,12 @@ func (csc *ClusterServiceClient) PostCSCluster(ctx context.Context, cluster *cmv
 }
 
 // UpdateCSCluster sends a PATCH request to update a cluster in Clusters Service
-func (csc *ClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
-	client, ok := internalID.GetClusterClient(csc.Conn)
-	if !ok {
-		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
-	}
-	clusterUpdateResponse, err := client.Update().Body(cluster).SendContext(ctx)
+func (csc *ClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+	clusterUpdateResponse, err := csc.Conn.AroHCP().V1alpha1().Clusters().Cluster(internalID.ID()).Update().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	cluster, ok = clusterUpdateResponse.GetBody()
+	cluster, ok := clusterUpdateResponse.GetBody()
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
@@ -126,11 +118,7 @@ func (csc *ClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID
 
 // DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
 func (csc *ClusterServiceClient) DeleteCSCluster(ctx context.Context, internalID InternalID) error {
-	client, ok := internalID.GetClusterClient(csc.Conn)
-	if !ok {
-		return fmt.Errorf("OCM path is not a cluster: %s", internalID)
-	}
-	_, err := client.Delete().SendContext(ctx)
+	_, err := csc.Conn.AroHCP().V1alpha1().Clusters().Cluster(internalID.ID()).Delete().SendContext(ctx)
 	return err
 }
 
@@ -138,7 +126,7 @@ func (csc *ClusterServiceClient) DeleteCSCluster(ctx context.Context, internalID
 // the returned iterator in a for/range loop to execute the request and paginate over results,
 // then call GetError() to check for an iteration error.
 func (csc *ClusterServiceClient) ListCSClusters(searchExpression string) ClusterListIterator {
-	clustersListRequest := csc.Conn.ClustersMgmt().V1().Clusters().List()
+	clustersListRequest := csc.Conn.AroHCP().V1alpha1().Clusters().List()
 	if searchExpression != "" {
 		clustersListRequest.Search(searchExpression)
 	}

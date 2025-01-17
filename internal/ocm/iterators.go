@@ -8,18 +8,19 @@ import (
 	"iter"
 	"math"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
 
 type ClusterListIterator struct {
-	request *cmv1.ClustersListRequest
+	request *arohcpv1alpha1.ClustersListRequest
 	err     error
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter ClusterListIterator) Items(ctx context.Context) iter.Seq[*cmv1.Cluster] {
-	return func(yield func(*cmv1.Cluster) bool) {
+func (iter ClusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Cluster] {
+	return func(yield func(*arohcpv1alpha1.Cluster) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
 			var page int = 0

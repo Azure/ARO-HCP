@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -916,7 +916,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func marshalCSCluster(csCluster *cmv1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
 	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.ResourceId, csCluster)
 	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
