@@ -1,5 +1,5 @@
 # Builder image installs tools needed to build aro-hcp-backend
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.23-fips-cbl-mariner2.0@sha256:e6951a34cc0cbdc62b5110c4301dfe9c8daf8ee89c1b8616082a6e0b89cd820f as builder
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.23-fips-cbl-mariner2.0@sha256:97d76864911dfbaf6b3387b6e0583abe5af74d7b744773c4facbaf02389e654f as builder
 WORKDIR /app
 ADD archive.tar.gz .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode

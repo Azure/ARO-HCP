@@ -9,8 +9,11 @@ import (
 	"net/http"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
 func TestCheckForProvisioningStateConflict(t *testing.T) {
@@ -149,21 +152,25 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			name = fmt.Sprintf("%s (directState=%s)", tt.name, directState)
 			t.Run(name, func(t *testing.T) {
 				ctx := context.Background()
+				ctrl := gomock.NewController(t)
+				mockDBClient := mocks.NewMockDBClient(ctrl)
 
 				frontend := &Frontend{
-					dbClient: database.NewCache(),
+					dbClient: mockDBClient,
 				}
 
 				doc := database.NewResourceDocument(resourceID)
 				doc.ProvisioningState = directState
 
 				parentResourceID := resourceID.GetParent()
-				if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
-					parentDoc := database.NewResourceDocument(parentResourceID)
-					// Hold the provisioning state to something benign.
-					parentDoc.ProvisioningState = arm.ProvisioningStateSucceeded
-					_ = frontend.dbClient.CreateResourceDoc(ctx, parentDoc)
-				}
+				parentDoc := database.NewResourceDocument(parentResourceID)
+				// Hold the provisioning state to something benign.
+				parentDoc.ProvisioningState = arm.ProvisioningStateSucceeded
+
+				mockDBClient.EXPECT().
+					GetResourceDoc(gomock.Any(), equalResourceID(parentResourceID)). // defined in frontend_test.go
+					Return(parentDoc, nil).
+					MaxTimes(1)
 
 				cloudError := frontend.CheckForProvisioningStateConflict(ctx, tt.operationRequest, doc)
 
@@ -183,9 +190,11 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			name = fmt.Sprintf("%s (parentState=%s)", tt.name, parentState)
 			t.Run(name, func(t *testing.T) {
 				ctx := context.Background()
+				ctrl := gomock.NewController(t)
+				mockDBClient := mocks.NewMockDBClient(ctrl)
 
 				frontend := &Frontend{
-					dbClient: database.NewCache(),
+					dbClient: mockDBClient,
 				}
 
 				doc := database.NewResourceDocument(resourceID)
@@ -196,7 +205,10 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 					parentDoc := database.NewResourceDocument(parentResourceID)
 					parentDoc.ProvisioningState = parentState
-					_ = frontend.dbClient.CreateResourceDoc(ctx, parentDoc)
+
+					mockDBClient.EXPECT().
+						GetResourceDoc(gomock.Any(), equalResourceID(parentResourceID)). // defined in frontend_test.go
+						Return(parentDoc, nil)
 				} else {
 					t.Fatalf("Parent resource type namespace (%s) differs from child namespace (%s)",
 						parentResourceID.ResourceType.Namespace,

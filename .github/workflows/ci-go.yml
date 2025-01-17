@@ -40,6 +40,16 @@ jobs:
           go-version-file: 'go.work'
           check-latest: true
 
+      - name: 'Regenerate mocks'
+        run: |
+          make mocks
+          if [[ ! -z "$(git status --short)" ]]
+          then
+            echo "there are some modified files"
+            git status
+            exit 1
+          fi
+
       - name: 'Test'
         run: JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
 
