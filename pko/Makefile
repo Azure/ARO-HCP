@@ -37,6 +37,7 @@ deploy:
 	--set serviceAccount.workloadIdentityTenantId="$${PKO_MI_CLIENT_ID}"
 
 image:
+	az acr login --name ${ARO_HCP_IMAGE_ACR} && \
 	cd $$(mktemp -d) && \
 	git clone https://github.com/package-operator/package-operator.git && \
 	cd package-operator && \
