@@ -23,3 +23,6 @@ MGMT_KV_NAME ?= {{ .mgmtKeyVault.name }}
 ISTIO_TARGET_VERSION ?= {{ .svc.istio.targetVersion }}
 ISTIOCTL_VERSION ?= {{ .svc.istio.istioctlVersion }}
 ISTIO_TAG ?= {{ .svc.istio.tag }}
+
+GRAFANA_NAME ?= {{ .monitoring.grafanaName }}
+MONITOR_NAME ?= '{{ .monitoring.workspaceName }}'
