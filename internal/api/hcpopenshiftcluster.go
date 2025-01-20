@@ -116,6 +116,9 @@ type ExternalAuthConfigProfile struct {
 // Creates an HCPOpenShiftCluster with any non-zero default values.
 func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
+		Identity: arm.ManagedServiceIdentity{
+			Type: arm.ManagedServiceIdentityTypeNone,
+		},
 		Properties: HCPOpenShiftClusterProperties{
 			Spec: ClusterSpec{
 				Network: NetworkProfile{
