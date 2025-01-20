@@ -181,6 +181,7 @@
             subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - name: Build package operator container image from git@github.com:package-operator/package-operator.git
+          if: inputs.push == true
           run: |
             cd pko
             make image
