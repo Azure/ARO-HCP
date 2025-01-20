@@ -151,7 +151,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		for directState, directConflict := range tt.directConflicts {
 			name = fmt.Sprintf("%s (directState=%s)", tt.name, directState)
 			t.Run(name, func(t *testing.T) {
-				ctx := context.Background()
+				ctx := ContextWithLogger(context.Background(), testLogger)
 				ctrl := gomock.NewController(t)
 				mockDBClient := mocks.NewMockDBClient(ctrl)
 
@@ -189,7 +189,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		for parentState, parentConflict := range tt.parentConflicts {
 			name = fmt.Sprintf("%s (parentState=%s)", tt.name, parentState)
 			t.Run(name, func(t *testing.T) {
-				ctx := context.Background()
+				ctx := ContextWithLogger(context.Background(), testLogger)
 				ctrl := gomock.NewController(t)
 				mockDBClient := mocks.NewMockDBClient(ctrl)
 
