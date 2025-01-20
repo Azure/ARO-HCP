@@ -10,10 +10,6 @@ import (
 	"runtime/debug"
 	"syscall"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -61,7 +57,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
-	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database url")
+	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
 	rootCmd.Flags().StringVar(&opts.location, "location", os.Getenv("LOCATION"), "Azure location")
 	rootCmd.Flags().IntVar(&opts.port, "port", 8443, "port to listen on")
 	rootCmd.Flags().IntVar(&opts.metricsPort, "metrics-port", 8081, "port to serve metrics on")
@@ -81,40 +77,19 @@ func (opts *FrontendOpts) Run() error {
 	logger := config.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version()))
 
-	// Init prometheus emitter
+	// Init the Prometheus emitter.
 	prometheusEmitter := frontend.NewPrometheusEmitter(prometheus.DefaultRegisterer)
 
-	// Configure database configuration and client
-
-	azcoreClientOptions := azcore.ClientOptions{
-		// FIXME Cloud should be determined by other means.
-		Cloud: cloud.AzurePublic,
+	// Create the database client.
+	ctx := context.Background()
+	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(opts.cosmosURL, opts.cosmosName)
+	if err != nil {
+		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
 
-	credential, err := azidentity.NewDefaultAzureCredential(
-		&azidentity.DefaultAzureCredentialOptions{
-			ClientOptions: azcoreClientOptions,
-		})
+	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
 	if err != nil {
-		return err
-	}
-
-	cosmosClient, err := azcosmos.NewClient(opts.cosmosURL, credential,
-		&azcosmos.ClientOptions{
-			ClientOptions: azcoreClientOptions,
-		})
-	if err != nil {
-		return err
-	}
-
-	cosmosDatabaseClient, err := cosmosClient.NewDatabase(opts.cosmosName)
-	if err != nil {
-		return err
-	}
-
-	dbClient, err := database.NewCosmosDBClient(context.Background(), cosmosDatabaseClient)
-	if err != nil {
-		return fmt.Errorf("creating the database client failed: %v", err)
+		return fmt.Errorf("failed to create the database client: %w", err)
 	}
 
 	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", opts.port))
@@ -156,7 +131,7 @@ func (opts *FrontendOpts) Run() error {
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
-	go f.Run(context.Background(), stop)
+	go f.Run(ctx, stop)
 
 	sig := <-signalChannel
 	logger.Info(fmt.Sprintf("caught %s signal", sig))
