@@ -6,48 +6,7 @@ package arm
 import (
 	"maps"
 	"time"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
-
-// ResourceID is a wrappered ResourceID from azcore with text marshaling and unmarshaling methods.
-type ResourceID struct {
-	azcorearm.ResourceID
-}
-
-// ParseResourceID parses a string to an instance of ResourceID.
-func ParseResourceID(id string) (*ResourceID, error) {
-	newId, err := azcorearm.ParseResourceID(id)
-	if err != nil {
-		return nil, err
-	}
-	return &ResourceID{ResourceID: *newId}, nil
-}
-
-// GetParent returns the parent resource ID, if any. Handles the
-// type-casting necessary to access the parent as a wrapper type.
-func (id *ResourceID) GetParent() *ResourceID {
-	var parent *ResourceID
-	if id.Parent != nil {
-		parent = &ResourceID{ResourceID: *id.Parent}
-	}
-	return parent
-}
-
-// MarshalText returns a textual representation of the ResourceID.
-func (id *ResourceID) MarshalText() ([]byte, error) {
-	return []byte(id.String()), nil
-}
-
-// UnmarshalText decodes the textual representation of a ResourceID.
-func (id *ResourceID) UnmarshalText(text []byte) error {
-	newId, err := azcorearm.ParseResourceID(string(text))
-	if err != nil {
-		return err
-	}
-	id.ResourceID = *newId
-	return nil
-}
 
 // Resource represents a basic ARM resource
 type Resource struct {

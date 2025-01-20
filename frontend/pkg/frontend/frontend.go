@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"golang.org/x/sync/errgroup"
 
@@ -197,7 +198,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		prefixString += "/providers/" + api.ProviderNamespace
 		prefixString += "/" + api.ClusterResourceTypeName + "/" + resourceName
 	}
-	prefix, err := arm.ParseResourceID(prefixString)
+	prefix, err := azcorearm.ParseResourceID(prefixString)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

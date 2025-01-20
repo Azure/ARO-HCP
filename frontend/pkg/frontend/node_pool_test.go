@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/mock/gomock"
 
@@ -43,11 +44,11 @@ var dummyChannelGroup = "dummyChannelGroup"
 var dummyVersionID = "dummy"
 
 func TestCreateNodePool(t *testing.T) {
-	clusterResourceID, _ := arm.ParseResourceID(dummyClusterID)
+	clusterResourceID, _ := azcorearm.ParseResourceID(dummyClusterID)
 	clusterDoc := database.NewResourceDocument(clusterResourceID)
 	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
 
-	nodePoolResourceID, _ := arm.ParseResourceID(dummyNodePoolID)
+	nodePoolResourceID, _ := azcorearm.ParseResourceID(dummyNodePoolID)
 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 

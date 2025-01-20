@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/google/uuid"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	configv1 "github.com/openshift/api/config/v1"
-
-	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -44,7 +44,7 @@ func convertVisibilityToListening(visibility api.Visibility) (listening cmv1.Lis
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func ConvertCStoHCPOpenShiftCluster(resourceID *arm.ResourceID, cluster *cmv1.Cluster) *api.HCPOpenShiftCluster {
+func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *cmv1.Cluster) *api.HCPOpenShiftCluster {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
 	// HCPOpenShiftCluster struct along with the ARM metadata that
@@ -162,7 +162,7 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 }
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
-func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
+func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*cmv1.Cluster, error) {
 
 	// Ensure required headers are present.
 	if requestHeader.Get(arm.HeaderNameHomeTenantID) == "" {
@@ -283,7 +283,7 @@ func (f *Frontend) BuildCSCluster(resourceID *arm.ResourceID, requestHeader http
 }
 
 // ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
-func ConvertCStoNodePool(resourceID *arm.ResourceID, np *cmv1.NodePool) *api.HCPOpenShiftClusterNodePool {
+func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{

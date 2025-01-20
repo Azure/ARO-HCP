@@ -14,8 +14,8 @@ import (
 	iter "iter"
 	reflect "reflect"
 
-	arm "github.com/Azure/ARO-HCP/internal/api/arm"
 	database "github.com/Azure/ARO-HCP/internal/database"
+	arm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	gomock "go.uber.org/mock/gomock"
 )
 

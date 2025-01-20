@@ -170,7 +170,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.GetParent())
+		clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -114,12 +116,12 @@ func DBClientFromContext(ctx context.Context) (database.DBClient, error) {
 	return dbClient, nil
 }
 
-func ContextWithResourceID(ctx context.Context, resourceID *arm.ResourceID) context.Context {
+func ContextWithResourceID(ctx context.Context, resourceID *azcorearm.ResourceID) context.Context {
 	return context.WithValue(ctx, contextKeyResourceID, resourceID)
 }
 
-func ResourceIDFromContext(ctx context.Context) (*arm.ResourceID, error) {
-	resourceID, ok := ctx.Value(contextKeyResourceID).(*arm.ResourceID)
+func ResourceIDFromContext(ctx context.Context) (*azcorearm.ResourceID, error) {
+	resourceID, ok := ctx.Value(contextKeyResourceID).(*azcorearm.ResourceID)
 	if !ok {
 		err := &ContextError{
 			got: resourceID,

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // This middleware only applies to endpoints whose path form a valid Azure
@@ -24,7 +24,7 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 		originalPath = r.URL.Path
 	}
 
-	resourceID, err := arm.ParseResourceID(originalPath)
+	resourceID, err := azcorearm.ParseResourceID(originalPath)
 	if err == nil {
 		ctx = ContextWithResourceID(ctx, resourceID)
 		r = r.WithContext(ctx)

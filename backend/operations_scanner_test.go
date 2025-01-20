@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"go.uber.org/mock/gomock"
 
@@ -64,7 +65,7 @@ func TestDeleteOperationCompleted(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 
-			resourceID, err := arm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
+			resourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -89,7 +90,7 @@ func TestDeleteOperationCompleted(t *testing.T) {
 
 			mockDBClient.EXPECT().
 				DeleteResourceDoc(gomock.Any(), resourceID).
-				Do(func(ctx context.Context, resourceID *arm.ResourceID) {
+				Do(func(ctx context.Context, resourceID *azcorearm.ResourceID) {
 					resourceDocDeleted = tt.resourceDocPresent
 				})
 			mockDBClient.EXPECT().
@@ -212,7 +213,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 
-			resourceID, err := arm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
+			resourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -252,7 +253,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 				})
 			mockDBClient.EXPECT().
 				UpdateResourceDoc(gomock.Any(), resourceID, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, resourceID *arm.ResourceID, callback func(*database.ResourceDocument) bool) (bool, error) {
+				DoAndReturn(func(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*database.ResourceDocument) bool) (bool, error) {
 					if resourceDoc != nil {
 						return callback(resourceDoc), nil
 					} else {

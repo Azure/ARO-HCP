@@ -12,6 +12,8 @@ import (
 	"path"
 	"strings"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -91,7 +93,7 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 	_, err := f.dbClient.UpdateOperationDoc(ctx, operationID, func(updateDoc *database.OperationDocument) bool {
 		// There is no way to propagate a parse error here but it should
 		// never fail since we are building a trusted resource ID string.
-		operationID, err := arm.ParseResourceID(path.Join("/",
+		operationID, err := azcorearm.ParseResourceID(path.Join("/",
 			"subscriptions", updateDoc.ExternalID.SubscriptionID,
 			"providers", api.ProviderNamespace,
 			"locations", f.location,

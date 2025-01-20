@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"go.uber.org/mock/gomock"
@@ -35,8 +36,8 @@ func getMockDBDoc[T any](t *T) (*T, error) {
 	}
 }
 
-func equalResourceID(expectResourceID *arm.ResourceID) gomock.Matcher {
-	return gomock.Cond(func(actualResourceID *arm.ResourceID) bool {
+func equalResourceID(expectResourceID *azcorearm.ResourceID) gomock.Matcher {
+	return gomock.Cond(func(actualResourceID *azcorearm.ResourceID) bool {
 		return strings.EqualFold(actualResourceID.String(), expectResourceID.String())
 	})
 }
