@@ -148,6 +148,10 @@
           run: |
             helm plugin install https://github.com/databus23/helm-diff
 
+        - name: 'Dry Run ACR Pull'
+          run: |
+            make acrpull.dry_run
+
         - name: 'Dry Run HypershiftOperator'
           run: |
             make hypershiftoperator.dry_run
