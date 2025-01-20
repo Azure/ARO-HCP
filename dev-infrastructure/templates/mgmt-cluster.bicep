@@ -107,11 +107,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
         namespace: 'maestro'
         serviceAccountName: 'maestro'
       }
-      package_operator: {
-        uamiName: 'package-operator'
-        namespace: 'package-operator-system'
-        serviceAccountName: 'package-operator'
-      }
     })
     aksKeyVaultName: aksKeyVaultName
     acrPullResourceGroups: acrPullResourceGroups

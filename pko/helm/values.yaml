@@ -6,6 +6,3 @@ pullBinding:
   scope: ""
   workloadIdentityClientId: ""
   workloadIdentityTenantId: ""
-serviceAccount:
-  workloadIdentityClientId: ""
-  workloadIdentityTenantId: ""
