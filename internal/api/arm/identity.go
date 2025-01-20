@@ -4,7 +4,7 @@ package arm
 // Licensed under the Apache License 2.0.
 
 // Represents to support the ManagedServiceIdentity ARM resource.
-type Identity struct {
+type ManagedServiceIdentity struct {
 	PrincipalID            string                           `json:"principalId,omitempty"`
 	TenantID               string                           `json:"tenantId,omitempty"`
 	Type                   ManagedServiceIdentityType       `json:"type"`

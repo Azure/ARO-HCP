@@ -13,7 +13,7 @@ import (
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
 	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required_for_put"`
-	Identity   arm.Identity                  `json:"identity,omitempty"`
+	Identity   arm.ManagedServiceIdentity    `json:"identity,omitempty"`
 }
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
