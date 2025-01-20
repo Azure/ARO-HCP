@@ -16,6 +16,9 @@ import (
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -73,7 +76,14 @@ func Run(cmd *cobra.Command, args []string) error {
 	logger := slog.New(handler)
 
 	// Create the database client.
-	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(argCosmosURL, argCosmosName)
+	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
+		argCosmosURL,
+		argCosmosName,
+		azcore.ClientOptions{
+			// FIXME Cloud should be determined by other means.
+			Cloud: cloud.AzurePublic,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
