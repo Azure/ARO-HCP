@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -47,7 +48,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 		}
 	}
 
-	parent := doc.ResourceId.GetParent()
+	parent := doc.ResourceId.Parent
 
 	// ResourceType casing is preserved for parents in the same namespace.
 	for parent.ResourceType.Namespace == doc.ResourceId.ResourceType.Namespace {
@@ -66,7 +67,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 				strings.ToLower(string(operationRequest)))
 		}
 
-		parent = parent.GetParent()
+		parent = parent.Parent
 	}
 
 	return nil
@@ -75,7 +76,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) *arm.CloudError {
 	logger := LoggerFromContext(ctx)
 
-	prefix, err := arm.ParseResourceID("/subscriptions/" + subscriptionID)
+	prefix, err := azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)
 	if err != nil {
 		logger.Error(err.Error())
 		return arm.NewInternalServerError()
@@ -229,7 +230,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 	return operationDoc.ID, nil
 }
 
-func (f *Frontend) MarshalResource(ctx context.Context, resourceID *arm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
+func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
 	var responseBody []byte
 
 	logger := LoggerFromContext(ctx)

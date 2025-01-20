@@ -13,10 +13,9 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
@@ -66,13 +65,13 @@ type DBClient interface {
 
 	// GetResourceDoc retrieves a ResourceDocument from the database given its resourceID.
 	// ErrNotFound is returned if an associated ResourceDocument cannot be found.
-	GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) (*ResourceDocument, error)
+	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error)
 	CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error
-	UpdateResourceDoc(ctx context.Context, resourceID *arm.ResourceID, callback func(*ResourceDocument) bool) (bool, error)
+	UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error)
 	// DeleteResourceDoc deletes a ResourceDocument from the database given the resourceID
 	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource or NodePools child resource.
-	DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error
-	ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator
+	DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
+	ListResourceDocs(ctx context.Context, prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
@@ -136,7 +135,7 @@ func (d *CosmosDBClient) GetLockClient() *LockClient {
 }
 
 // GetResourceDoc retrieves a resource document from the "resources" DB using resource ID
-func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) (*ResourceDocument, error) {
+func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
@@ -209,7 +208,7 @@ func (d *CosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 // The callback function should return true if modifications were applied, signaling to proceed
 // with the document replacement. The boolean return value reflects this: returning true if the
 // document was sucessfully replaced, or false with or without an error to indicate no change.
-func (d *CosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *arm.ResourceID, callback func(*ResourceDocument) bool) (bool, error) {
+func (d *CosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error) {
 	var err error
 
 	// Make sure partition key is lowercase.
@@ -252,7 +251,7 @@ func (d *CosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *arm.
 }
 
 // DeleteResourceDoc removes a resource document from the "resources" DB using resource ID
-func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error {
+func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
@@ -275,7 +274,7 @@ func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.
 // maxItems can limit the number of items returned at once. A negative value will cause the
 // returned iterator to yield all matching items. A positive value will cause the returned
 // iterator to include a continuation token if additional items are available.
-func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator {
+func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator {
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(prefix.SubscriptionID))
 
