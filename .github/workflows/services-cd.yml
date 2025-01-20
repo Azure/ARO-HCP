@@ -149,9 +149,9 @@
           cd dev-infrastructure/
           make mgmt.aks.kubeconfig
 
-      # - name: 'Deploy ACR Pull Configuration'
-      #   run: |
-      #     make acrpull.deploy_pipeline
+      - name: 'Deploy ACR Pull Configuration'
+        run: |
+          make acrpull.mgmt.deploy
 
       # - name: 'Deploy PKO'
       #   run: |
