@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -97,8 +99,9 @@ type CosmosDBClient struct {
 	lockClient    *LockClient
 }
 
-// NewCosmosDBClient instantiates a Cosmos DatabaseClient targeting Frontends async DB
-func NewCosmosDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClient, error) {
+// NewDBClient instantiates a DBClient from a Cosmos DatabaseClient instance
+// targeting the Frontends async database.
+func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClient, error) {
 	// NewContainer only fails if the container ID argument is
 	// empty, so we can safely disregard the error return value.
 	resources, _ := database.NewContainer(resourcesContainer)
@@ -509,4 +512,32 @@ func (d *CosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 	}
 
 	return false, err
+}
+
+// NewCosmosDatabaseClient instantiates a generic Cosmos database client.
+func NewCosmosDatabaseClient(url string, dbName string) (*azcosmos.DatabaseClient, error) {
+	azcoreClientOptions := azcore.ClientOptions{
+		// FIXME Cloud should be determined by other means.
+		Cloud: cloud.AzurePublic,
+	}
+
+	credential, err := azidentity.NewDefaultAzureCredential(
+		&azidentity.DefaultAzureCredentialOptions{
+			ClientOptions: azcoreClientOptions,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := azcosmos.NewClient(
+		url,
+		credential,
+		&azcosmos.ClientOptions{
+			ClientOptions: azcoreClientOptions,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return client.NewDatabase(dbName)
 }
