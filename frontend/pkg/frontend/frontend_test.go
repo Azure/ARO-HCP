@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -62,10 +63,11 @@ func TestReadiness(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			reg := prometheus.NewRegistry()
 
 			f := &Frontend{
 				dbClient: mockDBClient,
-				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
+				metrics:  NewPrometheusEmitter(reg),
 			}
 			f.ready.Store(test.ready)
 			ts := httptest.NewServer(f.routes())
@@ -84,6 +86,8 @@ func TestReadiness(t *testing.T) {
 			if rs.StatusCode != test.expectedStatusCode {
 				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
 			}
+
+			lintMetrics(t, reg)
 		})
 	}
 }
@@ -119,10 +123,11 @@ func TestSubscriptionsGET(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			reg := prometheus.NewRegistry()
 
 			f := &Frontend{
 				dbClient: mockDBClient,
-				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
+				metrics:  NewPrometheusEmitter(reg),
 			}
 
 			// ArmSubscriptionGet and MetricsMiddleware
@@ -147,6 +152,8 @@ func TestSubscriptionsGET(t *testing.T) {
 			if rs.StatusCode != test.expectedStatusCode {
 				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
 			}
+
+			lintMetrics(t, reg)
 		})
 	}
 }
@@ -238,10 +245,11 @@ func TestSubscriptionsPUT(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			reg := prometheus.NewRegistry()
 
 			f := &Frontend{
 				dbClient: mockDBClient,
-				metrics:  NewPrometheusEmitter(prometheus.NewRegistry()),
+				metrics:  NewPrometheusEmitter(reg),
 			}
 
 			body, err := json.Marshal(&test.subscription)
@@ -297,6 +305,21 @@ func TestSubscriptionsPUT(t *testing.T) {
 			if rs.StatusCode != test.expectedStatusCode {
 				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
 			}
+
+			lintMetrics(t, reg)
 		})
+	}
+}
+
+func lintMetrics(t *testing.T, r prometheus.Gatherer) {
+	t.Helper()
+
+	problems, err := testutil.GatherAndLint(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, p := range problems {
+		t.Errorf("metric %q: %s", p.Metric, p.Text)
 	}
 }
