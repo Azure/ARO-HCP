@@ -1,0 +1,8 @@
+pkoImage: ""
+pkoImageManager: ""
+pkoImageTag: ""
+pullBinding:
+  registry: ""
+  scope: ""
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""

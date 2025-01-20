@@ -187,6 +187,11 @@
   },
   "ocpAcrName": "arohcpocpdev",
   "oidcStorageAccountName": "arohcpoidccspr",
+  "pko": {
+    "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
+    "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
+    "imageTag": "v1.15.0"
+  },
   "region": "westus3",
   "regionRG": "hcp-underlay-cspr",
   "serviceKeyVault": {

@@ -1,0 +1,26 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.RP.PKO
+rolloutName: RP PKO Rollout
+resourceGroups:
+- name: {{ .mgmt.rg }}
+  subscription: {{ .svc.subscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    variables:
+    - name: ARO_HCP_IMAGE_ACR
+      configRef: svcAcrName
+    - name: PKO_IMAGE
+      configRef: pko.image
+    - name: PKO_IMAGE_MANAGER
+      configRef: pko.imageManager
+    - name: PKO_IMAGE_TAG
+      configRef: pko.imageTag
+    - name: RESOURCEGROUP
+      configRef: mgmt.rg
