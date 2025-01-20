@@ -6,7 +6,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
 	github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry v0.2.2
-	github.com/containers/image/v5 v5.33.0
+	github.com/containers/image/v5 v5.33.1
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	go.uber.org/zap v1.27.0
@@ -22,7 +22,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 // indirect
 	github.com/containers/ocicrypt v1.2.0 // indirect
-	github.com/containers/storage v1.56.0 // indirect
+	github.com/containers/storage v1.56.1 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20231217050601-ba74d44ecf5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
