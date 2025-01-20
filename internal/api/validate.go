@@ -35,6 +35,10 @@ func EnumValidateTag[S ~string](values ...S) string {
 	s := make([]string, len(values))
 	for i, e := range values {
 		s[i] = string(e)
+		// Replace special characters with the UTF-8 hex representation.
+		// https://pkg.go.dev/github.com/go-playground/validator/v10#hdr-Using_Validator_Tags
+		s[i] = strings.ReplaceAll(s[i], ",", "0x2C")
+		s[i] = strings.ReplaceAll(s[i], "|", "0x7C")
 	}
 	return fmt.Sprintf("oneof=%s", strings.Join(s, " "))
 }
@@ -51,6 +55,11 @@ func NewValidator() *validator.Validate {
 	})
 
 	// Register ARM-mandated enumeration types.
+	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(
+		arm.ManagedServiceIdentityTypeNone,
+		arm.ManagedServiceIdentityTypeSystemAssigned,
+		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
+		arm.ManagedServiceIdentityTypeUserAssigned))
 	validate.RegisterAlias("enum_subscriptionstate", EnumValidateTag(
 		arm.SubscriptionStateRegistered,
 		arm.SubscriptionStateUnregistered,
