@@ -16,6 +16,9 @@ const (
 	v1Pattern         = "/api/clusters_mgmt/v1"
 	v1ClusterPattern  = v1Pattern + "/clusters/*"
 	v1NodePoolPattern = v1ClusterPattern + "/node_pools/*"
+
+	aroHcpV1Alpha1Pattern        = "/api/aro_hcp/v1alpha1"
+	aroHcpV1Alpha1ClusterPattern = aroHcpV1Alpha1Pattern + "/clusters/*"
 )
 
 func GenerateClusterHREF(clusterName string) string {
@@ -45,6 +48,10 @@ func (id *InternalID) validate() error {
 	}
 
 	if match, _ = path.Match(v1NodePoolPattern, id.path); match {
+		return nil
+	}
+
+	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
 		return nil
 	}
 
