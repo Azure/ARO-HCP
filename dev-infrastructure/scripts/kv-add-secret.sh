@@ -17,7 +17,7 @@ secret_name=$3
 secret_value=$4
 
 function officer_count() {
-    az role assignment list --scope ${kv_id} --assignee ${currentuser_client_id} --role "Key Vault Secrets Officer" | jq -r '.[].id'| wc -l
+    az role assignment list --scope ${kv_id} --assignee ${currentuser_client_id} --role "Key Vault Secrets Officer" --output json | jq -r '.[].id'| wc -l
 }
 
 # Check and grant permissions

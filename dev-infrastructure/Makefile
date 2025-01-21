@@ -89,7 +89,7 @@ create-mock-identities:
 #
 
 imagesync.rg:
-	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP))" = "false" ]; then \
+	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP) --output json)" = "false" ]; then \
 		az group create \
 			--name $(IMAGE_SYNC_RESOURCEGROUP)  \
 			--location $(REGION) \
@@ -122,7 +122,7 @@ imagesync.what-if: imagesync.rg imagesync.wait
 .PHONY: imagesync.what-if
 
 imagesync.clean:
-	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP))" = "true" ]; then \
+	@if [ "$$(az group exists --name $(IMAGE_SYNC_RESOURCEGROUP)  --output json)" = "true" ]; then \
 		az group delete -g $(IMAGE_SYNC_RESOURCEGROUP); \
 	fi
 .PHONY: imagesync.clean
@@ -132,7 +132,7 @@ imagesync.clean:
 #
 
 regional.rg:
-	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP))" = "false" ]; then \
+	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP) --output json)" = "false" ]; then \
 		az group create \
 			--name $(REGIONAL_RESOURCEGROUP)  \
 			--location $(REGION) \
@@ -158,7 +158,7 @@ region: region.wait regional.rg
 .PHONY: region
 
 region.clean:
-	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP))" = "true" ]; then \
+	@if [ "$$(az group exists --name $(REGIONAL_RESOURCEGROUP) --output json)" = "true" ]; then \
 		echo "Will delete Azure resource group $(REGIONAL_RESOURCEGROUP)"; \
 		az group delete -g $(REGIONAL_RESOURCEGROUP); \
 	fi
@@ -178,7 +178,7 @@ region.what-if: region.wait regional.rg
 #
 
 svc.rg:
-	@if [ "$$(az group exists --name $(SVC_RESOURCEGROUP))" = "false" ]; then \
+	@if [ "$$(az group exists --name $(SVC_RESOURCEGROUP) --output json)" = "false" ]; then \
 		az group create \
 			--name $(SVC_RESOURCEGROUP)  \
 			--location $(REGION) \
@@ -300,7 +300,7 @@ svc.dev-role-assignments:
 .PHONY: svc.dev-role-assignments
 
 svc.clean:
-	@if [ "$$(az group exists --name $(SVC_RESOURCEGROUP))" = "true" ]; then \
+	@if [ "$$(az group exists --name $(SVC_RESOURCEGROUP) --output json)" = "true" ]; then \
 		echo "Will delete Azure resource group $(SVC_RESOURCEGROUP)"; \
 		az group delete -g $(SVC_RESOURCEGROUP); \
 	fi
@@ -311,7 +311,7 @@ svc.clean:
 #
 
 mgmt.rg:
-	@if [ "$$(az group exists --name $(MGMT_RESOURCEGROUP))" = "false" ]; then \
+	@if [ "$$(az group exists --name $(MGMT_RESOURCEGROUP) --output json)" = "false" ]; then \
 		az group create \
 			--name $(MGMT_RESOURCEGROUP)  \
 			--location $(REGION) \
@@ -380,7 +380,7 @@ mgmt.what-if: mgmt.rg
 .PHONY: mgmt.what-if
 
 mgmt.clean:
-	@if [ "$$(az group exists --name $(MGMT_RESOURCEGROUP))" = "true" ]; then \
+	@if [ "$$(az group exists --name $(MGMT_RESOURCEGROUP) --output json)" = "true" ]; then \
 		echo "Will delete Azure resource group $(MGMT_RESOURCEGROUP)"; \
 		az group delete -g $(MGMT_RESOURCEGROUP); \
 	fi
@@ -398,7 +398,7 @@ mgmt.dev.permissions: mgmt.kv.permission
 # ACR
 
 global.rg:
-	@if [ "$$(az group exists --name $(GLOBAL_RESOURCEGROUP))" = "false" ]; then \
+	@if [ "$$(az group exists --name $(GLOBAL_RESOURCEGROUP) --output json)" = "false" ]; then \
 		az group create \
 			--name $(GLOBAL_RESOURCEGROUP)  \
 			--location $(REGION) \
