@@ -108,7 +108,7 @@ infra.clean:
 # Services deployed on "svc" aks cluster
 services_svc = maestro.registration
 # Services deployed on "mgmt" aks cluster(s)
-services_mgmt = acm maestro.agent pko 
+services_mgmt = acm maestro.agent
 # List of all services
 services_all = $(join services_svc,services_mgmt)
 
