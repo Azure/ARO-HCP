@@ -102,9 +102,9 @@ type OperatorsAuthenticationProfile struct {
 // UserAssignedIdentitiesProfile represents authentication configuration for
 // OpenShift operators using user-assigned managed identities.
 type UserAssignedIdentitiesProfile struct {
-	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"`
-	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"`
-	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
+	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 }
 
 // ExternalAuthConfigProfile represents the external authentication configuration.
