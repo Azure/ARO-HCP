@@ -102,7 +102,7 @@ type TestModelType struct {
 	D []*TestModelSubtype `visibility:"update nocase"`
 
 	// Map of struct type inherits visibility but can override.
-	E map[string]*TestModelSubtype `visibility:"update nocase"`
+	E map[string]*TestModelSubtype `visibility:"read create update nocase"`
 
 	// For equality checks of various reflect types.
 	F any `visibility:"read"`
@@ -138,7 +138,7 @@ func TestStructTagMap(t *testing.T) {
 		"D.ReadNoCase":       reflect.StructTag("visibility:\"read nocase\""),
 		"D.ReadCreate":       reflect.StructTag("visibility:\"read create\""),
 		"D.ReadCreateUpdate": reflect.StructTag("visibility:\"read create update\""),
-		"E":                  reflect.StructTag("visibility:\"update nocase\""),
+		"E":                  reflect.StructTag("visibility:\"read create update nocase\""),
 		"E.Read":             reflect.StructTag("visibility:\"read\""),
 		"E.ReadNoCase":       reflect.StructTag("visibility:\"read nocase\""),
 		"E.ReadCreate":       reflect.StructTag("visibility:\"read create\""),
@@ -441,6 +441,62 @@ func TestValidateVisibility(t *testing.T) {
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
 			errorsExpected: 1,
+		},
+		{
+			name: "Add map key with read-only value to nil map is accepted for zero value",
+			v: TestModelType{
+				E: map[string]*TestModelSubtype{
+					"1up": &TestModelSubtype{},
+				},
+			},
+			w:              TestModelType{},
+			m:              TestModelTypeStructTagMap,
+			updating:       false,
+			errorsExpected: 0,
+		},
+		{
+			name: "Add map key with read-only value to nil map is rejected for non-zero value",
+			v: TestModelType{
+				E: map[string]*TestModelSubtype{
+					"1up": &testValues,
+				},
+			},
+			w:              TestModelType{},
+			m:              TestModelTypeStructTagMap,
+			updating:       false,
+			errorsExpected: 2, // testValues has two read-only fields
+		},
+		{
+			name: "Add map key with read-only value to existing map is accepted for zero value",
+			v: TestModelType{
+				E: map[string]*TestModelSubtype{
+					"1up": &TestModelSubtype{},
+				},
+			},
+			w: TestModelType{
+				E: map[string]*TestModelSubtype{
+					"2up": &testValues,
+				},
+			},
+			m:              TestModelTypeStructTagMap,
+			updating:       false,
+			errorsExpected: 0,
+		},
+		{
+			name: "Add map key with read-only value to existing map is rejected for non-zero value",
+			v: TestModelType{
+				E: map[string]*TestModelSubtype{
+					"1up": &testValues,
+				},
+			},
+			w: TestModelType{
+				E: map[string]*TestModelSubtype{
+					"2up": &testValues,
+				},
+			},
+			m:              TestModelTypeStructTagMap,
+			updating:       false,
+			errorsExpected: 2, // testValues has two read-only fields
 		},
 		{
 			name: "Test equality for bool type fields",
@@ -957,7 +1013,7 @@ func TestValidateVisibility(t *testing.T) {
 			errorsExpected: 1,
 		},
 		{
-			name: "Test inequality due to content for map fields",
+			name: "Test inequality due to content for map keys",
 			v: TestModelType{
 				F: map[string]string{
 					"Akabei": "Oikake",
@@ -972,6 +1028,28 @@ func TestValidateVisibility(t *testing.T) {
 					"Pinky":  "Speedy",
 					"Inky":   "Bashful",
 					"Clyde":  "Pokey",
+				},
+			},
+			m:              TestModelTypeStructTagMap,
+			updating:       false,
+			errorsExpected: 1,
+		},
+		{
+			name: "Test inequality due to content for map values",
+			v: TestModelType{
+				F: map[string]string{
+					"Blinky": "Shadow",
+					"Pinky":  "Speedy",
+					"Inky":   "Bashful",
+					"Clyde":  "Pokey",
+				},
+			},
+			w: TestModelType{
+				F: map[string]string{
+					"Blinky": "Red",
+					"Pinky":  "Pink",
+					"Inky":   "Cyan",
+					"Clyde":  "Orange",
 				},
 			},
 			m:              TestModelTypeStructTagMap,

@@ -242,20 +242,48 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		}
 
 	case reflect.Map:
+		// Determine if newVal and curVal share identical keys.
+		var keysEqual = true
+
 		// We already know that newVal is not nil.
 		if curVal.IsNil() || newVal.Len() != curVal.Len() {
-			vv.checkFlags(flags, namespace, fieldname)
+			keysEqual = false
 		} else {
 			iter := newVal.MapRange()
 			for iter.Next() {
-				k := iter.Key()
-
-				subscript := fmt.Sprintf("[%q]", k.Interface())
-				if curVal.MapIndex(k).IsValid() {
-					vv.recurse(newVal.MapIndex(k), curVal.MapIndex(k), mapKey, namespace, fieldname+subscript, flags)
-				} else {
-					vv.checkFlags(flags, namespace, fieldname+subscript)
+				if !curVal.MapIndex(iter.Key()).IsValid() {
+					keysEqual = false
+					break
 				}
+			}
+		}
+
+		// Skip recursion if visibility check on the map itself fails.
+		if !keysEqual && !vv.checkFlags(flags, namespace, fieldname) {
+			return
+		}
+
+		// Initialize a zero value for when curVal is missing a key in newVal.
+		// If the map value type is a pointer, create a zero value for the type
+		// being pointed to.
+		var zeroVal reflect.Value
+		mapValueType := newVal.Type().Elem()
+		if mapValueType.Kind() == reflect.Ptr {
+			// This returns a pointer to the new value.
+			zeroVal = reflect.New(mapValueType.Elem())
+		} else {
+			// Follow the pointer to the new value.
+			zeroVal = reflect.New(mapValueType).Elem()
+		}
+
+		iter := newVal.MapRange()
+		for iter.Next() {
+			k := iter.Key()
+			subscript := fmt.Sprintf("[%q]", k.Interface())
+			if curVal.IsNil() || !curVal.MapIndex(k).IsValid() {
+				vv.recurse(newVal.MapIndex(k), zeroVal, mapKey, namespace, fieldname+subscript, flags)
+			} else {
+				vv.recurse(newVal.MapIndex(k), curVal.MapIndex(k), mapKey, namespace, fieldname+subscript, flags)
 			}
 		}
 
@@ -273,7 +301,7 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 	}
 }
 
-func (vv *validateVisibility) checkFlags(flags VisibilityFlags, namespace, fieldname string) {
+func (vv *validateVisibility) checkFlags(flags VisibilityFlags, namespace, fieldname string) bool {
 	if flags.ReadOnly() {
 		vv.errs = append(vv.errs,
 			arm.CloudErrorBody{
@@ -281,6 +309,7 @@ func (vv *validateVisibility) checkFlags(flags VisibilityFlags, namespace, field
 				Message: fmt.Sprintf("Field '%s' is read-only", fieldname),
 				Target:  join(namespace, fieldname),
 			})
+		return false
 	} else if vv.updating && !flags.CanUpdate() {
 		vv.errs = append(vv.errs,
 			arm.CloudErrorBody{
@@ -288,5 +317,7 @@ func (vv *validateVisibility) checkFlags(flags VisibilityFlags, namespace, field
 				Message: fmt.Sprintf("Field '%s' cannot be updated", fieldname),
 				Target:  join(namespace, fieldname),
 			})
+		return false
 	}
+	return true
 }
