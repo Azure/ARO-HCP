@@ -185,6 +185,11 @@ func (s *ARMStep) WithVariables(variables ...Variable) *ARMStep {
 	return s
 }
 
+func (s *ARMStep) WithOutputOnly() *ARMStep {
+	s.OutputOnly = true
+	return s
+}
+
 type ARMStep struct {
 	StepMeta        `yaml:",inline"`
 	Command         string     `yaml:"command,omitempty"`
@@ -192,6 +197,7 @@ type ARMStep struct {
 	Template        string     `yaml:"template,omitempty"`
 	Parameters      string     `yaml:"parameters,omitempty"`
 	DeploymentLevel string     `yaml:"deploymentLevel,omitempty"`
+	OutputOnly      bool       `yaml:"outputOnly,omitempty"`
 }
 
 func (s *ARMStep) Description() string {

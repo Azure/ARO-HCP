@@ -89,6 +89,13 @@ type generationResult struct {
 	TemplateJson   string `json:"templateJson"`
 }
 
+// type template
+
+func hasTemplateResources(template string) (bool, error) {
+
+	return false, nil
+}
+
 func (gr generationResult) Parameters() (map[string]interface{}, error) {
 	var parameters = map[string]interface{}{}
 	if err := json.Unmarshal([]byte(gr.ParametersJson), &parameters); err != nil {
