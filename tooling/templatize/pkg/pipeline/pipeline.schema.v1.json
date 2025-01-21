@@ -171,6 +171,9 @@
                                 },
                                 "childZone": {
                                     "$ref": "#/definitions/variableRef"
+                                },
+                                "outputOnly": {
+                                    "type": "boolean"
                                 }
                             },
                             "oneOf": [
@@ -205,6 +208,9 @@
                                         "deploymentLevel": {
                                             "type": "string",
                                             "enum": ["ResourceGroup", "Subscription"]
+                                        },
+                                        "outputOnly": {
+                                            "type": "boolean"
                                         }
                                     },
                                     "required": [

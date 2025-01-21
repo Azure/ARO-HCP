@@ -365,21 +365,14 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 }
 
 func TestE2EOutputOnly(t *testing.T) {
-	if !shouldRunE2E() {
-		t.Skip("Skipping end-to-end tests")
-	}
+	// if !shouldRunE2E() {
+	// 	t.Skip("Skipping end-to-end tests")
+	// }
 
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterB", "testb.bicep", "testb.bicepparm", "ResourceGroup").WithVariables(pipeline.Variable{
-		Name: "parameterB",
-		Input: &pipeline.Input{
-			Name: "parameterA",
-			Step: "parameterA",
-		},
-	}), 0)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup").WithOutputOnly(), 0)
 
 	e2eImpl.AddStep(pipeline.NewShellStep(
 		"readInput", "echo ${end} > env.txt",
@@ -387,11 +380,13 @@ func TestE2EOutputOnly(t *testing.T) {
 		pipeline.Variable{
 			Name: "end",
 			Input: &pipeline.Input{
-				Name: "parameterC",
-				Step: "parameterB",
+				Name: "parameterA",
+				Step: "parameterA",
 			},
 		},
-	), 0)
+	).WithDryRun(pipeline.DryRun{
+		Command: "echo ${end} > env.txt"}),
+		0)
 
 	e2eImpl.AddBicepTemplate(`
 param parameterA string
@@ -401,17 +396,6 @@ output parameterA string = parameterA`,
 using 'testa.bicep'
 param parameterA = 'Hello Bicep'`,
 		"testa.bicepparm")
-
-	e2eImpl.AddBicepTemplate(`
-param parameterB string
-output parameterC string = parameterB
-`,
-		"testb.bicep",
-		`
-using 'testb.bicep'
-param parameterB = '{{ .parameterB }}'
-`,
-		"testb.bicepparm")
 
 	e2eImpl.EnableDryRun()
 
