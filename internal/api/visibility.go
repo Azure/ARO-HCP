@@ -99,7 +99,7 @@ type StructTagMap map[string]reflect.StructTag
 
 func buildStructTagMap(structTagMap StructTagMap, t reflect.Type, path string) {
 	switch t.Kind() {
-	case reflect.Pointer, reflect.Slice:
+	case reflect.Map, reflect.Pointer, reflect.Slice:
 		buildStructTagMap(structTagMap, t.Elem(), path)
 
 	case reflect.Struct:

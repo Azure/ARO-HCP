@@ -101,8 +101,11 @@ type TestModelType struct {
 	// Slice of struct type inherits visibility but can override.
 	D []*TestModelSubtype `visibility:"update nocase"`
 
+	// Map of struct type inherits visibility but can override.
+	E map[string]*TestModelSubtype `visibility:"update nocase"`
+
 	// For equality checks of various reflect types.
-	E any `visibility:"read"`
+	F any `visibility:"read"`
 }
 
 type TestModelSubtype struct {
@@ -135,7 +138,12 @@ func TestStructTagMap(t *testing.T) {
 		"D.ReadNoCase":       reflect.StructTag("visibility:\"read nocase\""),
 		"D.ReadCreate":       reflect.StructTag("visibility:\"read create\""),
 		"D.ReadCreateUpdate": reflect.StructTag("visibility:\"read create update\""),
-		"E":                  reflect.StructTag("visibility:\"read\""),
+		"E":                  reflect.StructTag("visibility:\"update nocase\""),
+		"E.Read":             reflect.StructTag("visibility:\"read\""),
+		"E.ReadNoCase":       reflect.StructTag("visibility:\"read nocase\""),
+		"E.ReadCreate":       reflect.StructTag("visibility:\"read create\""),
+		"E.ReadCreateUpdate": reflect.StructTag("visibility:\"read create update\""),
+		"F":                  reflect.StructTag("visibility:\"read\""),
 	}
 
 	// The test cases are encoded into the type itself.
@@ -437,10 +445,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for bool type fields",
 			v: TestModelType{
-				E: Ptr(bool(true)),
+				F: Ptr(bool(true)),
 			},
 			w: TestModelType{
-				E: Ptr(bool(true)),
+				F: Ptr(bool(true)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -449,10 +457,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for bool type fields",
 			v: TestModelType{
-				E: Ptr(bool(true)),
+				F: Ptr(bool(true)),
 			},
 			w: TestModelType{
-				E: Ptr(bool(false)),
+				F: Ptr(bool(false)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -461,10 +469,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for int type fields",
 			v: TestModelType{
-				E: Ptr(int(1)),
+				F: Ptr(int(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int(1)),
+				F: Ptr(int(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -473,10 +481,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for int type fields",
 			v: TestModelType{
-				E: Ptr(int(1)),
+				F: Ptr(int(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int(0)),
+				F: Ptr(int(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -485,10 +493,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for int8 type fields",
 			v: TestModelType{
-				E: Ptr(int8(1)),
+				F: Ptr(int8(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int8(1)),
+				F: Ptr(int8(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -497,10 +505,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for int8 type fields",
 			v: TestModelType{
-				E: Ptr(int8(1)),
+				F: Ptr(int8(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int8(0)),
+				F: Ptr(int8(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -509,10 +517,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for int16 type fields",
 			v: TestModelType{
-				E: Ptr(int16(1)),
+				F: Ptr(int16(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int16(1)),
+				F: Ptr(int16(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -521,10 +529,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for int16 type fields",
 			v: TestModelType{
-				E: Ptr(int16(1)),
+				F: Ptr(int16(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int16(0)),
+				F: Ptr(int16(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -533,10 +541,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for int32 type fields",
 			v: TestModelType{
-				E: Ptr(int32(1)),
+				F: Ptr(int32(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int32(1)),
+				F: Ptr(int32(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -545,10 +553,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for int32 type fields",
 			v: TestModelType{
-				E: Ptr(int32(1)),
+				F: Ptr(int32(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int32(0)),
+				F: Ptr(int32(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -557,10 +565,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for int64 type fields",
 			v: TestModelType{
-				E: Ptr(int64(1)),
+				F: Ptr(int64(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int64(1)),
+				F: Ptr(int64(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -569,10 +577,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for int64 type fields",
 			v: TestModelType{
-				E: Ptr(int64(1)),
+				F: Ptr(int64(1)),
 			},
 			w: TestModelType{
-				E: Ptr(int64(0)),
+				F: Ptr(int64(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -581,10 +589,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for uint type fields",
 			v: TestModelType{
-				E: Ptr(uint(1)),
+				F: Ptr(uint(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint(1)),
+				F: Ptr(uint(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -593,10 +601,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for uint type fields",
 			v: TestModelType{
-				E: Ptr(uint(1)),
+				F: Ptr(uint(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint(0)),
+				F: Ptr(uint(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -605,10 +613,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for uintptr type fields",
 			v: TestModelType{
-				E: Ptr(uintptr(1)),
+				F: Ptr(uintptr(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uintptr(1)),
+				F: Ptr(uintptr(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -617,10 +625,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for uintptr type fields",
 			v: TestModelType{
-				E: Ptr(uintptr(1)),
+				F: Ptr(uintptr(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uintptr(0)),
+				F: Ptr(uintptr(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -629,10 +637,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for uint8 type fields",
 			v: TestModelType{
-				E: Ptr(uint8(1)),
+				F: Ptr(uint8(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint8(1)),
+				F: Ptr(uint8(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -641,10 +649,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for uint8 type fields",
 			v: TestModelType{
-				E: Ptr(uint8(1)),
+				F: Ptr(uint8(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint8(0)),
+				F: Ptr(uint8(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -653,10 +661,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for uint16 type fields",
 			v: TestModelType{
-				E: Ptr(uint16(1)),
+				F: Ptr(uint16(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint16(1)),
+				F: Ptr(uint16(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -665,10 +673,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for uint16 type fields",
 			v: TestModelType{
-				E: Ptr(uint16(1)),
+				F: Ptr(uint16(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint16(0)),
+				F: Ptr(uint16(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -677,10 +685,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for uint32 type fields",
 			v: TestModelType{
-				E: Ptr(uint32(1)),
+				F: Ptr(uint32(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint32(1)),
+				F: Ptr(uint32(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -689,10 +697,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for uint32 type fields",
 			v: TestModelType{
-				E: Ptr(uint32(1)),
+				F: Ptr(uint32(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint32(0)),
+				F: Ptr(uint32(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -701,10 +709,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for uint64 type fields",
 			v: TestModelType{
-				E: Ptr(uint64(1)),
+				F: Ptr(uint64(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint64(1)),
+				F: Ptr(uint64(1)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -713,10 +721,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for uint64 type fields",
 			v: TestModelType{
-				E: Ptr(uint64(1)),
+				F: Ptr(uint64(1)),
 			},
 			w: TestModelType{
-				E: Ptr(uint64(0)),
+				F: Ptr(uint64(0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -725,10 +733,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for float32 type fields",
 			v: TestModelType{
-				E: Ptr(float32(1.0)),
+				F: Ptr(float32(1.0)),
 			},
 			w: TestModelType{
-				E: Ptr(float32(1.0)),
+				F: Ptr(float32(1.0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -737,10 +745,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for float32 type fields",
 			v: TestModelType{
-				E: Ptr(float32(1.0)),
+				F: Ptr(float32(1.0)),
 			},
 			w: TestModelType{
-				E: Ptr(float32(0.0)),
+				F: Ptr(float32(0.0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -749,10 +757,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for float64 type fields",
 			v: TestModelType{
-				E: Ptr(float64(1.0)),
+				F: Ptr(float64(1.0)),
 			},
 			w: TestModelType{
-				E: Ptr(float64(1.0)),
+				F: Ptr(float64(1.0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -761,10 +769,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for float64 type fields",
 			v: TestModelType{
-				E: Ptr(float64(1.0)),
+				F: Ptr(float64(1.0)),
 			},
 			w: TestModelType{
-				E: Ptr(float64(0.0)),
+				F: Ptr(float64(0.0)),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -773,10 +781,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for complex64 type fields",
 			v: TestModelType{
-				E: Ptr(complex(float32(1.0), float32(-1.0))),
+				F: Ptr(complex(float32(1.0), float32(-1.0))),
 			},
 			w: TestModelType{
-				E: Ptr(complex(float32(1.0), float32(-1.0))),
+				F: Ptr(complex(float32(1.0), float32(-1.0))),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -785,10 +793,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for complex64 type fields",
 			v: TestModelType{
-				E: Ptr(complex(float32(1.0), float32(-1.0))),
+				F: Ptr(complex(float32(1.0), float32(-1.0))),
 			},
 			w: TestModelType{
-				E: Ptr(complex(float32(0.0), float32(1.0))),
+				F: Ptr(complex(float32(0.0), float32(1.0))),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -797,10 +805,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for complex128 type fields",
 			v: TestModelType{
-				E: Ptr(complex(float64(1.0), float64(-1.0))),
+				F: Ptr(complex(float64(1.0), float64(-1.0))),
 			},
 			w: TestModelType{
-				E: Ptr(complex(float64(1.0), float64(-1.0))),
+				F: Ptr(complex(float64(1.0), float64(-1.0))),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -809,10 +817,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality for complex128 type fields",
 			v: TestModelType{
-				E: Ptr(complex(float64(1.0), float64(-1.0))),
+				F: Ptr(complex(float64(1.0), float64(-1.0))),
 			},
 			w: TestModelType{
-				E: Ptr(complex(float64(0.0), float64(1.0))),
+				F: Ptr(complex(float64(0.0), float64(1.0))),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -821,10 +829,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for slice fields",
 			v: TestModelType{
-				E: []int{1, 2, 3},
+				F: []int{1, 2, 3},
 			},
 			w: TestModelType{
-				E: []int{1, 2, 3},
+				F: []int{1, 2, 3},
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -833,10 +841,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality due to nil pointer for slice fields",
 			v: TestModelType{
-				E: []int{1, 2, 3},
+				F: []int{1, 2, 3},
 			},
 			w: TestModelType{
-				E: []int(nil),
+				F: []int(nil),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -845,10 +853,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality due to length for slice fields",
 			v: TestModelType{
-				E: []int{1, 2, 3},
+				F: []int{1, 2, 3},
 			},
 			w: TestModelType{
-				E: []int{1},
+				F: []int{1},
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -857,10 +865,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality due to content for slice fields",
 			v: TestModelType{
-				E: []int{3, 2, 1},
+				F: []int{3, 2, 1},
 			},
 			w: TestModelType{
-				E: []int{1, 2, 3},
+				F: []int{1, 2, 3},
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -869,10 +877,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for array fields",
 			v: TestModelType{
-				E: [3]int{1, 2, 3},
+				F: [3]int{1, 2, 3},
 			},
 			w: TestModelType{
-				E: [3]int{1, 2, 3},
+				F: [3]int{1, 2, 3},
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -881,10 +889,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality due for array fields",
 			v: TestModelType{
-				E: [3]int{3, 2, 1},
+				F: [3]int{3, 2, 1},
 			},
 			w: TestModelType{
-				E: [3]int{1, 2, 3},
+				F: [3]int{1, 2, 3},
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -893,7 +901,7 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test equality for map fields",
 			v: TestModelType{
-				E: map[string]string{
+				F: map[string]string{
 					"Blinky": "Shadow",
 					"Pinky":  "Speedy",
 					"Inky":   "Bashful",
@@ -901,7 +909,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w: TestModelType{
-				E: map[string]string{
+				F: map[string]string{
 					"Blinky": "Shadow",
 					"Pinky":  "Speedy",
 					"Inky":   "Bashful",
@@ -915,7 +923,7 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality due to nil pointer for map fields",
 			v: TestModelType{
-				E: map[string]string{
+				F: map[string]string{
 					"Blinky": "Shadow",
 					"Pinky":  "Speedy",
 					"Inky":   "Bashful",
@@ -923,7 +931,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w: TestModelType{
-				E: map[string]string(nil),
+				F: map[string]string(nil),
 			},
 			m:              TestModelTypeStructTagMap,
 			updating:       false,
@@ -932,7 +940,7 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality due to length for map fields",
 			v: TestModelType{
-				E: map[string]string{
+				F: map[string]string{
 					"Blinky": "Shadow",
 					"Pinky":  "Speedy",
 					"Inky":   "Bashful",
@@ -940,7 +948,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w: TestModelType{
-				E: map[string]string{
+				F: map[string]string{
 					"Blinky": "Shadow",
 				},
 			},
@@ -951,7 +959,7 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Test inequality due to content for map fields",
 			v: TestModelType{
-				E: map[string]string{
+				F: map[string]string{
 					"Akabei": "Oikake",
 					"Pinky":  "Machibuse",
 					"Aosuke": "Kimagure",
@@ -959,7 +967,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w: TestModelType{
-				E: map[string]string{
+				F: map[string]string{
 					"Blinky": "Shadow",
 					"Pinky":  "Speedy",
 					"Inky":   "Bashful",
