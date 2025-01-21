@@ -146,6 +146,12 @@ svc.deployall: $(addsuffix .deploy_pipeline, $(services_svc_pipelines)) $(addsuf
 mgmt.deployall: $(addsuffix .deploy, $(services_mgmt)) $(addsuffix .deploy_pipeline, $(services_mgmt_pipelines))
 deployall: svc.deployall mgmt.deployall
 
+acrpull.mgmt.deploy:
+	./templatize.sh $(DEPLOY_ENV) -p ./acrpull/pipeline.yaml -s deploy-mgmt -P run -c public
+
+acrpull.mgmt.dry_run:
+	./templatize.sh $(DEPLOY_ENV) -p ./acrpull/pipeline.yaml -s deploy-mgmt -P run -c public -d
+
 listall:
 	@echo svc: ${services_svc}
 	@echo mgmt: ${services_mgmt}
