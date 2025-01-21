@@ -17,6 +17,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
@@ -139,6 +140,9 @@ func (opts *FrontendOpts) Run() error {
 
 	// Initialize Clusters Service Client
 	conn, err := sdk.NewUnauthenticatedConnectionBuilder().
+		TransportWrapper(func(r http.RoundTripper) http.RoundTripper {
+			return otelhttp.NewTransport(r)
+		}).
 		URL(opts.clustersServiceURL).
 		Insecure(opts.insecure).
 		Build()
@@ -161,6 +165,16 @@ func (opts *FrontendOpts) Run() error {
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
+	// NOTE: In the future we may want to include "opts.location" as resource attribute.
+	shutdown, err := frontend.InstallOpenTelemetryTracer(ctx, logger)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := shutdown(ctx); err != nil {
+			logger.Error("otel-sdk shutdown failed", "error", err)
+		}
+	}()
 	f := frontend.NewFrontend(logger, listener, metricsListener, prometheusEmitter, dbClient, opts.location, &csClient)
 
 	stop := make(chan struct{})
