@@ -145,10 +145,10 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
 
-	query := "SELECT * FROM c WHERE STRINGEQUALS(c.key, @key, true)"
+	query := "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true)"
 	opt := azcosmos.QueryOptions{
 		PageSizeHint:    1,
-		QueryParameters: []azcosmos.QueryParameter{{Name: "@key", Value: resourceID.String()}},
+		QueryParameters: []azcosmos.QueryParameter{{Name: "@resourceId", Value: resourceID.String()}},
 	}
 
 	queryPager := d.resources.NewQueryItemsPager(query, pk, &opt)
@@ -182,7 +182,7 @@ func (d *CosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 		// normalize or return a toupper or tolower form of the resource
 		// group or resource name. The resource group name and resource
 		// name must come from the URL and not the request body.
-		doc.ResourceId = resourceID
+		doc.ResourceID = resourceID
 		return doc, nil
 	}
 	return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, ErrNotFound)
@@ -195,12 +195,12 @@ func (d *CosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 
 	data, err := json.Marshal(doc)
 	if err != nil {
-		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.ResourceId, err)
+		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.ResourceID, err)
 	}
 
 	_, err = d.resources.CreateItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.ResourceId, err)
+		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.ResourceID, err)
 	}
 
 	return nil
@@ -290,7 +290,7 @@ func (d *CosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems
 	//     to be safe.
 	maxItems = max(maxItems, -1)
 
-	query := "SELECT * FROM c WHERE STARTSWITH(c.key, @prefix, true)"
+	query := "SELECT * FROM c WHERE STARTSWITH(c.resourceId, @prefix, true)"
 	opt := azcosmos.QueryOptions{
 		PageSizeHint:      maxItems,
 		ContinuationToken: continuationToken,

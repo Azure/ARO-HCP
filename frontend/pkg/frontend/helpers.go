@@ -33,7 +33,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 			return arm.NewCloudError(
 				http.StatusConflict,
 				arm.CloudErrorCodeConflict,
-				doc.ResourceId.String(),
+				doc.ResourceID.String(),
 				"Resource is already deleting")
 		}
 	case database.OperationRequestUpdate:
@@ -41,16 +41,16 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 			return arm.NewCloudError(
 				http.StatusConflict,
 				arm.CloudErrorCodeConflict,
-				doc.ResourceId.String(),
+				doc.ResourceID.String(),
 				"Cannot update resource while resource is %s",
 				strings.ToLower(string(doc.ProvisioningState)))
 		}
 	}
 
-	parent := doc.ResourceId.Parent
+	parent := doc.ResourceID.Parent
 
 	// ResourceType casing is preserved for parents in the same namespace.
-	for parent.ResourceType.Namespace == doc.ResourceId.ResourceType.Namespace {
+	for parent.ResourceType.Namespace == doc.ResourceID.ResourceType.Namespace {
 		parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
 		if err != nil {
 			logger.Error(err.Error())
@@ -61,7 +61,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 			return arm.NewCloudError(
 				http.StatusConflict,
 				arm.CloudErrorCodeConflict,
-				doc.ResourceId.String(),
+				doc.ResourceID.String(),
 				"Cannot %s resource while parent resource is deleting",
 				strings.ToLower(string(operationRequest)))
 		}
@@ -87,7 +87,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	// Cluster Service will delete all node pools belonging to these clusters
 	// so we don't need to explicitly delete node pools here.
 	for resourceDoc := range dbIterator.Items(ctx) {
-		if !strings.EqualFold(resourceDoc.ResourceId.ResourceType.String(), api.ClusterResourceType.String()) {
+		if !strings.EqualFold(resourceDoc.ResourceID.ResourceType.String(), api.ClusterResourceType.String()) {
 			continue
 		}
 
@@ -124,7 +124,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-			return "", arm.NewResourceNotFoundError(resourceDoc.ResourceId)
+			return "", arm.NewResourceNotFoundError(resourceDoc.ResourceID)
 		}
 		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
@@ -149,7 +149,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 		return "", arm.NewInternalServerError()
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceId, resourceDoc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
 
 	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
@@ -157,7 +157,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 		return "", arm.NewInternalServerError()
 	}
 
-	_, err = f.dbClient.UpdateResourceDoc(ctx, resourceDoc.ResourceId, func(updateDoc *database.ResourceDocument) bool {
+	_, err = f.dbClient.UpdateResourceDoc(ctx, resourceDoc.ResourceID, func(updateDoc *database.ResourceDocument) bool {
 		updateDoc.ActiveOperationID = operationID
 		updateDoc.ProvisioningState = operationDoc.Status
 		return true
@@ -167,7 +167,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 		return "", arm.NewInternalServerError()
 	}
 
-	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceId, -1, nil)
+	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceID, -1, nil)
 
 	for child := range iterator.Items(ctx) {
 		// Anonymous function avoids repetitive error handling.
@@ -181,14 +181,14 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 			// Its purpose is to cause the backend to delete the resource
 			// document once resource deletion completes.
 
-			childOperationDoc := database.NewOperationDocument(operationRequest, child.ResourceId, child.InternalID)
+			childOperationDoc := database.NewOperationDocument(operationRequest, child.ResourceID, child.InternalID)
 
 			childOperationID, err := f.dbClient.CreateOperationDoc(ctx, childOperationDoc)
 			if err != nil {
 				return err
 			}
 
-			_, err = f.dbClient.UpdateResourceDoc(ctx, child.ResourceId, func(updateDoc *database.ResourceDocument) bool {
+			_, err = f.dbClient.UpdateResourceDoc(ctx, child.ResourceID, func(updateDoc *database.ResourceDocument) bool {
 				updateDoc.ActiveOperationID = childOperationID
 				updateDoc.ProvisioningState = childOperationDoc.Status
 				return true
