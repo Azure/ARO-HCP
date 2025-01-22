@@ -33,14 +33,25 @@ func newArmClient(subscriptionID, region string) *armClient {
 	}
 }
 
+func getDeployment(ctx context.Context, rgName, deploymentName string, client *armresources.DeploymentsClient) (*armresources.DeploymentsClientGetResponse, error) {
+	resp, err := client.Get(ctx, rgName, "asd", nil)
+	if err != nil && !strings.Contains(err.Error(), "ERROR CODE: DeploymentNotFound") {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 func waitForExistingDeployment(ctx context.Context, timeOutInSeconds int, rgName, deploymentName string, client *armresources.DeploymentsClient) error {
 	var currentTimeout = timeOutInSeconds
 	waitTime := 15
 	canContinue := false
-	resp, err := client.Get(ctx, rgName, deploymentName, nil)
+
+	resp, err := getDeployment(ctx, rgName, deploymentName, client)
 	if err != nil {
-		// Todo: check for missing deployment, could be okay
-		return fmt.Errorf("Error getting deployment")
+		return fmt.Errorf("Error getting deployment %w", err)
+	}
+	if resp.Properties == nil {
+		return nil
 	}
 
 	for !canContinue {
@@ -52,6 +63,10 @@ func waitForExistingDeployment(ctx context.Context, timeOutInSeconds int, rgName
 			}
 		} else {
 			return nil
+		}
+		resp, err = getDeployment(ctx, rgName, deploymentName, client)
+		if err != nil {
+			return fmt.Errorf("Error getting deployment %w", err)
 		}
 	}
 	return nil
