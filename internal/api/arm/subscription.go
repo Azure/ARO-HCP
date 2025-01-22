@@ -3,6 +3,10 @@ package arm
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
 
+import (
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+)
+
 type Subscription struct {
 	// The resource provider contract gives an example RegistrationDate
 	// in RFC1123 format but does not explicitly state a required format
@@ -14,6 +18,11 @@ type Subscription struct {
 	// LastUpdated is a copy of the Cosmos DB system generated
 	// "_ts" last updated timestamp field for metrics reporting.
 	LastUpdated int `json:"-"`
+}
+
+// GetValidTypes returns the valid resource types for a Subscription.
+func (s Subscription) GetValidTypes() []string {
+	return []string{azcorearm.SubscriptionResourceType.String()}
 }
 
 type SubscriptionProperties struct {

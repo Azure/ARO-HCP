@@ -5,7 +5,6 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -16,6 +15,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
@@ -54,9 +55,9 @@ func NewPartitionKey(subscriptionID string) azcosmos.PartitionKey {
 	return azcosmos.NewPartitionKeyString(strings.ToLower(subscriptionID))
 }
 
-type DBClientIteratorItem[T any] iter.Seq[*T]
+type DBClientIteratorItem[T DocumentProperties] iter.Seq2[string, *T]
 
-type DBClientIterator[T any] interface {
+type DBClientIterator[T DocumentProperties] interface {
 	Items(ctx context.Context) DBClientIteratorItem[T]
 	GetContinuationToken() string
 	GetError() error
@@ -86,12 +87,12 @@ type DBClient interface {
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument]
 
-	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
-	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
-	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error)
-	CreateSubscriptionDoc(ctx context.Context, subscriptionID string, doc *SubscriptionDocument) error
-	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error)
-	ListAllSubscriptionDocs() DBClientIterator[SubscriptionDocument]
+	// GetSubscriptionDoc retrieves a subscription from the database given the subscriptionID.
+	// ErrNotFound is returned if an associated subscription cannot be found.
+	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
+	CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error
+	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error)
+	ListAllSubscriptionDocs() DBClientIterator[arm.Subscription]
 }
 
 var _ DBClient = &cosmosDBClient{}
@@ -145,64 +146,81 @@ func (d *cosmosDBClient) GetLockClient() *LockClient {
 	return d.lockClient
 }
 
-// GetResourceDoc retrieves a resource document from the "resources" DB using resource ID
-func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
+func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*typedDocument, *ResourceDocument, error) {
 	pk := NewPartitionKey(resourceID.SubscriptionID)
 
-	query := "SELECT * FROM c WHERE STRINGEQUALS(c.key, @resourceId, true)"
+	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true) AND STRINGEQUALS(c.properties.resourceId, @resourceId, true)"
 	opt := azcosmos.QueryOptions{
-		PageSizeHint:    1,
-		QueryParameters: []azcosmos.QueryParameter{{Name: "@resourceId", Value: resourceID.String()}},
+		PageSizeHint: 1,
+		QueryParameters: []azcosmos.QueryParameter{
+			{
+				Name:  "@resourceType",
+				Value: resourceID.ResourceType.String(),
+			},
+			{
+				Name:  "@resourceId",
+				Value: resourceID.String(),
+			},
+		},
 	}
 
 	queryPager := d.resources.NewQueryItemsPager(query, pk, &opt)
 
-	var doc *ResourceDocument
 	for queryPager.More() {
 		queryResponse, err := queryPager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to advance page while querying Resources container for '%s': %w", resourceID, err)
+			return nil, nil, fmt.Errorf("failed to advance page while querying Resources container for '%s': %w", resourceID, err)
 		}
 
 		for _, item := range queryResponse.Items {
-			err = json.Unmarshal(item, &doc)
+			typedDoc, innerDoc, err := typedDocumentUnmarshal[ResourceDocument](item)
 			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", resourceID, err)
+				return nil, nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", resourceID, err)
 			}
+
+			return typedDoc, innerDoc, nil
 		}
 	}
-	if doc != nil {
-		// Replace the key field from Cosmos with the given resourceID,
-		// which typically comes from the URL. This helps preserve the
-		// casing of the resource group and resource name from the URL
-		// to meet RPC requirements:
-		//
-		// Put Resource | Arguments
-		//
-		// The resource group names and resource names should be matched
-		// case insensitively. ... Additionally, the Resource Provier must
-		// preserve the casing provided by the user. The service must return
-		// the most recently specified casing to the client and must not
-		// normalize or return a toupper or tolower form of the resource
-		// group or resource name. The resource group name and resource
-		// name must come from the URL and not the request body.
-		doc.ResourceID = resourceID
-		return doc, nil
+
+	return nil, nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, ErrNotFound)
+}
+
+// GetResourceDoc retrieves a resource document from the "resources" DB using resource ID
+func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
+	_, innerDoc, err := d.getResourceDoc(ctx, resourceID)
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, ErrNotFound)
+
+	// Replace the key field from Cosmos with the given resourceID,
+	// which typically comes from the URL. This helps preserve the
+	// casing of the resource group and resource name from the URL
+	// to meet RPC requirements:
+	//
+	// Put Resource | Arguments
+	//
+	// The resource group names and resource names should be matched
+	// case insensitively. ... Additionally, the Resource Provier must
+	// preserve the casing provided by the user. The service must return
+	// the most recently specified casing to the client and must not
+	// normalize or return a toupper or tolower form of the resource
+	// group or resource name. The resource group name and resource
+	// name must come from the URL and not the request body.
+	innerDoc.ResourceID = resourceID
+
+	return innerDoc, nil
 }
 
 // CreateResourceDoc creates a resource document in the "resources" DB during resource creation
 func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {
-	// Make sure partition key is lowercase.
-	doc.PartitionKey = strings.ToLower(doc.PartitionKey)
+	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
 
-	data, err := json.Marshal(doc)
+	data, err := typedDocumentMarshal(typedDoc, doc)
 	if err != nil {
 		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.ResourceID, err)
 	}
 
-	_, err = d.resources.CreateItem(ctx, NewPartitionKey(doc.PartitionKey), data, nil)
+	_, err = d.resources.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.ResourceID, err)
 	}
@@ -221,30 +239,29 @@ func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error) {
 	var err error
 
-	pk := NewPartitionKey(resourceID.SubscriptionID)
-
 	options := &azcosmos.ItemOptions{}
 
 	for try := 0; try < 5; try++ {
-		var doc *ResourceDocument
+		var typedDoc *typedDocument
+		var innerDoc *ResourceDocument
 		var data []byte
 
-		doc, err = d.GetResourceDoc(ctx, resourceID)
+		typedDoc, innerDoc, err = d.getResourceDoc(ctx, resourceID)
 		if err != nil {
 			return false, err
 		}
 
-		if !callback(doc) {
+		if !callback(innerDoc) {
 			return false, nil
 		}
 
-		data, err = json.Marshal(doc)
+		data, err = typedDocumentMarshal(typedDoc, innerDoc)
 		if err != nil {
 			return false, fmt.Errorf("failed to marshal Resources container item for '%s': %w", resourceID, err)
 		}
 
-		options.IfMatchEtag = &doc.CosmosETag
-		_, err = d.resources.ReplaceItem(ctx, pk, doc.ID, data, options)
+		options.IfMatchEtag = &typedDoc.CosmosETag
+		_, err = d.resources.ReplaceItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, data, options)
 		if err == nil {
 			return true, nil
 		}
@@ -261,9 +278,7 @@ func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azco
 
 // DeleteResourceDoc removes a resource document from the "resources" DB using resource ID
 func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
-	pk := NewPartitionKey(resourceID.SubscriptionID)
-
-	doc, err := d.GetResourceDoc(ctx, resourceID)
+	typedDoc, _, err := d.getResourceDoc(ctx, resourceID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return nil
@@ -271,7 +286,7 @@ func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azco
 		return err
 	}
 
-	_, err = d.resources.DeleteItem(ctx, pk, doc.ID, nil)
+	_, err = d.resources.DeleteItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to delete Resources container item for '%s': %w", resourceID, err)
 	}
@@ -291,7 +306,7 @@ func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems
 	//     to be safe.
 	maxItems = max(maxItems, -1)
 
-	query := "SELECT * FROM c WHERE STARTSWITH(c.resourceId, @prefix, true)"
+	const query = "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
 	opt := azcosmos.QueryOptions{
 		PageSizeHint:      maxItems,
 		ContinuationToken: continuationToken,
@@ -312,9 +327,7 @@ func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems
 	}
 }
 
-// GetOperationDoc retrieves the asynchronous operation document for the given
-// operation ID from the "operations" container
-func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
+func (d *cosmosDBClient) getOperationDoc(ctx context.Context, operationID string) (*typedDocument, *OperationDocument, error) {
 	// Make sure lookup keys are lowercase.
 	operationID = strings.ToLower(operationID)
 
@@ -325,34 +338,40 @@ func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 		if isResponseError(err, http.StatusNotFound) {
 			err = ErrNotFound
 		}
-		return nil, fmt.Errorf("failed to read Operations container item for '%s': %w", operationID, err)
+		return nil, nil, fmt.Errorf("failed to read Operations container item for '%s': %w", operationID, err)
 	}
 
-	var doc *OperationDocument
-	err = json.Unmarshal(response.Value, &doc)
+	typedDoc, innerDoc, err := typedDocumentUnmarshal[OperationDocument](response.Value)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Operations container item for '%s': %w", operationID, err)
+		return nil, nil, fmt.Errorf("failed to unmarshal Operations container item for '%s': %w", operationID, err)
 	}
 
-	return doc, nil
+	return typedDoc, innerDoc, nil
+}
+
+// GetOperationDoc retrieves the asynchronous operation document for the given
+// operation ID from the "operations" container
+func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
+	_, innerDoc, err := d.getOperationDoc(ctx, operationID)
+	return innerDoc, err
 }
 
 // CreateOperationDoc writes an asynchronous operation document to the "operations"
 // container
 func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error) {
-	pk := NewPartitionKey(operationsPartitionKey)
+	typedDoc := newTypedDocument(operationsPartitionKey, OperationResourceType)
 
-	data, err := json.Marshal(doc)
+	data, err := typedDocumentMarshal(typedDoc, doc)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal Operations container item for '%s': %w", doc.ID, err)
+		return "", fmt.Errorf("failed to marshal Operations container item for '%s': %w", typedDoc.ID, err)
 	}
 
-	_, err = d.operations.CreateItem(ctx, pk, data, nil)
+	_, err = d.operations.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to create Operations container item for '%s': %w", doc.ID, err)
+		return "", fmt.Errorf("failed to create Operations container item for '%s': %w", typedDoc.ID, err)
 	}
 
-	return doc.ID, nil
+	return typedDoc.ID, nil
 }
 
 // UpdateOperationDoc updates an operation document by first fetching the document and
@@ -366,30 +385,29 @@ func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error) {
 	var err error
 
-	pk := NewPartitionKey(operationsPartitionKey)
-
 	options := &azcosmos.ItemOptions{}
 
 	for try := 0; try < 5; try++ {
-		var doc *OperationDocument
+		var typedDoc *typedDocument
+		var innerDoc *OperationDocument
 		var data []byte
 
-		doc, err = d.GetOperationDoc(ctx, operationID)
+		typedDoc, innerDoc, err = d.getOperationDoc(ctx, operationID)
 		if err != nil {
 			return false, err
 		}
 
-		if !callback(doc) {
+		if !callback(innerDoc) {
 			return false, nil
 		}
 
-		data, err = json.Marshal(doc)
+		data, err = typedDocumentMarshal(typedDoc, innerDoc)
 		if err != nil {
 			return false, fmt.Errorf("failed to marshal Operations container item for '%s': %w", operationID, err)
 		}
 
-		options.IfMatchEtag = &doc.CosmosETag
-		_, err = d.operations.ReplaceItem(ctx, pk, doc.ID, data, options)
+		options.IfMatchEtag = &typedDoc.CosmosETag
+		_, err = d.operations.ReplaceItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, data, options)
 		if err == nil {
 			return true, nil
 		}
@@ -407,9 +425,13 @@ func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, operationID str
 func (d *cosmosDBClient) ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument] {
 	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 
-	query := "SELECT * FROM c WHERE STARTSWITH(c.externalId, @prefix, true)"
+	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true) AND STARTSWITH(c.externalId, @prefix, true)"
 	opt := azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{
+			{
+				Name:  "@resourceType",
+				Value: OperationResourceType.String(),
+			},
 			{
 				Name:  "@prefix",
 				Value: "/subscriptions/" + strings.ToLower(subscriptionID),
@@ -422,8 +444,7 @@ func (d *cosmosDBClient) ListOperationDocs(subscriptionID string) DBClientIterat
 	return newQueryItemsIterator[OperationDocument](pager)
 }
 
-// GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
-func (d *cosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error) {
+func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*typedDocument, *arm.Subscription, error) {
 	// Make sure lookup keys are lowercase.
 	subscriptionID = strings.ToLower(subscriptionID)
 
@@ -434,43 +455,46 @@ func (d *cosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 		if isResponseError(err, http.StatusNotFound) {
 			err = ErrNotFound
 		}
-		return nil, fmt.Errorf("failed to read Subscriptions container item for '%s': %w", subscriptionID, err)
+		return nil, nil, fmt.Errorf("failed to read Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
-	var doc *SubscriptionDocument
-	err = json.Unmarshal(response.Value, &doc)
+	typedDoc, innerDoc, err := typedDocumentUnmarshal[arm.Subscription](response.Value)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Subscriptions container item for '%s': %w", subscriptionID, err)
+		return nil, nil, fmt.Errorf("failed to unmarshal Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
 	// Expose the "_ts" field for metics reporting.
-	doc.Subscription.LastUpdated = doc.CosmosTimestamp
+	innerDoc.LastUpdated = typedDoc.CosmosTimestamp
 
-	return doc, nil
+	return typedDoc, innerDoc, nil
+}
+
+// GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
+func (d *cosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
+	_, innerDoc, err := d.getSubscriptionDoc(ctx, subscriptionID)
+	return innerDoc, err
 }
 
 // CreateSubscriptionDoc creates/updates a subscription document in the async DB during cluster creation/patching
-func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, doc *SubscriptionDocument) error {
-	// Make sure lookup keys are lowercase.
-	doc.ID = strings.ToLower(subscriptionID)
+func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error {
+	typedDoc := newTypedDocument(subscriptionID, azcorearm.SubscriptionResourceType)
+	typedDoc.ID = strings.ToLower(subscriptionID)
 
-	pk := NewPartitionKey(doc.ID)
-
-	data, err := json.Marshal(doc)
+	data, err := typedDocumentMarshal(typedDoc, subscription)
 	if err != nil {
-		return fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", doc.ID, err)
+		return fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
-	_, err = d.subscriptions.CreateItem(ctx, pk, data, nil)
+	_, err = d.subscriptions.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create Subscriptions container item for '%s': %w", doc.ID, err)
+		return fmt.Errorf("failed to create Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
 	// Add an item to the PartitionKeys container, which serves
 	// as a partition key index for the Resources container.
-	err = upsertPartitionKey(ctx, d.partitionKeys, doc.ID)
+	err = upsertPartitionKey(ctx, d.partitionKeys, subscriptionID)
 	if err != nil {
-		return fmt.Errorf("failed to upsert partition keys index for '%s': %w", doc.ID, err)
+		return fmt.Errorf("failed to upsert partition keys index for '%s': %w", subscriptionID, err)
 	}
 
 	return nil
@@ -484,33 +508,32 @@ func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscription
 // The callback function should return true if modifications were applied, signaling to proceed
 // with the document replacement. The boolean return value reflects this: returning true if the
 // document was successfully replaced, or false with or without an error to indicate no change.
-func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error) {
+func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
 	var err error
-
-	pk := NewPartitionKey(subscriptionID)
 
 	options := &azcosmos.ItemOptions{}
 
 	for try := 0; try < 5; try++ {
-		var doc *SubscriptionDocument
+		var typedDoc *typedDocument
+		var innerDoc *arm.Subscription
 		var data []byte
 
-		doc, err = d.GetSubscriptionDoc(ctx, subscriptionID)
+		typedDoc, innerDoc, err = d.getSubscriptionDoc(ctx, subscriptionID)
 		if err != nil {
 			return false, err
 		}
 
-		if !callback(doc) {
+		if !callback(innerDoc) {
 			return false, nil
 		}
 
-		data, err = json.Marshal(doc)
+		data, err = typedDocumentMarshal(typedDoc, innerDoc)
 		if err != nil {
 			return false, fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", subscriptionID, err)
 		}
 
-		options.IfMatchEtag = &doc.CosmosETag
-		_, err = d.subscriptions.ReplaceItem(ctx, pk, doc.ID, data, options)
+		options.IfMatchEtag = &typedDoc.CosmosETag
+		_, err = d.subscriptions.ReplaceItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, data, options)
 		if err == nil {
 			return true, nil
 		}
@@ -525,7 +548,7 @@ func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 	return false, err
 }
 
-func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[SubscriptionDocument] {
+func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscription] {
 	return listPartitionKeys(d.partitionKeys, d)
 }
 

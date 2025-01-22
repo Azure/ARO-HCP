@@ -4,13 +4,13 @@ package database
 // Licensed under the Apache License 2.0.
 
 import (
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -35,15 +35,17 @@ func newBaseDocument() baseDocument {
 	return baseDocument{ID: uuid.New().String()}
 }
 
+// DocumentProperties is an interface for types that can serve as
+// typedDocument.Properties.
+type DocumentProperties interface {
+	GetValidTypes() []string
+}
+
 // ResourceDocument captures the mapping of an Azure resource ID
 // to an internal resource ID (the OCM API path), as well as any
 // ARM-specific metadata for the resource.
 type ResourceDocument struct {
-	baseDocument
-
-	// FIXME: Change the JSON field name when we're ready to break backward-compat.
-	ResourceID        *azcorearm.ResourceID       `json:"key,omitempty"`
-	PartitionKey      string                      `json:"partitionKey,omitempty"`
+	ResourceID        *azcorearm.ResourceID       `json:"resourceId,omitempty"`
 	InternalID        ocm.InternalID              `json:"internalId,omitempty"`
 	ActiveOperationID string                      `json:"activeOperationId,omitempty"`
 	ProvisioningState arm.ProvisioningState       `json:"provisioningState,omitempty"`
@@ -54,9 +56,15 @@ type ResourceDocument struct {
 
 func NewResourceDocument(resourceID *azcorearm.ResourceID) *ResourceDocument {
 	return &ResourceDocument{
-		baseDocument: newBaseDocument(),
-		ResourceID:   resourceID,
-		PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		ResourceID: resourceID,
+	}
+}
+
+// GetValidTypes returns the valid resource types for a ResourceDocument.
+func (doc ResourceDocument) GetValidTypes() []string {
+	return []string{
+		api.ClusterResourceType.String(),
+		api.NodePoolResourceType.String(),
 	}
 }
 
@@ -68,11 +76,12 @@ const (
 	OperationRequestDelete OperationRequest = "Delete"
 )
 
+// OperationResourceType is an artificial resource type for OperationDocuments
+// in Cosmos DB. It omits the location segment from actual operation endpoints.
+var OperationResourceType = azcorearm.NewResourceType(api.ProviderNamespace, api.OperationStatusResourceTypeName)
+
 // OperationDocument tracks an asynchronous operation.
 type OperationDocument struct {
-	baseDocument
-
-	PartitionKey string `json:"partitionKey,omitempty"`
 	// TenantID is the tenant ID of the client that requested the operation
 	TenantID string `json:"tenantId,omitempty"`
 	// ClientID is the object ID of the client that requested the operation
@@ -105,8 +114,6 @@ func NewOperationDocument(request OperationRequest, externalID *azcorearm.Resour
 	now := time.Now().UTC()
 
 	doc := &OperationDocument{
-		baseDocument:       newBaseDocument(),
-		PartitionKey:       operationsPartitionKey,
 		Request:            request,
 		ExternalID:         externalID,
 		InternalID:         internalID,
@@ -122,6 +129,11 @@ func NewOperationDocument(request OperationRequest, externalID *azcorearm.Resour
 	}
 
 	return doc
+}
+
+// GetValidTypes returns the valid resource types for an OperationDocument.
+func (doc OperationDocument) GetValidTypes() []string {
+	return []string{OperationResourceType.String()}
 }
 
 // ToStatus converts an OperationDocument to the ARM operation status format.
@@ -153,20 +165,4 @@ func (doc *OperationDocument) UpdateStatus(status arm.ProvisioningState, err *ar
 		return true
 	}
 	return false
-}
-
-// SubscriptionDocument represents an Azure Subscription document.
-type SubscriptionDocument struct {
-	baseDocument
-
-	Subscription *arm.Subscription `json:"subscription,omitempty"`
-}
-
-func NewSubscriptionDocument(subscriptionID string, subscription *arm.Subscription) *SubscriptionDocument {
-	return &SubscriptionDocument{
-		baseDocument: baseDocument{
-			ID: strings.ToLower(subscriptionID),
-		},
-		Subscription: subscription,
-	}
 }

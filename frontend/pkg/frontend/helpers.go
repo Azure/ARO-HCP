@@ -86,7 +86,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	// Start a deletion operation for all clusters under the subscription.
 	// Cluster Service will delete all node pools belonging to these clusters
 	// so we don't need to explicitly delete node pools here.
-	for resourceDoc := range dbIterator.Items(ctx) {
+	for _, resourceDoc := range dbIterator.Items(ctx) {
 		if !strings.EqualFold(resourceDoc.ResourceID.ResourceType.String(), api.ClusterResourceType.String()) {
 			continue
 		}
@@ -169,7 +169,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 
 	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceID, -1, nil)
 
-	for child := range iterator.Items(ctx) {
+	for _, child := range iterator.Items(ctx) {
 		// Anonymous function avoids repetitive error handling.
 		err = func() error {
 			err = f.CancelActiveOperation(ctx, child)
