@@ -13,16 +13,16 @@ resourceGroups:
   - name: svcChildZone
     action: DelegateChildZone
     parentZone:
-      configRef: {{ .global.parentZoneName }}
+      configRef: global.parentZoneName
     childZone:
-      configRef: {{ .global.svcParentZoneName }}
+      configRef: global.svcParentZoneName
     dependsOn:
     - global-infra
   - name: cxChildZone
     action: DelegateChildZone
     parentZone:
-      configRef: {{ .global.parentZoneName }}
+      configRef: global.parentZoneName
     childZone:
-      configRef: {{ .global.baseDnsZoneName }}
+      configRef: global.baseDnsZoneName
     dependsOn:
     - global-infra
