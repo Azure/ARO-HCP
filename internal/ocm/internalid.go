@@ -99,6 +99,12 @@ func (id *InternalID) Kind() string {
 		kind = cmv1.ClusterKind
 	}
 
+	// hack to support clusters received via ARO HCP APIs
+	// without duplicating the whole codebase calling this method
+	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
+		kind = cmv1.ClusterKind
+	}
+
 	if match, _ = path.Match(v1NodePoolPattern, id.path); match {
 		kind = cmv1.NodePoolKind
 	}
@@ -116,6 +122,11 @@ func (id *InternalID) GetClusterClient(transport http.RoundTripper) (*cmv1.Clust
 	for thisPath != lastPath {
 		if match, _ := path.Match(v1ClusterPattern, thisPath); match {
 			return cmv1.NewClusterClient(transport, thisPath), true
+		} else if match, _ := path.Match(aroHcpV1Alpha1ClusterPattern, thisPath); match {
+			// hack to support clusters received via ARO HCP APIs
+			// without duplicating the whole codebase calling this method
+			newPath := strings.ReplaceAll(thisPath, aroHcpV1Alpha1Pattern, v1Pattern)
+			return cmv1.NewClusterClient(transport, newPath), true
 		} else {
 			lastPath = thisPath
 			thisPath = path.Dir(thisPath)
