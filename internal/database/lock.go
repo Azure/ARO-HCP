@@ -173,7 +173,7 @@ func (c *LockClient) HoldLock(ctx context.Context, item *azcosmos.ItemResponse) 
 			}
 
 			// Aim to renew one second before TTL expires.
-			timeToRenew := time.Unix(int64(doc.Timestamp), 0)
+			timeToRenew := time.Unix(int64(doc.CosmosTimestamp), 0)
 			if doc.TTL > 0 {
 				timeToRenew = timeToRenew.Add(time.Duration(doc.TTL-1) * time.Second)
 			}
