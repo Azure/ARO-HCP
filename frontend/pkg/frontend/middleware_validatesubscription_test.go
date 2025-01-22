@@ -16,7 +16,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
@@ -171,16 +170,15 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 
-			var doc *database.SubscriptionDocument
+			var subscription *arm.Subscription
 
 			if tt.cachedState != "" {
-				doc = database.NewSubscriptionDocument(subscriptionId,
-					&arm.Subscription{
-						State: tt.cachedState,
-						Properties: &arm.SubscriptionProperties{
-							TenantId: &tenantId,
-						},
-					})
+				subscription = &arm.Subscription{
+					State: tt.cachedState,
+					Properties: &arm.SubscriptionProperties{
+						TenantId: &tenantId,
+					},
+				}
 			}
 
 			writer := httptest.NewRecorder()
@@ -203,7 +201,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 				mockDBClient.EXPECT().
 					GetSubscriptionDoc(gomock.Any(), subscriptionId).
-					Return(getMockDBDoc(doc)) // defined in frontend_test.go
+					Return(getMockDBDoc(subscription)) // defined in frontend_test.go
 			}
 
 			MiddlewareValidateSubscriptionState(writer, request, next)
@@ -220,13 +218,13 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				return
 			}
 
-			assert.Equal(t, tt.expectedState, doc.Subscription.State)
+			assert.Equal(t, tt.expectedState, subscription.State)
 
 			// Check that the attributes have been added to the span too.
 			ss := sr.collect()
 			require.Len(t, ss, 1)
 			span := ss[0]
-			equalSpanAttributes(t, span, map[string]string{"aro.subscription.state": string(doc.Subscription.State)})
+			equalSpanAttributes(t, span, map[string]string{"aro.subscription.state": string(subscription.State)})
 		})
 	}
 

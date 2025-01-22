@@ -9,6 +9,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // XXX The Azure SDK for Go does not support cross-partition Cosmos DB
@@ -64,7 +66,7 @@ func upsertPartitionKey(ctx context.Context, containerClient *azcosmos.Container
 	return err
 }
 
-func listPartitionKeys(containerClient *azcosmos.ContainerClient, client DBClient) DBClientIterator[SubscriptionDocument] {
+func listPartitionKeys(containerClient *azcosmos.ContainerClient, client DBClient) DBClientIterator[arm.Subscription] {
 	pk := azcosmos.NewPartitionKeyString(partitionKeysPartitionKey)
 
 	pager := containerClient.NewQueryItemsPager("SELECT c.id FROM c", pk, nil)
@@ -72,8 +74,8 @@ func listPartitionKeys(containerClient *azcosmos.ContainerClient, client DBClien
 	return &partitionKeyIterator{client: client, pager: pager}
 }
 
-func (iter *partitionKeyIterator) Items(ctx context.Context) DBClientIteratorItem[SubscriptionDocument] {
-	return func(yield func(*SubscriptionDocument) bool) {
+func (iter *partitionKeyIterator) Items(ctx context.Context) DBClientIteratorItem[arm.Subscription] {
+	return func(yield func(string, *arm.Subscription) bool) {
 		for iter.pager.More() {
 			response, err := iter.pager.NextPage(ctx)
 			if err != nil {
@@ -97,7 +99,7 @@ func (iter *partitionKeyIterator) Items(ctx context.Context) DBClientIteratorIte
 					return
 				}
 
-				if !yield(subscription) {
+				if !yield(doc.ID, subscription) {
 					return
 				}
 			}
