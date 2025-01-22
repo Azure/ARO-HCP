@@ -9,14 +9,14 @@ make frontend
 ```bash
 # Note: for testing changes, please use your own registry
 # versus pushing images to the DEV ACR
-export ARO_HCP_BASE_IMAGE="quay.io/QUAY_USERNAME"
+export ARO_HCP_IMAGE_REGISTRY="quay.io/QUAY_USERNAME"
 make image
 
 # Push the image to a container registry
 make push
 
 # all in one option
-export ARO_HCP_BASE_IMAGE="quay.io/QUAY_USERNAME"
+export ARO_HCP_IMAGE_REGISTRY="quay.io/QUAY_USERNAME"
 make build-push
 ```
 
