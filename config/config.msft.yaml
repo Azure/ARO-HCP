@@ -29,7 +29,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.30.6
+      kubernetesVersion: 1.31.2
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}
         kvSoftDelete: true
@@ -38,7 +38,7 @@ defaults:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
       targetVersion: "asm-1-23"
-      versions: "asm-1-22,asm-1-23"
+      versions: "asm-1-23"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
 
@@ -51,7 +51,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.30.6
+      kubernetesVersion: 1.31.2
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
