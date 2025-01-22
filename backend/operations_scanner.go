@@ -247,11 +247,11 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 
 	iterator := s.dbClient.ListAllSubscriptionDocs()
 
-	for subscriptionDoc := range iterator.Items(ctx) {
+	for subscriptionID, subscription := range iterator.Items(ctx) {
 		// Unregistered subscriptions should have no active operations,
 		// not even deletes.
-		if subscriptionDoc.Subscription.State != arm.SubscriptionStateUnregistered {
-			subscriptions = append(subscriptions, subscriptionDoc.ID)
+		if subscription.State != arm.SubscriptionStateUnregistered {
+			subscriptions = append(subscriptions, subscriptionID)
 		}
 	}
 
@@ -307,14 +307,14 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 	iterator := s.dbClient.ListOperationDocs(subscriptionID)
 
-	for operationDoc := range iterator.Items(ctx) {
+	for operationID, operationDoc := range iterator.Items(ctx) {
 		if !operationDoc.Status.IsTerminal() {
 			operationLogger := logger.With(
 				"operation", operationDoc.Request,
-				"operation_id", operationDoc.ID,
+				"operation_id", operationID,
 				"resource_id", operationDoc.ExternalID.String(),
 				"internal_id", operationDoc.InternalID.String())
-			op := operation{operationDoc.ID, operationDoc, operationLogger}
+			op := operation{operationID, operationDoc, operationLogger}
 
 			switch operationDoc.InternalID.Kind() {
 			case cmv1.ClusterKind:
