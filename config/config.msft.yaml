@@ -270,4 +270,4 @@ clouds:
           # Will move this MSI creationg to this repo. Currently it's in the hcp repo
           aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
-          kvCertOfficerPrincipalId: '0cfe7b03-3a43-4f68-84a0-2a4d9227d5ee'
+          kvCertOfficerPrincipalId: '32af88de-a61c-4f71-b709-50538598c4f2'  # aro-ev2-admin-int-sp
