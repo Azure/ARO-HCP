@@ -459,6 +459,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
   dependsOn: [
     aksNetworkContributorRoleAssignment
     aks_keyvault_crypto_user
+    aksClusterOutboundIPAddress
   ]
 }
 
