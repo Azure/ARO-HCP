@@ -37,7 +37,11 @@ resourceGroups:
       configRef: svc.istio.targetVersion
     - name: ISTIOCTL_VERSION
       configRef: svc.istio.istioctlVersion
+    - name: ISTIO_INGRESS_GATEWAY_IP_ADDRESS_NAME
+      configRef: svc.istio.ingressGatewayIPAddressName
     - name: TAG
       configRef: svc.istio.tag
+    - name: SVC_RESOURCEGROUP
+      configRef: svc.rg
     dependsOn:
     - svc

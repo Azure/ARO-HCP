@@ -37,6 +37,34 @@ param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
 
+@description('Istio Ingress Gateway Public IP Address resource name')
+param istioIngressGatewayIPAddressName string = ''
+
+@description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
+param aksClusterOutboundIPAddressIPTags string = ''
+var aksClusterOutboundIPAddressIPTagsArray = [
+  for tag in (aksClusterOutboundIPAddressIPTags == '') ? [] : split(aksClusterOutboundIPAddressIPTags, ','): {
+    ipTagType: split(tag, ':')[0]
+    tag: split(tag, ':')[1]
+  }
+]
+
+@description('IPTags to be set on the Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
+param istioIngressGatewayIPAddressIPTags string = ''
+var istioIngressGatewayIPAddressIPTagsArray = [
+  for tag in (istioIngressGatewayIPAddressIPTags == '') ? [] : split(istioIngressGatewayIPAddressIPTags, ','): {
+    ipTagType: split(tag, ':')[0]
+    tag: split(tag, ':')[1]
+  }
+]
+
+@description('List of Availability Zones for zone-redundant resources')
+param zoneRedundancyZones array = [
+  '1'
+  '2'
+  '3'
+]
+
 @maxLength(24)
 param aksKeyVaultName string
 
@@ -218,6 +246,39 @@ resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@
   }
 }
 
+module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (deployIstio) {
+  name: istioIngressGatewayIPAddressName
+  params: {
+    name: istioIngressGatewayIPAddressName
+    ipTags: istioIngressGatewayIPAddressIPTagsArray
+    location: location
+    zones: zoneRedundancyZones
+    // Role Assignment needed for the public IP address to be used on the Load Balancer
+    roleAssignmentProperties: {
+      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalType: 'ServicePrincipal'
+      roleDefinitionId: networkContributorRoleId
+    }
+  }
+}
+
+var aksClusterOutboundIPAddressName = 'aro-hcp-cluster-egress'
+module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = {
+  name: aksClusterOutboundIPAddressName
+  params: {
+    name: aksClusterOutboundIPAddressName
+    ipTags: aksClusterOutboundIPAddressIPTagsArray
+    location: location
+    zones: zoneRedundancyZones
+    // Role Assignment needed for the public IP address to be used on the Load Balancer
+    roleAssignmentProperties: {
+      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalType: 'ServicePrincipal'
+      roleDefinitionId: networkContributorRoleId
+    }
+  }
+}
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-preview' = {
   location: location
   kind: 'Base'
@@ -274,11 +335,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
         maxPods: 100
-        availabilityZones: [
-          '1'
-          '2'
-          '3'
-        ]
+        availabilityZones: zoneRedundancyZones
         securityProfile: {
           enableSecureBoot: false
           enableVTPM: false
@@ -328,6 +385,15 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
     networkProfile: {
       ipFamilies: ['IPv4']
       loadBalancerSku: 'standard'
+      loadBalancerProfile: {
+        outboundIPs: {
+          publicIPs: [
+            {
+              id: resourceId('Microsoft.Network/publicIPAddresses', aksClusterOutboundIPAddressName)
+            }
+          ]
+        }
+      }
       networkDataplane: 'cilium'
       networkPolicy: 'cilium'
       networkPlugin: 'azure'

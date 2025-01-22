@@ -33,11 +33,14 @@ defaults:
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}
         kvSoftDelete: true
+      clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundsvc"
     istio:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-22,asm-1-23"
+      ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
+      ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
 
   # MGMT cluster specifics
   mgmt:
@@ -52,6 +55,7 @@ defaults:
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
+      clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
 
   # Frontend
   frontend:
@@ -206,6 +210,9 @@ clouds:
                 vmSize: 'Standard_D2s_v3'
                 osDiskSizeGB: 32
                 azCount: 3
+              clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
+            istio:
+              ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
           # MC
           mgmt:
             aks:
@@ -221,7 +228,7 @@ clouds:
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
                 azCount: 3
-
+              clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
           # DNS
           dns:
             cxParentZoneName: aroapp-hcp.azure-test.net

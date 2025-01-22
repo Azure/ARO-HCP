@@ -78,6 +78,9 @@
           },
           "systemAgentPool": {
             "$ref": "#/definitions/aksAgentPool"
+          },
+          "clusterOutboundIPAddressIPTags": {
+            "$ref": "#/definitions/keyColonValueCSV"
           }
         },
         "required": [
@@ -89,6 +92,10 @@
           "userAgentPool",
           "systemAgentPool"
         ]
+      },
+      "keyColonValueCSV": {
+        "type": "string",
+        "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
       }
     },
     "properties": {
@@ -428,7 +435,7 @@
                 "type": "string"
               },
               "secrets": {
-                "type": "string"
+                "$ref": "#/definitions/keyColonValueCSV"
               },
               "pullSecretName": {
                 "type": "string"
@@ -799,8 +806,18 @@
                 "description": "The target istio version that will be updated to",
                 "type": "string",
                 "pattern": "^[a-zA-Z0-9-]+$"
+              },
+              "ingressGatewayIPAddressName": {
+                "type": "string"
+              },
+              "ingressGatewayIPAddressIPTags": {
+                "$ref": "#/definitions/keyColonValueCSV"
               }
-            }
+            },
+            "additionalProperties": false,
+            "required": [
+              "ingressGatewayIPAddressName"
+            ]
         }
         },
         "additionalProperties": false,

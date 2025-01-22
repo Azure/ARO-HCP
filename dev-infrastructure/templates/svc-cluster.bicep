@@ -62,6 +62,15 @@ param aksKeyVaultName string
 @description('Manage soft delete setting for AKS etcd key-value store')
 param aksEtcdKVEnableSoftDelete bool = true
 
+@description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
+param aksClusterOutboundIPAddressIPTags string = ''
+
+@description('The name of the Istio Ingress Gateway IP address resource')
+param istioIngressGatewayIPAddressName string = ''
+
+@description('IPTags to be set on the Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
+param istioIngressGatewayIPAddressIPTags string = ''
+
 // TODO: When the work around workload identity for the RP is finalized, change this to true
 @description('disableLocalAuth for the ARO HCP RP CosmosDB')
 param disableLocalAuth bool
@@ -181,9 +190,12 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
+    aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
     kubernetesVersion: kubernetesVersion
     deployIstio: true
     istioVersions: split(istioVersions, ',')
+    istioIngressGatewayIPAddressName: istioIngressGatewayIPAddressName
+    istioIngressGatewayIPAddressIPTags: istioIngressGatewayIPAddressIPTags
     vnetAddressPrefix: vnetAddressPrefix
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix

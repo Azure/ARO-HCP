@@ -59,6 +59,9 @@ param aksKeyVaultName string
 @description('Manage soft delete setting for AKS etcd key-value store')
 param aksEtcdKVEnableSoftDelete bool = true
 
+@description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
+param aksClusterOutboundIPAddressIPTags string = ''
+
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
@@ -95,6 +98,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
+    aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
     deployIstio: false
     kubernetesVersion: kubernetesVersion
     vnetAddressPrefix: vnetAddressPrefix
