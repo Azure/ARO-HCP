@@ -8,12 +8,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/trace"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 
 	"go.opentelemetry.io/otel"
@@ -24,16 +24,8 @@ func InstallOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, resour
 	func(context.Context) error,
 	error,
 ) {
-	// NOTE: Auto span exporter sends traces to https://localhost:4318/v1/traces by default.
-	// We overwrite the default value with "none".
-	// See:
-	// https://github.com/open-telemetry/opentelemetry-go-contrib/blob/f6667f6f9eab2370f46d0903cf323cda3b7ca2bd/exporters/autoexport/spans.go#L32-L60
-	if v, _ := os.LookupEnv("OTEL_TRACES_EXPORTER"); v == "" {
-		os.Setenv("OTEL_TRACES_EXPORTER", "none")
-	}
 	logger.InfoContext(ctx, "initialising OpenTelemetry tracer")
-
-	exp, err := autoexport.NewSpanExporter(ctx)
+	exp, err := autoexport.NewSpanExporter(ctx, autoexport.WithFallbackSpanExporter(newNoopFactory))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OTEL exporter: %w", err)
 	}
@@ -74,4 +66,23 @@ type otelErrorHandlerFunc func(error)
 // Handle implements otel.ErrorHandler
 func (f otelErrorHandlerFunc) Handle(err error) {
 	f(err)
+}
+
+func newNoopFactory(_ context.Context) (trace.SpanExporter, error) {
+	return &noopSpanExporter{}, nil
+}
+
+var _ trace.SpanExporter = noopSpanExporter{}
+
+// noopSpanExporter is an implementation of trace.SpanExporter that performs no operations.
+type noopSpanExporter struct{}
+
+// ExportSpans is part of trace.SpanExporter interface.
+func (e noopSpanExporter) ExportSpans(ctx context.Context, spans []trace.ReadOnlySpan) error {
+	return nil
+}
+
+// Shutdown is part of trace.SpanExporter interface.
+func (e noopSpanExporter) Shutdown(ctx context.Context) error {
+	return nil
 }
