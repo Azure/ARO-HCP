@@ -26,12 +26,12 @@ import (
 )
 
 const dummyTenantId = "dummy-tenant-id"
-const dummySubscrtiptionId = "00000000-0000-0000-0000-000000000000"
+const dummySubscriptionId = "00000000-0000-0000-0000-000000000000"
 const dummyResourceGroupId = "dummy_resource_group_name"
 const dummyClusterName = "dev-test-cluster"
 const dummyNodePoolName = "dev-nodepool"
 
-const dummyClusterID = ("/subscriptions/" + dummySubscrtiptionId + "/resourcegroups/" + dummyResourceGroupId +
+const dummyClusterID = ("/subscriptions/" + dummySubscriptionId + "/resourcegroups/" + dummyResourceGroupId +
 	"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + dummyClusterName)
 const dummyNodePoolID = dummyClusterID + "/nodePools/" + dummyNodePoolName
 
@@ -71,7 +71,7 @@ func TestCreateNodePool(t *testing.T) {
 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
 			subDoc: &database.SubscriptionDocument{
 				BaseDocument: database.BaseDocument{
-					ID: dummySubscrtiptionId,
+					ID: dummySubscriptionId,
 				},
 				Subscription: &arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
@@ -213,7 +213,7 @@ func TestCreateNodePool(t *testing.T) {
 // 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
 // 			subDoc: &database.SubscriptionDocument{
 // 				BaseDocument: database.BaseDocument{
-// 					ID: dummySubscrtiptionId,
+// 					ID: dummySubscriptionId,
 // 				},
 // 				Subscription: &arm.Subscription{
 // 					State:            arm.SubscriptionStateRegistered,
