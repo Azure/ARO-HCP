@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 
@@ -32,6 +33,45 @@ func newArmClient(subscriptionID, region string) *armClient {
 	}
 }
 
+func getDeployment(ctx context.Context, rgName, deploymentName string, client *armresources.DeploymentsClient) (*armresources.DeploymentsClientGetResponse, error) {
+	resp, err := client.Get(ctx, rgName, "asd", nil)
+	if err != nil && !strings.Contains(err.Error(), "ERROR CODE: DeploymentNotFound") {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func waitForExistingDeployment(ctx context.Context, timeOutInSeconds int, rgName, deploymentName string, client *armresources.DeploymentsClient) error {
+	var currentTimeout = timeOutInSeconds
+	waitTime := 15
+	canContinue := false
+
+	resp, err := getDeployment(ctx, rgName, deploymentName, client)
+	if err != nil {
+		return fmt.Errorf("Error getting deployment %w", err)
+	}
+	if resp.Properties == nil {
+		return nil
+	}
+
+	for !canContinue {
+		if *resp.Properties.ProvisioningState == armresources.ProvisioningStateRunning {
+			time.Sleep(time.Duration(waitTime) * time.Second)
+			currentTimeout -= waitTime
+			if currentTimeout < 0 {
+				return fmt.Errorf("Timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
+			}
+		} else {
+			return nil
+		}
+		resp, err = getDeployment(ctx, rgName, deploymentName, client)
+		if err != nil {
+			return fmt.Errorf("Error getting deployment %w", err)
+		}
+	}
+	return nil
+}
+
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *ARMStep, input map[string]output) (output, error) {
 	// Ensure resourcegroup exists
 	err := a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
@@ -43,6 +83,10 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	client, err := armresources.NewDeploymentsClient(a.SubscriptionID, a.creds, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployments client: %w", err)
+	}
+
+	if err := waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, step.Name, client); err != nil {
+		return nil, fmt.Errorf("Error waiting for deploymenty %w", err)
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
