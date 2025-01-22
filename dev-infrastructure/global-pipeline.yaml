@@ -7,8 +7,8 @@ resourceGroups:
   steps:
   - name: global-infra
     action: ARM
-    template: Templates/Resources.bicep
-    parameters: Parameters/resources.bicepparam
+    template: templates/global-infra.bicep
+    parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
   - name: svcChildZone
     action: DelegateChildZone
