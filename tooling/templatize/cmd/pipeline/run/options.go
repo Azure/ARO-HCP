@@ -24,7 +24,7 @@ func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
 	}
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.NoPersist, "no-persist-tag", opts.NoPersist, "toggle if persist tag should not be set")
-	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", pipeline.DefaultDeploymentTimeoutSeconds, "Timeout in Seconds to wait for existing deployments (not new deployments)")
+	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", pipeline.DefaultDeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
 	return nil
 }
 
