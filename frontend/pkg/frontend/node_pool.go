@@ -192,7 +192,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceId, doc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceID, doc.InternalID)
 
 	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
@@ -274,7 +274,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 // the necessary conversions for the API version of the request.
 func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpNodePool := ConvertCStoNodePool(doc.ResourceId, csNodePool)
+	hcpNodePool := ConvertCStoNodePool(doc.ResourceID, csNodePool)
 	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
