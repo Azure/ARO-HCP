@@ -90,11 +90,11 @@ type generationResult struct {
 }
 
 func hasTemplateResources(template any) bool {
-	var templateAsMap = template.(map[string]interface{})
-
-	if val, hasResources := templateAsMap["resources"]; hasResources {
-		if res, isList := val.([]any); isList {
-			return len(res) > 0
+	if templateAsMap, isMap := template.(map[string]interface{}); isMap {
+		if val, hasResources := templateAsMap["resources"]; hasResources {
+			if res, isList := val.([]any); isList {
+				return len(res) > 0
+			}
 		}
 	}
 	return false
