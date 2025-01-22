@@ -103,12 +103,12 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 		subscriptionState := "Unknown"
 		subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 		if subscriptionId != "" {
-			sub, err := mm.dbClient.GetSubscriptionDoc(r.Context(), subscriptionId)
+			subscription, err := mm.dbClient.GetSubscriptionDoc(r.Context(), subscriptionId)
 			if err != nil {
 				// If we can't determine the subscription state, we can still expose a metric for subscriptionState "Unknown"
 				logger.Info("unable to retrieve subscription document for the `frontend_requests_total` metric", "subscriptionId", subscriptionId, "error", err)
 			} else {
-				subscriptionState = string(sub.Subscription.State)
+				subscriptionState = string(subscription.State)
 			}
 		}
 
