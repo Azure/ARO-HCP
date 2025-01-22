@@ -11,6 +11,8 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
+var DefaultDeploymentTimeoutSeconds = 30 * 60
+
 func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipeline, error) {
 	bytes, err := config.PreprocessFile(pipelineFilePath, vars)
 	if err != nil {
@@ -39,12 +41,13 @@ func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipel
 }
 
 type PipelineRunOptions struct {
-	DryRun                bool
-	Step                  string
-	Region                string
-	Vars                  config.Variables
-	SubsciptionLookupFunc subsciptionLookup
-	NoPersist             bool
+	DryRun                   bool
+	Step                     string
+	Region                   string
+	Vars                     config.Variables
+	SubsciptionLookupFunc    subsciptionLookup
+	NoPersist                bool
+	DeploymentTimeoutSeconds int
 }
 
 type armOutput map[string]any

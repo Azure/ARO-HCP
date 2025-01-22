@@ -45,6 +45,8 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 		return nil, fmt.Errorf("failed to create deployments client: %w", err)
 	}
 
+	// resp, err := client.Get(ctx, rgName, step.Name, nil)
+
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
 		return doWaitForDeployment(ctx, client, rgName, step, options.Vars, input)
 	}

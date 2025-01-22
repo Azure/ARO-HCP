@@ -24,13 +24,15 @@ func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
 	}
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.NoPersist, "no-persist-tag", opts.NoPersist, "toggle if persist tag should not be set")
+	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", pipeline.DefaultDeploymentTimeoutSeconds, "Timeout in Seconds to wait for existing deployments (not new deployments)")
 	return nil
 }
 
 type RawRunOptions struct {
-	PipelineOptions *options.RawPipelineOptions
-	DryRun          bool
-	NoPersist       bool
+	PipelineOptions          *options.RawPipelineOptions
+	DryRun                   bool
+	NoPersist                bool
+	DeploymentTimeoutSeconds int
 }
 
 // validatedRunOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -46,9 +48,10 @@ type ValidatedRunOptions struct {
 
 // completedRunOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedRunOptions struct {
-	PipelineOptions *options.PipelineOptions
-	DryRun          bool
-	NoPersist       bool
+	PipelineOptions          *options.PipelineOptions
+	DryRun                   bool
+	NoPersist                bool
+	DeploymentTimeoutSeconds int
 }
 
 type RunOptions struct {
@@ -78,9 +81,10 @@ func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
 
 	return &RunOptions{
 		completedRunOptions: &completedRunOptions{
-			PipelineOptions: completed,
-			DryRun:          o.DryRun,
-			NoPersist:       o.NoPersist,
+			PipelineOptions:          completed,
+			DryRun:                   o.DryRun,
+			NoPersist:                o.NoPersist,
+			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 		},
 	}, nil
 }
@@ -101,11 +105,12 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		return err
 	}
 	return pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
-		DryRun:                o.DryRun,
-		Vars:                  variables,
-		Region:                rolloutOptions.Region,
-		Step:                  o.PipelineOptions.Step,
-		SubsciptionLookupFunc: pipeline.LookupSubscriptionID,
-		NoPersist:             o.NoPersist,
+		DryRun:                   o.DryRun,
+		Vars:                     variables,
+		Region:                   rolloutOptions.Region,
+		Step:                     o.PipelineOptions.Step,
+		SubsciptionLookupFunc:    pipeline.LookupSubscriptionID,
+		NoPersist:                o.NoPersist,
+		DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 	})
 }
