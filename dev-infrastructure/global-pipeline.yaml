@@ -12,19 +12,17 @@ resourceGroups:
     deploymentLevel: ResourceGroup
   - name: svcChildZone
     action: DelegateChildZone
-    deploymentLevel: ResourceGroup
     parentZone:
       configRef: {{ .global.parentZoneName }}
     childZone:
       configRef: {{ .global.svcParentZoneName }}
     dependsOn:
-      - global-infra
+    - global-infra
   - name: cxChildZone
     action: DelegateChildZone
-    deploymentLevel: ResourceGroup
     parentZone:
       configRef: {{ .global.parentZoneName }}
     childZone:
       configRef: {{ .global.baseDnsZoneName }}
     dependsOn:
-      - global-infra
+    - global-infra
