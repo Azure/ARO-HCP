@@ -240,7 +240,7 @@ func (d *CosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azco
 			return false, fmt.Errorf("failed to marshal Resources container item for '%s': %w", resourceID, err)
 		}
 
-		options.IfMatchEtag = &doc.ETag
+		options.IfMatchEtag = &doc.CosmosETag
 		_, err = d.resources.ReplaceItem(ctx, pk, doc.ID, data, options)
 		if err == nil {
 			return true, nil
@@ -387,7 +387,7 @@ func (d *CosmosDBClient) UpdateOperationDoc(ctx context.Context, operationID str
 			return false, fmt.Errorf("failed to marshal Operations container item for '%s': %w", operationID, err)
 		}
 
-		options.IfMatchEtag = &doc.ETag
+		options.IfMatchEtag = &doc.CosmosETag
 		_, err = d.operations.ReplaceItem(ctx, pk, doc.ID, data, options)
 		if err == nil {
 			return true, nil
@@ -506,7 +506,7 @@ func (d *CosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 			return false, fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", subscriptionID, err)
 		}
 
-		options.IfMatchEtag = &doc.ETag
+		options.IfMatchEtag = &doc.CosmosETag
 		_, err = d.subscriptions.ReplaceItem(ctx, pk, doc.ID, data, options)
 		if err == nil {
 			return true, nil
