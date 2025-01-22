@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 
@@ -32,6 +33,30 @@ func newArmClient(subscriptionID, region string) *armClient {
 	}
 }
 
+func waitForExistingDeployment(ctx context.Context, timeOutInSeconds int, rgName, deploymentName string, client *armresources.DeploymentsClient) error {
+	var currentTimeout = timeOutInSeconds
+	waitTime := 15
+	canContinue := false
+	resp, err := client.Get(ctx, rgName, deploymentName, nil)
+	if err != nil {
+		// Todo: check for missing deployment, could be okay
+		return fmt.Errorf("Error getting deployment")
+	}
+
+	for !canContinue {
+		if *resp.Properties.ProvisioningState == armresources.ProvisioningStateRunning {
+			time.Sleep(time.Duration(waitTime) * time.Second)
+			currentTimeout -= waitTime
+			if currentTimeout < 0 {
+				return fmt.Errorf("Timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
+			}
+		} else {
+			return nil
+		}
+	}
+	return nil
+}
+
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *ARMStep, input map[string]output) (output, error) {
 	// Ensure resourcegroup exists
 	err := a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
@@ -45,8 +70,9 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 		return nil, fmt.Errorf("failed to create deployments client: %w", err)
 	}
 
-	// resp, err := client.Get(ctx, rgName, step.Name, nil)
-
+	if err := waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, step.Name, client); err != nil {
+		return nil, fmt.Errorf("Error waiting for deploymenty %w", err)
+	}
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
 		return doWaitForDeployment(ctx, client, rgName, step, options.Vars, input)
 	}
