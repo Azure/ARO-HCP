@@ -69,16 +69,12 @@ func TestCreateNodePool(t *testing.T) {
 		{
 			name:    "PUT Node Pool - Create a new Node Pool",
 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
-			subDoc: &database.SubscriptionDocument{
-				BaseDocument: database.BaseDocument{
-					ID: dummySubscriptionId,
-				},
-				Subscription: &arm.Subscription{
+			subDoc: database.NewSubscriptionDocument(dummySubscriptionId,
+				&arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),
 					Properties:       nil,
-				},
-			},
+				}),
 			clusterDoc:         clusterDoc,
 			nodePoolDoc:        nodePoolDoc,
 			systemData:         &arm.SystemData{},
@@ -211,16 +207,12 @@ func TestCreateNodePool(t *testing.T) {
 // 		{
 // 			name:    "PUT Node Pool - Update an existing Node Pool",
 // 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
-// 			subDoc: &database.SubscriptionDocument{
-// 				BaseDocument: database.BaseDocument{
-// 					ID: dummySubscriptionId,
-// 				},
-// 				Subscription: &arm.Subscription{
+// 			subDoc: database.NewSubscriptionDocument(dummySubscriptionId,
+// 				&arm.Subscription{
 // 					State:            arm.SubscriptionStateRegistered,
 // 					RegistrationDate: api.Ptr(time.Now().String()),
 // 					Properties:       nil,
-// 				},
-// 			},
+// 				}),
 // 			clusterDoc:         clusterDoc,
 // 			nodePoolDoc:        nodePoolDoc,
 // 			systemData:         &arm.SystemData{},

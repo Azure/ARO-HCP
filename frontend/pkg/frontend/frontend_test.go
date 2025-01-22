@@ -101,16 +101,12 @@ func TestSubscriptionsGET(t *testing.T) {
 	}{
 		{
 			name: "GET Subscription - Doc Exists",
-			subDoc: &database.SubscriptionDocument{
-				BaseDocument: database.BaseDocument{
-					ID: subscriptionID,
-				},
-				Subscription: &arm.Subscription{
+			subDoc: database.NewSubscriptionDocument(subscriptionID,
+				&arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),
 					Properties:       nil,
-				},
-			},
+				}),
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -186,16 +182,12 @@ func TestSubscriptionsPUT(t *testing.T) {
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
-			subDoc: &database.SubscriptionDocument{
-				BaseDocument: database.BaseDocument{
-					ID: subscriptionID,
-				},
-				Subscription: &arm.Subscription{
+			subDoc: database.NewSubscriptionDocument(subscriptionID,
+				&arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),
 					Properties:       nil,
-				},
-			},
+				}),
 			expectedStatusCode: http.StatusOK,
 		},
 		{

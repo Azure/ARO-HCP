@@ -161,17 +161,13 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			var doc *database.SubscriptionDocument
 
 			if tt.cachedState != "" {
-				doc = &database.SubscriptionDocument{
-					BaseDocument: database.BaseDocument{
-						ID: subscriptionId,
-					},
-					Subscription: &arm.Subscription{
+				doc = database.NewSubscriptionDocument(subscriptionId,
+					&arm.Subscription{
 						State: tt.cachedState,
 						Properties: &arm.SubscriptionProperties{
 							TenantId: &tenantId,
 						},
-					},
-				}
+					})
 			}
 
 			writer := httptest.NewRecorder()
