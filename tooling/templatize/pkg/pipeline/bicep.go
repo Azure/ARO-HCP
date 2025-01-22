@@ -89,6 +89,17 @@ type generationResult struct {
 	TemplateJson   string `json:"templateJson"`
 }
 
+func hasTemplateResources(template any) bool {
+	if templateAsMap, isMap := template.(map[string]interface{}); isMap {
+		if val, hasResources := templateAsMap["resources"]; hasResources {
+			if res, isList := val.([]any); isList {
+				return len(res) > 0
+			}
+		}
+	}
+	return false
+}
+
 func (gr generationResult) Parameters() (map[string]interface{}, error) {
 	var parameters = map[string]interface{}{}
 	if err := json.Unmarshal([]byte(gr.ParametersJson), &parameters); err != nil {

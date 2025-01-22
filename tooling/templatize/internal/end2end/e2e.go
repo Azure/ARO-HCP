@@ -28,6 +28,7 @@ type E2E interface {
 	AddBicepTemplate(template, templateFileName, paramfile, paramfileName string)
 	AddStep(step pipeline.Step, rg int)
 	SetOSArgs()
+	EnableDryRun()
 	Persist() error
 }
 
@@ -133,6 +134,10 @@ func (e *e2eImpl) SetOSArgs() {
 		"--no-persist-tag",
 		"--region", "westus3",
 	}
+}
+
+func (e *e2eImpl) EnableDryRun() {
+	os.Args = append(os.Args, "--dry-run")
 }
 
 func (e *e2eImpl) AddResourceGroup() {

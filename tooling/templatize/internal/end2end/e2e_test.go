@@ -323,3 +323,86 @@ resource newRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 	_, err = rgClient.BeginDelete(context.Background(), rgName, nil)
 	assert.NilError(t, err)
 }
+
+func TestE2EDryRun(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl := newE2E(tmpDir)
+
+	e2eImpl.AddStep(pipeline.NewARMStep("output", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
+
+	bicepFile := `
+param zoneName string
+resource symbolicname 'Microsoft.Network/dnsZones@2018-05-01' = {
+  location: 'global'
+  name: zoneName
+}`
+	paramFile := `
+using 'test.bicep'
+param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
+`
+	e2eImpl.AddBicepTemplate(bicepFile, "test.bicep", paramFile, "test.bicepparm")
+
+	e2eImpl.EnableDryRun()
+
+	persistAndRun(t, &e2eImpl)
+
+	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+	assert.NilError(t, err)
+
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	assert.NilError(t, err)
+
+	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)
+	assert.NilError(t, err)
+
+	_, err = zonesClient.Get(context.Background(), e2eImpl.rgName, "e2etestarmdeploy.foo.bar.example.com", nil)
+	assert.ErrorContains(t, err, "RESPONSE 404: 404 Not Found")
+}
+
+func TestE2EOutputOnly(t *testing.T) {
+	// if !shouldRunE2E() {
+	// 	t.Skip("Skipping end-to-end tests")
+	// }
+
+	tmpDir := t.TempDir()
+
+	e2eImpl := newE2E(tmpDir)
+	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup").WithOutputOnly(), 0)
+
+	e2eImpl.AddStep(pipeline.NewShellStep(
+		"readInput", "echo ${end} > env.txt",
+	).WithVariables(
+		pipeline.Variable{
+			Name: "end",
+			Input: &pipeline.Input{
+				Name: "parameterA",
+				Step: "parameterA",
+			},
+		},
+	).WithDryRun(pipeline.DryRun{
+		Command: "echo ${end} > env.txt"}),
+		0)
+
+	e2eImpl.AddBicepTemplate(`
+param parameterA string
+output parameterA string = parameterA`,
+		"testa.bicep",
+		`
+using 'testa.bicep'
+param parameterA = 'Hello Bicep'`,
+		"testa.bicepparm")
+
+	e2eImpl.EnableDryRun()
+
+	persistAndRun(t, &e2eImpl)
+
+	io, err := os.ReadFile(tmpDir + "/env.txt")
+	assert.NilError(t, err)
+	assert.Equal(t, string(io), "Hello Bicep\n")
+
+}

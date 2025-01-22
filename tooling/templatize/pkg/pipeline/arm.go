@@ -44,11 +44,12 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployments client: %w", err)
 	}
-	if options.DryRun {
-		return doDryRun(ctx, client, rgName, step, options.Vars, input)
+
+	if !options.DryRun || (options.DryRun && step.OutputOnly) {
+		return doWaitForDeployment(ctx, client, rgName, step, options.Vars, input)
 	}
 
-	return doWaitForDeployment(ctx, client, rgName, step, options.Vars, input)
+	return doDryRun(ctx, client, rgName, step, options.Vars, input)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
@@ -198,6 +199,10 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, vars, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
+	}
+
+	if hasTemplateResources(deploymentProperties.Template) && step.OutputOnly {
+		return nil, fmt.Errorf("Deployment step %s is outputOnly, but contains resources", step.Name)
 	}
 
 	// Create the deployment
