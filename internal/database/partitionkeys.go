@@ -37,7 +37,7 @@ const (
 // partitionKeyDocument holds a partition key for another container as
 // the document ID. The PartitionKey for this document is held constant.
 type partitionKeyDocument struct {
-	BaseDocument
+	baseDocument
 	PartitionKey string `json:"partitionKey,omitempty"`
 }
 
@@ -52,7 +52,7 @@ func upsertPartitionKey(ctx context.Context, containerClient *azcosmos.Container
 	pk := azcosmos.NewPartitionKeyString(partitionKeysPartitionKey)
 
 	data, err := json.Marshal(&partitionKeyDocument{
-		BaseDocument: BaseDocument{ID: id},
+		baseDocument: baseDocument{ID: id},
 		PartitionKey: partitionKeysPartitionKey,
 	})
 	if err != nil {
@@ -81,10 +81,10 @@ func (iter *partitionKeyIterator) Items(ctx context.Context) DBClientIteratorIte
 				return
 			}
 			for _, item := range response.Items {
-				var doc BaseDocument
+				var doc baseDocument
 
 				// Since the query just selects the "id" field,
-				// BaseDocument is sufficient for unmarshalling.
+				// baseDocument is sufficient for unmarshalling.
 				err = json.Unmarshal(item, &doc)
 				if err != nil {
 					iter.err = err
