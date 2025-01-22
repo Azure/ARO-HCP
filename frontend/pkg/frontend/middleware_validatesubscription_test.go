@@ -16,7 +16,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
@@ -171,16 +170,15 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 
-			var doc *database.SubscriptionDocument
+			var subscription *arm.Subscription
 
 			if tt.cachedState != "" {
-				doc = database.NewSubscriptionDocument(subscriptionId,
-					&arm.Subscription{
-						State: tt.cachedState,
-						Properties: &arm.SubscriptionProperties{
-							TenantId: &tenantId,
-						},
-					})
+				subscription = &arm.Subscription{
+					State: tt.cachedState,
+					Properties: &arm.SubscriptionProperties{
+						TenantId: &tenantId,
+					},
+				}
 			}
 
 			writer := httptest.NewRecorder()
@@ -202,7 +200,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 				mockDBClient.EXPECT().
 					GetSubscriptionDoc(gomock.Any(), subscriptionId).
-					Return(getMockDBDoc(doc)) // defined in frontend_test.go
+					Return(getMockDBDoc(subscription)) // defined in frontend_test.go
 			}
 
 			MiddlewareValidateSubscriptionState(writer, request, next)
@@ -215,8 +213,8 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 					t.Errorf("unexpected CloudError, wanted %v, got %v", tt.expectedError, actualError)
 				}
 			} else {
-				if doc.Subscription.State != tt.expectedState {
-					t.Error(cmp.Diff(doc.Subscription.State, tt.expectedState))
+				if subscription.State != tt.expectedState {
+					t.Error(cmp.Diff(subscription.State, tt.expectedState))
 				}
 			}
 		})

@@ -96,17 +96,16 @@ func TestReadiness(t *testing.T) {
 func TestSubscriptionsGET(t *testing.T) {
 	tests := []struct {
 		name               string
-		subDoc             *database.SubscriptionDocument
+		subDoc             *arm.Subscription
 		expectedStatusCode int
 	}{
 		{
 			name: "GET Subscription - Doc Exists",
-			subDoc: database.NewSubscriptionDocument(subscriptionID,
-				&arm.Subscription{
-					State:            arm.SubscriptionStateRegistered,
-					RegistrationDate: api.Ptr(time.Now().String()),
-					Properties:       nil,
-				}),
+			subDoc: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -160,7 +159,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		name               string
 		urlPath            string
 		subscription       *arm.Subscription
-		subDoc             *database.SubscriptionDocument
+		subDoc             *arm.Subscription
 		expectedStatusCode int
 	}{
 		{
@@ -182,12 +181,11 @@ func TestSubscriptionsPUT(t *testing.T) {
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
-			subDoc: database.NewSubscriptionDocument(subscriptionID,
-				&arm.Subscription{
-					State:            arm.SubscriptionStateRegistered,
-					RegistrationDate: api.Ptr(time.Now().String()),
-					Properties:       nil,
-				}),
+			subDoc: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -273,7 +271,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			// (except when MiddlewareValidateStatic fails)
 			mockDBClient.EXPECT().
 				GetSubscriptionDoc(gomock.Any(), gomock.Any()).
-				Return(database.NewSubscriptionDocument(subscriptionID, test.subscription), nil).
+				Return(test.subscription, nil).
 				MaxTimes(1)
 
 			ts := httptest.NewServer(f.routes())

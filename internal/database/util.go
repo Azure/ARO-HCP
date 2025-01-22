@@ -5,36 +5,34 @@ package database
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-type queryItemsIterator[T any] struct {
+type queryItemsIterator[T DocumentProperties] struct {
 	pager             *runtime.Pager[azcosmos.QueryItemsResponse]
 	singlePage        bool
 	continuationToken string
 	err               error
 }
 
-// newQueryItemsIterator is a failable push iterator for a paged query response.
-func newQueryItemsIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) queryItemsIterator[T] {
+// newqueryItemsIterator is a failable push iterator for a paged query response.
+func newQueryItemsIterator[T DocumentProperties](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
 	return queryItemsIterator[T]{pager: pager}
 }
 
 // newQueryItemsSinglePageIterator is a failable push iterator for a paged
 // query response that stops at the end of the first page and includes a
 // continuation token if additional items are available.
-func newQueryItemsSinglePageIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) queryItemsIterator[T] {
+func newQueryItemsSinglePageIterator[T DocumentProperties](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
 	return queryItemsIterator[T]{pager: pager, singlePage: true}
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
 func (iter queryItemsIterator[T]) Items(ctx context.Context) DBClientIteratorItem[T] {
-	return func(yield func(*T) bool) {
+	return func(yield func(string, *T) bool) {
 		for iter.pager.More() {
 			response, err := iter.pager.NextPage(ctx)
 			if err != nil {
@@ -45,15 +43,13 @@ func (iter queryItemsIterator[T]) Items(ctx context.Context) DBClientIteratorIte
 				iter.continuationToken = *response.ContinuationToken
 			}
 			for _, item := range response.Items {
-				var doc T
-
-				err = json.Unmarshal(item, &doc)
+				typedDoc, innerDoc, err := typedDocumentUnmarshal[T](item)
 				if err != nil {
-					iter.err = fmt.Errorf("failed to parse container item: %w", err)
+					iter.err = err
 					return
 				}
 
-				if !yield(&doc) {
+				if !yield(typedDoc.ID, innerDoc) {
 					return
 				}
 			}
