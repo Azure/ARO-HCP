@@ -9,6 +9,7 @@ param features array = [
   'Microsoft.ContainerService/DisableSSHPreview'
   'Microsoft.ContainerService/IstioNativeSidecarModePreview'
   'Microsoft.Compute/EncryptionAtHost'
+  'Microsoft.Network/AllowBringYourOwnPublicIpAddress'
 ]
 
 resource featureReg 'Microsoft.Features/featureProviders/subscriptionFeatureRegistrations@2021-07-01' = [
