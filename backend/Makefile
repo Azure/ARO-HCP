@@ -15,8 +15,11 @@ backend:
 .PHONY: backend
 
 run:
+	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	./aro-hcp-backend --location ${LOCATION} \
-		--clusters-service-url http://localhost:8000
+		--clusters-service-url http://localhost:8000 \
+		--cosmos-name ${DB_NAME} \
+		--cosmos-url $${DB_URL}
 .PHONY: run
 
 clean:
