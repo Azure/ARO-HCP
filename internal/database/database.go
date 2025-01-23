@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -515,15 +514,10 @@ func (d *CosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.
-func NewCosmosDatabaseClient(url string, dbName string) (*azcosmos.DatabaseClient, error) {
-	azcoreClientOptions := azcore.ClientOptions{
-		// FIXME Cloud should be determined by other means.
-		Cloud: cloud.AzurePublic,
-	}
-
+func NewCosmosDatabaseClient(url string, dbName string, clientOptions azcore.ClientOptions) (*azcosmos.DatabaseClient, error) {
 	credential, err := azidentity.NewDefaultAzureCredential(
 		&azidentity.DefaultAzureCredentialOptions{
-			ClientOptions: azcoreClientOptions,
+			ClientOptions: clientOptions,
 		})
 	if err != nil {
 		return nil, err
@@ -533,7 +527,7 @@ func NewCosmosDatabaseClient(url string, dbName string) (*azcosmos.DatabaseClien
 		url,
 		credential,
 		&azcosmos.ClientOptions{
-			ClientOptions: azcoreClientOptions,
+			ClientOptions: clientOptions,
 		})
 	if err != nil {
 		return nil, err

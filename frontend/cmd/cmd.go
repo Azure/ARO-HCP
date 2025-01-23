@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"syscall"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -17,6 +21,7 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -73,6 +78,28 @@ func NewRootCmd() *cobra.Command {
 	return rootCmd
 }
 
+type policyFunc func(*policy.Request) (*http.Response, error)
+
+func (pf policyFunc) Do(req *policy.Request) (*http.Response, error) {
+	return pf(req)
+}
+
+// Verify that policyFunc implements the policy.Policy interface.
+var _ policy.Policy = policyFunc(nil)
+
+// correlationIDPolicy adds the ARM correlation request ID to the request's
+// HTTP headers if the ID is found in the context.
+func correlationIDPolicy(req *policy.Request) (*http.Response, error) {
+	cd, err := frontend.CorrelationDataFromContext(req.Raw().Context())
+	// The incoming request may not contain a correlation request ID (e.g.
+	// requests to /healthz).
+	if err == nil && cd.CorrelationRequestID != "" {
+		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, cd.CorrelationRequestID)
+	}
+
+	return req.Next()
+}
+
 func (opts *FrontendOpts) Run() error {
 	logger := config.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version()))
@@ -82,7 +109,15 @@ func (opts *FrontendOpts) Run() error {
 
 	// Create the database client.
 	ctx := context.Background()
-	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(opts.cosmosURL, opts.cosmosName)
+	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
+		opts.cosmosURL,
+		opts.cosmosName,
+		azcore.ClientOptions{
+			// FIXME Cloud should be determined by other means.
+			Cloud:           cloud.AzurePublic,
+			PerCallPolicies: []policy.Policy{policyFunc(correlationIDPolicy)},
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
