@@ -30,7 +30,7 @@
       }
     },
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "a51079c",
+    "imageTag": "dca2a71",
     "k8s": {
       "namespace": "cluster-service",
       "serviceAccountName": "clusters-service"
