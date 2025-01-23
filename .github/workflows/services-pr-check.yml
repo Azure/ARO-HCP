@@ -155,3 +155,11 @@
         - name: 'Dry Run HypershiftOperator'
           run: |
             make hypershiftoperator.dry_run
+
+        - name: 'Dry Run Maestro Agent'
+          run: |
+            make maestro.agent.dry_run
+
+        - name: 'Dry Run ACM'
+          run: |
+            make acm.dry_run
