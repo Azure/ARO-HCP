@@ -159,7 +159,7 @@
 
       - name: 'Deploy ACM'
         run: |
-          make acm.deploy
+          make acm.deploy_pipeline
 
       - name: 'Deploy Maestro Agent'
         run: |

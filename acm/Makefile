@@ -1,7 +1,6 @@
-SHELL = /bin/bash
-DEPLOY_ENV ?= personal-dev
-$(shell ../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
-include config.mk
+-include ../setup-env.mk
+-include ../helm-cmd.mk
+HELM_CMD ?= helm upgrade --install --wait --wait-for-jobs
 
 MCE_OPERATOR_BUNDLE_IMAGE ?= registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.7.0-116
 REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
@@ -17,15 +16,15 @@ POLICY_HELM_REPO_BRANCH = release-2.12
 
 deploy:
 	@kubectl create namespace ${MCE_NS} --dry-run=client -o json | kubectl apply -f -
-	helm upgrade --install --wait --wait-for-jobs \
+	${HELM_CMD} \
 		mce ${MCE_CHART_DIR} \
 		--namespace ${MCE_NS} \
 		--set imageRegistry=${REGISTRY}
-	helm upgrade --install --wait --wait-for-jobs \
+	${HELM_CMD} \
 		mce-config ${MCE_CONFIG_DIR} \
 		--namespace ${MCE_NS} \
 		--set global.registryOverride=${REGISTRY}
-	helm upgrade --install \
+	${HELM_CMD} \
 		clc-state-metrics ${CLC_CHART_DIR} \
 		--namespace ${MCE_NS} \
 		--set global.imageOverrides.clusterlifecycle_state_metrics=${REGISTRY}/multicluster-engine/clusterlifecycle-state-metrics-rhel9@sha256:${CLC_STATE_METRICS_IMAGE_DIGEST} \

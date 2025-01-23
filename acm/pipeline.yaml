@@ -1,0 +1,20 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.ACM
+rolloutName: ACM Rollout
+resourceGroups:
+- name: {{ .mgmt.rg }}
+  subscription: {{ .mgmt.subscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    variables:
+    - name: ARO_HCP_IMAGE_ACR
+      configRef: svcAcrName
+    - name: CLC_STATE_METRICS_IMAGE_DIGEST
+      configRef: mce.clcStateMetrics.imageDigest
