@@ -1,0 +1,30 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
+rolloutName: Maestro Server Rollout
+resourceGroups:
+- name: {{ .mgmt.rg }}
+  subscription: {{ .mgmt.subscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    variables:
+    - name: EVENTGRID_NAME
+      configRef: maestro.eventGrid.name
+    - name: REGION_RG
+      configRef: regionRG
+    - name: MGMT_RG
+      configRef: mgmt.rg
+    - name: CONSUMER_NAME
+      configRef: maestro.consumerName
+    - name: KEYVAULT_NAME
+      configRef: mgmtKeyVault.name
+    - name: IMAGE_BASE
+      configRef: maestro.imageBase
+    - name: IMAGE_TAG
+      configRef: maestro.imageTag

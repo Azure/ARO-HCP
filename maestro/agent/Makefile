@@ -1,7 +1,6 @@
-SHELL = /bin/bash
-DEPLOY_ENV ?= personal-dev
-$(shell ../../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
-include config.mk
+-include ../../setup-env.mk
+-include ../../helm-cmd.mk
+HELM_CMD ?= helm upgrade --install
 
 deploy:
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \

@@ -163,7 +163,7 @@
 
       - name: 'Deploy Maestro Agent'
         run: |
-          make maestro.agent.deploy
+          make maestro.agent.deploy_pipeline
 
       - name: 'Deploy Hypershift Operator and External DNS Operator'
         run: |

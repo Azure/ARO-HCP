@@ -260,7 +260,7 @@ Or even simpler with
 ### Maestro Server
 
   ```bash
-  make maestro.server.deploy
+  make maestro.server.deploy_pipeline
   ```
 
 To validate, have a look at the `maestro` namespace on the service cluster. Some pod restarts are expected in the first 1 minute until the containerized DB is ready.
@@ -277,7 +277,7 @@ To access the HTTP and GRPC endpoints of maestro, run
 > This might not work with `oc` 4.17.0, please use oc 4.16.x until this is fixed in 4.17
 
    ```bash
-   make cluster-service.deploy
+   make cluster-service.deploy_pipeline
    ```
 
 To validate, have a look at the `cluster-service` namespace or the service cluster.
@@ -287,8 +287,8 @@ To validate, have a look at the `cluster-service` namespace or the service clust
 The ARO-HCP resource provider consists of independent frontend and backend components.
 
   ```bash
-  make frontend.deploy
-  make backend.deploy
+  make frontend.deploy_pipeline
+  make backend.deploy_pipeline
   ```
 
 To validate, have a look at the `aro-hcp` namespace on the service cluster.
@@ -304,7 +304,7 @@ To validate, have a look at the `aro-hcp` namespace on the service cluster.
 ### Hypershift Operator and External DNS
 
   ```bash
-  make hypershiftoperator.deploy
+  make hypershiftoperator.deploy_pipeline
   ```
 
 ### Maestro Agent
@@ -312,7 +312,7 @@ To validate, have a look at the `aro-hcp` namespace on the service cluster.
 First install the agent
 
   ```bash
-  make maestro.agent.deploy
+  make maestro.agent.deploy_pipeline
   ```
 
 Then register it with the Maestro Server

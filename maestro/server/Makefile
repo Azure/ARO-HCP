@@ -1,5 +1,5 @@
 -include ../../setup-env.mk
--include ../helm-cmd.mk
+-include ../../helm-cmd.mk
 HELM_CMD ?= helm upgrade --install
 
 deploy:
