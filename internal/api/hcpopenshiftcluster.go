@@ -13,7 +13,7 @@ import (
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
 	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required_for_put"`
-	Identity   arm.Identity                  `json:"identity,omitempty"`
+	Identity   arm.ManagedServiceIdentity    `json:"identity,omitempty"`
 }
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -102,9 +102,9 @@ type OperatorsAuthenticationProfile struct {
 // UserAssignedIdentitiesProfile represents authentication configuration for
 // OpenShift operators using user-assigned managed identities.
 type UserAssignedIdentitiesProfile struct {
-	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"`
-	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"`
-	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
+	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 }
 
 // ExternalAuthConfigProfile represents the external authentication configuration.
@@ -116,6 +116,9 @@ type ExternalAuthConfigProfile struct {
 // Creates an HCPOpenShiftCluster with any non-zero default values.
 func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
+		Identity: arm.ManagedServiceIdentity{
+			Type: arm.ManagedServiceIdentityTypeNone,
+		},
 		Properties: HCPOpenShiftClusterProperties{
 			Spec: ClusterSpec{
 				Network: NetworkProfile{

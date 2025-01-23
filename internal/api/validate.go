@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	validator "github.com/go-playground/validator/v10"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -35,6 +36,10 @@ func EnumValidateTag[S ~string](values ...S) string {
 	s := make([]string, len(values))
 	for i, e := range values {
 		s[i] = string(e)
+		// Replace special characters with the UTF-8 hex representation.
+		// https://pkg.go.dev/github.com/go-playground/validator/v10#hdr-Using_Validator_Tags
+		s[i] = strings.ReplaceAll(s[i], ",", "0x2C")
+		s[i] = strings.ReplaceAll(s[i], "|", "0x7C")
 	}
 	return fmt.Sprintf("oneof=%s", strings.Join(s, " "))
 }
@@ -51,6 +56,11 @@ func NewValidator() *validator.Validate {
 	})
 
 	// Register ARM-mandated enumeration types.
+	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(
+		arm.ManagedServiceIdentityTypeNone,
+		arm.ManagedServiceIdentityTypeSystemAssigned,
+		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
+		arm.ManagedServiceIdentityTypeUserAssigned))
 	validate.RegisterAlias("enum_subscriptionstate", EnumValidateTag(
 		arm.SubscriptionStateRegistered,
 		arm.SubscriptionStateUnregistered,
@@ -113,6 +123,25 @@ func NewValidator() *validator.Validate {
 		panic(err)
 	}
 
+	// Use this for string fields specifying an Azure resource ID.
+	// The optional argument further enforces a specific resource type.
+	err = validate.RegisterValidation("resource_id", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		param := fl.Param()
+		if field.Kind() != reflect.String {
+			panic("String type required for resource_id")
+		}
+		resourceID, err := azcorearm.ParseResourceID(field.String())
+		if err != nil {
+			return false
+		}
+		resourceType := resourceID.ResourceType.String()
+		return param == "" || strings.EqualFold(resourceType, param)
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	return validate
 }
 
@@ -152,6 +181,12 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					message += " (must provide PEM encoded certificates)"
 				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
+				case "resource_id": // custom tag
+					if fieldErr.Param() != "" {
+						message += fmt.Sprintf(" (must be a valid '%s' resource ID)", fieldErr.Param())
+					} else {
+						message += " (must be a valid Azure resource ID)"
+					}
 				case "cidrv4":
 					message += " (must be a v4 CIDR range)"
 				case "dns_rfc1035_label":
