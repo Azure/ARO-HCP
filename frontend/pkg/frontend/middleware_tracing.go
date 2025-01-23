@@ -4,7 +4,9 @@ package frontend
 // Licensed under the Apache License 2.0.
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
@@ -12,8 +14,15 @@ import (
 )
 
 func MiddlewareTracing(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	otelhttp.NewHandler(http.Handler(next), r.URL.Path).ServeHTTP(w, r)
-	trace.SpanFromContext(r.Context()).SetAttributes(
-		attribute.String("correlationID", r.Header.Get("x-ms-correlation-request-id")),
-	)
+	attrs := []attribute.KeyValue{}
+	for k, v := range r.Header {
+		attrs = append(attrs, attribute.String(fmt.Sprintf("http.request.header.%s", k), strings.Join(v, ",")))
+	}
+	otelhttp.NewHandler(
+		http.Handler(next),
+		"middleware",
+		otelhttp.WithSpanOptions(
+			trace.WithAttributes(attrs...),
+		),
+	).ServeHTTP(w, r)
 }
