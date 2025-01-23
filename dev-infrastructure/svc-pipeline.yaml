@@ -97,3 +97,15 @@ resourceGroups:
       configRef: svc.rg
     dependsOn:
     - svc
+  - name: acrpull
+    action: Shell
+    command: make -C ../acrpull deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    variables:
+      - name: ACRPULL_DIGEST
+        configRef: acrPullImageDigest
+    dependsOn:
+    - svc

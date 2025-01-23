@@ -16,17 +16,3 @@ resourceGroups:
         variables:
           - name: ACRPULL_DIGEST
             configRef: acrPullImageDigest
-  - name: {{ .mgmt.rg }}
-    subscription: {{ .mgmt.subscription }}
-    aksCluster: {{ .aksName }}
-    steps:
-      - name: deploy-mgmt
-        action: Shell
-        command: make deploy
-        dryRun:
-          variables:
-            - name: DRY_RUN
-              value: "true"
-        variables:
-          - name: ACRPULL_DIGEST
-            configRef: acrPullImageDigest

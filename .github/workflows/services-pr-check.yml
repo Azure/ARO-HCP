@@ -96,10 +96,6 @@
           run: |
             make istio.dry_run
 
-        - name: 'Dry Run ACR Pull'
-          run: |
-            make acrpull.dry_run
-
         - name: 'Dry Run Metrics'
           run: |
             make metrics.dry_run
@@ -147,10 +143,6 @@
         - name: 'Install helm diff'
           run: |
             helm plugin install https://github.com/databus23/helm-diff
-
-        - name: 'Dry Run ACR Pull on MGMT'
-          run: |
-            make acrpull.mgmt.dry_run
 
         - name: 'Dry Run HypershiftOperator'
           run: |

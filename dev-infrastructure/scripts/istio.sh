@@ -68,7 +68,7 @@ ISTIO_IG_ANNOTATIONS="
 for annotation in $ISTIO_IG_ANNOTATIONS; do
   kubectl annotate svc aks-istio-ingressgateway-external \
     "$annotation" \
-    -n aks-istio-ingress
+    -n aks-istio-ingress --overwrite=true
 done
 
 echo "********** ISTIO Upgrade **************"
