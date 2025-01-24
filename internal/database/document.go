@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -38,7 +39,7 @@ type ResourceDocument struct {
 	BaseDocument
 
 	// FIXME: Change the JSON field name when we're ready to break backward-compat.
-	ResourceId        *arm.ResourceID       `json:"key,omitempty"`
+	ResourceId        *azcorearm.ResourceID `json:"key,omitempty"`
 	PartitionKey      string                `json:"partitionKey,omitempty"`
 	InternalID        ocm.InternalID        `json:"internalId,omitempty"`
 	ActiveOperationID string                `json:"activeOperationId,omitempty"`
@@ -47,7 +48,7 @@ type ResourceDocument struct {
 	Tags              map[string]string     `json:"tags,omitempty"`
 }
 
-func NewResourceDocument(resourceID *arm.ResourceID) *ResourceDocument {
+func NewResourceDocument(resourceID *azcorearm.ResourceID) *ResourceDocument {
 	return &ResourceDocument{
 		BaseDocument: newBaseDocument(),
 		ResourceId:   resourceID,
@@ -75,12 +76,12 @@ type OperationDocument struct {
 	// Request is the type of asynchronous operation requested
 	Request OperationRequest `json:"request,omitempty"`
 	// ExternalID is the Azure resource ID of the cluster or node pool
-	ExternalID *arm.ResourceID `json:"externalId,omitempty"`
+	ExternalID *azcorearm.ResourceID `json:"externalId,omitempty"`
 	// InternalID is the Cluster Service resource identifier in the form of a URL path
 	InternalID ocm.InternalID `json:"internalId,omitempty"`
 	// OperationID is the Azure resource ID of the operation status (may be nil if the
 	// operation was implicit, such as deleting a child resource along with the parent)
-	OperationID *arm.ResourceID `json:"operationId,omitempty"`
+	OperationID *azcorearm.ResourceID `json:"operationId,omitempty"`
 	// NotificationURI is provided by the Azure-AsyncNotificationUri header if the
 	// Async Operation Callbacks ARM feature is enabled
 	NotificationURI string `json:"notificationUri,omitempty"`
@@ -96,7 +97,7 @@ type OperationDocument struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-func NewOperationDocument(request OperationRequest, externalID *arm.ResourceID, internalID ocm.InternalID) *OperationDocument {
+func NewOperationDocument(request OperationRequest, externalID *azcorearm.ResourceID, internalID ocm.InternalID) *OperationDocument {
 	now := time.Now().UTC()
 
 	doc := &OperationDocument{

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -143,7 +144,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 	for _, tt := range tests {
 		var name string
 
-		resourceID, err := arm.ParseResourceID(tt.resourceID)
+		resourceID, err := azcorearm.ParseResourceID(tt.resourceID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,7 +163,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				doc := database.NewResourceDocument(resourceID)
 				doc.ProvisioningState = directState
 
-				parentResourceID := resourceID.GetParent()
+				parentResourceID := resourceID.Parent
 				parentDoc := database.NewResourceDocument(parentResourceID)
 				// Hold the provisioning state to something benign.
 				parentDoc.ProvisioningState = arm.ProvisioningStateSucceeded
@@ -201,7 +202,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				// Hold the provisioning state to something benign.
 				doc.ProvisioningState = arm.ProvisioningStateSucceeded
 
-				parentResourceID := resourceID.GetParent()
+				parentResourceID := resourceID.Parent
 				if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 					parentDoc := database.NewResourceDocument(parentResourceID)
 					parentDoc.ProvisioningState = parentState

@@ -123,7 +123,7 @@ func WriteInternalServerError(w http.ResponseWriter) {
 }
 
 // NewResourceNotFoundError creates a CloudError for a nonexistent resource error
-func NewResourceNotFoundError(resourceID *ResourceID) *CloudError {
+func NewResourceNotFoundError(resourceID *azcorearm.ResourceID) *CloudError {
 	var code string
 	var message string
 
@@ -149,7 +149,7 @@ func NewResourceNotFoundError(resourceID *ResourceID) *CloudError {
 }
 
 // WriteResourceNotFoundError writes a nonexistent resource error to the given ResponseWriter
-func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *ResourceID) {
+func WriteResourceNotFoundError(w http.ResponseWriter, resourceID *azcorearm.ResourceID) {
 	WriteCloudError(w, NewResourceNotFoundError(resourceID))
 }
 
