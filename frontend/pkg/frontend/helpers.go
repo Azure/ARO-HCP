@@ -151,14 +151,14 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 
 	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceId, resourceDoc.InternalID)
 
-	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
+	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
 		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
 
 	_, err = f.dbClient.UpdateResourceDoc(ctx, resourceDoc.ResourceId, func(updateDoc *database.ResourceDocument) bool {
-		updateDoc.ActiveOperationID = operationDoc.ID
+		updateDoc.ActiveOperationID = operationID
 		updateDoc.ProvisioningState = operationDoc.Status
 		return true
 	})
@@ -183,13 +183,13 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 
 			childOperationDoc := database.NewOperationDocument(operationRequest, child.ResourceId, child.InternalID)
 
-			err = f.dbClient.CreateOperationDoc(ctx, childOperationDoc)
+			childOperationID, err := f.dbClient.CreateOperationDoc(ctx, childOperationDoc)
 			if err != nil {
 				return err
 			}
 
 			_, err = f.dbClient.UpdateResourceDoc(ctx, child.ResourceId, func(updateDoc *database.ResourceDocument) bool {
-				updateDoc.ActiveOperationID = childOperationDoc.ID
+				updateDoc.ActiveOperationID = childOperationID
 				updateDoc.ProvisioningState = childOperationDoc.Status
 				return true
 			})
@@ -211,7 +211,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 		return "", arm.NewInternalServerError()
 	}
 
-	return operationDoc.ID, nil
+	return operationID, nil
 }
 
 func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {

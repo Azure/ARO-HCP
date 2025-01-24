@@ -513,14 +513,14 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceId, doc.InternalID)
 
-	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
+	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationDoc.ID)
+	err = f.ExposeOperation(writer, request, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -530,7 +530,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	// This is called directly when creating a resource, and indirectly from
 	// within a retry loop when updating a resource.
 	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
-		doc.ActiveOperationID = operationDoc.ID
+		doc.ActiveOperationID = operationID
 		doc.ProvisioningState = operationDoc.Status
 
 		// Record the latest system data values from ARM, if present.
