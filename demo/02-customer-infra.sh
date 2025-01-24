@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -o errexit
+set -o nounset
+set -o pipefail
+
 source env_vars
 
 az group create --name "${CUSTOMER_RG_NAME}" --location ${LOCATION}

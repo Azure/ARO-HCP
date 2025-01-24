@@ -1,6 +1,8 @@
 #!/bin/bash
 
-set -e
+set -o errexit
+set -o nounset
+set -o pipefail
 
 source env_vars
 source "$(dirname "$0")"/common.sh
@@ -209,7 +211,7 @@ main() {
       .identity.userAssignedIdentities = $identity_uamis_json_map
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
-  (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl -si -X PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
+  (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl -sSi -X PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
     --header @- \
     --json @${CLUSTER_FILE}
 }
