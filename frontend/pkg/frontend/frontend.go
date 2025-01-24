@@ -906,7 +906,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, doc) {
+	if !f.OperationIsVisible(request, resourceID.Name, doc) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -995,7 +995,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, doc) {
+	if !f.OperationIsVisible(request, resourceID.Name, doc) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
