@@ -47,6 +47,10 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewarePanic,
 		MiddlewareTracing,
 		MiddlewareLogging,
+		// NOTE: register panic middlware twice.
+		// Making sure we can capture paniced requests in our trace data.
+		// But we also can recover if the tracing or logging middleware caused a panic.
+		MiddlewarePanic,
 		MiddlewareBody,
 		MiddlewareLowercase,
 		MiddlewareSystemData,
