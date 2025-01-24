@@ -154,7 +154,7 @@ func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *datab
 
 // OperationIsVisible returns true if the request is being called from the same
 // tenant and subscription that the operation originated in.
-func (f *Frontend) OperationIsVisible(request *http.Request, doc *database.OperationDocument) bool {
+func (f *Frontend) OperationIsVisible(request *http.Request, operationID string, doc *database.OperationDocument) bool {
 	var visible = true
 
 	logger := LoggerFromContext(request.Context())
@@ -165,21 +165,21 @@ func (f *Frontend) OperationIsVisible(request *http.Request, doc *database.Opera
 
 	if doc.OperationID != nil {
 		if doc.TenantID != "" && !strings.EqualFold(tenantID, doc.TenantID) {
-			logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, doc.ID))
+			logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, operationID))
 			visible = false
 		}
 
 		if doc.ClientID != "" && !strings.EqualFold(clientID, doc.ClientID) {
-			logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, doc.ID))
+			logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, operationID))
 			visible = false
 		}
 
 		if !strings.EqualFold(subscriptionID, doc.OperationID.SubscriptionID) {
-			logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, doc.ID))
+			logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, operationID))
 			visible = false
 		}
 	} else {
-		logger.Info(fmt.Sprintf("Status request for implicit operation '%s'", doc.ID))
+		logger.Info(fmt.Sprintf("Status request for implicit operation '%s'", operationID))
 		visible = false
 	}
 
