@@ -716,7 +716,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if errors.Is(err, database.ErrNotFound) {
 		doc := database.NewSubscriptionDocument(subscriptionID, &subscription)
-		err = f.dbClient.CreateSubscriptionDoc(ctx, doc)
+		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, doc)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)

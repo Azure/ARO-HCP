@@ -263,7 +263,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				// ArmSubscriptionPut
 				if test.subDoc == nil {
 					mockDBClient.EXPECT().
-						CreateSubscriptionDoc(gomock.Any(), gomock.Any())
+						CreateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any())
 				} else {
 					mockDBClient.EXPECT().
 						UpdateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any())
