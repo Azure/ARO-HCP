@@ -109,11 +109,12 @@ func (m *MockDBClient) EXPECT() *MockDBClientMockRecorder {
 }
 
 // CreateOperationDoc mocks base method.
-func (m *MockDBClient) CreateOperationDoc(ctx context.Context, doc *database.OperationDocument) error {
+func (m *MockDBClient) CreateOperationDoc(ctx context.Context, doc *database.OperationDocument) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOperationDoc", ctx, doc)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateOperationDoc indicates an expected call of CreateOperationDoc.
