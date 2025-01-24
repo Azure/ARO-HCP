@@ -238,7 +238,7 @@ func TestCreateNodePool(t *testing.T) {
 // 			csNodePool, _ := f.BuildCSNodePool(context.TODO(), hcpNodePool, false)
 
 // 			if test.subDoc != nil {
-// 				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), test.subDoc)
+// 				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), dummySubscriptionId, test.subDoc)
 // 				if err != nil {
 // 					t.Fatal(err)
 // 				}

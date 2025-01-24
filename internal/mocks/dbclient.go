@@ -137,17 +137,17 @@ func (mr *MockDBClientMockRecorder) CreateResourceDoc(ctx, doc any) *gomock.Call
 }
 
 // CreateSubscriptionDoc mocks base method.
-func (m *MockDBClient) CreateSubscriptionDoc(ctx context.Context, doc *database.SubscriptionDocument) error {
+func (m *MockDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, doc *database.SubscriptionDocument) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSubscriptionDoc", ctx, doc)
+	ret := m.ctrl.Call(m, "CreateSubscriptionDoc", ctx, subscriptionID, doc)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateSubscriptionDoc indicates an expected call of CreateSubscriptionDoc.
-func (mr *MockDBClientMockRecorder) CreateSubscriptionDoc(ctx, doc any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) CreateSubscriptionDoc(ctx, subscriptionID, doc any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubscriptionDoc", reflect.TypeOf((*MockDBClient)(nil).CreateSubscriptionDoc), ctx, doc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubscriptionDoc", reflect.TypeOf((*MockDBClient)(nil).CreateSubscriptionDoc), ctx, subscriptionID, doc)
 }
 
 // DBConnectionTest mocks base method.
