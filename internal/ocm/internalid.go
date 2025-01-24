@@ -100,7 +100,7 @@ func (id *InternalID) Kind() string {
 		kind = cmv1.ClusterKind
 	}
 
-	// hack to support clusters received via ARO HCP APIs
+	// support clusters received via ARO HCP APIs
 	// without duplicating the whole codebase calling this method
 	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
 		kind = cmv1.ClusterKind
@@ -117,46 +117,54 @@ func (id *InternalID) Kind() string {
 // This works for both cluster and node pool resources. The transport
 // is most likely to be a Connection object from the SDK.
 func (id *InternalID) GetClusterClient(transport http.RoundTripper) (*cmv1.ClusterClient, bool) {
-	var thisPath string = id.path
-	var lastPath string
+	switch matchClusterPath(id.path) {
+	case v1ClusterPattern:
+		return cmv1.NewClusterClient(transport, id.path), true
 
-	for thisPath != lastPath {
-		if match, _ := path.Match(v1ClusterPattern, thisPath); match {
-			return cmv1.NewClusterClient(transport, thisPath), true
-		} else if match, _ := path.Match(aroHcpV1Alpha1ClusterPattern, thisPath); match {
-			// hack to support clusters received via ARO HCP APIs
-			// without duplicating the whole codebase calling this method
-			newPath := strings.ReplaceAll(thisPath, aroHcpV1Alpha1Pattern, v1Pattern)
-			return cmv1.NewClusterClient(transport, newPath), true
-		} else {
-			lastPath = thisPath
-			thisPath = path.Dir(thisPath)
-		}
+	case aroHcpV1Alpha1ClusterPattern:
+		// support clusters received via ARO HCP APIs
+		// without duplicating the whole codebase calling this method
+		newPath := strings.ReplaceAll(id.path, aroHcpV1Alpha1Pattern, v1Pattern)
+		return cmv1.NewClusterClient(transport, newPath), true
+
+	default:
+		return nil, false
 	}
-
-	return nil, false
 }
 
 // GetAroHCPClusterClient returns a arohcpv1alpha1 ClusterClient from the InternalID.
 func (id *InternalID) GetAroHCPClusterClient(transport http.RoundTripper) (*arohcpv1alpha1.ClusterClient, bool) {
-	var thisPath string = id.path
+	switch matchClusterPath(id.path) {
+	case v1ClusterPattern:
+		// support clusters received via cluster APIs
+		// without duplicating the whole codebase calling this method
+		newPath := strings.ReplaceAll(id.path, v1Pattern, aroHcpV1Alpha1Pattern)
+		return arohcpv1alpha1.NewClusterClient(transport, newPath), true
+
+	case aroHcpV1Alpha1ClusterPattern:
+		return arohcpv1alpha1.NewClusterClient(transport, id.path), true
+
+	default:
+		return nil, false
+	}
+}
+
+func matchClusterPath(clusterPath string) string {
+	var thisPath = clusterPath
 	var lastPath string
 
 	for thisPath != lastPath {
 		if match, _ := path.Match(v1ClusterPattern, thisPath); match {
-			// hack to support clusters received via ARO HCP APIs
-			// without duplicating the whole codebase calling this method
-			newPath := strings.ReplaceAll(thisPath, v1Pattern, aroHcpV1Alpha1Pattern)
-			return arohcpv1alpha1.NewClusterClient(transport, newPath), true
+			return v1ClusterPattern
 		} else if match, _ := path.Match(aroHcpV1Alpha1ClusterPattern, thisPath); match {
-			return arohcpv1alpha1.NewClusterClient(transport, thisPath), true
+			return aroHcpV1Alpha1ClusterPattern
 		} else {
 			lastPath = thisPath
 			thisPath = path.Dir(thisPath)
 		}
 	}
 
-	return nil, false
+	return ""
 }
 
 // GetNodePoolClient returns a v1 NodePoolClient from the InternalID.
