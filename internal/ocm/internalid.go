@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
 
@@ -127,6 +128,28 @@ func (id *InternalID) GetClusterClient(transport http.RoundTripper) (*cmv1.Clust
 			// without duplicating the whole codebase calling this method
 			newPath := strings.ReplaceAll(thisPath, aroHcpV1Alpha1Pattern, v1Pattern)
 			return cmv1.NewClusterClient(transport, newPath), true
+		} else {
+			lastPath = thisPath
+			thisPath = path.Dir(thisPath)
+		}
+	}
+
+	return nil, false
+}
+
+// GetAroHCPClusterClient returns a arohcpv1alpha1 ClusterClient from the InternalID.
+func (id *InternalID) GetAroHCPClusterClient(transport http.RoundTripper) (*arohcpv1alpha1.ClusterClient, bool) {
+	var thisPath string = id.path
+	var lastPath string
+
+	for thisPath != lastPath {
+		if match, _ := path.Match(v1ClusterPattern, thisPath); match {
+			// hack to support clusters received via ARO HCP APIs
+			// without duplicating the whole codebase calling this method
+			newPath := strings.ReplaceAll(thisPath, v1Pattern, aroHcpV1Alpha1Pattern)
+			return arohcpv1alpha1.NewClusterClient(transport, newPath), true
+		} else if match, _ := path.Match(aroHcpV1Alpha1ClusterPattern, thisPath); match {
+			return arohcpv1alpha1.NewClusterClient(transport, thisPath), true
 		} else {
 			lastPath = thisPath
 			thisPath = path.Dir(thisPath)

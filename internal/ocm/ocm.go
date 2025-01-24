@@ -63,7 +63,11 @@ func (csc *ClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBu
 
 // GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
 func (csc *ClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
-	clusterGetResponse, err := csc.Conn.AroHCP().V1alpha1().Clusters().Cluster(internalID.ID()).Get().SendContext(ctx)
+	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	clusterGetResponse, err := client.Get().SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -106,11 +110,15 @@ func (csc *ClusterServiceClient) PostCSCluster(ctx context.Context, cluster *aro
 
 // UpdateCSCluster sends a PATCH request to update a cluster in Clusters Service
 func (csc *ClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
-	clusterUpdateResponse, err := csc.Conn.AroHCP().V1alpha1().Clusters().Cluster(internalID.ID()).Update().Body(cluster).SendContext(ctx)
+	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	clusterUpdateResponse, err := client.Update().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	cluster, ok := clusterUpdateResponse.GetBody()
+	cluster, ok = clusterUpdateResponse.GetBody()
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
@@ -119,7 +127,11 @@ func (csc *ClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID
 
 // DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
 func (csc *ClusterServiceClient) DeleteCSCluster(ctx context.Context, internalID InternalID) error {
-	_, err := csc.Conn.AroHCP().V1alpha1().Clusters().Cluster(internalID.ID()).Delete().SendContext(ctx)
+	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
+	if !ok {
+		return fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	_, err := client.Delete().SendContext(ctx)
 	return err
 }
 
