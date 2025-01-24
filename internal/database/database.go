@@ -77,7 +77,7 @@ type DBClient interface {
 	ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument]
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
-	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
+	CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error)
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument]
 
@@ -338,20 +338,20 @@ func (d *CosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 
 // CreateOperationDoc writes an asynchronous operation document to the "operations"
 // container
-func (d *CosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationDocument) error {
+func (d *CosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error) {
 	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 
 	data, err := json.Marshal(doc)
 	if err != nil {
-		return fmt.Errorf("failed to marshal Operations container item for '%s': %w", doc.ID, err)
+		return "", fmt.Errorf("failed to marshal Operations container item for '%s': %w", doc.ID, err)
 	}
 
 	_, err = d.operations.CreateItem(ctx, pk, data, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create Operations container item for '%s': %w", doc.ID, err)
+		return "", fmt.Errorf("failed to create Operations container item for '%s': %w", doc.ID, err)
 	}
 
-	return nil
+	return doc.ID, nil
 }
 
 // UpdateOperationDoc updates an operation document by first fetching the document and
