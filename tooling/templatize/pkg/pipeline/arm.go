@@ -16,9 +16,12 @@ import (
 )
 
 type armClient struct {
-	creds          *azidentity.DefaultAzureCredential
-	SubscriptionID string
-	Region         string
+	deploymentClient        *armresources.DeploymentsClient
+	resourceGroupClient     *armresources.ResourceGroupsClient
+	deploymentRetryWaitTime int
+
+	Region        string
+	GetDeployment func(ctx context.Context, rgName, deploymentName string) (armresources.DeploymentsClientGetResponse, error)
 }
 
 func newArmClient(subscriptionID, region string) *armClient {
@@ -26,27 +29,38 @@ func newArmClient(subscriptionID, region string) *armClient {
 	if err != nil {
 		return nil
 	}
+	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil
+	}
+	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil
+	}
 	return &armClient{
-		creds:          cred,
-		SubscriptionID: subscriptionID,
-		Region:         region,
+		deploymentClient:        deploymentClient,
+		deploymentRetryWaitTime: 15,
+		resourceGroupClient:     resourceGroupClient,
+		Region:                  region,
+		GetDeployment: func(ctx context.Context, rgName, deploymentName string) (armresources.DeploymentsClientGetResponse, error) {
+			return deploymentClient.Get(ctx, rgName, deploymentName, nil)
+		},
 	}
 }
 
-func getDeployment(ctx context.Context, rgName, deploymentName string, client *armresources.DeploymentsClient) (*armresources.DeploymentsClientGetResponse, error) {
-	resp, err := client.Get(ctx, rgName, "asd", nil)
+func (a *armClient) getExistingDeployment(ctx context.Context, rgName, deploymentName string) (*armresources.DeploymentsClientGetResponse, error) {
+	resp, err := a.GetDeployment(ctx, rgName, deploymentName)
 	if err != nil && !strings.Contains(err.Error(), "ERROR CODE: DeploymentNotFound") {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-func waitForExistingDeployment(ctx context.Context, timeOutInSeconds int, rgName, deploymentName string, client *armresources.DeploymentsClient) error {
+func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeconds int, rgName, deploymentName string) error {
 	var currentTimeout = timeOutInSeconds
-	waitTime := 15
 	canContinue := false
 
-	resp, err := getDeployment(ctx, rgName, deploymentName, client)
+	resp, err := a.getExistingDeployment(ctx, rgName, deploymentName)
 	if err != nil {
 		return fmt.Errorf("Error getting deployment %w", err)
 	}
@@ -56,15 +70,15 @@ func waitForExistingDeployment(ctx context.Context, timeOutInSeconds int, rgName
 
 	for !canContinue {
 		if *resp.Properties.ProvisioningState == armresources.ProvisioningStateRunning {
-			time.Sleep(time.Duration(waitTime) * time.Second)
-			currentTimeout -= waitTime
+			time.Sleep(time.Duration(a.deploymentRetryWaitTime) * time.Second)
+			currentTimeout -= a.deploymentRetryWaitTime
 			if currentTimeout < 0 {
 				return fmt.Errorf("Timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 			}
 		} else {
 			return nil
 		}
-		resp, err = getDeployment(ctx, rgName, deploymentName, client)
+		resp, err = a.getExistingDeployment(ctx, rgName, deploymentName)
 		if err != nil {
 			return fmt.Errorf("Error getting deployment %w", err)
 		}
@@ -80,20 +94,16 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	}
 
 	// Run deployment
-	client, err := armresources.NewDeploymentsClient(a.SubscriptionID, a.creds, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create deployments client: %w", err)
-	}
 
-	if err := waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, step.Name, client); err != nil {
+	if err := a.waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, step.Name); err != nil {
 		return nil, fmt.Errorf("Error waiting for deploymenty %w", err)
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, client, rgName, step, options.Vars, input)
+		return doWaitForDeployment(ctx, a.deploymentClient, rgName, step, options.Vars, input)
 	}
 
-	return doDryRun(ctx, client, rgName, step, options.Vars, input)
+	return doDryRun(ctx, a.deploymentClient, rgName, step, options.Vars, input)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
@@ -276,12 +286,6 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 }
 
 func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string, rgNoPersist bool) error {
-	// Create a new ARM client
-	client, err := armresources.NewResourceGroupsClient(a.SubscriptionID, a.creds, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create ARM client: %w", err)
-	}
-
 	// Check if the resource group exists
 	// todo fill tags properly
 	tags := map[string]*string{}
@@ -290,14 +294,14 @@ func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string
 		// if no-persist is set, don't set the persist tag, needs double negotiate, cause default should be true
 		tags["persist"] = to.Ptr("true")
 	}
-	_, err = client.Get(ctx, rgName, nil)
+	_, err := a.resourceGroupClient.Get(ctx, rgName, nil)
 	if err != nil {
 		// Create the resource group
 		resourceGroup := armresources.ResourceGroup{
 			Location: to.Ptr(a.Region),
 			Tags:     tags,
 		}
-		_, err = client.CreateOrUpdate(ctx, rgName, resourceGroup, nil)
+		_, err = a.resourceGroupClient.CreateOrUpdate(ctx, rgName, resourceGroup, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
@@ -305,7 +309,7 @@ func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string
 		patchResourceGroup := armresources.ResourceGroupPatchable{
 			Tags: tags,
 		}
-		_, err = client.Update(ctx, rgName, patchResourceGroup, nil)
+		_, err = a.resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
 		if err != nil {
 			return fmt.Errorf("failed to update resource group: %w", err)
 		}
