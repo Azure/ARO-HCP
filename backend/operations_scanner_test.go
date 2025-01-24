@@ -20,7 +20,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func TestDeleteOperationCompleted(t *testing.T) {
+func TestSetDeleteOperationAsCompleted(t *testing.T) {
 	tests := []struct {
 		name                    string
 		operationStatus         arm.ProvisioningState
@@ -86,6 +86,12 @@ func TestDeleteOperationCompleted(t *testing.T) {
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.operationStatus
 
+			op := operation{
+				id:     "this operation",
+				doc:    operationDoc,
+				logger: slog.Default(),
+			}
+
 			var resourceDocDeleted bool
 
 			mockDBClient.EXPECT().
@@ -94,12 +100,12 @@ func TestDeleteOperationCompleted(t *testing.T) {
 					resourceDocDeleted = tt.resourceDocPresent
 				})
 			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), operationDoc.ID, gomock.Any()).
+				UpdateOperationDoc(gomock.Any(), op.id, gomock.Any()).
 				DoAndReturn(func(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
 					return callback(operationDoc), nil
 				})
 
-			err = scanner.deleteOperationCompleted(ctx, slog.Default(), operationDoc)
+			err = scanner.setDeleteOperationAsCompleted(ctx, op)
 
 			if request == nil && tt.expectAsyncNotification {
 				t.Error("Did not POST to async notification URI")
@@ -234,12 +240,18 @@ func TestUpdateOperationStatus(t *testing.T) {
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.currentOperationStatus
 
+			op := operation{
+				id:     "this operation",
+				doc:    operationDoc,
+				logger: slog.Default(),
+			}
+
 			var resourceDoc *database.ResourceDocument
 
 			if tt.resourceDocPresent {
 				resourceDoc = database.NewResourceDocument(resourceID)
 				if tt.resourceMatchOperationID {
-					resourceDoc.ActiveOperationID = operationDoc.ID
+					resourceDoc.ActiveOperationID = op.id
 				} else {
 					resourceDoc.ActiveOperationID = "another operation"
 				}
@@ -247,7 +259,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			}
 
 			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), operationDoc.ID, gomock.Any()).
+				UpdateOperationDoc(gomock.Any(), op.id, gomock.Any()).
 				DoAndReturn(func(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
 					return callback(operationDoc), nil
 				})
@@ -261,7 +273,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 					}
 				})
 
-			err = scanner.updateOperationStatus(ctx, slog.Default(), operationDoc, tt.updatedOperationStatus, nil)
+			err = scanner.updateOperationStatus(ctx, op, tt.updatedOperationStatus, nil)
 
 			if request == nil && tt.expectAsyncNotification {
 				t.Error("Did not POST to async notification URI")
