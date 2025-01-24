@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -18,6 +19,7 @@ func TestWaitForExistingDeployment(t *testing.T) {
 		missing         bool
 		expectedError   *string
 		expecetCallCnt  int
+		returnError     *error
 		timeout         int
 	}{
 		{
@@ -37,6 +39,13 @@ func TestWaitForExistingDeployment(t *testing.T) {
 			expecetCallCnt:  2,
 			timeout:         60,
 		},
+		{
+			name:           "Handle Error",
+			missing:        true,
+			expecetCallCnt: 1,
+			returnError:    to.Ptr(fmt.Errorf("Test error")),
+			expectedError:  to.Ptr("Error getting deployment Test error"),
+		},
 	}
 
 	for _, c := range cases {
@@ -50,6 +59,12 @@ func TestWaitForExistingDeployment(t *testing.T) {
 					assert.Equal(t, rgName, rg)
 					assert.Equal(t, deploymentName, depl)
 					callCnt++
+
+					var retErr error
+					if c.returnError != nil {
+						retErr = *c.returnError
+					}
+
 					returnObj := armresources.DeploymentsClientGetResponse{
 						DeploymentExtended: armresources.DeploymentExtended{},
 					}
@@ -58,7 +73,7 @@ func TestWaitForExistingDeployment(t *testing.T) {
 							ProvisioningState: &c.deploymentState[callCnt],
 						}
 					}
-					return returnObj, nil
+					return returnObj, retErr
 				},
 			}
 
