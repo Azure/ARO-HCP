@@ -84,7 +84,7 @@ type DBClient interface {
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
 	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error)
-	CreateSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error
+	CreateSubscriptionDoc(ctx context.Context, subscriptionID string, doc *SubscriptionDocument) error
 	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error)
 	ListAllSubscriptionDocs() DBClientIterator[SubscriptionDocument]
 }
@@ -446,9 +446,9 @@ func (d *CosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 }
 
 // CreateSubscriptionDoc creates/updates a subscription document in the async DB during cluster creation/patching
-func (d *CosmosDBClient) CreateSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error {
+func (d *CosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, doc *SubscriptionDocument) error {
 	// Make sure lookup keys are lowercase.
-	doc.ID = strings.ToLower(doc.ID)
+	doc.ID = strings.ToLower(subscriptionID)
 
 	pk := azcosmos.NewPartitionKeyString(doc.ID)
 
