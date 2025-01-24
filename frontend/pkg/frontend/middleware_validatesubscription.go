@@ -4,6 +4,7 @@ package frontend
 // Licensed under the Apache License 2.0.
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -25,6 +26,7 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(w)
+		return
 	}
 
 	subscriptionId := r.PathValue(PathSegmentSubscriptionID)
@@ -87,5 +89,8 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
 			sub.Subscription.State)
+	default:
+		logger.Error(fmt.Sprintf("unsupported subscription state %q", sub.Subscription.State))
+		arm.WriteInternalServerError(w)
 	}
 }

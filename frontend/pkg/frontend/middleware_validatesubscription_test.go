@@ -151,6 +151,19 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "subscription state value is invalid",
+			cachedState: arm.SubscriptionState("Invalid"),
+			httpMethod:  http.MethodGet,
+			requestPath: defaultRequestPath,
+			expectedError: &arm.CloudError{
+				StatusCode: http.StatusInternalServerError,
+				CloudErrorBody: &arm.CloudErrorBody{
+					Code:    arm.CloudErrorCodeInternalServerError,
+					Message: "Internal server error.",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -212,4 +225,24 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("nil DB client in the context", func(t *testing.T) {
+		writer := httptest.NewRecorder()
+
+		request, err := http.NewRequest(http.MethodGet, defaultRequestPath, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
+
+		ctx := request.Context()
+		ctx = ContextWithLogger(ctx, slog.Default())
+		request = request.WithContext(ctx)
+
+		next := func(w http.ResponseWriter, r *http.Request) {}
+		MiddlewareValidateSubscriptionState(writer, request, next)
+		if writer.Code != http.StatusInternalServerError {
+			t.Errorf("expected status code %d, got %d", http.StatusInternalServerError, writer.Code)
+		}
+	})
 }
