@@ -48,10 +48,10 @@ func isResponseError(err error, statusCode int) bool {
 	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
 }
 
-type DBClientIteratorItem iter.Seq[[]byte]
+type DBClientIteratorItem[T any] iter.Seq[*T]
 
-type DBClientIterator interface {
-	Items(ctx context.Context) DBClientIteratorItem
+type DBClientIterator[T any] interface {
+	Items(ctx context.Context) DBClientIteratorItem[T]
 	GetContinuationToken() string
 	GetError() error
 }
@@ -73,13 +73,13 @@ type DBClient interface {
 	// DeleteResourceDoc deletes a ResourceDocument from the database given the resourceID
 	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource or NodePools child resource.
 	DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
-	ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator
+	ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument]
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	DeleteOperationDoc(ctx context.Context, operationID string) error
-	ListAllOperationDocs() DBClientIterator
+	ListAllOperationDocs() DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
 	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
@@ -276,7 +276,7 @@ func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azco
 // maxItems can limit the number of items returned at once. A negative value will cause the
 // returned iterator to yield all matching items. A positive value will cause the returned
 // iterator to include a continuation token if additional items are available.
-func (d *CosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator {
+func (d *CosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument] {
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(prefix.SubscriptionID))
 
@@ -301,9 +301,9 @@ func (d *CosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems
 	pager := d.resources.NewQueryItemsPager(query, pk, &opt)
 
 	if maxItems > 0 {
-		return newQueryItemsSinglePageIterator(pager)
+		return newQueryItemsSinglePageIterator[ResourceDocument](pager)
 	} else {
-		return newQueryItemsIterator(pager)
+		return newQueryItemsIterator[ResourceDocument](pager)
 	}
 }
 
@@ -415,9 +415,9 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 	return nil
 }
 
-func (d *CosmosDBClient) ListAllOperationDocs() DBClientIterator {
+func (d *CosmosDBClient) ListAllOperationDocs() DBClientIterator[OperationDocument] {
 	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
-	return newQueryItemsIterator(d.operations.NewQueryItemsPager("SELECT * FROM c", pk, nil))
+	return newQueryItemsIterator[OperationDocument](d.operations.NewQueryItemsPager("SELECT * FROM c", pk, nil))
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID

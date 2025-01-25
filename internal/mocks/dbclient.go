@@ -19,31 +19,31 @@ import (
 )
 
 // MockDBClientIterator is a mock of DBClientIterator interface.
-type MockDBClientIterator struct {
+type MockDBClientIterator[T any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockDBClientIteratorMockRecorder
+	recorder *MockDBClientIteratorMockRecorder[T]
 	isgomock struct{}
 }
 
 // MockDBClientIteratorMockRecorder is the mock recorder for MockDBClientIterator.
-type MockDBClientIteratorMockRecorder struct {
-	mock *MockDBClientIterator
+type MockDBClientIteratorMockRecorder[T any] struct {
+	mock *MockDBClientIterator[T]
 }
 
 // NewMockDBClientIterator creates a new mock instance.
-func NewMockDBClientIterator(ctrl *gomock.Controller) *MockDBClientIterator {
-	mock := &MockDBClientIterator{ctrl: ctrl}
-	mock.recorder = &MockDBClientIteratorMockRecorder{mock}
+func NewMockDBClientIterator[T any](ctrl *gomock.Controller) *MockDBClientIterator[T] {
+	mock := &MockDBClientIterator[T]{ctrl: ctrl}
+	mock.recorder = &MockDBClientIteratorMockRecorder[T]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockDBClientIterator) EXPECT() *MockDBClientIteratorMockRecorder {
+func (m *MockDBClientIterator[T]) EXPECT() *MockDBClientIteratorMockRecorder[T] {
 	return m.recorder
 }
 
 // GetContinuationToken mocks base method.
-func (m *MockDBClientIterator) GetContinuationToken() string {
+func (m *MockDBClientIterator[T]) GetContinuationToken() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetContinuationToken")
 	ret0, _ := ret[0].(string)
@@ -51,13 +51,13 @@ func (m *MockDBClientIterator) GetContinuationToken() string {
 }
 
 // GetContinuationToken indicates an expected call of GetContinuationToken.
-func (mr *MockDBClientIteratorMockRecorder) GetContinuationToken() *gomock.Call {
+func (mr *MockDBClientIteratorMockRecorder[T]) GetContinuationToken() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContinuationToken", reflect.TypeOf((*MockDBClientIterator)(nil).GetContinuationToken))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContinuationToken", reflect.TypeOf((*MockDBClientIterator[T])(nil).GetContinuationToken))
 }
 
 // GetError mocks base method.
-func (m *MockDBClientIterator) GetError() error {
+func (m *MockDBClientIterator[T]) GetError() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetError")
 	ret0, _ := ret[0].(error)
@@ -65,23 +65,23 @@ func (m *MockDBClientIterator) GetError() error {
 }
 
 // GetError indicates an expected call of GetError.
-func (mr *MockDBClientIteratorMockRecorder) GetError() *gomock.Call {
+func (mr *MockDBClientIteratorMockRecorder[T]) GetError() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetError", reflect.TypeOf((*MockDBClientIterator)(nil).GetError))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetError", reflect.TypeOf((*MockDBClientIterator[T])(nil).GetError))
 }
 
 // Items mocks base method.
-func (m *MockDBClientIterator) Items(ctx context.Context) database.DBClientIteratorItem {
+func (m *MockDBClientIterator[T]) Items(ctx context.Context) database.DBClientIteratorItem[T] {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Items", ctx)
-	ret0, _ := ret[0].(database.DBClientIteratorItem)
+	ret0, _ := ret[0].(database.DBClientIteratorItem[T])
 	return ret0
 }
 
 // Items indicates an expected call of Items.
-func (mr *MockDBClientIteratorMockRecorder) Items(ctx any) *gomock.Call {
+func (mr *MockDBClientIteratorMockRecorder[T]) Items(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Items", reflect.TypeOf((*MockDBClientIterator)(nil).Items), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Items", reflect.TypeOf((*MockDBClientIterator[T])(nil).Items), ctx)
 }
 
 // MockDBClient is a mock of DBClient interface.
@@ -252,10 +252,10 @@ func (mr *MockDBClientMockRecorder) GetSubscriptionDoc(ctx, subscriptionID any) 
 }
 
 // ListAllOperationDocs mocks base method.
-func (m *MockDBClient) ListAllOperationDocs() database.DBClientIterator {
+func (m *MockDBClient) ListAllOperationDocs() database.DBClientIterator[database.OperationDocument] {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAllOperationDocs")
-	ret0, _ := ret[0].(database.DBClientIterator)
+	ret0, _ := ret[0].(database.DBClientIterator[database.OperationDocument])
 	return ret0
 }
 
@@ -266,10 +266,10 @@ func (mr *MockDBClientMockRecorder) ListAllOperationDocs() *gomock.Call {
 }
 
 // ListResourceDocs mocks base method.
-func (m *MockDBClient) ListResourceDocs(prefix *arm.ResourceID, maxItems int32, continuationToken *string) database.DBClientIterator {
+func (m *MockDBClient) ListResourceDocs(prefix *arm.ResourceID, maxItems int32, continuationToken *string) database.DBClientIterator[database.ResourceDocument] {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListResourceDocs", prefix, maxItems, continuationToken)
-	ret0, _ := ret[0].(database.DBClientIterator)
+	ret0, _ := ret[0].(database.DBClientIterator[database.ResourceDocument])
 	return ret0
 }
 

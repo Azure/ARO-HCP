@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -98,15 +97,7 @@ func (s *OperationsScanner) pollDBOperations(ctx context.Context, logger *slog.L
 
 	iterator := s.dbClient.ListAllOperationDocs()
 
-	for item := range iterator.Items(ctx) {
-		var doc *database.OperationDocument
-
-		err := json.Unmarshal(item, &doc)
-		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to parse Operations container item: %s", err.Error()))
-			continue
-		}
-
+	for doc := range iterator.Items(ctx) {
 		if !doc.Status.IsTerminal() {
 			activeOperations = append(activeOperations, doc)
 		}

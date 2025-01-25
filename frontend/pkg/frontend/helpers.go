@@ -5,7 +5,6 @@ package frontend
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -87,15 +86,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	// Start a deletion operation for all clusters under the subscription.
 	// Cluster Service will delete all node pools belonging to these clusters
 	// so we don't need to explicitly delete node pools here.
-	for item := range dbIterator.Items(ctx) {
-		var resourceDoc *database.ResourceDocument
-
-		err = json.Unmarshal(item, &resourceDoc)
-		if err != nil {
-			logger.Error(err.Error())
-			return arm.NewInternalServerError()
-		}
-
+	for resourceDoc := range dbIterator.Items(ctx) {
 		if !strings.EqualFold(resourceDoc.ResourceId.ResourceType.String(), api.ClusterResourceType.String()) {
 			continue
 		}
@@ -178,17 +169,10 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 
 	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceId, -1, nil)
 
-	for item := range iterator.Items(ctx) {
+	for child := range iterator.Items(ctx) {
 		// Anonymous function avoids repetitive error handling.
 		err = func() error {
-			var child database.ResourceDocument
-
-			err = json.Unmarshal(item, &child)
-			if err != nil {
-				return err
-			}
-
-			err = f.CancelActiveOperation(ctx, &child)
+			err = f.CancelActiveOperation(ctx, child)
 			if err != nil {
 				return err
 			}
