@@ -5,7 +5,6 @@ package database
 
 import (
 	"context"
-	"iter"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -32,7 +31,7 @@ func newQueryItemsSinglePageIterator(pager *runtime.Pager[azcosmos.QueryItemsRes
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter queryItemsIterator) Items(ctx context.Context) iter.Seq[[]byte] {
+func (iter queryItemsIterator) Items(ctx context.Context) DBClientIteratorItem {
 	return func(yield func([]byte) bool) {
 		for iter.pager.More() {
 			response, err := iter.pager.NextPage(ctx)

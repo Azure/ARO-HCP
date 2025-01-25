@@ -48,8 +48,10 @@ func isResponseError(err error, statusCode int) bool {
 	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
 }
 
+type DBClientIteratorItem iter.Seq[[]byte]
+
 type DBClientIterator interface {
-	Items(ctx context.Context) iter.Seq[[]byte]
+	Items(ctx context.Context) DBClientIteratorItem
 	GetContinuationToken() string
 	GetError() error
 }

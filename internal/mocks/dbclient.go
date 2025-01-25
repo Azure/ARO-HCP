@@ -11,7 +11,6 @@ package mocks
 
 import (
 	context "context"
-	iter "iter"
 	reflect "reflect"
 
 	database "github.com/Azure/ARO-HCP/internal/database"
@@ -72,10 +71,10 @@ func (mr *MockDBClientIteratorMockRecorder) GetError() *gomock.Call {
 }
 
 // Items mocks base method.
-func (m *MockDBClientIterator) Items(ctx context.Context) iter.Seq[[]byte] {
+func (m *MockDBClientIterator) Items(ctx context.Context) database.DBClientIteratorItem {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Items", ctx)
-	ret0, _ := ret[0].(iter.Seq[[]byte])
+	ret0, _ := ret[0].(database.DBClientIteratorItem)
 	return ret0
 }
 
