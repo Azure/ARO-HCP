@@ -299,9 +299,9 @@ func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *azcorearm
 	pager := d.resources.NewQueryItemsPager(query, pk, &opt)
 
 	if maxItems > 0 {
-		return NewQueryItemsSinglePageIterator(pager)
+		return newQueryItemsSinglePageIterator(pager)
 	} else {
-		return NewQueryItemsIterator(pager)
+		return newQueryItemsIterator(pager)
 	}
 }
 
@@ -415,7 +415,7 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 
 func (d *CosmosDBClient) ListAllOperationDocs(ctx context.Context) DBClientIterator {
 	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
-	return NewQueryItemsIterator(d.operations.NewQueryItemsPager("SELECT * FROM c", pk, nil))
+	return newQueryItemsIterator(d.operations.NewQueryItemsPager("SELECT * FROM c", pk, nil))
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
