@@ -69,10 +69,14 @@
     "imageTag": "0b3c08f"
   },
   "global": {
+    "baseDnsZoneName": "aroapp-hcp.azure-test.net",
     "globalMSIName": "global-ev2-identity",
+    "parentZoneName": "azure-test.net",
     "region": "uksouth",
+    "regionalDNSSubdomain": "westus3",
     "rg": "global-shared-resources",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-westus3",
+    "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
