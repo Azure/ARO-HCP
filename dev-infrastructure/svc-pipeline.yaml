@@ -13,32 +13,32 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
-  steps:
-  - name: global-output
-    action: ARM
-    template: templates/output-global.bicep
-    parameters: configurations/output-global.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-# Query parameters from regional deployment, e.g. Azure Monitor workspace ID
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
-  steps:
-  - name: region-output
-    action: ARM
-    template: templates/output-region.bicep
-    parameters: configurations/output-region.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
-  steps:
-  # Create SVC KV
-  - name: svc-infra
-    action: ARM
-    template: templates/svc-infra.bicep
-    parameters: configurations/svc-infra.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
+# - name: {{ .global.rg }}
+#   subscription: {{ .global.subscription }}
+#   steps:
+#   - name: global-output
+#     action: ARM
+#     template: templates/output-global.bicep
+#     parameters: configurations/output-global.tmpl.bicepparam
+#     deploymentLevel: ResourceGroup
+# # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
+# - name: {{ .regionRG }}
+#   subscription: {{ .svc.subscription }}
+#   steps:
+#   - name: region-output
+#     action: ARM
+#     template: templates/output-region.bicep
+#     parameters: configurations/output-region.tmpl.bicepparam
+#     deploymentLevel: ResourceGroup
+# - name: {{ .svc.rg }}
+#   subscription: {{ .svc.subscription }}
+#   steps:
+#   # Create SVC KV
+#   - name: svc-infra
+#     action: ARM
+#     template: templates/svc-infra.bicep
+#     parameters: configurations/svc-infra.tmpl.bicepparam
+#     deploymentLevel: ResourceGroup
   # Configure certificate issuers for the SVC KV
   # - name: svc-kv-issuer
   #   action: SetCertificateIssuer
@@ -52,29 +52,29 @@ resourceGroups:
   #     name: provider
   #     value: OneCertV2-PrivateCA
   # Deploy the SVC cluster and service infrastructure
-  - name: svc
-    action: ARM
-    template: templates/svc-cluster.bicep
-    parameters: configurations/svc-cluster.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    variables:
-    - name: ocpAcrResourceId
-      input:
-        step: global-output
-        name: ocpAcrResourceId
-    - name: svcAcrResourceId
-      input:
-        step: global-output
-        name: svcAcrResourceId
-    - name: azureMonitoringWorkspaceId
-      input:
-        step: region-output
-        name: azureMonitoringWorkspaceId
-    dependsOn:
+  # - name: svc
+  #   action: ARM
+  #   template: templates/svc-cluster.bicep
+  #   parameters: configurations/svc-cluster.tmpl.bicepparam
+  #   deploymentLevel: ResourceGroup
+  #   variables:
+  #   - name: ocpAcrResourceId
+  #     input:
+  #       step: global-output
+  #       name: ocpAcrResourceId
+  #   - name: svcAcrResourceId
+  #     input:
+  #       step: global-output
+  #       name: svcAcrResourceId
+  #   - name: azureMonitoringWorkspaceId
+  #     input:
+  #       step: region-output
+  #       name: azureMonitoringWorkspaceId
+  #   dependsOn:
     #- svc-kv-issuer
-    - svc-infra
-    - global-output
-    - region-output
+    # - svc-infra
+    # - global-output
+    # - region-output
 # Now that we have the SVC cluster, we can configure istio.
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
