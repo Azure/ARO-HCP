@@ -265,6 +265,20 @@ func (mr *MockDBClientMockRecorder) ListAllOperationDocs() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListAllOperationDocs))
 }
 
+// ListAllSubscriptionDocs mocks base method.
+func (m *MockDBClient) ListAllSubscriptionDocs() database.DBClientIterator[database.SubscriptionDocument] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAllSubscriptionDocs")
+	ret0, _ := ret[0].(database.DBClientIterator[database.SubscriptionDocument])
+	return ret0
+}
+
+// ListAllSubscriptionDocs indicates an expected call of ListAllSubscriptionDocs.
+func (mr *MockDBClientMockRecorder) ListAllSubscriptionDocs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllSubscriptionDocs", reflect.TypeOf((*MockDBClient)(nil).ListAllSubscriptionDocs))
+}
+
 // ListResourceDocs mocks base method.
 func (m *MockDBClient) ListResourceDocs(prefix *arm.ResourceID, maxItems int32, continuationToken *string) database.DBClientIterator[database.ResourceDocument] {
 	m.ctrl.T.Helper()

@@ -24,6 +24,7 @@ const (
 	operationsContainer    = "Operations"
 	resourcesContainer     = "Resources"
 	subscriptionsContainer = "Subscriptions"
+	partitionKeysContainer = "PartitionKeys"
 
 	// XXX The azcosmos SDK currently only supports single-partition queries,
 	//     so there's no way to list all items in a container unless you know
@@ -86,6 +87,7 @@ type DBClient interface {
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error)
 	CreateSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error
 	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error)
+	ListAllSubscriptionDocs() DBClientIterator[SubscriptionDocument]
 }
 
 var _ DBClient = &CosmosDBClient{}
@@ -96,6 +98,7 @@ type CosmosDBClient struct {
 	resources     *azcosmos.ContainerClient
 	operations    *azcosmos.ContainerClient
 	subscriptions *azcosmos.ContainerClient
+	partitionKeys *azcosmos.ContainerClient
 	lockClient    *LockClient
 }
 
@@ -107,6 +110,7 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 	resources, _ := database.NewContainer(resourcesContainer)
 	operations, _ := database.NewContainer(operationsContainer)
 	subscriptions, _ := database.NewContainer(subscriptionsContainer)
+	partitionKeys, _ := database.NewContainer(partitionKeysContainer)
 	locks, _ := database.NewContainer(locksContainer)
 
 	lockClient, err := NewLockClient(ctx, locks)
@@ -119,6 +123,7 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 		resources:     resources,
 		operations:    operations,
 		subscriptions: subscriptions,
+		partitionKeys: partitionKeys,
 		lockClient:    lockClient,
 	}, nil
 }
@@ -461,6 +466,13 @@ func (d *CosmosDBClient) CreateSubscriptionDoc(ctx context.Context, doc *Subscri
 		return fmt.Errorf("failed to create Subscriptions container item for '%s': %w", doc.ID, err)
 	}
 
+	// Add an item to the PartitionKeys container, which serves
+	// as a partition key index for the Resources container.
+	err = upsertPartitionKey(ctx, d.partitionKeys, doc.ID)
+	if err != nil {
+		return fmt.Errorf("failed to upsert partition keys index for '%s': %w", doc.ID, err)
+	}
+
 	return nil
 }
 
@@ -512,6 +524,10 @@ func (d *CosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 	}
 
 	return false, err
+}
+
+func (d *CosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[SubscriptionDocument] {
+	return listPartitionKeys(d.partitionKeys, d)
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.
