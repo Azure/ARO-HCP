@@ -7,6 +7,11 @@ metadata:
 data:
   azure-operators-managed-identities-config.yaml: |
     controlPlaneOperatorsIdentities:
+      control-plane-operator:
+        minOpenShiftVersion: 4.17
+        azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.controlPlaneOperator.roleId }}'
+        azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.controlPlaneOperator.roleName }}'
+        optional: false
       cloud-controller-manager:
         minOpenShiftVersion: 4.17
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.cloudControllerManager.roleId }}'
@@ -69,20 +74,4 @@ data:
             namespace: 'openshift-cluster-csi-drivers'
           - name: 'azure-file-csi-driver-node-sa'
             namespace: 'openshift-cluster-csi-drivers'
-        optional: false
-      ingress:
-        minOpenShiftVersion: 4.17
-        azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.ingress.roleId }}'
-        azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.ingress.roleName }}'
-        k8sServiceAccounts:
-          - name: 'ingress-operator'
-            namespace: 'openshift-ingress-operator'
-        optional: false
-      cloud-network-config:
-        minOpenShiftVersion: 4.17
-        azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.cloudNetworkConfig.roleId }}'
-        azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.cloudNetworkConfig.roleName }}'
-        k8sServiceAccounts:
-          - name: 'cloud-network-config-controller'
-            namespace: 'openshift-cloud-network-config-controller'
         optional: false

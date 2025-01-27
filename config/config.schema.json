@@ -216,6 +216,9 @@
           "azureOperatorsManagedIdentities": {
             "type": "object",
             "properties": {
+              "controlPlaneOperator": {
+                "$ref": "#/definitions/operatorConfig"
+              },
               "cloudControllerManager": {
                 "$ref": "#/definitions/operatorConfig"
               },

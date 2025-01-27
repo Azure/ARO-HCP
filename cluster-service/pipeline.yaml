@@ -58,6 +58,8 @@ resourceGroups:
       configRef: clusterService.postgres.name
     - name: DEVOPS_MSI_ID
       configRef: aroDevopsMsiId
+    - name: OP_CONTROL_PLANE_OPERATOR_ROLE_NAME
+      configRef: clusterService.azureOperatorsManagedIdentities.controlPlaneOperator.roleName
     - name: OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME
       configRef: clusterService.azureOperatorsManagedIdentities.cloudControllerManager.roleName
     - name: OP_INGRESS_ROLE_NAME

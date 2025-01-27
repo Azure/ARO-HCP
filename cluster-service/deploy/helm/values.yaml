@@ -273,6 +273,9 @@ managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
 
 # The Azure Operator Managed Identities.
 azureOperatorsMI:
+  controlPlaneOperator:
+    roleName: ''
+    roleId: ''
   cloudControllerManager:
     roleName: ''
     roleId: ''
