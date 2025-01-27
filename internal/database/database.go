@@ -79,7 +79,7 @@ type DBClient interface {
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	DeleteOperationDoc(ctx context.Context, operationID string) error
-	ListAllOperationDocs(ctx context.Context) DBClientIterator
+	ListAllOperationDocs() DBClientIterator
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
 	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
@@ -415,7 +415,7 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 	return nil
 }
 
-func (d *CosmosDBClient) ListAllOperationDocs(ctx context.Context) DBClientIterator {
+func (d *CosmosDBClient) ListAllOperationDocs() DBClientIterator {
 	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 	return newQueryItemsIterator(d.operations.NewQueryItemsPager("SELECT * FROM c", pk, nil))
 }
