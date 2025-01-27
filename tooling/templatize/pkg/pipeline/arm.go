@@ -57,33 +57,21 @@ func (a *armClient) getExistingDeployment(ctx context.Context, rgName, deploymen
 }
 
 func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeconds int, rgName, deploymentName string) error {
-	var currentTimeout = timeOutInSeconds
-	canContinue := false
-
-	resp, err := a.getExistingDeployment(ctx, rgName, deploymentName)
-	if err != nil {
-		return fmt.Errorf("Error getting deployment %w", err)
-	}
-	if resp.Properties == nil {
-		return nil
-	}
-
-	for !canContinue {
-		if *resp.Properties.ProvisioningState == armresources.ProvisioningStateRunning {
-			time.Sleep(time.Duration(a.deploymentRetryWaitTime) * time.Second)
-			currentTimeout -= a.deploymentRetryWaitTime
-			if currentTimeout < 0 {
-				return fmt.Errorf("Timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
-			}
-		} else {
-			return nil
-		}
-		resp, err = a.getExistingDeployment(ctx, rgName, deploymentName)
+	for timeOutInSeconds > 0 {
+		resp, err := a.getExistingDeployment(ctx, rgName, deploymentName)
 		if err != nil {
 			return fmt.Errorf("Error getting deployment %w", err)
 		}
+		if resp.Properties == nil {
+			return nil
+		}
+		if *resp.Properties.ProvisioningState != armresources.ProvisioningStateRunning {
+			return nil
+		}
+		time.Sleep(time.Duration(a.deploymentRetryWaitTime) * time.Second)
+		timeOutInSeconds -= a.deploymentRetryWaitTime
 	}
-	return nil
+	return fmt.Errorf("Timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *ARMStep, input map[string]output) (output, error) {
