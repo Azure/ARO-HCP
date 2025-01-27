@@ -73,7 +73,7 @@ type DBClient interface {
 	// DeleteResourceDoc deletes a ResourceDocument from the database given the resourceID
 	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource or NodePools child resource.
 	DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
-	ListResourceDocs(ctx context.Context, prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator
+	ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator
 
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
@@ -276,7 +276,7 @@ func (d *CosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azco
 // maxItems can limit the number of items returned at once. A negative value will cause the
 // returned iterator to yield all matching items. A positive value will cause the returned
 // iterator to include a continuation token if additional items are available.
-func (d *CosmosDBClient) ListResourceDocs(ctx context.Context, prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator {
+func (d *CosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator {
 	// Make sure partition key is lowercase.
 	pk := azcosmos.NewPartitionKeyString(strings.ToLower(prefix.SubscriptionID))
 

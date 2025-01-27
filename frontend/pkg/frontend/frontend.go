@@ -205,7 +205,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	dbIterator := f.dbClient.ListResourceDocs(ctx, prefix, pageSizeHint, continuationToken)
+	dbIterator := f.dbClient.ListResourceDocs(prefix, pageSizeHint, continuationToken)
 
 	// Build a map of cluster documents by Cluster Service cluster ID.
 	documentMap := make(map[string]*database.ResourceDocument)
