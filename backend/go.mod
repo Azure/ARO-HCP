@@ -5,15 +5,15 @@ go 1.23.0
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.1
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.2.0
-	github.com/openshift-online/ocm-sdk-go v0.1.453
+	github.com/openshift-online/ocm-sdk-go v0.1.456
 	github.com/spf13/cobra v1.8.1
 	go.uber.org/mock v0.5.0
 )
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.3.2 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
