@@ -339,7 +339,7 @@ var acmMirrorConfig = {
   mirror: {
     operators: [
       {
-        catalog: 'registry.redhat.io/redhat/redhat-operator-index:v4.17'
+        catalog: 'registry.redhat.io/redhat/redhat-operator-index:v4.16'
         packages: [
           {
             name: 'multicluster-engine'
