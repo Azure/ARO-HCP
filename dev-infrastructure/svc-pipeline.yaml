@@ -96,7 +96,7 @@ resourceGroups:
     - name: SVC_RESOURCEGROUP
       configRef: svc.rg
     dependsOn:
-    - svc
+    # - svc
   - name: acrpull
     action: Shell
     command: make -C ../acrpull deploy
@@ -108,4 +108,4 @@ resourceGroups:
       - name: ACRPULL_DIGEST
         configRef: acrPullImageDigest
     dependsOn:
-    - svc
+    # - svc
