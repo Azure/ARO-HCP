@@ -40,17 +40,17 @@ resourceGroups:
     parameters: configurations/svc-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
   # Configure certificate issuers for the SVC KV
-  # - name: svc-kv-issuer
-  #   action: SetCertificateIssuer
-  #   dependsOn:
-  #     - svc-infra
-  #   vaultBaseUrl:
-  #     input:
-  #       name: svcKeyVaultUrl
-  #       step: svc-infra
-  #   provider:
-  #     name: provider
-  #     value: OneCertV2-PrivateCA
+  - name: svc-kv-issuer
+    action: SetCertificateIssuer
+    dependsOn:
+      - svc-infra
+    vaultBaseUrl:
+      input:
+        name: svcKeyVaultUrl
+        step: svc-infra
+    provider:
+      name: provider
+      value: OneCertV2-PrivateCA
   # Deploy the SVC cluster and service infrastructure
   - name: svc
     action: ARM
