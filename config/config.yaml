@@ -10,9 +10,6 @@ defaults:
     globalMSIName: "global-rollout-identity"
     safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
 
-  # General AKS config
-  aksName: aro-hcp-aks
-
   # ACR Pull
   acrPullImageDigest: sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca #v0.1.7
 
@@ -32,6 +29,7 @@ defaults:
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     aks:
+      name: "{{ .ctx.regionShort }}-svc"
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -46,6 +44,7 @@ defaults:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     aks:
+      name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"

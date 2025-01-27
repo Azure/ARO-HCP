@@ -4,7 +4,7 @@ rolloutName: Maestro Agent Rollout
 resourceGroups:
 - name: {{ .mgmt.rg }}
   subscription: {{ .mgmt.subscription }}
-  aksCluster: {{ .aksName }}
+  aksCluster: {{ .mgmt.aks.name }}
   steps:
   - name: deploy-agent
     action: Shell

@@ -34,6 +34,7 @@ resourceGroups:
     outputOnly: true
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
+  aksCluster: {{ .svc.aks.name }}
   steps:
   # Create SVC KV
   - name: svc-infra
