@@ -24,11 +24,16 @@ func InstallOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, resour
 	func(context.Context) error,
 	error,
 ) {
-	logger.InfoContext(ctx, "initialising OpenTelemetry tracer")
 	exp, err := autoexport.NewSpanExporter(ctx, autoexport.WithFallbackSpanExporter(newNoopFactory))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OTEL exporter: %w", err)
 	}
+
+	var isNoop bool
+	if _, isNoop = exp.(*noopSpanExporter); !isNoop || autoexport.IsNoneSpanExporter(exp) {
+		isNoop = true
+	}
+	logger.InfoContext(ctx, "initialising OpenTelemetry tracer", "isNoop", isNoop)
 
 	opts := []resource.Option{resource.WithHost()}
 	if len(resourceAttrs) > 0 {
