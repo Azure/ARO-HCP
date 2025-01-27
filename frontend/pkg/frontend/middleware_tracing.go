@@ -6,23 +6,13 @@ package frontend
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
+// MiddlewareTracing starts a span wrapping all incoming HTTP requests.
+// Other middlwares or actual request handlers can extend its metadata or create
+// their own associated spans.
 func MiddlewareTracing(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	attrs := []attribute.KeyValue{}
-	for k, v := range r.Header {
-		attrs = append(attrs, attribute.String(fmt.Sprintf("http.request.header.%s", k), strings.Join(v, ",")))
-	}
-	otelhttp.NewHandler(
-		http.Handler(next),
-		"middleware",
-		otelhttp.WithSpanOptions(
-			trace.WithAttributes(attrs...),
-		),
-	).ServeHTTP(w, r)
+	otelhttp.NewHandler(http.Handler(next), fmt.Sprintf("HTTP %s", r.Method)).ServeHTTP(w, r)
 }
