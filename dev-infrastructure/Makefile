@@ -220,18 +220,6 @@ svc.istio: svc.rg svc.aks.admin-access svc.aks.kubeconfig
 	scripts/istio.sh
 .PHONY: svc.istio
 
-svc.enable-aks-metrics:
-	@if [ "$$(az aks show --resource-group $(SVC_RESOURCEGROUP) --name ${AKS_NAME} --query 'azureMonitorProfile.metrics.enabled' -o tsv)" = "true" ]; then \
-        echo "Azure Monitor metrics are already enabled."; \
-    else \
-        az aks update --enable-azure-monitor-metrics \
-            --resource-group $(SVC_RESOURCEGROUP) \
-            --name ${AKS_NAME} \
-            --azure-monitor-workspace-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.monitorId.value) \
-            --grafana-resource-id $$(az deployment group show --resource-group $(REGIONAL_RESOURCEGROUP) --name metrics-infra --output tsv --query properties.outputs.grafanaId.value); \
-    fi
-.PHONY: svc.enable-aks-metrics
-
 svc.cs-pr-check-msi: svc.rg
 	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) cs-integ-msi
 	az deployment group create \
