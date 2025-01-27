@@ -1,18 +1,18 @@
 #!/bin/bash
 
 
-if [ -z "$CUSTOMER_RG_NAME" ]; then
+if [ -z "${CUSTOMER_RG_NAME:-}" ]; then
     export CUSTOMER_RG_NAME="$USER-net-rg"
 fi
 export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
 export LOCATION="westus3"
-if [ -z "$CLUSTER_NAME" ]; then
+if [ -z "${CLUSTER_NAME:-}" ]; then
     export CLUSTER_NAME="$USER"
 fi
 MANAGED_RESOURCE_GROUP="$CLUSTER_NAME-rg"
 
-if [ -z "$NP_NAME" ]; then
+if [ -z "${NP_NAME:-}" ]; then
     export NP_NAME="np-1"
 fi
