@@ -74,17 +74,24 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net
 }
 
 func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
+	// This just digs up the logger passed to NewFrontend.
+	logger := LoggerFromContext(f.server.BaseContext(f.listener))
+
+	otelShutdown, err := InstallOpenTelemetryTracer(ctx, logger)
+	if err != nil {
+		logger.Error("could not initialize opentelemetry sdk", "error", err)
+		os.Exit(1)
+	}
+
 	if stop != nil {
 		go func() {
 			<-stop
 			f.ready.Store(false)
 			_ = f.server.Shutdown(ctx)
 			_ = f.metricsServer.Shutdown(ctx)
+			_ = otelShutdown(ctx)
 		}()
 	}
-
-	// This just digs up the logger passed to NewFrontend.
-	logger := LoggerFromContext(f.server.BaseContext(f.listener))
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))

@@ -17,6 +17,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
@@ -139,6 +140,9 @@ func (opts *FrontendOpts) Run() error {
 
 	// Initialize Clusters Service Client
 	conn, err := sdk.NewUnauthenticatedConnectionBuilder().
+		TransportWrapper(func(r http.RoundTripper) http.RoundTripper {
+			return otelhttp.NewTransport(r)
+		}).
 		URL(opts.clustersServiceURL).
 		Insecure(opts.insecure).
 		Build()
