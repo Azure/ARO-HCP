@@ -250,17 +250,17 @@ clouds:
               issuer: OneCertV2-PublicCA
 
           # 1P app
-          firstPartyAppClientId: '??? the one used by CS to do first party stuff ???'
+          firstPartyAppClientId: '5bc505bc-50ef-4be9-9a82-2ed7973f1c37'
 
           # Mock Managed Identities Service Princiapl.
           # This is a stub identity to be used by CS in environments where the MI (formerly MSI) RP isn't available.
-          miMockClientId: ''
-          miMockPrincipalId: ''
+          miMockClientId: 'f13a22ee-4f55-4d33-a614-a703e5501202'
+          miMockPrincipalId: '9c39ce5e-155f-4495-800c-d90136f4f9bd'
 
           # ARM Helper
           # This is a helper identity for DEV not required in higher envs.
-          armHelperClientId: ''
-          armHelperFPAPrincipalId: ''
+          armHelperClientId: 'f2af6a70-fc23-4a9a-bbf2-3236f86e65e4'
+          armHelperFPAPrincipalId: '0d52321e-f2ad-4bd4-a3b6-d0f921c7329f'
 
           # disable KV softdelete for easy cleanup and recreate in INT
           cxKeyVault:
