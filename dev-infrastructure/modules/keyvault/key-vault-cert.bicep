@@ -47,5 +47,5 @@ resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01
 }
 
 output Thumbprint string = newCertwithRotationKV.properties.outputs.Thumbprint
-output CACert string = newCertwithRotationKV.properties.outputs.CACert
+output CACert string = issuerName == 'Self' ? newCertwithRotationKV.properties.outputs.CACert : issuerName
 output KeyVaultCertId string = newCertwithRotationKV.properties.outputs.KeyVaultCertId
