@@ -149,6 +149,8 @@ main() {
   # identities for a given OCP version will be provided
   # via API.
   CONTROL_PLANE_OPERATORS_NAMES=(
+    "cluster-azure-api"
+    "control-plane"
     "cloud-controller-manager"
     "ingress"
     "disk-csi-driver"
@@ -162,11 +164,9 @@ main() {
   # identities for a given OCP version will be provided
   # via API.
   DATA_PLANE_OPERATORS_NAMES=(
-    "ingress"
     "disk-csi-driver"
     "file-csi-driver"
     "image-registry"
-    "cloud-network-config"
   )
 
   # We declare and initialize the control plane
