@@ -80,6 +80,7 @@ type DBClient interface {
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	DeleteOperationDoc(ctx context.Context, operationID string) error
+	ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument]
 	ListAllOperationDocs() DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
@@ -418,6 +419,24 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 	}
 
 	return nil
+}
+
+func (d *CosmosDBClient) ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument] {
+	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
+
+	query := "SELECT * FROM c WHERE STARTSWITH(c.externalId, @prefix, true)"
+	opt := azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{
+			{
+				Name:  "@prefix",
+				Value: "/subscriptions/" + strings.ToLower(subscriptionID),
+			},
+		},
+	}
+
+	pager := d.operations.NewQueryItemsPager(query, pk, &opt)
+
+	return newQueryItemsIterator[OperationDocument](pager)
 }
 
 func (d *CosmosDBClient) ListAllOperationDocs() DBClientIterator[OperationDocument] {
