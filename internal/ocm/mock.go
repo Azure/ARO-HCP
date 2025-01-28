@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/openshift-online/ocm-sdk-go/errors"
 )
@@ -15,7 +16,7 @@ import (
 // MockClusterServiceClient allows for unit testing functions
 // that make calls to the ClusterServiceClient interface.
 type MockClusterServiceClient struct {
-	clusters  map[InternalID](*cmv1.Cluster)
+	clusters  map[InternalID](*arohcpv1alpha1.Cluster)
 	nodePools map[InternalID](*cmv1.NodePool)
 }
 
@@ -34,19 +35,19 @@ func mockNotFoundError(internalID InternalID) error {
 // NewCosmosDBConfig instead.
 func NewMockClusterServiceClient() MockClusterServiceClient {
 	return MockClusterServiceClient{
-		clusters:  make(map[InternalID]*cmv1.Cluster),
+		clusters:  make(map[InternalID]*arohcpv1alpha1.Cluster),
 		nodePools: make(map[InternalID]*cmv1.NodePool),
 	}
 }
 
 func (mcsc *MockClusterServiceClient) GetConn() *sdk.Connection { panic("GetConn not implemented") }
 
-func (csc *MockClusterServiceClient) AddProperties(builder *cmv1.ClusterBuilder) *cmv1.ClusterBuilder {
+func (csc *MockClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
 	additionalProperties := map[string]string{}
 	return builder.Properties(additionalProperties)
 }
 
-func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*cmv1.Cluster, error) {
+func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
 	cluster, ok := mcsc.clusters[internalID]
 
 	if !ok {
@@ -55,10 +56,10 @@ func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internal
 	return cluster, nil
 }
 
-func (mcsc *MockClusterServiceClient) PostCSCluster(ctx context.Context, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
+func (mcsc *MockClusterServiceClient) PostCSCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 	href := GenerateClusterHREF(cluster.Name())
 	// Adding the HREF to correspond with what the full client does when crating the body
-	clusterBuilder := cmv1.NewCluster()
+	clusterBuilder := arohcpv1alpha1.NewCluster()
 	enrichedCluster, err := clusterBuilder.Copy(cluster).HREF(href).Build()
 	if err != nil {
 		return nil, err
@@ -71,7 +72,7 @@ func (mcsc *MockClusterServiceClient) PostCSCluster(ctx context.Context, cluster
 	return enrichedCluster, nil
 }
 
-func (mcsc *MockClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *cmv1.Cluster) (*cmv1.Cluster, error) {
+func (mcsc *MockClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 
 	_, ok := mcsc.clusters[internalID]
 	if !ok {
