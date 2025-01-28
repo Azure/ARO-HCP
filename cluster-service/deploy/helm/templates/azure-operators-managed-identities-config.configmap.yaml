@@ -7,10 +7,15 @@ metadata:
 data:
   azure-operators-managed-identities-config.yaml: |
     controlPlaneOperatorsIdentities:
-      control-plane-operator:
+      cluster-api-azure:
         minOpenShiftVersion: 4.17
-        azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.controlPlaneOperator.roleId }}'
-        azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.controlPlaneOperator.roleName }}'
+        azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.clusterApiAzure.roleId }}'
+        azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.clusterApiAzure.roleName }}'
+        optional: false
+      control-plane:
+        minOpenShiftVersion: 4.17
+        azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.controlPlane.roleId }}'
+        azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.controlPlane.roleName }}'
         optional: false
       cloud-controller-manager:
         minOpenShiftVersion: 4.17

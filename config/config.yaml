@@ -182,7 +182,9 @@ clouds:
         imageTag: a51079c
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
-          controlPlaneOperator:
+          clusterApiAzure:
+            roleName: Contributor
+          controlPlane:
             roleName: Contributor
           cloudControllerManager:
             roleName: Azure Red Hat OpenShift Cloud Controller Manager - Dev

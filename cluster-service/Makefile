@@ -17,7 +17,8 @@ deploy:
 	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
 	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
-	OP_CONTROL_PLANE_OPERATOR_ROLE_ID=$(shell az role definition list --name "${OP_CONTROL_PLANE_OPERATOR_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name "${OP_CLUSTER_API_AZURE_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name "${OP_CONTROL_PLANE_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_INGRESS_ROLE_ID=$(shell az role definition list --name "${OP_INGRESS_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_DISK_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
@@ -58,8 +59,10 @@ deploy:
 	  --set azureArmHelperIdentityCertName=${ARM_HELPER_CERT_NAME} \
 	  --set azureArmHelperIdentityClientId=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
 	  --set azureArmHelperMockFpaPrincipalId=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
-	  --set azureOperatorsMI.controlPlaneOperator.roleName="${OP_CONTROL_PLANE_OPERATOR_ROLE_NAME}" \
-	  --set azureOperatorsMI.controlPlaneOperator.roleId="$${OP_CONTROL_PLANE_OPERATOR_ROLE_ID}" \
+	  --set azureOperatorsMI.clusterApiAzure.roleName="${OP_CLUSTER_API_AZURE_ROLE_NAME}" \
+	  --set azureOperatorsMI.clusterApiAzure.roleId="$${OP_CLUSTER_API_AZURE_ROLE_ID}" \
+	  --set azureOperatorsMI.controlPlane.roleName="${OP_CONTROL_PLANE_ROLE_NAME}" \
+	  --set azureOperatorsMI.controlPlane.roleId="$${OP_CONTROL_PLANE_ROLE_ID}" \
 	  --set azureOperatorsMI.cloudControllerManager.roleName="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
 	  --set azureOperatorsMI.cloudControllerManager.roleId="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
 	  --set azureOperatorsMI.ingress.roleName="${OP_INGRESS_ROLE_NAME}" \
