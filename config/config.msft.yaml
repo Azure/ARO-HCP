@@ -174,9 +174,9 @@ clouds:
           ingress:
             roleName: Azure Red Hat OpenShift Cluster Ingress Operator Role
           diskCsiDriver:
-            roleName: Azure Red Hat OpenShift Disk Storage Operator Role
+            roleName: Azure Red Hat OpenShift Storage Operator Role
           fileCsiDriver:
-            roleName: Azure Red Hat OpenShift File Storage Operator Role
+            roleName: Azure Red Hat OpenShift Azure Files Storage Operator Role
           imageRegistry:
             roleName: Azure Red Hat OpenShift Image Registry Operator Role
           cloudNetworkConfig:
