@@ -3,7 +3,10 @@
 HELM_CMD ?= helm upgrade --install
 
 ifndef COMMIT
+COMMIT=${COMMIT_OVERRIDE}
+ifndef COMMIT
 COMMIT := $(shell git rev-parse --short=7 HEAD)
+endif
 endif
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_IMAGE_REPOSITORY ?= arohcpfrontend
