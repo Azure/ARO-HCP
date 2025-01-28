@@ -55,7 +55,7 @@ resourceGroups:
     - name: USE_AZURE_DB
       #configRef: clusterService.postgres.deploy
       # temporarily set because there is an error in the ev2generator
-      value: true
+      value: "true"
     - name: DATABASE_SERVER_NAME
       configRef: clusterService.postgres.name
     # disable tmp
