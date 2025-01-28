@@ -364,7 +364,7 @@ module cs '../modules/cluster-service.bicep' = {
   ]
 }
 
-// oidc
+// O I D C
 
 module oidc '../modules/oidc/main.bicep' = {
   name: '${deployment().name}-oidc'
@@ -422,7 +422,7 @@ module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
   }
 }
 
-module certificateOfficerAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aksClusterKeyVaultSecretsProviderMI-${frontendIngressCertName}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {

@@ -59,5 +59,18 @@ module serviceKeyVaultDevopsCertOfficer '../modules/keyvault/keyvault-secret-acc
   ]
 }
 
+module serviceKeyVaultDevopsSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'svc-kv-secret-officer'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets Officer'
+    managedIdentityPrincipalId: svcKvCertOfficerPrincipalId
+  }
+  dependsOn: [
+    serviceKeyVault
+  ]
+}
+
 output svcKeyVaultName string = serviceKeyVault.outputs.kvName
 output svcKeyVaultUrl string = serviceKeyVault.outputs.kvUrl
