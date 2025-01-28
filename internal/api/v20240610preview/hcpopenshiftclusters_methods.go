@@ -326,7 +326,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 			cpmiResourceIDs = append(cpmiResourceIDs, operatorResourceID)
 		}
 		smiResourceID := normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
-		miCount := 0
+		miCount := len(normalized.Identity.UserAssignedIdentities)
 		for resourceID, _ := range normalized.Identity.UserAssignedIdentities {
 
 			if slices.Contains(cpmiResourceIDs, resourceID) || resourceID == smiResourceID {
@@ -334,17 +334,17 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 				if slices.Contains(cpmiResourceIDs, resourceID) && resourceID == smiResourceID {
 					errorDetails = append(errorDetails, arm.CloudErrorBody{
 						Message: fmt.Sprintf(
-							"User-assigned managed identity %s can not be part of the Operator Authentication Identities and Service Managed Identity .",
+							"%s can not be used in both controlPlaneOperators and serviceManagedIdentity",
 							resourceID),
+						Target: "Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities",
 					})
 				}
-				miCount++
 			} else {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Message: fmt.Sprintf(
-						"User-assigned managed identity %s is not part of the Operator Authentication Identities.",
+						"%s must be used in either controlPlaneOperators or serviceManagedIdentity",
 						resourceID),
-				})
+					Target: "Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities"})
 			}
 		}
 		// Ensure that if User-assigned managed identity count is always equal to count of ControlPlaneOperator MIs and Service Managed Identity.count.
@@ -352,9 +352,10 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 		if smiResourceID != "" {
 			smiCount = 1
 		}
-		if miCount != (len(cpmiResourceIDs) + smiCount) {
+		if miCount < (len(cpmiResourceIDs) + smiCount) {
 			errorDetails = append(errorDetails, arm.CloudErrorBody{
-				Message: "User-assigned managed identity count mistmatch with the Operator Authentication Identities",
+				Message: "must be same as count of OperatorsAuthentication Managed Identities",
+				Target:  "Identity.UserAssignedIdentities",
 			})
 		}
 	}
