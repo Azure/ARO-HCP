@@ -340,6 +340,14 @@
             "properties": {
               "name": {
                 "type": "string"
+              },
+              "issuer": {
+                "type": "string",
+                "enum": [
+                  "Self",
+                  "OneCertV2-PublicCA",
+                  "OneCertV2-PrivateCA"
+                ]
               }
             },
             "additionalProperties": false,

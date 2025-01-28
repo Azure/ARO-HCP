@@ -161,8 +161,14 @@ param aroDevopsMsiId string
 @description('The regional DNS zone to hold ARO HCP customer cluster DNS records')
 param regionalCXDNSZoneName string
 
+@description('This is a regional DNS zone name to hold records for ARO HCP service components, e.g. the RP')
+param regionalSvcDNSZoneName string
+
 @description('Frontend Ingress Certificate Name')
 param frontendIngressCertName string
+
+@description('Frontend Ingress Certificate Issuer')
+param frontendIngressCertIssuer string
 
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
@@ -398,8 +404,23 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
 }
 
 //
-//  C E R T I F I C A T E   A C C E S S   P E R M I S S I O N
+//   F R O N T E N D   C E R T I F I C A T E
 //
+
+module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
+  name: 'frontend-cert-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=frontend'
+    certName: frontendIngressCertName
+    keyVaultManagedIdentityId: aroDevopsMsiId
+    dnsNames: [
+      'frontend.${regionalSvcDNSZoneName}'
+    ]
+    issuerName: frontendIngressCertIssuer
+  }
+}
 
 module certificateOfficerAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aksClusterKeyVaultSecretsProviderMI-${frontendIngressCertName}'

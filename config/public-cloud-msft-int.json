@@ -57,6 +57,7 @@
   "firstPartyAppClientId": "??? the one used by CS to do first party stuff ???",
   "frontend": {
     "cert": {
+      "issuer": "OneCertV2-PublicCA",
       "name": "frontend-cert-int"
     },
     "cosmosDB": {

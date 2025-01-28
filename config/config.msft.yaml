@@ -247,6 +247,7 @@ clouds:
               private: false
             cert:
               name: frontend-cert-{{ .ctx.regionShort }}
+              issuer: OneCertV2-PublicCA
 
           # 1P app
           firstPartyAppClientId: '??? the one used by CS to do first party stuff ???'

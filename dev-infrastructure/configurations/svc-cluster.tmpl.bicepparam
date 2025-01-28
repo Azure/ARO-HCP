@@ -61,10 +61,12 @@ param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
 param regionalCXDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.cxParentZoneName }}'
+param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
 
 param regionalResourceGroup = '{{ .regionRG }}'
 
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
+param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'

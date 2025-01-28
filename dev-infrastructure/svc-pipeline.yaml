@@ -40,7 +40,7 @@ resourceGroups:
     parameters: configurations/svc-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
   # Configure certificate issuers for the SVC KV
-  - name: svc-kv-issuer
+  - name: svc-oncert-private-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
       - svc-infra
@@ -51,6 +51,17 @@ resourceGroups:
     provider:
       name: provider
       value: OneCertV2-PrivateCA
+  - name: svc-oncert-public-kv-issuer
+    action: SetCertificateIssuer
+    dependsOn:
+      - svc-infra
+    vaultBaseUrl:
+      input:
+        name: svcKeyVaultUrl
+        step: svc-infra
+    provider:
+      name: provider
+      value: OneCertV2-PublicCA
   # Deploy the SVC cluster and service infrastructure
   - name: svc
     action: ARM
@@ -71,8 +82,8 @@ resourceGroups:
         step: region-output
         name: azureMonitoringWorkspaceId
     dependsOn:
-    #- svc-kv-issuer
-    - svc-infra
+    - svc-oncert-private-kv-issuer
+    - svc-oncert-public-kv-issuer
     - global-output
     - region-output
 # Now that we have the SVC cluster, we can configure istio.
@@ -80,7 +91,8 @@ resourceGroups:
   subscription: {{ .svc.subscription }}
   aksCluster: {{ .aksName }}
   steps:
-  # - update workload to use istio on version svc.istio.targetVersion
+  # - updates workload to use istio on version svc.istio.targetVersion
+  # - configures istio IP tag usage
   - name: istio
     action: Shell
     command: scripts/istio.sh

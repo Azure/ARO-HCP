@@ -63,6 +63,7 @@ defaults:
       private: true
     cert:
       name: frontend-cert-{{ .ctx.regionShort }}
+      issuer: Self
 
   # Maestro
   maestro:
