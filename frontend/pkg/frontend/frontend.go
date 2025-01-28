@@ -77,13 +77,11 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	// This just digs up the logger passed to NewFrontend.
 	logger := LoggerFromContext(f.server.BaseContext(f.listener))
 
-	errs, ctx := errgroup.WithContext(ctx)
-	var otelShutdown func(context.Context) error
-
-	errs.Go(func() (err error) {
-		otelShutdown, err = InstallOpenTelemetryTracer(ctx, logger)
-		return err
-	})
+	otelShutdown, err := InstallOpenTelemetryTracer(ctx, logger)
+	if err != nil {
+		logger.Error("could not initialize opentelemetry sdk", "error", err)
+		os.Exit(1)
+	}
 
 	if stop != nil {
 		go func() {
@@ -91,9 +89,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 			f.ready.Store(false)
 			_ = f.server.Shutdown(ctx)
 			_ = f.metricsServer.Shutdown(ctx)
-			if otelShutdown != nil {
-				_ = otelShutdown(ctx)
-			}
+			_ = otelShutdown(ctx)
 		}()
 	}
 
@@ -101,6 +97,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 	f.ready.Store(true)
 
+	errs, ctx := errgroup.WithContext(ctx)
 	errs.Go(func() error {
 		return f.server.Serve(f.listener)
 	})
