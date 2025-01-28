@@ -412,7 +412,7 @@ module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=frontend'
+    subjectName: 'CN=frontend.${regionalSvcDNSZoneName}'
     certName: frontendIngressCertName
     keyVaultManagedIdentityId: aroDevopsMsiId
     dnsNames: [
