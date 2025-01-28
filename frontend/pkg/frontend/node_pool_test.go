@@ -26,12 +26,12 @@ import (
 )
 
 const dummyTenantId = "dummy-tenant-id"
-const dummySubscrtiptionId = "00000000-0000-0000-0000-000000000000"
+const dummySubscriptionId = "00000000-0000-0000-0000-000000000000"
 const dummyResourceGroupId = "dummy_resource_group_name"
 const dummyClusterName = "dev-test-cluster"
 const dummyNodePoolName = "dev-nodepool"
 
-const dummyClusterID = ("/subscriptions/" + dummySubscrtiptionId + "/resourcegroups/" + dummyResourceGroupId +
+const dummyClusterID = ("/subscriptions/" + dummySubscriptionId + "/resourcegroups/" + dummyResourceGroupId +
 	"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + dummyClusterName)
 const dummyNodePoolID = dummyClusterID + "/nodePools/" + dummyNodePoolName
 
@@ -69,16 +69,12 @@ func TestCreateNodePool(t *testing.T) {
 		{
 			name:    "PUT Node Pool - Create a new Node Pool",
 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
-			subDoc: &database.SubscriptionDocument{
-				BaseDocument: database.BaseDocument{
-					ID: dummySubscrtiptionId,
-				},
-				Subscription: &arm.Subscription{
+			subDoc: database.NewSubscriptionDocument(dummySubscriptionId,
+				&arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),
 					Properties:       nil,
-				},
-			},
+				}),
 			clusterDoc:         clusterDoc,
 			nodePoolDoc:        nodePoolDoc,
 			systemData:         &arm.SystemData{},
@@ -211,16 +207,12 @@ func TestCreateNodePool(t *testing.T) {
 // 		{
 // 			name:    "PUT Node Pool - Update an existing Node Pool",
 // 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
-// 			subDoc: &database.SubscriptionDocument{
-// 				BaseDocument: database.BaseDocument{
-// 					ID: dummySubscrtiptionId,
-// 				},
-// 				Subscription: &arm.Subscription{
+// 			subDoc: database.NewSubscriptionDocument(dummySubscriptionId,
+// 				&arm.Subscription{
 // 					State:            arm.SubscriptionStateRegistered,
 // 					RegistrationDate: api.Ptr(time.Now().String()),
 // 					Properties:       nil,
-// 				},
-// 			},
+// 				}),
 // 			clusterDoc:         clusterDoc,
 // 			nodePoolDoc:        nodePoolDoc,
 // 			systemData:         &arm.SystemData{},

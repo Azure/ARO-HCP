@@ -11,7 +11,6 @@ package mocks
 
 import (
 	context "context"
-	iter "iter"
 	reflect "reflect"
 
 	database "github.com/Azure/ARO-HCP/internal/database"
@@ -72,10 +71,10 @@ func (mr *MockDBClientIteratorMockRecorder) GetError() *gomock.Call {
 }
 
 // Items mocks base method.
-func (m *MockDBClientIterator) Items(ctx context.Context) iter.Seq[[]byte] {
+func (m *MockDBClientIterator) Items(ctx context.Context) database.DBClientIteratorItem {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Items", ctx)
-	ret0, _ := ret[0].(iter.Seq[[]byte])
+	ret0, _ := ret[0].(database.DBClientIteratorItem)
 	return ret0
 }
 
@@ -253,31 +252,31 @@ func (mr *MockDBClientMockRecorder) GetSubscriptionDoc(ctx, subscriptionID any) 
 }
 
 // ListAllOperationDocs mocks base method.
-func (m *MockDBClient) ListAllOperationDocs(ctx context.Context) database.DBClientIterator {
+func (m *MockDBClient) ListAllOperationDocs() database.DBClientIterator {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllOperationDocs", ctx)
+	ret := m.ctrl.Call(m, "ListAllOperationDocs")
 	ret0, _ := ret[0].(database.DBClientIterator)
 	return ret0
 }
 
 // ListAllOperationDocs indicates an expected call of ListAllOperationDocs.
-func (mr *MockDBClientMockRecorder) ListAllOperationDocs(ctx any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) ListAllOperationDocs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListAllOperationDocs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListAllOperationDocs))
 }
 
 // ListResourceDocs mocks base method.
-func (m *MockDBClient) ListResourceDocs(ctx context.Context, prefix *arm.ResourceID, maxItems int32, continuationToken *string) database.DBClientIterator {
+func (m *MockDBClient) ListResourceDocs(prefix *arm.ResourceID, maxItems int32, continuationToken *string) database.DBClientIterator {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListResourceDocs", ctx, prefix, maxItems, continuationToken)
+	ret := m.ctrl.Call(m, "ListResourceDocs", prefix, maxItems, continuationToken)
 	ret0, _ := ret[0].(database.DBClientIterator)
 	return ret0
 }
 
 // ListResourceDocs indicates an expected call of ListResourceDocs.
-func (mr *MockDBClientMockRecorder) ListResourceDocs(ctx, prefix, maxItems, continuationToken any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) ListResourceDocs(prefix, maxItems, continuationToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListResourceDocs", reflect.TypeOf((*MockDBClient)(nil).ListResourceDocs), ctx, prefix, maxItems, continuationToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListResourceDocs", reflect.TypeOf((*MockDBClient)(nil).ListResourceDocs), prefix, maxItems, continuationToken)
 }
 
 // UpdateOperationDoc mocks base method.

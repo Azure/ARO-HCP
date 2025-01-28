@@ -82,7 +82,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 		return arm.NewInternalServerError()
 	}
 
-	dbIterator := f.dbClient.ListResourceDocs(ctx, prefix, -1, nil)
+	dbIterator := f.dbClient.ListResourceDocs(prefix, -1, nil)
 
 	// Start a deletion operation for all clusters under the subscription.
 	// Cluster Service will delete all node pools belonging to these clusters
@@ -176,7 +176,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 		return "", arm.NewInternalServerError()
 	}
 
-	iterator := f.dbClient.ListResourceDocs(ctx, resourceDoc.ResourceId, -1, nil)
+	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceId, -1, nil)
 
 	for item := range iterator.Items(ctx) {
 		// Anonymous function avoids repetitive error handling.

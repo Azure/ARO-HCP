@@ -96,7 +96,7 @@ func (s *OperationsScanner) Join() {
 func (s *OperationsScanner) pollDBOperations(ctx context.Context, logger *slog.Logger) {
 	var activeOperations []*database.OperationDocument
 
-	iterator := s.dbClient.ListAllOperationDocs(ctx)
+	iterator := s.dbClient.ListAllOperationDocs()
 
 	for item := range iterator.Items(ctx) {
 		var doc *database.OperationDocument
