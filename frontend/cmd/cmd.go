@@ -165,16 +165,6 @@ func (opts *FrontendOpts) Run() error {
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	// NOTE: In the future we may want to include "opts.location" as resource attribute.
-	shutdown, err := frontend.InstallOpenTelemetryTracer(ctx, logger)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := shutdown(ctx); err != nil {
-			logger.Error("otel-sdk shutdown failed", "error", err)
-		}
-	}()
 	f := frontend.NewFrontend(logger, listener, metricsListener, prometheusEmitter, dbClient, opts.location, &csClient)
 
 	stop := make(chan struct{})
