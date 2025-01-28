@@ -20,6 +20,11 @@ func newTestValidator() *validator.Validate {
 
 	validate.RegisterAlias("enum_outboundtype", EnumValidateTag("loadBalancer"))
 	validate.RegisterAlias("enum_visibility", EnumValidateTag("private", "public"))
+	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(
+		arm.ManagedServiceIdentityTypeNone,
+		arm.ManagedServiceIdentityTypeSystemAssigned,
+		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
+		arm.ManagedServiceIdentityTypeUserAssigned))
 
 	return validate
 }
@@ -48,10 +53,39 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 					Visibility: "public",
 				},
 				Platform: PlatformProfile{
-					SubnetID: "/something/something/virtualNetworks/subnets",
+					SubnetID:                "/something/something/virtualNetworks/subnets",
+					OperatorsAuthentication: OperatorsAuthenticationProfile{UserAssignedIdentities: UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity"}}},
 				},
 			},
 		},
+		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{}}},
+	}
+}
+
+func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenShiftCluster {
+	// Values are meaningless but need to pass validation.
+	return &HCPOpenShiftCluster{
+		Properties: HCPOpenShiftClusterProperties{
+			Spec: ClusterSpec{
+				Version: VersionProfile{
+					ID:           "openshift-v4.16.0",
+					ChannelGroup: "stable",
+				},
+				Network: NetworkProfile{
+					PodCIDR:     "10.128.0.0/14",
+					ServiceCIDR: "172.30.0.0/16",
+					MachineCIDR: "10.0.0.0/16",
+				},
+				API: APIProfile{
+					Visibility: "public",
+				},
+				Platform: PlatformProfile{
+					SubnetID:                "/something/something/virtualNetworks/subnets",
+					OperatorsAuthentication: OperatorsAuthenticationProfile{UserAssignedIdentities: UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "wrong/Pattern/Of/ResourceID"}}},
+				},
+			},
+		},
+		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{}}},
 	}
 }
 
@@ -102,6 +136,21 @@ func TestClusterRequiredForPut(t *testing.T) {
 				{
 					Message: "Missing required field 'subnetId'",
 					Target:  "properties.spec.platform.subnetId",
+				},
+			},
+		},
+		{
+			name:     "Minimum valid cluster with Broken Identity",
+			resource: minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication(),
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'wrong/Pattern/Of/ResourceID' for field 'controlPlaneOperators[operatorX]' (must be a valid 'Microsoft.ManagedIdentity/userAssignedIdentities' resource ID)",
+					Target:  "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					Details: nil,
+				},
+				{
+					Message: "Invalid value 'wrong/Pattern/Of/ResourceID' for field 'userAssignedIdentities[wrong/Pattern/Of/ResourceID]' (must be a valid 'Microsoft.ManagedIdentity/userAssignedIdentities' resource ID)",
+					Target:  "identity.userAssignedIdentities[wrong/Pattern/Of/ResourceID]",
 				},
 			},
 		},
@@ -238,6 +287,18 @@ func TestClusterValidateTags(t *testing.T) {
 				{
 					Message: "Invalid value 'http_but_not_a_url' for field 'httpProxy' (must be a URL)",
 					Target:  "properties.spec.proxy.httpProxy",
+				},
+			},
+		},
+		{
+			name: "Bad enum_managedserviceidentitytype",
+			tweaks: &HCPOpenShiftCluster{
+				Identity: arm.ManagedServiceIdentity{Type: "brokenServiceType"},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'brokenServiceType' for field 'type' (must be one of: None SystemAssigned SystemAssigned,UserAssigned UserAssigned)",
+					Target:  "identity.type",
 				},
 			},
 		},
