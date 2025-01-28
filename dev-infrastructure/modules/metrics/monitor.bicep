@@ -54,5 +54,4 @@ module prometheus 'rules/prometheusAlertingRules.bicep' = {
 }
 
 output msiId string = msi.id
-output grafanaId string = grafana.id
 output monitorId string = monitor.id
