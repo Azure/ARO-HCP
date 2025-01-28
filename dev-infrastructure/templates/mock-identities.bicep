@@ -85,3 +85,26 @@ module msiRPMockIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     validityInMonths: 1000
   }
 }
+
+resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(subscription().id, 'dev-msi-mock')
+  properties: {
+    roleName: 'dev-msi-mock'
+    description: 'ARO HCP Dev Role for MSI mock principal'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.ManagedIdentity/userAssignedIdentities/read'
+          'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read'
+          'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write'
+          'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/delete'
+        ]
+        notActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
