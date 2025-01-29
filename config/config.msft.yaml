@@ -157,7 +157,7 @@ defaults:
   # Metrics
   monitoring:
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
-    grafanaName: 'arohcp-{{ .ctx.regionShort }}'
+    grafanaName: 'arohcp-int'
     msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
 
 clouds:
