@@ -82,7 +82,7 @@ defaults:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       serverVersion: '15'
       serverStorageSizeGB: 32
-      deploy: false
+      deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
@@ -105,7 +105,7 @@ defaults:
 
   # Image Sync
   imageSync:
-    rg: hcp-underlay-imagesync
+    rg: global-shared-resources
     acrRG: global-shared-resources
     environmentName: global-shared-resources
     componentSync:
@@ -122,6 +122,11 @@ defaults:
       name: arohcp-imagesync-int
       private: false
       softDelete: true
+
+  # MCE
+  mce:
+    clcStateMetrics:
+      imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
 
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
@@ -163,7 +168,7 @@ clouds:
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       clusterService:
-        imageTag: ecd15ad
+        imageTag: a51079c
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
           clusterApiAzure:
@@ -175,9 +180,9 @@ clouds:
           ingress:
             roleName: Azure Red Hat OpenShift Cluster Ingress Operator Role
           diskCsiDriver:
-            roleName: Azure Red Hat OpenShift Disk Storage Operator Role
+            roleName: Azure Red Hat OpenShift Storage Operator Role
           fileCsiDriver:
-            roleName: Azure Red Hat OpenShift File Storage Operator Role
+            roleName: Azure Red Hat OpenShift Azure Files Storage Operator Role
           imageRegistry:
             roleName: Azure Red Hat OpenShift Image Registry Operator Role
           cloudNetworkConfig:
@@ -186,13 +191,13 @@ clouds:
         imageTag: 9aca808
       imageSync:
         componentSync:
-          imageTag: 8d3c113
+          imageTag: 0b076bf
         ocMirror:
-          imageTag: 0b3c08f
+          imageTag: 0b076bf
       frontend:
-        imageTag: 0b3c08f
+        imageTag: 0b076bf
       backend:
-        imageTag: 0b3c08f
+        imageTag: 0b076bf
 
     environments:
       int:
@@ -251,17 +256,17 @@ clouds:
               issuer: OneCertV2-PublicCA
 
           # 1P app
-          firstPartyAppClientId: '??? the one used by CS to do first party stuff ???'
+          firstPartyAppClientId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37
 
           # Mock Managed Identities Service Princiapl.
           # This is a stub identity to be used by CS in environments where the MI (formerly MSI) RP isn't available.
-          miMockClientId: ''
-          miMockPrincipalId: ''
+          miMockClientId: f13a22ee-4f55-4d33-a614-a703e5501202
+          miMockPrincipalId: 9c39ce5e-155f-4495-800c-d90136f4f9bd
 
           # ARM Helper
           # This is a helper identity for DEV not required in higher envs.
-          armHelperClientId: ''
-          armHelperFPAPrincipalId: ''
+          armHelperClientId: f2af6a70-fc23-4a9a-bbf2-3236f86e65e4
+          armHelperFPAPrincipalId: 0d52321e-f2ad-4bd4-a3b6-d0f921c7329f
 
           # disable KV softdelete for easy cleanup and recreate in INT
           cxKeyVault:
