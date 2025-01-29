@@ -137,10 +137,12 @@ func (opts *FrontendOpts) Run() error {
 		return err
 	}
 
-	// Initialize Clusters Service Client
+	// Initialize the Clusters Service Client.
 	conn, err := sdk.NewUnauthenticatedConnectionBuilder().
 		TransportWrapper(func(r http.RoundTripper) http.RoundTripper {
-			return otelhttp.NewTransport(r)
+			return otelhttp.NewTransport(
+				frontend.RequestIDPropagator(r),
+			)
 		}).
 		URL(opts.clustersServiceURL).
 		Insecure(opts.insecure).
