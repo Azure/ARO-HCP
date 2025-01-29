@@ -4,7 +4,9 @@ package v20240610preview
 // Licensed under the Apache License 2.0.
 
 import (
+	"fmt"
 	"net/http"
+	"slices"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -315,11 +317,48 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 // validateStaticComplex performs more complex, multi-field validations than
 // are possible with struct tag validation. The returned CloudErrorBody slice
 // contains structured but user-friendly details for all discovered errors.
-func validateStaticComplex(normalized *api.HCPOpenShiftCluster, updating bool) []arm.CloudErrorBody {
+func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
+	//Generate a slice of Resource IDs of ControlplaneOperators MI only , disregard the DataPlaneOperators.
+	var cpmiResourceIDs []string
+	if normalized.Identity.UserAssignedIdentities != nil {
+		for _, operatorResourceID := range normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+			cpmiResourceIDs = append(cpmiResourceIDs, operatorResourceID)
+		}
+		smiResourceID := normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
+		miCount := len(normalized.Identity.UserAssignedIdentities)
+		for resourceID, _ := range normalized.Identity.UserAssignedIdentities {
 
-	// FIXME Perform user-assigned managed identity validation checks.
-
+			if slices.Contains(cpmiResourceIDs, resourceID) || resourceID == smiResourceID {
+				//Duplicated Identity Validation
+				if slices.Contains(cpmiResourceIDs, resourceID) && resourceID == smiResourceID {
+					errorDetails = append(errorDetails, arm.CloudErrorBody{
+						Message: fmt.Sprintf(
+							"%s can not be used in both controlPlaneOperators and serviceManagedIdentity",
+							resourceID),
+						Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities",
+					})
+				}
+			} else {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Message: fmt.Sprintf(
+						"%s must be used in either controlPlaneOperators or serviceManagedIdentity",
+						resourceID),
+					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities"})
+			}
+		}
+		// Ensure that if User-assigned managed identity count is always equal to count of ControlPlaneOperator MIs and Service Managed Identity.count.
+		var smiCount int
+		if smiResourceID != "" {
+			smiCount = 1
+		}
+		if miCount < (len(cpmiResourceIDs) + smiCount) {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Message: "must be same as count of OperatorsAuthentication Managed Identities",
+				Target:  "identity.userAssignedIdentities",
+			})
+		}
+	}
 	return errorDetails
 }
 
@@ -355,7 +394,7 @@ func (c *HcpOpenShiftClusterResource) ValidateStatic(current api.VersionedHCPOpe
 	// we already know to be invalid and prevents the response body from
 	// becoming overwhelming.
 	if len(cloudError.Details) == 0 {
-		errorDetails = validateStaticComplex(&normalized, updating)
+		errorDetails = validateStaticComplex(&normalized)
 		if errorDetails != nil {
 			cloudError.Details = append(cloudError.Details, errorDetails...)
 		}
