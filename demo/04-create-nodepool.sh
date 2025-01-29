@@ -11,7 +11,6 @@ NODEPOOL_TMPL_FILE="node_pool.tmpl.json"
 NODEPOOL_FILE="node_pool.json"
 
 SUBNET_ID=$(az network vnet subnet show -g ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id -o tsv)
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
 jq \
   --arg subnet_id "$SUBNET_ID" \

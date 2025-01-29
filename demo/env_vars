@@ -7,7 +7,11 @@ fi
 export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
-export LOCATION="westus3"
+if [ -z "${LOCATION:-}" ]; then
+    export LOCATION="westus3"
+fi
+export SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+export TENANT_ID=$(az account show --query tenantId -o tsv)
 if [ -z "${CLUSTER_NAME:-}" ]; then
     export CLUSTER_NAME="$USER"
 fi
