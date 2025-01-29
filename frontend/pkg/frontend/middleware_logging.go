@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -86,6 +87,25 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(attribute.String("correlation.id", correlationData.CorrelationRequestID))
 	span.SetAttributes(attribute.String("client.request.id", correlationData.ClientRequestID))
+
+	cID, err := baggage.NewMemberRaw("correlation.id", correlationData.CorrelationRequestID)
+	if err != nil {
+		span.RecordError(fmt.Errorf(`unable to create baggage member "correlation.id": %w`, err))
+	}
+	rID, err := baggage.NewMemberRaw("request.id", correlationData.RequestID.String())
+	if err != nil {
+		span.RecordError(fmt.Errorf(`unable to create baggage member "request.id": %w`, err))
+	}
+	crID, err := baggage.NewMemberRaw("client.request.id", correlationData.ClientRequestID)
+	if err != nil {
+		span.RecordError(fmt.Errorf(`unable to create baggage member "client.request.id": %w`, err))
+	}
+
+	bag, err := baggage.New(cID, rID, crID)
+	if err != nil {
+		span.RecordError(fmt.Errorf("unable to generate new baggage: %w", err))
+	}
+	ctx = baggage.ContextWithBaggage(ctx, bag)
 
 	ctx = ContextWithCorrelationData(ctx, correlationData)
 
