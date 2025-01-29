@@ -8,7 +8,7 @@ source env_vars
 
 az group create --name "${CUSTOMER_RG_NAME}" --location ${LOCATION}
 
-az network nsg create -g ${CUSTOMER_RG_NAME} --name ${CUSTOMER_NSG} --location ${LOCATION}
+az network nsg create -g ${CUSTOMER_RG_NAME} --name ${CUSTOMER_NSG}
 NSG_ID=$(az network nsg list --query "[?name=='${CUSTOMER_NSG}'].id" -g ${CUSTOMER_RG_NAME} -o tsv)
 
 az network vnet create \

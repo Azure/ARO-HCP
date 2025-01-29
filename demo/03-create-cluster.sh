@@ -129,7 +129,6 @@ arm_x_ms_identity_url_header() {
 main() {
   NSG_ID=$(az network nsg list -g ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" -o tsv)
   SUBNET_ID=$(az network vnet subnet show -g ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id -o tsv)
-  SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
   UAMIS_RESOURCE_IDS_PREFIX="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
 
