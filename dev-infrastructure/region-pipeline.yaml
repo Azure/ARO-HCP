@@ -19,6 +19,7 @@ resourceGroups:
     template: templates/output-global.bicep
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: {{ .regionRG }}
   subscription: {{ .svc.subscription }}
   steps:
