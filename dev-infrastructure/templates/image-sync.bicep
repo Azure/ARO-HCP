@@ -314,11 +314,10 @@ var ocpMirrorConfig = {
           maxVersion: '4.17.0'
         }
         {
-          name: 'stable-4.18'
+          name: 'candidate-4.18'
           type: 'ocp'
           full: true
-          minVersion: '4.18.0'
-          maxVersion: '4.18.0'
+          minVersion: '4.18.0-rc.6'
         }
       ]
       graph: true
