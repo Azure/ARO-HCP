@@ -336,7 +336,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 						Message: fmt.Sprintf(
 							"%s can not be used in both controlPlaneOperators and serviceManagedIdentity",
 							resourceID),
-						Target: "Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities",
+						Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities",
 					})
 				}
 			} else {
@@ -344,7 +344,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 					Message: fmt.Sprintf(
 						"%s must be used in either controlPlaneOperators or serviceManagedIdentity",
 						resourceID),
-					Target: "Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities"})
+					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities"})
 			}
 		}
 		// Ensure that if User-assigned managed identity count is always equal to count of ControlPlaneOperator MIs and Service Managed Identity.count.
@@ -355,7 +355,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 		if miCount < (len(cpmiResourceIDs) + smiCount) {
 			errorDetails = append(errorDetails, arm.CloudErrorBody{
 				Message: "must be same as count of OperatorsAuthentication Managed Identities",
-				Target:  "Identity.UserAssignedIdentities",
+				Target:  "identity.userAssignedIdentities",
 			})
 		}
 	}
