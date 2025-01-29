@@ -242,6 +242,7 @@ clouds:
           dns:
             cxParentZoneName: aroapp-hcp.azure-test.net
             svcParentZoneName: aro-hcp.azure-test.net
+            parentZoneName: azure-test.net
 
           # ACR
           svcAcrName: arohcpsvcint

@@ -10,3 +10,19 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: svcChildZone
+    action: DelegateChildZone
+    parentZone:
+      configRef: dns.parentZoneName
+    childZone:
+      configRef: dns.svcParentZoneName
+    dependsOn:
+    - global-infra
+  - name: cxChildZone
+    action: DelegateChildZone
+    parentZone:
+      configRef: dns.parentZoneName
+    childZone:
+      configRef: dns.cxParentZoneName
+    dependsOn:
+    - global-infra

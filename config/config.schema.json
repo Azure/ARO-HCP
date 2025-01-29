@@ -127,6 +127,10 @@
           "regionalSubdomain": {
             "type": "string",
             "description": "The regional subdomain to be used to construct the regional hcp and svc zones under their respective parents, e.g. regionalSubdomain.svcParentZoneName"
+          },
+          "parentZoneName": {
+            "type": "string",
+            "description": "The global parent DNS zone name"
           }
         },
         "additionalProperties": false,

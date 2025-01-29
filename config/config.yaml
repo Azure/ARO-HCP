@@ -167,6 +167,7 @@ clouds:
         baseDnsZoneRG: global
         cxParentZoneName: hcp.osadev.cloud
         svcParentZoneName: hcpsvc.osadev.cloud
+        parentZoneName: osadev.cloud
       # 1P app
       firstPartyAppClientId: 57e54810-3138-4f38-bd3b-29cb33f4c358
       # Mock Managed Identities Service Princiapl
