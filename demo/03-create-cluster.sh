@@ -148,7 +148,7 @@ main() {
   # identities for a given OCP version will be provided
   # via API.
   CONTROL_PLANE_OPERATORS_NAMES=(
-    "cluster-azure-api"
+    "cluster-api-azure"
     "control-plane"
     "cloud-controller-manager"
     "ingress"
