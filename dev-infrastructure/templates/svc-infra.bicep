@@ -13,20 +13,8 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
-@description('MSI that will be used to run the deploymentScript')
-param aroDevopsMsiId string
-
 @description('SVC KV certificate officer principal ID')
 param svcKvCertOfficerPrincipalId string
-
-@description('Frontend Certificate Name')
-param certName string
-
-@description('''
-  This is a regional DNS zone name to hold records for ARO HCP service components,
-  e.g. the RP
-  ''')
-param regionalSvcDNSZoneName string
 
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
@@ -73,24 +61,3 @@ module serviceKeyVaultDevopsCertOfficer '../modules/keyvault/keyvault-secret-acc
 
 output svcKeyVaultName string = serviceKeyVault.outputs.kvName
 output svcKeyVaultUrl string = serviceKeyVault.outputs.kvUrl
-
-//
-//   C E R T I F I C A T E   C R E A T I O N
-//
-
-var clientAuthenticationName = 'frontend.${regionalSvcDNSZoneName}'
-
-module clientCertificate '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'frontend-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVault.outputs.kvName
-    subjectName: 'CN=frontend'
-    certName: certName
-    keyVaultManagedIdentityId: aroDevopsMsiId
-    dnsNames: [
-      clientAuthenticationName
-    ]
-    issuerName: 'Self' // TODO: Change to OneCertV2-PublicCA when we get the issuer approved.
-  }
-}
