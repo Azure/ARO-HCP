@@ -382,6 +382,8 @@ Then register it with the Maestro Server
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
 
     # And then we create variables containing their Azure resource IDs and export them to be used later
+    export CP_CONTROL_PLANE_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-control-plane-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export CP_CAPZ_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cluster-api-azure-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_CCM_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_INGRESS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
@@ -401,8 +403,6 @@ Then register it with the Maestro Server
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
 
     # And then we create variables containing their Azure resource IDs and export them to be used later
     export DP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
@@ -464,6 +464,12 @@ Then register it with the Maestro Server
           "managed_identities": {
             "managed_identities_data_plane_identity_url": "https://dummyhost.identity.azure.net",
             "control_plane_operators_managed_identities": {
+              "control-plane": {
+                "resource_id": "$CP_CONTROL_PLANE_UAMI"
+              },
+              "cluster-api-azure": {
+                "resource_id": "$CP_CAPZ_UAMI"
+              },
               "cloud-controller-manager": {
                 "resource_id": "$CP_CCM_UAMI"
               },
@@ -492,12 +498,6 @@ Then register it with the Maestro Server
               },
               "file-csi-driver": {
                 "resource_id": "$DP_FILE_CSI_DRIVER_UAMI"
-              },
-              "ingress": {
-                "resource_id": "$DP_INGRESS_UAMI"
-              },
-              "cloud-network-config": {
-                "resource_id": "$DP_CNC_UAMI"
               }
             },
             "service_managed_identity": {
@@ -558,6 +558,8 @@ ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools/$UID
 
 2. Delete the created managed identities that were initially created for the cluster:
    ```
+   az identity delete --ids "${CP_CONTROL_PLANE_UAMI}"
+   az identity delete --ids "${CP_CAPZ_UAMI}"
    az identity delete --ids "${CP_INGRESS_UAMI}"
    az identity delete --ids "${CP_DISK_CSI_DRIVER_UAMI}"
    az identity delete --ids "${CP_FILE_CSI_DRIVER_UAMI}"
