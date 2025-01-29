@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"syscall"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
+	"github.com/Azure/ARO-HCP/frontend/pkg/info"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -46,7 +46,7 @@ func NewRootCmd() *cobra.Command {
 	opts := &FrontendOpts{}
 	rootCmd := &cobra.Command{
 		Use:     "aro-hcp-frontend",
-		Version: version(),
+		Version: info.Version(),
 		Args:    cobra.NoArgs,
 		Short:   "Serve the ARO HCP Frontend",
 		Long: `Serve the ARO HCP Frontend
@@ -103,7 +103,7 @@ func correlationIDPolicy(req *policy.Request) (*http.Response, error) {
 
 func (opts *FrontendOpts) Run() error {
 	logger := config.DefaultLogger()
-	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version()))
+	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, info.Version()))
 
 	// Init the Prometheus emitter.
 	prometheusEmitter := frontend.NewPrometheusEmitter(prometheus.DefaultRegisterer)
@@ -177,21 +177,7 @@ func (opts *FrontendOpts) Run() error {
 	close(stop)
 
 	f.Join()
-	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version()))
+	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, info.Version()))
 
 	return nil
-}
-
-func version() string {
-	version := "unknown"
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				version = setting.Value
-				break
-			}
-		}
-	}
-
-	return version
 }
