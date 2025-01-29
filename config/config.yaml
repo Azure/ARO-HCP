@@ -183,6 +183,10 @@ clouds:
         imageTag: dca2a71
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
+          clusterApiAzure:
+            roleName: Contributor
+          controlPlane:
+            roleName: Contributor
           cloudControllerManager:
             roleName: Azure Red Hat OpenShift Cloud Controller Manager - Dev
           ingress:

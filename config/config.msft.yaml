@@ -166,6 +166,10 @@ clouds:
         imageTag: ecd15ad
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
+          clusterApiAzure:
+            roleName: Contributor
+          controlPlane:
+            roleName: Contributor
           cloudControllerManager:
             roleName: Azure Red Hat OpenShift Cloud Controller Manager Role
           ingress:

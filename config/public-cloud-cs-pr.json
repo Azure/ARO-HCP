@@ -16,6 +16,12 @@
       "cloudNetworkConfig": {
         "roleName": "Azure Red Hat OpenShift Network Operator - Dev"
       },
+      "clusterApiAzure": {
+        "roleName": "Contributor"
+      },
+      "controlPlane": {
+        "roleName": "Contributor"
+      },
       "diskCsiDriver": {
         "roleName": "Azure Red Hat OpenShift Disk Storage Operator - Dev"
       },

@@ -216,6 +216,12 @@
           "azureOperatorsManagedIdentities": {
             "type": "object",
             "properties": {
+              "clusterApiAzure": {
+                "$ref": "#/definitions/operatorConfig"
+              },
+              "controlPlane": {
+                "$ref": "#/definitions/operatorConfig"
+              },
               "cloudControllerManager": {
                 "$ref": "#/definitions/operatorConfig"
               },
