@@ -1,11 +1,11 @@
 {
   "acrPullImageDigest": "sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca",
   "aksName": "aro-hcp-aks",
-  "armHelperClientId": "",
-  "armHelperFPAPrincipalId": "",
+  "armHelperClientId": "f2af6a70-fc23-4a9a-bbf2-3236f86e65e4",
+  "armHelperFPAPrincipalId": "0d52321e-f2ad-4bd4-a3b6-d0f921c7329f",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
-    "imageTag": "0b3c08f"
+    "imageTag": "0b076bf"
   },
   "clusterService": {
     "acrRG": "global-shared-resources",
@@ -17,10 +17,10 @@
         "roleName": "Azure Red Hat OpenShift Network Operator Role"
       },
       "diskCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift Disk Storage Operator Role"
+        "roleName": "Azure Red Hat OpenShift Storage Operator Role"
       },
       "fileCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift File Storage Operator Role"
+        "roleName": "Azure Red Hat OpenShift Azure Files Storage Operator Role"
       },
       "imageRegistry": {
         "roleName": "Azure Red Hat OpenShift Image Registry Operator Role"
@@ -30,7 +30,7 @@
       }
     },
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "ecd15ad",
+    "imageTag": "a51079c",
     "k8s": {
       "namespace": "cluster-service",
       "serviceAccountName": "clusters-service"
@@ -55,7 +55,7 @@
     "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "extraVars": {},
-  "firstPartyAppClientId": "??? the one used by CS to do first party stuff ???",
+  "firstPartyAppClientId": "5bc505bc-50ef-4be9-9a82-2ed7973f1c37",
   "frontend": {
     "cert": {
       "issuer": "OneCertV2-PublicCA",
@@ -67,7 +67,7 @@
       "name": "arohcp-rp-int",
       "private": false
     },
-    "imageTag": "0b3c08f"
+    "imageTag": "0b076bf"
   },
   "global": {
     "globalMSIName": "global-ev2-identity",
@@ -87,7 +87,7 @@
     "componentSync": {
       "enabled": true,
       "imageRepo": "image-sync/component-sync",
-      "imageTag": "8d3c113",
+      "imageTag": "0b076bf",
       "pullSecretName": "component-sync-pull-secret",
       "repositories": "arohcpsvcdev.azurecr.io/image-sync/component-sync,arohcpsvcdev.azurecr.io/arohcpfrontend,arohcpsvcdev.azurecr.io/arohcpbackend,quay.io/acm-d/rhtap-hypershift-operator,arohcpsvcdev.azurecr.io/image-sync/oc-mirror,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
       "secrets": "quay.io:quay-io-bearer,arohcpsvcdev.azurecr.io:arohcpsvcdev-bearer"
@@ -101,10 +101,10 @@
     "ocMirror": {
       "enabled": true,
       "imageRepo": "image-sync/oc-mirror",
-      "imageTag": "0b3c08f",
+      "imageTag": "0b076bf",
       "pullSecretName": "ocp-pull-secret"
     },
-    "rg": "hcp-underlay-imagesync"
+    "rg": "global-shared-resources"
   },
   "kvCertOfficerPrincipalId": "32af88de-a61c-4f71-b709-50538598c4f2",
   "maestro": {
@@ -119,7 +119,7 @@
     "imageTag": "c9a36e110a32c0c25aa5025cfe6d51af797e6d4b",
     "postgres": {
       "databaseName": "maestro",
-      "deploy": false,
+      "deploy": true,
       "minTLSVersion": "TLSV1.2",
       "name": "arohcp-maestro-int",
       "private": false,
@@ -134,6 +134,11 @@
       },
       "managedIdentityName": "maestro-server",
       "mqttClientName": "maestro-server"
+    }
+  },
+  "mce": {
+    "clcStateMetrics": {
+      "imageDigest": "bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7"
     }
   },
   "mgmt": {
@@ -170,8 +175,8 @@
     "private": false,
     "softDelete": false
   },
-  "miMockClientId": "",
-  "miMockPrincipalId": "",
+  "miMockClientId": "f13a22ee-4f55-4d33-a614-a703e5501202",
+  "miMockPrincipalId": "9c39ce5e-155f-4495-800c-d90136f4f9bd",
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",

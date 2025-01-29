@@ -651,9 +651,15 @@
               "imageDigest": {
                 "type": "string"
               }
-            }
+            },
+            "required": [
+              "imageDigest"
+            ]
           }
-        }
+        },
+        "required": [
+          "clcStateMetrics"
+        ]
       },
       "mgmt": {
         "type": "object",
@@ -858,6 +864,7 @@
       "maestro",
       "mgmt",
       "mgmtKeyVault",
+      "mce",
       "monitoring",
       "msiKeyVault",
       "ocpAcrName",
