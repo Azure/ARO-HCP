@@ -10,3 +10,35 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: svcChildZone
+    action: DelegateChildZone
+    parentZone:
+      configRef: global.parentZoneName
+    childZone:
+      configRef: global.svcParentZoneName
+    dependsOn:
+    - global-infra
+  - name: cxChildZone
+    action: DelegateChildZone
+    parentZone:
+      configRef: global.parentZoneName
+    childZone:
+      configRef: global.baseDnsZoneName
+    dependsOn:
+    - global-infra
+  # deploys the SVC and OCP ACRs
+  - name: global-acrs
+    action: ARM
+    template: templates/global-acr.bicep
+    parameters: configurations/global-acr.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - global-infra
+  # imagesync
+  - name: imagesync
+    action: ARM
+    template: templates/image-sync.bicep
+    parameters: configurations/image-sync.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - global-acrs
