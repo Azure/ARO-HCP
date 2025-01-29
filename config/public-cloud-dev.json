@@ -58,6 +58,7 @@
   "firstPartyAppClientId": "57e54810-3138-4f38-bd3b-29cb33f4c358",
   "frontend": {
     "cert": {
+      "issuer": "Self",
       "name": "frontend-cert-dev"
     },
     "cosmosDB": {
