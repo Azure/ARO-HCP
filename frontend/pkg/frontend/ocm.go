@@ -44,6 +44,22 @@ func convertVisibilityToListening(visibility api.Visibility) (listening arohcpv1
 	return
 }
 
+func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.OutboundType) {
+	switch outboundTypeCS {
+	case "load_balancer":
+		outboundTypeRP = api.OutboundTypeLoadBalancer
+	}
+	return
+}
+
+func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS string) {
+	switch outboundTypeRP {
+	case api.OutboundTypeLoadBalancer:
+		outboundTypeCS = "load_balancer"
+	}
+	return
+}
+
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) *api.HCPOpenShiftCluster {
 	// A word about ProvisioningState:
@@ -100,7 +116,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				Platform: api.PlatformProfile{
 					ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
 					SubnetID:               cluster.Azure().SubnetResourceID(),
-					OutboundType:           api.OutboundTypeLoadBalancer,
+					OutboundType:           convertOutboundTypeCSToRP(cluster.Azure().NodesOutboundConnectivity().OutboundType()),
 					NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 					EtcdEncryptionSetID:    "",
 				},
@@ -173,7 +189,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 
 	// FIXME HcpOpenShiftCluster attributes not being passed:
-	//       PlatformProfile.OutboundType        (no CS equivalent?)
 	//       PlatformProfile.EtcdEncryptionSetID (no CS equivalent?)
 	//       ExternalAuth                        (TODO, complicated)
 
@@ -213,7 +228,9 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 			ResourceGroupName(resourceID.ResourceGroupName).
 			ResourceName(hcpCluster.Name).
 			ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
-			SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID)
+			SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
+			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+				OutboundType(convertOutboundTypeRPToCS(hcpCluster.Properties.Spec.Platform.OutboundType)))
 
 		// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 		if hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID != "" {
