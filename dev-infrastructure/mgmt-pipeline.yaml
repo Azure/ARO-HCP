@@ -5,13 +5,14 @@ resourceGroups:
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
   steps:
-  - name: region-output
+  - name: svc-output
     action: ARM
-    template: templates/output-region.bicep
-    parameters: configurations/output-region.tmpl.bicepparam
+    template: templates/output-svc.bicep
+    parameters: configurations/output-svc.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: {{ .mgmt.rg }}
   subscription: {{ .mgmt.subscription }}
-  aksCluster: {{ .aksName }}
   steps:
   - name: mgmt-infra
     action: ARM
@@ -19,12 +20,16 @@ resourceGroups:
     parameters: configurations/mgmt-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-    - name: mgmt.clusterServiceResourceId
+    - name: clusterServiceMIResourceId
       input:
-        step: region-output
+        step: svc-output
         name: cs
     dependsOn:
-    - region-output
+    - svc-output
+- name: {{ .mgmt.rg }}
+  subscription: {{ .mgmt.subscription }}
+  aksCluster: {{ .aksName }}
+  steps:
   - name: mgmt-cluster
     action: ARM
     template: templates/mgmt-cluster.bicep
