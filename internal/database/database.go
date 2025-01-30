@@ -80,7 +80,6 @@ type DBClient interface {
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument]
-	ListAllOperationDocs() DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
 	// ErrNotFound is returned if an associated SubscriptionDocument cannot be found.
@@ -420,11 +419,6 @@ func (d *CosmosDBClient) ListOperationDocs(subscriptionID string) DBClientIterat
 	pager := d.operations.NewQueryItemsPager(query, pk, &opt)
 
 	return newQueryItemsIterator[OperationDocument](pager)
-}
-
-func (d *CosmosDBClient) ListAllOperationDocs() DBClientIterator[OperationDocument] {
-	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
-	return newQueryItemsIterator[OperationDocument](d.operations.NewQueryItemsPager("SELECT * FROM c", pk, nil))
 }
 
 // GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
