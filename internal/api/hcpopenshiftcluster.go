@@ -125,6 +125,9 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 					NetworkType: NetworkTypeOVNKubernetes,
 					HostPrefix:  23,
 				},
+				Platform: PlatformProfile{
+					OutboundType: OutboundTypeLoadBalancer,
+				},
 			},
 		},
 	}
