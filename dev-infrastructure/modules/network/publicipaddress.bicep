@@ -39,3 +39,5 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = i
   properties: roleAssignmentProperties
   scope: publicIPAddress
 }
+
+output ipAddress string = publicIPAddress.properties.ipAddress

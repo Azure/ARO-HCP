@@ -608,6 +608,7 @@ resource azuremonitormetrics_dcra_clusterResourceId 'Microsoft.Insights/dataColl
   }
 }
 
+
 // Outputs
 output userAssignedIdentities array = [
   for i in range(0, length(workloadIdentities)): {
@@ -622,3 +623,4 @@ output aksNodeSubnetId string = aksNodeSubnet.id
 output aksOidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
 output aksClusterName string = aksClusterName
 output aksClusterKeyVaultSecretsProviderPrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
+output istioIngressGatewayIPAddress string = istioIngressGatewayIPAddress.outputs.ipAddress

@@ -187,6 +187,9 @@ resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing
   scope: resourceGroup(serviceKeyVaultResourceGroup)
 }
 
+@description('The name of the Azure DNS zone for the service')
+param dnsRecordSetName string = 'frontend.${regionalSvcDNSZoneName}'
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster'
   scope: resourceGroup()
@@ -431,5 +434,24 @@ module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
     roleName: 'Key Vault Secrets User'
     managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
     secretName: frontendIngressCertName
+  }
+}
+
+// FRONTEND DNS
+
+resource dnsZone 'Microsoft.Network/dnsZones@2022-09-01' existing = {
+  name: regionalSvcDNSZoneName
+}
+
+resource dnsRecord 'Microsoft.Network/dnsZones/A@2022-09-01' = {
+  name: dnsRecordSetName
+  parent: dnsZone 
+  properties: {
+    TTL: 300
+    ARecords: [
+      {
+        ipv4Address: svcCluster.outputs.istioIngressGatewayIPAddress
+      }
+    ]
   }
 }
