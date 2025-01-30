@@ -57,6 +57,7 @@
   "dns": {
     "baseDnsZoneRG": "global",
     "cxParentZoneName": "hcp.osadev.cloud",
+    "parentZoneName": "osadev.cloud",
     "regionalSubdomain": "usw3tst",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
