@@ -111,6 +111,8 @@ local-azure-operators-managed-identities-config:
 	OP_INGRESS_ROLE_ID=$(shell az role definition list --name "${OP_INGRESS_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_DISK_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name "${OP_CLUSTER_API_AZURE_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name "${OP_CONTROL_PLANE_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
 	helm template deploy/helm -s templates/azure-operators-managed-identities-config.configmap.yaml \
@@ -118,6 +120,10 @@ local-azure-operators-managed-identities-config:
 	  --set azureOperatorsMI.cloudControllerManager.roleId="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
 	  --set azureOperatorsMI.ingress.roleName="${OP_INGRESS_ROLE_NAME}" \
 	  --set azureOperatorsMI.ingress.roleId="$${OP_INGRESS_ROLE_ID}" \
+	  --set azureOperatorsMI.clusterApiAzure.roleName="${OP_CLUSTER_API_AZURE_ROLE_NAME}" \
+	  --set azureOperatorsMI.clusterApiAzure.roleId="$${OP_CLUSTER_API_AZURE_ROLE_ID}" \
+	  --set azureOperatorsMI.controlPlane.roleName="${OP_CONTROL_PLANE_ROLE_NAME}" \
+	  --set azureOperatorsMI.controlPlane.roleId="$${OP_CONTROL_PLANE_ROLE_ID}" \
 	  --set azureOperatorsMI.diskCsiDriver.roleName="${OP_DISK_CSI_DRIVER_ROLE_NAME}" \
 	  --set azureOperatorsMI.diskCsiDriver.roleId="$${OP_DISK_CSI_DRIVER_ROLE_ID}" \
 	  --set azureOperatorsMI.fileCsiDriver.roleName="${OP_FILE_CSI_DRIVER_ROLE_NAME}" \
