@@ -105,6 +105,7 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
     ]
     assignableScopes: [
       subscription().id
+      subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
     ]
   }
 }
