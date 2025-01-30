@@ -5,11 +5,13 @@ resourceGroups:
 - name: {{ .global.rg }}
   subscription: {{ .global.subscription }}
   steps:
+  # creates the parent DNS zones for the ARO HCP services
   - name: global-infra
     action: ARM
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
     parentZone:
@@ -18,6 +20,7 @@ resourceGroups:
       configRef: dns.svcParentZoneName
     dependsOn:
     - global-infra
+  # creates DNS delegation for the ARO HCP global CX zone
   - name: cxChildZone
     action: DelegateChildZone
     parentZone:
@@ -26,3 +29,17 @@ resourceGroups:
       configRef: dns.cxParentZoneName
     dependsOn:
     - global-infra
+  # create global ARO HCP ACRs for OCP and SVC images
+  - name: global-acrs
+    action: ARM
+    template: templates/global-acr.bicep
+    parameters: configurations/global-acr.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  # deploys the image mirror for the ACRs
+  - name: imagemirror
+    action: ARM
+    template: templates/image-sync.bicep
+    parameters: configurations/image-sync.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - global-acrs
