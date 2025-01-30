@@ -89,6 +89,14 @@ for i in "${!CONTROL_PLANE_IDENTITIES_UAMIS_NAMES[@]}"; do
   )
 done
 
+service_managed_identity_resource_id="${UAMIS_RESOURCE_IDS_PREFIX}/${service_managed_identity_uami_name}"
+IDENTITY_UAMIS_JSON_MAP=$(echo -n "${IDENTITY_UAMIS_JSON_MAP}" | jq \
+    --arg uami_resource_id $service_managed_identity_resource_id \
+    '
+      .[$uami_resource_id] = {}
+    '
+  )
+
 }
 
 create_azure_managed_identities_for_cluster() {
