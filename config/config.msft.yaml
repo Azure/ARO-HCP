@@ -157,7 +157,6 @@ defaults:
   # Metrics
   monitoring:
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
-    grafanaName: 'arohcp-int'
     msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
 
 clouds:
@@ -282,6 +281,7 @@ clouds:
 
           # Grafana
           monitoring:
+            grafanaName: 'arohcp-int'
             grafanaAdminGroupPrincipalId: '2fdb57d4-3fd3-415d-b604-1d0e37a188fe' # Azure Red Hat OpenShift MSFT Engineering
 
           # Global MSI
