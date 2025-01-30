@@ -31,34 +31,36 @@ func ContextWithTraceCorrelationData(ctx context.Context, data *arm.CorrelationD
 	// NOTE: Here the middleware span is extended by further attributes.
 	// If the tracingMiddleware is not registered, this lines will have no effect.
 	span := trace.SpanFromContext(ctx)
-	span.SetAttributes(attribute.String("correlation.id", data.CorrelationRequestID))
-	span.SetAttributes(attribute.String("client.request.id", data.ClientRequestID))
-	span.SetAttributes(attribute.String("request.id", data.RequestID.String()))
 
-	cID, err := baggage.NewMemberRaw("correlation.id", data.CorrelationRequestID)
-	if err != nil {
-		fmtStr := `unable to create baggage member "correlation.id": %w`
-		span.RecordError(fmt.Errorf(fmtStr, err))
-		logger.ErrorContext(ctx, fmtStr, "error", err)
-	}
-	rID, err := baggage.NewMemberRaw("request.id", data.RequestID.String())
-	if err != nil {
-		fmtStr := `unable to create baggage member "request.id": %w`
-		span.RecordError(fmt.Errorf(fmtStr, err))
-		logger.ErrorContext(ctx, fmtStr, "error", err)
-	}
-	crID, err := baggage.NewMemberRaw("client.request.id", data.ClientRequestID)
-	if err != nil {
-		fmtStr := `unable to create baggage member "client.request.id": %w`
-		span.RecordError(fmt.Errorf(fmtStr, err))
-		logger.ErrorContext(ctx, fmtStr, "error", err)
-	}
+	bag, _ := baggage.New()
 
-	bag, err := baggage.New(cID, rID, crID)
-	if err != nil {
-		fmtStr := "unable to generate new baggage: %w"
-		span.RecordError(fmt.Errorf(fmtStr, err))
-		logger.ErrorContext(ctx, fmtStr, "error", err)
+	for _, e := range []struct {
+		name  string
+		value string
+	}{
+		{
+			name:  "correlation.id",
+			value: data.CorrelationRequestID,
+		},
+		{
+			name:  "client.request.id",
+			value: data.ClientRequestID,
+		},
+		{
+			name:  "request.id",
+			value: data.RequestID.String(),
+		},
+	} {
+		span.SetAttributes(attribute.String(e.name, e.value))
+
+		m, err := baggage.NewMemberRaw(e.name, e.value)
+		if err != nil {
+			fmtStr := `unable to create baggage member "%s"`
+			span.RecordError(fmt.Errorf(fmtStr+": %w", e.name, err))
+			logger.ErrorContext(ctx, fmt.Sprintf(fmtStr, e.name), "error", err)
+		}
+
+		bag, _ = bag.SetMember(m)
 	}
 
 	return baggage.ContextWithBaggage(ctx, bag)
