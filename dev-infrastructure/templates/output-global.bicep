@@ -10,6 +10,9 @@ param cxParentZoneName string
 @description('The SVC parent DNS zone name')
 param svcParentZoneName string
 
+@description('Metrics global Grafana name')
+param grafanaName string
+
 //
 //   A C R
 //
@@ -40,4 +43,12 @@ resource svcParentZone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
 output cxParentZoneResourceId string = cxParentZone.id
 output svcParentZoneResourceId string = svcParentZone.id
 
-output foo string = svcAcrName
+//
+//   G R A F A N A
+//
+
+resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
+  name: grafanaName
+}
+
+output grafanaResourceId string = grafana.id
