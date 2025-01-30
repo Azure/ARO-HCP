@@ -492,7 +492,7 @@ metrics-infra: regional.rg
 		--template-file modules/metrics/metrics.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters configurations/metrics.bicepparam;
-#	@scripts/add-grafana-datasource.sh $(GRAFANA_NAME) $(GLOBAL_RESOURCEGROUP) $(MONITOR_NAME) $(REGIONAL_RESOURCEGROUP)
+	@scripts/add-grafana-datasource.sh $(GRAFANA_NAME) $(GLOBAL_RESOURCEGROUP) $(MONITOR_NAME) $(REGIONAL_RESOURCEGROUP)
 .PHONY: metrics-infra
 
 metrics-infra.what-if: regional.rg
