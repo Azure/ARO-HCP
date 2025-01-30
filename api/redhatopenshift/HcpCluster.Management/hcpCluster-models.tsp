@@ -649,6 +649,9 @@ model NodePoolPatchSpec {
    * JSON or YAML of a serialized Tuned or PerformanceProfile.
    */
   tuningConfigs?: string[];
+
+  /** The avilable zone for the node pool */
+  availabilityZone?: string;
 }
 
 /** Taint is controlling the node taint and its effects */

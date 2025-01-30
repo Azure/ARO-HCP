@@ -1284,6 +1284,7 @@ func (n *NodePoolPatchProperties) UnmarshalJSON(data []byte) error {
 func (n NodePoolPatchSpec) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "autoScaling", n.AutoScaling)
+	populate(objectMap, "availabilityZone", n.AvailabilityZone)
 	populate(objectMap, "labels", n.Labels)
 	populate(objectMap, "replicas", n.Replicas)
 	populate(objectMap, "taints", n.Taints)
@@ -1302,6 +1303,9 @@ func (n *NodePoolPatchSpec) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "autoScaling":
 				err = unpopulate(val, "AutoScaling", &n.AutoScaling)
+			delete(rawMsg, key)
+		case "availabilityZone":
+				err = unpopulate(val, "AvailabilityZone", &n.AvailabilityZone)
 			delete(rawMsg, key)
 		case "labels":
 				err = unpopulate(val, "Labels", &n.Labels)

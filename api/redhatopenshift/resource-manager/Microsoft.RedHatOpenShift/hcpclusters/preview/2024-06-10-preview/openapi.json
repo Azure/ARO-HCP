@@ -1769,6 +1769,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "availabilityZone": {
+          "type": "string",
+          "description": "The avilable zone for the node pool"
         }
       }
     },

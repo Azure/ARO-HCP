@@ -436,6 +436,9 @@ type NodePoolPatchSpec struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
+	// The avilable zone for the node pool
+	AvailabilityZone *string
+
 	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
 	Labels []*Label
 
