@@ -168,7 +168,7 @@ clouds:
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       clusterService:
-        imageTag: a51079c
+        imageTag: dca2a71
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
           clusterApiAzure:
@@ -262,12 +262,12 @@ clouds:
           # Mock Managed Identities Service Princiapl.
           # This is a stub identity to be used by CS in environments where the MI (formerly MSI) RP isn't available.
           miMockClientId: f13a22ee-4f55-4d33-a614-a703e5501202
-          miMockPrincipalId: 9c39ce5e-155f-4495-800c-d90136f4f9bd
+          miMockPrincipalId: d9356bcd-fb81-483e-9b5f-180c0aa27a16
 
           # ARM Helper
           # This is a helper identity for DEV not required in higher envs.
           armHelperClientId: f2af6a70-fc23-4a9a-bbf2-3236f86e65e4
-          armHelperFPAPrincipalId: 0d52321e-f2ad-4bd4-a3b6-d0f921c7329f
+          armHelperFPAPrincipalId: 4026d9e7-2897-4f0c-83d4-897858a5f8a8
 
           # disable KV softdelete for easy cleanup and recreate in INT
           cxKeyVault:

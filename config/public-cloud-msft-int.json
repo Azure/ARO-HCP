@@ -2,7 +2,7 @@
   "acrPullImageDigest": "sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca",
   "aksName": "aro-hcp-aks",
   "armHelperClientId": "f2af6a70-fc23-4a9a-bbf2-3236f86e65e4",
-  "armHelperFPAPrincipalId": "0d52321e-f2ad-4bd4-a3b6-d0f921c7329f",
+  "armHelperFPAPrincipalId": "4026d9e7-2897-4f0c-83d4-897858a5f8a8",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
     "imageTag": "0b076bf"
@@ -36,7 +36,7 @@
       }
     },
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "a51079c",
+    "imageTag": "dca2a71",
     "k8s": {
       "namespace": "cluster-service",
       "serviceAccountName": "clusters-service"
@@ -183,7 +183,7 @@
     "softDelete": false
   },
   "miMockClientId": "f13a22ee-4f55-4d33-a614-a703e5501202",
-  "miMockPrincipalId": "9c39ce5e-155f-4495-800c-d90136f4f9bd",
+  "miMockPrincipalId": "d9356bcd-fb81-483e-9b5f-180c0aa27a16",
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",
