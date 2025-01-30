@@ -26,10 +26,6 @@ resourceGroups:
         name: cs
     dependsOn:
     - svc-output
-- name: {{ .mgmt.rg }}
-  subscription: {{ .mgmt.subscription }}
-  aksCluster: {{ .aksName }}
-  steps:
   - name: mgmt-cluster
     action: ARM
     template: templates/mgmt-cluster.bicep
@@ -37,3 +33,19 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - mgmt-infra
+- name: {{ .mgmt.rg }}
+  subscription: {{ .mgmt.subscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  - name: acrpull
+    action: Shell
+    command: make -C ../acrpull deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    variables:
+      - name: ACRPULL_DIGEST
+        configRef: acrPullImageDigest
+    dependsOn:
+    - mgmt-cluster
