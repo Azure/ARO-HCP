@@ -37,6 +37,7 @@ resourceGroups:
   subscription: {{ .mgmt.subscription }}
   aksCluster: {{ .aksName }}
   steps:
+  # Install ACRpull
   - name: acrpull
     action: Shell
     command: make -C ../acrpull deploy
