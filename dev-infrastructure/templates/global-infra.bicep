@@ -16,6 +16,9 @@ param msiName string
 @description('The admin group principal ID to manage Grafana')
 param grafanaAdminGroupPrincipalId string
 
+@description('MSI that will be used during pipeline runs to Azure resources')
+param aroDevopsMsiId string
+
 resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: globalMSIName
   location: resourceGroup().location
@@ -42,6 +45,23 @@ module grafana 'br:arointacr.azurecr.io/grafana.bicep:metrics.20240814.1' = {
     msiName: msiName
     grafanaName: grafanaName
     grafanaAdmin: grafanaAdmin
+  }
+}
+
+resource grafanaInstance 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
+  name: grafanaName
+}
+
+// https://www.azadvertizer.net/azrolesadvertizer/a79a5197-3a5c-4973-a920-486035ffd60f.html
+var grafanaEditorRole = 'a79a5197-3a5c-4973-a920-486035ffd60f'
+
+resource grafanaDevopsAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(grafanaInstance.id, aroDevopsMsiId, grafanaEditorRole)
+  scope: grafanaInstance
+  properties: {
+    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', grafanaEditorRole)
   }
 }
 
