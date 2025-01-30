@@ -121,7 +121,27 @@ region.what-if:
 
 svc:
 	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
-	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run -c public
+	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)-infra
+	@./ensure-no-running-deployment.sh $(SVC_KV_RESOURCEGROUP) svc-kv-cert-officer
+	az deployment group create \
+		--name $(SVC_RG_DEPLOYMENT_NAME)-infra \
+		--resource-group $(SVC_RESOURCEGROUP) \
+		--template-file templates/svc-infra.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/svc-infra.bicepparam \
+		--parameters \
+			persist=${PERSIST}
+	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) $(SVC_RG_DEPLOYMENT_NAME)
+	az deployment group create \
+		--name $(SVC_RG_DEPLOYMENT_NAME) \
+		--resource-group $(SVC_RESOURCEGROUP) \
+		--template-file templates/svc-cluster.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/svc-cluster.bicepparam \
+		--parameters \
+			persist=${PERSIST}
 .PHONY: svc
 
 svc.cs-pr-check-msi:
