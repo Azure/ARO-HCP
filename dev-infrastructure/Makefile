@@ -84,6 +84,18 @@ create-mock-identities:
 .PHONY: create-mock-identities
 
 #
+# Global
+#
+
+global:
+	../templatize.sh $(DEPLOY_ENV) -p global-pipeline.yaml -P run -c public
+.PHONY: global
+
+global.what-if:
+	../templatize.sh $(DEPLOY_ENV) -p global-pipeline.yaml -P run -c public -d
+.PHONY: global.what-if
+
+#
 # Region
 #
 
@@ -223,17 +235,15 @@ mgmt.kv.permission:
 mgmt.dev.permissions: mgmt.kv.permission
 .PHONY: mgmt.dev.permissions
 
-# ACR
+# ACR DEV customizations
 
-acr:
-	../templatize.sh $(DEPLOY_ENV) -p global-acr-pipeline.yaml -P run -c public
+acr: acr-svc-cfg acr-ocp-cfg
 .PHONY: acr
 
-acr.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p global-acr-pipeline.yaml -P run -c public -d
+acr.what-if: acr-svc-cfg.what-if acr-ocp-cfg.what-if
 .PHONY: acr.what-if
 
-acr-svc-cfg: acr # DEV only setup of caching rules in OCP ACR
+acr-svc-cfg: # DEV only setup of caching rules in OCP ACR
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
@@ -253,7 +263,7 @@ acr-svc-cfg.what-if:
 			configurations/acr-svc.bicepparam
 .PHONY: acr-svc-cfg.what-if
 
-acr-ocp-cfg: acr # DEV only setup of caching rules in OCP ACR
+acr-ocp-cfg: # DEV only setup of caching rules in OCP ACR
 	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
@@ -337,7 +347,7 @@ operator-roles.what-if:
 # Common
 #
 
-what-if: acr.what-if acr-svc-cfg.what-if acr-ocp-cfg.what-if region.what-if svc.what-if mgmt.what-if operator-roles.what-if
+what-if: global.what-if acr.what-if region.what-if svc.what-if mgmt.what-if operator-roles.what-if
 .PHONY: what-if
 
 infra: region svc.init mgmt.init
