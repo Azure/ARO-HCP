@@ -54,6 +54,10 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - region
+# this will not work in case grafana is in another subscription as the workspace
+- name: {{ .global.rg }}
+  subscription: {{ .global.subscription }}
+  steps:
   - name: add-grafana-datasource
     action: Shell
     command: scripts/add-grafana-datasource.sh
@@ -62,7 +66,7 @@ resourceGroups:
         configRef: monitoring.grafanaName
       - name: GRAFANA_RG
         configRef: global.rg
-      - name: WORKSPACE_NAME
+      - name: MONITOR_NAME
         configRef: monitoring.workspaceName
       - name: MONITOR_RG
         configRef: regionRG
