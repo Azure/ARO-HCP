@@ -274,7 +274,7 @@ clouds:
         grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
       # DEVOPS MSI
       aroDevopsMsiId: '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity'
-      kvCertOfficerPrincipalId: '876db5bd-9a48-4bf7-a6a7-088437afa993'
+      kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
     environments:
       dev:
         # this is the integrated DEV environment

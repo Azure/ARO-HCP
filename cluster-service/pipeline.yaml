@@ -53,14 +53,11 @@ resourceGroups:
     - name: REGIONAL_DNS_SUBDOMAIN
       configRef: dns.regionalSubdomain
     - name: USE_AZURE_DB
-      # temporarily defined statically to mitigate an EV2 generator bug
-      # configRef: clusterService.postgres.deploy
-      value: "true"
+      configRef: clusterService.postgres.deploy
     - name: DATABASE_SERVER_NAME
       configRef: clusterService.postgres.name
-    # temporarily disabled to mitigate an EV2 generator bug
-    #- name: DEVOPS_MSI_ID
-    #  configRef: aroDevopsMsiId
+    - name: DEVOPS_MSI_ID
+      configRef: aroDevopsMsiId
     - name: OP_CLUSTER_API_AZURE_ROLE_NAME
       configRef: clusterService.azureOperatorsManagedIdentities.clusterApiAzure.roleName
     - name: OP_CONTROL_PLANE_ROLE_NAME

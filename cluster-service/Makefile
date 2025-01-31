@@ -6,7 +6,6 @@ ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 
 
 deploy:
-	echo "USE_AZURE_DB-${USE_AZURE_DB}-"
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
