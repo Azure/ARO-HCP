@@ -216,7 +216,7 @@ mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permis
 .PHONY: mgmt.init
 
 mgmt.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run -c public
+	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run -c public -d
 .PHONY: mgmt.what-if
 
 mgmt.clean:
