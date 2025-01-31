@@ -31,7 +31,7 @@ func ContextWithTraceCorrelationData(ctx context.Context, data *arm.CorrelationD
 	// NOTE: Here the middleware span is extended by further attributes.
 	// If the tracingMiddleware is not registered, this lines will have no effect.
 	span := trace.SpanFromContext(ctx)
-
+	// Calling New() without any member never returns an error.
 	bag, _ := baggage.New()
 
 	for _, e := range []struct {
@@ -55,9 +55,10 @@ func ContextWithTraceCorrelationData(ctx context.Context, data *arm.CorrelationD
 
 		m, err := baggage.NewMemberRaw(e.name, e.value)
 		if err != nil {
-			fmtStr := `unable to create baggage member "%s"`
+			fmtStr := "unable to create baggage member %q"
 			span.RecordError(fmt.Errorf(fmtStr+": %w", e.name, err))
 			logger.ErrorContext(ctx, fmt.Sprintf(fmtStr, e.name), "error", err)
+			continue
 		}
 
 		bag, _ = bag.SetMember(m)
