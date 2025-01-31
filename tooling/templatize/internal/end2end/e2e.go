@@ -9,9 +9,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
@@ -112,7 +112,7 @@ func (e *e2eImpl) UseRandomRG() func() error {
 		if err != nil {
 			return err
 		}
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		cred, err := azauth.GetAzureTokenCredentials()
 		if err != nil {
 			return err
 		}

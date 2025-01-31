@@ -3,6 +3,11 @@
   env:
     DEPLOY_ENV: dev
     SKIP_CONFIRM: true
+    AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+    AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
+    PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
   on:
     pull_request:
       paths:
@@ -33,8 +38,6 @@
 
   jobs:
     service_cluster_pr_check:
-      env:
-        PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
       permissions:
         id-token: 'write'
         contents: 'read'
@@ -47,12 +50,12 @@
         - name: "install azure-cli"
           uses: "Azure/ARO-HCP@main"
 
-        - name: 'Az CLI login'
-          uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
-          with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        # - name: 'Az CLI login'
+        #   uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
+        #   with:
+        #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
 
@@ -119,12 +122,12 @@
         - name: "install azure-cli"
           uses: "Azure/ARO-HCP@main"
 
-        - name: 'Az CLI login'
-          uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
-          with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        # - name: 'Az CLI login'
+        #   uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
+        #   with:
+        #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
         - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
 
