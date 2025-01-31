@@ -21,14 +21,12 @@ param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddress
 
 // Maestro
 param maestroConsumerName = '{{ .maestro.consumerName }}'
-param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
+param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
 param maestroCertDomain = '{{ .maestro.certDomain }}'
 
 // ACR
-param acrPullResourceGroups = ['{{ .global.rg }}']
-
-// Region
-param regionalResourceGroup = '{{ .regionRG }}'
+param ocpAcrResourceId = '__ocpAcrResourceId__'
+param svcAcrResourceId = '__svcAcrResourceId__'
 
 // CX KV
 param cxKeyVaultName = '{{ .cxKeyVault.name }}'
@@ -43,4 +41,4 @@ param mgmtKeyVaultName = '{{ .mgmtKeyVault.name }}'
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
 // Azure Monitor Workspace
-param azureMonitorWorkspaceName = '{{ .monitoring.workspaceName }}'
+param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'

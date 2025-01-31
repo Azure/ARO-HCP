@@ -1,7 +1,37 @@
 $schema: "pipeline.schema.v1"
+
+# This pipelines installes the infrastructure for the ARO HCP SVC cluster
+#
+# - create the SVC Key Vault and sets up the OneCert issuer
+# - create the AKS SVC cluster
+# - create MIs and CosmosDB and Azure permissions for the RP
+# - create MIs, Postgres DB and OIDC storage and Azure permission for Cluster Service
+# - create MIs, Postgres DB and Azure permissions for the Maestro Server
+# - configures and lifecycles Istio on the SVC cluster
+
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
+# Query parameters from global deployment, e.g. ACR resource IDs
+- name: {{ .global.rg }}
+  subscription: {{ .global.subscription }}
+  steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+# Query parameters from regional deployment, e.g. Azure Monitor workspace ID
+- name: {{ .regionRG }}
+  subscription: {{ .svc.subscription }}
+  steps:
+  - name: region-output
+    action: ARM
+    template: templates/output-region.bicep
+    parameters: configurations/output-region.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
   steps:
@@ -40,14 +70,31 @@ resourceGroups:
     template: templates/svc-cluster.bicep
     parameters: configurations/svc-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: ocpAcrResourceId
+      input:
+        step: global-output
+        name: ocpAcrResourceId
+    - name: svcAcrResourceId
+      input:
+        step: global-output
+        name: svcAcrResourceId
+    - name: azureMonitoringWorkspaceId
+      input:
+        step: region-output
+        name: azureMonitoringWorkspaceId
     dependsOn:
     - svc-oncert-private-kv-issuer
     - svc-oncert-public-kv-issuer
+    - global-output
+    - region-output
+# Now that we have the SVC cluster, we can configure istio.
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
   aksCluster: {{ .aksName }}
   steps:
-  # Configure istio and drive upgrades
+  # - updates workload to use istio on version svc.istio.targetVersion
+  # - configures istio IP tag usage
   - name: istio
     action: Shell
     command: scripts/istio.sh

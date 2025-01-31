@@ -35,6 +35,9 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+- name: {{ .imageSync.rg }}
+  subscription: {{ .global.subscription }}
+  steps:
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM

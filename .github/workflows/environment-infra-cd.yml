@@ -105,7 +105,7 @@
         - name: 'Deploy rest'
           run: |
             cd dev-infrastructure/
-            PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make svc.aks.admin-access svc.istio
+            PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make svc.aks.admin-access
 
         - name: 'CS PR check MSI'
           if: inputs.deploy_cs_pr_check_deps

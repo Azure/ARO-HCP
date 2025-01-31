@@ -66,7 +66,7 @@ ISTIO_IG_ANNOTATIONS="
   service.beta.kubernetes.io/azure-pip-name=${ISTIO_INGRESS_GATEWAY_IP_ADDRESS_NAME}
 "
 for annotation in $ISTIO_IG_ANNOTATIONS; do
-  kubectl annotate svc aks-istio-ingressgateway-external \
+  kubectl annotate --overwrite svc aks-istio-ingressgateway-external \
     "$annotation" \
     -n aks-istio-ingress
 done

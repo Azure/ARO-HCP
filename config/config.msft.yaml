@@ -44,7 +44,6 @@ defaults:
 
   # MGMT cluster specifics
   mgmt:
-    clusterServiceResourceId: 'todo'
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
     aks:
@@ -92,7 +91,6 @@ defaults:
 
   # Cluster Service
   clusterService:
-    acrRG: 'global-shared-resources'
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true

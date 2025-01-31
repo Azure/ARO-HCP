@@ -8,7 +8,6 @@
     "imageTag": ""
   },
   "clusterService": {
-    "acrRG": "global",
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
         "roleName": "Azure Red Hat OpenShift Cloud Controller Manager - Dev"
@@ -113,7 +112,7 @@
     },
     "rg": "hcp-underlay-westus3-imagesync-dev"
   },
-  "kvCertOfficerPrincipalId": "876db5bd-9a48-4bf7-a6a7-088437afa993",
+  "kvCertOfficerPrincipalId": "c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb",
   "maestro": {
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-usw3tst-mgmt-1",
@@ -173,7 +172,6 @@
       },
       "vnetAddressPrefix": "10.128.0.0/14"
     },
-    "clusterServiceResourceId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourcegroups/hcp-underlay-usw3tst-svc/providers/Microsoft.ManagedIdentity/userAssignedIdentities/clusters-service",
     "rg": "hcp-underlay-usw3tst-mgmt-1",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },

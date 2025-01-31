@@ -2,11 +2,6 @@
 # This script integrates an existing Azure Monitoring Workspace with the global Azure Managed Grafana Instance.
 set -e
 
-GRAFANA_NAME=$1
-GRAFANA_RG=$2
-MONITOR_NAME=$3
-MONITOR_RG=$4
-
 MONITOR_DATA_SOURCE=Managed_Prometheus_${MONITOR_NAME}
 
 DATA_SOURCE_URL=$(az grafana data-source list --name ${GRAFANA_NAME} \

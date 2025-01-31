@@ -13,8 +13,11 @@ param aksSystemOsDiskSizeGB int
 @description('Disk size for the AKS user nodes')
 param aksUserOsDiskSizeGB int
 
-@description('Names of additional resource group contains ACRs the AKS cluster will get pull permissions on')
-param acrPullResourceGroups array = []
+@description('The resource ID of the OCP ACR')
+param ocpAcrResourceId string
+
+@description('The resource ID of the SVC ACR')
+param svcAcrResourceId string
 
 @description('Name of the resource group for the AKS nodes')
 param aksNodeResourceGroupName string = '${resourceGroup().name}-aks1'
@@ -68,11 +71,8 @@ param maestroConsumerName string
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
 
-@description('The name of the eventgrid namespace for Maestro.')
-param maestroEventGridNamespacesName string
-
-@description('The resource group that hosts the regional zone')
-param regionalResourceGroup string
+@description('The Azure resource ID of the eventgrid namespace for Maestro.')
+param maestroEventGridNamespaceId string
 
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
@@ -86,8 +86,8 @@ param mgmtKeyVaultName string
 @description('MSI that will be used to run deploymentScripts')
 param aroDevopsMsiId string
 
-@description('The name of the Azure Monitor Workspace (stores prometheus metrics)')
-param azureMonitorWorkspaceName string
+@description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
+param azureMonitoringWorkspaceId string
 
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster'
@@ -113,7 +113,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       }
     })
     aksKeyVaultName: aksKeyVaultName
-    acrPullResourceGroups: acrPullResourceGroups
+    pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
     userAgentMinCount: userAgentMinCount
     userAgentPoolAZCount: userAgentPoolAZCount
     userAgentMaxCount: userAgentMaxCount
@@ -138,8 +138,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   name: '${resourceGroup().name}-aksClusterName'
   params: {
     azureMonitorWorkspaceLocation: location
-    azureMonitorWorkspaceName: azureMonitorWorkspaceName
-    regionalResourceGroup: regionalResourceGroup
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     aksClusterName: aksClusterName
   }
 }
@@ -193,9 +192,8 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
       mgmtCluster.outputs.userAssignedIdentities,
       id => id.uamiName == 'maestro-consumer'
     )[0].uamiPrincipalID
-    maestroInfraResourceGroup: regionalResourceGroup
     maestroConsumerName: maestroConsumerName
-    maestroEventGridNamespaceName: maestroEventGridNamespacesName
+    maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
     keyVaultOfficerManagedIdentityName: aroDevopsMsiId
     maestroCertificateDomain: maestroCertDomain
@@ -209,17 +207,12 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
-resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' existing = {
-  name: maestroEventGridNamespacesName
-  scope: resourceGroup(regionalResourceGroup)
-}
-
 module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
     subnetIds: [mgmtCluster.outputs.aksNodeSubnetId]
-    privateLinkServiceId: eventGridNamespace.id
+    privateLinkServiceId: maestroEventGridNamespaceId
     vnetId: mgmtCluster.outputs.aksVnetId
     serviceType: 'eventgrid'
     groupId: 'topicspace'
