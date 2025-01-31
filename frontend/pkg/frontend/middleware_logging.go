@@ -78,6 +78,7 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 
 	correlationData := arm.NewCorrelationData(r)
 
+	// ContextWithTraceCorrelationData is defined in middleware_tracing.go
 	ctx = ContextWithTraceCorrelationData(ctx, correlationData)
 
 	ctx = ContextWithCorrelationData(ctx, correlationData)
