@@ -71,6 +71,9 @@
 
             # Manage ACR
             make acr acr-svc-cfg acr-ocp-cfg
+            
+            # Setup managed identity roles
+            make managed-identity-roles
 
             # Setup operator roles for platform workload identity
             make operator-roles

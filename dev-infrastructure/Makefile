@@ -522,6 +522,21 @@ secrets-yes-i-want-to-update-the-shared-secrets:
 	rm secrets.tar.gz
 .PHONY: secrets-yes-i-want-to-update-the-shared-secrets
 
+
+#
+# Managed Identity roles
+#
+
+managed-identity-roles:
+	az deployment sub create \
+	    --location westus3 \
+		--name managed-identity-roles \
+		--template-file templates/dev-managed-identity-roles.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/dev-managed-identity-roles.bicepparam
+.PHONY: managed-identity-roles
+
+
 #
 # Operator roles for platform workload identity
 #
