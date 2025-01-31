@@ -6,7 +6,6 @@ package v20240610preview
 import (
 	"fmt"
 	"net/http"
-	"slices"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -319,45 +318,53 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 // contains structured but user-friendly details for all discovered errors.
 func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
-	//Generate a slice of Resource IDs of ControlplaneOperators MI only , disregard the DataPlaneOperators.
-	var cpmiResourceIDs []string
+
 	if normalized.Identity.UserAssignedIdentities != nil {
+		//Initiate the map that will have the number occurence of resource IDs in the Identity and Operator Authn fields .
+		identityOccurrences := make(map[string]int)
+		operatorAuthnOccurrences := make(map[string]int)
+		//Generate a Map of Resource IDs of ControlplaneOperators MI and Service MI if exists , disregard the DataPlaneOperators.
 		for _, operatorResourceID := range normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-			cpmiResourceIDs = append(cpmiResourceIDs, operatorResourceID)
+			operatorAuthnOccurrences[operatorResourceID]++
 		}
 		smiResourceID := normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
-		miCount := len(normalized.Identity.UserAssignedIdentities)
-		for resourceID, _ := range normalized.Identity.UserAssignedIdentities {
 
-			if slices.Contains(cpmiResourceIDs, resourceID) || resourceID == smiResourceID {
-				//Duplicated Identity Validation
-				if slices.Contains(cpmiResourceIDs, resourceID) && resourceID == smiResourceID {
-					errorDetails = append(errorDetails, arm.CloudErrorBody{
-						Message: fmt.Sprintf(
-							"%s can not be used in both controlPlaneOperators and serviceManagedIdentity",
-							resourceID),
-						Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities",
-					})
-				}
-			} else {
+		if smiResourceID != "" {
+			operatorAuthnOccurrences[smiResourceID]++
+		}
+
+		for resourceID := range normalized.Identity.UserAssignedIdentities {
+			identityOccurrences[resourceID]++
+		}
+		for resourceID := range operatorAuthnOccurrences {
+			_, ok := identityOccurrences[resourceID]
+			if !ok {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Message: fmt.Sprintf(
-						"%s must be used in either controlPlaneOperators or serviceManagedIdentity",
+						"Identity %s is referenced in Operator Authentication but is not defined in UserAssignedIdentities",
 						resourceID),
-					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities"})
+					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities",
+				})
+			} else if identityOccurrences[resourceID] != operatorAuthnOccurrences[resourceID] {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Message: fmt.Sprintf(
+						"Identity %s appears %d times in Operator Authentication but %d times in UserAssignedIdentities", resourceID, operatorAuthnOccurrences[resourceID], identityOccurrences[resourceID]),
+					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities",
+				})
+
 			}
 		}
-		// Ensure that if User-assigned managed identity count is always equal to count of ControlPlaneOperator MIs and Service Managed Identity.count.
-		var smiCount int
-		if smiResourceID != "" {
-			smiCount = 1
+		for resourceID := range identityOccurrences {
+			if _, ok := operatorAuthnOccurrences[resourceID]; !ok {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Message: fmt.Sprintf(
+						"Identity %s is defined in UserAssignedIdentities but is not referenced in Operator Authentication",
+						resourceID),
+					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities",
+				})
+			}
 		}
-		if miCount < (len(cpmiResourceIDs) + smiCount) {
-			errorDetails = append(errorDetails, arm.CloudErrorBody{
-				Message: "must be same as count of OperatorsAuthentication Managed Identities",
-				Target:  "identity.userAssignedIdentities",
-			})
-		}
+
 	}
 	return errorDetails
 }
