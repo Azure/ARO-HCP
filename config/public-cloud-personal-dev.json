@@ -1,8 +1,8 @@
 {
   "acrPullImageDigest": "sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca",
   "aksName": "aro-hcp-aks",
-  "armHelperClientId": "2c6ca254-36bd-43c8-a7a8-fe880bc2c489",
-  "armHelperFPAPrincipalId": "bc17c825-6cf8-40d0-8bd6-5536a993115e",
+  "armHelperClientId": "3331e670-0804-48e8-a086-6241671ddc93",
+  "armHelperFPAPrincipalId": "47f69502-0065-4d9a-b19b-d403e183d2f4",
   "aroDevopsMsiId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity",
   "backend": {
     "imageTag": ""
@@ -62,7 +62,7 @@
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
-  "firstPartyAppClientId": "57e54810-3138-4f38-bd3b-29cb33f4c358",
+  "firstPartyAppClientId": "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
   "frontend": {
     "cert": {
       "issuer": "Self",
@@ -182,8 +182,8 @@
     "private": false,
     "softDelete": false
   },
-  "miMockClientId": "4daa4e3b-abc1-4f9c-812c-77bd37e06741",
-  "miMockPrincipalId": "a03f690c-4b2e-4eef-841e-f1904efe0e37",
+  "miMockClientId": "e8723db7-9b9e-46a4-9f7d-64d75c3534f0",
+  "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "6b6d3adf-8476-4727-9812-20ffdef2b85c",
     "grafanaName": "arohcp-dev",
