@@ -144,6 +144,8 @@ func (opts *FrontendOpts) Run() error {
 		}).
 		URL(opts.clustersServiceURL).
 		Insecure(opts.insecure).
+		MetricsSubsystem("frontend_clusters_service_client").
+		MetricsRegisterer(prometheus.DefaultRegisterer).
 		Build()
 	if err != nil {
 		return err
