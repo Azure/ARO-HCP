@@ -62,23 +62,23 @@ create-mock-identities:
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--template-file templates/mock-identities.bicep $(PROMPT_TO_CONFIRM) \
 		--parameters configurations/mock-identities.bicepparam
-	APPLICATION_NAME=aro-dev-first-party \
+	APPLICATION_NAME=aro-dev-first-party2 \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-	CERTIFICATE_NAME=firstPartyCert \
+	CERTIFICATE_NAME=firstPartyCert2 \
 	ROLE_DEFINITION_NAME=dev-first-party-mock \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 
-	APPLICATION_NAME=aro-dev-arm-helper \
+	APPLICATION_NAME=aro-dev-arm-helper2 \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-	CERTIFICATE_NAME=armHelperCert \
+	CERTIFICATE_NAME=armHelperCert2 \
 	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 
-	APPLICATION_NAME=aro-dev-msi-mock \
+	APPLICATION_NAME=aro-dev-msi-mock2 \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-	CERTIFICATE_NAME=msiMockCert \
+	CERTIFICATE_NAME=msiMockCert2 \
 	ROLE_DEFINITION_NAME=dev-msi-mock \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
