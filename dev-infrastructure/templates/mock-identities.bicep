@@ -96,6 +96,15 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
     permissions: [
       {
         actions: [
+          'Microsoft.Network/virtualNetworks/read'
+          'Microsoft.Network/virtualNetworks/subnets/read'
+          'Microsoft.Network/virtualNetworks/subnets/write'
+          'Microsoft.Network/routeTables/read'
+          'Microsoft.Network/routeTables/join/action'
+          'Microsoft.Network/natGateways/join/action'
+          'Microsoft.Network/natGateways/read'
+          'Microsoft.Network/networkSecurityGroups/read'
+          'Microsoft.Network/networkSecurityGroups/join/action'
           'Microsoft.ManagedIdentity/userAssignedIdentities/read'
           'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read'
           'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write'
