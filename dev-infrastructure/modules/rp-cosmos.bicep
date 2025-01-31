@@ -14,15 +14,8 @@ param private bool
 // Local Params
 var containers = [
   {
-    name: 'Subscriptions'
-    partitionKeyPaths: ['/id']
-  }
-  {
-    name: 'Operations'
-    defaultTtl: 604800 // 7 days
-  }
-  {
     name: 'Resources'
+    defaultTtl: -1 // enable ttl on items
   }
   {
     name: 'PartitionKeys'
