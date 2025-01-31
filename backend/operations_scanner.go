@@ -309,7 +309,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 	pk := database.NewPartitionKey(subscriptionID)
 
-	iterator := s.dbClient.ListOperationDocs(subscriptionID)
+	iterator := s.dbClient.ListOperationDocs(pk)
 
 	for operationID, operationDoc := range iterator.Items(ctx) {
 		if !operationDoc.Status.IsTerminal() {
