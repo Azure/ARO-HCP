@@ -55,20 +55,20 @@ resourceGroups:
     dependsOn:
     - region
 # this will not work in case grafana is in another subscription as the workspace
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
-  steps:
-  - name: add-grafana-datasource
-    action: Shell
-    command: scripts/add-grafana-datasource.sh
-    variables:
-      - name: GRAFANA_NAME
-        configRef: monitoring.grafanaName
-      - name: GRAFANA_RG
-        configRef: global.rg
-      - name: MONITOR_NAME
-        configRef: monitoring.workspaceName
-      - name: MONITOR_RG
-        configRef: regionRG
-    dependsOn:
-    - metrics-infra
+# - name: {{ .global.rg }}
+#   subscription: {{ .global.subscription }}
+#   steps:
+#   - name: add-grafana-datasource
+#     action: Shell
+#     command: scripts/add-grafana-datasource.sh
+#     variables:
+#       - name: GRAFANA_NAME
+#         configRef: monitoring.grafanaName
+#       - name: GRAFANA_RG
+#         configRef: global.rg
+#       - name: MONITOR_NAME
+#         configRef: monitoring.workspaceName
+#       - name: MONITOR_RG
+#         configRef: regionRG
+#     dependsOn:
+#     - metrics-infra

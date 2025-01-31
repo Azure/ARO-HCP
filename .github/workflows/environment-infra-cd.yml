@@ -59,7 +59,7 @@
         - name: 'Deploy'
           run: |
             cd dev-infrastructure/
-            make region metrics-infra
+            make region
 
     deploy_service_cluster_rg:
       needs:
