@@ -82,9 +82,9 @@ type DBClient interface {
 	DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
 	ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument]
 
-	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
+	GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error)
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error)
-	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
+	UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a subscription from the database given the subscriptionID.
@@ -327,11 +327,11 @@ func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems
 	}
 }
 
-func (d *cosmosDBClient) getOperationDoc(ctx context.Context, operationID string) (*typedDocument, *OperationDocument, error) {
+func (d *cosmosDBClient) getOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*typedDocument, *OperationDocument, error) { //nolint:staticcheck
 	// Make sure lookup keys are lowercase.
 	operationID = strings.ToLower(operationID)
 
-	pk := NewPartitionKey(operationsPartitionKey)
+	pk = NewPartitionKey(operationsPartitionKey) //nolint:staticcheck
 
 	response, err := d.operations.ReadItem(ctx, pk, operationID, nil)
 	if err != nil {
@@ -351,8 +351,8 @@ func (d *cosmosDBClient) getOperationDoc(ctx context.Context, operationID string
 
 // GetOperationDoc retrieves the asynchronous operation document for the given
 // operation ID from the "operations" container
-func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error) {
-	_, innerDoc, err := d.getOperationDoc(ctx, operationID)
+func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error) {
+	_, innerDoc, err := d.getOperationDoc(ctx, pk, operationID)
 	return innerDoc, err
 }
 
@@ -382,7 +382,7 @@ func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 // The callback function should return true if modifications were applied, signaling to proceed
 // with the document replacement. The boolean return value reflects this: returning true if the
 // document was successfully replaced, or false with or without an error to indicate no change.
-func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error) {
+func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error) {
 	var err error
 
 	options := &azcosmos.ItemOptions{}
@@ -392,7 +392,7 @@ func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, operationID str
 		var innerDoc *OperationDocument
 		var data []byte
 
-		typedDoc, innerDoc, err = d.getOperationDoc(ctx, operationID)
+		typedDoc, innerDoc, err = d.getOperationDoc(ctx, pk, operationID)
 		if err != nil {
 			return false, err
 		}

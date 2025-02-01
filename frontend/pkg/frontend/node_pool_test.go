@@ -140,7 +140,7 @@ func TestCreateNodePool(t *testing.T) {
 				CreateOperationDoc(gomock.Any(), gomock.Any())
 			// ExposeOperation
 			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), gomock.Any(), gomock.Any())
+				UpdateOperationDoc(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
 				CreateResourceDoc(gomock.Any(), gomock.Any())
