@@ -16,6 +16,7 @@ import (
 	arm "github.com/Azure/ARO-HCP/internal/api/arm"
 	database "github.com/Azure/ARO-HCP/internal/database"
 	arm0 "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcosmos "github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -195,18 +196,18 @@ func (mr *MockDBClientMockRecorder) GetLockClient() *gomock.Call {
 }
 
 // GetOperationDoc mocks base method.
-func (m *MockDBClient) GetOperationDoc(ctx context.Context, operationID string) (*database.OperationDocument, error) {
+func (m *MockDBClient) GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*database.OperationDocument, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOperationDoc", ctx, operationID)
+	ret := m.ctrl.Call(m, "GetOperationDoc", ctx, pk, operationID)
 	ret0, _ := ret[0].(*database.OperationDocument)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOperationDoc indicates an expected call of GetOperationDoc.
-func (mr *MockDBClientMockRecorder) GetOperationDoc(ctx, operationID any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) GetOperationDoc(ctx, pk, operationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationDoc", reflect.TypeOf((*MockDBClient)(nil).GetOperationDoc), ctx, operationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationDoc", reflect.TypeOf((*MockDBClient)(nil).GetOperationDoc), ctx, pk, operationID)
 }
 
 // GetResourceDoc mocks base method.
@@ -282,18 +283,18 @@ func (mr *MockDBClientMockRecorder) ListResourceDocs(prefix, maxItems, continuat
 }
 
 // UpdateOperationDoc mocks base method.
-func (m *MockDBClient) UpdateOperationDoc(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
+func (m *MockDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOperationDoc", ctx, operationID, callback)
+	ret := m.ctrl.Call(m, "UpdateOperationDoc", ctx, pk, operationID, callback)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateOperationDoc indicates an expected call of UpdateOperationDoc.
-func (mr *MockDBClientMockRecorder) UpdateOperationDoc(ctx, operationID, callback any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) UpdateOperationDoc(ctx, pk, operationID, callback any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperationDoc", reflect.TypeOf((*MockDBClient)(nil).UpdateOperationDoc), ctx, operationID, callback)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperationDoc", reflect.TypeOf((*MockDBClient)(nil).UpdateOperationDoc), ctx, pk, operationID, callback)
 }
 
 // UpdateResourceDoc mocks base method.
