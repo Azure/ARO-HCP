@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
@@ -32,6 +33,7 @@ const (
 
 type operation struct {
 	id     string
+	pk     azcosmos.PartitionKey
 	doc    *database.OperationDocument
 	logger *slog.Logger
 }
@@ -207,6 +209,8 @@ func (s *OperationsScanner) processSubscriptions(logger *slog.Logger) {
 func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionID string, logger *slog.Logger) {
 	var numProcessed int
 
+	pk := database.NewPartitionKey(subscriptionID)
+
 	iterator := s.dbClient.ListOperationDocs(subscriptionID)
 
 	for operationID, operationDoc := range iterator.Items(ctx) {
@@ -216,7 +220,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 				"operation_id", operationID,
 				"resource_id", operationDoc.ExternalID.String(),
 				"internal_id", operationDoc.InternalID.String())
-			op := operation{operationID, operationDoc, operationLogger}
+			op := operation{operationID, pk, operationDoc, operationLogger}
 
 			switch operationDoc.InternalID.Kind() {
 			case cmv1.ClusterKind:
@@ -302,7 +306,7 @@ func (s *OperationsScanner) deleteOperationCompleted(ctx context.Context, op ope
 
 	// Save a final "succeeded" operation status until TTL expires.
 	const opStatus arm.ProvisioningState = arm.ProvisioningStateSucceeded
-	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.id, func(updateDoc *database.OperationDocument) bool {
+	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
 		return updateDoc.UpdateStatus(opStatus, nil)
 	})
 	if err != nil {
@@ -318,7 +322,7 @@ func (s *OperationsScanner) deleteOperationCompleted(ctx context.Context, op ope
 
 // updateOperationStatus updates Cosmos DB to reflect an updated resource status.
 func (s *OperationsScanner) updateOperationStatus(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.id, func(updateDoc *database.OperationDocument) bool {
+	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
 		return updateDoc.UpdateStatus(opStatus, opError)
 	})
 	if err != nil {
