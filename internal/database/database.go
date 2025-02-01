@@ -79,7 +79,6 @@ type DBClient interface {
 	GetOperationDoc(ctx context.Context, operationID string) (*OperationDocument, error)
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
-	DeleteOperationDoc(ctx context.Context, operationID string) error
 	ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument]
 	ListAllOperationDocs() DBClientIterator[OperationDocument]
 
@@ -403,22 +402,6 @@ func (d *CosmosDBClient) UpdateOperationDoc(ctx context.Context, operationID str
 	}
 
 	return false, err
-}
-
-// DeleteOperationDoc deletes the asynchronous operation document for the given
-// operation ID from the "operations" container
-func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID string) error {
-	// Make sure lookup keys are lowercase.
-	operationID = strings.ToLower(operationID)
-
-	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
-
-	_, err := d.operations.DeleteItem(ctx, pk, operationID, nil)
-	if err != nil && !isResponseError(err, http.StatusNotFound) {
-		return fmt.Errorf("failed to delete Operations container item for '%s': %w", operationID, err)
-	}
-
-	return nil
 }
 
 func (d *CosmosDBClient) ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument] {

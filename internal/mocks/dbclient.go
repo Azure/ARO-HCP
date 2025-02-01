@@ -164,20 +164,6 @@ func (mr *MockDBClientMockRecorder) DBConnectionTest(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DBConnectionTest", reflect.TypeOf((*MockDBClient)(nil).DBConnectionTest), ctx)
 }
 
-// DeleteOperationDoc mocks base method.
-func (m *MockDBClient) DeleteOperationDoc(ctx context.Context, operationID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOperationDoc", ctx, operationID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteOperationDoc indicates an expected call of DeleteOperationDoc.
-func (mr *MockDBClientMockRecorder) DeleteOperationDoc(ctx, operationID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOperationDoc", reflect.TypeOf((*MockDBClient)(nil).DeleteOperationDoc), ctx, operationID)
-}
-
 // DeleteResourceDoc mocks base method.
 func (m *MockDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error {
 	m.ctrl.T.Helper()
