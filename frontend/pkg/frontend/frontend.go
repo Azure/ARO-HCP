@@ -529,7 +529,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	err = f.ExposeOperation(writer, request, pk, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -659,7 +660,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	err = f.ExposeOperation(writer, request, pk, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -904,7 +906,8 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
@@ -999,7 +1002,8 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
