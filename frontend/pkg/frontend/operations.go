@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -87,10 +88,10 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 
 // ExposeOperation fully initiates a new asynchronous operation by enriching
 // the operation database item and adding the necessary response headers.
-func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Request, operationID string) error {
+func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Request, pk azcosmos.PartitionKey, operationID string) error {
 	ctx := request.Context()
 
-	_, err := f.dbClient.UpdateOperationDoc(ctx, operationID, func(updateDoc *database.OperationDocument) bool {
+	_, err := f.dbClient.UpdateOperationDoc(ctx, pk, operationID, func(updateDoc *database.OperationDocument) bool {
 		// There is no way to propagate a parse error here but it should
 		// never fail since we are building a trusted resource ID string.
 		operationID, err := azcorearm.ParseResourceID(path.Join("/",
@@ -137,7 +138,8 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 // CancelActiveOperation marks the status of any active operation on the resource as canceled.
 func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *database.ResourceDocument) error {
 	if resourceDoc.ActiveOperationID != "" {
-		updated, err := f.dbClient.UpdateOperationDoc(ctx, resourceDoc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
+		pk := database.NewPartitionKey(resourceDoc.ResourceID.SubscriptionID)
+		updated, err := f.dbClient.UpdateOperationDoc(ctx, pk, resourceDoc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
 			return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, nil)
 		})
 		// Disregard "not found" errors; a missing operation is effectively canceled.
