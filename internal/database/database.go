@@ -49,6 +49,11 @@ func isResponseError(err error, statusCode int) bool {
 	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
 }
 
+// NewPartitionKey creates a partition key from an Azure subscription ID.
+func NewPartitionKey(subscriptionID string) azcosmos.PartitionKey {
+	return azcosmos.NewPartitionKeyString(strings.ToLower(subscriptionID))
+}
+
 type DBClientIteratorItem[T any] iter.Seq[*T]
 
 type DBClientIterator[T any] interface {
@@ -142,8 +147,7 @@ func (d *cosmosDBClient) GetLockClient() *LockClient {
 
 // GetResourceDoc retrieves a resource document from the "resources" DB using resource ID
 func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
-	// Make sure partition key is lowercase.
-	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
+	pk := NewPartitionKey(resourceID.SubscriptionID)
 
 	query := "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true)"
 	opt := azcosmos.QueryOptions{
@@ -198,7 +202,7 @@ func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.ResourceID, err)
 	}
 
-	_, err = d.resources.CreateItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), data, nil)
+	_, err = d.resources.CreateItem(ctx, NewPartitionKey(doc.PartitionKey), data, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.ResourceID, err)
 	}
@@ -217,8 +221,7 @@ func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error) {
 	var err error
 
-	// Make sure partition key is lowercase.
-	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
+	pk := NewPartitionKey(resourceID.SubscriptionID)
 
 	options := &azcosmos.ItemOptions{}
 
@@ -258,8 +261,7 @@ func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azco
 
 // DeleteResourceDoc removes a resource document from the "resources" DB using resource ID
 func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
-	// Make sure partition key is lowercase.
-	pk := azcosmos.NewPartitionKeyString(strings.ToLower(resourceID.SubscriptionID))
+	pk := NewPartitionKey(resourceID.SubscriptionID)
 
 	doc, err := d.GetResourceDoc(ctx, resourceID)
 	if err != nil {
@@ -281,8 +283,7 @@ func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azco
 // returned iterator to yield all matching items. A positive value will cause the returned
 // iterator to include a continuation token if additional items are available.
 func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument] {
-	// Make sure partition key is lowercase.
-	pk := azcosmos.NewPartitionKeyString(strings.ToLower(prefix.SubscriptionID))
+	pk := NewPartitionKey(prefix.SubscriptionID)
 
 	// XXX The Cosmos DB REST API gives special meaning to -1 for "x-ms-max-item-count"
 	//     but it's not clear if it treats all negative values equivalently. The Go SDK
@@ -317,7 +318,7 @@ func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 	// Make sure lookup keys are lowercase.
 	operationID = strings.ToLower(operationID)
 
-	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
+	pk := NewPartitionKey(operationsPartitionKey)
 
 	response, err := d.operations.ReadItem(ctx, pk, operationID, nil)
 	if err != nil {
@@ -339,7 +340,7 @@ func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, operationID string
 // CreateOperationDoc writes an asynchronous operation document to the "operations"
 // container
 func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error) {
-	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
+	pk := NewPartitionKey(operationsPartitionKey)
 
 	data, err := json.Marshal(doc)
 	if err != nil {
@@ -365,7 +366,7 @@ func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error) {
 	var err error
 
-	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
+	pk := NewPartitionKey(operationsPartitionKey)
 
 	options := &azcosmos.ItemOptions{}
 
@@ -426,7 +427,7 @@ func (d *cosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 	// Make sure lookup keys are lowercase.
 	subscriptionID = strings.ToLower(subscriptionID)
 
-	pk := azcosmos.NewPartitionKeyString(subscriptionID)
+	pk := NewPartitionKey(subscriptionID)
 
 	response, err := d.subscriptions.ReadItem(ctx, pk, subscriptionID, nil)
 	if err != nil {
@@ -450,7 +451,7 @@ func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscription
 	// Make sure lookup keys are lowercase.
 	doc.ID = strings.ToLower(subscriptionID)
 
-	pk := azcosmos.NewPartitionKeyString(doc.ID)
+	pk := NewPartitionKey(doc.ID)
 
 	data, err := json.Marshal(doc)
 	if err != nil {
@@ -483,8 +484,7 @@ func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscription
 func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error) {
 	var err error
 
-	// Make sure partition key is lowercase.
-	pk := azcosmos.NewPartitionKeyString(strings.ToLower(subscriptionID))
+	pk := NewPartitionKey(subscriptionID)
 
 	options := &azcosmos.ItemOptions{}
 
