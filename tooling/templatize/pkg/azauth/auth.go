@@ -11,9 +11,9 @@ import (
 func SetupAzureAuth(ctx context.Context) error {
 	if githubAuthSupported() {
 		err := setupGithubAzureFederationAuthRefresher(ctx)
-        if err != nil {
-            return fmt.Errorf("failed to setup GitHub Azure Federation Auth Refresher: %w", err)
-        }
+		if err != nil {
+			return fmt.Errorf("failed to setup GitHub Azure Federation Auth Refresher: %w", err)
+		}
 	}
 	return nil
 }

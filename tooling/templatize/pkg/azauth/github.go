@@ -68,7 +68,7 @@ func setupGithubAzureFederationAuthRefresher(ctx context.Context) error {
 func refreshGithubAzureFederatedSession(ctx context.Context, clientId, tenantId, requestUrl, requestToken string) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	logger.V(7).Info("Refreshing Azure session with federated GitHub ID token")
-	token, err := getGithubIDToken(requestUrl, requestToken)
+	token, err := getGithubIDToken(ctx, requestUrl, requestToken)
 	if err != nil {
 		return fmt.Errorf("failed to get GitHub ID token: %w", err)
 	}
@@ -81,7 +81,11 @@ func refreshGithubAzureFederatedSession(ctx context.Context, clientId, tenantId,
 	return nil
 }
 
-func getGithubIDToken(requestURL, requestToken string) (string, error) {
+func getGithubIDToken(ctx context.Context, requestURL, requestToken string) (string, error) {
+	timeoutContext, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// build request, add auth and audience
 	req, err := http.NewRequest("GET", requestURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
@@ -90,22 +94,23 @@ func getGithubIDToken(requestURL, requestToken string) (string, error) {
 	q := req.URL.Query()
 	q.Add("audience", "api://AzureADTokenExchange")
 	req.URL.RawQuery = q.Encode()
+
+	// send request with timeout
 	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req.WithContext(timeoutContext))
 	if err != nil {
 		return "", fmt.Errorf("failed to get ID token: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// process response
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to get ID token: status code %d", resp.StatusCode)
 	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
-
 	var tokenResponse struct {
 		Value string `json:"value"`
 	}
