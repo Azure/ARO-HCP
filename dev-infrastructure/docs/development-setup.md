@@ -374,6 +374,8 @@ Then register it with the Maestro Server
     > NOTE: Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
     ```
     # We create the control plane operators User-Assigned Managed Identities
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-control-plane-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cluster-api-azure-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
@@ -408,8 +410,6 @@ Then register it with the Maestro Server
     export DP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export DP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export DP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export DP_INGRESS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export DP_CNC_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     ```
   - Create the User-Assigned Service Managed Identity
     > NOTE: Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use
@@ -568,8 +568,6 @@ ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools/$UID
    az identity delete --ids "${DP_DISK_CSI_DRIVER_UAMI}"
    az identity delete --ids "${DP_IMAGE_REGISTRY_UAMI}"
    az identity delete --ids "${DP_FILE_CSI_DRIVER_UAMI}"
-   az identity delete --ids "${DP_INGRESS_UAMI}"
-   az identity delete --ids "${DP_CNC_UAMI}"
    az identity delete --ids "${SERVICE_MANAGED_IDENTITY_UAMI}"
    ```
 
