@@ -17,7 +17,7 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/info"
+	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -44,7 +44,7 @@ func InstallOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, resour
 	}
 	opts = append(opts, resource.WithAttributes(
 		semconv.ServiceNameKey.String(ProgramName),
-		semconv.ServiceVersionKey.String(info.Version()),
+		semconv.ServiceVersionKey.String(util.Version()),
 	))
 	resources, err := resource.New(ctx, opts...)
 	if err != nil {

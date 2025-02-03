@@ -18,9 +18,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/config"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/frontend/pkg/info"
+	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -46,7 +45,7 @@ func NewRootCmd() *cobra.Command {
 	opts := &FrontendOpts{}
 	rootCmd := &cobra.Command{
 		Use:     "aro-hcp-frontend",
-		Version: info.Version(),
+		Version: util.Version(),
 		Args:    cobra.NoArgs,
 		Short:   "Serve the ARO HCP Frontend",
 		Long: `Serve the ARO HCP Frontend
@@ -102,8 +101,8 @@ func correlationIDPolicy(req *policy.Request) (*http.Response, error) {
 }
 
 func (opts *FrontendOpts) Run() error {
-	logger := config.DefaultLogger()
-	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, info.Version()))
+	logger := util.DefaultLogger()
+	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, util.Version()))
 
 	// Init the Prometheus emitter.
 	prometheusEmitter := frontend.NewPrometheusEmitter(prometheus.DefaultRegisterer)
@@ -177,7 +176,7 @@ func (opts *FrontendOpts) Run() error {
 	close(stop)
 
 	f.Join()
-	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, info.Version()))
+	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, util.Version()))
 
 	return nil
 }

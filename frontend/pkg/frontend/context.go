@@ -7,7 +7,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/config"
+	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -80,7 +80,7 @@ func LoggerFromContext(ctx context.Context) *slog.Logger {
 		}
 		// Return the default logger as a fail-safe, but log
 		// the failure to obtain the logger from the context.
-		logger = config.DefaultLogger()
+		logger = util.DefaultLogger()
 		logger.Error(err.Error())
 	}
 	return logger
