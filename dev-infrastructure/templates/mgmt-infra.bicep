@@ -59,6 +59,8 @@ module cxKeyVault '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
+output cxKeyVaultUrl string = cxKeyVault.outputs.kvUrl
+
 module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
   name: '${deployment().name}-msi-kv'
   params: {
@@ -70,6 +72,8 @@ module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
+output msiKeyVaultUrl string = msiKeyVault.outputs.kvUrl
+
 module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
   name: '${deployment().name}-mgmt-kv'
   params: {
@@ -80,6 +84,8 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
     purpose: 'mgmt'
   }
 }
+
+output mgmtKeyVaultUrl string = mgmtKeyVault.outputs.kvUrl
 
 //
 //   C L U S T E R   S E R V I C E   K V   A C C E S S
