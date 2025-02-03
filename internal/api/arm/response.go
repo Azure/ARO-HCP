@@ -62,6 +62,11 @@ type PagedResponse struct {
 	NextLink string            `json:"nextLink,omitempty"`
 }
 
+// NewPagedResponse returns a new PagedResponse instance.
+func NewPagedResponse() PagedResponse {
+	return PagedResponse{Value: []json.RawMessage{}}
+}
+
 // AddValue adds a JSON encoded value to a PagedResponse.
 func (r *PagedResponse) AddValue(value json.RawMessage) {
 	r.Value = append(r.Value, value)
