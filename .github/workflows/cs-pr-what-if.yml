@@ -3,6 +3,10 @@ name: CS PR Check Environment Bicep What-If
 env:
   DEPLOY_ENV: cs-pr
   DEPLOYMENT_NAME_SUFFIX: "-dev-${GITHUB_RUN_ID}"
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
 on:
   pull_request:
     branches:
@@ -52,5 +56,4 @@ jobs:
       - name: 'Deployment What If'
         run: |
           cd dev-infrastructure/
-          az account get-access-token --output none
-          PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make what-if
+          make what-if

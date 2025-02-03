@@ -44,6 +44,30 @@ resourceGroups:
         name: cs
     dependsOn:
     - svc-output
+  # Configure certificate issuers for the MC KVs
+  - name: cx-oncert-public-kv-issuer
+    action: SetCertificateIssuer
+    dependsOn:
+      - mgmt-infra
+    vaultBaseUrl:
+      input:
+        name: cxKeyVaultUrl
+        step: mgmt-infra
+    provider:
+      name: provider
+      value: OneCertV2-PublicCA
+  - name: mgmt-oncert-private-kv-issuer
+    action: SetCertificateIssuer
+    dependsOn:
+      - mgmt-infra
+    vaultBaseUrl:
+      input:
+        name: mgmtKeyVaultUrl
+        step: mgmt-infra
+    provider:
+      name: provider
+      value: OneCertV2-PrivateCA
+  # Build the MC
   - name: mgmt-cluster
     action: ARM
     template: templates/mgmt-cluster.bicep
@@ -67,7 +91,8 @@ resourceGroups:
         step: region-output
         name: maestroEventGridNamespaceId
     dependsOn:
-    - mgmt-infra
+    - cx-oncert-public-kv-issuer
+    - mgmt-oncert-private-kv-issuer
     - global-output
     - region-output
 - name: {{ .mgmt.rg }}
