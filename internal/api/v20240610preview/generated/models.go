@@ -39,46 +39,6 @@ type ClusterPatchSpec struct {
 	Proxy *ProxyProfile
 }
 
-// ClusterSpec - The cluster resource specification
-type ClusterSpec struct {
-	// REQUIRED; Version of the control plane components
-	Version *VersionProfile
-
-	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
-	IssuerURL *string
-
-	// Cluster DNS configuration
-	DNS *DNSProfile
-
-	// Disable user workload monitoring
-	DisableUserWorkloadMonitoring *bool
-
-	// Enables customer ETCD encryption, set during creation When set to true, platform.etcdEncryptionSetId must be set
-	EtcdEncryption *bool
-
-	// Configuration to override the openshift-oauth-apiserver inside cluster This changes user login into the cluster to external
-// provider
-	ExternalAuth *ExternalAuthConfigProfile
-
-	// Enable FIPS mode for the cluster When set to true, etcdEncryption must be set to true
-	Fips *bool
-
-	// Cluster network configuration
-	Network *NetworkProfile
-
-	// Azure platform configuration
-	Platform *PlatformProfile
-
-	// Openshift cluster proxy configuration
-	Proxy *ProxyProfile
-
-	// READ-ONLY; Shows the cluster API server profile
-	API *APIProfile
-
-	// READ-ONLY; Shows the cluster web console information
-	Console *ConsoleProfile
-}
-
 type ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
@@ -278,8 +238,42 @@ type HcpOpenShiftClusterPatchProperties struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
-	// The cluster resource specification.
-	Spec *ClusterSpec
+	// REQUIRED; Version of the control plane components
+	Version *VersionProfile
+
+	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
+	IssuerURL *string
+
+	// Cluster DNS configuration
+	DNS *DNSProfile
+
+	// Disable user workload monitoring
+	DisableUserWorkloadMonitoring *bool
+
+	// Enables customer ETCD encryption, set during creation When set to true, platform.etcdEncryptionSetId must be set
+	EtcdEncryption *bool
+
+	// Configuration to override the openshift-oauth-apiserver inside cluster This changes user login into the cluster to external
+// provider
+	ExternalAuth *ExternalAuthConfigProfile
+
+	// Enable FIPS mode for the cluster When set to true, etcdEncryption must be set to true
+	Fips *bool
+
+	// Cluster network configuration
+	Network *NetworkProfile
+
+	// Azure platform configuration
+	Platform *PlatformProfile
+
+	// Openshift cluster proxy configuration
+	Proxy *ProxyProfile
+
+	// READ-ONLY; Shows the cluster API server profile
+	API *APIProfile
+
+	// READ-ONLY; Shows the cluster web console information
+	Console *ConsoleProfile
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState

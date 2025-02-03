@@ -58,8 +58,62 @@ model HcpOpenShiftClusterProperties {
   @visibility("read")
   provisioningState?: ProvisioningState;
 
-  /** The cluster resource specification. */
-  spec?: ClusterSpec;
+  // /** The cluster resource specification. */
+  // spec?: ClusterSpec;
+  /** Version of the control plane components */
+  @visibility("create", "read")
+  version: VersionProfile;
+
+  /** Cluster DNS configuration */
+  dns?: DnsProfile;
+
+  /** Cluster network configuration */
+  @visibility("create", "read")
+  network?: NetworkProfile;
+
+  /** Shows the cluster web console information */
+  @visibility("read")
+  console: ConsoleProfile;
+
+  /** Shows the cluster API server profile */
+  @visibility("read")
+  api: ApiProfile;
+
+  /** Enable FIPS mode for the cluster
+   * When set to true, `etcdEncryption` must be set to true
+   */
+  @visibility("create", "read")
+  fips?: boolean = false;
+
+  /** Enables customer ETCD encryption, set during creation
+   * When set to true, `platform.etcdEncryptionSetId` must be set
+   */
+  @visibility("create", "read")
+  etcdEncryption?: boolean = false;
+
+  /** Disable user workload monitoring */
+  @visibility("create", "update")
+  disableUserWorkloadMonitoring?: boolean = false;
+
+  /** Openshift cluster proxy configuration */
+  @visibility("create", "update")
+  proxy?: ProxyProfile;
+
+  /** Azure platform configuration */
+  @visibility("create", "read")
+  platform?: PlatformProfile;
+
+  /** URL for the OIDC provider to be used for authentication
+   * to authenticate against user Azure cloud account
+   */
+  @visibility("read")
+  issuerUrl: url;
+
+  /** Configuration to override the openshift-oauth-apiserver inside cluster
+   *  This changes user login into the cluster to external provider
+   */
+  @visibility("create", "read")
+  externalAuth?: ExternalAuthConfigProfile;
 }
 
 /** HCP patchable cluster properties */
