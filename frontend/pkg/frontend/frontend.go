@@ -166,7 +166,6 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 	var pageSizeHint int32 = 20
 	var continuationToken *string
-	var pagedResponse arm.PagedResponse
 
 	// The Resource Provider Contract implies $top is only honored when
 	// following a "nextLink" after the initial collection GET request.
@@ -247,6 +246,8 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
 	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	pagedResponse := arm.NewPagedResponse()
 
 	switch resourceTypeName {
 	case strings.ToLower(api.ClusterResourceTypeName):
