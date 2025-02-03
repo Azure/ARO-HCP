@@ -216,20 +216,11 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 	// Build a map of cluster documents by Cluster Service cluster ID.
 	documentMap := make(map[string]*database.ResourceDocument)
-	for item := range dbIterator.Items(ctx) {
-		var doc database.ResourceDocument
-
-		err = json.Unmarshal(item, &doc)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
+	for doc := range dbIterator.Items(ctx) {
 		// FIXME This filtering could be made part of the query expression. It would
 		//       require some reworking (or elimination) of the DBClient interface.
 		if strings.HasSuffix(strings.ToLower(doc.ResourceId.ResourceType.Type), resourceTypeName) {
-			documentMap[doc.InternalID.ID()] = &doc
+			documentMap[doc.InternalID.ID()] = doc
 		}
 	}
 

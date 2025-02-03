@@ -5,12 +5,14 @@ package database
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-type queryItemsIterator struct {
+type queryItemsIterator[T any] struct {
 	pager             *runtime.Pager[azcosmos.QueryItemsResponse]
 	singlePage        bool
 	continuationToken string
@@ -18,21 +20,21 @@ type queryItemsIterator struct {
 }
 
 // newQueryItemsIterator is a failable push iterator for a paged query response.
-func newQueryItemsIterator(pager *runtime.Pager[azcosmos.QueryItemsResponse]) queryItemsIterator {
-	return queryItemsIterator{pager: pager}
+func newQueryItemsIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) queryItemsIterator[T] {
+	return queryItemsIterator[T]{pager: pager}
 }
 
 // newQueryItemsSinglePageIterator is a failable push iterator for a paged
 // query response that stops at the end of the first page and includes a
 // continuation token if additional items are available.
-func newQueryItemsSinglePageIterator(pager *runtime.Pager[azcosmos.QueryItemsResponse]) queryItemsIterator {
-	return queryItemsIterator{pager: pager, singlePage: true}
+func newQueryItemsSinglePageIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) queryItemsIterator[T] {
+	return queryItemsIterator[T]{pager: pager, singlePage: true}
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter queryItemsIterator) Items(ctx context.Context) DBClientIteratorItem {
-	return func(yield func([]byte) bool) {
+func (iter queryItemsIterator[T]) Items(ctx context.Context) DBClientIteratorItem[T] {
+	return func(yield func(*T) bool) {
 		for iter.pager.More() {
 			response, err := iter.pager.NextPage(ctx)
 			if err != nil {
@@ -43,7 +45,15 @@ func (iter queryItemsIterator) Items(ctx context.Context) DBClientIteratorItem {
 				iter.continuationToken = *response.ContinuationToken
 			}
 			for _, item := range response.Items {
-				if !yield(item) {
+				var doc T
+
+				err = json.Unmarshal(item, &doc)
+				if err != nil {
+					iter.err = fmt.Errorf("failed to parse container item: %w", err)
+					return
+				}
+
+				if !yield(&doc) {
 					return
 				}
 			}
@@ -57,12 +67,12 @@ func (iter queryItemsIterator) Items(ctx context.Context) DBClientIteratorItem {
 // GetContinuationToken returns a continuation token that can be used to obtain
 // the next page of results. This is only set when the iterator was created with
 // NewQueryItemsSinglePageIterator and additional items are available.
-func (iter queryItemsIterator) GetContinuationToken() string {
+func (iter queryItemsIterator[T]) GetContinuationToken() string {
 	return iter.continuationToken
 }
 
 // GetError returns any error that occurred during iteration. Call this after the
 // for/range loop that calls Items() to check if iteration completed successfully.
-func (iter queryItemsIterator) GetError() error {
+func (iter queryItemsIterator[T]) GetError() error {
 	return iter.err
 }
