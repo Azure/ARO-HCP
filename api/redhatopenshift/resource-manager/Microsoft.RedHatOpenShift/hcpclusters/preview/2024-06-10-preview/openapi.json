@@ -1019,105 +1019,6 @@
         }
       }
     },
-    "ClusterSpec": {
-      "type": "object",
-      "description": "The cluster resource specification",
-      "properties": {
-        "version": {
-          "$ref": "#/definitions/VersionProfile",
-          "description": "Version of the control plane components",
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "dns": {
-          "$ref": "#/definitions/DnsProfile",
-          "description": "Cluster DNS configuration"
-        },
-        "network": {
-          "$ref": "#/definitions/NetworkProfile",
-          "description": "Cluster network configuration",
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "console": {
-          "$ref": "#/definitions/ConsoleProfile",
-          "description": "Shows the cluster web console information",
-          "readOnly": true
-        },
-        "api": {
-          "$ref": "#/definitions/ApiProfile",
-          "description": "Shows the cluster API server profile",
-          "readOnly": true
-        },
-        "fips": {
-          "type": "boolean",
-          "description": "Enable FIPS mode for the cluster\nWhen set to true, `etcdEncryption` must be set to true",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "etcdEncryption": {
-          "type": "boolean",
-          "description": "Enables customer ETCD encryption, set during creation\nWhen set to true, `platform.etcdEncryptionSetId` must be set",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "disableUserWorkloadMonitoring": {
-          "type": "boolean",
-          "description": "Disable user workload monitoring",
-          "default": false,
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
-        },
-        "proxy": {
-          "$ref": "#/definitions/ProxyProfile",
-          "description": "Openshift cluster proxy configuration",
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
-        },
-        "platform": {
-          "$ref": "#/definitions/PlatformProfile",
-          "description": "Azure platform configuration",
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "issuerUrl": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
-          "readOnly": true
-        },
-        "externalAuth": {
-          "$ref": "#/definitions/ExternalAuthConfigProfile",
-          "description": "Configuration to override the openshift-oauth-apiserver inside cluster\nThis changes user login into the cluster to external provider",
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        }
-      },
-      "required": [
-        "version",
-        "console",
-        "api",
-        "issuerUrl"
-      ]
-    },
     "ConsoleProfile": {
       "type": "object",
       "description": "Configuration of the cluster web console",
@@ -1461,11 +1362,100 @@
           "description": "The status of the last operation.",
           "readOnly": true
         },
-        "spec": {
-          "$ref": "#/definitions/ClusterSpec",
-          "description": "The cluster resource specification."
+        "version": {
+          "$ref": "#/definitions/VersionProfile",
+          "description": "Version of the control plane components",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "dns": {
+          "$ref": "#/definitions/DnsProfile",
+          "description": "Cluster DNS configuration"
+        },
+        "network": {
+          "$ref": "#/definitions/NetworkProfile",
+          "description": "Cluster network configuration",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "console": {
+          "$ref": "#/definitions/ConsoleProfile",
+          "description": "Shows the cluster web console information",
+          "readOnly": true
+        },
+        "api": {
+          "$ref": "#/definitions/ApiProfile",
+          "description": "Shows the cluster API server profile",
+          "readOnly": true
+        },
+        "fips": {
+          "type": "boolean",
+          "description": "Enable FIPS mode for the cluster\nWhen set to true, `etcdEncryption` must be set to true",
+          "default": false,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "etcdEncryption": {
+          "type": "boolean",
+          "description": "Enables customer ETCD encryption, set during creation\nWhen set to true, `platform.etcdEncryptionSetId` must be set",
+          "default": false,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "disableUserWorkloadMonitoring": {
+          "type": "boolean",
+          "description": "Disable user workload monitoring",
+          "default": false,
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "proxy": {
+          "$ref": "#/definitions/ProxyProfile",
+          "description": "Openshift cluster proxy configuration",
+          "x-ms-mutability": [
+            "update",
+            "create"
+          ]
+        },
+        "platform": {
+          "$ref": "#/definitions/PlatformProfile",
+          "description": "Azure platform configuration",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "issuerUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
+          "readOnly": true
+        },
+        "externalAuth": {
+          "$ref": "#/definitions/ExternalAuthConfigProfile",
+          "description": "Configuration to override the openshift-oauth-apiserver inside cluster\nThis changes user login into the cluster to external provider",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
-      }
+      },
+      "required": [
+        "version",
+        "console",
+        "api",
+        "issuerUrl"
+      ]
     },
     "HcpOpenShiftClusterResource": {
       "type": "object",
