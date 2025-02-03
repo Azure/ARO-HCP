@@ -4,6 +4,11 @@
     DEPLOY_ENV: ${{ inputs.deploy_env }}
     SKIP_CONFIRM: true
     PERSIST: true
+    AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+    AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    #AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
+    PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
   on:
     workflow_call:
       inputs:
@@ -90,11 +95,7 @@
         - name: 'Deploy Cluster'
           run: |
             cd dev-infrastructure/
-            az account get-access-token --output none
             PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make svc
-
-            # grant GH action user access to resources
-            # PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make svc.dev-role-assignments
 
         - name: 'Az CLI login again'
           uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
@@ -106,7 +107,6 @@
         - name: 'Deploy rest'
           run: |
             cd dev-infrastructure/
-            az account get-access-token --output none
             PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make svc.aks.admin-access
 
         - name: 'CS PR check MSI'
@@ -154,7 +154,6 @@
         - name: 'Deploy or Update'
           run: |
             cd dev-infrastructure/
-            az account get-access-token --output none
             PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make mgmt
 
         - name: 'Az CLI login again'
@@ -167,5 +166,4 @@
         - name: 'Deploy rest'
           run: |
             cd dev-infrastructure/
-            az account get-access-token --output none
             PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make mgmt.aks.admin-access
