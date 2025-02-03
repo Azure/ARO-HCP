@@ -58,7 +58,7 @@ func getInterval(envName string, defaultVal time.Duration, logger *slog.Logger) 
 	return defaultVal
 }
 
-func (s *OperationsScanner) Run(logger *slog.Logger, stop <-chan struct{}) {
+func (s *OperationsScanner) Run(ctx context.Context, logger *slog.Logger) {
 	defer close(s.done)
 
 	var interval time.Duration
@@ -71,19 +71,20 @@ func (s *OperationsScanner) Run(logger *slog.Logger, stop <-chan struct{}) {
 	logger.Info("Polling Cluster Service every " + interval.String())
 	pollCSOperationsTicker := time.NewTicker(interval)
 
-	ctx := context.Background()
-
 	// Poll database immediately on startup.
 	s.pollDBOperations(ctx, logger)
 
+loop:
 	for {
 		select {
 		case <-pollDBOperationsTicker.C:
 			s.pollDBOperations(ctx, logger)
 		case <-pollCSOperationsTicker.C:
-			s.pollCSOperations(ctx, logger, stop)
-		case <-stop:
-			break
+			s.pollCSOperations(logger)
+		case <-ctx.Done():
+			// break alone just breaks out of select.
+			// Use a label to break out of the loop.
+			break loop
 		}
 	}
 }
@@ -114,35 +115,42 @@ func (s *OperationsScanner) pollDBOperations(ctx context.Context, logger *slog.L
 	}
 }
 
-func (s *OperationsScanner) pollCSOperations(ctx context.Context, logger *slog.Logger, stop <-chan struct{}) {
+func (s *OperationsScanner) pollCSOperations(logger *slog.Logger) {
 	var activeOperations []*database.OperationDocument
 
+	// We use a separate context here so that if the process receives a
+	// terminate signal, the backend can finish processing an operation
+	// before terminating.
+	//
+	// This is necessary in the absence of database transactions, though
+	// still not foolproof, to try to ensure consistency between resource
+	// and operation documents in Cosmos DB.
+	//
+	// Database transactions would be the preferred solution and we're
+	// working toward that.
+	ctx := context.Background()
+
 	for _, doc := range s.activeOperations {
-		select {
-		case <-stop:
-			break
-		default:
-			var requeue bool
-			var err error
+		var requeue bool
+		var err error
 
-			opLogger := logger.With(
-				"operation", doc.Request,
-				"operation_id", doc.ID,
-				"resource_id", doc.ExternalID.String(),
-				"internal_id", doc.InternalID.String())
+		opLogger := logger.With(
+			"operation", doc.Request,
+			"operation_id", doc.ID,
+			"resource_id", doc.ExternalID.String(),
+			"internal_id", doc.InternalID.String())
 
-			switch doc.InternalID.Kind() {
-			case cmv1.ClusterKind:
-				requeue, err = s.pollClusterOperation(ctx, opLogger, doc)
-			case cmv1.NodePoolKind:
-				requeue, err = s.pollNodePoolOperation(ctx, opLogger, doc)
-			}
-			if requeue {
-				activeOperations = append(activeOperations, doc)
-			}
-			if err != nil {
-				opLogger.Error(fmt.Sprintf("Error while polling operation '%s': %s", doc.ID, err.Error()))
-			}
+		switch doc.InternalID.Kind() {
+		case cmv1.ClusterKind:
+			requeue, err = s.pollClusterOperation(ctx, opLogger, doc)
+		case cmv1.NodePoolKind:
+			requeue, err = s.pollNodePoolOperation(ctx, opLogger, doc)
+		}
+		if requeue {
+			activeOperations = append(activeOperations, doc)
+		}
+		if err != nil {
+			opLogger.Error(fmt.Sprintf("Error while polling operation '%s': %s", doc.ID, err.Error()))
 		}
 	}
 
