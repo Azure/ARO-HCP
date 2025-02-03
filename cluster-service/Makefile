@@ -85,7 +85,7 @@ create-pr-env-sp:
 	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n aro-hcp-aks --query id -o tsv) && \
 	az ad sp create-for-rbac \
 	--display-name "cs-pr-authentication" \
-	--role 'Azure Kubernetes Service RBAC Admin' \
+	--role 'Contributor' \
 	--scopes "$${CLUSTER_ID}"
 
 local-deploy-provision-shard:
