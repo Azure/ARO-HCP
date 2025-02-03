@@ -24,6 +24,7 @@ const (
 	operationsContainer    = "Operations"
 	resourcesContainer     = "Resources"
 	subscriptionsContainer = "Subscriptions"
+	partitionKeysContainer = "PartitionKeys"
 
 	// XXX The azcosmos SDK currently only supports single-partition queries,
 	//     so there's no way to list all items in a container unless you know
@@ -79,6 +80,7 @@ type DBClient interface {
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) error
 	UpdateOperationDoc(ctx context.Context, operationID string, callback func(*OperationDocument) bool) (bool, error)
 	DeleteOperationDoc(ctx context.Context, operationID string) error
+	ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument]
 	ListAllOperationDocs() DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a SubscriptionDocument from the database given the subscriptionID.
@@ -86,6 +88,7 @@ type DBClient interface {
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*SubscriptionDocument, error)
 	CreateSubscriptionDoc(ctx context.Context, doc *SubscriptionDocument) error
 	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*SubscriptionDocument) bool) (bool, error)
+	ListAllSubscriptionDocs() DBClientIterator[SubscriptionDocument]
 }
 
 var _ DBClient = &CosmosDBClient{}
@@ -96,6 +99,7 @@ type CosmosDBClient struct {
 	resources     *azcosmos.ContainerClient
 	operations    *azcosmos.ContainerClient
 	subscriptions *azcosmos.ContainerClient
+	partitionKeys *azcosmos.ContainerClient
 	lockClient    *LockClient
 }
 
@@ -107,6 +111,7 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 	resources, _ := database.NewContainer(resourcesContainer)
 	operations, _ := database.NewContainer(operationsContainer)
 	subscriptions, _ := database.NewContainer(subscriptionsContainer)
+	partitionKeys, _ := database.NewContainer(partitionKeysContainer)
 	locks, _ := database.NewContainer(locksContainer)
 
 	lockClient, err := NewLockClient(ctx, locks)
@@ -119,6 +124,7 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 		resources:     resources,
 		operations:    operations,
 		subscriptions: subscriptions,
+		partitionKeys: partitionKeys,
 		lockClient:    lockClient,
 	}, nil
 }
@@ -415,6 +421,24 @@ func (d *CosmosDBClient) DeleteOperationDoc(ctx context.Context, operationID str
 	return nil
 }
 
+func (d *CosmosDBClient) ListOperationDocs(subscriptionID string) DBClientIterator[OperationDocument] {
+	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
+
+	query := "SELECT * FROM c WHERE STARTSWITH(c.externalId, @prefix, true)"
+	opt := azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{
+			{
+				Name:  "@prefix",
+				Value: "/subscriptions/" + strings.ToLower(subscriptionID),
+			},
+		},
+	}
+
+	pager := d.operations.NewQueryItemsPager(query, pk, &opt)
+
+	return newQueryItemsIterator[OperationDocument](pager)
+}
+
 func (d *CosmosDBClient) ListAllOperationDocs() DBClientIterator[OperationDocument] {
 	pk := azcosmos.NewPartitionKeyString(operationsPartitionKey)
 	return newQueryItemsIterator[OperationDocument](d.operations.NewQueryItemsPager("SELECT * FROM c", pk, nil))
@@ -459,6 +483,13 @@ func (d *CosmosDBClient) CreateSubscriptionDoc(ctx context.Context, doc *Subscri
 	_, err = d.subscriptions.CreateItem(ctx, pk, data, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create Subscriptions container item for '%s': %w", doc.ID, err)
+	}
+
+	// Add an item to the PartitionKeys container, which serves
+	// as a partition key index for the Resources container.
+	err = upsertPartitionKey(ctx, d.partitionKeys, doc.ID)
+	if err != nil {
+		return fmt.Errorf("failed to upsert partition keys index for '%s': %w", doc.ID, err)
 	}
 
 	return nil
@@ -512,6 +543,10 @@ func (d *CosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 	}
 
 	return false, err
+}
+
+func (d *CosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[SubscriptionDocument] {
+	return listPartitionKeys(d.partitionKeys, d)
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

@@ -24,6 +24,9 @@ var containers = [
     name: 'Resources'
   }
   {
+    name: 'PartitionKeys'
+  }
+  {
     name: 'Billing'
   }
   {
