@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/go-logr/logr"
 )
@@ -25,7 +25,7 @@ type armClient struct {
 }
 
 func newArmClient(subscriptionID, region string) *armClient {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azauth.GetAzureTokenCredentials()
 	if err != nil {
 		return nil
 	}

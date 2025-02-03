@@ -10,10 +10,10 @@ import (
 	"gotest.tools/v3/assert"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
@@ -107,7 +107,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	assert.NilError(t, err)
 
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azauth.GetAzureTokenCredentials()
 	assert.NilError(t, err)
 
 	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)
@@ -314,7 +314,7 @@ resource newRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	assert.NilError(t, err)
 
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azauth.GetAzureTokenCredentials()
 	assert.NilError(t, err)
 
 	rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
@@ -354,7 +354,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	assert.NilError(t, err)
 
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azauth.GetAzureTokenCredentials()
 	assert.NilError(t, err)
 
 	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)

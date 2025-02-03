@@ -2,6 +2,11 @@
   name: ARO HCP Dev Environment Continuous Deployment
   env:
     DEPLOY_ENV: dev
+    AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+    AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    #AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
+    PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
   on:
     workflow_call:
       inputs:

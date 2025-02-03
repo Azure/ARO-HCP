@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 func NewCommand() (*cobra.Command, error) {
@@ -28,6 +30,10 @@ func runPipeline(ctx context.Context, opts *RawRunOptions) error {
 		return err
 	}
 	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	err = azauth.SetupAzureAuth(ctx)
 	if err != nil {
 		return err
 	}

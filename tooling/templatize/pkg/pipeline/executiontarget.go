@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 func LookupSubscriptionID(ctx context.Context, subscriptionName string) (string, error) {
 	// Create a new Azure identity client
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azauth.GetAzureTokenCredentials()
 	if err != nil {
 		return "", fmt.Errorf("failed to obtain a credential: %v", err)
 	}

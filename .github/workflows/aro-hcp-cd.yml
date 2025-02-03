@@ -4,6 +4,11 @@
     DEPLOY_ENV: dev
     PERSIST: true
     SKIP_CONFIRM: true
+    AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+    AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    #AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
+    PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
   on:
     workflow_dispatch:
     pull_request:

@@ -9,7 +9,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/google/uuid"
 	auth "github.com/microsoft/kiota-authentication-azure-go"
@@ -17,6 +16,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 const (
@@ -99,7 +100,7 @@ func getCurrentUserObjectID(ctx context.Context) (string, error) {
 	}
 
 	// Create a Graph client using Azure Credentials
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azauth.GetAzureTokenCredentials()
 	if err != nil {
 		return "", fmt.Errorf("failed to obtain a credential: %w", err)
 	}
@@ -130,7 +131,7 @@ func getCurrentUserObjectID(ctx context.Context) (string, error) {
 
 func assignClusterAdminRBACRole(ctx context.Context, subscriptionID, resourceGroupName, aksClusterName, userObjectID, roleID string) error {
 	// Create a new Azure identity client
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azauth.GetAzureTokenCredentials()
 	if err != nil {
 		return fmt.Errorf("failed to obtain a credential: %w", err)
 	}
