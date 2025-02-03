@@ -1,3 +1,5 @@
+import { locationIsZoneRedundant } from 'common.bicep'
+
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
@@ -30,9 +32,6 @@ param userAgentMaxCount int
 
 @description('VM instance type for the worker nodes')
 param userAgentVMSize string
-
-@description('Number of availability zones to use for the AKS clusters user agent pool')
-param userAgentPoolAZCount int
 
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
@@ -192,6 +191,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   scope: resourceGroup()
   params: {
     location: location
+    locationIsZoneRedundant: locationIsZoneRedundant(location)
     persist: persist
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
@@ -211,7 +211,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
-    userAgentPoolAZCount: userAgentPoolAZCount
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize

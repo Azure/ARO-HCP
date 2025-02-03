@@ -218,7 +218,6 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D2s_v3'
                 osDiskSizeGB: 32
-                azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
@@ -236,7 +235,6 @@ clouds:
                 maxCount: 12
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
-                azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
           # DNS
           dns:

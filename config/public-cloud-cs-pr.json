@@ -169,7 +169,6 @@
         "vmSize": "Standard_E8s_v3"
       },
       "userAgentPool": {
-        "azCount": 3,
         "maxCount": 3,
         "minCount": 1,
         "osDiskSizeGB": 128,
@@ -231,7 +230,6 @@
         "vmSize": "Standard_D2s_v3"
       },
       "userAgentPool": {
-        "azCount": 3,
         "maxCount": 12,
         "minCount": 2,
         "osDiskSizeGB": 32,

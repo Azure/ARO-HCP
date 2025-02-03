@@ -17,13 +17,13 @@ param systemAgentVMSize string = 'Standard_D2s_v3'
 param userAgentMinCount int = 1
 param userAgentMaxCount int = 3
 param userAgentVMSize string = 'Standard_D2s_v3'
-param userAgentPoolAZCount int = 3
 
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
 
 // Passed Params and Overrides
 param location string
+param locationIsZoneRedundant bool
 
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
@@ -56,13 +56,6 @@ var istioIngressGatewayIPAddressIPTagsArray = [
     ipTagType: split(tag, ':')[0]
     tag: split(tag, ':')[1]
   }
-]
-
-@description('List of Availability Zones for zone-redundant resources')
-param zoneRedundancyZones array = [
-  '1'
-  '2'
-  '3'
 ]
 
 @maxLength(24)
@@ -199,7 +192,7 @@ resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = 
   }
 }
 
-resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
+resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = if (locationIsZoneRedundant) {
   parent: vnet
   name: 'PodSubnet-001'
   properties: {
@@ -255,7 +248,7 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
     name: istioIngressGatewayIPAddressName
     ipTags: istioIngressGatewayIPAddressIPTagsArray
     location: location
-    zones: zoneRedundancyZones
+    zones: locationIsZoneRedundant ? ['1', '2', '3'] : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
@@ -272,7 +265,7 @@ module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = 
     name: aksClusterOutboundIPAddressName
     ipTags: aksClusterOutboundIPAddressIPTagsArray
     location: location
-    zones: zoneRedundancyZones
+    zones: locationIsZoneRedundant ? ['1', '2', '3'] : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
@@ -332,13 +325,13 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
         maxCount: systemAgentMaxCount
         vmSize: systemAgentVMSize
         type: 'VirtualMachineScaleSets'
+        availabilityZones: locationIsZoneRedundant ? ['1', '2', '3'] : null
         upgradeSettings: {
           maxSurge: '10%'
         }
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
         maxPods: 100
-        availabilityZones: zoneRedundancyZones
         securityProfile: {
           enableSecureBoot: false
           enableVTPM: false
@@ -467,7 +460,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
 }
 
 resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-04-02-preview' = [
-  for i in range(0, userAgentPoolAZCount): {
+  for i in range(0, locationIsZoneRedundant ? 3 : 1): {
     parent: aksCluster
     name: 'user${take(string(i+1), 8)}'
     properties: {
@@ -492,9 +485,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       vnetSubnetID: aksNodeSubnet.id
       podSubnetID: aksPodSubnet.id
       maxPods: 225
-      availabilityZones: [
-        '${(i + 1)}'
-      ]
+      availabilityZones: locationIsZoneRedundant ? [string(i)] : null
       securityProfile: {
         enableSecureBoot: false
         enableVTPM: false

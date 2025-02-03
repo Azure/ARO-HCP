@@ -19,7 +19,6 @@ param aksSystemOsDiskSizeGB = {{ .svc.aks.systemAgentPool.osDiskSizeGB }}
 param userAgentMinCount = {{ .svc.aks.userAgentPool.minCount }}
 param userAgentMaxCount = {{ .svc.aks.userAgentPool.maxCount }}
 param userAgentVMSize = '{{ .svc.aks.userAgentPool.vmSize }}'
-param userAgentPoolAZCount = {{ .svc.aks.userAgentPool.azCount }}
 param aksUserOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
 
