@@ -34,6 +34,33 @@ resource svcParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   location: 'global'
 }
 
+// DNS Zone Contributor: Lets SafeDnsIntApplication manage DNS zones and record sets in Azure DNS, but does not let it control who has access to them.
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/networking#dns-zone-contributor
+var dnsZoneContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'befefa01-2a29-4197-83a8-272ff33ce314')
+
+//  SafeDnsIntApplication object ID use to delegate child DNS
+var safeDnsIntAppObjectId = 'c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc'
+
+resource cxParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(cxParentZone.id, safeDnsIntAppObjectId, dnsZoneContributor)
+  scope: cxParentZone
+  properties: {
+    principalId: safeDnsIntAppObjectId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: dnsZoneContributor
+  }
+}
+
+resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(svcParentZone.id, safeDnsIntAppObjectId, dnsZoneContributor)
+  scope: svcParentZone
+  properties: {
+    principalId: safeDnsIntAppObjectId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: dnsZoneContributor
+  }
+}
+
 var grafanaAdmin = {
   principalId: grafanaAdminGroupPrincipalId
   principalType: 'group'
