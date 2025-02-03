@@ -187,9 +187,9 @@ clouds:
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
           clusterApiAzure:
-            roleName: Contributor
+            roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev
           controlPlane:
-            roleName: Contributor
+            roleName: Azure Red Hat OpenShift Cluster API Role - Dev
           cloudControllerManager:
             roleName: Azure Red Hat OpenShift Cloud Controller Manager - Dev
           ingress:
@@ -202,6 +202,8 @@ clouds:
             roleName: Azure Red Hat OpenShift Image Registry Operator - Dev
           cloudNetworkConfig:
             roleName: Azure Red Hat OpenShift Network Operator - Dev
+          kms:
+            roleName: Azure Red Hat OpenShift KMS Plugin - Dev
       # Hypershift Operator
       hypershiftOperator:
         imageTag: 9aca808

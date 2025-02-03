@@ -32,6 +32,9 @@
       },
       "ingress": {
         "roleName": "Azure Red Hat OpenShift Cluster Ingress Operator Role"
+      },
+      "kms": {
+        "roleName": "Key Vault Crypto User"
       }
     },
     "imageRepo": "app-sre/uhc-clusters-service",

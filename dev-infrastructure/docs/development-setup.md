@@ -382,6 +382,7 @@ Then register it with the Maestro Server
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
     az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-kms-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
 
     # And then we create variables containing their Azure resource IDs and export them to be used later
     export CP_CONTROL_PLANE_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-control-plane-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
@@ -392,6 +393,7 @@ Then register it with the Maestro Server
     export CP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     export CP_CNC_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+    export CP_KMS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-kms-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     ```
 
   - Create the User-Assigned Managed Identities for the Data Plane operators. This assumes OCP 4.17 clusters will be created.
@@ -487,6 +489,9 @@ Then register it with the Maestro Server
               },
               "cloud-network-config": {
                 "resource_id": "$CP_CNC_UAMI"
+              },
+              "kms": {
+                "resource_id": "$CP_KMS_UAMI"
               }
             },
             "data_plane_operators_managed_identities": {
@@ -565,6 +570,7 @@ ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools/$UID
    az identity delete --ids "${CP_FILE_CSI_DRIVER_UAMI}"
    az identity delete --ids "${CP_IMAGE_REGISTRY_UAMI}"
    az identity delete --ids "${CP_CNC_UAMI}"
+   az identity delete --ids "${CP_KMS_UAMI}"
    az identity delete --ids "${DP_DISK_CSI_DRIVER_UAMI}"
    az identity delete --ids "${DP_IMAGE_REGISTRY_UAMI}"
    az identity delete --ids "${DP_FILE_CSI_DRIVER_UAMI}"

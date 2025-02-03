@@ -47,6 +47,11 @@ data:
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.cloudNetworkConfig.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.cloudNetworkConfig.roleName }}'
         optional: false
+      kms:
+        minOpenShiftVersion: 4.17
+        azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.kms.roleId }}'
+        azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.kms.roleName }}'
+        optional: false
     dataPlaneOperatorsIdentities:
       disk-csi-driver:
         minOpenShiftVersion: 4.17

@@ -171,10 +171,6 @@ clouds:
         imageTag: dca2a71
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
-          clusterApiAzure:
-            roleName: Contributor
-          controlPlane:
-            roleName: Contributor
           cloudControllerManager:
             roleName: Azure Red Hat OpenShift Cloud Controller Manager Role
           ingress:
@@ -187,6 +183,13 @@ clouds:
             roleName: Azure Red Hat OpenShift Image Registry Operator Role
           cloudNetworkConfig:
             roleName: Azure Red Hat OpenShift Network Operator Role
+          kms:
+            roleName: Key Vault Crypto User
+          # below two are supposed to be replaced with ARO-specific builtin roles
+          clusterApiAzure:
+            roleName: Contributor
+          controlPlane:
+            roleName: Contributor
       hypershiftOperator:
         imageTag: 9aca808
       imageSync:
