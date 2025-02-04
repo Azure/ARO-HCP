@@ -167,13 +167,13 @@ clouds:
         svcParentZoneName: hcpsvc.osadev.cloud
         parentZoneName: osadev.cloud
       # 1P app
-      firstPartyAppClientId: 57e54810-3138-4f38-bd3b-29cb33f4c358
+      firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
       # Mock Managed Identities Service Princiapl
-      miMockClientId: 4daa4e3b-abc1-4f9c-812c-77bd37e06741
-      miMockPrincipalId: a03f690c-4b2e-4eef-841e-f1904efe0e37
+      miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+      miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
       # ARM Helper
-      armHelperClientId: 2c6ca254-36bd-43c8-a7a8-fe880bc2c489
-      armHelperFPAPrincipalId: bc17c825-6cf8-40d0-8bd6-5536a993115e
+      armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
+      armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
       # Maestro
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b

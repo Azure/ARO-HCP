@@ -35,7 +35,7 @@ resourceGroups:
     - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
       configRef: firstPartyAppClientId
     - name: FPA_CERT_NAME
-      value: firstPartyCert
+      value: firstPartyCert2
     - name: AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID
       configRef: miMockPrincipalId
     - name: AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID
@@ -45,9 +45,9 @@ resourceGroups:
     - name: AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID
       configRef: armHelperFPAPrincipalId
     - name: MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME
-      value: msiMockCert
+      value: msiMockCert2
     - name: ARM_HELPER_CERT_NAME
-      value: armHelperCert
+      value: armHelperCert2
     - name: CX_PARENT_DNS_ZONE_NAME
       configRef: dns.cxParentZoneName
     - name: REGIONAL_DNS_SUBDOMAIN
