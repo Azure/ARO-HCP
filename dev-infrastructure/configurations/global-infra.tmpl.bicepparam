@@ -9,3 +9,6 @@ param grafanaAdminGroupPrincipalId = '{{ .monitoring.grafanaAdminGroupPrincipalI
 
 // MI for resource access during pipeline runs
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+
+//  SafeDnsIntApplication object ID use to delegate child DNS
+param safeDnsIntAppObjectId = '{{ .safeDnsIntAppObjectId }}'

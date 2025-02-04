@@ -19,6 +19,9 @@ param grafanaAdminGroupPrincipalId string
 @description('MSI that will be used during pipeline runs to Azure resources')
 param aroDevopsMsiId string
 
+@description('SafeDnsIntApplication object ID use to delegate child DNS')
+param safeDnsIntAppObjectId string
+
 resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: globalMSIName
   location: resourceGroup().location
@@ -37,9 +40,6 @@ resource svcParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
 // DNS Zone Contributor: Lets SafeDnsIntApplication manage DNS zones and record sets in Azure DNS, but does not let it control who has access to them.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/networking#dns-zone-contributor
 var dnsZoneContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'befefa01-2a29-4197-83a8-272ff33ce314')
-
-//  SafeDnsIntApplication object ID use to delegate child DNS
-var safeDnsIntAppObjectId = 'c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc'
 
 resource cxParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(cxParentZone.id, safeDnsIntAppObjectId, dnsZoneContributor)

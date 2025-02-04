@@ -207,6 +207,7 @@
   "oidcStorageAccountName": "arohcpoidcintint",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
+  "safeDnsIntAppObjectId": "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc",
   "serviceKeyVault": {
     "name": "arohcp-svc-int",
     "private": false,

@@ -105,6 +105,9 @@
       "aroDevopsMsiId": {
         "type": "string"
       },
+      "safeDnsIntAppObjectId": {
+        "type": "string"
+      },
       "kvCertOfficerPrincipalId": {
         "type": "string",
         "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
