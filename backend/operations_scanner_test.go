@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -311,7 +311,7 @@ func TestConvertClusterStatus(t *testing.T) {
 
 	tests := []struct {
 		name                     string
-		clusterState             cmv1.ClusterState
+		clusterState             arohcpv1alpha1.ClusterState
 		currentProvisioningState arm.ProvisioningState
 		updatedProvisioningState arm.ProvisioningState
 		expectCloudError         bool
@@ -319,7 +319,7 @@ func TestConvertClusterStatus(t *testing.T) {
 	}{
 		{
 			name:                     "Convert ClusterStateError",
-			clusterState:             cmv1.ClusterStateError,
+			clusterState:             arohcpv1alpha1.ClusterStateError,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateFailed,
 			expectCloudError:         true,
@@ -327,7 +327,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateHibernating",
-			clusterState:             cmv1.ClusterStateHibernating,
+			clusterState:             arohcpv1alpha1.ClusterStateHibernating,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateAccepted,
 			expectCloudError:         false,
@@ -335,7 +335,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateInstalling",
-			clusterState:             cmv1.ClusterStateInstalling,
+			clusterState:             arohcpv1alpha1.ClusterStateInstalling,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateProvisioning,
 			expectCloudError:         false,
@@ -343,7 +343,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStatePending (while accepted)",
-			clusterState:             cmv1.ClusterStatePending,
+			clusterState:             arohcpv1alpha1.ClusterStatePending,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateAccepted,
 			expectCloudError:         false,
@@ -351,7 +351,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStatePending (while not accepted)",
-			clusterState:             cmv1.ClusterStatePending,
+			clusterState:             arohcpv1alpha1.ClusterStatePending,
 			currentProvisioningState: arm.ProvisioningStateFailed,
 			updatedProvisioningState: arm.ProvisioningStateFailed,
 			expectCloudError:         false,
@@ -359,7 +359,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStatePoweringDown",
-			clusterState:             cmv1.ClusterStatePoweringDown,
+			clusterState:             arohcpv1alpha1.ClusterStatePoweringDown,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateAccepted,
 			expectCloudError:         false,
@@ -367,7 +367,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateReady",
-			clusterState:             cmv1.ClusterStateReady,
+			clusterState:             arohcpv1alpha1.ClusterStateReady,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateSucceeded,
 			expectCloudError:         false,
@@ -375,7 +375,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateResuming",
-			clusterState:             cmv1.ClusterStateResuming,
+			clusterState:             arohcpv1alpha1.ClusterStateResuming,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateAccepted,
 			expectCloudError:         false,
@@ -383,7 +383,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateUninstalling",
-			clusterState:             cmv1.ClusterStateUninstalling,
+			clusterState:             arohcpv1alpha1.ClusterStateUninstalling,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateDeleting,
 			expectCloudError:         false,
@@ -391,7 +391,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateUnknown",
-			clusterState:             cmv1.ClusterStateUnknown,
+			clusterState:             arohcpv1alpha1.ClusterStateUnknown,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateAccepted,
 			expectCloudError:         false,
@@ -399,7 +399,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateValidating (while accepted)",
-			clusterState:             cmv1.ClusterStateValidating,
+			clusterState:             arohcpv1alpha1.ClusterStateValidating,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateAccepted,
 			expectCloudError:         false,
@@ -407,7 +407,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateValidating (while not accepted)",
-			clusterState:             cmv1.ClusterStateValidating,
+			clusterState:             arohcpv1alpha1.ClusterStateValidating,
 			currentProvisioningState: arm.ProvisioningStateFailed,
 			updatedProvisioningState: arm.ProvisioningStateFailed,
 			expectCloudError:         false,
@@ -415,7 +415,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert ClusterStateWaiting",
-			clusterState:             cmv1.ClusterStateWaiting,
+			clusterState:             arohcpv1alpha1.ClusterStateWaiting,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateAccepted,
 			expectCloudError:         false,
@@ -423,7 +423,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		},
 		{
 			name:                     "Convert unexpected cluster state",
-			clusterState:             cmv1.ClusterState("unexpected cluster state"),
+			clusterState:             arohcpv1alpha1.ClusterState("unexpected cluster state"),
 			currentProvisioningState: arm.ProvisioningStateAccepted,
 			updatedProvisioningState: arm.ProvisioningStateAccepted,
 			expectCloudError:         false,
@@ -433,7 +433,7 @@ func TestConvertClusterStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clusterStatus, err := cmv1.NewClusterStatus().
+			clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
 				State(tt.clusterState).
 				Build()
 			if err != nil {
