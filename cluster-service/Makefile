@@ -158,8 +158,7 @@ shared-oidc-storage:
 		--parameters \
 			location=westus3 \
 			accountName=${SHARED_OIDC_STORAGE_ACCOUNT_NAME} \
-			publicBlobAccess=true \
-			aroDevopsMsiId=${DEVOPS_MSI_ID} \
+			isDevEnv=true \
 			deploymentScriptLocation=westus3
 .PHONY: shared-oidc-storage
 
