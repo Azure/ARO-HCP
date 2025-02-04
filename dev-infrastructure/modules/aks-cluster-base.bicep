@@ -14,10 +14,9 @@ param systemAgentMaxCount int = 3
 param systemAgentVMSize string = 'Standard_D2s_v3'
 
 // User agentpool spec (Worker)
-param userAgentMinCount int = 1
-param userAgentMaxCount int = 3
+param userAgentMinCount int = 3
+param userAgentMaxCount int = 9
 param userAgentVMSize string = 'Standard_D2s_v3'
-param userAgentPoolAZCount int = 3
 
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
@@ -348,6 +347,36 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
           'CriticalAddonsOnly=true:NoSchedule'
         ]
       }
+      {
+        name: 'user'
+        osType: 'Linux'
+        osSKU: 'AzureLinux'
+        mode: 'User'
+        enableAutoScaling: true
+        enableEncryptionAtHost: true
+        enableFIPS: true
+        enableNodePublicIP: false
+        kubeletDiskType: 'OS'
+        osDiskType: 'Ephemeral'
+        osDiskSizeGB: userOsDiskSizeGB
+        count: userAgentMinCount
+        minCount: userAgentMinCount
+        maxCount: userAgentMaxCount
+        vmSize: userAgentVMSize
+        type: 'VirtualMachineScaleSets'
+        upgradeSettings: {
+          maxSurge: '10%'
+        }
+        vnetSubnetID: aksNodeSubnet.id
+        podSubnetID: aksPodSubnet.id
+        maxPods: 225
+        availabilityZones: zoneRedundancyZones
+        securityProfile: {
+          enableSecureBoot: false
+          enableVTPM: false
+          sshAccess: 'Disabled'
+        }
+      }
     ]
     autoScalerProfile: {
       'balance-similar-node-groups': 'true'
@@ -465,44 +494,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
     aksClusterOutboundIPAddress
   ]
 }
-
-resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-04-02-preview' = [
-  for i in range(0, userAgentPoolAZCount): {
-    parent: aksCluster
-    name: 'user${take(string(i+1), 8)}'
-    properties: {
-      osType: 'Linux'
-      osSKU: 'AzureLinux'
-      mode: 'User'
-      enableAutoScaling: true
-      enableEncryptionAtHost: true
-      enableFIPS: true
-      enableNodePublicIP: false
-      kubeletDiskType: 'OS'
-      osDiskType: 'Ephemeral'
-      osDiskSizeGB: userOsDiskSizeGB
-      count: userAgentMinCount
-      minCount: userAgentMinCount
-      maxCount: userAgentMaxCount
-      vmSize: userAgentVMSize
-      type: 'VirtualMachineScaleSets'
-      upgradeSettings: {
-        maxSurge: '10%'
-      }
-      vnetSubnetID: aksNodeSubnet.id
-      podSubnetID: aksPodSubnet.id
-      maxPods: 225
-      availabilityZones: [
-        '${(i + 1)}'
-      ]
-      securityProfile: {
-        enableSecureBoot: false
-        enableVTPM: false
-        sshAccess: 'Disabled'
-      }
-    }
-  }
-]
 
 //
 // ACR Pull Permissions on the own resource group and the resource groups provided

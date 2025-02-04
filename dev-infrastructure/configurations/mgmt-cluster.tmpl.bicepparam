@@ -15,7 +15,6 @@ param aksSystemOsDiskSizeGB = {{ .mgmt.aks.systemAgentPool.osDiskSizeGB }}
 param userAgentMinCount = {{ .mgmt.aks.userAgentPool.minCount }}
 param userAgentMaxCount = {{ .mgmt.aks.userAgentPool.maxCount }}
 param userAgentVMSize = '{{ .mgmt.aks.userAgentPool.vmSize }}'
-param userAgentPoolAZCount = {{ .mgmt.aks.userAgentPool.azCount }}
 param aksUserOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
 

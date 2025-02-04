@@ -211,11 +211,10 @@ clouds:
                 vmSize: 'Standard_D2s_v3'
                 osDiskSizeGB: 32
               userAgentPool:
-                minCount: 1
+                minCount: 3
                 maxCount: 3
                 vmSize: 'Standard_D2s_v3'
                 osDiskSizeGB: 32
-                azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
@@ -229,11 +228,10 @@ clouds:
                 vmSize: 'Standard_E8s_v3'
                 osDiskSizeGB: 128
               userAgentPool:
-                minCount: 1
+                minCount: 3
                 maxCount: 12
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
-                azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
           # DNS
           dns:

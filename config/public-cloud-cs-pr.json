@@ -158,15 +158,14 @@
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
-        "maxCount": 4,
-        "minCount": 1,
+        "maxCount": 3,
+        "minCount": 3,
         "osDiskSizeGB": 128,
         "vmSize": "Standard_E8s_v3"
       },
       "userAgentPool": {
-        "azCount": 3,
-        "maxCount": 3,
-        "minCount": 1,
+        "maxCount": 9,
+        "minCount": 3,
         "osDiskSizeGB": 128,
         "vmSize": "Standard_D16s_v3"
       },
@@ -221,14 +220,13 @@
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
         "maxCount": 3,
-        "minCount": 1,
+        "minCount": 3,
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
       "userAgentPool": {
-        "azCount": 3,
         "maxCount": 12,
-        "minCount": 2,
+        "minCount": 3,
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },

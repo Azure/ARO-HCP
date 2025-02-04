@@ -29,9 +29,6 @@
           },
           "vmSize": {
             "type": "string"
-          },
-          "azCount": {
-            "type": "number"
           }
         },
         "additionalProperties": false,
