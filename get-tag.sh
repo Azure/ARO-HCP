@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x 
 if [ "$#" -ne 2 ]
 then
     echo "Need ARO_HCP_IMAGE_ACR and REPOSITORY parameters"
@@ -28,7 +28,7 @@ trap "rm ${tags}" EXIT
 az acr repository show-tags --orderby time_desc --n ${aro_hcp_image_acr} --repository ${repository} > $tags
 
 suggested_tag=$(grep $(git rev-parse --short=7 HEAD) $tags |cut -d '"' -f2)
-if [ -z ${suggested_tag} ];
+if [ ! -z "${suggested_tag}" ];
 then
     echo ${suggested_tag}
     exit 0
