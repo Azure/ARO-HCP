@@ -3,11 +3,12 @@
 HELM_CMD ?= helm upgrade --install
 
 ifndef COMMIT
-COMMIT := $(shell ../get-tag.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend)
 endif
+
+CURRENT_COMMIT := $(shell git rev-parse --short=7 HEAD)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_IMAGE_REPOSITORY ?= arohcpfrontend
-ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ARO_HCP_IMAGE_REPOSITORY):$(COMMIT)
+ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ARO_HCP_IMAGE_REPOSITORY)
 
 .DEFAULT_GOAL := frontend
 
@@ -34,15 +35,16 @@ build-push: image push
 
 image:
 	pushd .. && git archive --output frontend/archive.tar.gz HEAD && popd
-	docker build -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE} .
+	docker build -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT} .
 	rm -f archive.tar.gz
 .PHONY: image
 
 push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ARO_HCP_FRONTEND_IMAGE}
+	docker push ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT}
 
 deploy:
+	COMMIT=$$(../get-tag.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
 	FRONTEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend \
@@ -80,9 +82,9 @@ deploy:
 		--set serviceAccount.workloadIdentityTenantId="$${FRONTEND_MI_TENANT_ID}" \
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE} \
+		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE}:$${COMMIT} \
 		--set configMap.location=${LOCATION}  \
-		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE} \
+		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE}:$${COMMIT} \
 		--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
 		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
 		--set clusterService.namespace=${CS_NAMESPACE} \
