@@ -644,6 +644,44 @@ func (c *MockDBClientListResourceDocsCall) DoAndReturn(f func(*arm0.ResourceID, 
 	return c
 }
 
+// NewTransaction mocks base method.
+func (m *MockDBClient) NewTransaction(pk azcosmos.PartitionKey) database.DBTransaction {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewTransaction", pk)
+	ret0, _ := ret[0].(database.DBTransaction)
+	return ret0
+}
+
+// NewTransaction indicates an expected call of NewTransaction.
+func (mr *MockDBClientMockRecorder) NewTransaction(pk any) *MockDBClientNewTransactionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewTransaction", reflect.TypeOf((*MockDBClient)(nil).NewTransaction), pk)
+	return &MockDBClientNewTransactionCall{Call: call}
+}
+
+// MockDBClientNewTransactionCall wrap *gomock.Call
+type MockDBClientNewTransactionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientNewTransactionCall) Return(arg0 database.DBTransaction) *MockDBClientNewTransactionCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientNewTransactionCall) Do(f func(azcosmos.PartitionKey) database.DBTransaction) *MockDBClientNewTransactionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientNewTransactionCall) DoAndReturn(f func(azcosmos.PartitionKey) database.DBTransaction) *MockDBClientNewTransactionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // PatchOperationDoc mocks base method.
 func (m *MockDBClient) PatchOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
 	m.ctrl.T.Helper()
