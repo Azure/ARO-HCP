@@ -308,7 +308,7 @@ var ocpMirrorConfig = {
   }
   mirror: {
     platform: {
-      architectures: ['multi', 'amd64']
+      architectures: ['multi', 'amd64', 'arm64']
       channels: [
         {
           name: 'stable-4.17'
