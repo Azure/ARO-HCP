@@ -41,6 +41,11 @@ This creates an HCP named `$USER`. If you want to use a different name, run
 CLUSTER_NAME=abc ./03-create-cluster.sh
 ```
 
+If you want to create a cluster without default CNI installed, run
+```bash
+NETWORK_TYPE=Other ./03-create-cluster.sh
+```
+
 Observe the cluster creation with `./query-cluster-rp.sh` until `properties.provisioningState` is (hopefully) `Succeeded`.
 `properties.api.url` holds the URL to the API server of the HCP.
 
