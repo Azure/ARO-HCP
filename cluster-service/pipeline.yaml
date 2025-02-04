@@ -56,8 +56,6 @@ resourceGroups:
       configRef: clusterService.postgres.deploy
     - name: DATABASE_SERVER_NAME
       configRef: clusterService.postgres.name
-    - name: DEVOPS_MSI_ID
-      configRef: aroDevopsMsiId
     - name: OP_CLUSTER_API_AZURE_ROLE_NAME
       configRef: clusterService.azureOperatorsManagedIdentities.clusterApiAzure.roleName
     - name: OP_CONTROL_PLANE_ROLE_NAME
