@@ -45,6 +45,7 @@ func (f *Frontend) routes() *MiddlewareMux {
 
 	mux := NewMiddlewareMux(
 		MiddlewarePanic,
+		MiddlewareCorrelationData,
 		MiddlewareTracing,
 		MiddlewareLogging,
 		// NOTE: register panic middlware twice.
