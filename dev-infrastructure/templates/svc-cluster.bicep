@@ -241,6 +241,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         namespace: 'image-sync'
         serviceAccountName: 'image-sync'
       }
+      logs_wi: {
+        uamiName: 'logs-mdsd'
+        namespace: 'logs'
+        serviceAccountName: 'logs'
+      }
     })
     aksKeyVaultName: aksKeyVaultName
     pullAcrResourceIds: [svcAcrResourceId]
