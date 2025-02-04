@@ -75,6 +75,9 @@ type DBClient interface {
 	// GetLockClient returns a LockClient, or nil if the DBClient does not support a LockClient.
 	GetLockClient() *LockClient
 
+	// NewTransaction initiates a new transactional batch for the given partition key.
+	NewTransaction(pk azcosmos.PartitionKey) DBTransaction
+
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
 	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error)
@@ -218,6 +221,10 @@ func (d *cosmosDBClient) DBConnectionTest(ctx context.Context) error {
 
 func (d *cosmosDBClient) GetLockClient() *LockClient {
 	return d.lockClient
+}
+
+func (d *cosmosDBClient) NewTransaction(pk azcosmos.PartitionKey) DBTransaction {
+	return newCosmosDBTransaction(pk, d.resources)
 }
 
 func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*typedDocument, *ResourceDocument, error) {
