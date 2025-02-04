@@ -10,4 +10,4 @@ param serviceKeyVaultPrivate = {{ .serviceKeyVault.private }}
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
 // SP for KV certificate issuer registration
-param svcKvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
+param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
