@@ -111,6 +111,11 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
         namespace: 'maestro'
         serviceAccountName: 'maestro'
       }
+      logs_wi: {
+        uamiName: 'logs-mdsd'
+        namespace: 'logs'
+        serviceAccountName: 'genevabit-aggregator'
+      }
     })
     aksKeyVaultName: aksKeyVaultName
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
