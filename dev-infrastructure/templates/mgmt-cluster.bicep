@@ -114,7 +114,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       logs_wi: {
         uamiName: 'logs-mdsd'
         namespace: 'logs'
-        serviceAccountName: 'logs'
+        serviceAccountName: 'genevabit-aggregator'
       }
     })
     aksKeyVaultName: aksKeyVaultName
