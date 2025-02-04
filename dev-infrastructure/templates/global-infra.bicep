@@ -98,7 +98,7 @@ resource contributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   name: guid(grafanaInstance.id, aroDevopsMsiId, contributor)
   scope: grafanaInstance
   properties: {
-    principalId: aroDevopsMsiId
+    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', contributor)
   }
