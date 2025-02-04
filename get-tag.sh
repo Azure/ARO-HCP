@@ -9,13 +9,13 @@ fi
 aro_hcp_image_acr=${1}
 repository=${2}
 
-if [ ! -z "${COMMIT_OVERRIDE}" ];
+if [ -n "${COMMIT_OVERRIDE}" ];
 then
     echo ${COMMIT_OVERRIDE}
     exit 0
 fi
 
-if [ ! -z "${COMMIT}" ];
+if [ -n "${COMMIT}" ];
 then
     echo ${COMMIT}
     exit 0
@@ -28,7 +28,7 @@ trap "rm ${tags}" EXIT
 az acr repository show-tags --orderby time_desc --n ${aro_hcp_image_acr} --repository ${repository} > $tags
 
 suggested_tag=$(grep $(git rev-parse --short=7 HEAD) $tags |cut -d '"' -f2)
-if [ ! -z "${suggested_tag}" ];
+if [ -n "${suggested_tag}" ];
 then
     echo ${suggested_tag}
     exit 0
