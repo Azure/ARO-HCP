@@ -632,6 +632,17 @@
               "databaseName"
             ]
           },
+          "agentSideCar":{
+            "type:": "object",
+            "properties": {
+              "imageBase":{
+                "type": "string"
+              },
+              "imageTag":{
+                "type": "string"
+              }
+            }
+          },
           "restrictIstioIngress": {
             "type": "boolean"
           }
@@ -645,7 +656,8 @@
           "imageBase",
           "imageTag",
           "postgres",
-          "restrictIstioIngress"
+          "restrictIstioIngress",
+          "agentSideCar"
         ]
       },
       "mce": {

@@ -28,3 +28,7 @@ resourceGroups:
       configRef: maestro.imageBase
     - name: IMAGE_TAG
       configRef: maestro.imageTag
+    - name: SIDECAR_IMAGE_BASE
+      configRef: maestro.agentSideCar.imageBase
+    - name: SIDECAR_IMAGE_TAG
+      configRef: maestro.agentSideCar.imageTag

@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  nginx.conf: |
+    worker_processes auto;
+    pid /run/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        access_log  /dev/null;
+        error_log  /dev/null;
+
+        server {
+            listen 8080;
+
+            location / {
+                proxy_ssl_verify off;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+                proxy_set_header Authorization "Bearer TOKEN";
+                proxy_pass https://localhost:8443;
+            }
+        }
+    }
