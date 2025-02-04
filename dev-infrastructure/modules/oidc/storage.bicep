@@ -14,7 +14,7 @@ param location string
   'Standard_GZRS'
   'Premium_LRS'
 ])
-param skuName string = 'Standard_ZRS'
+param skuName string
 
 @description('The service principal ID to be added to Azure Storage account.')
 param principalId string = ''
