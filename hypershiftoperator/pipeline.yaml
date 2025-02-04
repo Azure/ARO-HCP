@@ -4,7 +4,7 @@ rolloutName: RP HypershiftOperator Rollout
 resourceGroups:
 - name: {{ .mgmt.rg }}
   subscription: {{ .svc.subscription }}
-  aksCluster: {{ .aksName }}
+  aksCluster: {{ .mgmt.aks.name }}
   steps:
   - name: deploy
     action: Shell
@@ -23,7 +23,7 @@ resourceGroups:
     - name: RESOURCEGROUP
       configRef: mgmt.rg
     - name: AKS_NAME
-      configRef: aksName
+      configRef: mgmt.aks.name
     - name: HYPERSHIFT_NAMESPACE
       configRef: hypershift.namespace
     - name: HO_ADDITIONAL_INSTALL_ARG

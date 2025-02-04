@@ -45,6 +45,9 @@
       "aksConfig": {
         "type": "object",
         "properties": {
+          "name": {
+            "type": "string"
+          },
           "vnetAddressPrefix": {
             "type": "string"
           },
@@ -84,6 +87,7 @@
           }
         },
         "required": [
+          "name",
           "vnetAddressPrefix",
           "subnetPrefix",
           "podSubnetPrefix",
@@ -99,9 +103,6 @@
       }
     },
     "properties": {
-      "aksName": {
-        "type": "string"
-      },
       "aroDevopsMsiId": {
         "type": "string"
       },
@@ -851,7 +852,6 @@
     },
     "additionalProperties": false,
     "required": [
-      "aksName",
       "aroDevopsMsiId",
       "kvCertOfficerPrincipalId",
       "clusterService",

@@ -4,7 +4,7 @@ rolloutName: RP Istio Rollout
 resourceGroups:
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
-  aksCluster: {{ .aksName }}
+  aksCluster: {{ .svc.aks.name }}
   steps:
   - name: deploy
     action: Shell

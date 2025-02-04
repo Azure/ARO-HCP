@@ -4,7 +4,7 @@ rolloutName: Test Rollout
 resourceGroups:
 - name: {{ .regionRG }}
   subscription: {{ .serviceClusterSubscription }}
-  aksCluster: {{ .aksName }}
+  aksCluster: {{ svc.aks.name }}
   steps:
   - name: deploy
     action: Shell

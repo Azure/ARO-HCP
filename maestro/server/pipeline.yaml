@@ -4,7 +4,7 @@ rolloutName: Maestro Server Rollout
 resourceGroups:
 - name: {{ .svc.rg }}
   subscription: {{ .svc.subscription }}
-  aksCluster: {{ .aksName }}
+  aksCluster: {{ .svc.aks.name }}
   steps:
   - name: deploy
     action: Shell
@@ -21,7 +21,7 @@ resourceGroups:
     - name: SVC_RG
       configRef: svc.rg
     - name: AKS_NAME
-      configRef: aksName
+      configRef: svc.aks.name
     - name: IMAGE_BASE
       configRef: maestro.imageBase
     - name: IMAGE_TAG
