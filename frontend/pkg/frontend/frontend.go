@@ -264,7 +264,11 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, prefix)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			if errors.Is(err, database.ErrNotFound) {
+				arm.WriteResourceNotFoundError(writer, prefix)
+			} else {
+				arm.WriteInternalServerError(writer)
+			}
 			return
 		}
 
