@@ -105,6 +105,7 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.Network/natGateways/join/action'
           'Microsoft.Network/natGateways/read'
           'Microsoft.Network/networkSecurityGroups/read'
+          'Microsoft.Network/networkSecurityGroups/write'
           'Microsoft.Network/networkSecurityGroups/join/action'
           'Microsoft.ManagedIdentity/userAssignedIdentities/read'
           'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read'
