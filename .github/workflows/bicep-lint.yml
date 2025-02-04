@@ -30,4 +30,4 @@ jobs:
       - name: Check for uncommitted changes
         working-directory: './dev-infrastructure'
         run: |
-          git diff --exit-code || (echo "::error::Uncommitted changes detected in bicep templates" && exit 1)
+          git diff --exit-code -- '***.bicep***' || (echo "::error::Uncommitted changes detected in bicep templates" && exit 1)
