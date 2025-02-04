@@ -15,6 +15,13 @@ then
     exit 0
 fi
 
+if [ ! -z "${COMMIT}" ];
+then
+    echo ${COMMIT}
+    exit 0
+fi
+
+
 tags=$(mktemp)
 trap "rm ${tags}" EXIT
 
