@@ -10,13 +10,10 @@ param svcParentZoneName string
 @description('Metrics global Grafana name')
 param grafanaName string
 
-@description('Metrics global MSI name')
-param msiName string
-
 @description('The admin group principal ID to manage Grafana')
 param grafanaAdminGroupPrincipalId string
 
-@description('MSI the domain team use to delegate child DNS')
+@description('Domain Team MSI to delegate child DNS')
 param safeDnsIntAppObjectId string
 
 resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
