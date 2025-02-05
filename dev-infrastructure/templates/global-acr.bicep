@@ -10,7 +10,6 @@ param svcAcrName string
 param svcAcrSku string
 param svcAcrZoneRedundancy string
 
-
 param location string
 
 module ocpAcr '../modules/acr/acr.bicep' = {
