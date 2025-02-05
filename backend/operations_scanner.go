@@ -4,6 +4,7 @@ package main
 // Licensed under the Apache License 2.0.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -357,7 +358,7 @@ func (s *OperationsScanner) updateOperationStatus(ctx context.Context, op operat
 // operation if the initial request included an "Azure-AsyncNotificationUri" header.
 func (s *OperationsScanner) maybePostAsyncNotification(ctx context.Context, op operation) {
 	if len(op.doc.NotificationURI) > 0 {
-		err := s.postAsyncNotification(ctx, op.doc.NotificationURI)
+		err := s.postAsyncNotification(ctx, op.id)
 		if err == nil {
 			op.logger.Info("Posted async notification")
 		} else {
@@ -366,12 +367,25 @@ func (s *OperationsScanner) maybePostAsyncNotification(ctx context.Context, op o
 	}
 }
 
-// postAsyncNotification submits an empty POST request to the given URL.
-func (s *OperationsScanner) postAsyncNotification(ctx context.Context, url string) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+// postAsyncNotification submits an POST request with status payload to the given URL.
+func (s *OperationsScanner) postAsyncNotification(ctx context.Context, operationID string) error {
+	// Refetch the operation document to provide the latest status.
+	doc, err := s.dbClient.GetOperationDoc(ctx, operationID)
 	if err != nil {
 		return err
 	}
+
+	data, err := arm.Marshal(doc.ToStatus())
+	if err != nil {
+		return err
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, doc.NotificationURI, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+
+	request.Header.Set("Content-Type", "application/json")
 
 	response, err := s.notificationClient.Do(request)
 	if err != nil {

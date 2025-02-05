@@ -70,6 +70,11 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			operationID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/oz/hcpOperationsStatus/operationID")
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
 					request = r
@@ -83,11 +88,12 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			}
 
 			operationDoc := database.NewOperationDocument(database.OperationRequestDelete, resourceID, internalID)
+			operationDoc.OperationID = operationID
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.operationStatus
 
 			op := operation{
-				id:     "this operation",
+				id:     operationID.Name,
 				doc:    operationDoc,
 				logger: slog.Default(),
 			}
@@ -104,6 +110,11 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 				DoAndReturn(func(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
 					return callback(operationDoc), nil
 				})
+			if tt.expectAsyncNotification {
+				mockDBClient.EXPECT().
+					GetOperationDoc(gomock.Any(), op.id).
+					Return(operationDoc, nil)
+			}
 
 			err = scanner.setDeleteOperationAsCompleted(ctx, op)
 
@@ -224,6 +235,11 @@ func TestUpdateOperationStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			operationID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/oz/hcpOperationsStatus/operationID")
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
 					request = r
@@ -237,11 +253,12 @@ func TestUpdateOperationStatus(t *testing.T) {
 			}
 
 			operationDoc := database.NewOperationDocument(database.OperationRequestCreate, resourceID, internalID)
+			operationDoc.OperationID = operationID
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.currentOperationStatus
 
 			op := operation{
-				id:     "this operation",
+				id:     operationID.Name,
 				doc:    operationDoc,
 				logger: slog.Default(),
 			}
@@ -272,6 +289,11 @@ func TestUpdateOperationStatus(t *testing.T) {
 						return false, database.ErrNotFound
 					}
 				})
+			if tt.expectAsyncNotification {
+				mockDBClient.EXPECT().
+					GetOperationDoc(gomock.Any(), op.id).
+					Return(operationDoc, nil)
+			}
 
 			err = scanner.updateOperationStatus(ctx, op, tt.updatedOperationStatus, nil)
 
