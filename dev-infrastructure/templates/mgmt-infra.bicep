@@ -34,6 +34,9 @@ param mgmtKeyVaultSoftDelete bool
 @description('Cluster user assigned identity resource id, used to grant KeyVault access')
 param clusterServiceMIResourceId string
 
+@description('KV certificate officer principal ID')
+param kvCertOfficerPrincipalId string
+
 resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
   scope: resourceGroup()
@@ -58,6 +61,23 @@ module cxKeyVault '../modules/keyvault/keyvault.bicep' = {
     purpose: 'cx'
   }
 }
+
+module cxKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+  for role in [
+    'Key Vault Secrets Officer'
+    'Key Vault Certificates Officer'
+  ]: {
+    name: guid(cxKeyVaultName, kvCertOfficerPrincipalId, role)
+    params: {
+      keyVaultName: cxKeyVaultName
+      roleName: role
+      managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    }
+    dependsOn: [
+      cxKeyVault
+    ]
+  }
+]
 
 output cxKeyVaultUrl string = cxKeyVault.outputs.kvUrl
 
@@ -84,6 +104,23 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
     purpose: 'mgmt'
   }
 }
+
+module mgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+  for role in [
+    'Key Vault Secrets Officer'
+    'Key Vault Certificates Officer'
+  ]: {
+    name: guid(mgmtKeyVaultName, kvCertOfficerPrincipalId, role)
+    params: {
+      keyVaultName: mgmtKeyVaultName
+      roleName: role
+      managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    }
+    dependsOn: [
+      mgmtKeyVault
+    ]
+  }
+]
 
 output mgmtKeyVaultUrl string = mgmtKeyVault.outputs.kvUrl
 

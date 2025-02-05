@@ -15,6 +15,9 @@ param mgmtKeyVaultName = '{{ .mgmtKeyVault.name }}'
 param mgmtKeyVaultPrivate = {{ .mgmtKeyVault.private }}
 param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVault.softDelete }}
 
+// SP for KV certificate issuer registration
+param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
+
 // Cluster Service identity
 // used for Key Vault access
 param clusterServiceMIResourceId = '__clusterServiceMIResourceId__'

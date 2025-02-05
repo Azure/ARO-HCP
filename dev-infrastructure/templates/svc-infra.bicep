@@ -13,8 +13,8 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
-@description('SVC KV certificate officer principal ID')
-param svcKvCertOfficerPrincipalId string
+@description('KV certificate officer principal ID')
+param kvCertOfficerPrincipalId string
 
 @description('MSI that will be used during pipeline runs to access KVs')
 param aroDevopsMsiId string
@@ -55,7 +55,7 @@ module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bi
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: svcKvCertOfficerPrincipalId
+    managedIdentityPrincipalId: kvCertOfficerPrincipalId
   }
   dependsOn: [
     serviceKeyVault
@@ -68,7 +68,7 @@ module serviceKeyVaultSecretsOfficer '../modules/keyvault/keyvault-secret-access
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: svcKvCertOfficerPrincipalId
+    managedIdentityPrincipalId: kvCertOfficerPrincipalId
   }
   dependsOn: [
     serviceKeyVault
