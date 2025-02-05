@@ -8,6 +8,3 @@ param msiName = '{{ .monitoring.msiName }}'
 param grafanaAdminGroupPrincipalId = '{{ .monitoring.grafanaAdminGroupPrincipalId }}'
 //  SafeDnsIntApplication object ID use to delegate child DNS
 param safeDnsIntAppObjectId = '{{ .global.safeDnsIntAppObjectId }}'
-
-// MI for resource access during pipeline runs
-param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'

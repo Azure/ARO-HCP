@@ -16,10 +16,7 @@ param msiName string
 @description('The admin group principal ID to manage Grafana')
 param grafanaAdminGroupPrincipalId string
 
-@description('MSI that will be used during pipeline runs to Azure resources')
-param aroDevopsMsiId string
-
-@description('SafeDnsIntApplication object ID use to delegate child DNS')
+@description('MSI the domain team use to delegate child DNS')
 param safeDnsIntAppObjectId string
 
 resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -43,11 +40,11 @@ var dnsZoneContributor = 'befefa01-2a29-4197-83a8-272ff33ce314'
 
 // Azure Managed Grafana Workspace Contributor: Can manage Azure Managed Grafana resources, without providing access to the workspaces themselves.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#azure-managed-grafana-workspace-contributor
-var contributor = '5c2d7e57-b7c2-4d8a-be4f-82afa42c6e95'
+var grafanaContributor = '5c2d7e57-b7c2-4d8a-be4f-82afa42c6e95'
 
 // Grafana Admin: Perform all Grafana operations, including the ability to manage data sources, create dashboards, and manage role assignments within Grafana.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#grafana-admin
-var admin = '22926164-76b3-42b3-bc55-97df8dab3e41'
+var grafanaAdminRole = '22926164-76b3-42b3-bc55-97df8dab3e41'
 
 resource cxParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(cxParentZone.id, safeDnsIntAppObjectId, dnsZoneContributor)
@@ -69,12 +66,12 @@ resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@20
   }
 }
 
-var grafanaAdmin = {
+var grafanaAdminGroup = {
   principalId: grafanaAdminGroupPrincipalId
   principalType: 'group'
 }
 
-resource grafanaInstance 'Microsoft.Dashboard/grafana@2023-09-01' = {
+resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
   name: grafanaName
   location: resourceGroup().location
   sku: {
@@ -85,33 +82,24 @@ resource grafanaInstance 'Microsoft.Dashboard/grafana@2023-09-01' = {
   }
 }
 
-module grafana 'br:arointacr.azurecr.io/grafana.bicep:metrics.20240814.1' = {
-  name: 'grafana'
-  params: {
-    msiName: msiName
-    grafanaName: grafanaName
-    grafanaAdmin: grafanaAdmin
-  }
-}
-
 resource contributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(grafanaInstance.id, aroDevopsMsiId, contributor)
-  scope: grafanaInstance
+  name: guid(grafana.id, ev2MSI.id, grafanaContributor)
+  scope: grafana
   properties: {
-    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalId: ev2MSI.properties.principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', contributor)
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', grafanaContributor)
   }
 }
 
 resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(grafanaInstance.id, grafanaAdmin.principalId, admin)
-  scope: grafanaInstance
+  name: guid(grafana.id, grafanaAdminGroup.principalId, grafanaAdminRole)
+  scope: grafana
   properties: {
-    principalId: grafanaAdmin.principalId
-    principalType: grafanaAdmin.principalType
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', admin)
+    principalId: grafanaAdminGroup.principalId
+    principalType: grafanaAdminGroup.principalType
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', grafanaAdminRole)
   }
 }
 
-output grafanaId string = grafana.outputs.grafanaId
+output grafanaId string = grafana.id
