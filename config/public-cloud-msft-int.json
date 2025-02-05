@@ -61,6 +61,7 @@
     "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "extraVars": {},
+  "firstPartyAppCertName": "firstPartyCert",
   "firstPartyAppClientId": "5bc505bc-50ef-4be9-9a82-2ed7973f1c37",
   "frontend": {
     "cert": {

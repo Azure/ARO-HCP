@@ -291,6 +291,9 @@
       "firstPartyAppClientId": {
         "type": "string"
       },
+      "firstPartyAppCertName": {
+        "type": "string"
+      },
       "miMockClientId": {
         "type": "string"
       },
@@ -869,6 +872,7 @@
       "clusterService",
       "cxKeyVault",
       "firstPartyAppClientId",
+      "firstPartyAppCertName",
       "frontend",
       "global",
       "hypershift",
