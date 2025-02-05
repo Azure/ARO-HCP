@@ -13,6 +13,7 @@ import (
 	"time"
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -306,7 +307,7 @@ func (s *OperationsScanner) postAsyncNotification(ctx context.Context, url strin
 	return nil
 }
 
-func convertClusterStatus(clusterStatus *cmv1.ClusterStatus, current arm.ProvisioningState) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current arm.ProvisioningState) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
 	var opStatus arm.ProvisioningState = current
 	var opError *arm.CloudErrorBody
 	var err error
@@ -316,7 +317,7 @@ func convertClusterStatus(clusterStatus *cmv1.ClusterStatus, current arm.Provisi
 	//       ClusterStatus from the "/api/clusters_mgmt/v1" API.
 
 	switch state := clusterStatus.State(); state {
-	case cmv1.ClusterStateError:
+	case arohcpv1alpha1.ClusterStateError:
 		opStatus = arm.ProvisioningStateFailed
 		// FIXME This is guesswork. Need clarity from Cluster Service
 		//       on what provision error codes are possible so we can
@@ -330,13 +331,13 @@ func convertClusterStatus(clusterStatus *cmv1.ClusterStatus, current arm.Provisi
 			message = clusterStatus.Description()
 		}
 		opError = &arm.CloudErrorBody{Code: code, Message: message}
-	case cmv1.ClusterStateInstalling:
+	case arohcpv1alpha1.ClusterStateInstalling:
 		opStatus = arm.ProvisioningStateProvisioning
-	case cmv1.ClusterStateReady:
+	case arohcpv1alpha1.ClusterStateReady:
 		opStatus = arm.ProvisioningStateSucceeded
-	case cmv1.ClusterStateUninstalling:
+	case arohcpv1alpha1.ClusterStateUninstalling:
 		opStatus = arm.ProvisioningStateDeleting
-	case cmv1.ClusterStatePending, cmv1.ClusterStateValidating:
+	case arohcpv1alpha1.ClusterStatePending, arohcpv1alpha1.ClusterStateValidating:
 		// These are valid cluster states for ARO-HCP but there are
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.

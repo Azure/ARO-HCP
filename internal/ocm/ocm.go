@@ -79,8 +79,8 @@ func (csc *ClusterServiceClient) GetCSCluster(ctx context.Context, internalID In
 }
 
 // GetCSClusterStatus creates and sends a GET request to fetch a cluster's status from Clusters Service
-func (csc *ClusterServiceClient) GetCSClusterStatus(ctx context.Context, internalID InternalID) (*cmv1.ClusterStatus, error) {
-	client, ok := internalID.GetClusterClient(csc.Conn)
+func (csc *ClusterServiceClient) GetCSClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error) {
+	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
