@@ -78,7 +78,7 @@ defaults:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       maxClientSessionsPerAuthName: 4
       private: false
-    certDomain: 'selfsigned.maestro.keyvault.azure.com'
+    certIssuer: Self
     postgres:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       serverVersion: '15'

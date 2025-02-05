@@ -25,7 +25,7 @@ param clientName string
 param clientRole string
 
 @description('The issuer of the certificate.')
-param certificateIssuer string = 'Self'
+param certificateIssuer string
 
 @description('The thumbprint of the certificate that should get access. Dont use in production')
 param certificateThumbprint string
@@ -37,11 +37,15 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2023-12-15-preview' 
   name: eventGridNamespaceName
 }
 
-// D O N ' T   U S E   T H U M B P R I N T   I N   P R O D U C T I O N
-// eventgrid MQTT client trusting the certificate by thumbprint if
-// Key Vault self-signed certificates are used. trusting self-signed certificates
-// as CAs is not supported in EventGrid
-resource mqttClient 'Microsoft.EventGrid/namespaces/clients@2023-12-15-preview' = if (certificateIssuer == 'Self') {
+//
+//   T H U M B P R I N T   V A L I D A T I O N   S C H E M E
+//   D O N ' T   U S E  I N   P R O D U C T I O N
+//
+// With this scheme, eventgrid MQTT trusts client certificates by thumbprint. For self-signed
+// certificates, this is the only secure option. But it comes at the price of updating the
+// thumbprints in the eventgrid namespace every time a new certificate is issued.
+//
+resource selfSignedCertMqttClient 'Microsoft.EventGrid/namespaces/clients@2023-12-15-preview' = if (certificateIssuer == 'Self') {
   name: clientName
   parent: eventGridNamespace
   properties: {
@@ -60,5 +64,29 @@ resource mqttClient 'Microsoft.EventGrid/namespaces/clients@2023-12-15-preview' 
   }
 }
 
-// TODO - implement issuer CA registration with EventGrid + register the mqtt client with
-// the DnsMatchesAuthenticationName authentication validation scheme
+//
+//   D N S   V A L I D A T I O N   S C H E M E
+//
+// This is the scheme we want to use for production. It allows us to trust CA signed
+// certificates by validating the certificate SAN against the authentication name.
+// This way certificates can be rotated without updating the eventgrid MQTT client
+// configuration.
+//
+resource certMqttClient 'Microsoft.EventGrid/namespaces/clients@2023-12-15-preview' = if (certificateIssuer != 'Self') {
+  name: clientName
+  parent: eventGridNamespace
+  properties: {
+    authenticationName: certificateSAN
+    attributes: {
+      role: clientRole
+      consumer_name: clientName
+    }
+    clientCertificateAuthentication: {
+      allowedThumbprints: [
+        certificateThumbprint
+      ]
+      validationScheme: 'DnsMatchesAuthenticationName'
+    }
+    state: 'Enabled'
+  }
+}
