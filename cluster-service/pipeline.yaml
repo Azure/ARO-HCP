@@ -45,9 +45,9 @@ resourceGroups:
     - name: AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID
       configRef: armHelperFPAPrincipalId
     - name: MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME
-      value: msiMockCert2
+      configRef: miMockCertName
     - name: ARM_HELPER_CERT_NAME
-      value: armHelperCert2
+      configRef: armHelperCertName
     - name: CX_PARENT_DNS_ZONE_NAME
       configRef: dns.cxParentZoneName
     - name: REGIONAL_DNS_SUBDOMAIN

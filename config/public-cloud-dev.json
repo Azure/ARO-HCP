@@ -1,6 +1,7 @@
 {
   "acrPullImageDigest": "sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca",
   "aksName": "aro-hcp-aks",
+  "armHelperCertName": "armHelperCert2",
   "armHelperClientId": "3331e670-0804-48e8-a086-6241671ddc93",
   "armHelperFPAPrincipalId": "47f69502-0065-4d9a-b19b-d403e183d2f4",
   "aroDevopsMsiId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity",
@@ -185,6 +186,7 @@
     "private": false,
     "softDelete": false
   },
+  "miMockCertName": "msiMockCert2",
   "miMockClientId": "e8723db7-9b9e-46a4-9f7d-64d75c3534f0",
   "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
   "monitoring": {

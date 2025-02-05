@@ -300,10 +300,16 @@
       "miMockPrincipalId": {
         "type": "string"
       },
+      "miMockCertName": {
+        "type": "string"
+      },
       "armHelperClientId": {
         "type": "string"
       },
       "armHelperFPAPrincipalId": {
+        "type": "string"
+      },
+      "armHelperCertName": {
         "type": "string"
       },
       "backend": {
