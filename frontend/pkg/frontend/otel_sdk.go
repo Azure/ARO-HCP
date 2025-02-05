@@ -23,7 +23,24 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 )
 
-func InstallOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, resourceAttrs ...attribute.KeyValue) (
+// ConfigureOpenTelemetryTracer configures the global OpenTelemetry trace
+// provider.
+//
+// The function uses the following environment variables for the tracer
+// configuration:
+//   - `OTEL_TRACES_EXPORTER`, either `otlp` to send traces to an OTLP endpoint or `console`.
+//   - `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL`, either `grpc` or `http`.
+//   - `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, endpoint where to send the OTLP
+//     traces (e.g. `https://localhost:4318/v1/traces`).
+//
+// See
+// https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
+// for the list of all supported variables.
+//
+// An error is returned if an environment value is set to an unhandled value.
+//
+// If no environment variable are set, a no-op tracer is setup.
+func ConfigureOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, resourceAttrs ...attribute.KeyValue) (
 	func(context.Context) error,
 	error,
 ) {

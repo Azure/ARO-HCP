@@ -13,10 +13,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
@@ -101,14 +103,21 @@ func correlationIDPolicy(req *policy.Request) (*http.Response, error) {
 }
 
 func (opts *FrontendOpts) Run() error {
+	ctx := context.Background()
+
 	logger := util.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, util.Version()))
 
-	// Init the Prometheus emitter.
+	// Initialize the Prometheus emitter.
 	prometheusEmitter := frontend.NewPrometheusEmitter(prometheus.DefaultRegisterer)
 
+	// Initialize the global OpenTelemetry tracer.
+	otelShutdown, err := frontend.ConfigureOpenTelemetryTracer(ctx, logger)
+	if err != nil {
+		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
+	}
+
 	// Create the database client.
-	ctx := context.Background()
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		opts.cosmosURL,
 		opts.cosmosName,
@@ -116,6 +125,7 @@ func (opts *FrontendOpts) Run() error {
 			// FIXME Cloud should be determined by other means.
 			Cloud:           cloud.AzurePublic,
 			PerCallPolicies: []policy.Policy{policyFunc(correlationIDPolicy)},
+			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
 		},
 	)
 	if err != nil {
@@ -178,6 +188,7 @@ func (opts *FrontendOpts) Run() error {
 	close(stop)
 
 	f.Join()
+	_ = otelShutdown(ctx)
 	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, util.Version()))
 
 	return nil
