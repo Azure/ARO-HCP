@@ -41,7 +41,7 @@ module clientCertificate '../keyvault/key-vault-cert.bicep' = {
   name: '${clientName}-client-cert'
   params: {
     keyVaultName: keyVaultName
-    subjectName: 'CN=${clientName}'
+    subjectName: 'CN=${clientAuthenticationName}'
     certName: keyVaultCertificateName
     keyVaultManagedIdentityId: kvCertOfficerManagedIdentityResourceId
     dnsNames: [

@@ -82,9 +82,6 @@ resource certMqttClient 'Microsoft.EventGrid/namespaces/clients@2023-12-15-previ
       consumer_name: clientName
     }
     clientCertificateAuthentication: {
-      allowedThumbprints: [
-        certificateThumbprint
-      ]
       validationScheme: 'DnsMatchesAuthenticationName'
     }
     state: 'Enabled'
