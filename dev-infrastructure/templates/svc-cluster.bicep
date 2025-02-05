@@ -151,9 +151,6 @@ param serviceKeyVaultResourceGroup string = resourceGroup().name
 @description('OIDC Storage Account name')
 param oidcStorageAccountName string
 
-@description('OIDC Storage Account SKU')
-param oidcStorageAccountSku string = 'Standard_ZRS'
-
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
@@ -376,7 +373,7 @@ module oidc '../modules/oidc/main.bicep' = {
     location: location
     storageAccountName: oidcStorageAccountName
     rpMsiName: csMIName
-    skuName: oidcStorageAccountSku
+    skuName: locationIsZoneRedundant(location) ? 'Standard_ZRS' : 'Standard_LRS'
     msiId: aroDevopsMsiId
     deploymentScriptLocation: location
   }
