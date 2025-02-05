@@ -297,3 +297,10 @@ azureOperatorsMI:
   cloudNetworkConfig:
     roleName: ''
     roleId: ''
+
+# Pull binding configuration for ACR Pull Operator
+pullBinding:
+  registry: ""
+  scope: ""
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""
