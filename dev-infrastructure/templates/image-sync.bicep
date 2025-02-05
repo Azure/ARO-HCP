@@ -299,13 +299,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
 
 var ocpMirrorConfig = {
   kind: 'ImageSetConfiguration'
-  apiVersion: 'mirror.openshift.io/v1alpha2'
-  storageConfig: {
-    registry: {
-      imageURL: '${ocpAcrName}${environment().suffixes.acrLoginServer}/mirror/oc-mirror-metadata'
-      skipTLS: false
-    }
-  }
+  apiVersion: 'mirror.openshift.io/v2alpha1'
   mirror: {
     platform: {
       architectures: ['multi', 'amd64', 'arm64']
