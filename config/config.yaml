@@ -118,14 +118,14 @@ defaults:
     componentSync:
       enabled: true
       imageRepo: image-sync/component-sync
-      imageTag: 8d3c113
+      imageTag: d1021e2
       repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager
       secrets: 'quay.io:bearer-secret'
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
       imageRepo: image-sync/oc-mirror
-      imageTag: 0b3c08f
+      imageTag: d1021e2
       pullSecretName: pull-secret
     keyVault:
       name: arohcp-imagesync-dev
