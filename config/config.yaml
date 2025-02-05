@@ -368,3 +368,19 @@ clouds:
           frontend:
             cosmosDB:
               private: false
+      personal-perfscale:
+        defaults:
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}'
+          mgmt:
+            aks:
+              systemAgentPool:
+                minCount: 1
+                maxCount: 4
+                vmSize: 'Standard_E8s_v3'
+                osDiskSizeGB: 128
+              userAgentPool:
+                minCount: 1
+                maxCount: 3
+                vmSize: 'Standard_D16s_v3'
+                osDiskSizeGB: 128

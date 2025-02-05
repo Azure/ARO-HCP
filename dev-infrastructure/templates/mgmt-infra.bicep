@@ -128,46 +128,15 @@ output mgmtKeyVaultUrl string = mgmtKeyVault.outputs.kvUrl
 //   C L U S T E R   S E R V I C E   K V   A C C E S S
 //
 
-import * as res from '../modules/resource.bicep'
-var clusterServiceMIRef = res.msiRefFromId(clusterServiceMIResourceId)
-
-resource clusterServiceMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(clusterServiceMIRef.resourceGroup.subscriptionId, clusterServiceMIRef.resourceGroup.name)
-  name: clusterServiceMIRef.name
+module csKeyVaultAccess '../modules/cluster-service-mc-kv-access.bicep' = if (clusterServiceMIResourceId != '') {
+  name: '${deployment().name}-cs-kv-access'
+  params: {
+    clusterServiceMIResourceId: clusterServiceMIResourceId
+    cxKeyVaultName: cxKeyVaultName
+    msiKeyVaultName: msiKeyVaultName
+  }
+  dependsOn: [
+    cxKeyVault
+    msiKeyVault
+  ]
 }
-
-module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for role in [
-    'Key Vault Secrets Officer'
-    'Key Vault Certificate User'
-    'Key Vault Certificates Officer'
-  ]: {
-    name: guid(cxKeyVaultName, clusterServiceMIResourceId, role)
-    params: {
-      keyVaultName: cxKeyVaultName
-      roleName: role
-      managedIdentityPrincipalId: clusterServiceMI.properties.principalId
-    }
-    dependsOn: [
-      cxKeyVault
-    ]
-  }
-]
-
-module msiClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for role in [
-    'Key Vault Secrets Officer'
-    'Key Vault Certificate User'
-    'Key Vault Certificates Officer'
-  ]: {
-    name: guid(msiKeyVaultName, clusterServiceMIResourceId, role)
-    params: {
-      keyVaultName: msiKeyVaultName
-      roleName: role
-      managedIdentityPrincipalId: clusterServiceMI.properties.principalId
-    }
-    dependsOn: [
-      msiKeyVault
-    ]
-  }
-]

@@ -243,6 +243,12 @@ mgmt.kv.permission:
 mgmt.dev.permissions: mgmt.kv.permission
 .PHONY: mgmt.dev.permissions
 
+mgmt.solo.init: region mgmt.solo mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permissions
+
+mgmt.solo:
+	../templatize.sh $(DEPLOY_ENV) -p mgmt-solo-pipeline.yaml -P run -c public
+.PHONY: mgmt.solo
+
 # ACR DEV customizations
 
 acr: acr-svc-cfg acr-ocp-cfg

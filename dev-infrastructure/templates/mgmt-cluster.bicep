@@ -190,7 +190,7 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 //   M A E S T R O
 //
 
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
   name: 'maestro-consumer'
   params: {
     maestroAgentManagedIdentityPrincipalId: filter(
@@ -212,7 +212,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
-module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maestroEventGridNamespaceId != '') {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
