@@ -1,0 +1,21 @@
+---
+# MegaLinter GitHub Action configuration file
+# More info at https://oxsecurity.github.io/megalinter
+name: mega-linter
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    name: mega-linter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        fetch-depth: 1
+    - name: 'run yamlfmt'
+      run: |-
+        make yamlfmt
+        git diff --exit-code\
