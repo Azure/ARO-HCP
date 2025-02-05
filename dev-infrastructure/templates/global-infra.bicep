@@ -39,7 +39,7 @@ resource svcParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
 
 // DNS Zone Contributor: Lets SafeDnsIntApplication manage DNS zones and record sets in Azure DNS, but does not let it control who has access to them.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/networking#dns-zone-contributor
-var dnsZoneContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', 'befefa01-2a29-4197-83a8-272ff33ce314')
+var dnsZoneContributor = 'befefa01-2a29-4197-83a8-272ff33ce314'
 
 // Azure Managed Grafana Workspace Contributor: Can manage Azure Managed Grafana resources, without providing access to the workspaces themselves.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#azure-managed-grafana-workspace-contributor
@@ -55,7 +55,7 @@ resource cxParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@202
   properties: {
     principalId: safeDnsIntAppObjectId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: dnsZoneContributor
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', dnsZoneContributor)
   }
 }
 
@@ -65,7 +65,7 @@ resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@20
   properties: {
     principalId: safeDnsIntAppObjectId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: dnsZoneContributor
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', dnsZoneContributor)
   }
 }
 
