@@ -1,7 +1,7 @@
 /*
 Sets up the global ACRs for SVC and OCP images.
 */
-import {locationIsZoneRedundant} from 'common.bicep'
+import { locationIsZoneRedundant } from 'common.bicep'
 
 param ocpAcrName string
 param ocpAcrSku string
