@@ -9,7 +9,7 @@ deploy:
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
-	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "${SERVICE_KV}" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
+	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "${SERVICE_KV}" --name "aro-hcp-dev-sp-cs" -o json | jq .value -r | base64 | tr -d '\n')' && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
