@@ -1,32 +1,33 @@
+---
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.ACRPull
 rolloutName: ACRPull Controller Rollout
 resourceGroups:
-  - name: {{ .svc.rg }}
-    subscription: {{ .svc.subscription }}
-    aksCluster: {{ .aksName }}
-    steps:
-      - name: deploy
-        action: Shell
-        command: make deploy
-        dryRun:
-          variables:
-            - name: DRY_RUN
-              value: "true"
-        variables:
-          - name: ACRPULL_DIGEST
-            configRef: acrPullImageDigest
-  - name: {{ .mgmt.rg }}
-    subscription: {{ .mgmt.subscription }}
-    aksCluster: {{ .aksName }}
-    steps:
-      - name: deploy-mgmt
-        action: Shell
-        command: make deploy
-        dryRun:
-          variables:
-            - name: DRY_RUN
-              value: "true"
-        variables:
-          - name: ACRPULL_DIGEST
-            configRef: acrPullImageDigest
+- name: {? {.svc.rg: ''} : ''}
+  subscription: {? {.svc.subscription: ''} : ''}
+  aksCluster: {? {.aksName: ''} : ''}
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ACRPULL_DIGEST
+      configRef: acrPullImageDigest
+- name: {? {.mgmt.rg: ''} : ''}
+  subscription: {? {.mgmt.subscription: ''} : ''}
+  aksCluster: {? {.aksName: ''} : ''}
+  steps:
+  - name: deploy-mgmt
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ACRPULL_DIGEST
+      configRef: acrPullImageDigest
