@@ -258,6 +258,7 @@ clouds:
 
           # 1P app
           firstPartyAppClientId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37
+          firstPartyAppCertName: firstPartyCert
 
           # Mock Managed Identities Service Princiapl.
           # This is a stub identity to be used by CS in environments where the MI (formerly MSI) RP isn't available.
