@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x 
+
 if [ "$#" -ne 2 ]
 then
     echo "Need ARO_HCP_IMAGE_ACR and REPOSITORY parameters"
