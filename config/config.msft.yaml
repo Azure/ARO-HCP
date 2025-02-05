@@ -1,27 +1,22 @@
+---
 $schema: config.schema.json
 defaults:
-  region: {{ .ctx.region }}
-
+  region: {? {.ctx.region: ''} : ''}
   # Resourcegroups
   regionRG: '{{ .ctx.region }}-shared-resources'
-
   global:
     rg: global-shared-resources
     subscription: hcp-{{ .ctx.region }}
     region: uksouth
     globalMSIName: "global-ev2-identity"
-
   # General AKS config
   aksName: aro-hcp-aks
-
   # ACR Pull
   acrPullImageDigest: sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca #v0.1.7
-
   # Hypershift
   hypershift:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
-
   svc:
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
@@ -41,7 +36,6 @@ defaults:
       versions: "asm-1-23"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
-
   # MGMT cluster specifics
   mgmt:
     subscription: hcp-{{ .ctx.region }}
@@ -55,7 +49,6 @@ defaults:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
-
   # Frontend
   frontend:
     cosmosDB:
@@ -63,7 +56,6 @@ defaults:
       disableLocalAuth: true
       name: arohcp-rp-{{ .ctx.regionShort }}
       private: true
-
   # Maestro
   maestro:
     server:
@@ -91,7 +83,6 @@ defaults:
     agentSideCar:
       imageBase: mcr.microsoft.com/azurelinux/base/nginx
       imageTag: '1.25'
-
   # Cluster Service
   clusterService:
     postgres:
@@ -103,7 +94,6 @@ defaults:
     k8s:
       namespace: cluster-service
       serviceAccountName: clusters-service
-
   # Image Sync
   imageSync:
     rg: global-shared-resources
@@ -123,19 +113,16 @@ defaults:
       name: arohcp-imagesync-int
       private: false
       softDelete: true
-
   # MCE
   mce:
     clcStateMetrics:
       imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
-
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
-    region: {{ .ctx.region }}
+    region: {? {.ctx.region: ''} : ''}
     softDelete: false
     private: false
-
   # Management Cluster KV
   cxKeyVault:
     name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
@@ -149,17 +136,14 @@ defaults:
     name: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
     softDelete: false
     private: false
-
   # DNS
   dns:
     baseDnsZoneRG: global-shared-resources
     regionalSubdomain: '{{ .ctx.region }}'
-
   # Metrics
   monitoring:
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
     msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
-
 clouds:
   public:
     # this configuration serves as a template for for all RH DEV subscription deployments
@@ -198,7 +182,6 @@ clouds:
         imageTag: 0b076bf
       backend:
         imageTag: 0b076bf
-
     environments:
       int:
         # this is the MSFT INT environment
@@ -243,11 +226,9 @@ clouds:
             cxParentZoneName: aroapp-hcp.azure-test.net
             svcParentZoneName: aro-hcp.azure-test.net
             parentZoneName: azure-test.net
-
           # ACR
           svcAcrName: arohcpsvcint
           ocpAcrName: arohcpocpint
-
           # Frontend
           frontend:
             cosmosDB:
@@ -255,20 +236,16 @@ clouds:
             cert:
               name: frontend-cert-{{ .ctx.regionShort }}
               issuer: OneCertV2-PublicCA
-
           # 1P app
           firstPartyAppClientId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37
-
           # Mock Managed Identities Service Princiapl.
           # This is a stub identity to be used by CS in environments where the MI (formerly MSI) RP isn't available.
           miMockClientId: f13a22ee-4f55-4d33-a614-a703e5501202
           miMockPrincipalId: d9356bcd-fb81-483e-9b5f-180c0aa27a16
-
           # ARM Helper
           # This is a helper identity for DEV not required in higher envs.
           armHelperClientId: f2af6a70-fc23-4a9a-bbf2-3236f86e65e4
           armHelperFPAPrincipalId: 4026d9e7-2897-4f0c-83d4-897858a5f8a8
-
           # disable KV softdelete for easy cleanup and recreate in INT
           cxKeyVault:
             softDelete: false
@@ -279,14 +256,12 @@ clouds:
           mgmtKeyVault:
             softDelete: false
             private: false
-
           # Grafana
           monitoring:
             grafanaName: 'arohcp-int'
             grafanaAdminGroupPrincipalId: '2fdb57d4-3fd3-415d-b604-1d0e37a188fe' # Azure Red Hat OpenShift MSFT Engineering
-
           # Global MSI
           # Will move this MSI creationg to this repo. Currently it's in the hcp repo
           aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
-          kvCertOfficerPrincipalId: '32af88de-a61c-4f71-b709-50538598c4f2'  # aro-ev2-admin-int-sp
+          kvCertOfficerPrincipalId: '32af88de-a61c-4f71-b709-50538598c4f2' # aro-ev2-admin-int-sp

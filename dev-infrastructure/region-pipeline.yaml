@@ -1,17 +1,16 @@
+---
 $schema: "pipeline.schema.v1"
-
 # This pipelines prepares general regional resources for ARO HCP
 #
 # - create regional SVC and CX DNS zones and delegates them to the global ones
 # - create Eventgrid MQTT for Maestro
 # - create regional replication for the OCP and SVC ACRs
 # - create regional Azure Monitor workspace and Grafana instance
-
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: {? {.global.rg: ''} : ''}
+  subscription: {? {.global.subscription: ''} : ''}
   steps:
   # Query parameters from global deployment, e.g. DNS hzone and ACR resource IDs
   - name: global-output
@@ -20,8 +19,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: {? {.regionRG: ''} : ''}
+  subscription: {? {.svc.subscription: ''} : ''}
   steps:
   - name: region
     action: ARM
@@ -29,22 +28,22 @@ resourceGroups:
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-      - name: ocpAcrResourceId
-        input:
-          step: global-output
-          name: ocpAcrResourceId
-      - name: svcAcrResourceId
-        input:
-          step: global-output
-          name: svcAcrResourceId
-      - name: cxParentZoneResourceId
-        input:
-          step: global-output
-          name: cxParentZoneResourceId
-      - name: svcParentZoneResourceId
-        input:
-          step: global-output
-          name: svcParentZoneResourceId
+    - name: ocpAcrResourceId
+      input:
+        step: global-output
+        name: ocpAcrResourceId
+    - name: svcAcrResourceId
+      input:
+        step: global-output
+        name: svcAcrResourceId
+    - name: cxParentZoneResourceId
+      input:
+        step: global-output
+        name: cxParentZoneResourceId
+    - name: svcParentZoneResourceId
+      input:
+        step: global-output
+        name: svcParentZoneResourceId
     dependsOn:
     - global-output
   - name: metrics-infra
@@ -54,21 +53,21 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - region
-# this will not work in case grafana is in another subscription as the workspace
-# - name: {{ .global.rg }}
-#   subscription: {{ .global.subscription }}
-#   steps:
-#   - name: add-grafana-datasource
-#     action: Shell
-#     command: scripts/add-grafana-datasource.sh
-#     variables:
-#       - name: GRAFANA_NAME
-#         configRef: monitoring.grafanaName
-#       - name: GRAFANA_RG
-#         configRef: global.rg
-#       - name: MONITOR_NAME
-#         configRef: monitoring.workspaceName
-#       - name: MONITOR_RG
-#         configRef: regionRG
-#     dependsOn:
-#     - metrics-infra
+    # this will not work in case grafana is in another subscription as the workspace
+    # - name: {{ .global.rg }}
+    #   subscription: {{ .global.subscription }}
+    #   steps:
+    #   - name: add-grafana-datasource
+    #     action: Shell
+    #     command: scripts/add-grafana-datasource.sh
+    #     variables:
+    #       - name: GRAFANA_NAME
+    #         configRef: monitoring.grafanaName
+    #       - name: GRAFANA_RG
+    #         configRef: global.rg
+    #       - name: MONITOR_NAME
+    #         configRef: monitoring.workspaceName
+    #       - name: MONITOR_RG
+    #         configRef: regionRG
+    #     dependsOn:
+    #     - metrics-infra

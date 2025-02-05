@@ -1,3 +1,4 @@
+---
 provision_shards:
 - id: 1
   maestro_config: |
@@ -12,7 +13,7 @@ provision_shards:
     }
   status: active
   management_cluster_id: local-cluster
-  region: {{ .region }}
+  region: {? {.region: ''} : ''}
   cloud_provider: azure
   topology: dedicated
   azure_shard:

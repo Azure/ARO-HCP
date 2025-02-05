@@ -26,6 +26,10 @@ install-tools: $(BINGO)
 	$(BINGO) get
 .PHONY: install-tools
 
+yamlfmt: install-tools
+	$(YAMLFMT) **/*.{yaml,yml}
+.PHONY: yamlfmt
+
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)

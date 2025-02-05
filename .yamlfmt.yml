@@ -1,0 +1,14 @@
+---
+exclude:
+- 'acm/deploy/helm/clc-state-metrics/'
+- 'acrpull/deploy/helm/acrpull/templates/deployment.yaml'
+- 'dev-infrastructure/istio-*'
+match_type: 'doublestar'
+formatter:
+  type: 'basic'
+  include_document_start: true
+  trim_trailing_whitespace: true
+  eof_newline: true
+  indent: 2
+  gitignore_excludes: true
+  indentless_arrays: true

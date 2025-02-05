@@ -1,25 +1,21 @@
+---
 $schema: config.schema.json
 defaults:
-  region: {{ .ctx.region }}
+  region: {? {.ctx.region: ''} : ''}
   regionRG: hcp-underlay-{{ .ctx.regionShort }}
-
   global:
     rg: global
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     region: westus3
     globalMSIName: "global-rollout-identity"
-
   # General AKS config
   aksName: aro-hcp-aks
-
   # ACR Pull
   acrPullImageDigest: sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca #v0.1.7
-
   # Hypershift
   hypershift:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
-
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-svc
@@ -39,7 +35,6 @@ defaults:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: ""
-
   # MGMT cluster specifics
   mgmt:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
@@ -53,7 +48,6 @@ defaults:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: ""
-
   # Frontend
   frontend:
     cosmosDB:
@@ -64,7 +58,6 @@ defaults:
     cert:
       name: frontend-cert-{{ .ctx.regionShort }}
       issuer: Self
-
   # Maestro
   maestro:
     server:
@@ -92,12 +85,10 @@ defaults:
     agentSideCar:
       imageBase: mcr.microsoft.com/azurelinux/base/nginx
       imageTag: '1.25'
-
   pko:
     image: arohcpsvcdev.azurecr.io/package-operator/package-operator-package
     imageManager: arohcpsvcdev.azurecr.io/package-operator/package-operator-manager
     imageTag: v1.15.0
-
   # Cluster Service
   clusterService:
     postgres:
@@ -109,7 +100,6 @@ defaults:
     k8s:
       namespace: cluster-service
       serviceAccountName: clusters-service
-
   # Image Sync
   imageSync:
     rg: hcp-underlay-{{ .ctx.regionShort }}-imagesync
@@ -131,19 +121,16 @@ defaults:
       name: arohcp-imagesync-dev
       private: false
       softDelete: false
-
   # MCE
   mce:
     clcStateMetrics:
       imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
-
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
     rg: hcp-underlay-{{ .ctx.regionShort }}
-    region: {{ .ctx.region }}
+    region: {? {.ctx.region: ''} : ''}
     softDelete: true
     private: true
-
   # Management Cluster KV
   cxKeyVault:
     name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
@@ -157,7 +144,6 @@ defaults:
     name: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
     softDelete: true
     private: true
-
 clouds:
   public:
     # this configuration serves as a template for for all RH DEV subscription deployments
@@ -243,7 +229,6 @@ clouds:
             vmSize: 'Standard_D2s_v3'
             osDiskSizeGB: 32
             azCount: 3
-
       mgmt:
         aks:
           # MGMTM AKS nodepools - big enough for 2 HCPs

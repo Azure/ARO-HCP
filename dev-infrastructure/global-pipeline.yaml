@@ -1,9 +1,10 @@
+---
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
 resourceGroups:
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: {? {.global.rg: ''} : ''}
+  subscription: {? {.global.subscription: ''} : ''}
   steps:
   # creates the parent DNS zones for the ARO HCP services
   - name: global-infra
@@ -35,8 +36,8 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-- name: {{ .imageSync.rg }}
-  subscription: {{ .global.subscription }}
+- name: {? {.imageSync.rg: ''} : ''}
+  subscription: {? {.global.subscription: ''} : ''}
   steps:
   # deploys the image mirror for the ACRs
   - name: imagemirror

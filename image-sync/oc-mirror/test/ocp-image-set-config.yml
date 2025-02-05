@@ -1,3 +1,4 @@
+---
 kind: ImageSetConfiguration
 apiVersion: mirror.openshift.io/v1alpha2
 storageConfig:
@@ -7,13 +8,13 @@ storageConfig:
 mirror:
   platform:
     architectures:
-      - multi
-      - amd64
+    - multi
+    - amd64
     channels:
-      - name: stable-4.17
-        minVersion: 4.17.0
-        maxVersion: 4.17.0
-        type: ocp
+    - name: stable-4.17
+      minVersion: 4.17.0
+      maxVersion: 4.17.0
+      type: ocp
     graph: true
   additionalImages:
   - name: registry.redhat.io/redhat/redhat-operator-index:v4.17

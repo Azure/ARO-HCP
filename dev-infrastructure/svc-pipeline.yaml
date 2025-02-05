@@ -1,5 +1,5 @@
+---
 $schema: "pipeline.schema.v1"
-
 # This pipelines installes the infrastructure for the ARO HCP SVC cluster
 #
 # - create the SVC Key Vault and sets up the OneCert issuer
@@ -8,13 +8,12 @@ $schema: "pipeline.schema.v1"
 # - create MIs, Postgres DB and OIDC storage and Azure permission for Cluster Service
 # - create MIs, Postgres DB and Azure permissions for the Maestro Server
 # - configures and lifecycles Istio on the SVC cluster
-
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: {? {.global.rg: ''} : ''}
+  subscription: {? {.global.subscription: ''} : ''}
   steps:
   - name: global-output
     action: ARM
@@ -23,8 +22,8 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: {? {.regionRG: ''} : ''}
+  subscription: {? {.svc.subscription: ''} : ''}
   steps:
   - name: region-output
     action: ARM
@@ -32,8 +31,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
+- name: {? {.svc.rg: ''} : ''}
+  subscription: {? {.svc.subscription: ''} : ''}
   steps:
   # Create SVC KV
   - name: svc-infra
@@ -45,7 +44,7 @@ resourceGroups:
   - name: svc-oncert-private-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - svc-infra
+    - svc-infra
     vaultBaseUrl:
       input:
         name: svcKeyVaultUrl
@@ -56,7 +55,7 @@ resourceGroups:
   - name: svc-oncert-public-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - svc-infra
+    - svc-infra
     vaultBaseUrl:
       input:
         name: svcKeyVaultUrl
@@ -89,9 +88,9 @@ resourceGroups:
     - global-output
     - region-output
 # Now that we have the SVC cluster, we can configure istio.
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
-  aksCluster: {{ .aksName }}
+- name: {? {.svc.rg: ''} : ''}
+  subscription: {? {.svc.subscription: ''} : ''}
+  aksCluster: {? {.aksName: ''} : ''}
   steps:
   # - updates workload to use istio on version svc.istio.targetVersion
   # - configures istio IP tag usage
@@ -117,10 +116,10 @@ resourceGroups:
     command: make -C ../acrpull deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
-      - name: ACRPULL_DIGEST
-        configRef: acrPullImageDigest
+    - name: ACRPULL_DIGEST
+      configRef: acrPullImageDigest
     dependsOn:
     - svc

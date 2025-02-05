@@ -1,9 +1,10 @@
+---
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: {? {.global.rg: ''} : ''}
+  subscription: {? {.global.subscription: ''} : ''}
   steps:
   - name: global-output
     action: ARM
@@ -11,8 +12,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
+- name: {? {.svc.rg: ''} : ''}
+  subscription: {? {.svc.subscription: ''} : ''}
   steps:
   - name: svc-output
     action: ARM
@@ -20,8 +21,8 @@ resourceGroups:
     parameters: configurations/output-svc.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: {? {.regionRG: ''} : ''}
+  subscription: {? {.svc.subscription: ''} : ''}
   steps:
   - name: region-output
     action: ARM
@@ -29,8 +30,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .mgmt.rg }}
-  subscription: {{ .mgmt.subscription }}
+- name: {? {.mgmt.rg: ''} : ''}
+  subscription: {? {.mgmt.subscription: ''} : ''}
   steps:
   - name: mgmt-infra
     action: ARM
@@ -48,7 +49,7 @@ resourceGroups:
   - name: cx-oncert-public-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - mgmt-infra
+    - mgmt-infra
     vaultBaseUrl:
       input:
         name: cxKeyVaultUrl
@@ -59,7 +60,7 @@ resourceGroups:
   - name: mgmt-oncert-private-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - mgmt-infra
+    - mgmt-infra
     vaultBaseUrl:
       input:
         name: mgmtKeyVaultUrl
@@ -95,9 +96,9 @@ resourceGroups:
     - mgmt-oncert-private-kv-issuer
     - global-output
     - region-output
-- name: {{ .mgmt.rg }}
-  subscription: {{ .mgmt.subscription }}
-  aksCluster: {{ .aksName }}
+- name: {? {.mgmt.rg: ''} : ''}
+  subscription: {? {.mgmt.subscription: ''} : ''}
+  aksCluster: {? {.aksName: ''} : ''}
   steps:
   # Install ACRpull
   - name: acrpull
@@ -105,10 +106,10 @@ resourceGroups:
     command: make -C ../acrpull deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
-      - name: ACRPULL_DIGEST
-        configRef: acrPullImageDigest
+    - name: ACRPULL_DIGEST
+      configRef: acrPullImageDigest
     dependsOn:
     - mgmt-cluster
