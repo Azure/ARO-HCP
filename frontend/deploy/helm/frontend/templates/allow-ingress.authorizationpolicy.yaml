@@ -2,13 +2,13 @@ apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
   name: allow-istio-ingress
-  namespace: aro-hcp
+  namespace: {{ .Release.Namespace }}
 spec:
   action: ALLOW
   rules:
   - from:
     - source:
-        namespaces: ["aks-istio-ingress"]
+        namespaces: ["{{ .Values.ingress.namespace }}"]
     to:
     - operation:
         methods: ["GET"]

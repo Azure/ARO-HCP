@@ -2,10 +2,12 @@ apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: aro-hcp-gateway-external
-  namespace: aks-istio-ingress
+  namespace: {{ .Values.ingress.namespace }}
 spec:
   selector:
-    istio: aks-istio-ingressgateway-external
+    {{- with .Values.ingress.istioSelector }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   servers:
   - port:
       number: 443
