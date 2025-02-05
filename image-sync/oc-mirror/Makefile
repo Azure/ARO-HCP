@@ -40,7 +40,7 @@ ocp-dry-run: image
 		-e XDG_RUNTIME_DIR=/ \
 		-v ${AUTH_FILE}:/containers/auth.json:z \
 		-v ${HOME}/.azure:/root/.azure:z \
-		-e IMAGE_SET_CONFIG=$(shell cat ${PWD}/test/acm-image-set-config.yml | base64) \
+		-e IMAGE_SET_CONFIG=$(shell cat ${PWD}/test/ocp-image-set-config.yml | base64) \
 		-e REGISTRY=${ARO_HCP_OCP_IMAGE_ACR} \
 		-e REGISTRY_URL=${ARO_HCP_OCP_IMAGE_ACR_URL} \
 		${OC_MIRROR_IMAGE_TAGGED} --dry-run
