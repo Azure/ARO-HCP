@@ -95,6 +95,9 @@ param regionalResourceGroup string
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
 
+@description('The issuer of the maestro certificate.')
+param maestroCertIssuer string
+
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
@@ -292,6 +295,8 @@ output frontend_mi_client_id string = frontendMI.uamiClientID
 //   M A E S T R O
 //
 
+var effectiveMaestroCertDomain = maestroCertDomain != '' ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
+
 module maestroServer '../modules/maestro/maestro-server.bicep' = {
   name: 'maestro-server'
   params: {
@@ -301,7 +306,8 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     certKeyVaultName: serviceKeyVaultName
     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     keyVaultOfficerManagedIdentityName: aroDevopsMsiId
-    maestroCertificateDomain: maestroCertDomain
+    maestroCertificateDomain: effectiveMaestroCertDomain
+    maestroCertificateIssuer: maestroCertIssuer
     deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion

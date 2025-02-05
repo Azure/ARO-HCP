@@ -71,8 +71,14 @@ param maestroConsumerName string
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
 
+@description('The issuer of the maestro certificate.')
+param maestroCertIssuer string
+
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespaceId string
+
+@description('The regional SVC DNS zone name.')
+param regionalSvcDNSZoneName string
 
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
@@ -190,6 +196,8 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 //   M A E S T R O
 //
 
+var effectiveMaestroCertDomain = maestroCertDomain != '' ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
+
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
   name: 'maestro-consumer'
   params: {
@@ -201,7 +209,8 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
     keyVaultOfficerManagedIdentityName: aroDevopsMsiId
-    maestroCertificateDomain: maestroCertDomain
+    maestroCertificateDomain: effectiveMaestroCertDomain
+    maestroCertificateIssuer: maestroCertIssuer
   }
   dependsOn: [
     mgmtKeyVault
