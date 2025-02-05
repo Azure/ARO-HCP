@@ -94,7 +94,7 @@
     "componentSync": {
       "enabled": true,
       "imageRepo": "image-sync/component-sync",
-      "imageTag": "8d3c113",
+      "imageTag": "d1021e2",
       "pullSecretName": "component-sync-pull-secret",
       "repositories": "quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager",
       "secrets": "quay.io:bearer-secret"
@@ -108,7 +108,7 @@
     "ocMirror": {
       "enabled": true,
       "imageRepo": "image-sync/oc-mirror",
-      "imageTag": "0b3c08f",
+      "imageTag": "d1021e2",
       "pullSecretName": "pull-secret"
     },
     "rg": "hcp-underlay-westus3-imagesync-dev"
