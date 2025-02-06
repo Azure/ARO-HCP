@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"gotest.tools/v3/assert"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
 func TestStepRun(t *testing.T) {
@@ -112,31 +114,128 @@ func TestArmGetValue(t *testing.T) {
 }
 
 func TestAddInputVars(t *testing.T) {
-	mapOutput := map[string]output{}
-	mapOutput["step1"] = armOutput{
-		"output1": map[string]any{
-			"type":  "String",
-			"value": "value1",
+	testCases := []struct {
+		name          string
+		cfg           config.Variables
+		input         map[string]output
+		stepVariables []Variable
+		expected      map[string]any
+		err           string
+	}{
+		{
+			name: "output chaining",
+			input: map[string]output{
+				"step1": armOutput{
+					"output1": map[string]any{
+						"type":  "String",
+						"value": "bar",
+					},
+				},
+			},
+			stepVariables: []Variable{
+				{
+					Name: "input1",
+					Input: &Input{
+						Name: "output1",
+						Step: "step1",
+					},
+				},
+			},
+			expected: map[string]any{"input1": "bar"},
+		},
+		{
+			name: "output chaining missing step",
+			input: map[string]output{
+				"step1": armOutput{
+					"output1": map[string]any{
+						"type":  "String",
+						"value": "bar",
+					},
+				},
+			},
+			stepVariables: []Variable{
+				{
+					Name: "input1",
+					Input: &Input{
+						Name: "output1",
+						Step: "missingstep",
+					},
+				},
+			},
+			err: "step missingstep not found in provided outputs",
+		},
+		{
+			name: "output chaining missing variable",
+			input: map[string]output{
+				"step1": armOutput{
+					"output1": map[string]any{
+						"type":  "String",
+						"value": "bar",
+					},
+				},
+			},
+			stepVariables: []Variable{
+				{
+					Name: "input1",
+					Input: &Input{
+						Name: "missingvar",
+						Step: "step1",
+					},
+				},
+			},
+			err: "failed to get value for input step1.missingvar: key \"missingvar\" not found",
+		},
+		{
+			name: "value",
+			stepVariables: []Variable{
+				{
+					Name:  "input1",
+					Value: "bar",
+				},
+			},
+			expected: map[string]any{"input1": "bar"},
+		},
+		{
+			name: "configref",
+			cfg: config.Variables{
+				"some": config.Variables{
+					"config": "bar",
+				},
+			},
+			stepVariables: []Variable{
+				{
+					Name:      "input1",
+					ConfigRef: "some.config",
+				},
+			},
+			expected: map[string]any{"input1": "bar"},
+		},
+		{
+			name: "configref missing",
+			cfg: config.Variables{
+				"some": config.Variables{
+					"config": "bar",
+				},
+			},
+			stepVariables: []Variable{
+				{
+					Name:      "input1",
+					ConfigRef: "some.missing",
+				},
+			},
+			err: "failed to lookup config reference some.missing for input1",
 		},
 	}
-	s := &ShellStep{
-		Variables: []Variable{{
-			Name: "input1",
-			Input: &Input{
-				Name: "output1",
-				Step: "step1",
-			},
-		},
-		}}
-
-	envVars, err := getInputValues(s.Variables, mapOutput)
-	assert.NilError(t, err)
-	assert.DeepEqual(t, envVars, map[string]any{"input1": "value1"})
-
-	_, err = getInputValues([]Variable{
-		{
-			Input: &Input{Step: "foobar"},
-		},
-	}, mapOutput)
-	assert.Error(t, err, "step foobar not found in provided outputs")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := getInputValues(tc.stepVariables, tc.cfg, tc.input)
+			t.Log(result)
+			if tc.err != "" {
+				assert.Error(t, err, tc.err)
+			} else {
+				assert.NilError(t, err)
+				assert.DeepEqual(t, result, tc.expected)
+			}
+		})
+	}
 }

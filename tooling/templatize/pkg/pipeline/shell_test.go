@@ -86,6 +86,7 @@ func TestMapStepVariables(t *testing.T) {
 	testCases := []struct {
 		name     string
 		vars     config.Variables
+		input    map[string]output
 		step     *ShellStep
 		expected map[string]string
 		err      string
@@ -136,10 +137,91 @@ func TestMapStepVariables(t *testing.T) {
 				"BAZ": "42",
 			},
 		},
+		{
+			name: "value",
+			vars: config.Variables{},
+			step: &ShellStep{
+				Variables: []Variable{
+					{
+						Name:  "BAZ",
+						Value: "bar",
+					},
+				},
+			},
+			expected: map[string]string{
+				"BAZ": "bar",
+			},
+		},
+		{
+			name: "output chaining",
+			vars: config.Variables{},
+			step: &ShellStep{
+				Variables: []Variable{
+					{
+						Name: "BAZ",
+						Input: &Input{
+							Name: "output1",
+							Step: "step1",
+						},
+					},
+				},
+			},
+			input: map[string]output{
+				"step1": armOutput{
+					"output1": map[string]any{
+						"type":  "String",
+						"value": "bar",
+					},
+				},
+			},
+			expected: map[string]string{
+				"BAZ": "bar",
+			},
+		},
+		{
+			name: "output chaining step missing",
+			vars: config.Variables{},
+			step: &ShellStep{
+				Variables: []Variable{
+					{
+						Name: "BAZ",
+						Input: &Input{
+							Name: "output1",
+							Step: "step1",
+						},
+					},
+				},
+			},
+			err: "step step1 not found in provided outputs",
+		},
+		{
+			name: "output chaining output missing",
+			vars: config.Variables{},
+			step: &ShellStep{
+				Variables: []Variable{
+					{
+						Name: "BAZ",
+						Input: &Input{
+							Name: "output1",
+							Step: "step1",
+						},
+					},
+				},
+			},
+			input: map[string]output{
+				"step1": armOutput{
+					"anotheroutput": map[string]any{
+						"type":  "String",
+						"value": "bar",
+					},
+				},
+			},
+			err: "failed to get value for input step1.output1: key \"output1\" not found",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			envVars, err := tc.step.mapStepVariables(tc.vars)
+			envVars, err := tc.step.mapStepVariables(tc.vars, tc.input)
 			t.Log(envVars)
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)
