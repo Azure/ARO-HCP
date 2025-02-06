@@ -60,7 +60,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 	for timeOutInSeconds > 0 {
 		resp, err := a.getExistingDeployment(ctx, rgName, deploymentName)
 		if err != nil {
-			return fmt.Errorf("Error getting deployment %w", err)
+			return fmt.Errorf("error getting deployment %w", err)
 		}
 		if resp.Properties == nil {
 			return nil
@@ -71,7 +71,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 		time.Sleep(time.Duration(a.deploymentRetryWaitTime) * time.Second)
 		timeOutInSeconds -= a.deploymentRetryWaitTime
 	}
-	return fmt.Errorf("Timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
+	return fmt.Errorf("timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *ARMStep, input map[string]output) (output, error) {
@@ -84,7 +84,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	// Run deployment
 
 	if err := a.waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, step.Name); err != nil {
-		return nil, fmt.Errorf("Error waiting for deploymenty %w", err)
+		return nil, fmt.Errorf("error waiting for deploymenty %w", err)
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
@@ -151,7 +151,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	case armresources.DeploymentsClientWhatIfAtSubscriptionScopeResponse:
 		printChangeReport(m.Properties.Changes)
 	default:
-		return fmt.Errorf("Unknown type %T", m)
+		return fmt.Errorf("unknown type %T", m)
 	}
 	return nil
 }
@@ -159,7 +159,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	inputValues, err := getInputValues(step.Variables, input)
+	inputValues, err := getInputValues(step.Variables, vars, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
@@ -215,7 +215,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutp
 	case armresources.DeploymentsClientCreateOrUpdateAtSubscriptionScopeResponse:
 		outputs = resp.Properties.Outputs
 	default:
-		return nil, fmt.Errorf("Unknown type %T", resp)
+		return nil, fmt.Errorf("unknown type %T", resp)
 	}
 
 	if outputs != nil {
@@ -233,7 +233,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutp
 func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	inputValues, err := getInputValues(step.Variables, input)
+	inputValues, err := getInputValues(step.Variables, vars, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
@@ -244,7 +244,7 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 	}
 
 	if hasTemplateResources(deploymentProperties.Template) && step.OutputOnly {
-		return nil, fmt.Errorf("Deployment step %s is outputOnly, but contains resources", step.Name)
+		return nil, fmt.Errorf("deployment step %s is outputOnly, but contains resources", step.Name)
 	}
 
 	// Create the deployment

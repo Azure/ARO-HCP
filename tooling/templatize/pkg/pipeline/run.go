@@ -194,7 +194,7 @@ func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget
 	}
 }
 
-func getInputValues(configuredVariables []Variable, inputs map[string]output) (map[string]any, error) {
+func getInputValues(configuredVariables []Variable, cfg config.Variables, inputs map[string]output) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {
@@ -207,6 +207,14 @@ func getInputValues(configuredVariables []Variable, inputs map[string]output) (m
 			} else {
 				return nil, fmt.Errorf("step %s not found in provided outputs", i.Input.Step)
 			}
+		} else if i.ConfigRef != "" {
+			value, found := cfg.GetByPath(i.ConfigRef)
+			if !found {
+				return nil, fmt.Errorf("failed to lookup config reference %s for %s", i.ConfigRef, i.Name)
+			}
+			values[i.Name] = value
+		} else {
+			values[i.Name] = i.Value
 		}
 	}
 	return values, nil

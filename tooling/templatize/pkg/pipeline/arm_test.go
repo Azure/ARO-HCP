@@ -25,7 +25,7 @@ func TestWaitForExistingDeployment(t *testing.T) {
 		{
 			name:            "Timeout",
 			deploymentState: []armresources.ProvisioningState{"Running", "Running"},
-			expectedError:   to.Ptr("Timeout exeeded waiting for deployment test in rg rg"),
+			expectedError:   to.Ptr("timeout exeeded waiting for deployment test in rg rg"),
 			expecetCallCnt:  1,
 			timeout:         1,
 		},
@@ -45,8 +45,8 @@ func TestWaitForExistingDeployment(t *testing.T) {
 			name:           "Handle Error",
 			missing:        true,
 			expecetCallCnt: 1,
-			returnError:    to.Ptr(fmt.Errorf("Test error")),
-			expectedError:  to.Ptr("Error getting deployment Test error"),
+			returnError:    to.Ptr(fmt.Errorf("test error")),
+			expectedError:  to.Ptr("error getting deployment test error"),
 			timeout:        1,
 		},
 	}

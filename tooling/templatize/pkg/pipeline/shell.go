@@ -44,7 +44,7 @@ func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, opti
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// build ENV vars
-	stepVars, err := s.mapStepVariables(options.Vars)
+	stepVars, err := s.mapStepVariables(options.Vars, inputs)
 	if err != nil {
 		return fmt.Errorf("failed to build env vars: %w", err)
 	}
@@ -53,13 +53,6 @@ func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, opti
 
 	maps.Copy(envVars, stepVars)
 
-	inputValues, err := getInputValues(s.Variables, inputs)
-	if err != nil {
-		return fmt.Errorf("failed to get input values: %w", err)
-	}
-	for k, v := range inputValues {
-		envVars[k] = utils.AnyToString(v)
-	}
 	// execute the command
 	cmd, skipCommand := s.createCommand(ctx, options.DryRun, envVars)
 	if skipCommand {
@@ -82,19 +75,14 @@ func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, opti
 	return nil
 }
 
-func (s *ShellStep) mapStepVariables(vars config.Variables) (map[string]string, error) {
+func (s *ShellStep) mapStepVariables(vars config.Variables, inputs map[string]output) (map[string]string, error) {
+	values, err := getInputValues(s.Variables, vars, inputs)
+	if err != nil {
+		return nil, err
+	}
 	envVars := make(map[string]string)
-	for _, e := range s.Variables {
-		if e.ConfigRef != "" { // not all Variables are Environment variables
-			value, found := vars.GetByPath(e.ConfigRef)
-			if !found {
-				return nil, fmt.Errorf("failed to lookup config reference %s for %s", e.ConfigRef, e.Name)
-			}
-			envVars[e.Name] = utils.AnyToString(value)
-		} else if e.Value != "" {
-			envVars[e.Name] = e.Value
-		}
-		// what about output chaining? :(
+	for k, v := range values {
+		envVars[k] = utils.AnyToString(v)
 	}
 	return envVars, nil
 }

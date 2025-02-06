@@ -184,6 +184,57 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	assert.Equal(t, string(io), "e2etestarmdeploy.foo.bar.example.com\n")
 }
 
+func TestE2EArmDeployWithStaticVariable(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl := newE2E(tmpDir)
+
+	e2eImpl.AddStep(pipeline.NewARMStep(
+		"createZone", "test.bicep", "test.bicepparm", "ResourceGroup",
+	).WithVariables(
+		pipeline.Variable{
+			Name:  "zoneName",
+			Value: "e2etestarmdeploy.foo.bar.example.com",
+		},
+	), 0)
+
+	e2eImpl.AddStep(pipeline.NewShellStep(
+		"readInput", "echo ${zoneName} > env.txt",
+	).WithVariables(
+		pipeline.Variable{
+			Name: "zoneName",
+			Input: &pipeline.Input{
+				Name: "zoneName",
+				Step: "createZone",
+			},
+		},
+	), 0)
+
+	cleanup := e2eImpl.UseRandomRG()
+	defer func() {
+		err := cleanup()
+		assert.NilError(t, err)
+	}()
+
+	bicepFile := `
+param zoneName string
+output zoneName string = zoneName`
+	paramFile := `
+using 'test.bicep'
+param zoneName = '__zoneName__'
+`
+	e2eImpl.AddBicepTemplate(bicepFile, "test.bicep", paramFile, "test.bicepparm")
+	persistAndRun(t, &e2eImpl)
+
+	io, err := os.ReadFile(tmpDir + "/env.txt")
+	assert.NilError(t, err)
+	assert.Equal(t, string(io), "e2etestarmdeploy.foo.bar.example.com\n")
+}
+
 func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
