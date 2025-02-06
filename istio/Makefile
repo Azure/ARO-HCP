@@ -1,11 +1,12 @@
 -include ../setup-env.mk
+-include ../helm-cmd.mk
+HELM_CMD ?= helm upgrade --install
 
-deploy: deploy-service
+deploy:
+	${HELM_CMD} istio \
+		deploy/helm/istio/
+.PHONY: deploy
 
-deploy-service:
-	kubectl apply ${KUBECTL_DRY_RUN} -k overlays/svc
-
-undeploy-service:
-	kubectl delete -k overlays/svc
-
-.PHONY: deploy deploy-service undeploy-service
+undeploy:
+	helm uninstall istio
+.PHONY: undeploy

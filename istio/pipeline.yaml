@@ -9,7 +9,7 @@ resourceGroups:
   - name: deploy
     action: Shell
     command: make deploy
-    dryRun:
-      variables:
-        - name: KUBECTL_DRY_RUN
-          value: "--dry-run=client -o yaml"
+      dryRun:
+        variables:
+          - name: DRY_RUN
+            value: "true"
