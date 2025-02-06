@@ -406,3 +406,29 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 
 	return npBuilder.Build()
 }
+
+// transportFunc implements the http.RoundTripper interface.
+type transportFunc func(*http.Request) (*http.Response, error)
+
+var _ = http.RoundTripper(transportFunc(nil))
+
+func (rtf transportFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return rtf(r)
+}
+
+const clusterServiceRequestIDHeader = "X-Request-ID"
+
+// RequestIDPropagator returns an http.RoundTripper interface which reads the
+// request ID from the request's context and propagates it to the Clusters
+// Service API via the "X-Request-ID" header.
+func RequestIDPropagator(next http.RoundTripper) http.RoundTripper {
+	return transportFunc(func(r *http.Request) (*http.Response, error) {
+		correlationData, err := CorrelationDataFromContext(r.Context())
+		if err == nil {
+			r = r.Clone(r.Context())
+			r.Header.Set(clusterServiceRequestIDHeader, correlationData.RequestID.String())
+		}
+
+		return next.RoundTrip(r)
+	})
+}
