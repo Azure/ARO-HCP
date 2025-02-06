@@ -76,7 +76,7 @@ defaults:
         serviceAccountName: maestro
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
-      maxClientSessionsPerAuthName: 4
+      maxClientSessionsPerAuthName: 6
       private: false
     certIssuer: Self
     postgres:
