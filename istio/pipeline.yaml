@@ -11,5 +11,5 @@ resourceGroups:
     command: make deploy
     dryRun:
       variables:
-        - name: KUBECTL_DRY_RUN
-          value: "--dry-run=client -o yaml"
+        - name: DRY_RUN
+          value: "true"
