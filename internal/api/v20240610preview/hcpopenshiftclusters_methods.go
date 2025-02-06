@@ -6,7 +6,6 @@ package v20240610preview
 import (
 	"fmt"
 	"net/http"
-	"slices"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -319,45 +318,69 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 // contains structured but user-friendly details for all discovered errors.
 func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
-	//Generate a slice of Resource IDs of ControlplaneOperators MI only , disregard the DataPlaneOperators.
-	var cpmiResourceIDs []string
+	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is being declared under Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities
 	if normalized.Identity.UserAssignedIdentities != nil {
+		//Initiate the map that will have the number occurence of ConstrolPlaneOperators fields .
+		controlPlaneOpOccurrences := make(map[string]int)
+		//Generate a Map of Resource IDs of ControlplaneOperators MI , disregard the DataPlaneOperators.
 		for _, operatorResourceID := range normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-			cpmiResourceIDs = append(cpmiResourceIDs, operatorResourceID)
+			controlPlaneOpOccurrences[operatorResourceID]++
 		}
+		//variable to hold serviceManagedIdentity
 		smiResourceID := normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
-		miCount := len(normalized.Identity.UserAssignedIdentities)
-		for resourceID, _ := range normalized.Identity.UserAssignedIdentities {
 
-			if slices.Contains(cpmiResourceIDs, resourceID) || resourceID == smiResourceID {
-				//Duplicated Identity Validation
-				if slices.Contains(cpmiResourceIDs, resourceID) && resourceID == smiResourceID {
-					errorDetails = append(errorDetails, arm.CloudErrorBody{
-						Message: fmt.Sprintf(
-							"%s can not be used in both controlPlaneOperators and serviceManagedIdentity",
-							resourceID),
-						Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities",
-					})
-				}
-			} else {
+		for operatorName, resourceID := range normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+			_, ok := normalized.Identity.UserAssignedIdentities[resourceID]
+			if !ok {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Message: fmt.Sprintf(
-						"%s must be used in either controlPlaneOperators or serviceManagedIdentity",
+						"identity %s is not assigned to this resource",
 						resourceID),
-					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities"})
+					Target: fmt.Sprintf("properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+				})
+			} else if controlPlaneOpOccurrences[resourceID] > 1 {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Message: fmt.Sprintf(
+						"identity %s is used multiple times", resourceID),
+					Target: fmt.Sprintf("properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+				})
+
 			}
 		}
-		// Ensure that if User-assigned managed identity count is always equal to count of ControlPlaneOperator MIs and Service Managed Identity.count.
-		var smiCount int
+
 		if smiResourceID != "" {
-			smiCount = 1
+			_, ok := normalized.Identity.UserAssignedIdentities[smiResourceID]
+			if !ok {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Message: fmt.Sprintf(
+						"identity %s is not assigned to this resource",
+						smiResourceID),
+					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				})
+			}
+			//making sure serviceManagedIdentity is not already assigned to controlPlaneOperators
+			if _, ok := controlPlaneOpOccurrences[smiResourceID]; ok {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Message: fmt.Sprintf(
+						"identity %s is used multiple times", smiResourceID),
+					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				})
+			}
 		}
-		if miCount < (len(cpmiResourceIDs) + smiCount) {
-			errorDetails = append(errorDetails, arm.CloudErrorBody{
-				Message: "must be same as count of OperatorsAuthentication Managed Identities",
-				Target:  "identity.userAssignedIdentities",
-			})
+
+		for resourceID := range normalized.Identity.UserAssignedIdentities {
+			if _, ok := controlPlaneOpOccurrences[resourceID]; !ok {
+				if smiResourceID != resourceID {
+					errorDetails = append(errorDetails, arm.CloudErrorBody{
+						Message: fmt.Sprintf(
+							"identity %s is assigned to this resource but not used",
+							resourceID),
+						Target: "identity.UserAssignedIdentities",
+					})
+				}
+			}
 		}
+
 	}
 	return errorDetails
 }
