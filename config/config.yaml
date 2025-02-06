@@ -175,9 +175,11 @@ clouds:
       # Mock Managed Identities Service Princiapl
       miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
       miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
+      miMockCertName: msiMockCert2
       # ARM Helper
       armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
       armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
+      armHelperCertName: armHelperCert2
       # Maestro
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
