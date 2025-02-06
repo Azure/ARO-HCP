@@ -1692,16 +1692,6 @@
           "description": "Provisioning state",
           "readOnly": true
         },
-        "spec": {
-          "$ref": "#/definitions/NodePoolPatchSpec",
-          "description": "The node pool resource specification"
-        }
-      }
-    },
-    "NodePoolPatchSpec": {
-      "type": "object",
-      "description": "Worker node pool profile",
-      "properties": {
         "replicas": {
           "type": "integer",
           "format": "int32",

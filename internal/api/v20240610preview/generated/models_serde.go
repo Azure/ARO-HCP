@@ -1192,8 +1192,12 @@ func (n *NodePoolAutoScaling) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type NodePoolPatchProperties.
 func (n NodePoolPatchProperties) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "autoScaling", n.AutoScaling)
+	populate(objectMap, "labels", n.Labels)
 	populate(objectMap, "provisioningState", n.ProvisioningState)
-	populate(objectMap, "spec", n.Spec)
+	populate(objectMap, "replicas", n.Replicas)
+	populate(objectMap, "taints", n.Taints)
+	populate(objectMap, "tuningConfigs", n.TuningConfigs)
 	return json.Marshal(objectMap)
 }
 
@@ -1206,47 +1210,14 @@ func (n *NodePoolPatchProperties) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "provisioningState":
-				err = unpopulate(val, "ProvisioningState", &n.ProvisioningState)
-			delete(rawMsg, key)
-		case "spec":
-				err = unpopulate(val, "Spec", &n.Spec)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", n, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type NodePoolPatchSpec.
-func (n NodePoolPatchSpec) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "autoScaling", n.AutoScaling)
-	populate(objectMap, "labels", n.Labels)
-	populate(objectMap, "replicas", n.Replicas)
-	populate(objectMap, "taints", n.Taints)
-	populate(objectMap, "tuningConfigs", n.TuningConfigs)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolPatchSpec.
-func (n *NodePoolPatchSpec) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", n, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
 		case "autoScaling":
 				err = unpopulate(val, "AutoScaling", &n.AutoScaling)
 			delete(rawMsg, key)
 		case "labels":
 				err = unpopulate(val, "Labels", &n.Labels)
+			delete(rawMsg, key)
+		case "provisioningState":
+				err = unpopulate(val, "ProvisioningState", &n.ProvisioningState)
 			delete(rawMsg, key)
 		case "replicas":
 				err = unpopulate(val, "Replicas", &n.Replicas)

@@ -561,40 +561,6 @@ model NodePoolPatchProperties {
   @visibility("read")
   provisioningState?: ResourceProvisioningState;
 
-  /** The node pool resource specification */
-  spec?: NodePoolPatchSpec;
-}
-
-/** taintKey is the k8s valid key of the taint type on the nodepool nodes
- * The good example of the taint key is `node-role.kubernetes.io/master`
- */
-@minLength(1)
-@maxLength(316)
-scalar taintKey extends string;
-
-/** taintValue is the k8s valid value of the taint type on the nodepool nodes
- * The good example of the taint value is `NoSchedule`
- */
-@minLength(1)
-@maxLength(63)
-scalar taintValue extends string;
-
-/** The taint effect the same as in K8s */
-union Effect {
-  string,
-
-  /** NoSchedule taint effect */
-  NoSchedule: "NoSchedule",
-
-  /** PreferNoSchedule taint effect */
-  PreferNoSchedule: "PreferNoSchedule",
-
-  /** NoExecute taint effect */
-  NoExecute: "NoExecute",
-}
-
-/** Worker node pool profile */
-model NodePoolPatchSpec {
   /** The number of worker nodes, it cannot be used together with autoscaling */
   @visibility("update")
   replicas?: int32;
@@ -631,6 +597,34 @@ model NodePoolPatchSpec {
    * JSON or YAML of a serialized Tuned or PerformanceProfile.
    */
   tuningConfigs?: string[];
+}
+
+/** taintKey is the k8s valid key of the taint type on the nodepool nodes
+ * The good example of the taint key is `node-role.kubernetes.io/master`
+ */
+@minLength(1)
+@maxLength(316)
+scalar taintKey extends string;
+
+/** taintValue is the k8s valid value of the taint type on the nodepool nodes
+ * The good example of the taint value is `NoSchedule`
+ */
+@minLength(1)
+@maxLength(63)
+scalar taintValue extends string;
+
+/** The taint effect the same as in K8s */
+union Effect {
+  string,
+
+  /** NoSchedule taint effect */
+  NoSchedule: "NoSchedule",
+
+  /** PreferNoSchedule taint effect */
+  PreferNoSchedule: "PreferNoSchedule",
+
+  /** NoExecute taint effect */
+  NoExecute: "NoExecute",
 }
 
 /** Taint is controlling the node taint and its effects */
