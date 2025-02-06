@@ -525,6 +525,7 @@ module acrPullRole 'acr/acr-permissions.bicep' = [
     params: {
       principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
       acrName: acrRef.name
+      grantPullAccess: true
     }
   }
 ]
@@ -566,6 +567,7 @@ module acrPullerRoles 'acr/acr-permissions.bicep' = [
     params: {
       principalId: pullerIdentity.properties.principalId
       acrName: acrRef.name
+      grantPullAccess: true
     }
   }
 ]
