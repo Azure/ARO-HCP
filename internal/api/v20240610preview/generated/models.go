@@ -30,15 +30,6 @@ type ClaimProfile struct {
 	PrefixPolicy *string
 }
 
-// ClusterPatchSpec - The patchable cluster specification
-type ClusterPatchSpec struct {
-	// Disable user workload monitoring
-	DisableUserWorkloadMonitoring *bool
-
-	// Openshift cluster proxy configuration
-	Proxy *ProxyProfile
-}
-
 type ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
@@ -229,8 +220,11 @@ type HcpOpenShiftClusterPatch struct {
 
 // HcpOpenShiftClusterPatchProperties - HCP patchable cluster properties
 type HcpOpenShiftClusterPatchProperties struct {
-	// The cluster resource specification.
-	Spec *ClusterPatchSpec
+	// Disable user workload monitoring
+	DisableUserWorkloadMonitoring *bool
+
+	// Openshift cluster proxy configuration
+	Proxy *ProxyProfile
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
@@ -480,15 +474,6 @@ type NodePoolPlatformProfile struct {
 
 // NodePoolProperties - Represents the node pool properties
 type NodePoolProperties struct {
-	// The node pool resource specification
-	Spec *NodePoolSpec
-
-	// READ-ONLY; Provisioning state
-	ProvisioningState *ProvisioningState
-}
-
-// NodePoolSpec - Worker node pool profile
-type NodePoolSpec struct {
 	// REQUIRED; Azure node pool platform configuration
 	Platform *NodePoolPlatformProfile
 
@@ -515,6 +500,9 @@ type NodePoolSpec struct {
 // in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
 // or PerformanceProfile.
 	TuningConfigs []*string
+
+	// READ-ONLY; Provisioning state
+	ProvisioningState *ProvisioningState
 }
 
 // Operation - Details of a REST API operation, returned from the Resource Provider Operations API

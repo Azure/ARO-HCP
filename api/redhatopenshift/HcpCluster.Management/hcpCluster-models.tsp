@@ -58,8 +58,6 @@ model HcpOpenShiftClusterProperties {
   @visibility("read")
   provisioningState?: ProvisioningState;
 
-  // /** The cluster resource specification. */
-  // spec?: ClusterSpec;
   /** Version of the control plane components */
   @visibility("create", "read")
   version: VersionProfile;
@@ -122,8 +120,13 @@ model HcpOpenShiftClusterPatchProperties {
   @visibility("read")
   provisioningState?: ProvisioningState;
 
-  /** The cluster resource specification. */
-  spec?: ClusterPatchSpec;
+  /** Disable user workload monitoring */
+  @visibility("update")
+  disableUserWorkloadMonitoring?: boolean;
+
+  /** Openshift cluster proxy configuration */
+  @visibility("update")
+  proxy?: ProxyProfile;
 }
 
 model ManagedServiceIdentityUpdate
@@ -151,75 +154,6 @@ model HcpOpenShiftClusterNodePoolPatch
 
   /** Managed Service Identity */
   identity?: ManagedServiceIdentityUpdate;
-}
-
-/** The cluster resource specification */
-model ClusterSpec {
-  /** Version of the control plane components */
-  @visibility("create", "read")
-  version: VersionProfile;
-
-  /** Cluster DNS configuration */
-  dns?: DnsProfile;
-
-  /** Cluster network configuration */
-  @visibility("create", "read")
-  network?: NetworkProfile;
-
-  /** Shows the cluster web console information */
-  @visibility("read")
-  console: ConsoleProfile;
-
-  /** Shows the cluster API server profile */
-  @visibility("read")
-  api: ApiProfile;
-
-  /** Enable FIPS mode for the cluster
-   * When set to true, `etcdEncryption` must be set to true
-   */
-  @visibility("create", "read")
-  fips?: boolean = false;
-
-  /** Enables customer ETCD encryption, set during creation
-   * When set to true, `platform.etcdEncryptionSetId` must be set
-   */
-  @visibility("create", "read")
-  etcdEncryption?: boolean = false;
-
-  /** Disable user workload monitoring */
-  @visibility("create", "update")
-  disableUserWorkloadMonitoring?: boolean = false;
-
-  /** Openshift cluster proxy configuration */
-  @visibility("create", "update")
-  proxy?: ProxyProfile;
-
-  /** Azure platform configuration */
-  @visibility("create", "read")
-  platform?: PlatformProfile;
-
-  /** URL for the OIDC provider to be used for authentication
-   * to authenticate against user Azure cloud account
-   */
-  @visibility("read")
-  issuerUrl: url;
-
-  /** Configuration to override the openshift-oauth-apiserver inside cluster
-   *  This changes user login into the cluster to external provider
-   */
-  @visibility("create", "read")
-  externalAuth?: ExternalAuthConfigProfile;
-}
-
-/** The patchable cluster specification */
-model ClusterPatchSpec {
-  /** Disable user workload monitoring */
-  @visibility("update")
-  disableUserWorkloadMonitoring?: boolean;
-
-  /** Openshift cluster proxy configuration */
-  @visibility("update")
-  proxy?: ProxyProfile;
 }
 
 /** The resource provisioning state. */
@@ -570,50 +504,6 @@ model NodePoolProperties {
   @visibility("read")
   provisioningState?: ProvisioningState;
 
-  /** The node pool resource specification */
-  spec?: NodePoolSpec;
-}
-
-/** Represents the patchable node pool properties */
-model NodePoolPatchProperties {
-  /** Provisioning state */
-  @visibility("read")
-  provisioningState?: ResourceProvisioningState;
-
-  /** The node pool resource specification */
-  spec?: NodePoolPatchSpec;
-}
-
-/** taintKey is the k8s valid key of the taint type on the nodepool nodes
- * The good example of the taint key is `node-role.kubernetes.io/master`
- */
-@minLength(1)
-@maxLength(316)
-scalar taintKey extends string;
-
-/** taintValue is the k8s valid value of the taint type on the nodepool nodes
- * The good example of the taint value is `NoSchedule`
- */
-@minLength(1)
-@maxLength(63)
-scalar taintValue extends string;
-
-/** The taint effect the same as in K8s */
-union Effect {
-  string,
-
-  /** NoSchedule taint effect */
-  NoSchedule: "NoSchedule",
-
-  /** PreferNoSchedule taint effect */
-  PreferNoSchedule: "PreferNoSchedule",
-
-  /** NoExecute taint effect */
-  NoExecute: "NoExecute",
-}
-
-/** Worker node pool profile */
-model NodePoolSpec {
   /** OpenShift version for the nodepool */
   @visibility("create", "read")
   version: VersionProfile;
@@ -663,6 +553,44 @@ model NodePoolSpec {
    * JSON or YAML of a serialized Tuned or PerformanceProfile.
    */
   tuningConfigs?: string[];
+}
+
+/** Represents the patchable node pool properties */
+model NodePoolPatchProperties {
+  /** Provisioning state */
+  @visibility("read")
+  provisioningState?: ResourceProvisioningState;
+
+  /** The node pool resource specification */
+  spec?: NodePoolPatchSpec;
+}
+
+/** taintKey is the k8s valid key of the taint type on the nodepool nodes
+ * The good example of the taint key is `node-role.kubernetes.io/master`
+ */
+@minLength(1)
+@maxLength(316)
+scalar taintKey extends string;
+
+/** taintValue is the k8s valid value of the taint type on the nodepool nodes
+ * The good example of the taint value is `NoSchedule`
+ */
+@minLength(1)
+@maxLength(63)
+scalar taintValue extends string;
+
+/** The taint effect the same as in K8s */
+union Effect {
+  string,
+
+  /** NoSchedule taint effect */
+  NoSchedule: "NoSchedule",
+
+  /** PreferNoSchedule taint effect */
+  PreferNoSchedule: "PreferNoSchedule",
+
+  /** NoExecute taint effect */
+  NoExecute: "NoExecute",
 }
 
 /** Worker node pool profile */
