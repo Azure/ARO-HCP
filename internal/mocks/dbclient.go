@@ -164,20 +164,6 @@ func (mr *MockDBClientMockRecorder) DBConnectionTest(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DBConnectionTest", reflect.TypeOf((*MockDBClient)(nil).DBConnectionTest), ctx)
 }
 
-// DeleteOperationDoc mocks base method.
-func (m *MockDBClient) DeleteOperationDoc(ctx context.Context, operationID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOperationDoc", ctx, operationID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteOperationDoc indicates an expected call of DeleteOperationDoc.
-func (mr *MockDBClientMockRecorder) DeleteOperationDoc(ctx, operationID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOperationDoc", reflect.TypeOf((*MockDBClient)(nil).DeleteOperationDoc), ctx, operationID)
-}
-
 // DeleteResourceDoc mocks base method.
 func (m *MockDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error {
 	m.ctrl.T.Helper()
@@ -249,20 +235,6 @@ func (m *MockDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID st
 func (mr *MockDBClientMockRecorder) GetSubscriptionDoc(ctx, subscriptionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubscriptionDoc", reflect.TypeOf((*MockDBClient)(nil).GetSubscriptionDoc), ctx, subscriptionID)
-}
-
-// ListAllOperationDocs mocks base method.
-func (m *MockDBClient) ListAllOperationDocs() database.DBClientIterator[database.OperationDocument] {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllOperationDocs")
-	ret0, _ := ret[0].(database.DBClientIterator[database.OperationDocument])
-	return ret0
-}
-
-// ListAllOperationDocs indicates an expected call of ListAllOperationDocs.
-func (mr *MockDBClientMockRecorder) ListAllOperationDocs() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListAllOperationDocs))
 }
 
 // ListAllSubscriptionDocs mocks base method.
