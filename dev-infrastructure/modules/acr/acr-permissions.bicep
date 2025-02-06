@@ -6,6 +6,10 @@ param principalId string
 @description('Whether to grant push access to the ACR')
 param grantPushAccess bool = false
 
+
+@description('Whether to grant pull access from the ACR')
+param grantPullAccess bool = false
+
 @description('Whether to grant manage token access to the ACR')
 param grantManageTokenAccess bool = false
 
@@ -40,7 +44,7 @@ resource acrInstance 'Microsoft.ContainerRegistry/registries@2023-11-01-preview'
   name: acrName
 }
 
-resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!grantPushAccess) {
+resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPullAccess) {
   name: guid(acrName, principalId, acrPullRoleDefinitionId)
   scope: acrInstance
   properties: {
