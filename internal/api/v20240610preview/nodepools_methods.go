@@ -54,51 +54,51 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 		if h.Properties.ProvisioningState != nil {
 			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
 		}
-		if h.Properties.Spec != nil {
-			if h.Properties.Spec.AutoRepair != nil {
-				out.Properties.Spec.AutoRepair = *h.Properties.Spec.AutoRepair
+		if h.Properties != nil {
+			if h.Properties.AutoRepair != nil {
+				out.Properties.Spec.AutoRepair = *h.Properties.AutoRepair
 			}
-			if h.Properties.Spec.Version != nil {
-				normalizeVersion(h.Properties.Spec.Version, &out.Properties.Spec.Version)
+			if h.Properties.Version != nil {
+				normalizeVersion(h.Properties.Version, &out.Properties.Spec.Version)
 			}
-			if h.Properties.Spec.Replicas != nil {
-				out.Properties.Spec.Replicas = *h.Properties.Spec.Replicas
+			if h.Properties.Replicas != nil {
+				out.Properties.Spec.Replicas = *h.Properties.Replicas
 			}
 		}
-		if h.Properties.Spec.Platform != nil {
-			normalizeNodePoolPlatform(h.Properties.Spec.Platform, &out.Properties.Spec.Platform)
+		if h.Properties.Platform != nil {
+			normalizeNodePoolPlatform(h.Properties.Platform, &out.Properties.Spec.Platform)
 		}
-		if h.Properties.Spec.AutoScaling != nil {
-			if h.Properties.Spec.AutoScaling.Max != nil {
-				out.Properties.Spec.AutoScaling.Max = *h.Properties.Spec.AutoScaling.Max
+		if h.Properties.AutoScaling != nil {
+			if h.Properties.AutoScaling.Max != nil {
+				out.Properties.Spec.AutoScaling.Max = *h.Properties.AutoScaling.Max
 			}
-			if h.Properties.Spec.AutoScaling.Min != nil {
-				out.Properties.Spec.AutoScaling.Min = *h.Properties.Spec.AutoScaling.Min
+			if h.Properties.AutoScaling.Min != nil {
+				out.Properties.Spec.AutoScaling.Min = *h.Properties.AutoScaling.Min
 			}
 		}
 		out.Properties.Spec.Labels = make(map[string]string)
-		for _, v := range h.Properties.Spec.Labels {
+		for _, v := range h.Properties.Labels {
 			if v != nil {
 				out.Properties.Spec.Labels[*v.Key] = *v.Value
 			}
 		}
-		out.Properties.Spec.Taints = make([]*api.Taint, len(h.Properties.Spec.Taints))
-		for i := range h.Properties.Spec.Taints {
+		out.Properties.Spec.Taints = make([]*api.Taint, len(h.Properties.Taints))
+		for i := range h.Properties.Taints {
 			out.Properties.Spec.Taints[i] = &api.Taint{}
-			if h.Properties.Spec.Taints[i].Effect != nil {
-				out.Properties.Spec.Taints[i].Effect = api.Effect(*h.Properties.Spec.Taints[i].Effect)
+			if h.Properties.Taints[i].Effect != nil {
+				out.Properties.Spec.Taints[i].Effect = api.Effect(*h.Properties.Taints[i].Effect)
 			}
-			if h.Properties.Spec.Taints[i].Key != nil {
-				out.Properties.Spec.Taints[i].Key = *h.Properties.Spec.Taints[i].Key
+			if h.Properties.Taints[i].Key != nil {
+				out.Properties.Spec.Taints[i].Key = *h.Properties.Taints[i].Key
 			}
-			if h.Properties.Spec.Taints[i].Value != nil {
-				out.Properties.Spec.Taints[i].Value = *h.Properties.Spec.Taints[i].Value
+			if h.Properties.Taints[i].Value != nil {
+				out.Properties.Spec.Taints[i].Value = *h.Properties.Taints[i].Value
 			}
 		}
 
-		out.Properties.Spec.TuningConfigs = make([]string, len(h.Properties.Spec.TuningConfigs))
-		for i := range h.Properties.Spec.TuningConfigs {
-			out.Properties.Spec.TuningConfigs[i] = *h.Properties.Spec.TuningConfigs[i]
+		out.Properties.Spec.TuningConfigs = make([]string, len(h.Properties.TuningConfigs))
+		for i := range h.Properties.TuningConfigs {
+			out.Properties.Spec.TuningConfigs[i] = *h.Properties.TuningConfigs[i]
 		}
 	}
 }
@@ -225,16 +225,14 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 			Tags:     api.StringMapToStringPtrMap(from.TrackedResource.Tags),
 			Properties: &generated.NodePoolProperties{
 				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Spec: &generated.NodePoolSpec{
-					Platform:      newNodePoolPlatformProfile(&from.Properties.Spec.Platform),
-					Version:       newVersionProfile(&from.Properties.Spec.Version),
-					AutoRepair:    api.Ptr(from.Properties.Spec.AutoRepair),
-					AutoScaling:   newNodePoolAutoScaling(from.Properties.Spec.AutoScaling),
-					Labels:        []*generated.Label{},
-					Replicas:      api.Ptr(from.Properties.Spec.Replicas),
-					Taints:        make([]*generated.Taint, len(from.Properties.Spec.Taints)),
-					TuningConfigs: make([]*string, len(from.Properties.Spec.TuningConfigs)),
-				},
+				Platform:          newNodePoolPlatformProfile(&from.Properties.Spec.Platform),
+				Version:           newVersionProfile(&from.Properties.Spec.Version),
+				AutoRepair:        api.Ptr(from.Properties.Spec.AutoRepair),
+				AutoScaling:       newNodePoolAutoScaling(from.Properties.Spec.AutoScaling),
+				Labels:            []*generated.Label{},
+				Replicas:          api.Ptr(from.Properties.Spec.Replicas),
+				Taints:            make([]*generated.Taint, len(from.Properties.Spec.Taints)),
+				TuningConfigs:     make([]*string, len(from.Properties.Spec.TuningConfigs)),
 			},
 		},
 	}
@@ -251,17 +249,17 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 	}
 
 	for k, v := range from.Properties.Spec.Labels {
-		out.Properties.Spec.Labels = append(out.Properties.Spec.Labels, &generated.Label{
+		out.Properties.Labels = append(out.Properties.Labels, &generated.Label{
 			Key:   api.Ptr(k),
 			Value: api.Ptr(v),
 		})
 	}
 
 	for i := range from.Properties.Spec.Taints {
-		out.Properties.Spec.Taints[i] = newNodePoolTaint(from.Properties.Spec.Taints[i])
+		out.Properties.Taints[i] = newNodePoolTaint(from.Properties.Spec.Taints[i])
 	}
 	for i := range from.Properties.Spec.TuningConfigs {
-		out.Properties.Spec.TuningConfigs[i] = api.Ptr(from.Properties.Spec.TuningConfigs[i])
+		out.Properties.TuningConfigs[i] = api.Ptr(from.Properties.Spec.TuningConfigs[i])
 	}
 
 	return out
