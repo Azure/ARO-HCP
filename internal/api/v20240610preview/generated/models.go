@@ -412,15 +412,6 @@ type NodePoolAutoScaling struct {
 
 // NodePoolPatchProperties - Represents the patchable node pool properties
 type NodePoolPatchProperties struct {
-	// The node pool resource specification
-	Spec *NodePoolPatchSpec
-
-	// READ-ONLY; Provisioning state
-	ProvisioningState *ResourceProvisioningState
-}
-
-// NodePoolPatchSpec - Worker node pool profile
-type NodePoolPatchSpec struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
@@ -438,6 +429,9 @@ type NodePoolPatchSpec struct {
 // in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
 // or PerformanceProfile.
 	TuningConfigs []*string
+
+	// READ-ONLY; Provisioning state
+	ProvisioningState *ResourceProvisioningState
 }
 
 // NodePoolPlatformProfile - Azure node pool platform configuration
