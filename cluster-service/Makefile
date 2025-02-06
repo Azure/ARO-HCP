@@ -27,6 +27,7 @@ deploy:
 	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_KMS_ROLE_ID=$(shell az role definition list --name "${OP_KMS_ROLE_NAME}" --query "[].name" -o tsv) && \
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
 	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
@@ -80,7 +81,9 @@ deploy:
 	  --set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
-	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull
+	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
+	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
+      --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}"
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
@@ -121,6 +124,7 @@ local-azure-operators-managed-identities-config:
 	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name "${OP_CONTROL_PLANE_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_KMS_ROLE_ID=$(shell az role definition list --name "${OP_KMS_ROLE_NAME}" --query "[].name" -o tsv) && \
 	helm template deploy/helm -s templates/azure-operators-managed-identities-config.configmap.yaml \
 	  --set azureOperatorsMI.cloudControllerManager.roleName="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
 	  --set azureOperatorsMI.cloudControllerManager.roleId="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
@@ -138,6 +142,8 @@ local-azure-operators-managed-identities-config:
 	  --set azureOperatorsMI.imageRegistry.roleId="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
 	  --set azureOperatorsMI.cloudNetworkConfig.roleName="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
 	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
+	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
+	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}" \
 	  | yq '.data."azure-operators-managed-identities-config.yaml"' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
 

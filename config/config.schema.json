@@ -240,16 +240,22 @@
               },
               "cloudNetworkConfig": {
                 "$ref": "#/definitions/operatorConfig"
+              },
+              "kms": {
+                "$ref": "#/definitions/operatorConfig"
               }
             },
             "additionalProperties": false,
             "required": [
+              "clusterApiAzure",
+              "controlPlane",
               "cloudControllerManager",
               "ingress",
               "diskCsiDriver",
               "fileCsiDriver",
               "imageRegistry",
-              "cloudNetworkConfig"
+              "cloudNetworkConfig",
+              "kms"
             ]
           }
         },

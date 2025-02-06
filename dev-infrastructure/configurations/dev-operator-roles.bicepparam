@@ -135,4 +135,59 @@ param roles = [
     ]
     notDataActions: []
   }
+  {
+    roleName: 'Azure Red Hat OpenShift Cluster API Role - Dev'
+    roleDescription: 'Enables permissions to allow cluster API to manage nodes, networks and disks for OpenShift cluster.'
+    actions: [
+      'Microsoft.Authorization/policies/auditIfNotExists/action'
+      'Microsoft.Compute/availabilitySets/delete'
+      'Microsoft.Compute/availabilitySets/read'
+      'Microsoft.Compute/availabilitySets/write'
+      'Microsoft.Compute/disks/delete'
+      'Microsoft.Compute/disks/read'
+      'Microsoft.Compute/disks/write'
+      'Microsoft.Compute/virtualMachines/delete'
+      'Microsoft.Compute/virtualMachines/read'
+      'Microsoft.Compute/virtualMachines/write'
+      'Microsoft.Network/loadBalancers/backendAddressPools/join/action'
+      'Microsoft.Network/networkInterfaces/delete'
+      'Microsoft.Network/networkInterfaces/join/action'
+      'Microsoft.Network/networkInterfaces/read'
+      'Microsoft.Network/networkInterfaces/write'
+      'Microsoft.Network/virtualNetworks/subnets/join/action'
+    ]
+    notActions: []
+    dataActions: []
+    notDataActions: []
+  }
+  {
+    roleName: 'Azure Red Hat OpenShift Control Plane Operator Role - Dev'
+    roleDescription: 'Enables the control plane operator to read resources necessary for OpenShift cluster.'
+    actions: [
+      'Microsoft.Resources/subscriptions/resourceGroups/read'
+      'Microsoft.Network/virtualNetworks/read'
+      'Microsoft.Network/networkSecurityGroups/read'
+    ]
+    notActions: []
+    dataActions: []
+    notDataActions: []
+  }
+  {
+    roleName: 'Azure Red Hat OpenShift KMS Plugin - Dev'
+    roleDescription: 'Enables permissions for the apiserver encryption plugin to access the Azure KeyVault instance from the OpenShift cluster.'
+    actions: []
+    notActions: []
+    dataActions: [
+      'Microsoft.KeyVault/vaults/keys/read'
+      'Microsoft.KeyVault/vaults/keys/update/action'
+      'Microsoft.KeyVault/vaults/keys/backup/action'
+      'Microsoft.KeyVault/vaults/keys/encrypt/action'
+      'Microsoft.KeyVault/vaults/keys/decrypt/action'
+      'Microsoft.KeyVault/vaults/keys/wrap/action'
+      'Microsoft.KeyVault/vaults/keys/unwrap/action'
+      'Microsoft.KeyVault/vaults/keys/sign/action'
+      'Microsoft.KeyVault/vaults/keys/verify/action'
+    ]
+    notDataActions: []
+  }
 ]

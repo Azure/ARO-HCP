@@ -16,10 +16,10 @@
         "roleName": "Azure Red Hat OpenShift Network Operator - Dev"
       },
       "clusterApiAzure": {
-        "roleName": "Contributor"
+        "roleName": "Azure Red Hat OpenShift Control Plane Operator Role - Dev"
       },
       "controlPlane": {
-        "roleName": "Contributor"
+        "roleName": "Azure Red Hat OpenShift Cluster API Role - Dev"
       },
       "diskCsiDriver": {
         "roleName": "Azure Red Hat OpenShift Disk Storage Operator - Dev"
@@ -32,6 +32,9 @@
       },
       "ingress": {
         "roleName": "Azure Red Hat OpenShift Cluster Ingress Operator - Dev"
+      },
+      "kms": {
+        "roleName": "Azure Red Hat OpenShift KMS Plugin - Dev"
       }
     },
     "imageRepo": "app-sre/uhc-clusters-service",

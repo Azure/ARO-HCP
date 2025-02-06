@@ -297,6 +297,9 @@ azureOperatorsMI:
   cloudNetworkConfig:
     roleName: ''
     roleId: ''
+  kms:
+    roleName: ''
+    roleId: ''
 
 # Pull binding configuration for ACR Pull Operator
 pullBinding:

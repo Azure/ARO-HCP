@@ -72,6 +72,8 @@ resourceGroups:
       configRef: clusterService.azureOperatorsManagedIdentities.imageRegistry.roleName
     - name: OP_CLOUD_NETWORK_CONFIG_ROLE_NAME
       configRef: clusterService.azureOperatorsManagedIdentities.cloudNetworkConfig.roleName
+    - name: OP_KMS_ROLE_NAME
+      configRef: clusterService.azureOperatorsManagedIdentities.kms.roleName
     - name: ISTO_TAG
       configRef: svc.istio.tag
     - name: MI_NAME
