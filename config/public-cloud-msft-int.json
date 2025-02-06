@@ -84,6 +84,7 @@
     "globalMSIName": "global-ev2-identity",
     "region": "uksouth",
     "rg": "global-shared-resources",
+    "safeDnsIntAppObjectId": "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc",
     "subscription": "hcp-westus3"
   },
   "hypershift": {

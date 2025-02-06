@@ -404,6 +404,10 @@
           "globalMSIName": {
             "type": "string",
             "description": "The name of the MSI that will be used for ev2"
+          },
+          "safeDnsIntAppObjectId": {
+            "type": "string",
+            "description": "SafeDnsIntApplication object ID use to delegate child DNS"
           }
         },
         "required": [
