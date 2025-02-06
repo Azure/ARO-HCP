@@ -145,6 +145,7 @@ module acrPullPermissions '../modules/acr/acr-permissions.bicep' = [
     params: {
       principalId: uami.properties.principalId
       acrName: ocpAcrName
+      grantPullAccess: true
     }
   }
 ]
