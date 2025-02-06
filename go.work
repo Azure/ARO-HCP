@@ -10,4 +10,5 @@ use (
 	./tooling/mcerepkg
 	./tooling/templatize
 	tooling/prometheus-rules
+	./test
 )
