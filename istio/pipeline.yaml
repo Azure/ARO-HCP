@@ -9,7 +9,7 @@ resourceGroups:
   - name: deploy
     action: Shell
     command: make deploy
-      dryRun:
-        variables:
-          - name: DRY_RUN
-            value: "true"
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"

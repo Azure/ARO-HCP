@@ -4,7 +4,8 @@ HELM_CMD ?= helm upgrade --install
 
 deploy:
 	${HELM_CMD} istio \
-		deploy/helm/istio/
+		deploy/helm/istio/ \
+		--namespace aks-istio-system
 .PHONY: deploy
 
 undeploy:
