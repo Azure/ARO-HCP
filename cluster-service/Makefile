@@ -7,6 +7,8 @@ ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 
 deploy:
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
+	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query clientId -o tsv) && \
+	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query tenantId -o tsv) && \
 	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
 	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "${SERVICE_KV}" --name "aro-hcp-dev-sp-cs" | jq .value -r | base64 | tr -d '\n')' && \
@@ -74,7 +76,11 @@ deploy:
 	  --set azureOperatorsMI.imageRegistry.roleName="${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" \
 	  --set azureOperatorsMI.imageRegistry.roleId="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
 	  --set azureOperatorsMI.cloudNetworkConfig.roleName="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
-	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}"
+	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
+	  --set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
+	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
+	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
+	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
