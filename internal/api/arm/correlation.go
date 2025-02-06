@@ -27,7 +27,7 @@ type CorrelationData struct {
 }
 
 // NewCorrelationData allocates and initializes a new CorrelationData from
-// HTTP request headers
+// HTTP request headers.
 func NewCorrelationData(r *http.Request) *CorrelationData {
 	return &CorrelationData{
 		RequestID:            uuid.New(),

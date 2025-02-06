@@ -5,10 +5,13 @@ package frontend
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/baggage"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -16,46 +19,108 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func TestContextWithTraceCorrelationData(t *testing.T) {
-	requestID := uuid.New()
-
-	expected := map[string]string{
-		"correlation.id":    "12345",
-		"client.request.id": "67890",
-		"request.id":        requestID.String(),
-	}
-
-	data := &arm.CorrelationData{
-		CorrelationRequestID: expected["correlation.id"],
-		ClientRequestID:      expected["client.request.id"],
-		RequestID:            requestID,
-	}
-
-	// NOTE: no span, no effect
-	assert.NotNil(t, ContextWithCorrelationData(context.Background(), data))
-
-	// NOTE: empty correlation data, no effect
-	assert.NotNil(t, ContextWithCorrelationData(context.Background(), &arm.CorrelationData{}))
-
-	// NOTE: check attributes and baggage
-	inMemoryExporter := tracetest.NewInMemoryExporter()
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSpanProcessor(sdktrace.NewSimpleSpanProcessor(inMemoryExporter)),
+func TestMiddlewareTracing(t *testing.T) {
+	var (
+		testRequestID            = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+		testClientRequestID      = "22222222-2222-2222-2222-222222222222"
+		testCorrelationRequestID = "33333333-3333-3333-3333-333333333333"
 	)
+	for _, tc := range []struct {
+		name string
+		data *arm.CorrelationData
+		//withoutSpanContext bool
 
-	ctx := context.Background()
-	ctx, span := tp.Tracer("unittest").Start(ctx, "test")
-	// call..
-	ctx = ContextWithTraceCorrelationData(ctx, data)
-	span.End() // NOTE: Stop span!
+		expectedAttrs   map[string]string
+		expectedBaggage map[string]string
+	}{
+		//{
+		//	// Verify that the function doesn't panic if there's no span in the
+		//	// context.
+		//	name:               "no span context",
+		//	data:               &arm.CorrelationData{},
+		//	withoutSpanContext: true,
+		//},
 
-	stubs := inMemoryExporter.GetSpans()
-	ss := stubs.Snapshots()
-	assert.Len(t, ss, 1)
-	assert.Len(t, ss[0].Attributes(), len(expected))
+		{
+			name: "empty correlation data",
+			data: &arm.CorrelationData{},
+			expectedAttrs: map[string]string{
+				"request.id": "00000000-0000-0000-0000-000000000000",
+			},
+			expectedBaggage: map[string]string{
+				"request.id": "00000000-0000-0000-0000-000000000000",
+			},
+		},
+		{
+			name: "with correlation data",
+			data: &arm.CorrelationData{
+				RequestID:            testRequestID,
+				ClientRequestID:      testClientRequestID,
+				CorrelationRequestID: testCorrelationRequestID,
+			},
+			expectedAttrs: map[string]string{
+				"request.id":        testRequestID.String(),
+				"client.request.id": testClientRequestID,
+				"correlation.id":    testCorrelationRequestID,
+			},
+			expectedBaggage: map[string]string{
+				"request.id":        testRequestID.String(),
+				"client.request.id": testClientRequestID,
+				"correlation.id":    testCorrelationRequestID,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup the testing tracer.
+			inMemoryExporter := tracetest.NewInMemoryExporter()
+			tp := sdktrace.NewTracerProvider(
+				sdktrace.WithSpanProcessor(
+					sdktrace.NewSimpleSpanProcessor(inMemoryExporter),
+				),
+			)
+			otel.SetTracerProvider(tp)
 
-	b := baggage.FromContext(ctx)
-	assert.Equal(t, data.CorrelationRequestID, b.Member("correlation.id").Value())
-	assert.Equal(t, data.RequestID.String(), b.Member("request.id").Value())
-	assert.Equal(t, data.ClientRequestID, b.Member("client.request.id").Value())
+			var (
+				ctx = context.Background()
+				b   baggage.Baggage
+			)
+			ctx = ContextWithCorrelationData(ctx, tc.data)
+			req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+			assert.NoError(t, err)
+
+			next := func(w http.ResponseWriter, r *http.Request) {
+				// Capture the baggage to check it later.
+				b = baggage.FromContext(r.Context())
+				w.WriteHeader(http.StatusOK)
+			}
+
+			writer := httptest.NewRecorder()
+			MiddlewareTracing(writer, req, next)
+
+			stubs := inMemoryExporter.GetSpans()
+			ss := stubs.Snapshots()
+
+			// Check the span attributes.
+			assert.Len(t, ss, 1)
+			span := ss[0]
+			for k, v := range tc.expectedAttrs {
+				var found bool
+				for _, attr := range span.Attributes() {
+					if string(attr.Key) == k {
+						assert.Equal(t, v, attr.Value.AsString())
+						found = true
+						continue
+					}
+				}
+
+				assert.True(t, found)
+			}
+
+			// Check that the baggage has been extended.
+			assert.Len(t, b.Members(), len(tc.expectedBaggage))
+			for k, v := range tc.expectedBaggage {
+				assert.Equal(t, v, b.Member(k).Value())
+			}
+		})
+	}
 }

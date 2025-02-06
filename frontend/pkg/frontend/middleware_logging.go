@@ -8,11 +8,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type LoggingReadCloser struct {
@@ -43,11 +41,12 @@ func (w *LoggingResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
 
+// MiddlewareLogging logs the HTTP request and response.
 func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
 
-	// Capture request and response data for logging
+	// Capture the request and response data for logging.
 	r.Body = &LoggingReadCloser{ReadCloser: r.Body}
 	w = &LoggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
@@ -72,49 +71,23 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 		"duration", time.Since(startTime).Seconds())
 }
 
+// MiddlewareLoggingPostMux extends the contextual logger with additional
+// attributes after the request has been matched by the ServeMux.
 func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
 
-	correlationData := arm.NewCorrelationData(r)
-
-	// ContextWithTraceCorrelationData is defined in middleware_tracing.go
-	ctx = ContextWithTraceCorrelationData(ctx, correlationData)
-
-	ctx = ContextWithCorrelationData(ctx, correlationData)
-
-	setHeaders(w, r, correlationData)
-
-	attrs := getLogAttrs(correlationData, r)
+	attrs := getLogAttrs(r)
 	logger = slog.New(logger.Handler().WithAttrs(attrs))
-	ctx = ContextWithLogger(ctx, logger)
-	r = r.WithContext(ctx)
+	r = r.WithContext(ContextWithLogger(ctx, logger))
 
 	next(w, r)
 }
 
-// setHeaders writes the appropriate headers in the response writer
-// based on the request and the correlation data.
-func setHeaders(w http.ResponseWriter, r *http.Request, correlationData *arm.CorrelationData) {
-	if correlationData == nil {
-		return
-	}
-
-	w.Header().Set(arm.HeaderNameRequestID, correlationData.RequestID.String())
-
-	returnClientRequestId := r.Header.Get(arm.HeaderNameReturnClientRequestID)
-	if strings.EqualFold(returnClientRequestId, "true") {
-		w.Header().Set(arm.HeaderNameClientRequestID, correlationData.ClientRequestID)
-	}
-}
-
-// getLogAttrs returns the appropiate Logging Attributes based on correlationData and a request.
-func getLogAttrs(correlationData *arm.CorrelationData, r *http.Request) []slog.Attr {
-	attrs := []slog.Attr{
-		slog.String("request_id", correlationData.RequestID.String()),
-		slog.String("client_request_id", correlationData.ClientRequestID),
-		slog.String("correlation_request_id", correlationData.CorrelationRequestID),
-	}
+// getLogAttrs returns the additional Logging attributes based on the wildcards
+// from the matched pattern.
+func getLogAttrs(r *http.Request) []slog.Attr {
+	var attrs []slog.Attr
 
 	subscriptionID := r.PathValue(PathSegmentSubscriptionID)
 	if subscriptionID != "" {
