@@ -181,6 +181,16 @@ param csNamespace string
 @description('The service account name of the CS managed identity')
 param csServiceAccountName string
 
+// logs
+@description('The namespace of the logs')
+param logsNamespace string
+
+@description('The managed identity name of the logs')
+param logsMSI string
+
+@description('The service account name of the logs managed identity')
+param logsServiceAccount string
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -241,9 +251,9 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         serviceAccountName: 'image-sync'
       }
       logs_wi: {
-        uamiName: 'logs-mdsd'
-        namespace: 'logs'
-        serviceAccountName: 'genevabit-aggregator'
+        uamiName: logsMSI
+        namespace: logsNamespace
+        serviceAccountName: logsServiceAccount
       }
     })
     aksKeyVaultName: aksKeyVaultName
@@ -327,6 +337,18 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
 //
 //   K E Y V A U L T S
 //
+
+var logsManagedIdentityPrincipalId = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == logsMSI)[0].uamiPrincipalID
+
+module logsServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(serviceKeyVaultName, logsMSI, 'certuser')
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Certificate User'
+    managedIdentityPrincipalId: logsManagedIdentityPrincipalId
+  }
+}
 
 module serviceKeyVaultPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: '${deployment().name}-svcs-kv-pe'

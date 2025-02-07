@@ -161,6 +161,12 @@ defaults:
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
     msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
 
+  # Logs
+  logs:
+    namespace: logs
+    msiName: logs-mdsd
+    serviceAccountName: genevabit-aggregator
+
 clouds:
   public:
     # this configuration serves as a template for for all RH DEV subscription deployments

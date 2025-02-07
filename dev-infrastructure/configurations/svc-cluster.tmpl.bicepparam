@@ -70,3 +70,9 @@ param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
+
+// logs
+@description('The namespace of the logs')
+param logsNamespace = '{{ .logs.namespace }}'
+param logsMSI = '{{ .logs.msiName }}'
+param logsServiceAccount = '{{ .logs.serviceAccountName }}'
