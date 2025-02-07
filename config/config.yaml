@@ -316,6 +316,10 @@ clouds:
       cs-pr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
+          clusterService:
+            imageTag: 978cc66
+          hypershiftOperator:
+            imageTag: 1bb8b1a
           svc:
             aks:
               # MC AKS nodepools
@@ -352,8 +356,11 @@ clouds:
       personal-dev:
         # this is the personal DEV environment
         defaults:
+          hypershiftOperator:
+            imageTag: 1bb8b1a
           # Cluster Service
           clusterService:
+            imageTag: 978cc66
             postgres:
               deploy: false
           # DNS
