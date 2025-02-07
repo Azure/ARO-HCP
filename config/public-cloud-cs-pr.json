@@ -199,6 +199,11 @@
     "msiName": "aro-hcp-metrics-msi-cspr",
     "workspaceName": "arohcp-cspr"
   },
+  "logs": {
+    "msiName": "logs-mdsd",
+    "namespace": "logs",
+    "serviceAccountName": "genevabit-aggregator"
+  },
   "msiKeyVault": {
     "name": "arohcp-msi-cspr-1",
     "private": false,
