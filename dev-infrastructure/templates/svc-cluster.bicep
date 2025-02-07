@@ -1,4 +1,4 @@
-import { locationIsZoneRedundant } from 'common.bicep'
+import { locationIsZoneRedundant } from '../templates/common.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -277,7 +277,6 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   params: {
     name: rpCosmosDbName
     location: location
-    locationIsZoneRedundant: locationIsZoneRedundant(location)
     aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
     vnetId: svcCluster.outputs.aksVnetId
     disableLocalAuth: disableLocalAuth
