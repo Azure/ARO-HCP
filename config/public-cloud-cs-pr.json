@@ -39,7 +39,7 @@
       }
     },
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "dca2a71",
+    "imageTag": "978cc66",
     "k8s": {
       "namespace": "cluster-service",
       "serviceAccountName": "clusters-service"
@@ -92,7 +92,7 @@
     "namespace": "hypershift"
   },
   "hypershiftOperator": {
-    "imageTag": "9aca808"
+    "imageTag": "1bb8b1a"
   },
   "imageSync": {
     "acrRG": "global",
