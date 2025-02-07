@@ -120,7 +120,7 @@ defaults:
       enabled: true
       imageRepo: image-sync/component-sync
       imageTag: d1021e2
-      repositories: quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager
+      repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager
       secrets: 'quay.io:bearer-secret'
       pullSecretName: component-sync-pull-secret
     ocMirror:
