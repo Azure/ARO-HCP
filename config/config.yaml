@@ -186,7 +186,7 @@ clouds:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       # Cluster Service
       clusterService:
-        imageTag: dca2a71
+        imageTag: 978cc66
         imageRepo: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
           clusterApiAzure:
@@ -209,7 +209,7 @@ clouds:
             roleName: Azure Red Hat OpenShift KMS Plugin - Dev
       # Hypershift Operator
       hypershiftOperator:
-        imageTag: 9aca808
+        imageTag: 1bb8b1a
       # Frontend
       frontend:
         imageTag: '' # if empty uses commit sha of repo
@@ -316,10 +316,6 @@ clouds:
       cs-pr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
-          clusterService:
-            imageTag: 978cc66
-          hypershiftOperator:
-            imageTag: 1bb8b1a
           svc:
             aks:
               # MC AKS nodepools
@@ -356,11 +352,8 @@ clouds:
       personal-dev:
         # this is the personal DEV environment
         defaults:
-          hypershiftOperator:
-            imageTag: 1bb8b1a
           # Cluster Service
           clusterService:
-            imageTag: 978cc66
             postgres:
               deploy: false
           # DNS
