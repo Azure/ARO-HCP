@@ -93,6 +93,13 @@ type DBClient interface {
 	// document was successfully replaced, or false with or without an error to indicate no change.
 	UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error)
 
+	// PatchResourceDoc patches a cluster or node pool document in the "Resources" container by
+	// applying a sequence of patch operations. The patch operations may include a precondition
+	// which, if not satisfied, will cause the function to return an azcore.ResponseError with
+	// a StatusCode of http.StatusPreconditionFailed. If successful, PatchResourceDoc returns
+	// the updated document.
+	PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error)
+
 	// DeleteResourceDoc deletes a cluster or node pool document in the "Resources" container.
 	// If no matching document is found, DeleteResourceDoc returns nil as though it had succeeded.
 	DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
@@ -127,6 +134,13 @@ type DBClient interface {
 	// with the document replacement. The boolean return value reflects this: returning true if the
 	// document was successfully replaced, or false with or without an error to indicate no change.
 	UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error)
+
+	// PatchOperationDoc patches an asynchronous operation document in the "Resources" container
+	// by applying a sequence of patch operations. The patch operations may include a precondition
+	// which, if not satisfied, will cause the function to return an azcore.ResponseError with a
+	// StatusCode of http.StatusPreconditionFailed. If successful, PatchOperationDoc returns the
+	// updated document.
+	PatchOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops OperationDocumentPatchOperations) (*OperationDocument, error)
 
 	// ListActiveOperationDocs returns an iterator that searches for asynchronous operation documents
 	// with a non-terminal status in the "Resources" container under the given partition key. The
@@ -328,6 +342,26 @@ func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azco
 	return false, err
 }
 
+func (d *cosmosDBClient) PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error) {
+	typedDoc, _, err := d.getResourceDoc(ctx, resourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	options := &azcosmos.ItemOptions{EnableContentResponseOnWrite: true}
+	response, err := d.resources.PatchItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, ops.PatchOperations, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to patch Resources container item for '%s': %w", resourceID, err)
+	}
+
+	_, innerDoc, err := typedDocumentUnmarshal[ResourceDocument](response.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", resourceID, err)
+	}
+
+	return innerDoc, nil
+}
+
 func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	typedDoc, _, err := d.getResourceDoc(ctx, resourceID)
 	if err != nil {
@@ -454,6 +488,21 @@ func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.Par
 	}
 
 	return false, err
+}
+
+func (d *cosmosDBClient) PatchOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops OperationDocumentPatchOperations) (*OperationDocument, error) {
+	options := &azcosmos.ItemOptions{EnableContentResponseOnWrite: true}
+	response, err := d.resources.PatchItem(ctx, pk, operationID, ops.PatchOperations, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to patch Operations container item for '%s': %w", operationID, err)
+	}
+
+	_, innerDoc, err := typedDocumentUnmarshal[OperationDocument](response.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Operations container item for '%s': %w", operationID, err)
+	}
+
+	return innerDoc, nil
 }
 
 func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument] {
