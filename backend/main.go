@@ -126,6 +126,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to create leader election lock: %w", err)
 	}
+	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
 
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
@@ -185,6 +186,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				}
 			},
 		},
+		WatchDog:        electionChecker,
 		ReleaseOnCancel: true,
 		Name:            leaderElectionLockName,
 	})
