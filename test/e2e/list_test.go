@@ -7,40 +7,23 @@ import (
 	. "github.com/onsi/gomega"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 var _ = Describe("List operations", func() {
 	defer GinkgoRecover()
 
 	var (
-		clients    *api.ClientFactory
-		creds      azcore.TokenCredential
-		armOptions *arm.ClientOptions
-		ctx        context.Context
-	)
-
-	const (
-		subscriptionID = "00000000-0000-0000-0000-000000000000"
+		clustersClient *api.HcpOpenShiftClustersClient
 	)
 
 	BeforeEach(func() {
-		var err error
-		creds, err = azidentity.NewDefaultAzureCredential(nil)
-		Expect(err).To(BeNil())
-		armOptions = &arm.ClientOptions{}
-		clients, err = api.NewClientFactory(subscriptionID, creds, armOptions)
-		Expect(err).To(BeNil())
-		Expect(clients).ToNot(BeNil())
-		ctx = context.Background()
+		By("Prepare HCP clusters client")
+		clustersClient = clients.NewHcpOpenShiftClustersClient()
 	})
 
-	Context("List clusters", Label("List"), func() {
-		It("List clusters by subscription", Label("first-test"), func() {
-			By("Prepare HCP clusters client")
-			clustersClient := clients.NewHcpOpenShiftClustersClient()
+	Context("List clusters", func() {
+		It("List clusters by subscription", labels.Medium, func(ctx context.Context) {
 			By("List clusters")
 			listOptions := &api.HcpOpenShiftClustersClientListBySubscriptionOptions{}
 			pager := clustersClient.NewListBySubscriptionPager(listOptions)
@@ -57,10 +40,8 @@ var _ = Describe("List operations", func() {
 			}
 		})
 
-		It("List clusters by resource group", Label("second-test"), func() {
+		It("List clusters by resource group", labels.Medium, func(ctx context.Context) {
 			rgName := "test-resource-group"
-			By("Prepare HCP clusters client")
-			clustersClient := clients.NewHcpOpenShiftClustersClient()
 			By("List clusters")
 			pager := clustersClient.NewListByResourceGroupPager(rgName, nil)
 			By("Access IDs of all fetched clusters")
