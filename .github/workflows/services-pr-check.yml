@@ -96,10 +96,6 @@
           run: |
             make acrpull.dry_run
 
-        - name: 'Dry Run Metrics'
-          run: |
-            make metrics.dry_run
-
     mgmt_cluster_pr_check:
       permissions:
         id-token: 'write'

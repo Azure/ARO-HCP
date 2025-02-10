@@ -10,6 +10,9 @@ param maestroEventGridMaxClientSessionsPerAuthName int
 @description('Allow/deny public network access to the Maestro EventGrid Namespace')
 param maestroEventGridPrivate bool
 
+@description('The certificate issuer for the EventGrid Namespace')
+param maestroCertificateIssuer string
+
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
@@ -130,5 +133,6 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     location: location
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
     publicNetworkAccess: maestroEventGridPrivate ? 'Disabled' : 'Enabled'
+    certificateIssuer: maestroCertificateIssuer
   }
 }
