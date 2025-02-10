@@ -2,8 +2,8 @@
   "properties": {
     "spec": {
       "version": {
-        "id": "openshift-v4.17.0",
-        "channelGroup": "stable"
+        "id": "openshift-v4.18.0-rc.6-candidate",
+        "channelGroup": "candidate"
       },
       "dns": {},
       "network": {

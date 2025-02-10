@@ -6,7 +6,7 @@ set -o pipefail
 
 source env_vars
 
-az group create --name "${CUSTOMER_RG_NAME}" --location ${LOCATION}
+az group create --name "${CUSTOMER_RG_NAME}" --location ${LOCATION} --tags persist=true
 
 az network nsg create -g ${CUSTOMER_RG_NAME} --name ${CUSTOMER_NSG}
 NSG_ID=$(az network nsg list --query "[?name=='${CUSTOMER_NSG}'].id" -g ${CUSTOMER_RG_NAME} -o tsv)
