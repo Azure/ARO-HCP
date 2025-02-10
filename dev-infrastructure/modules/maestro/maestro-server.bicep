@@ -13,6 +13,7 @@ param certKeyVaultName string
 param certKeyVaultResourceGroup string
 param keyVaultOfficerManagedIdentityName string
 param maestroCertificateDomain string
+param maestroCertificateIssuer string
 
 @description('The name of the MQTT client that will be created in the EventGrid Namespace')
 param mqttClientName string
@@ -140,6 +141,7 @@ module eventGridClientCert 'maestro-access-cert.bicep' = {
     keyVaultName: certKeyVaultName
     kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName
     certDomain: maestroCertificateDomain
+    certificateIssuer: maestroCertificateIssuer
     clientName: mqttClientName
     keyVaultCertificateName: mqttClientName
     certificateAccessManagedIdentityPrincipalId: maestroServerManagedIdentityPrincipalId
@@ -155,5 +157,6 @@ module evengGridAccess 'maestro-eventgrid-access.bicep' = {
     clientRole: 'server'
     certificateThumbprint: eventGridClientCert.outputs.certificateThumbprint
     certificateSAN: eventGridClientCert.outputs.certificateSAN
+    certificateIssuer: maestroCertificateIssuer
   }
 }

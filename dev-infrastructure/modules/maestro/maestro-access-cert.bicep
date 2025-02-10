@@ -26,7 +26,7 @@ param clientName string
 param keyVaultCertificateName string
 
 @description('The issuer of the certificate.')
-param certificateIssuer string = 'Self'
+param certificateIssuer string
 
 @description('Grant this managed identity access to the certificate in Key Vault.')
 param certificateAccessManagedIdentityPrincipalId string
@@ -41,7 +41,7 @@ module clientCertificate '../keyvault/key-vault-cert.bicep' = {
   name: '${clientName}-client-cert'
   params: {
     keyVaultName: keyVaultName
-    subjectName: 'CN=${clientName}'
+    subjectName: 'CN=${clientAuthenticationName}'
     certName: keyVaultCertificateName
     keyVaultManagedIdentityId: kvCertOfficerManagedIdentityResourceId
     dnsNames: [

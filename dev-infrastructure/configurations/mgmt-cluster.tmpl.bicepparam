@@ -22,7 +22,8 @@ param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddress
 // Maestro
 param maestroConsumerName = '{{ .maestro.consumerName }}'
 param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
-param maestroCertDomain = '{{ .maestro.certDomain }}'
+param maestroCertDomain = 'maestro.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 
 // ACR
 param ocpAcrResourceId = '__ocpAcrResourceId__'
