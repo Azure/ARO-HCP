@@ -14,7 +14,6 @@ param maestroEventGridNamespaceId string
 param certKeyVaultName string
 param keyVaultOfficerManagedIdentityName string
 param maestroCertificateDomain string
-param maestroCertificateIssuer string
 
 module eventGridClientCert 'maestro-access-cert.bicep' = {
   name: '${deployment().name}-eg-crt-${uniqueString(maestroConsumerName)}'
@@ -22,7 +21,6 @@ module eventGridClientCert 'maestro-access-cert.bicep' = {
     keyVaultName: certKeyVaultName
     kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName
     certDomain: maestroCertificateDomain
-    certificateIssuer: maestroCertificateIssuer
     clientName: maestroConsumerName
     keyVaultCertificateName: maestroConsumerName
     certificateAccessManagedIdentityPrincipalId: maestroAgentManagedIdentityPrincipalId
@@ -42,6 +40,5 @@ module evengGridAccess 'maestro-eventgrid-access.bicep' = {
     clientRole: 'consumer'
     certificateThumbprint: eventGridClientCert.outputs.certificateThumbprint
     certificateSAN: eventGridClientCert.outputs.certificateSAN
-    certificateIssuer: maestroCertificateIssuer
   }
 }

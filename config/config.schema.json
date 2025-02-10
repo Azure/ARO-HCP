@@ -96,14 +96,6 @@
       "keyColonValueCSV": {
         "type": "string",
         "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
-      },
-      "certificateIssuer": {
-        "type": "string",
-        "enum": [
-          "Self",
-          "OneCertV2-PublicCA",
-          "OneCertV2-PrivateCA"
-        ]
       }
     },
     "properties": {
@@ -375,7 +367,12 @@
                 "type": "string"
               },
               "issuer": {
-                "$ref": "#/definitions/certificateIssuer"
+                "type": "string",
+                "enum": [
+                  "Self",
+                  "OneCertV2-PublicCA",
+                  "OneCertV2-PrivateCA"
+                ]
               }
             },
             "additionalProperties": false,
@@ -552,8 +549,8 @@
       "maestro": {
         "type": "object",
         "properties": {
-          "certIssuer": {
-            "$ref": "#/definitions/certificateIssuer"
+          "certDomain": {
+            "type": "string"
           },
           "consumerName": {
             "type": "string"
@@ -671,7 +668,7 @@
         },
         "additionalProperties": false,
         "required": [
-          "certIssuer",
+          "certDomain",
           "consumerName",
           "server",
           "eventGrid",

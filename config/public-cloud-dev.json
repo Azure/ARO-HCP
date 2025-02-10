@@ -124,7 +124,7 @@
       "imageBase": "mcr.microsoft.com/azurelinux/base/nginx",
       "imageTag": "1.25"
     },
-    "certIssuer": "Self",
+    "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-dev-mgmt-1",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
