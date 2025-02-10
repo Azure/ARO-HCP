@@ -17,19 +17,15 @@ type HCPOpenShiftClusterNodePool struct {
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
-	Spec              NodePoolSpec          `json:"spec,omitempty" visibility:"read create update"`
-}
-
-type NodePoolSpec struct {
-	Version       VersionProfile          `json:"version,omitempty" visibility:"read create"`
-	Platform      NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create"`
-	Replicas      int32                   `json:"replicas,omitempty" visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
-	AutoRepair    bool                    `json:"autoRepair,omitempty" visibility:"read create"`
-	AutoScaling   *NodePoolAutoScaling    `json:"autoScaling,omitempty" visibility:"read create update"`
-	Labels        map[string]string       `json:"labels,omitempty" visibility:"read create update"`
-	Taints        []*Taint                `json:"taints,omitempty" visibility:"read create update"`
-	TuningConfigs []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
+	ProvisioningState arm.ProvisioningState   `json:"provisioningState,omitempty" visibility:"read"`
+	Version           VersionProfile          `json:"version,omitempty" visibility:"read create"`
+	Platform          NodePoolPlatformProfile `json:"platform,omitempty" visibility:"read create"`
+	Replicas          int32                   `json:"replicas,omitempty" visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
+	AutoRepair        bool                    `json:"autoRepair,omitempty" visibility:"read create"`
+	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty" visibility:"read create update"`
+	Labels            map[string]string       `json:"labels,omitempty" visibility:"read create update"`
+	Taints            []*Taint                `json:"taints,omitempty" visibility:"read create update"`
+	TuningConfigs     []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
@@ -60,8 +56,6 @@ type Taint struct {
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
-		Properties: HCPOpenShiftClusterNodePoolProperties{
-			Spec: NodePoolSpec{},
-		},
+		Properties: HCPOpenShiftClusterNodePoolProperties{},
 	}
 }

@@ -46,36 +46,34 @@ func main() {
 func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
-			Spec: api.ClusterSpec{
-				Version: api.VersionProfile{
-					ID:           "openshift-v4.17.0",
-					ChannelGroup: "stable",
-				},
-				DNS: api.DNSProfile{},
-				Network: api.NetworkProfile{
-					NetworkType: api.NetworkTypeOVNKubernetes,
-					PodCIDR:     "10.128.0.0/14",
-					ServiceCIDR: "172.30.0.0/16",
-					MachineCIDR: "10.0.0.0/16",
-					HostPrefix:  23,
-				},
-				Console: api.ConsoleProfile{},
-				API: api.APIProfile{
-					Visibility: api.Visibility("public"),
-				},
-				FIPS:                          false,
-				EtcdEncryption:                false,
-				DisableUserWorkloadMonitoring: false,
-				Proxy:                         api.ProxyProfile{},
-				Platform: api.PlatformProfile{
-					ManagedResourceGroup:   "dev-test-mrg",
-					NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
-					SubnetID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
-					OutboundType:           api.OutboundType("loadBalancer"),
-				},
-				IssuerURL:    "",
-				ExternalAuth: api.ExternalAuthConfigProfile{},
+			Version: api.VersionProfile{
+				ID:           "openshift-v4.17.0",
+				ChannelGroup: "stable",
 			},
+			DNS: api.DNSProfile{},
+			Network: api.NetworkProfile{
+				NetworkType: api.NetworkTypeOVNKubernetes,
+				PodCIDR:     "10.128.0.0/14",
+				ServiceCIDR: "172.30.0.0/16",
+				MachineCIDR: "10.0.0.0/16",
+				HostPrefix:  23,
+			},
+			Console: api.ConsoleProfile{},
+			API: api.APIProfile{
+				Visibility: api.Visibility("public"),
+			},
+			FIPS:                          false,
+			EtcdEncryption:                false,
+			DisableUserWorkloadMonitoring: false,
+			Proxy:                         api.ProxyProfile{},
+			Platform: api.PlatformProfile{
+				ManagedResourceGroup:   "dev-test-mrg",
+				NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
+				SubnetID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
+				OutboundType:           api.OutboundType("loadBalancer"),
+			},
+			IssuerURL:    "",
+			ExternalAuth: api.ExternalAuthConfigProfile{},
 		},
 	}
 
@@ -96,24 +94,22 @@ func CreateNodePool() error {
 	nodePool := api.HCPOpenShiftClusterNodePool{
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			ProvisioningState: arm.ProvisioningState(""),
-			Spec: api.NodePoolSpec{
-				Version: api.VersionProfile{
-					ID:           "openshift-v4.17.0",
-					ChannelGroup: "stable",
-				},
-				Platform: api.NodePoolPlatformProfile{
-					SubnetID:    "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
-					DiskSizeGiB: 30,
-
-					// VMSize should match configs/cloud-resources/instance-types.yaml
-					// and configs/cloud-resource-constraints/instance-type-constraints.yaml
-					// in CS config files.
-					VMSize:                 "Standard_D8s_v3",
-					DiskStorageAccountType: "StandardSSD_LRS",
-					EphemeralOSDisk:        false,
-				},
-				Replicas: 2,
+			Version: api.VersionProfile{
+				ID:           "openshift-v4.17.0",
+				ChannelGroup: "stable",
 			},
+			Platform: api.NodePoolPlatformProfile{
+				SubnetID:    "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
+				DiskSizeGiB: 30,
+
+				// VMSize should match configs/cloud-resources/instance-types.yaml
+				// and configs/cloud-resource-constraints/instance-type-constraints.yaml
+				// in CS config files.
+				VMSize:                 "Standard_D8s_v3",
+				DiskStorageAccountType: "StandardSSD_LRS",
+				EphemeralOSDisk:        false,
+			},
+			Replicas: 2,
 		},
 	}
 

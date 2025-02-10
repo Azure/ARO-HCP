@@ -18,12 +18,7 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
-	Spec              ClusterSpec           `json:"spec,omitempty"              visibility:"read create update"`
-}
-
-// ClusterSpec represents a high level cluster configuration.
-type ClusterSpec struct {
+	ProvisioningState             arm.ProvisioningState     `json:"provisioningState,omitempty" visibility:"read"`
 	Version                       VersionProfile            `json:"version,omitempty"                       visibility:"read create"`
 	DNS                           DNSProfile                `json:"dns,omitempty"                           visibility:"read create update"`
 	Network                       NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
@@ -120,14 +115,12 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 			Type: arm.ManagedServiceIdentityTypeNone,
 		},
 		Properties: HCPOpenShiftClusterProperties{
-			Spec: ClusterSpec{
-				Network: NetworkProfile{
-					NetworkType: NetworkTypeOVNKubernetes,
-					HostPrefix:  23,
-				},
-				Platform: PlatformProfile{
-					OutboundType: OutboundTypeLoadBalancer,
-				},
+			Network: NetworkProfile{
+				NetworkType: NetworkTypeOVNKubernetes,
+				HostPrefix:  23,
+			},
+			Platform: PlatformProfile{
+				OutboundType: OutboundTypeLoadBalancer,
 			},
 		},
 	}

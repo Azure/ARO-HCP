@@ -25,23 +25,21 @@ func minimumValidClusterIdentities() *api.HCPOpenShiftCluster {
 	// Values are meaningless but need to pass validation.
 	return &api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
-			Spec: api.ClusterSpec{
-				Version: api.VersionProfile{
-					ID:           "openshift-v4.16.0",
-					ChannelGroup: "stable",
-				},
-				Network: api.NetworkProfile{
-					PodCIDR:     "10.128.0.0/14",
-					ServiceCIDR: "172.30.0.0/16",
-					MachineCIDR: "10.0.0.0/16",
-				},
-				API: api.APIProfile{
-					Visibility: "public",
-				},
-				Platform: api.PlatformProfile{
-					SubnetID:                "/something/something/virtualNetworks/subnets",
-					OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2"}},
-				},
+			Version: api.VersionProfile{
+				ID:           "openshift-v4.16.0",
+				ChannelGroup: "stable",
+			},
+			Network: api.NetworkProfile{
+				PodCIDR:     "10.128.0.0/14",
+				ServiceCIDR: "172.30.0.0/16",
+				MachineCIDR: "10.0.0.0/16",
+			},
+			API: api.APIProfile{
+				Visibility: "public",
+			},
+			Platform: api.PlatformProfile{
+				SubnetID:                "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2"}},
 			},
 		},
 		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1": &arm.UserAssignedIdentity{}, "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2": &arm.UserAssignedIdentity{}}},
@@ -53,23 +51,21 @@ func minimumValidClusterwithBrokenIdentities() *api.HCPOpenShiftCluster {
 	// Values are meaningless but need to pass validation.
 	return &api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
-			Spec: api.ClusterSpec{
-				Version: api.VersionProfile{
-					ID:           "openshift-v4.16.0",
-					ChannelGroup: "stable",
-				},
-				Network: api.NetworkProfile{
-					PodCIDR:     "10.128.0.0/14",
-					ServiceCIDR: "172.30.0.0/16",
-					MachineCIDR: "10.0.0.0/16",
-				},
-				API: api.APIProfile{
-					Visibility: "public",
-				},
-				Platform: api.PlatformProfile{
-					SubnetID:                "/something/something/virtualNetworks/subnets",
-					OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2"}},
-				},
+			Version: api.VersionProfile{
+				ID:           "openshift-v4.16.0",
+				ChannelGroup: "stable",
+			},
+			Network: api.NetworkProfile{
+				PodCIDR:     "10.128.0.0/14",
+				ServiceCIDR: "172.30.0.0/16",
+				MachineCIDR: "10.0.0.0/16",
+			},
+			API: api.APIProfile{
+				Visibility: "public",
+			},
+			Platform: api.PlatformProfile{
+				SubnetID:                "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2"}},
 			},
 		},
 		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{}}},
@@ -81,23 +77,21 @@ func minimumValidClusterwithMultipleIdentities() *api.HCPOpenShiftCluster {
 	// Values are meaningless but need to pass validation.
 	return &api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
-			Spec: api.ClusterSpec{
-				Version: api.VersionProfile{
-					ID:           "openshift-v4.16.0",
-					ChannelGroup: "stable",
-				},
-				Network: api.NetworkProfile{
-					PodCIDR:     "10.128.0.0/14",
-					ServiceCIDR: "172.30.0.0/16",
-					MachineCIDR: "10.0.0.0/16",
-				},
-				API: api.APIProfile{
-					Visibility: "public",
-				},
-				Platform: api.PlatformProfile{
-					SubnetID:                "/something/something/virtualNetworks/subnets",
-					OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1", "operatorY": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}},
-				},
+			Version: api.VersionProfile{
+				ID:           "openshift-v4.16.0",
+				ChannelGroup: "stable",
+			},
+			Network: api.NetworkProfile{
+				PodCIDR:     "10.128.0.0/14",
+				ServiceCIDR: "172.30.0.0/16",
+				MachineCIDR: "10.0.0.0/16",
+			},
+			API: api.APIProfile{
+				Visibility: "public",
+			},
+			Platform: api.PlatformProfile{
+				SubnetID:                "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1", "operatorY": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}},
 			},
 		},
 		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1": &arm.UserAssignedIdentity{}}},
