@@ -2,7 +2,7 @@
   "properties": {
     "spec": {
       "version": {
-        "id": "openshift-v4.18.0-rc.6-candidate",
+        "id": "openshift-v4.18.0-rc.8-candidate",
         "channelGroup": "candidate"
       },
       "platform": {
