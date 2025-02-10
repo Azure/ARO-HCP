@@ -88,10 +88,6 @@
           run: |
             make maestro.server.dry_run
 
-        - name: 'Dry Run Istio'
-          run: |
-            make istio.dry_run
-
         - name: 'Dry Run ACR Pull'
           run: |
             make acrpull.dry_run
