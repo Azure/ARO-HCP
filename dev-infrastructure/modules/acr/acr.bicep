@@ -9,6 +9,10 @@ param location string = resourceGroup().location
 @description('Service tier of the Azure Container Registry.')
 param acrSku string
 
+@allowed(['Enabled', 'Disabled'])
+@description('Toggle zone redundancy of ACR, default is enabled.')
+param zoneRedundancy string = 'Enabled'
+
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: acrName
   location: location
@@ -27,6 +31,7 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview'
       // https://learn.microsoft.com/en-us/azure/container-registry/tutorial-enable-customer-managed-keys#show-encryption-status
       status: 'disabled'
     }
+    zoneRedundancy: zoneRedundancy
     policies: {
       azureADAuthenticationAsArmPolicy: {
         status: 'enabled'
