@@ -149,7 +149,7 @@ func (d *cosmosDBClient) GetLockClient() *LockClient {
 func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
 	pk := NewPartitionKey(resourceID.SubscriptionID)
 
-	query := "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true)"
+	query := "SELECT * FROM c WHERE STRINGEQUALS(c.key, @resourceId, true)"
 	opt := azcosmos.QueryOptions{
 		PageSizeHint:    1,
 		QueryParameters: []azcosmos.QueryParameter{{Name: "@resourceId", Value: resourceID.String()}},
