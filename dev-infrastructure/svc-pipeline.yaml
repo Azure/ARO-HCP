@@ -111,6 +111,14 @@ resourceGroups:
       configRef: svc.rg
     dependsOn:
     - svc
+  # configure istio
+  - name: deploy
+    action: Shell
+    command: make -C ../istio deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
   # Install ACRpull
   - name: acrpull
     action: Shell
