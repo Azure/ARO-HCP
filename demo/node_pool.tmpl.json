@@ -2,8 +2,8 @@
   "properties": {
     "spec": {
       "version": {
-        "id": "openshift-v4.17.0",
-        "channelGroup": "stable"
+        "id": "openshift-v4.18.0-rc.6-candidate",
+        "channelGroup": "candidate"
       },
       "platform": {
         "subnetId": "/subscriptions/$sub/resourceGroups/$customer-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
