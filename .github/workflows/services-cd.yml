@@ -81,10 +81,6 @@
             cd dev-infrastructure/
             make svc.aks.kubeconfig
 
-        - name: 'Deploy Istio Configuration'
-          run: |
-            make istio.deploy_pipeline
-
         - name: 'Deploy ACR Pull Configuration'
           run: |
             make acrpull.deploy_pipeline
