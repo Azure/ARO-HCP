@@ -366,7 +366,7 @@ Then register it with the Maestro Server
     ```
     export CS_CLUSTER_NAME="<desired-cluster-name>"
     ```
-  - Create the User-Assigned Managed Identities for the Control Plane operators. This assumes OCP 4.17 based will be created.
+  - Create the User-Assigned Managed Identities for the Control Plane operators. This assumes OCP 4.18 based will be created.
     > NOTE: Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use
             a different managed identity, and different clusters must use different managed identities, even for the same
             operators.
@@ -396,7 +396,7 @@ Then register it with the Maestro Server
     export CP_KMS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-kms-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     ```
 
-  - Create the User-Assigned Managed Identities for the Data Plane operators. This assumes OCP 4.17 clusters will be created.
+  - Create the User-Assigned Managed Identities for the Data Plane operators. This assumes OCP 4.18 clusters will be created.
     > NOTE: Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use
             a different managed identity, and different clusters must use different managed identities, even for the same
             operators.
@@ -425,7 +425,7 @@ Then register it with the Maestro Server
     export SERVICE_MANAGED_IDENTITY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
     ```
 
-3) Create the cluster. This assumes OCP 4.17 clusters will be created.
+3) Create the cluster. This assumes OCP 4.18 clusters will be created.
     > **NOTE** See the [Cluster Service API](https://api.openshift.com/#/default/post_api_clusters_mgmt_v1_clusters) documentation
     > for further information on the properties within the payload below
 
@@ -511,9 +511,6 @@ Then register it with the Maestro Server
           }
         }
       },
-      "version": {
-        "id": "openshift-v4.17.0"
-      }
     }
     EOF
 
