@@ -105,10 +105,6 @@
           run: |
             make maestro.server.deploy_pipeline maestro.registration.deploy
 
-        - name: 'Deploy Prometheus Config'
-          run: |
-            make metrics.deploy_pipeline
-
         - name: 'Deploy CS PR check environment dressup'
           if: inputs.deploy_cs_pr_check_deps
           run: |
