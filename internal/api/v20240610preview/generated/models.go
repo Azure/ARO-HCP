@@ -30,55 +30,6 @@ type ClaimProfile struct {
 	PrefixPolicy *string
 }
 
-// ClusterPatchSpec - The patchable cluster specification
-type ClusterPatchSpec struct {
-	// Disable user workload monitoring
-	DisableUserWorkloadMonitoring *bool
-
-	// Openshift cluster proxy configuration
-	Proxy *ProxyProfile
-}
-
-// ClusterSpec - The cluster resource specification
-type ClusterSpec struct {
-	// REQUIRED; Version of the control plane components
-	Version *VersionProfile
-
-	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
-	IssuerURL *string
-
-	// Cluster DNS configuration
-	DNS *DNSProfile
-
-	// Disable user workload monitoring
-	DisableUserWorkloadMonitoring *bool
-
-	// Enables customer ETCD encryption, set during creation When set to true, platform.etcdEncryptionSetId must be set
-	EtcdEncryption *bool
-
-	// Configuration to override the openshift-oauth-apiserver inside cluster This changes user login into the cluster to external
-// provider
-	ExternalAuth *ExternalAuthConfigProfile
-
-	// Enable FIPS mode for the cluster When set to true, etcdEncryption must be set to true
-	Fips *bool
-
-	// Cluster network configuration
-	Network *NetworkProfile
-
-	// Azure platform configuration
-	Platform *PlatformProfile
-
-	// Openshift cluster proxy configuration
-	Proxy *ProxyProfile
-
-	// READ-ONLY; Shows the cluster API server profile
-	API *APIProfile
-
-	// READ-ONLY; Shows the cluster web console information
-	Console *ConsoleProfile
-}
-
 type ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
@@ -269,8 +220,11 @@ type HcpOpenShiftClusterPatch struct {
 
 // HcpOpenShiftClusterPatchProperties - HCP patchable cluster properties
 type HcpOpenShiftClusterPatchProperties struct {
-	// The cluster resource specification.
-	Spec *ClusterPatchSpec
+	// Disable user workload monitoring
+	DisableUserWorkloadMonitoring *bool
+
+	// Openshift cluster proxy configuration
+	Proxy *ProxyProfile
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
@@ -278,8 +232,42 @@ type HcpOpenShiftClusterPatchProperties struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
-	// The cluster resource specification.
-	Spec *ClusterSpec
+	// REQUIRED; Version of the control plane components
+	Version *VersionProfile
+
+	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
+	IssuerURL *string
+
+	// Cluster DNS configuration
+	DNS *DNSProfile
+
+	// Disable user workload monitoring
+	DisableUserWorkloadMonitoring *bool
+
+	// Enables customer ETCD encryption, set during creation When set to true, platform.etcdEncryptionSetId must be set
+	EtcdEncryption *bool
+
+	// Configuration to override the openshift-oauth-apiserver inside cluster This changes user login into the cluster to external
+// provider
+	ExternalAuth *ExternalAuthConfigProfile
+
+	// Enable FIPS mode for the cluster When set to true, etcdEncryption must be set to true
+	Fips *bool
+
+	// Cluster network configuration
+	Network *NetworkProfile
+
+	// Azure platform configuration
+	Platform *PlatformProfile
+
+	// Openshift cluster proxy configuration
+	Proxy *ProxyProfile
+
+	// READ-ONLY; Shows the cluster API server profile
+	API *APIProfile
+
+	// READ-ONLY; Shows the cluster web console information
+	Console *ConsoleProfile
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
@@ -424,15 +412,6 @@ type NodePoolAutoScaling struct {
 
 // NodePoolPatchProperties - Represents the patchable node pool properties
 type NodePoolPatchProperties struct {
-	// The node pool resource specification
-	Spec *NodePoolPatchSpec
-
-	// READ-ONLY; Provisioning state
-	ProvisioningState *ResourceProvisioningState
-}
-
-// NodePoolPatchSpec - Worker node pool profile
-type NodePoolPatchSpec struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
@@ -450,6 +429,9 @@ type NodePoolPatchSpec struct {
 // in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
 // or PerformanceProfile.
 	TuningConfigs []*string
+
+	// READ-ONLY; Provisioning state
+	ProvisioningState *ResourceProvisioningState
 }
 
 // NodePoolPlatformProfile - Azure node pool platform configuration
@@ -486,15 +468,6 @@ type NodePoolPlatformProfile struct {
 
 // NodePoolProperties - Represents the node pool properties
 type NodePoolProperties struct {
-	// The node pool resource specification
-	Spec *NodePoolSpec
-
-	// READ-ONLY; Provisioning state
-	ProvisioningState *ProvisioningState
-}
-
-// NodePoolSpec - Worker node pool profile
-type NodePoolSpec struct {
 	// REQUIRED; Azure node pool platform configuration
 	Platform *NodePoolPlatformProfile
 
@@ -521,6 +494,9 @@ type NodePoolSpec struct {
 // in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
 // or PerformanceProfile.
 	TuningConfigs []*string
+
+	// READ-ONLY; Provisioning state
+	ProvisioningState *ProvisioningState
 }
 
 // Operation - Details of a REST API operation, returned from the Resource Provider Operations API
