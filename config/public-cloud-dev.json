@@ -127,7 +127,7 @@
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "consumerName": "hcp-underlay-dev-mgmt-1",
     "eventGrid": {
-      "maxClientSessionsPerAuthName": 4,
+      "maxClientSessionsPerAuthName": 6,
       "name": "arohcp-maestro-dev",
       "private": false
     },
