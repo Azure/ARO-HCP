@@ -95,9 +95,6 @@ param regionalResourceGroup string
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
 
-@description('The issuer of the maestro certificate.')
-param maestroCertIssuer string
-
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
@@ -305,7 +302,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     keyVaultOfficerManagedIdentityName: aroDevopsMsiId
     maestroCertificateDomain: maestroCertDomain
-    maestroCertificateIssuer: maestroCertIssuer
     deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion

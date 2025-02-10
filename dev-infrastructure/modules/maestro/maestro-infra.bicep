@@ -24,14 +24,12 @@ param maxClientSessionsPerAuthName int
 ])
 param publicNetworkAccess string
 
-param certificateIssuer string
-
 //
 //   E V E N T   G R I D
 //
 
 // create an event grid namespace with MQTT enabled
-resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-12-15-preview' = {
+resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' = {
   name: eventGridNamespaceName
   location: location
   sku: {
@@ -49,19 +47,7 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-12-15-preview' 
           'ClientCertificateDns'
         ]
       }
-
     }
-  }
-}
-
-// find a better way to register the OneCert
-resource certificateSignerCA 'Microsoft.EventGrid/namespaces/caCertificates@2024-12-15-preview' = if (startsWith(certificateIssuer, 'OneCert')) {
-  parent: eventGridNamespace
-  name: 'ameroot'
-  properties: {
-    description: 'root certificate for OneCertV2-PrivateCA'
-    // this expires in May 2026 !!!!
-    encodedCertificate: replace(loadTextContent('../../ca/AMEROOT_ameroot.pem'), '\n', '')
   }
 }
 
@@ -70,7 +56,7 @@ resource certificateSignerCA 'Microsoft.EventGrid/namespaces/caCertificates@2024
 //
 
 // an MQTT client group to hold the maestro server client
-resource maestroServerMqttClientGroup 'Microsoft.EventGrid/namespaces/clientGroups@2024-12-15-preview' = {
+resource maestroServerMqttClientGroup 'Microsoft.EventGrid/namespaces/clientGroups@2023-12-15-preview' = {
   name: 'maestro-server'
   parent: eventGridNamespace
   properties: {
@@ -79,7 +65,7 @@ resource maestroServerMqttClientGroup 'Microsoft.EventGrid/namespaces/clientGrou
 }
 
 // create a topic space for the maestro server to subscribe to
-resource maestroServerSubscribeTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2024-12-15-preview' = {
+resource maestroServerSubscribeTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2023-12-15-preview' = {
   name: 'maestro-server-subscribe'
   parent: eventGridNamespace
   properties: {
@@ -90,7 +76,7 @@ resource maestroServerSubscribeTopicspace 'Microsoft.EventGrid/namespaces/topicS
 }
 
 // ... and grant the maestro server client permission to subscribe to the topic space
-resource maestroServerPermissionBindingSubscribe 'Microsoft.EventGrid/namespaces/permissionBindings@2024-12-15-preview' = {
+resource maestroServerPermissionBindingSubscribe 'Microsoft.EventGrid/namespaces/permissionBindings@2023-12-15-preview' = {
   name: 'maestro-server-subscribe-binding'
   parent: eventGridNamespace
   properties: {
@@ -101,7 +87,7 @@ resource maestroServerPermissionBindingSubscribe 'Microsoft.EventGrid/namespaces
 }
 
 // create a topic space for the maestro server to publish to
-resource maestroServerPublishTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2024-12-15-preview' = {
+resource maestroServerPublishTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2023-12-15-preview' = {
   name: 'maestro-server-publish'
   parent: eventGridNamespace
   properties: {
@@ -115,7 +101,7 @@ resource maestroServerPublishTopicspace 'Microsoft.EventGrid/namespaces/topicSpa
 }
 
 // ... and grant the maestro server client permission to publish to the topic space
-resource maestroServerPermissionBindingPublish 'Microsoft.EventGrid/namespaces/permissionBindings@2024-12-15-preview' = {
+resource maestroServerPermissionBindingPublish 'Microsoft.EventGrid/namespaces/permissionBindings@2023-12-15-preview' = {
   name: 'maestro-server-publish-binding'
   parent: eventGridNamespace
   properties: {
@@ -130,7 +116,7 @@ resource maestroServerPermissionBindingPublish 'Microsoft.EventGrid/namespaces/p
 //
 
 // an MQTT client group to hold the maestro consumer clients
-resource maestroConsumerMqttClientGroup 'Microsoft.EventGrid/namespaces/clientGroups@2024-12-15-preview' = {
+resource maestroConsumerMqttClientGroup 'Microsoft.EventGrid/namespaces/clientGroups@2023-12-15-preview' = {
   name: 'maestro-consumers'
   parent: eventGridNamespace
   properties: {
@@ -139,7 +125,7 @@ resource maestroConsumerMqttClientGroup 'Microsoft.EventGrid/namespaces/clientGr
 }
 
 // create a topic space for the maestro consumers to subscribe to
-resource maestroConsumersSubscribeTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2024-12-15-preview' = {
+resource maestroConsumersSubscribeTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2023-12-15-preview' = {
   name: 'maestro-consumer-subscribe'
   parent: eventGridNamespace
   properties: {
@@ -153,7 +139,7 @@ resource maestroConsumersSubscribeTopicspace 'Microsoft.EventGrid/namespaces/top
 }
 
 // ... and grant the maestro consumer client group permission to subscribe to the topic space
-resource maestroConsumersSubscribeTopicspacePermissionBinding 'Microsoft.EventGrid/namespaces/permissionBindings@2024-12-15-preview' = {
+resource maestroConsumersSubscribeTopicspacePermissionBinding 'Microsoft.EventGrid/namespaces/permissionBindings@2023-12-15-preview' = {
   name: 'maestro-consumer-subscribe'
   parent: eventGridNamespace
   properties: {
@@ -164,7 +150,7 @@ resource maestroConsumersSubscribeTopicspacePermissionBinding 'Microsoft.EventGr
 }
 
 // create a topic space for the maestro consumers to publish to
-resource maestroConsumersPublishTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2024-12-15-preview' = {
+resource maestroConsumersPublishTopicspace 'Microsoft.EventGrid/namespaces/topicSpaces@2023-12-15-preview' = {
   name: 'maestro-consumer-publish'
   parent: eventGridNamespace
   properties: {
@@ -178,7 +164,7 @@ resource maestroConsumersPublishTopicspace 'Microsoft.EventGrid/namespaces/topic
 }
 
 // ... and grant the maestro consumer client group permission to publish to the topic space
-resource maestroConsumersPublishTopicspacePermissionBinding 'Microsoft.EventGrid/namespaces/permissionBindings@2024-12-15-preview' = {
+resource maestroConsumersPublishTopicspacePermissionBinding 'Microsoft.EventGrid/namespaces/permissionBindings@2023-12-15-preview' = {
   name: 'maestro-consumer-publish'
   parent: eventGridNamespace
   properties: {
