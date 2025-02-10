@@ -21,7 +21,7 @@ type Version struct {
 var versionConstraints = []Version{
 	{
 		Name:       "Azure CLI",
-		Cmd:        "az --version | grep azure-cli |awk '{print $NF}'",
+		Cmd:        "az --version | grep azure-cli |awk '{print $NF}' | grep -o '^[0-9.]*'",
 		Constraint: ">=2.68.0",
 	},
 	{
@@ -49,7 +49,7 @@ func NewCommand() (*cobra.Command, error) {
 
 func ensureDependencies(ctx context.Context) error {
 	for _, c := range versionConstraints {
-		fmt.Println("Checking verion of", c.Name)
+		fmt.Println("Checking version of", c.Name)
 		cmd := exec.CommandContext(ctx, "/bin/bash", "-c", c.Cmd)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
