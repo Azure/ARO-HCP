@@ -36,7 +36,6 @@ type Frontend struct {
 	metricsServer        http.Server
 	dbClient             database.DBClient
 	ready                atomic.Value
-	done                 chan struct{}
 	metrics              Emitter
 	location             string
 }
@@ -63,7 +62,6 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net
 			},
 		},
 		dbClient: dbClient,
-		done:     make(chan struct{}),
 		location: strings.ToLower(location),
 	}
 
@@ -109,12 +107,6 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-
-	close(f.done)
-}
-
-func (f *Frontend) Join() {
-	<-f.done
 }
 
 func (f *Frontend) CheckReady(ctx context.Context) bool {
@@ -747,12 +739,6 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			logger.Info(fmt.Sprintf("updated document for subscription %s", subscriptionID))
 		}
 	}
-
-	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
-		"location":       f.location,
-		"subscriptionid": subscriptionID,
-		"state":          string(subscription.State),
-	})
 
 	// Clean up resources if subscription is deleted.
 	if subscription.State == arm.SubscriptionStateDeleted {

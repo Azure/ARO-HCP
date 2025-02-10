@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
+	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -168,18 +170,33 @@ func (opts *FrontendOpts) Run() error {
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheusEmitter, dbClient, opts.location, &csClient)
-
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
-	go f.Run(ctx, stop)
+
+	var wg sync.WaitGroup
+
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheusEmitter, dbClient, opts.location, &csClient)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		f.Run(ctx, stop)
+	}()
+
+	collector := metrics.NewSubscriptionCollector(prometheus.DefaultRegisterer, dbClient, opts.location)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		collector.Run(logger, stop)
+	}()
 
 	sig := <-signalChannel
 	logger.Info(fmt.Sprintf("caught %s signal", sig))
 	close(stop)
 
-	f.Join()
+	wg.Wait()
 	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, util.Version()))
 
 	return nil
