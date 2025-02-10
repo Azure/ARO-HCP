@@ -11,6 +11,10 @@ $schema: "pipeline.schema.v1"
 
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
+buildout:
+  isForAutomatedBuildout: true
+  dependsOn:
+  - Microsoft.Azure.ARO.HCP.Region
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
 - name: {{ .global.rg }}
