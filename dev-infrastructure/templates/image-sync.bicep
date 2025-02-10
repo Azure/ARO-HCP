@@ -122,9 +122,7 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   location: location
 }
 
-// TODO: define permissions on ACR level instead of RG level
-// ACRs can be in different RGs or even subscriptions. ideally we should
-// be able to deal with ACR resource IDs as input instead of RG and ACR names
+// ACR permissions
 
 module acrPushPermissions '../modules/acr/acr-permissions.bicep' = [
   for acrName in [svcAcrName, ocpAcrName]: {
@@ -133,7 +131,7 @@ module acrPushPermissions '../modules/acr/acr-permissions.bicep' = [
     params: {
       principalId: uami.properties.principalId
       grantPushAccess: true
-      acrName: ocpAcrName
+      acrName: acrName
     }
   }
 ]
@@ -144,7 +142,7 @@ module acrPullPermissions '../modules/acr/acr-permissions.bicep' = [
     scope: resourceGroup(acrResourceGroup)
     params: {
       principalId: uami.properties.principalId
-      acrName: ocpAcrName
+      acrName: acrName
       grantPullAccess: true
     }
   }
@@ -293,6 +291,8 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
   }
   dependsOn: [
     kv
+    acrPushPermissions
+    acrPullPermissions
   ]
 }
 
@@ -486,6 +486,8 @@ resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
     }
     dependsOn: [
       kv
+      acrPushPermissions
+      acrPullPermissions
     ]
   }
 ]
