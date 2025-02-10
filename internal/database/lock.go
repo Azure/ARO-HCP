@@ -34,7 +34,7 @@ type LockClient struct {
 // lockDocument implements a global distributed lock.
 // Its contents should be opaque outside of LockClient.
 type lockDocument struct {
-	BaseDocument
+	baseDocument
 	Owner string `json:"owner,omitempty"`
 	TTL   int32  `json:"ttl,omitempty"`
 }
@@ -120,7 +120,7 @@ func (c *LockClient) AcquireLock(ctx context.Context, id string, timeout *time.D
 // is already taken, it returns a nil azcosmos.ItemResponse and no error.
 func (c *LockClient) TryAcquireLock(ctx context.Context, id string) (*azcosmos.ItemResponse, error) {
 	doc := &lockDocument{
-		BaseDocument: BaseDocument{ID: id},
+		baseDocument: baseDocument{ID: id},
 		Owner:        c.name,
 		TTL:          c.defaultTimeToLive,
 	}
@@ -173,7 +173,7 @@ func (c *LockClient) HoldLock(ctx context.Context, item *azcosmos.ItemResponse) 
 			}
 
 			// Aim to renew one second before TTL expires.
-			timeToRenew := time.Unix(int64(doc.Timestamp), 0)
+			timeToRenew := time.Unix(int64(doc.CosmosTimestamp), 0)
 			if doc.TTL > 0 {
 				timeToRenew = timeToRenew.Add(time.Duration(doc.TTL-1) * time.Second)
 			}

@@ -192,16 +192,16 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceId, doc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceID, doc.InternalID)
 
-	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
+	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationDoc.ID)
+	err = f.ExposeOperation(writer, request, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -211,7 +211,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	// This is called directly when creating a resource, and indirectly from
 	// within a retry loop when updating a resource.
 	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
-		doc.ActiveOperationID = operationDoc.ID
+		doc.ActiveOperationID = operationID
 		doc.ProvisioningState = operationDoc.Status
 
 		// Record the latest system data values from ARM, if present.
@@ -274,7 +274,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 // the necessary conversions for the API version of the request.
 func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpNodePool := ConvertCStoNodePool(doc.ResourceId, csNodePool)
+	hcpNodePool := ConvertCStoNodePool(doc.ResourceID, csNodePool)
 	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState

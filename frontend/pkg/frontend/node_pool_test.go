@@ -131,11 +131,11 @@ func TestCreateNodePool(t *testing.T) {
 				Times(2)
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
-				GetResourceDoc(gomock.Any(), test.nodePoolDoc.ResourceId).
+				GetResourceDoc(gomock.Any(), test.nodePoolDoc.ResourceID).
 				Return(nil, database.ErrNotFound)
 			// CheckForProvisioningStateConflict and CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
-				GetResourceDoc(gomock.Any(), equalResourceID(test.clusterDoc.ResourceId)). // defined in frontend_test.go
+				GetResourceDoc(gomock.Any(), equalResourceID(test.clusterDoc.ResourceID)). // defined in frontend_test.go
 				Return(test.clusterDoc, nil).
 				Times(2)
 			// CreateOrUpdateNodePool
@@ -238,7 +238,7 @@ func TestCreateNodePool(t *testing.T) {
 // 			csNodePool, _ := f.BuildCSNodePool(context.TODO(), hcpNodePool, false)
 
 // 			if test.subDoc != nil {
-// 				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), test.subDoc)
+// 				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), dummySubscriptionId, test.subDoc)
 // 				if err != nil {
 // 					t.Fatal(err)
 // 				}

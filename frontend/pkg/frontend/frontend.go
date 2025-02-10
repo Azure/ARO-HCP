@@ -218,7 +218,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	for doc := range dbIterator.Items(ctx) {
 		// FIXME This filtering could be made part of the query expression. It would
 		//       require some reworking (or elimination) of the DBClient interface.
-		if strings.HasSuffix(strings.ToLower(doc.ResourceId.ResourceType.Type), resourceTypeName) {
+		if strings.HasSuffix(strings.ToLower(doc.ResourceID.ResourceType.Type), resourceTypeName) {
 			documentMap[doc.InternalID.ID()] = doc
 		}
 	}
@@ -511,16 +511,16 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceId, doc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceID, doc.InternalID)
 
-	err = f.dbClient.CreateOperationDoc(ctx, operationDoc)
+	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationDoc.ID)
+	err = f.ExposeOperation(writer, request, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -530,7 +530,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	// This is called directly when creating a resource, and indirectly from
 	// within a retry loop when updating a resource.
 	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
-		doc.ActiveOperationID = operationDoc.ID
+		doc.ActiveOperationID = operationID
 		doc.ProvisioningState = operationDoc.Status
 
 		// Record the latest system data values from ARM, if present.
@@ -716,7 +716,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if errors.Is(err, database.ErrNotFound) {
 		doc := database.NewSubscriptionDocument(subscriptionID, &subscription)
-		err = f.dbClient.CreateSubscriptionDoc(ctx, doc)
+		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, doc)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -906,7 +906,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, doc) {
+	if !f.OperationIsVisible(request, resourceID.Name, doc) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -920,7 +920,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.ResourceId, csCluster)
+	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
 	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
 	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
@@ -995,7 +995,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, doc) {
+	if !f.OperationIsVisible(request, resourceID.Name, doc) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
