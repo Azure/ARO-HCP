@@ -146,9 +146,9 @@
         run: |
           make acrpull.mgmt.deploy
 
-      - name: 'Deploy PKO'
-        run: |
-          make pko.deploy_pipeline
+      #- name: 'Deploy PKO'
+      #  run: |
+      #    make pko.deploy_pipeline
 
       - name: 'Deploy ACM'
         run: |
