@@ -25,6 +25,10 @@ param dnsServiceIP string = '10.130.0.10'
 // Passed Params and Overrides
 param location string
 
+@description('List of Availability Zones to use for the AKS cluster')
+param locationAvailabilityZones array
+var locationHasAvailabilityZones = length(locationAvailabilityZones) > 0
+
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
@@ -56,13 +60,6 @@ var istioIngressGatewayIPAddressIPTagsArray = [
     ipTagType: split(tag, ':')[0]
     tag: split(tag, ':')[1]
   }
-]
-
-@description('List of Availability Zones for zone-redundant resources')
-param zoneRedundancyZones array = [
-  '1'
-  '2'
-  '3'
 ]
 
 @maxLength(24)
@@ -255,7 +252,7 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
     name: istioIngressGatewayIPAddressName
     ipTags: istioIngressGatewayIPAddressIPTagsArray
     location: location
-    zones: zoneRedundancyZones
+    zones: locationHasAvailabilityZones ? locationAvailabilityZones : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
@@ -272,7 +269,7 @@ module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = 
     name: aksClusterOutboundIPAddressName
     ipTags: aksClusterOutboundIPAddressIPTagsArray
     location: location
-    zones: zoneRedundancyZones
+    zones: locationHasAvailabilityZones ? locationAvailabilityZones : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
@@ -338,7 +335,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
         maxPods: 100
-        availabilityZones: zoneRedundancyZones
+        availabilityZones: locationHasAvailabilityZones ? locationAvailabilityZones : null
         securityProfile: {
           enableSecureBoot: false
           enableVTPM: false
@@ -492,9 +489,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       vnetSubnetID: aksNodeSubnet.id
       podSubnetID: aksPodSubnet.id
       maxPods: 225
-      availabilityZones: [
-        '${(i + 1)}'
-      ]
+      availabilityZones: locationHasAvailabilityZones ? [locationAvailabilityZones[i]] : null
       securityProfile: {
         enableSecureBoot: false
         enableVTPM: false

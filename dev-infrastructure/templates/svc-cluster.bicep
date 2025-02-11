@@ -1,7 +1,11 @@
-import { locationIsZoneRedundant } from '../templates/common.bicep'
+import { getLocationAvailabilityZones } from 'common.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
+
+@description('List of Availability Zones to use for the AKS cluster')
+param locationAvailabilityZones array = getLocationAvailabilityZones(location)
+var locationHasAvailabilityZones = length(locationAvailabilityZones) > 0
 
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
@@ -191,6 +195,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   scope: resourceGroup()
   params: {
     location: location
+    locationAvailabilityZones: locationAvailabilityZones
     persist: persist
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
@@ -376,7 +381,7 @@ module oidc '../modules/oidc/main.bicep' = {
     location: location
     storageAccountName: oidcStorageAccountName
     rpMsiName: csMIName
-    skuName: locationIsZoneRedundant(location) ? 'Standard_ZRS' : 'Standard_LRS'
+    skuName: locationHasAvailabilityZones ? 'Standard_ZRS' : 'Standard_LRS'
     msiId: aroDevopsMsiId
     deploymentScriptLocation: location
   }
