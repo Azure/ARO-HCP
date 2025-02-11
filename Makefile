@@ -139,9 +139,9 @@ services_all = $(join services_svc,services_mgmt)
 services_svc_pipelines = istio acrpull backend frontend cluster-service maestro.server
 # Don't apply mgmt cluster fixes to personal clusters
 ifeq ($(DEPLOY_ENV), personal-dev)
-	services_mgmt_pipelines = hypershiftoperator maestro.agent acm
+	services_mgmt_pipelines = hypershiftoperator maestro.agent acm pko
 else
-	services_mgmt_pipelines = mgmt-fixes hypershiftoperator maestro.agent acm
+	services_mgmt_pipelines = mgmt-fixes hypershiftoperator maestro.agent acm pko
 endif
 %.deploy_pipeline:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
