@@ -295,7 +295,7 @@ output frontend_mi_client_id string = frontendMI.uamiClientID
 //   M A E S T R O
 //
 
-var effectiveMaestroCertDomain = maestroCertDomain != '' ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
+var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
 
 module maestroServer '../modules/maestro/maestro-server.bicep' = {
   name: 'maestro-server'
