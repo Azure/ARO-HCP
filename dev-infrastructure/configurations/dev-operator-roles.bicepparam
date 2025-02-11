@@ -6,18 +6,22 @@ param roles = [
     roleDescription: 'Enables permissions for the operator to manage and update the cloud controller managers deployed on top of OpenShift.'
     actions: [
       'Microsoft.Compute/virtualMachines/read'
+      'Microsoft.Network/loadBalancers/backendAddressPools/join/action'
       'Microsoft.Network/loadBalancers/read'
       'Microsoft.Network/loadBalancers/write'
+      'Microsoft.Network/loadBalancers/inboundNatRules/join/action'
       'Microsoft.Network/networkInterfaces/read'
+      'Microsoft.Network/networkInterfaces/write'
       'Microsoft.Network/networkSecurityGroups/read'
       'Microsoft.Network/networkSecurityGroups/write'
+      'Microsoft.Network/networkSecurityGroups/join/action'
       'Microsoft.Network/publicIPAddresses/join/action'
       'Microsoft.Network/publicIPAddresses/read'
       'Microsoft.Network/publicIPAddresses/write'
       'Microsoft.Network/virtualNetworks/subnets/join/action'
       'Microsoft.Network/virtualNetworks/subnets/read'
-      'Microsoft.Network/loadBalancers/backendAddressPools/join/action'
-      'Microsoft.Network/networkInterfaces/write'
+      'Microsoft.Network/publicIPPrefixes/join/action'
+      'Microsoft.Network/applicationSecurityGroups/joinNetworkSecurityRule/action'
     ]
     notActions: []
     dataActions: []
