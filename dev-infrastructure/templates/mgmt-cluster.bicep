@@ -116,6 +116,11 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
         namespace: 'logs'
         serviceAccountName: 'genevabit-aggregator'
       }
+      pko_wi: {
+        uamiName: 'package-operator'
+        namespace: 'package-operator-system'
+        serviceAccountName: 'package-operator'
+      }
     })
     aksKeyVaultName: aksKeyVaultName
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
