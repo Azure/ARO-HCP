@@ -29,9 +29,6 @@ param location string
 param locationAvailabilityZones array
 var locationHasAvailabilityZones = length(locationAvailabilityZones) > 0
 
-@description('Set to true to prevent resources from being pruned after 48 hours')
-param persist bool = false
-
 param kubernetesVersion string
 param deployIstio bool
 param istioVersions array = []
@@ -288,7 +285,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
     tier: 'Standard'
   }
   tags: {
-    persist: toLower(string(persist))
+    persist: 'true'
     clusterType: clusterType
   }
   identity: {

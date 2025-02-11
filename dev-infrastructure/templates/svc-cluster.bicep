@@ -7,9 +7,6 @@ param location string = resourceGroup().location
 param locationAvailabilityZones array = getLocationAvailabilityZones(location)
 var locationHasAvailabilityZones = length(locationAvailabilityZones) > 0
 
-@description('Set to true to prevent resources from being pruned after 48 hours')
-param persist bool = false
-
 @description('AKS cluster name')
 param aksClusterName string
 
@@ -199,7 +196,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   params: {
     location: location
     locationAvailabilityZones: locationAvailabilityZones
-    persist: persist
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete

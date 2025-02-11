@@ -6,9 +6,6 @@ param location string = resourceGroup().location
 @description('List of Availability Zones to use for the AKS cluster')
 param locationAvailabilityZones array = getLocationAvailabilityZones(location)
 
-@description('Set to true to prevent resources from being pruned after 48 hours')
-param persist bool = false
-
 @description('AKS cluster name')
 param aksClusterName string = 'aro-hcp-aks'
 
@@ -106,7 +103,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   params: {
     location: location
     locationAvailabilityZones: locationAvailabilityZones
-    persist: persist
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
