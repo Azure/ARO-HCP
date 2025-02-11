@@ -38,6 +38,7 @@
         "roleName": "Azure Red Hat OpenShift KMS Plugin - Dev"
       }
     },
+    "environment": "arohcpdev",
     "imageRepo": "app-sre/uhc-clusters-service",
     "imageTag": "d62fa9d",
     "k8s": {

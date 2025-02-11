@@ -82,6 +82,8 @@ resourceGroups:
       configRef: clusterService.k8s.namespace
     - name: SERVICE_ACCOUNT_NAME
       configRef: clusterService.k8s.serviceAccountName
+    - name: ENVIRONMENT
+      configRef: clusterService.environment
 
 
     # this is maestro consumer registration stuff

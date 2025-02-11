@@ -38,6 +38,7 @@
         "roleName": "Key Vault Crypto User"
       }
     },
+    "environment": "arohcpint",
     "imageRepo": "app-sre/uhc-clusters-service",
     "imageTag": "dca2a71",
     "k8s": {

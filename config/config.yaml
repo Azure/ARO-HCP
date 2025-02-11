@@ -102,6 +102,7 @@ defaults:
 
   # Cluster Service
   clusterService:
+    environment: arohcpdev
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true
