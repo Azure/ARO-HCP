@@ -125,6 +125,7 @@
       "imageTag": "1.25"
     },
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
+    "certIssuer": "Self",
     "consumerName": "hcp-underlay-usw3tst-mgmt-1",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,

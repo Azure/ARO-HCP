@@ -96,6 +96,14 @@
       "keyColonValueCSV": {
         "type": "string",
         "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
+      },
+      "certificateIssuer": {
+        "type": "string",
+        "enum": [
+          "Self",
+          "OneCertV2-PublicCA",
+          "OneCertV2-PrivateCA"
+        ]
       }
     },
     "properties": {
@@ -367,12 +375,7 @@
                 "type": "string"
               },
               "issuer": {
-                "type": "string",
-                "enum": [
-                  "Self",
-                  "OneCertV2-PublicCA",
-                  "OneCertV2-PrivateCA"
-                ]
+                "$ref": "#/definitions/certificateIssuer"
               }
             },
             "additionalProperties": false,
@@ -550,7 +553,11 @@
         "type": "object",
         "properties": {
           "certDomain": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional SAN base domain for Maestro Eventgrid certificates. If missing, defaults to maestro.${dns.regionalSubdomain}.${dns.svcParentZoneName}"
+          },
+          "certIssuer": {
+            "$ref": "#/definitions/certificateIssuer"
           },
           "consumerName": {
             "type": "string"
@@ -668,7 +675,7 @@
         },
         "additionalProperties": false,
         "required": [
-          "certDomain",
+          "certIssuer",
           "consumerName",
           "server",
           "eventGrid",

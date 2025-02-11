@@ -67,6 +67,17 @@ resourceGroups:
     provider:
       name: provider
       value: OneCertV2-PrivateCA
+  - name: mgmt-oncert-public-kv-issuer
+    action: SetCertificateIssuer
+    dependsOn:
+      - mgmt-infra
+    vaultBaseUrl:
+      input:
+        name: mgmtKeyVaultUrl
+        step: mgmt-infra
+    provider:
+      name: provider
+      value: OneCertV2-PublicCA
   # Build the MC
   - name: mgmt-cluster
     action: ARM
@@ -93,6 +104,7 @@ resourceGroups:
     dependsOn:
     - cx-oncert-public-kv-issuer
     - mgmt-oncert-private-kv-issuer
+    - mgmt-oncert-public-kv-issuer
     - global-output
     - region-output
 - name: {{ .mgmt.rg }}
