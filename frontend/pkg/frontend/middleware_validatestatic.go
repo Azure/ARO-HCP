@@ -19,6 +19,7 @@ import (
 var rxHCPOpenShiftClusterResourceName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{2,53}$`)
 var rxNodePoolResourceName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{2,14}$`)
 
+// MiddlewareValidateStatic ensures that the URL path parses to a valid resource ID.
 func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	// To conform with "OAPI012: Resource IDs must not be case sensitive"
 	// we need to use the original, non-lowercased resource ID components

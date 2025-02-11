@@ -13,6 +13,7 @@ import (
 
 const megabyte int64 = (1 << 20)
 
+// MiddlewareBody ensures that the request's body doesn't exceed the maximum size of 4MB.
 func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	switch r.Method {
 	case http.MethodPatch, http.MethodPost, http.MethodPut:

@@ -2,11 +2,11 @@ package frontend
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -111,29 +111,18 @@ func TestMiddlewareValidateStatic(t *testing.T) {
 			// Execute the middleware
 			MiddlewareValidateStatic(w, req, nextHandler)
 
+			res := w.Result()
+
 			// Check the response status code
-			if status := w.Code; status != tc.expectedStatusCode {
-				t.Errorf("handler returned wrong status code: got %v want %v",
-					status, tc.expectedStatusCode)
-			}
+			assert.Equal(t, tc.expectedStatusCode, res.StatusCode)
 
 			if tc.expectedStatusCode != http.StatusOK {
-
 				var resp CloudErrorContainer
-				body, err := io.ReadAll(http.MaxBytesReader(w, w.Result().Body, 4*megabyte))
-				if err != nil {
-					t.Fatalf("failed to read response body: %v", err)
-				}
-				err = json.Unmarshal(body, &resp)
-				if err != nil {
-					t.Fatalf("failed to unmarshal response body: %v", err)
-				}
+				err := json.NewDecoder(res.Body).Decode(&resp)
+				assert.NoError(t, err)
 
 				// Check if the error message contains the expected text
-				if !strings.Contains(resp.Error.Message, tc.expectedBody) {
-					t.Errorf("handler returned unexpected body: got %v want %v",
-						resp.Error.Message, tc.expectedBody)
-				}
+				assert.Contains(t, tc.expectedBody, resp.Error.Message)
 			}
 		})
 	}
