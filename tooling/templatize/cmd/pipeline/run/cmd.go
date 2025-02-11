@@ -21,7 +21,7 @@ type Version struct {
 var versionConstraints = []Version{
 	{
 		Name:       "Azure CLI",
-		Cmd:        "az --version | grep azure-cli |awk '{print $NF}'",
+		Cmd:        "az  --version 2>/dev/null | grep azure-cli |awk '{print $2}'",
 		Constraint: ">=2.68.0",
 	},
 	{
