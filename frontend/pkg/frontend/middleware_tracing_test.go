@@ -33,14 +33,6 @@ func TestMiddlewareTracing(t *testing.T) {
 		expectedAttrs   map[string]string
 		expectedBaggage map[string]string
 	}{
-		//{
-		//	// Verify that the function doesn't panic if there's no span in the
-		//	// context.
-		//	name:               "no span context",
-		//	data:               &arm.CorrelationData{},
-		//	withoutSpanContext: true,
-		//},
-
 		{
 			name: "empty correlation data",
 			data: &arm.CorrelationData{},

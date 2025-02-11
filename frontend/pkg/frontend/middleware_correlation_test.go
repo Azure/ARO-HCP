@@ -22,28 +22,28 @@ func TestMiddlewareCorrelation(t *testing.T) {
 		testCorrelationRequestID = "33333333-3333-3333-3333-333333333333"
 	)
 
-	type headerTest func(*testing.T, http.Header)
+	type responseTest func(*testing.T, *http.Response)
 
-	headerValueEqual := func(k, expected string) headerTest {
-		return func(t *testing.T, h http.Header) {
+	headerValueEqual := func(k, expected string) responseTest {
+		return func(t *testing.T, r *http.Response) {
 			t.Helper()
-			if got := h.Get(k); expected != got {
+			if got := r.Header.Get(k); expected != got {
 				t.Fatalf("expected header %q to be %q, got %q", k, expected, got)
 			}
 		}
 	}
-	headerPresent := func(k string) headerTest {
-		return func(t *testing.T, h http.Header) {
+	headerPresent := func(k string) responseTest {
+		return func(t *testing.T, r *http.Response) {
 			t.Helper()
-			if got := h.Get(k); got == "" {
+			if got := r.Header.Get(k); got == "" {
 				t.Fatalf("expected header %q to be present, got none", k)
 			}
 		}
 	}
-	headerAbsent := func(k string) headerTest {
-		return func(t *testing.T, h http.Header) {
+	headerAbsent := func(k string) responseTest {
+		return func(t *testing.T, r *http.Response) {
 			t.Helper()
-			if got := h.Get(k); got != "" {
+			if got := r.Header.Get(k); got != "" {
 				t.Fatalf("expected header %q to be absent, got %q", k, got)
 			}
 		}
@@ -53,7 +53,7 @@ func TestMiddlewareCorrelation(t *testing.T) {
 		name string
 		r    http.Request
 
-		expectedHeaders         []headerTest
+		expectedResponseFns     []responseTest
 		expectedCorrelationID   string
 		expectedClientRequestID string
 	}
@@ -62,7 +62,7 @@ func TestMiddlewareCorrelation(t *testing.T) {
 		{
 			name: "should set the request ID header",
 			r:    http.Request{},
-			expectedHeaders: []headerTest{
+			expectedResponseFns: []responseTest{
 				headerPresent(arm.HeaderNameRequestID),
 				headerAbsent(arm.HeaderNameClientRequestID),
 			},
@@ -76,7 +76,7 @@ func TestMiddlewareCorrelation(t *testing.T) {
 					arm.HeaderNameReturnClientRequestID: []string{"true"},
 				},
 			},
-			expectedHeaders: []headerTest{
+			expectedResponseFns: []responseTest{
 				headerPresent(arm.HeaderNameRequestID),
 				headerValueEqual(arm.HeaderNameClientRequestID, testClientRequestID),
 			},
@@ -92,7 +92,7 @@ func TestMiddlewareCorrelation(t *testing.T) {
 					arm.HeaderNameReturnClientRequestID: []string{"false"},
 				},
 			},
-			expectedHeaders: []headerTest{
+			expectedResponseFns: []responseTest{
 				headerPresent(arm.HeaderNameRequestID),
 				headerAbsent(arm.HeaderNameClientRequestID),
 			},
@@ -107,7 +107,7 @@ func TestMiddlewareCorrelation(t *testing.T) {
 					arm.HeaderNameCorrelationRequestID: []string{testCorrelationRequestID},
 				},
 			},
-			expectedHeaders: []headerTest{
+			expectedResponseFns: []responseTest{
 				headerPresent(arm.HeaderNameRequestID),
 				headerAbsent(arm.HeaderNameClientRequestID),
 			},
@@ -142,8 +142,8 @@ func TestMiddlewareCorrelation(t *testing.T) {
 			MiddlewareCorrelationData(writer, req, next)
 
 			// Check that the expected headers are sent.
-			for _, headerTest := range tt.expectedHeaders {
-				headerTest(t, writer.Header())
+			for _, testFn := range tt.expectedResponseFns {
+				testFn(t, writer.Result())
 			}
 
 			// Check that the correlation data was found in the next handler.
