@@ -346,7 +346,7 @@ sequenceDiagram
      {
        "op": "add",
        "path": "/properties/operationId",
-       "value": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/.../hcpOperationsStatus/69d4b377-481a-49b2-9005-4f64d7726dff"
+       "value": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/.../hcpOperationStatuses/69d4b377-481a-49b2-9005-4f64d7726dff"
      }
    ]
    ```
@@ -396,7 +396,7 @@ sequenceDiagram
        "tenantId": value from request header x-ms-home-tenant-id,
        "externalId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/.../hcpOpenShiftClusters/myCluster",
        "internalId": "/api/aro_hcp/v1alpha1/clusters/{cluster_id}",
-       "operationId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/.../hcpOperationsStatus/69d4b377-481a-49b2-9005-4f64d7726dff",
+       "operationId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/.../hcpOperationStatuses/69d4b377-481a-49b2-9005-4f64d7726dff",
        "startTime": "2025-03-14T01:59:26Z",
        "lastTransitionTime": "2025-03-14T01:00:00Z",
        "status": "Accepted"
@@ -683,7 +683,7 @@ sequenceDiagram
      {
        "op": "add",
        "path": "/properties/operationId",
-       "value": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/.../hcpOperationsStatus/e2f8f733-dd90-49b0-8b2b-f390b42aa339"
+       "value": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/.../hcpOperationStatuses/e2f8f733-dd90-49b0-8b2b-f390b42aa339"
      }
    ]
    ```
