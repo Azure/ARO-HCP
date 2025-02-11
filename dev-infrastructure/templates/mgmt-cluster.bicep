@@ -196,7 +196,7 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 //   M A E S T R O
 //
 
-var effectiveMaestroCertDomain = maestroCertDomain != '' ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
+var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
 
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
   name: 'maestro-consumer'
