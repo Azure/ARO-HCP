@@ -148,7 +148,7 @@
 
       - name: 'Deploy PKO'
         run: |
-          make pko.deploy
+          make pko.deploy_pipeline
 
       - name: 'Deploy ACM'
         run: |
