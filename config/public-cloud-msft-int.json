@@ -130,6 +130,7 @@
       "imageBase": "mcr.microsoft.com/azurelinux/base/nginx",
       "imageTag": "1.25"
     },
+    "certDomain": "",
     "certIssuer": "OneCertV2-PrivateCA",
     "consumerName": "hcp-underlay-int-mgmt-1",
     "eventGrid": {
