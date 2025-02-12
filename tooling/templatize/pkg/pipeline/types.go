@@ -220,7 +220,7 @@ func (s *DelegateChildZoneStep) Description() string {
 type SetCertificateIssuerStep struct {
 	StepMeta     `yaml:",inline"`
 	VaultBaseUrl VariableRef `yaml:"vaultBaseUrl"`
-	Provider     VariableRef `yaml:"provider"`
+	Issuer       VariableRef `yaml:"issuer"`
 }
 
 func (s *SetCertificateIssuerStep) Description() string {
