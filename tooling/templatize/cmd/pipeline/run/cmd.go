@@ -49,7 +49,6 @@ func NewCommand() (*cobra.Command, error) {
 
 func ensureDependencies(ctx context.Context) error {
 	for _, c := range versionConstraints {
-		fmt.Println("Checking version of", c.Name)
 		cmd := exec.CommandContext(ctx, "/bin/bash", "-c", c.Cmd)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -57,16 +56,16 @@ func ensureDependencies(ctx context.Context) error {
 		}
 		semverConstraint, err := semver.NewConstraint(c.Constraint)
 		if err != nil {
-			return fmt.Errorf("Error creation version constraint %v", err)
+			return fmt.Errorf("Error creation version constraint '%s', %v", c.Name, err)
 		}
 		trimmedOutput := strings.TrimSuffix(string(output), "\n")
 		v, err := semver.NewVersion(trimmedOutput)
 		if err != nil {
-			return fmt.Errorf("Error parsing version '%s' %v", trimmedOutput, err)
+			return fmt.Errorf("Error parsing version of '%s', '%s' %v", c.Name, trimmedOutput, err)
 		}
 
 		if !semverConstraint.Check(v) {
-			return fmt.Errorf("wrong version, expected '%s', found: '%s'", c.Constraint, trimmedOutput)
+			return fmt.Errorf("wrong version of '%s', expected '%s', found: '%s'", c.Name, c.Constraint, trimmedOutput)
 		}
 
 	}
