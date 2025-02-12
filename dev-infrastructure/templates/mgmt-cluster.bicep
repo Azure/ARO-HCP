@@ -163,10 +163,10 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
 //
 var logsManagedIdentityPrincipalId = filter(mgmtCluster.outputs.userAssignedIdentities, id => id.uamiName == logsMSI)[0].uamiPrincipalID
 
-module logsServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(cxKeyVaultName, logsMSI, 'certuser')
+module logsMgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(mgmtKeyVaultName, logsMSI, 'certuser')
   params: {
-    keyVaultName: cxKeyVaultName
+    keyVaultName: mgmtKeyVaultName
     roleName: 'Key Vault Certificate User'
     managedIdentityPrincipalId: logsManagedIdentityPrincipalId
   }
