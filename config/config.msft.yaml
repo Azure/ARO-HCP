@@ -96,7 +96,27 @@ defaults:
 
   # Cluster Service
   clusterService:
-    environment: "arohcpint"
+    imageRepo: app-sre/uhc-clusters-service
+    azureOperatorsManagedIdentities:
+      cloudControllerManager:
+        roleName: Azure Red Hat OpenShift Cloud Controller Manager Role
+      ingress:
+        roleName: Azure Red Hat OpenShift Cluster Ingress Operator Role
+      diskCsiDriver:
+        roleName: Azure Red Hat OpenShift Storage Operator Role
+      fileCsiDriver:
+        roleName: Azure Red Hat OpenShift Azure Files Storage Operator Role
+      imageRegistry:
+        roleName: Azure Red Hat OpenShift Image Registry Operator Role
+      cloudNetworkConfig:
+        roleName: Azure Red Hat OpenShift Network Operator Role
+      kms:
+        roleName: Key Vault Crypto User
+      # below two are supposed to be replaced with ARO-specific builtin roles
+      clusterApiAzure:
+        roleName: Contributor
+      controlPlane:
+        roleName: Contributor
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true
@@ -177,44 +197,26 @@ clouds:
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       clusterService:
-        imageTag: dca2a71
-        imageRepo: app-sre/uhc-clusters-service
-        azureOperatorsManagedIdentities:
-          cloudControllerManager:
-            roleName: Azure Red Hat OpenShift Cloud Controller Manager Role
-          ingress:
-            roleName: Azure Red Hat OpenShift Cluster Ingress Operator Role
-          diskCsiDriver:
-            roleName: Azure Red Hat OpenShift Storage Operator Role
-          fileCsiDriver:
-            roleName: Azure Red Hat OpenShift Azure Files Storage Operator Role
-          imageRegistry:
-            roleName: Azure Red Hat OpenShift Image Registry Operator Role
-          cloudNetworkConfig:
-            roleName: Azure Red Hat OpenShift Network Operator Role
-          kms:
-            roleName: Key Vault Crypto User
-          # below two are supposed to be replaced with ARO-specific builtin roles
-          clusterApiAzure:
-            roleName: Contributor
-          controlPlane:
-            roleName: Contributor
+        imageTag: d62fa9d
       hypershiftOperator:
-        imageTag: 9aca808
+        imageTag: 1bb8b1a
       imageSync:
         componentSync:
           imageTag: d1021e2
         ocMirror:
           imageTag: d1021e2
       frontend:
-        imageTag: 0b076bf
+        imageTag: be13820
       backend:
-        imageTag: 0b076bf
+        imageTag: be13820
 
     environments:
       int:
         # this is the MSFT INT environment
         defaults:
+          # Cluster Service
+          clusterService:
+            environment: "arohcpint"
           # OIDC
           oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }}
           # SVC

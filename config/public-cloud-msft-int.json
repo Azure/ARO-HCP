@@ -6,7 +6,7 @@
   "armHelperFPAPrincipalId": "4026d9e7-2897-4f0c-83d4-897858a5f8a8",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
-    "imageTag": "0b076bf"
+    "imageTag": "be13820"
   },
   "clusterService": {
     "azureOperatorsManagedIdentities": {
@@ -40,7 +40,7 @@
     },
     "environment": "arohcpint",
     "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "dca2a71",
+    "imageTag": "d62fa9d",
     "k8s": {
       "namespace": "cluster-service",
       "serviceAccountName": "clusters-service"
@@ -79,7 +79,7 @@
       "name": "arohcp-rp-int",
       "private": false
     },
-    "imageTag": "0b076bf"
+    "imageTag": "be13820"
   },
   "global": {
     "globalMSIName": "global-ev2-identity",
@@ -93,7 +93,7 @@
     "namespace": "hypershift"
   },
   "hypershiftOperator": {
-    "imageTag": "9aca808"
+    "imageTag": "1bb8b1a"
   },
   "imageSync": {
     "acrRG": "global-shared-resources",
