@@ -11,7 +11,6 @@ deploy:
 	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query tenantId -o tsv) && \
 	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
-	CS_SERVICE_PRINCIPAL_CREDS_BASE64='$(shell az keyvault secret show --vault-name "${SERVICE_KV}" --name "aro-hcp-dev-sp-cs" -o json | jq .value -r | base64 | tr -d '\n')' && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
@@ -42,7 +41,7 @@ deploy:
 	  --set tenantId=$${TENANT_ID} \
 	  --set region=${REGION} \
 	  --set serviceKeyvaultName=${SERVICE_KV} \
-	  --set csServicePrincipalCredsBase64=$${CS_SERVICE_PRINCIPAL_CREDS_BASE64} \
+	  --set csServicePrincipalCredsBase64="eyAidGVuYW50SWQiOiAiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIiwgImNsaWVudElkIjogIjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsICJjbGllbnRTZWNyZXQiOiAiaS1hbS1mYWtlIiB9Cg==" \
 	  --set imageRegistry=${ACR_NAME}.azurecr.io \
 	  --set imageRepository=${IMAGE_REPO} \
 	  --set imageTag=${IMAGE_TAG} \
