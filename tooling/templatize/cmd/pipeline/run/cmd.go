@@ -56,12 +56,12 @@ func ensureDependencies(ctx context.Context) error {
 		}
 		semverConstraint, err := semver.NewConstraint(c.Constraint)
 		if err != nil {
-			return fmt.Errorf("Error creation version constraint %v", err)
+			return fmt.Errorf("Error creation version constraint '%s', %v", c.Name, err)
 		}
 		trimmedOutput := strings.TrimSuffix(string(output), "\n")
 		v, err := semver.NewVersion(trimmedOutput)
 		if err != nil {
-			return fmt.Errorf("Error parsing version '%s' %v", trimmedOutput, err)
+			return fmt.Errorf("Error parsing version of '%s', '%s' %v", c.Name, trimmedOutput, err)
 		}
 
 		if !semverConstraint.Check(v) {
