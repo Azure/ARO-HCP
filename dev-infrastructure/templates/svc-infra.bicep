@@ -16,7 +16,7 @@ param serviceKeyVaultPrivate bool = true
 @description('KV certificate officer principal ID')
 param kvCertOfficerPrincipalId string
 
-@description('MSI that will be used during pipeline runs to access KVs')
+@description('MSI that will be used during pipeline runs')
 param aroDevopsMsiId string
 
 @description('Set to true to prevent resources from being pruned after 48 hours')
@@ -30,6 +30,24 @@ resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
     tags: {
       persist: toLower(string(persist))
     }
+  }
+}
+
+// Reader role
+// https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
+var readerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
+
+// service deployments running as the aroDevopsMsi need to lookup metadata about all kinds
+// of resources, e.g. AKS metadata, database metadata, MI metadata, etc.
+resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, aroDevopsMsiId, readerRoleId)
+  properties: {
+    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: readerRoleId
   }
 }
 

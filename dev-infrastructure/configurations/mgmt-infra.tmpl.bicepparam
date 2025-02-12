@@ -18,6 +18,9 @@ param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVault.softDelete }}
 // SP for KV certificate issuer registration
 param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
 
+// MI for resource access during pipeline runs
+param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+
 // Cluster Service identity
 // used for Key Vault access
 param clusterServiceMIResourceId = '__clusterServiceMIResourceId__'

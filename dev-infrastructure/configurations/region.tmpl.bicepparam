@@ -18,3 +18,6 @@ param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroEventGridMaxClientSessionsPerAuthName = {{ .maestro.eventGrid.maxClientSessionsPerAuthName }}
 param maestroEventGridPrivate = {{ .maestro.eventGrid.private }}
 param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
+
+// MI for resource access during pipeline runs
+param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
