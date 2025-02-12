@@ -129,7 +129,7 @@ output mgmtKeyVaultUrl string = mgmtKeyVault.outputs.kvUrl
 //
 
 module csKeyVaultAccess '../modules/cluster-service-mc-kv-access.bicep' = if (clusterServiceMIResourceId != '') {
-  name: '${deployment().name}-cs-kv-access'
+  name: 'cs-msi-kv-access'
   params: {
     clusterServiceMIResourceId: clusterServiceMIResourceId
     cxKeyVaultName: cxKeyVaultName
