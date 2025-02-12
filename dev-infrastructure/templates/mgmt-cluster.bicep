@@ -97,6 +97,16 @@ param aroDevopsMsiId string
 @description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
 
+// logs
+@description('The namespace of the logs')
+param logsNamespace string
+
+@description('The managed identity name of the logs')
+param logsMSI string
+
+@description('The service account name of the logs managed identity')
+param logsServiceAccount string
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster'
   scope: resourceGroup()
@@ -120,9 +130,9 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
         serviceAccountName: 'maestro'
       }
       logs_wi: {
-        uamiName: 'logs-mdsd'
-        namespace: 'logs'
-        serviceAccountName: 'genevabit-aggregator'
+        uamiName: logsMSI
+        namespace: logsNamespace
+        serviceAccountName: logsServiceAccount
       }
       pko_wi: {
         uamiName: 'package-operator'
@@ -164,6 +174,16 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
 //
 // K E Y V A U L T S
 //
+var logsManagedIdentityPrincipalId = filter(mgmtCluster.outputs.userAssignedIdentities, id => id.uamiName == logsMSI)[0].uamiPrincipalID
+
+module logsMgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(mgmtKeyVaultName, logsMSI, 'certuser')
+  params: {
+    keyVaultName: mgmtKeyVaultName
+    roleName: 'Key Vault Certificate User'
+    managedIdentityPrincipalId: logsManagedIdentityPrincipalId
+  }
+}
 
 module cxCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
   for role in [

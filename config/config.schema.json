@@ -769,6 +769,26 @@
           "workspaceName"
         ]
       },
+      "logs": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string"
+          },
+          "msiName": {
+            "type": "string"
+          },
+          "serviceAccountName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "namespace",
+          "msiName",
+          "serviceAccountName"
+        ]
+      },
       "msiKeyVault": {
         "type": "object",
         "properties": {
