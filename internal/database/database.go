@@ -48,41 +48,107 @@ type DBClientIterator[T DocumentProperties] interface {
 	GetError() error
 }
 
-// DBClient is a document store for frontend to perform required CRUD operations against
+// DBClient provides a customized interface to the Cosmos DB containers used by the
+// ARO-HCP resource provider.
 type DBClient interface {
-	// DBConnectionTest is used to health check the database. If the database is not reachable or otherwise not ready
-	// to be used, an error should be returned.
+	// DBConnectionTest verifies the database is reachable. Intended for use in health checks.
 	DBConnectionTest(ctx context.Context) error
 
 	// GetLockClient returns a LockClient, or nil if the DBClient does not support a LockClient.
 	GetLockClient() *LockClient
 
-	// GetResourceDoc retrieves a ResourceDocument from the database given its resourceID.
-	// ErrNotFound is returned if an associated ResourceDocument cannot be found.
+	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
+	// matching resourceID.
 	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error)
+
+	// CreateResourceDoc creates a new cluster or node pool document in the "Resources" container.
 	CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error
+
+	// UpdateResourceDoc updates a cluster or node pool document in the "Resources" container by
+	// first fetching the document and passing it to the provided callback for modifications to be
+	// applied. It then attempts to replace the existing document with the modified document and an
+	// "etag" precondition. Upon a precondition failure the function repeats for a limited number of
+	// times before giving up.
+	//
+	// The callback function should return true if modifications were applied, signaling to proceed
+	// with the document replacement. The boolean return value reflects this: returning true if the
+	// document was successfully replaced, or false with or without an error to indicate no change.
 	UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error)
-	// DeleteResourceDoc deletes a ResourceDocument from the database given the resourceID
-	// of a Microsoft.RedHatOpenShift/HcpOpenShiftClusters resource or NodePools child resource.
+
+	// DeleteResourceDoc deletes a cluster or node pool document in the "Resources" container.
+	// If no matching document is found, DeleteResourceDoc returns nil as though it had succeeded.
 	DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
+
+	// ListResourceDocs returns an iterator that searches for cluster or node pool documents in
+	// the "Resources" container that match the given resource ID prefix. The prefix must include
+	// a subscription ID so the correct partition key can be inferred.
+	//
+	// Note that ListResourceDocs does not perform the search, but merely prepares an iterator to
+	// do so. Hence the lack of a Context argument. The search is performed by calling Items() on
+	// the iterator in a ranged for loop.
+	//
+	// maxItems can limit the number of items returned at once. A negative value will cause the
+	// returned iterator to yield all matching documents. A positive value will cause the returned
+	// iterator to include a continuation token if additional items are available. The continuation
+	// token can be supplied on a subsequent call to obtain those additional items.
 	ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument]
 
+	// GetOperationDoc retrieves an asynchronous operation document from the "Resources" container.
 	GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error)
+
+	// CreateResourceDoc creates a new asynchronous operation document in the "Resources" container.
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error)
+
+	// UpdateOperationDoc updates an asynchronous operation document in the "Resources" container
+	// by first fetching the document and passing it to the provided callback for modifications to
+	// be applied. It then attempts to replace the existing document with the modified document and
+	// an "etag" precondition. Upon a precondition failure the function repeats for a limited number
+	// of times before giving up.
+	//
+	// The callback function should return true if modifications were applied, signaling to proceed
+	// with the document replacement. The boolean return value reflects this: returning true if the
+	// document was successfully replaced, or false with or without an error to indicate no change.
 	UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error)
+
+	// ListOperationDocs returns an iterator that searches for asynchronous operation documents
+	// in the "Resources" container under the given partition key.
+	//
+	// Note that ListOperationDocs does not perform the search, but merely prepares an iterator to
+	// do so. Hence the lack of a Context argument. The search is performed by calling Items() on
+	// the iterator in a ranged for loop.
 	ListOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument]
 
-	// GetSubscriptionDoc retrieves a subscription from the database given the subscriptionID.
-	// ErrNotFound is returned if an associated subscription cannot be found.
+	// GetSubscriptionDoc retrieves a subscription document from the "Resources" container.
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
+
+	// CreateSubscriptionDoc creates a new subscription document in the "Resources" container.
 	CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error
+
+	// UpdateSubscriptionDoc updates a subscription document in the "Resources" container by first
+	// fetching the document and passing it to the provided callback for modifications to be applied.
+	// It then attempts to replace the existing document with the modified document an an "etag"
+	// precondition. Upon a precondition failure the function repeats for a limited number of times
+	// before giving up.
+	//
+	// The callback function should return true if modifications were applied, signaling to proceed
+	// with the document replacement. The boolean return value reflects this: returning true if the
+	// document was successfully replaced, or false with or without an error to indicate no change.
 	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error)
+
+	// ListAllSubscriptionDocs() returns an iterator that searches for all subscription documents in
+	// the "Resources" container. Since the "Resources" container is partitioned by subscription ID,
+	// there will only be one subscription document per logical partition. Thus, this method enables
+	// iterating over all the logical partitions in the "Resources" container.
+	//
+	// Note that ListAllSubscriptionDocs does not perform the search, but merely prepares an iterator
+	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
+	// the iterator in a ranged for loop.
 	ListAllSubscriptionDocs() DBClientIterator[arm.Subscription]
 }
 
 var _ DBClient = &cosmosDBClient{}
 
-// cosmosDBClient defines the needed values to perform CRUD operations against the async DB
+// cosmosDBClient defines the needed values to perform CRUD operations against Cosmos DB.
 type cosmosDBClient struct {
 	database      *azcosmos.DatabaseClient
 	resources     *azcosmos.ContainerClient
@@ -112,7 +178,6 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 	}, nil
 }
 
-// DBConnectionTest checks the async database is accessible on startup
 func (d *cosmosDBClient) DBConnectionTest(ctx context.Context) error {
 	if _, err := d.database.Read(ctx, nil); err != nil {
 		return fmt.Errorf("failed to read Cosmos database information during healthcheck: %v", err)
@@ -164,7 +229,6 @@ func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorea
 	return nil, nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, ErrNotFound)
 }
 
-// GetResourceDoc retrieves a resource document from the "resources" DB using resource ID
 func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
 	_, innerDoc, err := d.getResourceDoc(ctx, resourceID)
 	if err != nil {
@@ -190,7 +254,6 @@ func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 	return innerDoc, nil
 }
 
-// CreateResourceDoc creates a resource document in the "resources" DB during resource creation
 func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {
 	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
 
@@ -207,14 +270,6 @@ func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 	return nil
 }
 
-// UpdateResourceDoc updates a resource document by first fetching the document and passing it to
-// the provided callback for modifications to be applied. It then attempts to replace the existing
-// document with the modified document and an "etag" precondition. Upon a precondition failure the
-// function repeats for a limited number of times before giving up.
-//
-// The callback function should return true if modifications were applied, signaling to proceed
-// with the document replacement. The boolean return value reflects this: returning true if the
-// document was sucessfully replaced, or false with or without an error to indicate no change.
 func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error) {
 	var err error
 
@@ -255,7 +310,6 @@ func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azco
 	return false, err
 }
 
-// DeleteResourceDoc removes a resource document from the "resources" DB using resource ID
 func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	typedDoc, _, err := d.getResourceDoc(ctx, resourceID)
 	if err != nil {
@@ -272,10 +326,6 @@ func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azco
 	return nil
 }
 
-// ListResourceDocs searches for resource documents that match the given resource ID prefix.
-// maxItems can limit the number of items returned at once. A negative value will cause the
-// returned iterator to yield all matching items. A positive value will cause the returned
-// iterator to include a continuation token if additional items are available.
 func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument] {
 	pk := NewPartitionKey(prefix.SubscriptionID)
 
@@ -326,15 +376,11 @@ func (d *cosmosDBClient) getOperationDoc(ctx context.Context, pk azcosmos.Partit
 	return typedDoc, innerDoc, nil
 }
 
-// GetOperationDoc retrieves the asynchronous operation document for the given
-// operation ID from the "operations" container
 func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error) {
 	_, innerDoc, err := d.getOperationDoc(ctx, pk, operationID)
 	return innerDoc, err
 }
 
-// CreateOperationDoc writes an asynchronous operation document to the "operations"
-// container
 func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error) {
 	// Make sure partition key is lowercase.
 	subscriptionID := strings.ToLower(doc.ExternalID.SubscriptionID)
@@ -355,14 +401,6 @@ func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 	return typedDoc.ID, nil
 }
 
-// UpdateOperationDoc updates an operation document by first fetching the document and
-// passing it to the provided callback for modifications to be applied. It then attempts to
-// replace the existing document with the modified document and an "etag" precondition. Upon
-// a precondition failure the function repeats for a limited number of times before giving up.
-//
-// The callback function should return true if modifications were applied, signaling to proceed
-// with the document replacement. The boolean return value reflects this: returning true if the
-// document was successfully replaced, or false with or without an error to indicate no change.
 func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error) {
 	var err error
 
@@ -444,13 +482,11 @@ func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID 
 	return typedDoc, innerDoc, nil
 }
 
-// GetSubscriptionDoc retreives a subscription document from async DB using the subscription ID
 func (d *cosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
 	_, innerDoc, err := d.getSubscriptionDoc(ctx, subscriptionID)
 	return innerDoc, err
 }
 
-// CreateSubscriptionDoc creates/updates a subscription document in the async DB during cluster creation/patching
 func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error {
 	typedDoc := newTypedDocument(subscriptionID, azcorearm.SubscriptionResourceType)
 	typedDoc.ID = strings.ToLower(subscriptionID)
@@ -475,14 +511,6 @@ func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscription
 	return nil
 }
 
-// UpdateSubscriptionDoc updates a subscription document by first fetching the document and
-// passing it to the provided callback for modifications to be applied. It then attempts to
-// replace the existing document with the modified document and an "etag" precondition. Upon
-// a precondition failure the function repeats for a limited number of times before giving up.
-//
-// The callback function should return true if modifications were applied, signaling to proceed
-// with the document replacement. The boolean return value reflects this: returning true if the
-// document was successfully replaced, or false with or without an error to indicate no change.
 func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
 	var err error
 
