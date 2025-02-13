@@ -40,18 +40,18 @@
         - name: "install azure-cli"
           uses: "Azure/ARO-HCP@main"
 
-        - name: 'Az CLI login branch'
-          if: github.event.pull_request.merged == true
-          uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
-          with:
-              client-id: ${{ secrets.AZURE_CLIENT_ID }}
-              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-        - name: 'Az CLI login workflow'
+        - name: 'set branch client id'
+          if: github.event_name != 'workflow_dispatch'
+          run: |
+            echo "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> "$GITHUB_ENV"
+        
+        - name: 'set workflow client id'
           if: github.event_name == 'workflow_dispatch'
+          run: |
+            echo "AZURE_CLIENT_ID=${{ secrets.JBOLL_AZURE_CLIENT_ID }}" >> "$GITHUB_ENV"
+          
+        - name: 'Az CLI login branch'
           uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
           with:
-              client-id: ${{ secrets.JBOLL_AZURE_CLIENT_ID }}
               tenant-id: ${{ secrets.AZURE_TENANT_ID }}
               subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
