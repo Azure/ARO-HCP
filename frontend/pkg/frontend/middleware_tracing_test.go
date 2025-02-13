@@ -59,14 +59,14 @@ func TestMiddlewareTracing(t *testing.T) {
 				CorrelationRequestID: testCorrelationRequestID,
 			},
 			expectedAttrs: map[string]string{
-				"request.id":        testRequestID.String(),
-				"client.request.id": testClientRequestID,
-				"correlation.id":    testCorrelationRequestID,
+				"aro.request.id":        testRequestID.String(),
+				"aro.client.request.id": testClientRequestID,
+				"aro.correlation.id":    testCorrelationRequestID,
 			},
 			expectedBaggage: map[string]string{
-				"request.id":        testRequestID.String(),
-				"client.request.id": testClientRequestID,
-				"correlation.id":    testCorrelationRequestID,
+				"aro.request.id":        testRequestID.String(),
+				"aro.client.request.id": testClientRequestID,
+				"aro.correlation.id":    testCorrelationRequestID,
 			},
 		},
 	} {
