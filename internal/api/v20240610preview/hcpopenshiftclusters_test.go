@@ -109,7 +109,7 @@ func TestClusterRequiredForPut(t *testing.T) {
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1 is not assigned to this resource",
-					Target:  "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
 					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity is assigned to this resource but not used",
@@ -117,7 +117,7 @@ func TestClusterRequiredForPut(t *testing.T) {
 				},
 				{
 					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2 is not assigned to this resource",
-					Target:  "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				},
 			},
 		},
@@ -127,15 +127,15 @@ func TestClusterRequiredForPut(t *testing.T) {
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1 is used multiple times",
-					Target:  "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
 					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1 is used multiple times",
-					Target:  "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorY]",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorY]",
 				},
 				{
 					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1 is used multiple times",
-					Target:  "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				},
 			},
 		},

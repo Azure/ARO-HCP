@@ -30,7 +30,7 @@ func init() {
 	//       about what changed and when. For example:
 	//
 	//       // This field became updatable in version YYYY-MM-DD.
-	//       clusterStructTagMap["Properties.Spec.FieldName"] = reflect.StructTag("visibility:\"read create\"")
+	//       clusterStructTagMap["Properties.FieldName"] = reflect.StructTag("visibility:\"read create\"")
 	//
 
 	api.Register(version{})

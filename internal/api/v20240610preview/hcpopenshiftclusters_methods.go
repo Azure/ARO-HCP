@@ -316,7 +316,7 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 // contains structured but user-friendly details for all discovered errors.
 func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
-	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is being declared under Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities
+	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is being declared under Properties.Platform.OperatorsAuthentication.UserAssignedIdentities
 	if normalized.Identity.UserAssignedIdentities != nil {
 		//Initiate the map that will have the number occurence of ConstrolPlaneOperators fields .
 		controlPlaneOpOccurrences := make(map[string]int)
@@ -334,13 +334,13 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 					Message: fmt.Sprintf(
 						"identity %s is not assigned to this resource",
 						resourceID),
-					Target: fmt.Sprintf("properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
 				})
 			} else if controlPlaneOpOccurrences[resourceID] > 1 {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Message: fmt.Sprintf(
 						"identity %s is used multiple times", resourceID),
-					Target: fmt.Sprintf("properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
 				})
 
 			}
@@ -353,7 +353,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 					Message: fmt.Sprintf(
 						"identity %s is not assigned to this resource",
 						smiResourceID),
-					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				})
 			}
 			//making sure serviceManagedIdentity is not already assigned to controlPlaneOperators
@@ -361,7 +361,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Message: fmt.Sprintf(
 						"identity %s is used multiple times", smiResourceID),
-					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				})
 			}
 		}
