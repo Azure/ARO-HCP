@@ -1,4 +1,3 @@
--include ../../setup-env.mk
 -include ../../helm-cmd.mk
 
 deploy:
