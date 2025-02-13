@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
@@ -112,7 +113,7 @@ func (opts *FrontendOpts) Run() error {
 	prometheusEmitter := frontend.NewPrometheusEmitter(prometheus.DefaultRegisterer)
 
 	// Initialize the global OpenTelemetry tracer.
-	otelShutdown, err := frontend.ConfigureOpenTelemetryTracer(ctx, logger)
+	otelShutdown, err := frontend.ConfigureOpenTelemetryTracer(ctx, logger, semconv.CloudRegion(opts.location))
 	if err != nil {
 		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
 	}

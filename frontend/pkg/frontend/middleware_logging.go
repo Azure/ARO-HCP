@@ -4,13 +4,18 @@ package frontend
 // Licensed under the Apache License 2.0.
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 
 type LoggingReadCloser struct {
@@ -77,39 +82,77 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
 
-	attrs := getLogAttrs(r)
-	logger = slog.New(logger.Handler().WithAttrs(attrs))
-	r = r.WithContext(ContextWithLogger(ctx, logger))
+	attrs := &attributes{
+		subscriptionID: r.PathValue(PathSegmentSubscriptionID),
+		resourceGroup:  r.PathValue(PathSegmentResourceGroupName),
+		resourceName:   r.PathValue(PathSegmentResourceName),
+	}
+	attrs.addToCurrentSpan(ctx)
+	ctx = ContextWithLogger(ctx, attrs.extendLogger(logger))
+	r = r.WithContext(ctx)
 
 	next(w, r)
 }
 
-// getLogAttrs returns the additional Logging attributes based on the wildcards
-// from the matched pattern.
-func getLogAttrs(r *http.Request) []slog.Attr {
+type attributes struct {
+	subscriptionID string
+	resourceGroup  string
+	resourceName   string
+}
+
+func (a *attributes) resourceID() string {
+	if a.subscriptionID == "" || a.resourceGroup == "" || a.resourceName == "" {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"/subscriptions/%s/resourcegroups/%s/providers/%s/%s",
+		a.subscriptionID,
+		a.resourceGroup,
+		api.ClusterResourceType,
+		a.resourceName,
+	)
+}
+
+// extendLogger returns a new logger with additional Logging attributes based
+// on the wildcards from the matched pattern.
+func (a *attributes) extendLogger(logger *slog.Logger) *slog.Logger {
 	var attrs []slog.Attr
 
-	subscriptionID := r.PathValue(PathSegmentSubscriptionID)
-	if subscriptionID != "" {
-		attrs = append(attrs, slog.String("subscription_id", subscriptionID))
+	if a.subscriptionID != "" {
+		attrs = append(attrs, slog.String("subscription_id", a.subscriptionID))
 	}
 
-	resourceGroup := r.PathValue(PathSegmentResourceGroupName)
-	if resourceGroup != "" {
-		attrs = append(attrs, slog.String("resource_group", resourceGroup))
+	if a.resourceGroup != "" {
+		attrs = append(attrs, slog.String("resource_group", a.resourceGroup))
 	}
 
-	resourceName := r.PathValue(PathSegmentResourceName)
-	if resourceName != "" {
-		attrs = append(attrs, slog.String("resource_name", resourceName))
+	if a.resourceName != "" {
+		attrs = append(attrs, slog.String("resource_name", a.resourceName))
 	}
 
-	wholePath := subscriptionID != "" && resourceGroup != "" && resourceName != ""
-	if wholePath {
-		format := "/subscriptions/%s/resourcegroups/%s/providers/%s/%s"
-		resource_id := fmt.Sprintf(format, subscriptionID, resourceGroup, api.ClusterResourceType, resourceName)
-		attrs = append(attrs, slog.String("resource_id", resource_id))
+	if resourceID := a.resourceID(); resourceID != "" {
+		attrs = append(attrs, slog.String("resource_id", resourceID))
 	}
 
-	return attrs
+	return slog.New(logger.Handler().WithAttrs(attrs))
+}
+
+func (a *attributes) addToCurrentSpan(ctx context.Context) {
+	span := trace.SpanFromContext(ctx)
+
+	var attrs []attribute.KeyValue
+	if a.subscriptionID != "" {
+		attrs = append(attrs, tracing.SubscriptionIDKey.String(a.subscriptionID))
+	}
+
+	if a.resourceGroup != "" {
+		attrs = append(attrs, tracing.ResourceGroupNameKey.String(a.resourceGroup))
+	}
+
+	if a.resourceName != "" {
+		attrs = append(attrs, tracing.ResourceNameKey.String(a.resourceName))
+	}
+
+	span.SetAttributes(attrs...)
 }

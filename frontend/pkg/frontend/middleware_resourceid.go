@@ -8,11 +8,12 @@ import (
 	"net/http"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // This middleware only applies to endpoints whose path form a valid Azure
 // resource ID. It should follow the MiddlewareLowercase function.
-
 func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
@@ -26,6 +27,9 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 
 	resourceID, err := azcorearm.ParseResourceID(originalPath)
 	if err == nil {
+		span := trace.SpanFromContext(ctx)
+		span.SetAttributes(semconv.CloudResourceID(resourceID.String()))
+
 		ctx = ContextWithResourceID(ctx, resourceID)
 		r = r.WithContext(ctx)
 	} else {

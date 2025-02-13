@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 
 const (
@@ -64,6 +67,11 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 				*sub.Subscription.Properties.TenantId)
 		}
 	}
+
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(
+		tracing.SubscriptionStateKey.String(string(sub.Subscription.State)),
+	)
 
 	switch sub.Subscription.State {
 	case arm.SubscriptionStateRegistered:

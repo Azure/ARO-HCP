@@ -6,6 +6,9 @@ package frontend
 import (
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -33,6 +36,10 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 		ctx = ContextWithLogger(ctx, logger)
 		ctx = ContextWithVersion(ctx, version)
 		r = r.WithContext(ctx)
+
+		span := trace.SpanFromContext(ctx)
+		span.SetAttributes(attribute.String("aro.api_version", apiVersion))
+
 		next(w, r)
 	}
 }

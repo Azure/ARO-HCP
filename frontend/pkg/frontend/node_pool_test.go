@@ -131,7 +131,7 @@ func TestCreateNodePool(t *testing.T) {
 				Times(2)
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
-				GetResourceDoc(gomock.Any(), test.nodePoolDoc.ResourceID).
+				GetResourceDoc(gomock.Any(), equalResourceID(test.nodePoolDoc.ResourceID)).
 				Return(nil, database.ErrNotFound)
 			// CheckForProvisioningStateConflict and CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
