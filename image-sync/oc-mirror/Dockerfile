@@ -6,7 +6,7 @@ RUN set -eux; \
     tdnf -y install unzip wget tar ca-certificates; \
     tdnf clean all
 
-ENV OC_VERSION=4.18.0-rc.7
+ENV OC_VERSION=4.18.0-rc.9
 ENV YQ_VERSION=v4.2.0
 
 RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux.tar.gz -o oc.tar.gz  && \
