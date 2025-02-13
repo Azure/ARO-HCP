@@ -31,12 +31,10 @@ param serviceKeyVaultName string
 @description('The resource group of the service keyvault')
 param serviceKeyVaultResourceGroup string
 
-@description(
-  '''
+@description('''
   The regional DNS zone to hold ARO HCP customer cluster DNS records.
   CS requires write access to this zone to provision the DNS records for HCPs.
-  '''
-)
+  ''')
 param regionalCXDNSZoneName string
 
 @description('The regional resourece group')
