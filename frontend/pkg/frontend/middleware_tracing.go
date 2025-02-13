@@ -22,27 +22,36 @@ import (
 // The middleware expects that the trace provider is initialized and configured
 // in advance.
 func MiddlewareTracing(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	otelhttp.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var (
-			ctx    = r.Context()
-			logger = LoggerFromContext(ctx)
-		)
+	middlewareTracing(w, r, next)
+}
 
-		data, err := CorrelationDataFromContext(ctx)
-		if err != nil {
-			span := trace.SpanFromContext(ctx)
-			span.RecordError(err)
-			logger.ErrorContext(ctx, "failed to find correlation data in context", "error", err)
+// middlewareTracing allows to modify the default otelhttp handler for the tests.
+func middlewareTracing(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, opts ...otelhttp.Option) {
+	otelhttp.NewHandler(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var (
+				ctx    = r.Context()
+				logger = LoggerFromContext(ctx)
+			)
+
+			data, err := CorrelationDataFromContext(ctx)
+			if err != nil {
+				span := trace.SpanFromContext(ctx)
+				span.RecordError(err)
+				logger.ErrorContext(ctx, "failed to find correlation data in context", "error", err)
+				next(w, r)
+				return
+			}
+
+			r = r.WithContext(
+				addCorrelationDataToSpanContext(ctx, data),
+			)
+
 			next(w, r)
-			return
-		}
-
-		r = r.WithContext(
-			addCorrelationDataToSpanContext(ctx, data),
-		)
-
-		next(w, r)
-	}), fmt.Sprintf("HTTP %s", r.Method)).ServeHTTP(w, r)
+		}),
+		fmt.Sprintf("HTTP %s", r.Method),
+		opts...,
+	).ServeHTTP(w, r)
 }
 
 // addCorrelationDataToSpanContext adds the correlation data as attributes to
