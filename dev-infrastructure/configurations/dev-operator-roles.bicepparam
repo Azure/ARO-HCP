@@ -143,7 +143,6 @@ param roles = [
     roleName: 'Azure Red Hat OpenShift Cluster API Role - Dev'
     roleDescription: 'Enables permissions to allow cluster API to manage nodes, networks and disks for OpenShift cluster.'
     actions: [
-      'Microsoft.Authorization/policies/auditIfNotExists/action'
       'Microsoft.Compute/availabilitySets/delete'
       'Microsoft.Compute/availabilitySets/read'
       'Microsoft.Compute/availabilitySets/write'
