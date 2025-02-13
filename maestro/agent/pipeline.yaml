@@ -6,7 +6,7 @@ resourceGroups:
   subscription: {{ .mgmt.subscription }}
   aksCluster: {{ .aksName }}
   steps:
-  - name: deploy
+  - name: deploy-agent
     action: Shell
     command: make deploy
     dryRun:
@@ -32,3 +32,21 @@ resourceGroups:
       configRef: maestro.agentSideCar.imageBase
     - name: SIDECAR_IMAGE_TAG
       configRef: maestro.agentSideCar.imageTag
+- name: {{ .svc.rg }}
+  subscription: {{ .svc.subscription }}
+  aksCluster: {{ .aksName }}
+  steps:
+  - name: register-agent-with-server
+    action: Shell
+    command: make -C ../registration deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: CONSUMER_NAME
+      configRef: maestro.consumerName
+    - name: NAMESPACE
+      configRef: maestro.server.k8s.namespace
+    dependsOn:
+    - deploy-agent

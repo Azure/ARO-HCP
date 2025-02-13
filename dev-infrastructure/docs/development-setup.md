@@ -315,12 +315,6 @@ First install the agent
   make maestro.agent.deploy_pipeline
   ```
 
-Then register it with the Maestro Server
-
-  ```bash
-  make maestro.registration.deploy
-  ```
-
 ## Creating an ARO HCP Cluster via Cluster Service
 
 ### Creating a cluster

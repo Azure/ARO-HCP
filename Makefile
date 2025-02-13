@@ -110,7 +110,7 @@ infra.clean:
 #   separator "/" (used for maestro only).
 
 # Services deployed on "svc" aks cluster
-services_svc = maestro.registration
+services_svc =
 # Services deployed on "mgmt" aks cluster(s)
 services_mgmt =
 # List of all services
