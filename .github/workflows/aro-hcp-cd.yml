@@ -45,12 +45,26 @@
     cancel-in-progress: false
 
   jobs:
+    no_reruns:
+      runs-on: ubuntu-latest
+      steps:
+        - name: No reruns please
+          run: |
+            if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+                echo "No re-runs allowed, trigger workflow manually."
+                exit 1
+              else
+                echo "not a re-run"
+              fi
+
     deploy_global_rg:
       name: 'Deploy global resources'
       if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       permissions:
         id-token: 'write'
         contents: 'read'
+      needs:
+        - no_reruns
       env:
         DEPLOY_ENV: dev
       runs-on: 'ubuntu-latest'
