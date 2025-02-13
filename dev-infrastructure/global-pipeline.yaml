@@ -28,7 +28,7 @@ resourceGroups:
     childZone:
       configRef: dns.cxParentZoneName
     dependsOn:
-    - global-infra
+    - global-infraa
   # create global ARO HCP ACRs for OCP and SVC images
   - name: global-acrs
     action: ARM
