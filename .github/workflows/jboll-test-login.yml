@@ -27,7 +27,6 @@
   jobs:
     test_login:
       name: 'Testing login'
-      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
       permissions:
         id-token: 'write'
         contents: 'read'
