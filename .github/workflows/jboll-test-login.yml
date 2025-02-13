@@ -1,9 +1,6 @@
 ---
   name: Jboll testing
   env:
-    DEPLOY_ENV: dev
-    PERSIST: true
-    SKIP_CONFIRM: true
     AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
     AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
     AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -53,3 +50,7 @@
 
         - name: 'Az CLI login branch'
           uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
+          with:
+            client-id: ${{ env.AZURE_CLIENT_ID }}
+            tenant-id: ${{ env.AZURE_TENANT_ID }}
+            subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
