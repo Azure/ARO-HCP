@@ -215,7 +215,7 @@ main() {
       .properties.platform.managedResourceGroup = $managed_rg |
       .properties.platform.subnetId = $subnet_id |
       .properties.platform.networkSecurityGroupId = $nsg_id |
-      .propertiesc.platform.operatorsAuthentication.userAssignedIdentities = $uamis_json_map |
+      .properties.platform.operatorsAuthentication.userAssignedIdentities = $uamis_json_map |
       .identity.userAssignedIdentities = $identity_uamis_json_map
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
