@@ -172,6 +172,11 @@
       "clusterService": {
         "type": "object",
         "properties": {
+          "environment" :{
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10
+          },
           "imageRepo": {
             "type": "string"
           },
@@ -269,6 +274,7 @@
         },
         "additionalProperties": false,
         "required": [
+          "environment",
           "imageRepo",
           "imageTag",
           "managedIdentityName",

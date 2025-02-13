@@ -59,7 +59,7 @@ gatewayUrl: "http://127.0.0.1:9090"
 clientScopes: "openid"
 
 # Environment associated with this instance.
-environment: "aro-hcp-dev"
+environment: ""
 
 # The URL of the Backplane API which is exposed via an endpoint and is dynamically consumed by the Backplane CLI.
 # Backplane CLI expects a URL with the following format https://api.<OCM environment>.backplane.<domain>

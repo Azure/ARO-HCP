@@ -35,6 +35,7 @@ deploy:
 	  --namespace ${NAMESPACE} \
 	  -f deploy/helm/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
+	  --set environment=${ENVIRONMENT} \
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
 	  --set oidcIssuerBlobServiceUrl=$${OIDC_BLOB_SERVICE_ENDPOINT} \
 	  --set oidcIssuerBaseUrl=$${OIDC_ISSUER_BASE_ENDPOINT} \
