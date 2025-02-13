@@ -9,4 +9,5 @@ use (
 	./tooling/image-sync
 	./tooling/templatize
 	./tooling/mcerepkg
+	tooling/prometheus-rules
 )
