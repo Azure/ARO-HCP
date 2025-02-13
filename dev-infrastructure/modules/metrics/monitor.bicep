@@ -15,12 +15,12 @@ resource monitor 'microsoft.monitor/accounts@2021-06-03-preview' = {
   location: resourceGroup().location
 }
 
-module defaultRuleGroups 'rules/defaultRecordingRuleGroups.bicep' ={
+module defaultRuleGroups 'rules/defaultRecordingRuleGroups.bicep' = {
   name: 'defaultRecordingRuleGroups'
   params: {
-   azureMonitorWorkspaceLocation: resourceGroup().location
-   azureMonitorWorkspaceName: monitorName
-   regionalResourceGroup: resourceGroup().name
+    azureMonitorWorkspaceLocation: resourceGroup().location
+    azureMonitorWorkspaceName: monitorName
+    regionalResourceGroup: resourceGroup().name
   }
 }
 // Assign the Monitoring Data Reader role to the Azure Managed Grafana system-assigned managed identity at the workspace scope
@@ -48,6 +48,12 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 module prometheus 'rules/prometheusAlertingRules.bicep' = {
   name: 'prometheusAlertingRules'
+  params: {
+    azureMonitoring: monitor.id
+  }
+}
+module generatedAlerts 'rules/generatedPrometheusAlertingRules.bicep' = {
+  name: 'generatedPrometheusAlertingRules'
   params: {
     azureMonitoring: monitor.id
   }

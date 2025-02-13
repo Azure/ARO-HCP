@@ -49,13 +49,15 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-12-15-preview' 
           'ClientCertificateDns'
         ]
       }
-
     }
   }
 }
 
 // find a better way to register the OneCert
-resource certificateSignerCA 'Microsoft.EventGrid/namespaces/caCertificates@2024-12-15-preview' = if (startsWith(certificateIssuer, 'OneCert')) {
+resource certificateSignerCA 'Microsoft.EventGrid/namespaces/caCertificates@2024-12-15-preview' = if (startsWith(
+  certificateIssuer,
+  'OneCert'
+)) {
   parent: eventGridNamespace
   name: 'ameroot'
   properties: {
