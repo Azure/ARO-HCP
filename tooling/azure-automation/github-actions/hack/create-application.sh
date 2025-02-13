@@ -33,6 +33,17 @@ az ad app federated-credential create --id "${APP_ID}" --parameters \
     "subject": "repo:Azure/ARO-HCP:pull_request"
 }'
 
+az ad app federated-credential create --id "${APP_ID}" --parameters \
+'{
+    "audiences": [
+        "api://AzureADTokenExchange"
+    ],
+    "description": "https://github.com/Azure/ARO-HCP runner",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "name": "aro-hcp-main",
+    "subject": "repo:Azure/ARO-HCP:ref:refs/heads/main"
+}'
+
 echo "----------- Configure GitHub with the below secrets -----------"
 echo "AZURE_CLIENT_ID: ${APP_ID}"
 echo "AZURE_SUBSCRIPTION_ID: ${SUBSCRIPTION}"
