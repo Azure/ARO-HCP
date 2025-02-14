@@ -91,7 +91,7 @@ deploy-pr-env-deps:
 		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
 
 create-pr-env-sp:
-	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n aro-hcp-aks --query id -o tsv) && \
+	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n ${AKS_NAME} --query id -o tsv) && \
 	az ad sp create-for-rbac \
 	--display-name "cs-pr-authentication" \
 	--role 'Contributor' \
