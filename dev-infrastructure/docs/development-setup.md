@@ -65,28 +65,9 @@ Every developer creates their own set of service/management clusters, including 
   what: base64 encoded access token for the `quay.io/app-sre` organization
   purposes: used by image-sync to mirror component images
 
-* `aro-hcp-dev-sp`
-  what: Azure SP credentials to be used for HCPs
-  purpose: until managed identities are available for HCPs, this is the auth creds
-    for controlplane operators to interact with Azure. This SP has contributer
-    permissions in the subscription
-
-* `aro-hcp-dev-sp-cs`
-  what: the same Azure SP credentials as `aro-hcp-dev-sp` but formatted for CS
-  purpose: until the 1P mock certificate is going to be used by CS to interact
-    with Azure, it will use these static creds instead
-
 * `pull-secret`
   what: pull secret for quay and redhat registries of user `aro-hcp-service-lifecycle-team+quay@redhat.com`
   purpose: used by `oc-mirror` to mirror OCP release payloads into the ACR
-
-* `aro-hcp-dev-pull-secret` - can be removed????
-  what: pull secret for quay.io and registry.redhat.io and the `arohcpdev` ACR
-  purpose: this was used during P1 while we still installed clusters from quay.io payloads
-    later it was used to for HCPs to get access to the ACR while CS was not
-    yet creating dedicated pull secrets for them
-  note: since HCPs don't pull from quay or RH registries anymore and CS now creates
-    dedicated pull secrets for the ACR, this should be safe to delete
 
 * `component-pull-secret` - can be removed????
   what: holds the same a pull secret for quay.io (same as `component-sync-pull-secret`) but
@@ -426,9 +407,9 @@ First install the agent
     ```bash
     SUBSCRIPTION_NAME="ARO Hosted Control Planes (EA Subscription 1)"
     RESOURCENAME="<INSERT-NAME>"
-    SUBSCRIPTION=$(echo $(az account subscription list | jq '.[] | select(.displayName == $SUBSCRIPTION_NAME)' | jq -r '.subscriptionId'))
+    SUBSCRIPTIONID=$(az account list | jq -r ".[] | select (.name == \"$SUBSCRIPTION_ID\") | .id")
     RESOURCEGROUPNAME="<INSERT-NAME>"
-    TENANTID=$(echo $(cat azure-creds.json | jq -r '.tenantId'))
+    TENANTID=$(az account list | jq -r ".[] | select (.name == \"$SUBSCRIPTION_ID\") | .tenantId")
     MANAGEDRGNAME="<INSERT-NAME>"
     SUBNETRESOURCEID="<INSERT-NAME>"
     NSG="<INSERT-NAME>"
@@ -450,7 +431,7 @@ First install the agent
       "multi_az": true,
       "azure": {
         "resource_name": "$RESOURCENAME",
-        "subscription_id": "$SUBSCRIPTION",
+        "subscription_id": "$SUBSCRIPTIONID",
         "resource_group_name": "$RESOURCEGROUPNAME",
         "tenant_id": "$TENANTID",
         "managed_resource_group_name": "$MANAGEDRGNAME",
@@ -620,32 +601,6 @@ To connect to the database with the managed identity of CS, make sure to have a 
 Once logged in, verify the connection with `\conninfo`
 
 > The password is a temporary access token that is valid only for 1h
-
-### Azure Credentials and Pull Secret for HCP creation
-
-To test HCP creation, an Azure credentials file with clientId/clientSecret and a pull secret are required.
-The `aro-hcp-dev-svc-kv` KV hosts shared secrets for the creds file and the pull secrets, that can be used by the team for testing.
-
-Users require membership in the `aro-hcp-engineering` group to read secrets.  This group has been assigned the
-`Key Vault Secrets User` role on the `aro-hcp-dev-svc-kv` KV.
-
-* Pull secrets that can pull from RH registries and the DEV ACR
-
-  ```sh
-  az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-pull-secret" | jq .value -r > pull-secret.json
-  ````
-
-* Azure SP credentials in the format HyperShift Operator requires it (line format)
-
-  ```sh
-  az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-sp" | jq .value -r > azure-creds
-  ```
-
-* Azure SP credentials in the format CS requires it (json format)
-
-  ```sh
-  az keyvault secret show --vault-name "aro-hcp-dev-svc-kv" --name "aro-hcp-dev-sp-cs" | jq .value -r > azure-creds.json
-  ```
 
 ### Access integrated DEV environment
 

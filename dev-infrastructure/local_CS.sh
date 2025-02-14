@@ -4,12 +4,6 @@ cd ../uhc-clusters-service/
 
 make db/teardown
 
-# Obtain Azure credentials from keyvault
-VAULTNAME=aro-hcp-dev-svc-kv
-az keyvault secret show --vault-name $VAULTNAME --name "aro-hcp-dev-pull-secret" --output json | jq .value -r > pull-secret.json
-az keyvault secret show --vault-name $VAULTNAME --name "aro-hcp-dev-sp" --output json | jq .value -r > azure-creds
-az keyvault secret show --vault-name $VAULTNAME --name "aro-hcp-dev-sp-cs" --output json | jq .value -r > azure-creds.json
-
 # Setup the development.yml
 cp ./configs/development.yml .
 
@@ -81,4 +75,4 @@ make db/setup
 ./clusters-service init --config-file ./development.yml
 
 # Start CS
-./clusters-service serve --config-file development.yml --runtime-mode aro-hcp --azure-auth-config-path azure-creds.json
+./clusters-service serve --config-file development.yml --runtime-mode aro-hcp 

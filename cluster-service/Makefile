@@ -41,7 +41,6 @@ deploy:
 	  --set tenantId=$${TENANT_ID} \
 	  --set region=${REGION} \
 	  --set serviceKeyvaultName=${SERVICE_KV} \
-	  --set csServicePrincipalCredsBase64="eyAidGVuYW50SWQiOiAiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIiwgImNsaWVudElkIjogIjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsICJjbGllbnRTZWNyZXQiOiAiaS1hbS1mYWtlIiB9Cg==" \
 	  --set imageRegistry=${ACR_NAME}.azurecr.io \
 	  --set imageRepository=${IMAGE_REPO} \
 	  --set imageTag=${IMAGE_TAG} \
