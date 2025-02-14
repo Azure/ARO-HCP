@@ -16,7 +16,7 @@ defaults:
   # Hypershift
   hypershift:
     namespace: hypershift
-    additionalInstallArg: '--tech-preview-no-upgrade'
+    additionalInstallArg: ''
 
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
@@ -210,7 +210,7 @@ clouds:
             roleName: Azure Red Hat OpenShift KMS Plugin - Dev
       # Hypershift Operator
       hypershiftOperator:
-        imageTag: 1bb8b1a
+        imageTag: be818fa
       # Frontend
       frontend:
         imageTag: '' # if empty uses commit sha of repo
