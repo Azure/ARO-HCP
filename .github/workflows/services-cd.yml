@@ -81,10 +81,6 @@
             cd dev-infrastructure/
             make svc.aks.kubeconfig
 
-        - name: 'Deploy ACR Pull Configuration'
-          run: |
-            make acrpull.deploy_pipeline
-
         - name: 'Deploy Frontend'
           run: |
             make frontend.deploy_pipeline
@@ -94,6 +90,7 @@
             make backend.deploy_pipeline
 
         - name: 'Deploy Cluster Service'
+          if: !inputs.deploy_cs_pr_check_deps
           run: |
             make cluster-service.deploy_pipeline
 
