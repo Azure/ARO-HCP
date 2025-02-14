@@ -259,9 +259,7 @@ clouds:
 
           # ACR
           svcAcrName: arohcpsvcint
-          svcAcrZoneRedundancy: Disabled
           ocpAcrName: arohcpocpint
-          ocpAcrZoneRedundancy: Disabled
 
           # Frontend
           frontend:
