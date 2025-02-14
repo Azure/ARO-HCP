@@ -291,6 +291,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   params: {
     name: rpCosmosDbName
     location: location
+    locationIsZoneRedundant: locationHasAvailabilityZones
     aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
     vnetId: svcCluster.outputs.aksVnetId
     disableLocalAuth: disableLocalAuth

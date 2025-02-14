@@ -5,6 +5,7 @@ param disableLocalAuth bool = true
 
 // Passed Params and Overrides
 param location string
+param locationIsZoneRedundant bool
 param aksNodeSubnetId string
 param vnetId string
 param userAssignedMIs array
@@ -64,6 +65,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
     locations: [
       {
         locationName: location
+        isZoneRedundant: locationIsZoneRedundant
       }
     ]
     publicNetworkAccess: private ? 'Disabled' : 'Enabled'
