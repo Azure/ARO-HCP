@@ -270,7 +270,9 @@ clouds:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
       # Shared ACRs
       svcAcrName: arohcpsvcdev
+      svcAcrZoneRedundancy: Disabled
       ocpAcrName: arohcpocpdev
+      ocpAcrZoneRedundancy: Disabled
       # Shared Image Sync
       imageSync:
         rg: hcp-underlay-westus3-imagesync-dev
