@@ -6,7 +6,7 @@ resourceGroups:
   subscription: {{ .mgmt.subscription }}
   aksCluster: {{ .mgmt.aks.name }}
   steps:
-  - name: deploy-agent
+  - name: deploy
     action: Shell
     command: make deploy
     dryRun:
@@ -49,4 +49,4 @@ resourceGroups:
     - name: NAMESPACE
       configRef: maestro.server.k8s.namespace
     dependsOn:
-    - deploy-agent
+    - deploy
