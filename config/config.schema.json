@@ -819,6 +819,9 @@
       "ocpAcrName": {
         "type": "string"
       },
+      "ocpAcrZoneRedundancy": {
+        "type": "string"
+      },
       "oidcStorageAccountName": {
         "type": "string"
       },
@@ -911,6 +914,9 @@
         ]
       },
       "svcAcrName": {
+        "type": "string"
+      },
+      "svcAcrZoneRedundancy": {
         "type": "string"
       }
     },
