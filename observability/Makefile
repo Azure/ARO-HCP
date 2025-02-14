@@ -1,4 +1,4 @@
-
+all: deploy patch-frontend patch-clusterservice
 deploy:
 	kubectl apply -k deploy/
 
