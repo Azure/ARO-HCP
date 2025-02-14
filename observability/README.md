@@ -1,4 +1,6 @@
-# ARO dev observability
+# Observability for developer environments
+
+This page explains how you can enable tracing for ARO HCP in your [development setup](../dev-infrastructure/docs/development-setup.md).
 
 ## Tracing
 
@@ -6,6 +8,8 @@ ARO frontend, cluster service and other components are instrumented with the Ope
 In the current development environment, there is no possibility to inspect traces.
 
 ### Deploy Jaeger all-in-one testing backend
+
+We will deploy Jaeger with in-memory storage to store and visualize traces received from the ARO-HCP components.
 
 #### Install
 ```
@@ -18,6 +22,7 @@ After installation, the `jaeger` service becomes available in the `observability
 kubectl port-forward -n observability svc/jaeger 16686:16686
 ```
 
+Open http://localhost:16686 in your browser to access the Jaeger UI.
 The `observability` namespace contains a second service named `ingest` which accepts otlp via gRPC and HTTP.
 
 #### Configure instances
@@ -27,7 +32,7 @@ The export of the trace information is configured via environment variables. Exi
 ```diff
 +        env:
 +        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-+          value: https://<service>.<namespace>:4318
++          value: https://ingest.observability:4318
 +        - name: OTEL_TRACES_EXPORTER
 +          value: otlp
 ```

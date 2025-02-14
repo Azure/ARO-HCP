@@ -1,6 +1,6 @@
 
 deploy:
-	kustomize apply deploy
+	kubectl apply -k deploy/
 
 patch-frontend:
 	kubectl patch -n aro-hcp deployment aro-hcp-frontend --type=json --patch-file=patches/otel-sdk.yaml
