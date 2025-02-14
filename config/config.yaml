@@ -61,6 +61,7 @@ defaults:
       disableLocalAuth: true
       name: arohcp-rp-{{ .ctx.regionShort }}
       private: true
+      zoneRedundantMode: 'Auto'
     cert:
       name: frontend-cert-{{ .ctx.regionShort }}
       issuer: Self
@@ -321,6 +322,7 @@ clouds:
           frontend:
             cosmosDB:
               private: false
+              zoneRedundantMode: 'Disabled'
       cs-pr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
@@ -357,6 +359,7 @@ clouds:
           frontend:
             cosmosDB:
               private: false
+              zoneRedundantMode: 'Disabled'
       personal-dev:
         # this is the personal DEV environment
         defaults:
@@ -377,6 +380,7 @@ clouds:
           frontend:
             cosmosDB:
               private: false
+              zoneRedundantMode: 'Disabled'
       personal-perfscale:
         defaults:
           dns:

@@ -90,6 +90,10 @@ param rpCosmosDbName string
 @description('If true, make the Cosmos DB instance private')
 param rpCosmosDbPrivate bool
 
+@description('If true, make the Cosmos DB instance zone redundant')
+@allowed(['Enabled', 'Disabled', 'Auto'])
+param rpCosmosZoneRedundantMode string
+
 @description('The resourcegroup for regional infrastructure')
 param regionalResourceGroup string
 
@@ -291,7 +295,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   params: {
     name: rpCosmosDbName
     location: location
-    locationIsZoneRedundant: locationHasAvailabilityZones
+    locationIsZoneRedundant: rpCosmosZoneRedundantMode == 'Auto' ? locationHasAvailabilityZones : rpCosmosZoneRedundantMode == 'Enabled'
     aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
     vnetId: svcCluster.outputs.aksVnetId
     disableLocalAuth: disableLocalAuth

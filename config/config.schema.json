@@ -365,6 +365,10 @@
               },
               "private": {
                 "type": "boolean"
+              },
+              "zoneRedundantMode": {
+                "type": "string",
+                "enum": ["Disabled", "Enabled", "Auto"]
               }
             },
             "additionalProperties": false,
