@@ -4,7 +4,7 @@ rolloutName: RP PKO Rollout
 resourceGroups:
 - name: {{ .mgmt.rg }}
   subscription: {{ .svc.subscription }}
-  aksCluster: {{ .aksName }}
+  aksCluster: {{ .mgmt.aks.name }}
   steps:
   - name: deploy
     action: Shell

@@ -148,7 +148,7 @@ svc.aks.admin-access:
 .PHONY: svc.aks.admin-access
 
 svc.aks.kubeconfig:
-	@az aks get-credentials --overwrite-existing --only-show-errors -n ${AKS_NAME} -g $(SVC_RESOURCEGROUP) -f "${SVC_KUBECONFIG_FILE}"
+	@az aks get-credentials --overwrite-existing --only-show-errors -n ${SVC_AKS_NAME} -g $(SVC_RESOURCEGROUP) -f "${SVC_KUBECONFIG_FILE}"
 	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${SVC_KUBECONFIG_FILE}"
 .PHONY: svc.aks.kubeconfig
 
@@ -212,7 +212,7 @@ mgmt.aks.admin-access:
 .PHONY: mgmt.aks.admin-access
 
 mgmt.aks.kubeconfig:
-	@az aks get-credentials --overwrite-existing --only-show-errors -n ${AKS_NAME} -g $(MGMT_RESOURCEGROUP) -f "${MGMT_KUBECONFIG_FILE}"
+	@az aks get-credentials --overwrite-existing --only-show-errors -n ${MGMT_AKS_NAME} -g $(MGMT_RESOURCEGROUP) -f "${MGMT_KUBECONFIG_FILE}"
 	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${MGMT_KUBECONFIG_FILE}"
 .PHONY: mgmt.aks.kubeconfig
 

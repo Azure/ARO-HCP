@@ -4,7 +4,7 @@ rolloutName: ACRPull Controller Rollout
 resourceGroups:
   - name: {{ .svc.rg }}
     subscription: {{ .svc.subscription }}
-    aksCluster: {{ .aksName }}
+    aksCluster: {{ .svc.aks.name }}
     steps:
       - name: deploy
         action: Shell
@@ -18,7 +18,7 @@ resourceGroups:
             configRef: acrPullImageDigest
   - name: {{ .mgmt.rg }}
     subscription: {{ .mgmt.subscription }}
-    aksCluster: {{ .aksName }}
+    aksCluster: {{ .mgmt.aks.name }}
     steps:
       - name: deploy-mgmt
         action: Shell

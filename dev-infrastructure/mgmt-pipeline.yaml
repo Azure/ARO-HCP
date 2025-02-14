@@ -109,7 +109,7 @@ resourceGroups:
     - region-output
 - name: {{ .mgmt.rg }}
   subscription: {{ .mgmt.subscription }}
-  aksCluster: {{ .aksName }}
+  aksCluster: {{ .mgmt.aks.name }}
   steps:
   # Install ACRpull
   - name: acrpull
