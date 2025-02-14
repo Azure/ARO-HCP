@@ -187,9 +187,6 @@ azureCsMiClientId: ""
 # Azure region the cluster-service instance is running in.
 region: "westus3"
 
-# Base64 encoded service principal credentials for CS. This is temporary for P1.
-csServicePrincipalCredsBase64: ""
-
 # The client id of the first party application identity.
 azureFirstPartyApplicationClientId: ""
 

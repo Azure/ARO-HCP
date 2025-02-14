@@ -18,7 +18,6 @@ spec:
         azure.workload.identity/use: "true"
       annotations:
         checksum/db: {{ include (print $.Template.BasePath "/database.secret.yaml") . | sha256sum }}
-        checksum/azurecreds: {{ include (print $.Template.BasePath "/azure-credentials.secret.yaml") . | sha256sum }}
         checksum/operatorcfg: {{ include (print $.Template.BasePath "/azure-operators-managed-identities-config.configmap.yaml") . | sha256sum }}
         checksum/cskv: {{ include (print $.Template.BasePath "/cs-keyvault.secret.yaml") . | sha256sum }}
         checksum/provisionshard: {{ include (print $.Template.BasePath "/provisioning-shards.secret.yaml") . | sha256sum }}
@@ -71,9 +70,6 @@ spec:
         secret:
           secretName: hive-ci-global-pull-secret
           optional: true
-      - name: azure-credentials
-        secret:
-          secretName: azure-credentials
       - name: keyvault
         csi:
           driver: secrets-store.csi.k8s.io
@@ -133,8 +129,6 @@ spec:
         - name: cloud-region-constraints
           mountPath: /configs/cloud-resource-constraints/cloud-region-constraints.yaml
           subPath: cloud-region-constraints.yaml
-        - name: azure-credentials
-          mountPath: /secrets/azure-credentials
         - name: keyvault
           mountPath: "/secrets/keyvault"
           readOnly: true
@@ -185,7 +179,6 @@ spec:
         - --instance-type-constraints-config=/configs/cloud-resource-constraints/instance-type-constraints.yaml
         - --cloud-region-config=/configs/cloud-resources/cloud-regions.yaml
         - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
-        - --azure-auth-config-path=/secrets/azure-credentials/azure-auth-config
         - --azure-first-party-application-client-id={{ .Values.azureFirstPartyApplicationClientId }}
         - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
         - --azure-runtime-config-path=/configs/azure-runtime-config/config.json

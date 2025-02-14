@@ -197,7 +197,7 @@ clouds:
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       clusterService:
-        imageTag: d62fa9d
+        imageTag: d519094
       hypershiftOperator:
         imageTag: be818fa
       imageSync:
