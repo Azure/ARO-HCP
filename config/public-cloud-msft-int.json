@@ -89,11 +89,11 @@
     "subscription": "hcp-westus3"
   },
   "hypershift": {
-    "additionalInstallArg": "",
+    "additionalInstallArg": "--tech-preview-no-upgrade",
     "namespace": "hypershift"
   },
   "hypershiftOperator": {
-    "imageTag": "be818fa"
+    "imageTag": "1bb8b1a"
   },
   "imageSync": {
     "acrRG": "global-shared-resources",
