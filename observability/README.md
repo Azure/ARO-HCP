@@ -47,6 +47,12 @@ make patch-clusteservice
 
 ### Correlate with ARM requests
 
+#### Generate Traces
+
+Traces are automatically generated for incoming http requests. A simple way to generate incoming requests is to run the `aro-hcp demo` scripts, e.g. to create a cluster.
+
+#### Common Span Attributes
+
 The following span attributes are set in the root span and propagated to the next service via baggage: 
 
 ```
