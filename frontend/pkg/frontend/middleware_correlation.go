@@ -31,14 +31,13 @@ func MiddlewareCorrelationData(w http.ResponseWriter, r *http.Request, next http
 		logger = logger.With("correlation_request_id", correlationData.CorrelationRequestID)
 	}
 	ctx = ContextWithLogger(ctx, logger)
-
 	r = r.WithContext(ctx)
-
-	next(w, r)
 
 	w.Header().Set(arm.HeaderNameRequestID, correlationData.RequestID.String())
 	returnClientRequestID := r.Header.Get(arm.HeaderNameReturnClientRequestID)
 	if strings.EqualFold(returnClientRequestID, "true") {
 		w.Header().Set(arm.HeaderNameClientRequestID, correlationData.ClientRequestID)
 	}
+
+	next(w, r)
 }
