@@ -95,7 +95,7 @@ resourceGroups:
   steps:
   # - updates workload to use istio on version svc.istio.targetVersion
   # - configures istio IP tag usage
-  - name: istio
+  - name: istio-upgrade
     action: Shell
     command: scripts/istio.sh
     variables:
@@ -112,13 +112,15 @@ resourceGroups:
     dependsOn:
     - svc
   # configure istio
-  - name: deploy
+  - name: istio-config
     action: Shell
     command: make -C ../istio deploy
     dryRun:
       variables:
         - name: DRY_RUN
           value: "true"
+    dependsOn:
+    - istio-upgrade
   # Install ACRpull
   - name: acrpull
     action: Shell

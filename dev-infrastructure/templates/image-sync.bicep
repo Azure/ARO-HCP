@@ -348,17 +348,21 @@ var acmMirrorConfig = {
         packages: [
           {
             name: 'multicluster-engine'
-            bundles: [
+            channels: [
               {
-                name: 'multicluster-engine.v2.7.0'
+                name: 'stable-2.7'
+                minVersion: '2.7.0'
+                maxVersion: '2.7.0'
               }
             ]
           }
           {
             name: 'advanced-cluster-management'
-            bundles: [
+            channels: [
               {
-                name: 'advanced-cluster-management.v2.12.0'
+                name: 'release-2.12'
+                minVersion: '2.12.0'
+                maxVersion: '2.12.0'
               }
             ]
           }
