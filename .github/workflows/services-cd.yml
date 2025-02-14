@@ -90,7 +90,7 @@
             make backend.deploy_pipeline
 
         - name: 'Deploy Cluster Service'
-          if: !inputs.deploy_cs_pr_check_deps
+          if: ${{ ! inputs.deploy_cs_pr_check_deps }}
           run: |
             make cluster-service.deploy_pipeline
 
