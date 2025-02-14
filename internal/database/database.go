@@ -443,6 +443,9 @@ func (d *cosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID 
 		return nil, fmt.Errorf("failed to unmarshal Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
+	// Expose the "_ts" field for metics reporting.
+	doc.Subscription.LastUpdated = doc.CosmosTimestamp
+
 	return doc, nil
 }
 

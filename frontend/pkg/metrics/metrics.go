@@ -130,7 +130,7 @@ func (sc *SubscriptionCollector) updateCache() error {
 		subscriptions[sub.ID] = subscription{
 			id:         sub.ID,
 			state:      string(sub.Subscription.State),
-			updated_at: int64(sub.CosmosTimestamp),
+			updated_at: int64(sub.Subscription.LastUpdated),
 		}
 	}
 	if err := iter.GetError(); err != nil {

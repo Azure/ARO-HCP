@@ -10,6 +10,10 @@ type Subscription struct {
 	State            SubscriptionState       `json:"state"            validate:"required_for_put,enum_subscriptionstate"`
 	RegistrationDate *string                 `json:"registrationDate" validate:"required_for_put"`
 	Properties       *SubscriptionProperties `json:"properties"`
+
+	// LastUpdated is a copy of the Cosmos DB system generated
+	// "_ts" last updated timestamp field for metrics reporting.
+	LastUpdated int `json:"-"`
 }
 
 type SubscriptionProperties struct {
