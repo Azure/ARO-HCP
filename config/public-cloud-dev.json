@@ -76,7 +76,8 @@
       "deploy": true,
       "disableLocalAuth": true,
       "name": "arohcp-rp-dev",
-      "private": false
+      "private": false,
+      "zoneRedundantMode": "Disabled"
     },
     "imageTag": ""
   },

@@ -63,6 +63,7 @@ defaults:
       disableLocalAuth: true
       name: arohcp-rp-{{ .ctx.regionShort }}
       private: true
+      zoneRedundantMode: 'Auto'
 
   # Maestro
   maestro:

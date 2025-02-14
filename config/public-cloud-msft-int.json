@@ -76,7 +76,8 @@
       "deploy": true,
       "disableLocalAuth": true,
       "name": "arohcp-rp-int",
-      "private": false
+      "private": false,
+      "zoneRedundantMode": "Auto"
     },
     "imageTag": "be13820"
   },
