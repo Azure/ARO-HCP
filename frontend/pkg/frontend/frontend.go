@@ -20,8 +20,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -103,6 +105,11 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	})
 	errs.Go(func() error {
 		return f.metricsServer.Serve(f.metricsListener)
+	})
+	errs.Go(func() error {
+		collector := metrics.NewSubscriptionCollector(prometheus.DefaultRegisterer, f.dbClient, f.location)
+		collector.Run(logger, stop)
+		return nil
 	})
 
 	if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
@@ -747,12 +754,6 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			logger.Info(fmt.Sprintf("updated document for subscription %s", subscriptionID))
 		}
 	}
-
-	f.metrics.EmitGauge("subscription_lifecycle", 1, map[string]string{
-		"location":       f.location,
-		"subscriptionid": subscriptionID,
-		"state":          string(subscription.State),
-	})
 
 	// Clean up resources if subscription is deleted.
 	if subscription.State == arm.SubscriptionStateDeleted {
