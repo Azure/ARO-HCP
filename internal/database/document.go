@@ -146,7 +146,7 @@ func (doc *OperationDocument) ToStatus() *arm.Operation {
 // is intended to be used with DBClient.UpdateOperationDoc.
 func (doc *OperationDocument) UpdateStatus(status arm.ProvisioningState, err *arm.CloudErrorBody) bool {
 	if doc.Status != status {
-		doc.LastTransitionTime = time.Now()
+		doc.LastTransitionTime = time.Now().UTC()
 		doc.Status = status
 		doc.Error = err
 		return true
