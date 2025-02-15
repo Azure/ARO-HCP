@@ -37,10 +37,10 @@ func TestMiddlewareTracing(t *testing.T) {
 			name: "empty correlation data",
 			data: &arm.CorrelationData{},
 			expectedAttrs: map[string]string{
-				"request.id": "00000000-0000-0000-0000-000000000000",
+				"aro.request.id": "00000000-0000-0000-0000-000000000000",
 			},
 			expectedBaggage: map[string]string{
-				"request.id": "00000000-0000-0000-0000-000000000000",
+				"aro.request.id": "00000000-0000-0000-0000-000000000000",
 			},
 		},
 		{
@@ -51,14 +51,14 @@ func TestMiddlewareTracing(t *testing.T) {
 				CorrelationRequestID: testCorrelationRequestID,
 			},
 			expectedAttrs: map[string]string{
-				"request.id":        testRequestID.String(),
-				"client.request.id": testClientRequestID,
-				"correlation.id":    testCorrelationRequestID,
+				"aro.request.id":        testRequestID.String(),
+				"aro.client.request.id": testClientRequestID,
+				"aro.correlation.id":    testCorrelationRequestID,
 			},
 			expectedBaggage: map[string]string{
-				"request.id":        testRequestID.String(),
-				"client.request.id": testClientRequestID,
-				"correlation.id":    testCorrelationRequestID,
+				"aro.request.id":        testRequestID.String(),
+				"aro.client.request.id": testClientRequestID,
+				"aro.correlation.id":    testCorrelationRequestID,
 			},
 		},
 	} {

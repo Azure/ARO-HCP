@@ -62,15 +62,15 @@ func addCorrelationDataToSpanContext(ctx context.Context, data *arm.CorrelationD
 		value string
 	}{
 		{
-			name:  "correlation.id",
+			name:  "aro.correlation.id",
 			value: data.CorrelationRequestID,
 		},
 		{
-			name:  "client.request.id",
+			name:  "aro.client.request.id",
 			value: data.ClientRequestID,
 		},
 		{
-			name:  "request.id",
+			name:  "aro.request.id",
 			value: data.RequestID.String(),
 		},
 	} {
