@@ -5,7 +5,6 @@ package arm
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -21,9 +20,6 @@ type CorrelationData struct {
 
 	// CorrelationRequestID contains the value of header "x-ms-correlation-request-id".
 	CorrelationRequestID string `json:"correlationRequestId,omitempty"`
-
-	// RequestTime is the time that the request was received.
-	RequestTime time.Time `json:"requestTime,omitempty"`
 }
 
 // NewCorrelationData allocates and initializes a new CorrelationData from
@@ -33,6 +29,5 @@ func NewCorrelationData(r *http.Request) *CorrelationData {
 		RequestID:            uuid.New(),
 		ClientRequestID:      r.Header.Get(HeaderNameClientRequestID),
 		CorrelationRequestID: r.Header.Get(HeaderNameCorrelationRequestID),
-		RequestTime:          time.Now(),
 	}
 }
