@@ -412,3 +412,12 @@ var _locationAvailabilityZones = {
 
 @export()
 func getLocationAvailabilityZones(region string) array => _locationAvailabilityZones[region].availabilityZones
+
+@export()
+func getLocationAvailabilityZonesCSV(region string) string => join(getLocationAvailabilityZones(region), ',')
+
+@export()
+func determineZoneRedundancyForRegion(region string, mode string) bool => determineZoneRedundancy(getLocationAvailabilityZones(region), mode)
+
+@export()
+func determineZoneRedundancy(availabilityZones array, mode string) bool => mode == 'Auto' ? length(availabilityZones) > 0 : mode == 'Enabled' && length(availabilityZones) > 0

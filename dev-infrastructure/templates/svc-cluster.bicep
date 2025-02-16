@@ -1,11 +1,11 @@
-import { getLocationAvailabilityZones } from 'common.bicep'
+import { getLocationAvailabilityZonesCSV, determineZoneRedundancy } from '../modules/common.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('List of Availability Zones to use for the AKS cluster')
-param locationAvailabilityZones array = getLocationAvailabilityZones(location)
-var locationHasAvailabilityZones = length(locationAvailabilityZones) > 0
+@description('List of Availability Zones to use for the infrastructure, defaults to all the zones of the location')
+param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
+var locationAvailabilityZoneList = split(locationAvailabilityZones, ',')
 
 @description('AKS cluster name')
 param aksClusterName string
@@ -90,8 +90,7 @@ param rpCosmosDbName string
 @description('If true, make the Cosmos DB instance private')
 param rpCosmosDbPrivate bool
 
-@description('If true, make the Cosmos DB instance zone redundant')
-@allowed(['Enabled', 'Disabled', 'Auto'])
+@description('The zone redundant mode of Cosmos DB instance')
 param rpCosmosZoneRedundantMode string
 
 @description('The resourcegroup for regional infrastructure')
@@ -162,6 +161,9 @@ param serviceKeyVaultResourceGroup string = resourceGroup().name
 @description('OIDC Storage Account name')
 param oidcStorageAccountName string
 
+@description('The zone redundant mode of the OIDC storage account')
+param oidcZoneRedundantMode string
+
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
@@ -209,7 +211,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   scope: resourceGroup()
   params: {
     location: location
-    locationAvailabilityZones: locationAvailabilityZones
+    locationAvailabilityZones: locationAvailabilityZoneList
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
@@ -295,9 +297,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   params: {
     name: rpCosmosDbName
     location: location
-    locationIsZoneRedundant: rpCosmosZoneRedundantMode == 'Auto'
-      ? locationHasAvailabilityZones
-      : rpCosmosZoneRedundantMode == 'Enabled'
+    zoneRedundant: determineZoneRedundancy(locationAvailabilityZoneList, rpCosmosZoneRedundantMode)
     aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
     vnetId: svcCluster.outputs.aksVnetId
     disableLocalAuth: disableLocalAuth
@@ -412,7 +412,9 @@ module oidc '../modules/oidc/main.bicep' = {
     location: location
     storageAccountName: oidcStorageAccountName
     rpMsiName: csMIName
-    skuName: locationHasAvailabilityZones ? 'Standard_ZRS' : 'Standard_LRS'
+    skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
+      ? 'Standard_ZRS'
+      : 'Standard_LRS'
     msiId: aroDevopsMsiId
     deploymentScriptLocation: location
   }

@@ -1,10 +1,11 @@
-import { getLocationAvailabilityZones } from 'common.bicep'
+import { getLocationAvailabilityZonesCSV } from '../modules/common.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('List of Availability Zones to use for the AKS cluster')
-param locationAvailabilityZones array = getLocationAvailabilityZones(location)
+@description('List of Availability Zones to use for the infrastructure, defaults to all the zones of the location')
+param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
+var locationAvailabilityZoneList = split(locationAvailabilityZones, ',')
 
 @description('AKS cluster name')
 param aksClusterName string = 'aro-hcp-aks'
@@ -112,7 +113,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   scope: resourceGroup()
   params: {
     location: location
-    locationAvailabilityZones: locationAvailabilityZones
+    locationAvailabilityZones: locationAvailabilityZoneList
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete

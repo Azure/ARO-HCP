@@ -59,7 +59,10 @@ param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'
 
+// OIDC
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
+param oidcZoneRedundantMode = '{{ .oidcZoneRedundantMode }}'
+
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
 param regionalCXDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.cxParentZoneName }}'
