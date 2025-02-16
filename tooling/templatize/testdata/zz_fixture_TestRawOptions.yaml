@@ -40,3 +40,13 @@ resourceGroups:
       configRef: provider
     dependsOn:
     - deploy
+  - name: issuerTestOutputChaining
+    action: SetCertificateIssuer
+    vaultBaseUrl:
+      input:
+        name: kvUrl
+        step: deploy
+    issuer:
+      value: provider
+    dependsOn:
+    - deploy
