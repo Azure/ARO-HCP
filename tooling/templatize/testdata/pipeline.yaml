@@ -4,7 +4,7 @@ rolloutName: Test Rollout
 resourceGroups:
 - name: {{ .regionRG }}
   subscription: {{ .serviceClusterSubscription }}
-  aksCluster: {{ svc.aks.name }}
+  aksCluster: {{ .aksName }}
   steps:
   - name: deploy
     action: Shell
@@ -38,5 +38,15 @@ resourceGroups:
       configRef: vaultBaseUrl
     issuer:
       configRef: provider
+    dependsOn:
+    - deploy
+  - name: issuerTestOutputChaining
+    action: SetCertificateIssuer
+    vaultBaseUrl:
+      input:
+        name: kvUrl
+        step: deploy
+    issuer:
+      value: provider
     dependsOn:
     - deploy
