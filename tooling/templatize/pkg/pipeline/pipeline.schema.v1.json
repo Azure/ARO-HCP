@@ -163,7 +163,7 @@
                                 "vaultBaseUrl": {
                                     "$ref": "#/definitions/variableRef"
                                 },
-                                "provider": {
+                                "issuer": {
                                     "$ref": "#/definitions/variableRef"
                                 },
                                 "parentZone": {
@@ -305,7 +305,7 @@
                                         "vaultBaseUrl": {
                                             "$ref": "#/definitions/variableRef"
                                         },
-                                        "provider": {
+                                        "issuer": {
                                             "$ref": "#/definitions/variableRef"
                                         },
                                         "dependsOn": {
@@ -317,7 +317,7 @@
                                     },
                                     "required": [
                                         "vaultBaseUrl",
-                                        "provider"
+                                        "issuer"
                                     ]
                                 }
                             ],

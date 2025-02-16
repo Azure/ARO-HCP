@@ -53,8 +53,7 @@ resourceGroups:
       input:
         name: cxKeyVaultUrl
         step: mgmt-infra
-    provider:
-      name: provider
+    issuer:
       value: OneCertV2-PublicCA
   - name: mgmt-oncert-private-kv-issuer
     action: SetCertificateIssuer
@@ -64,8 +63,7 @@ resourceGroups:
       input:
         name: mgmtKeyVaultUrl
         step: mgmt-infra
-    provider:
-      name: provider
+    issuer:
       value: OneCertV2-PrivateCA
   - name: mgmt-oncert-public-kv-issuer
     action: SetCertificateIssuer
@@ -75,8 +73,7 @@ resourceGroups:
       input:
         name: mgmtKeyVaultUrl
         step: mgmt-infra
-    provider:
-      name: provider
+    issuer:
       value: OneCertV2-PublicCA
   # Build the MC
   - name: mgmt-cluster
