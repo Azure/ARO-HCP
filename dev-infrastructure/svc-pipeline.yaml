@@ -41,6 +41,13 @@ resourceGroups:
     template: templates/svc-infra.bicep
     parameters: configurations/svc-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: logAnalyticsWorkspaceId
+      input:
+        step: global-output
+        name: logAnalyticsWorkspaceId
+    dependsOn:
+    - global-output
   # Configure certificate issuers for the SVC KV
   - name: svc-oncert-private-kv-issuer
     action: SetCertificateIssuer
