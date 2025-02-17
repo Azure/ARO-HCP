@@ -62,6 +62,10 @@ param svcAcrResourceId = '__svcAcrResourceId__'
 // OIDC
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
 param oidcZoneRedundantMode = '{{ .oidcZoneRedundantMode }}'
+param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'
+param azureFrontDoorParentDnsZoneName = '{{ .oidc.subdomain }}.{{ .dns.svcParentZoneName }}'
+param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'
+param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
 
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
@@ -81,3 +85,5 @@ param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param logsNamespace = '{{ .logs.namespace }}'
 param logsMSI = '{{ .logs.msiName }}'
 param logsServiceAccount = '{{ .logs.serviceAccountName }}'
+
+param azureCloudName = '{{ .azure.cloudName }}'

@@ -168,6 +168,8 @@ clouds:
     # this configuration serves as a template for for all RH DEV subscription deployments
     # the following vars need approprivate overrides:
     defaults:
+      azure:
+        cloudName: AzureCloud
       # DNS
       dns:
         baseDnsZoneRG: global
@@ -285,6 +287,12 @@ clouds:
       # OIDC
       oidcStorageAccountName: arohcpoidc{{ .ctx.regionShort }}
       oidcZoneRedundantMode: Auto
+      oidc:
+        subdomain: oic
+        frontdoor:
+          name: arohcpdev
+          keyVaultName: arohcp-afd-dev
+          msiName: arohcp-afd
 
       # Metrics
       monitoring:

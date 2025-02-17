@@ -71,3 +71,15 @@ func eventgridNamespaceRefFromId(eventgridNamespaceResourceId string) eventgridN
   resourceGroup: resourceGroupFromResourceId(eventgridNamespaceResourceId)
   name: last(split(eventgridNamespaceResourceId, '/'))
 }
+
+@export()
+type frontdoorProfileRef = {
+  resourceGroup: resourceGroupReference
+  name: string
+}
+
+@export()
+func frontdoorProfileRefFromId(frontdoorProfileResourceId string) frontdoorProfileRef => {
+  resourceGroup: resourceGroupFromResourceId(frontdoorProfileResourceId)
+  name: last(split(frontdoorProfileResourceId, '/'))
+}

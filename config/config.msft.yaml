@@ -8,7 +8,7 @@ defaults:
   global:
     rg: global-shared-resources
     subscription: hcp-{{ .ctx.region }}
-    globalMSIName: "global-ev2-identity"
+    globalMSIName: global-ev2-identity
     safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
 
   # ACR
@@ -199,6 +199,8 @@ clouds:
     # this configuration serves as a template for for all RH DEV subscription deployments
     # the following vars need approprivate overrides:
     defaults:
+      azure:
+        cloudName: AzureCloud
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       clusterService:
@@ -224,6 +226,10 @@ clouds:
           global:
             region: uksouth
 
+          # ACR
+          svcAcrZoneRedundantMode: Disabled
+          ocpAcrZoneRedundantMode: Disabled
+
           # Cluster Service
           clusterService:
             environment: "arohcpint"
@@ -231,6 +237,12 @@ clouds:
           # OIDC
           oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }}
           oidcZoneRedundantMode: Auto
+          oidc:
+            subdomain: oic
+            frontdoor:
+              name: arohcpint
+              keyVaultName: arohcp-afd-int
+              msiName: arohcp-afd
 
           # SVC
           svc:

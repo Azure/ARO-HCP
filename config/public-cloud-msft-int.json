@@ -4,6 +4,9 @@
   "armHelperClientId": "f2af6a70-fc23-4a9a-bbf2-3236f86e65e4",
   "armHelperFPAPrincipalId": "4026d9e7-2897-4f0c-83d4-897858a5f8a8",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
+  "azure": {
+    "cloudName": "AzureCloud"
+  },
   "backend": {
     "imageTag": "be13820"
   },
@@ -48,12 +51,12 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cs-int",
+      "name": "arohcp-cs-usw3",
       "private": false
     }
   },
   "cxKeyVault": {
-    "name": "arohcp-cx-int-1",
+    "name": "arohcp-cx-usw3-1",
     "private": false,
     "softDelete": false
   },
@@ -70,12 +73,12 @@
   "frontend": {
     "cert": {
       "issuer": "OneCertV2-PublicCA",
-      "name": "frontend-cert-int"
+      "name": "frontend-cert-usw3"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-int",
+      "name": "arohcp-rp-usw3",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -132,10 +135,10 @@
     },
     "certDomain": "",
     "certIssuer": "OneCertV2-PrivateCA",
-    "consumerName": "hcp-underlay-int-mgmt-1",
+    "consumerName": "hcp-underlay-usw3-mgmt-1",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 4,
-      "name": "arohcp-maestro-int",
+      "name": "arohcp-maestro-usw3",
       "private": false
     },
     "imageRepo": "redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
@@ -144,7 +147,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-maestro-int",
+      "name": "arohcp-maestro-usw3",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15"
@@ -169,11 +172,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "etcd": {
-        "kvName": "arohcp-etcd-int-1",
+        "kvName": "arohcp-etcd-usw3-1",
         "kvSoftDelete": true
       },
       "kubernetesVersion": "1.31.3",
-      "name": "int-mgmt-1",
+      "name": "usw3-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -195,7 +198,7 @@
     "subscription": "hcp-westus3"
   },
   "mgmtKeyVault": {
-    "name": "arohcp-mgmt-int-1",
+    "name": "arohcp-mgmt-usw3-1",
     "private": false,
     "softDelete": false
   },
@@ -205,22 +208,30 @@
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",
-    "msiName": "aro-hcp-metrics-msi-int",
-    "workspaceName": "arohcp-int"
+    "msiName": "aro-hcp-metrics-msi-usw3",
+    "workspaceName": "arohcp-usw3"
   },
   "msiKeyVault": {
-    "name": "arohcp-msi-int-1",
+    "name": "arohcp-msi-usw3-1",
     "private": false,
     "softDelete": false
   },
   "ocpAcrName": "arohcpocpint",
-  "ocpAcrZoneRedundantMode": "Enabled",
-  "oidcStorageAccountName": "arohcpoidcintint",
+  "ocpAcrZoneRedundantMode": "Disabled",
+  "oidc": {
+    "frontdoor": {
+      "keyVaultName": "arohcp-afd-int",
+      "msiName": "arohcp-afd",
+      "name": "arohcpint"
+    },
+    "subdomain": "oic"
+  },
+  "oidcStorageAccountName": "arohcpoidcintusw3",
   "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
   "serviceKeyVault": {
-    "name": "arohcp-svc-int",
+    "name": "arohcp-svc-usw3",
     "private": false,
     "region": "westus3",
     "rg": "hcp-underlay-westus3-svc",
@@ -230,11 +241,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "etcd": {
-        "kvName": "arohcp-etcd-int",
+        "kvName": "arohcp-etcd-usw3",
         "kvSoftDelete": true
       },
       "kubernetesVersion": "1.31.3",
-      "name": "int-svc",
+      "name": "usw3-svc",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -264,5 +275,5 @@
     "subscription": "hcp-westus3"
   },
   "svcAcrName": "arohcpsvcint",
-  "svcAcrZoneRedundantMode": "Enabled"
+  "svcAcrZoneRedundantMode": "Disabled"
 }

@@ -1,4 +1,5 @@
 import { getLocationAvailabilityZonesCSV, determineZoneRedundancy, csvToArray } from '../modules/common.bicep'
+import * as res from '../modules/resource.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -164,6 +165,18 @@ param oidcStorageAccountName string
 @description('The zone redundant mode of the OIDC storage account')
 param oidcZoneRedundantMode string
 
+@description('The name of the global Azure Front Door profile fronting the OIDC storage account')
+param azureFrontDoorResourceId string
+
+@description('The name of the global Azure Front Door parent DNS zone')
+param azureFrontDoorParentDnsZoneName string
+
+@description('The regional subdomain for the Azure Front Door')
+param azureFrontDoorRegionalSubdomain string
+
+@description('The name of the Azure Front Door global Key Vault')
+param azureFrontDoorKeyVaultName string
+
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
@@ -200,6 +213,10 @@ param logsMSI string
 
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
+
+@description('The name of the Azure Cloud')
+param azureCloudName string
+
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -404,23 +421,32 @@ module cs '../modules/cluster-service.bicep' = {
   ]
 }
 
-// O I D C
+//   O I D C
 
-module oidc '../modules/oidc/main.bicep' = {
-  name: '${deployment().name}-oidc'
+module oidc '../modules/oidc/region/main.bicep' = {
+  name: 'oidc'
   params: {
+    gblRgName: res.frontdoorProfileRefFromId(azureFrontDoorResourceId).resourceGroup.name
+    gblSubscription: res.frontdoorProfileRefFromId(azureFrontDoorResourceId).resourceGroup.subscriptionId
     location: location
+    zoneName: azureFrontDoorParentDnsZoneName
+    frontDoorProfileName: res.frontdoorProfileRefFromId(azureFrontDoorResourceId).name
     storageAccountName: oidcStorageAccountName
-    rpMsiName: csMIName
+    customDomainName: azureFrontDoorRegionalSubdomain
+    routeName: azureFrontDoorRegionalSubdomain
+    originGroupName: azureFrontDoorRegionalSubdomain
+    originName: azureFrontDoorRegionalSubdomain
+    privateLinkLocation: location
+    storageAccountAccessMsiId: csManagedIdentityPrincipalId
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
       ? 'Standard_ZRS'
       : 'Standard_LRS'
-    msiId: aroDevopsMsiId
+    azureCloudName: azureCloudName
+    keyVaultName: azureFrontDoorKeyVaultName
+    aroDevopsMsiId: aroDevopsMsiId
     deploymentScriptLocation: location
+    frontDoorEnable: true
   }
-  dependsOn: [
-    svcCluster
-  ]
 }
 
 //

@@ -77,6 +77,10 @@ resourceGroups:
       input:
         step: global-output
         name: svcAcrResourceId
+    - name: azureFrontDoorResourceId
+      input:
+        step: global-output
+        name: azureFrontDoorResourceId
     - name: azureMonitoringWorkspaceId
       input:
         step: region-output

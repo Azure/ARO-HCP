@@ -16,10 +16,21 @@ param grafanaAdminGroupPrincipalId string
 @description('Domain Team MSI to delegate child DNS')
 param safeDnsIntAppObjectId string
 
+param oidcSubdomain string
+param azureFrontDoorProfileName string
+param azureCloudName string
+param azureFrontDoorkeyVaultName string
+param keyVaultAdminPrincipalId string
+param oidcMsiName string
+
 resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: globalMSIName
   location: resourceGroup().location
 }
+
+//
+//  D N S
+//
 
 resource cxParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: cxParentZoneName
@@ -81,6 +92,10 @@ resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@20
   }
 }
 
+//
+//   G R A F A N A
+//
+
 var grafanaAdminGroup = {
   principalId: grafanaAdminGroupPrincipalId
   principalType: 'group'
@@ -118,3 +133,23 @@ resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 }
 
 output grafanaId string = grafana.id
+
+//
+// Azure Front Door
+//
+
+module azureFrontDoor '../modules/oidc/global/frontdoor.bicep' = {
+  name: 'azureFrontDoor'
+  params: {
+    subdomain: oidcSubdomain
+    svcZoneName: svcParentZoneName
+    frontDoorProfileName: azureFrontDoorProfileName
+    frontDoorEndpointName: azureFrontDoorProfileName
+    securityPolicyName: azureFrontDoorProfileName
+    wafPolicyName: azureFrontDoorProfileName
+    azureCloudName: azureCloudName
+    keyVaultName: azureFrontDoorkeyVaultName
+    keyVaultAdminSPObjId: keyVaultAdminPrincipalId
+    oidcMsiName: oidcMsiName
+  }
+}

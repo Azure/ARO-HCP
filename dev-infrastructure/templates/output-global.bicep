@@ -13,6 +13,9 @@ param svcParentZoneName string
 @description('Metrics global Grafana name')
 param grafanaName string
 
+@description('The name of the global AFD instance')
+param azureFrontDoorProfileName string
+
 //
 //   A C R
 //
@@ -52,3 +55,13 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
 }
 
 output grafanaResourceId string = grafana.id
+
+//
+//   A Z U R E   F R O N T   D O O R
+//
+
+resource frontDoorProfile 'Microsoft.Cdn/profiles@2023-05-01' existing = if (!empty(azureFrontDoorProfileName)) {
+  name: azureFrontDoorProfileName
+}
+
+output azureFrontDoorResourceId string = empty(azureFrontDoorProfileName) ? '' : frontDoorProfile.id

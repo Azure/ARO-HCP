@@ -122,6 +122,24 @@
       "aroDevopsMsiId": {
         "type": "string"
       },
+      "azure": {
+        "type": "object",
+        "properties": {
+          "cloudName": {
+            "type": "string",
+            "enum": [
+              "AzureCloud",
+              "AzureChinaCloud",
+              "AzureUSGovernment",
+              "AzureGermanCloud"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "cloudName"
+        ]
+      },
       "kvCertOfficerPrincipalId": {
         "type": "string",
         "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
@@ -843,6 +861,39 @@
       "oidcZoneRedundantMode": {
         "$ref": "#/definitions/zoneRedundantMode"
       },
+      "oidc": {
+        "type": "object",
+        "properties": {
+          "subdomain": {
+            "type": "string"
+          },
+          "frontdoor": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "keyVaultName": {
+                "type": "string"
+              },
+              "msiName": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "keyVaultName",
+              "msiName"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "subdomain",
+          "frontdoor"
+        ]
+      },
       "region": {
         "type": "string"
       },
@@ -941,6 +992,7 @@
     "additionalProperties": false,
     "required": [
       "aroDevopsMsiId",
+      "azure",
       "kvCertOfficerPrincipalId",
       "clusterService",
       "cxKeyVault",
@@ -960,6 +1012,7 @@
       "msiKeyVault",
       "ocpAcrName",
       "ocpAcrZoneRedundantMode",
+      "oidc",
       "oidcStorageAccountName",
       "oidcZoneRedundantMode",
       "region",
