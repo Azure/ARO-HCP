@@ -213,8 +213,9 @@
     "softDelete": false
   },
   "ocpAcrName": "arohcpocpdev",
-  "ocpAcrZoneRedundancy": "Disabled",
+  "ocpAcrZoneRedundantMode": "Disabled",
   "oidcStorageAccountName": "arohcpoidcusw3tst",
+  "oidcZoneRedundantMode": "Disabled",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
     "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
@@ -267,5 +268,5 @@
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "svcAcrName": "arohcpsvcdev",
-  "svcAcrZoneRedundancy": "Disabled"
+  "svcAcrZoneRedundantMode": "Disabled"
 }

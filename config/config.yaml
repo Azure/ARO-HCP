@@ -18,6 +18,7 @@ defaults:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
 
+  # SVC cluster specifics
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-svc
@@ -269,16 +270,21 @@ clouds:
           etcd:
             kvSoftDelete: false
         subscription: ARO Hosted Control Planes (EA Subscription 1)
+
       # Shared ACRs
       svcAcrName: arohcpsvcdev
-      svcAcrZoneRedundancy: Disabled
+      svcAcrZoneRedundantMode: Disabled
       ocpAcrName: arohcpocpdev
-      ocpAcrZoneRedundancy: Disabled
+      ocpAcrZoneRedundantMode: Disabled
+
       # Shared Image Sync
       imageSync:
         rg: hcp-underlay-westus3-imagesync-dev
+
       # OIDC
       oidcStorageAccountName: arohcpoidc{{ .ctx.regionShort }}
+      oidcZoneRedundantMode: Disabled
+
       # Metrics
       monitoring:
         workspaceName: 'arohcp-{{ .ctx.regionShort }}'

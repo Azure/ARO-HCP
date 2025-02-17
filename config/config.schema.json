@@ -108,6 +108,14 @@
           "OneCertV2-PublicCA",
           "OneCertV2-PrivateCA"
         ]
+      },
+      "zoneRedundantMode": {
+        "type": "string",
+        "enum": [
+          "Enabled",
+          "Disabled",
+          "Auto"
+        ]
       }
     },
     "properties": {
@@ -367,8 +375,7 @@
                 "type": "boolean"
               },
               "zoneRedundantMode": {
-                "type": "string",
-                "enum": ["Disabled", "Enabled", "Auto"]
+                "$ref": "#/definitions/zoneRedundantMode"
               }
             },
             "additionalProperties": false,
@@ -823,11 +830,14 @@
       "ocpAcrName": {
         "type": "string"
       },
-      "ocpAcrZoneRedundancy": {
-        "type": "string"
+      "ocpAcrZoneRedundantMode": {
+        "$ref": "#/definitions/zoneRedundantMode"
       },
       "oidcStorageAccountName": {
         "type": "string"
+      },
+      "oidcZoneRedundantMode": {
+        "$ref": "#/definitions/zoneRedundantMode"
       },
       "region": {
         "type": "string"
@@ -920,8 +930,8 @@
       "svcAcrName": {
         "type": "string"
       },
-      "svcAcrZoneRedundancy": {
-        "type": "string"
+      "svcAcrZoneRedundantMode": {
+        "$ref": "#/definitions/zoneRedundantMode"
       }
     },
     "additionalProperties": false,
@@ -945,11 +955,14 @@
       "monitoring",
       "msiKeyVault",
       "ocpAcrName",
+      "ocpAcrZoneRedundantMode",
       "oidcStorageAccountName",
+      "oidcZoneRedundantMode",
       "region",
       "regionRG",
       "serviceKeyVault",
       "svc",
-      "svcAcrName"
+      "svcAcrName",
+      "svcAcrZoneRedundantMode"
     ]
   }

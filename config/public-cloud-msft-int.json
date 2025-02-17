@@ -171,7 +171,7 @@
         "kvName": "arohcp-etcd-int-1",
         "kvSoftDelete": true
       },
-      "kubernetesVersion": "1.31.2",
+      "kubernetesVersion": "1.31.3",
       "name": "int-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
@@ -213,7 +213,9 @@
     "softDelete": false
   },
   "ocpAcrName": "arohcpocpint",
+  "ocpAcrZoneRedundantMode": "Enabled",
   "oidcStorageAccountName": "arohcpoidcintint",
+  "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
   "serviceKeyVault": {
@@ -230,7 +232,7 @@
         "kvName": "arohcp-etcd-int",
         "kvSoftDelete": true
       },
-      "kubernetesVersion": "1.31.2",
+      "kubernetesVersion": "1.31.3",
       "name": "int-svc",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
@@ -260,5 +262,6 @@
     "rg": "hcp-underlay-westus3-svc",
     "subscription": "hcp-westus3"
   },
-  "svcAcrName": "arohcpsvcint"
+  "svcAcrName": "arohcpsvcint",
+  "svcAcrZoneRedundantMode": "Enabled"
 }
