@@ -283,7 +283,7 @@ clouds:
 
       # OIDC
       oidcStorageAccountName: arohcpoidc{{ .ctx.regionShort }}
-      oidcZoneRedundantMode: Disabled
+      oidcZoneRedundantMode: Auto
 
       # Metrics
       monitoring:
