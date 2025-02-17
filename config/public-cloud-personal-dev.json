@@ -215,7 +215,7 @@
   "ocpAcrName": "arohcpocpdev",
   "ocpAcrZoneRedundantMode": "Disabled",
   "oidcStorageAccountName": "arohcpoidcusw3tst",
-  "oidcZoneRedundantMode": "Disabled",
+  "oidcZoneRedundantMode": "Auto",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
     "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
