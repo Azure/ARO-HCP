@@ -21,3 +21,6 @@ param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
 
 // MI for resource access during pipeline runs
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+
+// Log Analytics
+param enableLogAnalytics = {{ .logs.enableLogAnalytics }}

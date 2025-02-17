@@ -42,6 +42,9 @@ param svcAcrResourceId string
 @description('MSI that will be used during pipeline runs')
 param aroDevopsMsiId string
 
+@description('Enable Log Analytics')
+param enableLogAnalytics bool
+
 import * as res from '../modules/resource.bicep'
 
 // Tags the resource group
@@ -155,5 +158,20 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
     publicNetworkAccess: maestroEventGridPrivate ? 'Disabled' : 'Enabled'
     certificateIssuer: maestroCertificateIssuer
+  }
+}
+
+//
+//   L O G   A N A L Y T I C S
+//
+
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if (enableLogAnalytics) {
+  name: 'log-analytics-workspace'
+  location: resourceGroup().location
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 90
   }
 }
