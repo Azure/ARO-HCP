@@ -80,51 +80,49 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
-			Spec: api.ClusterSpec{
-				Version: api.VersionProfile{
-					ID:                cluster.Version().ID(),
-					ChannelGroup:      cluster.Version().ChannelGroup(),
-					AvailableUpgrades: cluster.Version().AvailableUpgrades(),
-				},
-				DNS: api.DNSProfile{
-					BaseDomain:       cluster.DNS().BaseDomain(),
-					BaseDomainPrefix: cluster.DomainPrefix(),
-				},
-				Network: api.NetworkProfile{
-					NetworkType: api.NetworkType(cluster.Network().Type()),
-					PodCIDR:     cluster.Network().PodCIDR(),
-					ServiceCIDR: cluster.Network().ServiceCIDR(),
-					MachineCIDR: cluster.Network().MachineCIDR(),
-					HostPrefix:  int32(cluster.Network().HostPrefix()),
-				},
-				Console: api.ConsoleProfile{
-					URL: cluster.Console().URL(),
-				},
-				API: api.APIProfile{
-					URL:        cluster.API().URL(),
-					Visibility: convertListeningToVisibility(cluster.API().Listening()),
-				},
-				FIPS:                          cluster.FIPS(),
-				EtcdEncryption:                cluster.EtcdEncryption(),
-				DisableUserWorkloadMonitoring: cluster.DisableUserWorkloadMonitoring(),
-				Proxy: api.ProxyProfile{
-					HTTPProxy:  cluster.Proxy().HTTPProxy(),
-					HTTPSProxy: cluster.Proxy().HTTPSProxy(),
-					NoProxy:    cluster.Proxy().NoProxy(),
-					TrustedCA:  cluster.AdditionalTrustBundle(),
-				},
-				Platform: api.PlatformProfile{
-					ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
-					SubnetID:               cluster.Azure().SubnetResourceID(),
-					OutboundType:           convertOutboundTypeCSToRP(cluster.Azure().NodesOutboundConnectivity().OutboundType()),
-					NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
-					EtcdEncryptionSetID:    "",
-				},
-				IssuerURL: "",
-				ExternalAuth: api.ExternalAuthConfigProfile{
-					Enabled:       false,
-					ExternalAuths: []*configv1.OIDCProvider{},
-				},
+			Version: api.VersionProfile{
+				ID:                cluster.Version().ID(),
+				ChannelGroup:      cluster.Version().ChannelGroup(),
+				AvailableUpgrades: cluster.Version().AvailableUpgrades(),
+			},
+			DNS: api.DNSProfile{
+				BaseDomain:       cluster.DNS().BaseDomain(),
+				BaseDomainPrefix: cluster.DomainPrefix(),
+			},
+			Network: api.NetworkProfile{
+				NetworkType: api.NetworkType(cluster.Network().Type()),
+				PodCIDR:     cluster.Network().PodCIDR(),
+				ServiceCIDR: cluster.Network().ServiceCIDR(),
+				MachineCIDR: cluster.Network().MachineCIDR(),
+				HostPrefix:  int32(cluster.Network().HostPrefix()),
+			},
+			Console: api.ConsoleProfile{
+				URL: cluster.Console().URL(),
+			},
+			API: api.APIProfile{
+				URL:        cluster.API().URL(),
+				Visibility: convertListeningToVisibility(cluster.API().Listening()),
+			},
+			FIPS:                          cluster.FIPS(),
+			EtcdEncryption:                cluster.EtcdEncryption(),
+			DisableUserWorkloadMonitoring: cluster.DisableUserWorkloadMonitoring(),
+			Proxy: api.ProxyProfile{
+				HTTPProxy:  cluster.Proxy().HTTPProxy(),
+				HTTPSProxy: cluster.Proxy().HTTPSProxy(),
+				NoProxy:    cluster.Proxy().NoProxy(),
+				TrustedCA:  cluster.AdditionalTrustBundle(),
+			},
+			Platform: api.PlatformProfile{
+				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
+				SubnetID:               cluster.Azure().SubnetResourceID(),
+				OutboundType:           convertOutboundTypeCSToRP(cluster.Azure().NodesOutboundConnectivity().OutboundType()),
+				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
+				EtcdEncryptionSetID:    "",
+			},
+			IssuerURL: "",
+			ExternalAuth: api.ExternalAuthConfigProfile{
+				Enabled:       false,
+				ExternalAuths: []*configv1.OIDCProvider{},
 			},
 		},
 	}
@@ -138,24 +136,24 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	if cluster.Azure().OperatorsAuthentication() != nil {
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
 			hcpcluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
-			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
-			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
+			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
+			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
 			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
 				clientID, _ := operatorIdentity.GetClientID()
 				principalID, _ := operatorIdentity.GetPrincipalID()
 				hcpcluster.Identity.UserAssignedIdentities[operatorIdentity.ResourceID()] = &arm.UserAssignedIdentity{ClientID: &clientID,
 					PrincipalID: &principalID}
-				hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[operatorName] = operatorIdentity.ResourceID()
+				hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[operatorName] = operatorIdentity.ResourceID()
 			}
 			for operatorName, operatorIdentity := range mi.DataPlaneOperatorsManagedIdentities() {
 				// Skip adding to hcpcluster.Identity.UserAssignedIdentities map as it is not needed for the dataplane operator MIs.
-				hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorName] = operatorIdentity.ResourceID()
+				hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorName] = operatorIdentity.ResourceID()
 			}
 			clientID, _ := mi.ServiceManagedIdentity().GetClientID()
 			principalID, _ := mi.ServiceManagedIdentity().GetPrincipalID()
 			hcpcluster.Identity.UserAssignedIdentities[mi.ServiceManagedIdentity().ResourceID()] = &arm.UserAssignedIdentity{ClientID: &clientID,
 				PrincipalID: &principalID}
-			hcpcluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = mi.ServiceManagedIdentity().ResourceID()
+			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = mi.ServiceManagedIdentity().ResourceID()
 		}
 	}
 
@@ -165,8 +163,8 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 // ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
 // If the field is empty a default is generated.
 func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string {
-	if hcpCluster.Properties.Spec.Platform.ManagedResourceGroup != "" {
-		return hcpCluster.Properties.Spec.Platform.ManagedResourceGroup
+	if hcpCluster.Properties.Platform.ManagedResourceGroup != "" {
+		return hcpCluster.Properties.Platform.ManagedResourceGroup
 	}
 	var clusterName string
 	if len(hcpCluster.Name) >= 45 {
@@ -209,18 +207,18 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 			MultiAZ(csMultiAzEnabled).
 			CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 			Version(cmv1.NewVersion().
-				ID(hcpCluster.Properties.Spec.Version.ID).
-				ChannelGroup(hcpCluster.Properties.Spec.Version.ChannelGroup)).
+				ID(hcpCluster.Properties.Version.ID).
+				ChannelGroup(hcpCluster.Properties.Version.ChannelGroup)).
 			Network(arohcpv1alpha1.NewNetwork().
-				Type(string(hcpCluster.Properties.Spec.Network.NetworkType)).
-				PodCIDR(hcpCluster.Properties.Spec.Network.PodCIDR).
-				ServiceCIDR(hcpCluster.Properties.Spec.Network.ServiceCIDR).
-				MachineCIDR(hcpCluster.Properties.Spec.Network.MachineCIDR).
-				HostPrefix(int(hcpCluster.Properties.Spec.Network.HostPrefix))).
+				Type(string(hcpCluster.Properties.Network.NetworkType)).
+				PodCIDR(hcpCluster.Properties.Network.PodCIDR).
+				ServiceCIDR(hcpCluster.Properties.Network.ServiceCIDR).
+				MachineCIDR(hcpCluster.Properties.Network.MachineCIDR).
+				HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
 			API(arohcpv1alpha1.NewClusterAPI().
-				Listening(convertVisibilityToListening(hcpCluster.Properties.Spec.API.Visibility))).
-			FIPS(hcpCluster.Properties.Spec.FIPS).
-			EtcdEncryption(hcpCluster.Properties.Spec.EtcdEncryption)
+				Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility))).
+			FIPS(hcpCluster.Properties.FIPS).
+			EtcdEncryption(hcpCluster.Properties.EtcdEncryption)
 
 		azureBuilder := arohcpv1alpha1.NewAzure().
 			TenantID(requestHeader.Get(arm.HeaderNameHomeTenantID)).
@@ -228,25 +226,25 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 			ResourceGroupName(resourceID.ResourceGroupName).
 			ResourceName(hcpCluster.Name).
 			ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
-			SubnetResourceID(hcpCluster.Properties.Spec.Platform.SubnetID).
+			SubnetResourceID(hcpCluster.Properties.Platform.SubnetID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-				OutboundType(convertOutboundTypeRPToCS(hcpCluster.Properties.Spec.Platform.OutboundType)))
+				OutboundType(convertOutboundTypeRPToCS(hcpCluster.Properties.Platform.OutboundType)))
 
 		// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
-		if hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID != "" {
+		if hcpCluster.Properties.Platform.NetworkSecurityGroupID != "" {
 			azureBuilder = azureBuilder.
-				NetworkSecurityGroupResourceID(hcpCluster.Properties.Spec.Platform.NetworkSecurityGroupID)
+				NetworkSecurityGroupResourceID(hcpCluster.Properties.Platform.NetworkSecurityGroupID)
 		}
 
 		// Only pass managed identity information if the x-ms-identity-url header is present.
 		if requestHeader.Get(arm.HeaderNameIdentityURL) != "" {
 			controlPlaneOperators := make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)
-			for operatorName, identityResourceID := range hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+			for operatorName, identityResourceID := range hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 				controlPlaneOperators[operatorName] = arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().ResourceID(identityResourceID)
 			}
 
 			dataPlaneOperators := make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)
-			for operatorName, identityResourceID := range hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+			for operatorName, identityResourceID := range hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
 				dataPlaneOperators[operatorName] = arohcpv1alpha1.NewAzureDataPlaneManagedIdentity().ResourceID(identityResourceID)
 			}
 
@@ -255,9 +253,9 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 				ControlPlaneOperatorsManagedIdentities(controlPlaneOperators).
 				DataPlaneOperatorsManagedIdentities(dataPlaneOperators)
 
-			if hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != "" {
+			if hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != "" {
 				managedIdentitiesBuilder = managedIdentitiesBuilder.ServiceManagedIdentity(arohcpv1alpha1.NewAzureServiceManagedIdentity().
-					ResourceID(hcpCluster.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity))
+					ResourceID(hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity))
 			}
 
 			azureBuilder = azureBuilder.OperatorsAuthentication(
@@ -267,33 +265,33 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		clusterBuilder = clusterBuilder.Azure(azureBuilder)
 
 		// Cluster Service rejects an empty DomainPrefix string.
-		if hcpCluster.Properties.Spec.DNS.BaseDomainPrefix != "" {
+		if hcpCluster.Properties.DNS.BaseDomainPrefix != "" {
 			clusterBuilder = clusterBuilder.
-				DomainPrefix(hcpCluster.Properties.Spec.DNS.BaseDomainPrefix)
+				DomainPrefix(hcpCluster.Properties.DNS.BaseDomainPrefix)
 		}
 	}
 
 	proxyBuilder := arohcpv1alpha1.NewProxy()
 	// Cluster Service allows an empty HTTPProxy on PATCH but not PUT.
-	if updating || hcpCluster.Properties.Spec.Proxy.HTTPProxy != "" {
+	if updating || hcpCluster.Properties.Proxy.HTTPProxy != "" {
 		proxyBuilder = proxyBuilder.
-			HTTPProxy(hcpCluster.Properties.Spec.Proxy.HTTPProxy)
+			HTTPProxy(hcpCluster.Properties.Proxy.HTTPProxy)
 	}
 	// Cluster Service allows an empty HTTPSProxy on PATCH but not PUT.
-	if updating || hcpCluster.Properties.Spec.Proxy.HTTPSProxy != "" {
+	if updating || hcpCluster.Properties.Proxy.HTTPSProxy != "" {
 		proxyBuilder = proxyBuilder.
-			HTTPSProxy(hcpCluster.Properties.Spec.Proxy.HTTPSProxy)
+			HTTPSProxy(hcpCluster.Properties.Proxy.HTTPSProxy)
 	}
 	// Cluster Service allows an empty HTTPSProxy on PATCH but not PUT.
-	if updating || hcpCluster.Properties.Spec.Proxy.NoProxy != "" {
+	if updating || hcpCluster.Properties.Proxy.NoProxy != "" {
 		proxyBuilder = proxyBuilder.
-			NoProxy(hcpCluster.Properties.Spec.Proxy.NoProxy)
+			NoProxy(hcpCluster.Properties.Proxy.NoProxy)
 	}
 
 	clusterBuilder = clusterBuilder.
-		DisableUserWorkloadMonitoring(hcpCluster.Properties.Spec.DisableUserWorkloadMonitoring).
+		DisableUserWorkloadMonitoring(hcpCluster.Properties.DisableUserWorkloadMonitoring).
 		Proxy(proxyBuilder).
-		AdditionalTrustBundle(hcpCluster.Properties.Spec.Proxy.TrustedCA)
+		AdditionalTrustBundle(hcpCluster.Properties.Proxy.TrustedCA)
 
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 
@@ -311,35 +309,33 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 			},
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Spec: api.NodePoolSpec{
-				Version: api.VersionProfile{
-					ID:                np.Version().ID(),
-					ChannelGroup:      np.Version().ChannelGroup(),
-					AvailableUpgrades: np.Version().AvailableUpgrades(),
-				},
-				Platform: api.NodePoolPlatformProfile{
-					SubnetID:               np.Subnet(),
-					VMSize:                 np.AzureNodePool().VMSize(),
-					DiskStorageAccountType: np.AzureNodePool().OSDiskStorageAccountType(),
-					AvailabilityZone:       np.AvailabilityZone(),
-					EncryptionAtHost:       false, // TODO: Not implemented in OCM
-					DiskSizeGiB:            int32(np.AzureNodePool().OSDiskSizeGibibytes()),
-					DiskEncryptionSetID:    "", // TODO: Not implemented in OCM
-					EphemeralOSDisk:        np.AzureNodePool().EphemeralOSDiskEnabled(),
-				},
-				AutoRepair:    np.AutoRepair(),
-				Labels:        np.Labels(),
-				TuningConfigs: np.TuningConfigs(),
+			Version: api.VersionProfile{
+				ID:                np.Version().ID(),
+				ChannelGroup:      np.Version().ChannelGroup(),
+				AvailableUpgrades: np.Version().AvailableUpgrades(),
 			},
+			Platform: api.NodePoolPlatformProfile{
+				SubnetID:               np.Subnet(),
+				VMSize:                 np.AzureNodePool().VMSize(),
+				DiskStorageAccountType: np.AzureNodePool().OSDiskStorageAccountType(),
+				AvailabilityZone:       np.AvailabilityZone(),
+				EncryptionAtHost:       false, // TODO: Not implemented in OCM
+				DiskSizeGiB:            int32(np.AzureNodePool().OSDiskSizeGibibytes()),
+				DiskEncryptionSetID:    "", // TODO: Not implemented in OCM
+				EphemeralOSDisk:        np.AzureNodePool().EphemeralOSDiskEnabled(),
+			},
+			AutoRepair:    np.AutoRepair(),
+			Labels:        np.Labels(),
+			TuningConfigs: np.TuningConfigs(),
 		},
 	}
 
 	if replicas, ok := np.GetReplicas(); ok {
-		nodePool.Properties.Spec.Replicas = int32(replicas)
+		nodePool.Properties.Replicas = int32(replicas)
 	}
 
 	if autoscaling, ok := np.GetAutoscaling(); ok {
-		nodePool.Properties.Spec.AutoScaling = &api.NodePoolAutoScaling{
+		nodePool.Properties.AutoScaling = &api.NodePoolAutoScaling{
 			Min: int32(autoscaling.MinReplica()),
 			Max: int32(autoscaling.MaxReplica()),
 		}
@@ -353,7 +349,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 			Value:  t.Value(),
 		}
 	}
-	nodePool.Properties.Spec.Taints = taints
+	nodePool.Properties.Taints = taints
 
 	return nodePool
 }
@@ -371,33 +367,33 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		npBuilder = npBuilder.
 			ID(nodePool.Name).
 			Version(cmv1.NewVersion().
-				ID(nodePool.Properties.Spec.Version.ID).
-				ChannelGroup(nodePool.Properties.Spec.Version.ChannelGroup).
-				AvailableUpgrades(nodePool.Properties.Spec.Version.AvailableUpgrades...)).
-			Subnet(nodePool.Properties.Spec.Platform.SubnetID).
+				ID(nodePool.Properties.Version.ID).
+				ChannelGroup(nodePool.Properties.Version.ChannelGroup).
+				AvailableUpgrades(nodePool.Properties.Version.AvailableUpgrades...)).
+			Subnet(nodePool.Properties.Platform.SubnetID).
 			AzureNodePool(cmv1.NewAzureNodePool().
 				ResourceName(nodePool.Name).
-				VMSize(nodePool.Properties.Spec.Platform.VMSize).
-				OSDiskSizeGibibytes(int(nodePool.Properties.Spec.Platform.DiskSizeGiB)).
-				OSDiskStorageAccountType(nodePool.Properties.Spec.Platform.DiskStorageAccountType).
-				EphemeralOSDiskEnabled(nodePool.Properties.Spec.Platform.EphemeralOSDisk)).
-			AvailabilityZone(nodePool.Properties.Spec.Platform.AvailabilityZone).
-			AutoRepair(nodePool.Properties.Spec.AutoRepair)
+				VMSize(nodePool.Properties.Platform.VMSize).
+				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.DiskSizeGiB)).
+				OSDiskStorageAccountType(nodePool.Properties.Platform.DiskStorageAccountType).
+				EphemeralOSDiskEnabled(nodePool.Properties.Platform.EphemeralOSDisk)).
+			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
+			AutoRepair(nodePool.Properties.AutoRepair)
 	}
 
 	npBuilder = npBuilder.
-		Labels(nodePool.Properties.Spec.Labels).
-		TuningConfigs(nodePool.Properties.Spec.TuningConfigs...)
+		Labels(nodePool.Properties.Labels).
+		TuningConfigs(nodePool.Properties.TuningConfigs...)
 
-	if nodePool.Properties.Spec.AutoScaling != nil {
+	if nodePool.Properties.AutoScaling != nil {
 		npBuilder.Autoscaling(cmv1.NewNodePoolAutoscaling().
-			MinReplica(int(nodePool.Properties.Spec.AutoScaling.Min)).
-			MaxReplica(int(nodePool.Properties.Spec.AutoScaling.Max)))
+			MinReplica(int(nodePool.Properties.AutoScaling.Min)).
+			MaxReplica(int(nodePool.Properties.AutoScaling.Max)))
 	} else {
-		npBuilder.Replicas(int(nodePool.Properties.Spec.Replicas))
+		npBuilder.Replicas(int(nodePool.Properties.Replicas))
 	}
 
-	for _, t := range nodePool.Properties.Spec.Taints {
+	for _, t := range nodePool.Properties.Taints {
 		npBuilder = npBuilder.Taints(cmv1.NewTaint().
 			Effect(string(t.Effect)).
 			Key(t.Key).

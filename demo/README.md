@@ -42,7 +42,7 @@ CLUSTER_NAME=abc ./03-create-cluster.sh
 ```
 
 Observe the cluster creation with `./query-cluster-rp.sh` until `properties.provisioningState` is (hopefully) `Succeeded`.
-`properties.spec.api.url` holds the URL to the API server of the HCP.
+`properties.api.url` holds the URL to the API server of the HCP.
 
 See [Get the kubeconfig for an HCP](#get-the-kubeconfig-for-an-hcp) on how to get the kubeconfig for the HCP.
 

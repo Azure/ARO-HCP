@@ -176,23 +176,21 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				UserAssignedIdentities: convertUserAssignedIdentities(from.Identity.UserAssignedIdentities),
 			},
 			Properties: &generated.HcpOpenShiftClusterProperties{
-				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Spec: &generated.ClusterSpec{
-					Version:                       newVersionProfile(&from.Properties.Spec.Version),
-					DNS:                           newDNSProfile(&from.Properties.Spec.DNS),
-					Network:                       newNetworkProfile(&from.Properties.Spec.Network),
-					Console:                       newConsoleProfile(&from.Properties.Spec.Console),
-					API:                           newAPIProfile(&from.Properties.Spec.API),
-					Fips:                          api.Ptr(from.Properties.Spec.FIPS),
-					EtcdEncryption:                api.Ptr(from.Properties.Spec.EtcdEncryption),
-					DisableUserWorkloadMonitoring: api.Ptr(from.Properties.Spec.DisableUserWorkloadMonitoring),
-					Proxy:                         newProxyProfile(&from.Properties.Spec.Proxy),
-					Platform:                      newPlatformProfile(&from.Properties.Spec.Platform),
-					IssuerURL:                     api.Ptr(from.Properties.Spec.IssuerURL),
-					ExternalAuth: &generated.ExternalAuthConfigProfile{
-						Enabled:       api.Ptr(from.Properties.Spec.ExternalAuth.Enabled),
-						ExternalAuths: make([]*generated.ExternalAuthProfile, len(from.Properties.Spec.ExternalAuth.ExternalAuths)),
-					},
+				ProvisioningState:             api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				Version:                       newVersionProfile(&from.Properties.Version),
+				DNS:                           newDNSProfile(&from.Properties.DNS),
+				Network:                       newNetworkProfile(&from.Properties.Network),
+				Console:                       newConsoleProfile(&from.Properties.Console),
+				API:                           newAPIProfile(&from.Properties.API),
+				Fips:                          api.Ptr(from.Properties.FIPS),
+				EtcdEncryption:                api.Ptr(from.Properties.EtcdEncryption),
+				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.DisableUserWorkloadMonitoring),
+				Proxy:                         newProxyProfile(&from.Properties.Proxy),
+				Platform:                      newPlatformProfile(&from.Properties.Platform),
+				IssuerURL:                     api.Ptr(from.Properties.IssuerURL),
+				ExternalAuth: &generated.ExternalAuthConfigProfile{
+					Enabled:       api.Ptr(from.Properties.ExternalAuth.Enabled),
+					ExternalAuths: make([]*generated.ExternalAuthProfile, len(from.Properties.ExternalAuth.ExternalAuths)),
 				},
 			},
 		},
@@ -209,8 +207,8 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 		}
 	}
 
-	for index, item := range from.Properties.Spec.ExternalAuth.ExternalAuths {
-		out.Properties.Spec.ExternalAuth.ExternalAuths[index] = newExternalAuthProfile(item)
+	for index, item := range from.Properties.ExternalAuth.ExternalAuths {
+		out.Properties.ExternalAuth.ExternalAuths[index] = newExternalAuthProfile(item)
 	}
 
 	return out
@@ -272,42 +270,42 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 		if c.Properties.ProvisioningState != nil {
 			out.Properties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
 		}
-		if c.Properties.Spec != nil {
-			if c.Properties.Spec.Version != nil {
-				normalizeVersion(c.Properties.Spec.Version, &out.Properties.Spec.Version)
+		if c.Properties != nil {
+			if c.Properties.Version != nil {
+				normalizeVersion(c.Properties.Version, &out.Properties.Version)
 			}
-			if c.Properties.Spec.DNS != nil {
-				normailzeDNS(c.Properties.Spec.DNS, &out.Properties.Spec.DNS)
+			if c.Properties.DNS != nil {
+				normailzeDNS(c.Properties.DNS, &out.Properties.DNS)
 			}
-			if c.Properties.Spec.Network != nil {
-				normalizeNetwork(c.Properties.Spec.Network, &out.Properties.Spec.Network)
+			if c.Properties.Network != nil {
+				normalizeNetwork(c.Properties.Network, &out.Properties.Network)
 			}
-			if c.Properties.Spec.Console != nil {
-				normalizeConsole(c.Properties.Spec.Console, &out.Properties.Spec.Console)
+			if c.Properties.Console != nil {
+				normalizeConsole(c.Properties.Console, &out.Properties.Console)
 			}
-			if c.Properties.Spec.API != nil {
-				normalizeAPI(c.Properties.Spec.API, &out.Properties.Spec.API)
+			if c.Properties.API != nil {
+				normalizeAPI(c.Properties.API, &out.Properties.API)
 			}
-			if c.Properties.Spec.Fips != nil {
-				out.Properties.Spec.FIPS = *c.Properties.Spec.Fips
+			if c.Properties.Fips != nil {
+				out.Properties.FIPS = *c.Properties.Fips
 			}
-			if c.Properties.Spec.EtcdEncryption != nil {
-				out.Properties.Spec.EtcdEncryption = *c.Properties.Spec.EtcdEncryption
+			if c.Properties.EtcdEncryption != nil {
+				out.Properties.EtcdEncryption = *c.Properties.EtcdEncryption
 			}
-			if c.Properties.Spec.DisableUserWorkloadMonitoring != nil {
-				out.Properties.Spec.DisableUserWorkloadMonitoring = *c.Properties.Spec.DisableUserWorkloadMonitoring
+			if c.Properties.DisableUserWorkloadMonitoring != nil {
+				out.Properties.DisableUserWorkloadMonitoring = *c.Properties.DisableUserWorkloadMonitoring
 			}
-			if c.Properties.Spec.Proxy != nil {
-				normalizeProxy(c.Properties.Spec.Proxy, &out.Properties.Spec.Proxy)
+			if c.Properties.Proxy != nil {
+				normalizeProxy(c.Properties.Proxy, &out.Properties.Proxy)
 			}
-			if c.Properties.Spec.Platform != nil {
-				normalizePlatform(c.Properties.Spec.Platform, &out.Properties.Spec.Platform)
+			if c.Properties.Platform != nil {
+				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
 			}
-			if c.Properties.Spec.IssuerURL != nil {
-				out.Properties.Spec.IssuerURL = *c.Properties.Spec.IssuerURL
+			if c.Properties.IssuerURL != nil {
+				out.Properties.IssuerURL = *c.Properties.IssuerURL
 			}
-			if c.Properties.Spec.ExternalAuth != nil {
-				normalizeExternalAuthConfig(c.Properties.Spec.ExternalAuth, &out.Properties.Spec.ExternalAuth)
+			if c.Properties.ExternalAuth != nil {
+				normalizeExternalAuthConfig(c.Properties.ExternalAuth, &out.Properties.ExternalAuth)
 			}
 		}
 	}
@@ -318,31 +316,31 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 // contains structured but user-friendly details for all discovered errors.
 func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
-	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is being declared under Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities
+	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is being declared under Properties.Platform.OperatorsAuthentication.UserAssignedIdentities
 	if normalized.Identity.UserAssignedIdentities != nil {
 		//Initiate the map that will have the number occurence of ConstrolPlaneOperators fields .
 		controlPlaneOpOccurrences := make(map[string]int)
 		//Generate a Map of Resource IDs of ControlplaneOperators MI , disregard the DataPlaneOperators.
-		for _, operatorResourceID := range normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		for _, operatorResourceID := range normalized.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 			controlPlaneOpOccurrences[operatorResourceID]++
 		}
 		//variable to hold serviceManagedIdentity
-		smiResourceID := normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
+		smiResourceID := normalized.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 
-		for operatorName, resourceID := range normalized.Properties.Spec.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		for operatorName, resourceID := range normalized.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 			_, ok := normalized.Identity.UserAssignedIdentities[resourceID]
 			if !ok {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Message: fmt.Sprintf(
 						"identity %s is not assigned to this resource",
 						resourceID),
-					Target: fmt.Sprintf("properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
 				})
 			} else if controlPlaneOpOccurrences[resourceID] > 1 {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Message: fmt.Sprintf(
 						"identity %s is used multiple times", resourceID),
-					Target: fmt.Sprintf("properties.spec.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
 				})
 
 			}
@@ -355,7 +353,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 					Message: fmt.Sprintf(
 						"identity %s is not assigned to this resource",
 						smiResourceID),
-					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				})
 			}
 			//making sure serviceManagedIdentity is not already assigned to controlPlaneOperators
@@ -363,7 +361,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Message: fmt.Sprintf(
 						"identity %s is used multiple times", smiResourceID),
-					Target: "properties.spec.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				})
 			}
 		}

@@ -16,14 +16,12 @@ func minimumValidNodePool() *HCPOpenShiftClusterNodePool {
 	// Values are meaningless but need to pass validation.
 	return &HCPOpenShiftClusterNodePool{
 		Properties: HCPOpenShiftClusterNodePoolProperties{
-			Spec: NodePoolSpec{
-				Version: VersionProfile{
-					ID:           "openshift-v4.16.0",
-					ChannelGroup: "stable",
-				},
-				Platform: NodePoolPlatformProfile{
-					VMSize: "Standard_D8s_v3",
-				},
+			Version: VersionProfile{
+				ID:           "openshift-v4.16.0",
+				ChannelGroup: "stable",
+			},
+			Platform: NodePoolPlatformProfile{
+				VMSize: "Standard_D8s_v3",
 			},
 		},
 	}
@@ -52,23 +50,21 @@ func TestNodePoolRequiredForPut(t *testing.T) {
 			// trigger required fields beyond just "properties".
 			resource: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
-					Spec: NodePoolSpec{
-						Replicas: int32(1),
-					},
+					Replicas: int32(1),
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Missing required field 'id'",
-					Target:  "properties.spec.version.id",
+					Target:  "properties.version.id",
 				},
 				{
 					Message: "Missing required field 'channelGroup'",
-					Target:  "properties.spec.version.channelGroup",
+					Target:  "properties.version.channelGroup",
 				},
 				{
 					Message: "Missing required field 'vmSize'",
-					Target:  "properties.spec.platform.vmSize",
+					Target:  "properties.platform.vmSize",
 				},
 			},
 		},
@@ -106,15 +102,13 @@ func TestNodePoolValidateTags(t *testing.T) {
 			name: "Min=0 not satisfied",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
-					Spec: NodePoolSpec{
-						Replicas: int32(-1),
-					},
+					Replicas: int32(-1),
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Invalid value '-1' for field 'replicas' (must be non-negative)",
-					Target:  "properties.spec.replicas",
+					Target:  "properties.replicas",
 				},
 			},
 		},
@@ -122,19 +116,17 @@ func TestNodePoolValidateTags(t *testing.T) {
 			name: "Both Replicas and AutoScaling present",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
-					Spec: NodePoolSpec{
-						Replicas: int32(1),
-						AutoScaling: &NodePoolAutoScaling{
-							Min: 1,
-							Max: 2,
-						},
+					Replicas: int32(1),
+					AutoScaling: &NodePoolAutoScaling{
+						Min: 1,
+						Max: 2,
 					},
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Field 'replicas' must be 0 when 'autoScaling' is specified",
-					Target:  "properties.spec.replicas",
+					Target:  "properties.replicas",
 				},
 			},
 		},
@@ -142,11 +134,9 @@ func TestNodePoolValidateTags(t *testing.T) {
 			name: "Only AutoScaling present with zero-values",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
-					Spec: NodePoolSpec{
-						AutoScaling: &NodePoolAutoScaling{
-							Min: 0,
-							Max: 0,
-						},
+					AutoScaling: &NodePoolAutoScaling{
+						Min: 0,
+						Max: 0,
 					},
 				},
 			},
@@ -155,18 +145,16 @@ func TestNodePoolValidateTags(t *testing.T) {
 			name: "AutoScaling max is less than min",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
-					Spec: NodePoolSpec{
-						AutoScaling: &NodePoolAutoScaling{
-							Min: 1,
-							Max: 0,
-						},
+					AutoScaling: &NodePoolAutoScaling{
+						Min: 1,
+						Max: 0,
 					},
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Invalid value '0' for field 'max' (must be at least the value of 'min')",
-					Target:  "properties.spec.autoScaling.max",
+					Target:  "properties.autoScaling.max",
 				},
 			},
 		},

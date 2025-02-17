@@ -54,7 +54,7 @@ func TestCreateNodePool(t *testing.T) {
 
 	requestBody := generated.HcpOpenShiftClusterNodePoolResource{
 		Location:   &dummyLocation,
-		Properties: &generated.NodePoolProperties{Spec: &generated.NodePoolSpec{Platform: &generated.NodePoolPlatformProfile{VMSize: &dummyVMSize}, Version: &generated.VersionProfile{ID: &dummyVersionID, ChannelGroup: &dummyChannelGroup}}},
+		Properties: &generated.NodePoolProperties{Platform: &generated.NodePoolPlatformProfile{VMSize: &dummyVMSize}, Version: &generated.VersionProfile{ID: &dummyVersionID, ChannelGroup: &dummyChannelGroup}},
 	}
 	tests := []struct {
 		name               string
