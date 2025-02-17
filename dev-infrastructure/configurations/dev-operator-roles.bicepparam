@@ -69,7 +69,7 @@ param roles = [
     roleName: 'Azure Red Hat OpenShift File Storage Operator - Dev'
     roleDescription: 'Enables permissions to set OpenShift cluster-wide storage defaults. It ensures a default storageclass exists for clusters. It also installs Container Storage Interface (CSI) drivers which enable your cluster to use Azure Files.'
     actions: [
-      'Microsoft.Compute.diskEncryptionSets/read'
+      'Microsoft.Compute/diskEncryptionSets/read'
       'Microsoft.Storage/storageAccounts/delete'
       'Microsoft.Storage/storageAccounts/fileServices/read'
       'Microsoft.Storage/storageAccounts/fileServices/shares/delete'
