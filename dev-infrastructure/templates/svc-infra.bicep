@@ -55,8 +55,14 @@ resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01'
 //   K E Y V A U L T S
 //
 
+// this is mostly a situation where multiple svc-infra pipelines run towards
+// a shared svc keyvault resource group ${serviceKeyVaultResourceGroup}. while
+// the individual modules will not conflict with each other, the existance
+// of same-named deployments fails one pipeline.
+var deploymentNameSuffix = uniqueString(resourceGroup().id)
+
 module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: 'svc-kv'
+  name: 'svc-kv-${deploymentNameSuffix}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     location: serviceKeyVaultLocation
@@ -68,7 +74,7 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
 }
 
 module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: 'svc-kv-cert-officer'
+  name: 'svc-kv-cert-officer-${deploymentNameSuffix}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
@@ -81,7 +87,7 @@ module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bi
 }
 
 module serviceKeyVaultSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: 'svc-kv-secret-officer'
+  name: 'svc-kv-secret-officer-${deploymentNameSuffix}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
@@ -94,7 +100,7 @@ module serviceKeyVaultSecretsOfficer '../modules/keyvault/keyvault-secret-access
 }
 
 module serviceKeyVaultDevopsSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: 'svc-kv-devops-secret-officer'
+  name: 'svc-kv-devops-secret-officer-${deploymentNameSuffix}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
