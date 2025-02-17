@@ -62,7 +62,13 @@ defaults:
     image:
       repository: acm-d/rhtap-hypershift-operator
   # OIDC
-  oidcZoneRedundantMode: Auto
+  oidc:
+    storageAccount:
+      zoneRedundantMode: Auto
+    frontdoor:
+      subdomain: oic
+      sku: Premium_AzureFrontDoor
+      msiName: arohcp-afd
   # SVC cluster specifics
   svc:
     subscription: "hcp-{{ .ctx.region }}"
@@ -269,6 +275,9 @@ clouds:
         ocMirror:
           image:
             digest: sha256:574ebb57e70c46ba3bc34db4776fd64b63a52e04afc1dddba7b91e0c5f247952
+      oidc:
+        frontdoor:
+          keyVaultName: "" # intentionally left empty as we don't need one in public cloud
     environments:
       int:
         # this is the MSFT INT environment
@@ -288,7 +297,11 @@ clouds:
           genevaActions:
             serviceTag: GenevaActionsNonProd
           # OIDC
-          oidcStorageAccountName: "arohcpintoidc{{ .ctx.regionShort }}" # [globally-unique]
+          oidc:
+            storageAccount:
+              name: "arohcpintoidc{{ .ctx.regionShort }}" # [globally-unique]
+            frontdoor:
+              name: arohcpint
           # Image Sync
           imageSync:
             keyVault:
@@ -413,7 +426,11 @@ clouds:
           genevaActions:
             serviceTag: GenevaActions
           # OIDC
-          oidcStorageAccountName: "arohcpstgoidc{{ .ctx.regionShort }}" # [globally-unique]
+          oidc:
+            storageAccount:
+              name: "arohcpstgoidc{{ .ctx.regionShort }}" # [globally-unique]
+            frontdoor:
+              name: arohcp
           # Image Sync
           imageSync:
             keyVault:
