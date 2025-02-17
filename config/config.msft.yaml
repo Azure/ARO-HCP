@@ -203,6 +203,7 @@ defaults:
 
   # Logs
   logs:
+    enableLogAnalytics: false
     namespace: logs
     msiName: logs-mdsd
     serviceAccountName: genevabit-aggregator
