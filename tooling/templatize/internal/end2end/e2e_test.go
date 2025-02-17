@@ -67,7 +67,7 @@ func TestE2EKubernetes(t *testing.T) {
 
 	e2eImpl := newE2E(tmpDir)
 	e2eImpl.AddStep(pipeline.NewShellStep("test", "kubectl get namespaces"), 0)
-	e2eImpl.SetAKSName("aro-hcp-aks")
+	e2eImpl.SetAKSName("dev-svc")
 
 	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"rg": "hcp-underlay-dev-svc"}})
 
