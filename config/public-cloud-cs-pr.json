@@ -291,8 +291,19 @@
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpoidccspr",
-  "oidcZoneRedundantMode": "Auto",
+  "oidc": {
+    "frontdoor": {
+      "keyVaultName": "",
+      "msiName": "arohcp-afd",
+      "name": "arohcpdev",
+      "sku": "Premium_AzureFrontDoor",
+      "subdomain": "oic"
+    },
+    "storageAccount": {
+      "name": "arohcpoidccspr",
+      "zoneRedundantMode": "Auto"
+    }
+  },
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
     "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",

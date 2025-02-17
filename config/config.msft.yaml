@@ -69,7 +69,13 @@ defaults:
       registry: quay.io
       repository: acm-d/rhtap-hypershift-operator
   # OIDC
-  oidcZoneRedundantMode: Auto
+  oidc:
+    storageAccount:
+      zoneRedundantMode: Auto
+    frontdoor:
+      subdomain: oic
+      sku: Premium_AzureFrontDoor
+      msiName: arohcp-afd
   # FPA certificate settings
   firstPartyAppCertificate:
     issuer: OneCertV2-PrivateCA
@@ -287,6 +293,9 @@ clouds:
         ocMirror:
           image:
             digest: sha256:6016058b113d0dd61fce42747cc4cf6b0d47bbe260892a9825d24d19b6834ef4
+      oidc:
+        frontdoor:
+          keyVaultName: "" # intentionally left empty as we don't need one in public cloud
     environments:
       int:
         # this is the MSFT INT environment
@@ -309,7 +318,12 @@ clouds:
           genevaActions:
             serviceTag: GenevaActionsNonProd
           # OIDC
-          oidcStorageAccountName: "arohcpintoidc{{ .ctx.regionShort }}" # [globally-unique]
+          oidc:
+            storageAccount:
+              name: "arohcpintoidc{{ .ctx.regionShort }}" # [globally-unique]
+            frontdoor:
+              name: arohcpint
+
           # SVC KV
           serviceKeyVault:
             name: "arohcpint-svc-{{ .ctx.regionShort }}" # [globally-unique]
@@ -436,7 +450,11 @@ clouds:
           genevaActions:
             serviceTag: GenevaActions
           # OIDC
-          oidcStorageAccountName: "arohcpstgoidc{{ .ctx.regionShort }}" # [globally-unique]
+          oidc:
+            storageAccount:
+              name: "arohcpstgoidc{{ .ctx.regionShort }}" # [globally-unique]
+            frontdoor:
+              name: arohcp
           # SVC KV
           serviceKeyVault:
             name: "arohcpstg-svc-{{ .ctx.regionShort }}" # [globally-unique]

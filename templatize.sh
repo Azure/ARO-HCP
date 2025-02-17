@@ -100,11 +100,11 @@ elif [ "$DEPLOY_ENV" == "nightly" ]; then
     REGION_STAMP="nightly"
 elif [ "$DEPLOY_ENV" == "personal-perfscale" ]; then
     REGION_STAMP="${REGION_SHORT}p${USER:0:4}"
-elif [ "$DEPLOY_ENV" == "dev" ] || [ "$DEPLOY_ENV" == "cs-pr" ]; then
+elif [ "$DEPLOY_ENV" == "cs-pr" ] || [ "$DEPLOY_ENV" == "dev" ]; then
     CLEAN_DEPLOY_ENV=$(echo "${DEPLOY_ENV}" | tr -cd '[:alnum:]')
     REGION_STAMP="${CLEAN_DEPLOY_ENV}"
 else
-    REGION_STAMP=${REGION_SHORT}
+    REGION_STAMP="${REGION_SHORT}"
 fi
 
 make -s -C ${PROJECT_ROOT_DIR}/tooling/templatize templatize

@@ -48,7 +48,7 @@ resourceGroups:
     - name: SERVICE_KV
       configRef: serviceKeyVault.name
     - name: OIDC_STORAGE_ACCOUNT
-      configRef: oidcStorageAccountName
+      configRef: oidc.storageAccount.name
     - name: IMAGE_REPO
       configRef: clusterService.image.repository
     - name: IMAGE_DIGEST

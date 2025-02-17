@@ -37,6 +37,13 @@ param grafanaZoneRedundantMode string
 param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
 var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 
+param oidcSubdomain string
+param azureFrontDoorProfileName string
+param azureFrontDoorkeyVaultName string
+param azureFrontDoorSkuName string
+param keyVaultAdminPrincipalId string
+param oidcMsiName string
+
 //
 //  G L O B A L   M S I
 //
@@ -174,5 +181,25 @@ module grafana '../modules/grafana/instance.bicep' = {
     grafanaManagerPrincipalId: globalMSI.properties.principalId
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
     azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
+  }
+}
+
+//
+//   A Z U R E   F R O N T   D O O R
+//
+
+module azureFrontDoor '../modules/oidc/global/main.bicep' = {
+  name: 'azureFrontDoor'
+  params: {
+    subdomain: oidcSubdomain
+    parentZoneName: cxParentZoneName
+    frontDoorProfileName: azureFrontDoorProfileName
+    frontDoorEndpointName: azureFrontDoorProfileName
+    frontDoorSkuName: azureFrontDoorSkuName
+    securityPolicyName: azureFrontDoorProfileName
+    wafPolicyName: azureFrontDoorProfileName
+    keyVaultName: azureFrontDoorkeyVaultName
+    keyVaultAdminSPObjId: keyVaultAdminPrincipalId
+    oidcMsiName: oidcMsiName
   }
 }

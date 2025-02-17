@@ -326,8 +326,16 @@ clouds:
           name: arohcpocpdev
           zoneRedundantMode: Disabled
       # OIDC
-      oidcStorageAccountName: arohcpoidc{{ .ctx.regionShort }}
-      oidcZoneRedundantMode: Auto
+      oidc:
+        storageAccount:
+          name: arohcpoidc{{ .ctx.regionShort }}
+          zoneRedundantMode: Auto
+        frontdoor:
+          subdomain: oic
+          name: arohcpdev
+          sku: Premium_AzureFrontDoor
+          keyVaultName: "" # intentionally left empty as we don't need one in public cloud
+          msiName: arohcp-afd
       # Metrics
       monitoring:
         workspaceName: 'arohcp-{{ .ctx.regionShort }}'

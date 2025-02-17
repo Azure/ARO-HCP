@@ -298,8 +298,19 @@
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpintoidcusw3",
-  "oidcZoneRedundantMode": "Auto",
+  "oidc": {
+    "frontdoor": {
+      "keyVaultName": "",
+      "msiName": "arohcp-afd",
+      "name": "arohcpint",
+      "sku": "Premium_AzureFrontDoor",
+      "subdomain": "oic"
+    },
+    "storageAccount": {
+      "name": "arohcpintoidcusw3",
+      "zoneRedundantMode": "Auto"
+    }
+  },
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
   "releaseApprover": {

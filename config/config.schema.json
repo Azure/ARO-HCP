@@ -978,11 +978,63 @@
     "ocpAcrZoneRedundantMode": {
       "$ref": "#/definitions/zoneRedundantMode"
     },
-    "oidcStorageAccountName": {
-      "type": "string"
-    },
-    "oidcZoneRedundantMode": {
-      "$ref": "#/definitions/zoneRedundantMode"
+    "oidc": {
+      "type": "object",
+      "properties": {
+        "storageAccount": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "zoneRedundantMode": {
+              "$ref": "#/definitions/zoneRedundantMode"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "zoneRedundantMode"
+          ]
+        },
+        "frontdoor": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "sku": {
+              "type": "string",
+              "enum": [
+                "Premium_AzureFrontDoor",
+                "Standard_AzureFrontDoor"
+              ]
+            },
+            "subdomain": {
+              "type": "string"
+            },
+            "keyVaultName": {
+              "type": "string"
+            },
+            "msiName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "subdomain",
+            "sku",
+            "keyVaultName",
+            "msiName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "storageAccount",
+        "frontdoor"
+      ]
     },
     "region": {
       "type": "string"
@@ -1129,8 +1181,7 @@
     "mce",
     "monitoring",
     "msiKeyVault",
-    "oidcStorageAccountName",
-    "oidcZoneRedundantMode",
+    "oidc",
     "region",
     "regionRG",
     "serviceKeyVault",
