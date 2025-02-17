@@ -485,7 +485,7 @@ First install the agent
             }
           }
         }
-      },
+      }
     }
     EOF
 
