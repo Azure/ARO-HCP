@@ -8,9 +8,12 @@ defaults:
   global:
     rg: global-shared-resources
     subscription: hcp-{{ .ctx.region }}
-    region: uksouth
     globalMSIName: "global-ev2-identity"
     safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
+
+  # ACR
+  svcAcrZoneRedundantMode: Enabled
+  ocpAcrZoneRedundantMode: Enabled
 
   # ACR Pull
   acrPullImageDigest: sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca #v0.1.7
@@ -20,6 +23,7 @@ defaults:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
 
+  # SVC cluster specifics
   svc:
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
@@ -28,7 +32,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.2
+      kubernetesVersion: 1.31.3
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}
         kvSoftDelete: true
@@ -50,7 +54,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.2
+      kubernetesVersion: 1.31.3
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
@@ -214,11 +218,19 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+
+          # Region for global resources in INT is uksouth
+          global:
+            region: uksouth
+
           # Cluster Service
           clusterService:
             environment: "arohcpint"
+
           # OIDC
           oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }}
+          oidcZoneRedundantMode: Auto
+
           # SVC
           svc:
             aks:
@@ -252,6 +264,7 @@ clouds:
                 osDiskSizeGB: 128
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
+
           # DNS
           dns:
             cxParentZoneName: aroapp-hcp.azure-test.net

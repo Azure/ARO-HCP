@@ -212,10 +212,10 @@ main() {
     --argjson uamis_json_map "$UAMIS_JSON_MAP" \
     --argjson identity_uamis_json_map "$IDENTITY_UAMIS_JSON_MAP" \
     '
-      .properties.spec.platform.managedResourceGroup = $managed_rg |
-      .properties.spec.platform.subnetId = $subnet_id |
-      .properties.spec.platform.networkSecurityGroupId = $nsg_id |
-      .properties.spec.platform.operatorsAuthentication.userAssignedIdentities = $uamis_json_map |
+      .properties.platform.managedResourceGroup = $managed_rg |
+      .properties.platform.subnetId = $subnet_id |
+      .properties.platform.networkSecurityGroupId = $nsg_id |
+      .properties.platform.operatorsAuthentication.userAssignedIdentities = $uamis_json_map |
       .identity.userAssignedIdentities = $identity_uamis_json_map
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 

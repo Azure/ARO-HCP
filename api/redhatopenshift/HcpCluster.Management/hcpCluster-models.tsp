@@ -58,49 +58,6 @@ model HcpOpenShiftClusterProperties {
   @visibility("read")
   provisioningState?: ProvisioningState;
 
-  /** The cluster resource specification. */
-  spec?: ClusterSpec;
-}
-
-/** HCP patchable cluster properties */
-model HcpOpenShiftClusterPatchProperties {
-  /** The status of the last operation. */
-  @visibility("read")
-  provisioningState?: ProvisioningState;
-
-  /** The cluster resource specification. */
-  spec?: ClusterPatchSpec;
-}
-
-model ManagedServiceIdentityUpdate
-  is OptionalProperties<UpdateableProperties<Azure.ResourceManager.Foundations.ManagedServiceIdentity>>;
-
-model HcpOpenShiftClusterPatch
-  is OptionalProperties<UpdateableProperties<OmitProperties<
-    HcpOpenShiftClusterResource,
-    "name" | "properties" | "identity"
-  >>> {
-  /** HCP patchable cluster properties */
-  properties?: HcpOpenShiftClusterPatchProperties;
-
-  /** Managed service identity */
-  identity?: ManagedServiceIdentityUpdate;
-}
-
-model HcpOpenShiftClusterNodePoolPatch
-  is OptionalProperties<UpdateableProperties<OmitProperties<
-    HcpOpenShiftClusterNodePoolResource,
-    "name" | "properties" | "identity"
-  >>> {
-  /** Represents the patchable node pool properties */
-  properties?: NodePoolPatchProperties;
-
-  /** Managed Service Identity */
-  identity?: ManagedServiceIdentityUpdate;
-}
-
-/** The cluster resource specification */
-model ClusterSpec {
   /** Version of the control plane components */
   @visibility("create", "read")
   version: VersionProfile;
@@ -157,8 +114,12 @@ model ClusterSpec {
   externalAuth?: ExternalAuthConfigProfile;
 }
 
-/** The patchable cluster specification */
-model ClusterPatchSpec {
+/** HCP patchable cluster properties */
+model HcpOpenShiftClusterPatchProperties {
+  /** The status of the last operation. */
+  @visibility("read")
+  provisioningState?: ProvisioningState;
+
   /** Disable user workload monitoring */
   @visibility("update")
   disableUserWorkloadMonitoring?: boolean;
@@ -166,6 +127,33 @@ model ClusterPatchSpec {
   /** Openshift cluster proxy configuration */
   @visibility("update")
   proxy?: ProxyProfile;
+}
+
+model ManagedServiceIdentityUpdate
+  is OptionalProperties<UpdateableProperties<Azure.ResourceManager.Foundations.ManagedServiceIdentity>>;
+
+model HcpOpenShiftClusterPatch
+  is OptionalProperties<UpdateableProperties<OmitProperties<
+    HcpOpenShiftClusterResource,
+    "name" | "properties" | "identity"
+  >>> {
+  /** HCP patchable cluster properties */
+  properties?: HcpOpenShiftClusterPatchProperties;
+
+  /** Managed service identity */
+  identity?: ManagedServiceIdentityUpdate;
+}
+
+model HcpOpenShiftClusterNodePoolPatch
+  is OptionalProperties<UpdateableProperties<OmitProperties<
+    HcpOpenShiftClusterNodePoolResource,
+    "name" | "properties" | "identity"
+  >>> {
+  /** Represents the patchable node pool properties */
+  properties?: NodePoolPatchProperties;
+
+  /** Managed Service Identity */
+  identity?: ManagedServiceIdentityUpdate;
 }
 
 /** The resource provisioning state. */
@@ -516,50 +504,6 @@ model NodePoolProperties {
   @visibility("read")
   provisioningState?: ProvisioningState;
 
-  /** The node pool resource specification */
-  spec?: NodePoolSpec;
-}
-
-/** Represents the patchable node pool properties */
-model NodePoolPatchProperties {
-  /** Provisioning state */
-  @visibility("read")
-  provisioningState?: ResourceProvisioningState;
-
-  /** The node pool resource specification */
-  spec?: NodePoolPatchSpec;
-}
-
-/** taintKey is the k8s valid key of the taint type on the nodepool nodes
- * The good example of the taint key is `node-role.kubernetes.io/master`
- */
-@minLength(1)
-@maxLength(316)
-scalar taintKey extends string;
-
-/** taintValue is the k8s valid value of the taint type on the nodepool nodes
- * The good example of the taint value is `NoSchedule`
- */
-@minLength(1)
-@maxLength(63)
-scalar taintValue extends string;
-
-/** The taint effect the same as in K8s */
-union Effect {
-  string,
-
-  /** NoSchedule taint effect */
-  NoSchedule: "NoSchedule",
-
-  /** PreferNoSchedule taint effect */
-  PreferNoSchedule: "PreferNoSchedule",
-
-  /** NoExecute taint effect */
-  NoExecute: "NoExecute",
-}
-
-/** Worker node pool profile */
-model NodePoolSpec {
   /** OpenShift version for the nodepool */
   @visibility("create", "read")
   version: VersionProfile;
@@ -611,8 +555,12 @@ model NodePoolSpec {
   tuningConfigs?: string[];
 }
 
-/** Worker node pool profile */
-model NodePoolPatchSpec {
+/** Represents the patchable node pool properties */
+model NodePoolPatchProperties {
+  /** Provisioning state */
+  @visibility("read")
+  provisioningState?: ResourceProvisioningState;
+
   /** The number of worker nodes, it cannot be used together with autoscaling */
   @visibility("update")
   replicas?: int32;
@@ -649,6 +597,34 @@ model NodePoolPatchSpec {
    * JSON or YAML of a serialized Tuned or PerformanceProfile.
    */
   tuningConfigs?: string[];
+}
+
+/** taintKey is the k8s valid key of the taint type on the nodepool nodes
+ * The good example of the taint key is `node-role.kubernetes.io/master`
+ */
+@minLength(1)
+@maxLength(316)
+scalar taintKey extends string;
+
+/** taintValue is the k8s valid value of the taint type on the nodepool nodes
+ * The good example of the taint value is `NoSchedule`
+ */
+@minLength(1)
+@maxLength(63)
+scalar taintValue extends string;
+
+/** The taint effect the same as in K8s */
+union Effect {
+  string,
+
+  /** NoSchedule taint effect */
+  NoSchedule: "NoSchedule",
+
+  /** PreferNoSchedule taint effect */
+  PreferNoSchedule: "PreferNoSchedule",
+
+  /** NoExecute taint effect */
+  NoExecute: "NoExecute",
 }
 
 /** Taint is controlling the node taint and its effects */

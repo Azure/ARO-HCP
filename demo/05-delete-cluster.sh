@@ -12,7 +12,7 @@ get_existing_cluster_payload() {
 }
 
 delete_managed_identities_from_cluster() {
-  UAMIS_JSON_MAP=$(echo ${EXISTING_CLUSTER_PAYLOAD} | jq '.properties.spec.platform.operatorsAuthentication.userAssignedIdentities')
+  UAMIS_JSON_MAP=$(echo ${EXISTING_CLUSTER_PAYLOAD} | jq '.properties.platform.operatorsAuthentication.userAssignedIdentities')
 
   CP_UAMIS_ENTRIES=$(echo ${UAMIS_JSON_MAP}| jq -c '.controlPlaneOperators | to_entries | .[]')
   while read cp_uami_entry; do
