@@ -19,7 +19,7 @@ if ($x -ne "Group" ) {
 }
 
 if ($dryRun -eq "dry-run") {
-    Write-Host "Running in dry-run, would delte these Role Assignments"
+    Write-Host "Running in dry-run, would delete these Role Assignments"
     Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown"
 } else {
     Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown" | Remove-AzRoleAssignment
