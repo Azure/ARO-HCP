@@ -55,7 +55,7 @@ spec:
         - --workload-source-driver=mqtt
         - --workload-source-config=/secrets/maestro/config.yaml
         - --cloudevents-client-id={{ .Values.consumerName }}-work-agent
-        image: "{{ .Values.image.base }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: IfNotPresent
         name: maestro-agent
         volumeMounts:

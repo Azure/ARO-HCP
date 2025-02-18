@@ -14,7 +14,8 @@ deploy:
 		--set credsKeyVault.secret=${CONSUMER_NAME} \
 		--set azure.clientId=$${MAESTRO_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
-		--set image.base=${IMAGE_BASE} \
+		--set image.registry=${ACR_NAME}.azurecr.io \
+		--set image.repository=${IMAGE_REPO} \
 		--set image.tag=${IMAGE_TAG} \
 		--set sideCar.imageBase=${SIDECAR_IMAGE_BASE} \
 		--set sideCar.imageTag=${SIDECAR_IMAGE_TAG}
