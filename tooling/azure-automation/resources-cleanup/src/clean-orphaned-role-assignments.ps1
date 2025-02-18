@@ -1,3 +1,9 @@
+Param
+(
+  [Parameter (Mandatory= $false)]
+  [System.Boolean] $dryRun = $false
+)
+
 Connect-AzAccount -Identity
 
 Select-AzSubscription 1d3378d3-5a3f-4712-85a1-2485495dfc4b | Out-Null
@@ -12,4 +18,9 @@ if ($x -ne "Group" ) {
     exit 1
 }
 
-Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown" | Remove-AzRoleAssignment
+if ($dryRun -eq "dry-run") {
+    Write-Host "Running in dry-run, would delte these Role Assignments"
+    Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown"
+} else {
+    Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown" | Remove-AzRoleAssignment
+}
