@@ -1,11 +1,11 @@
-import { getLocationAvailabilityZonesCSV, determineZoneRedundancy } from '../modules/common.bicep'
+import { getLocationAvailabilityZonesCSV, determineZoneRedundancy, csvToArray } from '../modules/common.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('List of Availability Zones to use for the infrastructure, defaults to all the zones of the location')
+@description('Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location')
 param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
-var locationAvailabilityZoneList = split(locationAvailabilityZones, ',')
+var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 
 @description('AKS cluster name')
 param aksClusterName string
