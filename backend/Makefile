@@ -42,6 +42,10 @@ deploy:
 			-g ${RESOURCEGROUP} \
 			-n backend \
 			--query clientId -o tsv) && \
+	IMAGE_PULLER_MI_CLIENT_ID=$$(az identity show \
+			-g ${RESOURCEGROUP} \
+			-n image-puller \
+			--query clientId -o tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
@@ -55,6 +59,10 @@ deploy:
 		--set serviceAccount.workloadIdentityTenantId="$${TENANT_ID}" \
 		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE}:$${IMAGE_TAG} \
 		--set configMap.location=${LOCATION} \
+		--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
+		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
+		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
+		--set pullBinding.workloadIdentityTenantId="$${TENANT_ID}" \
 		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE}:$${IMAGE_TAG} \
 		--namespace aro-hcp
 .PHONY: deploy

@@ -9,3 +9,8 @@ deployment:
 serviceAccount:
   workloadIdentityClientId: ""
   workloadIdentityTenantId: ""
+pullBinding:
+  registry: ""
+  scope: ""
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""

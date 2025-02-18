@@ -10,7 +10,7 @@ deploy:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${SVC_RG}" -n ${MANAGED_IDENTITY_NAME} --query clientId -o tsv) && \
 	DATABASE_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${SVC_RG} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "maestro-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
-	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query clientId -o tsv) && \
+	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${SVC_RG} -n image-puller --query clientId -o tsv) && \
 	${HELM_CMD} maestro-server ./helm \
 		--namespace ${NAMESPACE} \
 		-f helm/$${OVERRIDES} \
