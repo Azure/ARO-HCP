@@ -190,8 +190,9 @@ clouds:
         imageTag: 8244a76cbc7d020192648b17ac7b7467abf1f2cb
       # Cluster Service
       clusterService:
-        imageTag: d519094
-        imageRepo: app-sre/uhc-clusters-service
+        image:
+          digest: d519094
+          repository: app-sre/uhc-clusters-service
         azureOperatorsManagedIdentities:
           clusterApiAzure:
             roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev
