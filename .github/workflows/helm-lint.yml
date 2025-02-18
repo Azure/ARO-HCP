@@ -3,7 +3,17 @@
 # More info at https://github.com/helm/chart-testing-action
 name: Lint Helm Charts
 
-on: pull_request
+on:
+  create:
+  push:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      debug:
+        required: false
+        default: "false"
 
 jobs:
   lint-test:
@@ -53,3 +63,4 @@ jobs:
             --all \
             --validate-maintainers=false \
             --target-branch ${{ github.event.repository.default_branch }}
+            --debug=${{ inputs.debug }}
