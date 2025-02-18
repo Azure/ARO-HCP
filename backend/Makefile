@@ -42,6 +42,7 @@ deploy:
 			-g ${RESOURCEGROUP} \
 			-n backend \
 			--query clientId -o tsv) && \
+	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
@@ -51,6 +52,7 @@ deploy:
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
+		--set serviceAccount.workloadIdentityTenantId="$${TENANT_ID}" \
 		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE}:$${IMAGE_TAG} \
 		--set configMap.location=${LOCATION} \
 		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE}:$${IMAGE_TAG} \

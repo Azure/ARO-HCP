@@ -46,18 +46,10 @@ deploy:
 			-g ${RESOURCEGROUP} \
 			-n frontend \
 			--query clientId -o tsv) && \
-	FRONTEND_MI_TENANT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
-			-n frontend \
-			--query tenantId -o tsv) &&\
 	IMAGE_PULLER_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n image-puller \
 			--query clientId -o tsv) && \
-	IMAGE_PULLER_MI_TENANT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
-			-n image-puller \
-			--query tenantId -o tsv) && \
 	SECRET_STORE_MI_CLIENT_ID=$$(az aks show --resource-group ${RESOURCEGROUP} \
 			--name ${AKS_NAME} \
 			--query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId \
@@ -76,9 +68,9 @@ deploy:
 		--set credsKeyVault.name=${SERVICE_KEY_VAULT} \
 		--set credsKeyVault.secret=${CERTIFICATE_NAME} \
 		--set serviceAccount.workloadIdentityClientId="$${FRONTEND_MI_CLIENT_ID}" \
-		--set serviceAccount.workloadIdentityTenantId="$${FRONTEND_MI_TENANT_ID}" \
+		--set serviceAccount.workloadIdentityTenantId="$${TENANT_ID}" \
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
-		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
+		--set pullBinding.workloadIdentityTenantId="$${TENANT_ID}" \
 		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE}:$${IMAGE_TAG} \
 		--set configMap.location=${LOCATION}  \
 		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE}:$${IMAGE_TAG} \
