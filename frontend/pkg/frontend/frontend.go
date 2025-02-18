@@ -540,6 +540,15 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		doc.ActiveOperationID = operationID
 		doc.ProvisioningState = operationDoc.Status
 
+		// Record managed identity type and any system-assigned identifiers.
+		// Omit the user-assigned identities map since that is reconstructed
+		// from Cluster Service data.
+		doc.Identity = &arm.ManagedServiceIdentity{
+			PrincipalID: hcpCluster.Identity.PrincipalID,
+			TenantID:    hcpCluster.Identity.TenantID,
+			Type:        hcpCluster.Identity.Type,
+		}
+
 		// Record the latest system data values from ARM, if present.
 		if systemData != nil {
 			doc.SystemData = systemData
@@ -925,6 +934,12 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
 	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
 	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
+
+	if doc.Identity != nil {
+		hcpCluster.Identity.PrincipalID = doc.Identity.PrincipalID
+		hcpCluster.Identity.TenantID = doc.Identity.TenantID
+		hcpCluster.Identity.Type = doc.Identity.Type
+	}
 
 	return arm.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
 }

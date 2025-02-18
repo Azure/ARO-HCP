@@ -42,13 +42,14 @@ type ResourceDocument struct {
 	baseDocument
 
 	// FIXME: Change the JSON field name when we're ready to break backward-compat.
-	ResourceID        *azcorearm.ResourceID `json:"key,omitempty"`
-	PartitionKey      string                `json:"partitionKey,omitempty"`
-	InternalID        ocm.InternalID        `json:"internalId,omitempty"`
-	ActiveOperationID string                `json:"activeOperationId,omitempty"`
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"`
-	SystemData        *arm.SystemData       `json:"systemData,omitempty"`
-	Tags              map[string]string     `json:"tags,omitempty"`
+	ResourceID        *azcorearm.ResourceID       `json:"key,omitempty"`
+	PartitionKey      string                      `json:"partitionKey,omitempty"`
+	InternalID        ocm.InternalID              `json:"internalId,omitempty"`
+	ActiveOperationID string                      `json:"activeOperationId,omitempty"`
+	ProvisioningState arm.ProvisioningState       `json:"provisioningState,omitempty"`
+	Identity          *arm.ManagedServiceIdentity `json:"identity,omitempty"`
+	SystemData        *arm.SystemData             `json:"systemData,omitempty"`
+	Tags              map[string]string           `json:"tags,omitempty"`
 }
 
 func NewResourceDocument(resourceID *azcorearm.ResourceID) *ResourceDocument {
