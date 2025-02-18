@@ -5,7 +5,8 @@ azure:
   clientId: ""
   tenantId: ""
 image:
-  base: ""
+  registry: ""
+  repository: ""
   tag: ""
 credsKeyVault:
   name: ""

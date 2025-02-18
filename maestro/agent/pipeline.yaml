@@ -24,8 +24,8 @@ resourceGroups:
       configRef: maestro.consumerName
     - name: KEYVAULT_NAME
       configRef: mgmtKeyVault.name
-    - name: IMAGE_BASE
-      configRef: maestro.imageBase
+    - name: IMAGE_REPO
+      configRef: maestro.imageRepo
     - name: IMAGE_TAG
       configRef: maestro.imageTag
     - name: SIDECAR_IMAGE_BASE
