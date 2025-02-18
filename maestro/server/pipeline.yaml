@@ -50,3 +50,5 @@ resourceGroups:
       configRef: clusterService.k8s.namespace
     - name: CS_SERVICE_ACCOUNT_NAME
       configRef: clusterService.k8s.serviceAccountName
+    - name: ACR_NAME
+      configRef: svcAcrName

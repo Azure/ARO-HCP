@@ -45,3 +45,10 @@ image:
 credsKeyVault:
   name: ""
   secret: "maestro-server"
+
+# Pull binding configuration for ACR Pull Operator
+pullBinding:
+  registry: ""
+  scope: ""
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""

@@ -10,6 +10,8 @@ deploy:
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${SVC_RG}" -n ${MANAGED_IDENTITY_NAME} --query clientId -o tsv) && \
 	DATABASE_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${SVC_RG} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "maestro-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
+	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query clientId -o tsv) && \
+	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query tenantId -o tsv) && \
 	${HELM_CMD} maestro-server ./helm \
 		--namespace ${NAMESPACE} \
 		-f helm/$${OVERRIDES} \
@@ -25,5 +27,9 @@ deploy:
 		--set database.host=$${DATABASE_HOST} \
 		--set database.name=${DATABASE_NAME} \
 		--set clusterService.namespace=${CS_NAMESPACE} \
-		--set clusterService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME}
+		--set clusterService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
+		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
+		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
+		--set pullBinding.registry=${ACR_NAME}.azurecr.io \
+		--set pullBinding.scope=repository:${IMAGE_BASE}:pull
 .PHONY: deploy
