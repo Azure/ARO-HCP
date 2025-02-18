@@ -145,3 +145,11 @@ When possible, the different resources related to this Automation script (the Ru
 
 ## Existing policy
 We have an ARO-CreatedAt Tag [Policy](https://portal.azure.com/#view/Microsoft_Azure_Policy/PolicyDetailBlade/definitionId/%2Fsubscriptions%2F1d3378d3-5a3f-4712-85a1-2485495dfc4b%2Fproviders%2FMicrosoft.Authorization%2FpolicyDefinitions%2F9d2b25a6-fadb-47d8-bd68-eaf115bc5411) that adds a createdAt tag with the time "now" in UTC format when a resource group is created (as this information is not present by default for resource groups). That tag is used in the script to check if the resource group should be deleted or not.
+
+## Clean Orphaned Role Assignments
+
+This is a Powershell script, that removes role assignments where the granting entity does not exist anymore. Example is giving permission on the global Keyvalt to a Managed Identity in a personal environment and deleting that environment after some time.
+
+This Script needs `Role Based Access Control Administrator` on Scope Subscription
+
+It also needs `Directory Reader` access, which must be granted by Azure Admins, example [DPP-16498](https://issues.redhat.com/browse/DPP-16498)

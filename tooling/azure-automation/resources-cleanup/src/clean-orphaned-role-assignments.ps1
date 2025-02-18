@@ -1,7 +1,15 @@
-
 Connect-AzAccount -Identity
 
 Select-AzSubscription 1d3378d3-5a3f-4712-85a1-2485495dfc4b | Out-Null
 
-Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown" | Remove-AzRoleAssignment
+$x = (Get-AzRoleAssignment |
+    Where-Object DisplayName -eq "aro-hcp-engineering-App Developer" |
+    Where-Object Scope -eq /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b |
+    Where-Object RoleDefinitionName -eq "Contributor").ObjectType
 
+if ($x -ne "Group" ) { 
+    Write-Error "Wrong value for Objecttype, perhaps missing Directory Reader permissions on identity or IDs changed"
+    exit 1
+}
+
+Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown" | Remove-AzRoleAssignment
