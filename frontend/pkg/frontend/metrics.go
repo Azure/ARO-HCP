@@ -7,68 +7,24 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
-	"sync"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/maps"
-
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
-
-// Emitter emits different types of metrics
-type Emitter interface {
-	AddCounter(metricName string, value float64, labels map[string]string)
-	EmitGauge(metricName string, value float64, labels map[string]string)
-}
-
-type PrometheusEmitter struct {
-	mutex    sync.Mutex
-	gauges   map[string]*prometheus.GaugeVec
-	counters map[string]*prometheus.CounterVec
-	registry prometheus.Registerer
-}
-
-func NewPrometheusEmitter(r prometheus.Registerer) *PrometheusEmitter {
-	return &PrometheusEmitter{
-		gauges:   make(map[string]*prometheus.GaugeVec),
-		counters: make(map[string]*prometheus.CounterVec),
-		registry: r,
-	}
-}
-
-func (pe *PrometheusEmitter) EmitGauge(name string, value float64, labels map[string]string) {
-	pe.mutex.Lock()
-	defer pe.mutex.Unlock()
-	vec, exists := pe.gauges[name]
-	if !exists {
-		labelKeys := maps.Keys(labels)
-		vec = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: name}, labelKeys)
-		pe.registry.MustRegister(vec)
-		pe.gauges[name] = vec
-	}
-	vec.With(labels).Set(value)
-}
-
-func (pe *PrometheusEmitter) AddCounter(name string, value float64, labels map[string]string) {
-	pe.mutex.Lock()
-	defer pe.mutex.Unlock()
-	vec, exists := pe.counters[name]
-	if !exists {
-		labelKeys := maps.Keys(labels)
-		vec = prometheus.NewCounterVec(prometheus.CounterOpts{Name: name}, labelKeys)
-		pe.registry.MustRegister(vec)
-		pe.counters[name] = vec
-	}
-	vec.With(labels).Add(value)
-}
 
 // patternRe is used to strip the METHOD string from the [ServerMux] pattern string.
 var patternRe = regexp.MustCompile(`^[^\s]*\s+`)
 
+type SubscriptionStateGetter interface {
+	GetSubscriptionState(string) string
+}
+
 type MetricsMiddleware struct {
-	Emitter
-	dbClient database.DBClient
+	ssg             SubscriptionStateGetter
+	requestCounter  *prometheus.CounterVec
+	requestDuration *prometheus.HistogramVec
 }
 
 type logResponseWriter struct {
@@ -82,49 +38,85 @@ func (lrw *logResponseWriter) WriteHeader(code int) {
 	lrw.ResponseWriter.WriteHeader(code)
 }
 
+func NewMetricsMiddleware(r prometheus.Registerer, ssg SubscriptionStateGetter) *MetricsMiddleware {
+	mm := &MetricsMiddleware{
+		ssg: ssg,
+		requestCounter: promauto.With(r).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: requestCounterName,
+				Help: "Counter for HTTP requests by method, code and route.",
+			},
+			[]string{"api_version", "method", "code", "route", "state"},
+		),
+		requestDuration: promauto.With(r).NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: requestDurationName,
+				Help: "Histogram of latencies for HTTP requests by method, code and route.",
+				// The bucket values are chosen to match the general
+				// recommendation in terms of latency for resource providers
+				// (e.g. latency less than or equal to 1 second).
+				Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
+				// Enable native histogram (sparse buckets). The settings have
+				// been chosen to offer a balance between accuracy and memory
+				// usage.
+				// Note that it requires support from the scraper (e.g. Prometheus).
+				NativeHistogramBucketFactor:     1.1,
+				NativeHistogramMaxBucketNumber:  100,
+				NativeHistogramMinResetDuration: 1 * time.Hour,
+			},
+			[]string{"api_version", "method", "code", "route"},
+		),
+	}
+
+	return mm
+}
+
 // Metrics middleware to capture response time and status code
 func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 	return func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-		ctx := r.Context()
-		logger := LoggerFromContext(ctx)
-
 		startTime := time.Now()
 
 		lrw := &logResponseWriter{ResponseWriter: w}
 
-		next(lrw, r) // Process the request
+		next(lrw, r) // Process the request.
 
-		duration := time.Since(startTime).Seconds()
-
-		// Get the route pattern that matched
-		routePattern := r.Pattern
-		routePattern = patternRe.ReplaceAllString(routePattern, "")
-
-		subscriptionState := "Unknown"
-		subscriptionId := r.PathValue(PathSegmentSubscriptionID)
-		if subscriptionId != "" {
-			sub, err := mm.dbClient.GetSubscriptionDoc(r.Context(), subscriptionId)
-			if err != nil {
-				// If we can't determine the subscription state, we can still expose a metric for subscriptionState "Unknown"
-				logger.Info("unable to retrieve subscription document for the `frontend_requests_total` metric", "subscriptionId", subscriptionId, "error", err)
-			} else {
-				subscriptionState = string(sub.Subscription.State)
-			}
+		// Get the route pattern that matched.
+		// Note that the value can be empty if one of the middlewares executing
+		// before the ServeMux handler returned early.
+		var (
+			routePattern = PatternFromContext(r.Context())
+			route        string
+		)
+		if routePattern != nil {
+			route = patternRe.ReplaceAllString(*routePattern, "")
+		}
+		if route == "" {
+			route = noMatchRouteLabel
 		}
 
-		mm.Emitter.AddCounter("frontend_requests_total", 1.0, map[string]string{
-			"verb":        r.Method,
-			"api_version": r.URL.Query().Get(APIVersionKey),
-			"code":        strconv.Itoa(lrw.statusCode),
-			"route":       routePattern,
-			"state":       subscriptionState,
-		})
+		apiVersion := r.URL.Query().Get(APIVersionKey)
+		if apiVersion == "" {
+			apiVersion = unknownVersionLabel
+		}
 
-		mm.Emitter.EmitGauge("frontend_duration", float64(duration), map[string]string{
-			"verb":        r.Method,
-			"api_version": r.URL.Query().Get(APIVersionKey),
+		var subscriptionID string
+		if resource, _ := azcorearm.ParseResourceID(r.URL.Path); resource != nil {
+			subscriptionID = resource.SubscriptionID
+		}
+
+		mm.requestCounter.With(prometheus.Labels{
+			"method":      r.Method,
+			"api_version": apiVersion,
 			"code":        strconv.Itoa(lrw.statusCode),
-			"route":       routePattern,
-		})
+			"route":       route,
+			"state":       mm.ssg.GetSubscriptionState(subscriptionID),
+		}).Inc()
+
+		mm.requestDuration.With(prometheus.Labels{
+			"method":      r.Method,
+			"api_version": apiVersion,
+			"code":        strconv.Itoa(lrw.statusCode),
+			"route":       route,
+		}).Observe(time.Since(startTime).Seconds())
 	}
 }

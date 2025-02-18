@@ -15,16 +15,42 @@ import (
 
 type ContextError struct {
 	got any
+	key contextKey
 }
 
 func (c *ContextError) Error() string {
 	return fmt.Sprintf(
-		"error retrieving value from context, value obtained was '%v' and type obtained was '%T'",
+		"error retrieving value for key %q from context, value obtained was '%v' and type obtained was '%T'",
+		c.key,
 		c.got,
 		c.got)
 }
 
 type contextKey int
+
+func (c contextKey) String() string {
+	switch c {
+	case contextKeyOriginalPath:
+		return "originalPath"
+	case contextKeyBody:
+		return "body"
+	case contextKeyLogger:
+		return "logger"
+	case contextKeyVersion:
+		return "version"
+	case contextKeyDBClient:
+		return "dbClient"
+	case contextKeyResourceID:
+		return "resourceID"
+	case contextKeyCorrelationData:
+		return "correlationData"
+	case contextKeySystemData:
+		return "systemData"
+	case contextKeyPattern:
+		return "pattern"
+	}
+	return "<unknown>"
+}
 
 const (
 	// Keys for request-scoped data in http.Request contexts
@@ -36,6 +62,7 @@ const (
 	contextKeyResourceID
 	contextKeyCorrelationData
 	contextKeySystemData
+	contextKeyPattern
 )
 
 func ContextWithOriginalPath(ctx context.Context, originalPath string) context.Context {
@@ -47,6 +74,7 @@ func OriginalPathFromContext(ctx context.Context) (string, error) {
 	if !ok {
 		err := &ContextError{
 			got: originalPath,
+			key: contextKeyOriginalPath,
 		}
 		return originalPath, err
 	}
@@ -62,6 +90,7 @@ func BodyFromContext(ctx context.Context) ([]byte, error) {
 	if !ok {
 		err := &ContextError{
 			got: body,
+			key: contextKeyBody,
 		}
 		return body, err
 	}
@@ -77,6 +106,7 @@ func LoggerFromContext(ctx context.Context) *slog.Logger {
 	if !ok {
 		err := &ContextError{
 			got: logger,
+			key: contextKeyLogger,
 		}
 		// Return the default logger as a fail-safe, but log
 		// the failure to obtain the logger from the context.
@@ -95,6 +125,7 @@ func VersionFromContext(ctx context.Context) (api.Version, error) {
 	if !ok {
 		err := &ContextError{
 			got: version,
+			key: contextKeyVersion,
 		}
 		return version, err
 	}
@@ -110,6 +141,7 @@ func DBClientFromContext(ctx context.Context) (database.DBClient, error) {
 	if !ok {
 		err := &ContextError{
 			got: dbClient,
+			key: contextKeyDBClient,
 		}
 		return dbClient, err
 	}
@@ -125,6 +157,7 @@ func ResourceIDFromContext(ctx context.Context) (*azcorearm.ResourceID, error) {
 	if !ok {
 		err := &ContextError{
 			got: resourceID,
+			key: contextKeyResourceID,
 		}
 		return resourceID, err
 	}
@@ -140,6 +173,7 @@ func CorrelationDataFromContext(ctx context.Context) (*arm.CorrelationData, erro
 	if !ok {
 		err := &ContextError{
 			got: correlationData,
+			key: contextKeyCorrelationData,
 		}
 		return correlationData, err
 	}
@@ -155,8 +189,18 @@ func SystemDataFromContext(ctx context.Context) (*arm.SystemData, error) {
 	if !ok {
 		err := &ContextError{
 			got: systemData,
+			key: contextKeySystemData,
 		}
 		return systemData, err
 	}
 	return systemData, nil
+}
+
+func ContextWithPattern(ctx context.Context, pattern *string) context.Context {
+	return context.WithValue(ctx, contextKeyPattern, pattern)
+}
+
+func PatternFromContext(ctx context.Context) *string {
+	pattern, _ := ctx.Value(contextKeyPattern).(*string)
+	return pattern
 }

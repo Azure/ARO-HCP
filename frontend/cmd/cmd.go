@@ -109,9 +109,6 @@ func (opts *FrontendOpts) Run() error {
 	logger := util.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, util.Version()))
 
-	// Initialize the Prometheus emitter.
-	prometheusEmitter := frontend.NewPrometheusEmitter(prometheus.DefaultRegisterer)
-
 	// Initialize the global OpenTelemetry tracer.
 	otelShutdown, err := frontend.ConfigureOpenTelemetryTracer(ctx, logger, semconv.CloudRegion(opts.location))
 	if err != nil {
@@ -179,7 +176,7 @@ func (opts *FrontendOpts) Run() error {
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheusEmitter, dbClient, opts.location, &csClient)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, opts.location, &csClient)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)

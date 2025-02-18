@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -39,12 +40,13 @@ func MuxPattern(method string, segments ...string) string {
 	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
-func (f *Frontend) routes() *MiddlewareMux {
+func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	// Setup metrics middleware
-	metricsMiddleware := MetricsMiddleware{dbClient: f.dbClient, Emitter: f.metrics}
+	metricsMiddleware := NewMetricsMiddleware(r, f.collector)
 
 	mux := NewMiddlewareMux(
 		MiddlewarePanic,
+		metricsMiddleware.Metrics(),
 		MiddlewareCorrelationData,
 		MiddlewareTracing,
 		MiddlewareLogging,
@@ -56,7 +58,6 @@ func (f *Frontend) routes() *MiddlewareMux {
 		MiddlewareLowercase,
 		MiddlewareSystemData,
 		MiddlewareValidateStatic,
-		metricsMiddleware.Metrics(),
 	)
 
 	// Unauthenticated routes

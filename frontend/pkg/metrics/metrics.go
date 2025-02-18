@@ -32,7 +32,7 @@ type SubscriptionCollector struct {
 	lastSuccessSyncTimestamp prometheus.Gauge
 
 	mtx           sync.RWMutex
-	subscriptions []subscription
+	subscriptions map[string]subscription
 }
 
 const (
@@ -123,15 +123,15 @@ func (sc *SubscriptionCollector) refresh(logger *slog.Logger) {
 }
 
 func (sc *SubscriptionCollector) updateCache() error {
-	var subscriptions []subscription
+	subscriptions := make(map[string]subscription)
 
 	iter := sc.dbClient.ListAllSubscriptionDocs()
 	for sub := range iter.Items(context.Background()) {
-		subscriptions = append(subscriptions, subscription{
+		subscriptions[sub.ID] = subscription{
 			id:         sub.ID,
 			state:      string(sub.Subscription.State),
 			updated_at: int64(sub.CosmosTimestamp),
-		})
+		}
 	}
 	if err := iter.GetError(); err != nil {
 		return err
@@ -142,6 +142,18 @@ func (sc *SubscriptionCollector) updateCache() error {
 	sc.mtx.Unlock()
 
 	return nil
+}
+
+// GetSubscriptionState returns the state of the subscription.
+func (sc *SubscriptionCollector) GetSubscriptionState(id string) string {
+	sc.mtx.RLock()
+	defer sc.mtx.RUnlock()
+
+	if s, found := sc.subscriptions[id]; found {
+		return s.state
+	}
+
+	return "Unknown"
 }
 
 var (

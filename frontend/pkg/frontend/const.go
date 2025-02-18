@@ -18,4 +18,11 @@ const (
 	PathSegmentResourceGroupName = "resourcegroupname"
 	PathSegmentResourceName      = "resourcename"
 	PathSegmentSubscriptionID    = "subscriptionid"
+
+	healthGaugeName     = "frontend_health"
+	requestCounterName  = "frontend_http_requests_total"
+	requestDurationName = "frontend_http_requests_duration_seconds"
+
+	noMatchRouteLabel   = "<no match>"
+	unknownVersionLabel = "<unknown>"
 )

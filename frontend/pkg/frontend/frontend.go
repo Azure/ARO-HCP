@@ -21,6 +21,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
@@ -39,16 +40,24 @@ type Frontend struct {
 	dbClient             database.DBClient
 	ready                atomic.Value
 	done                 chan struct{}
-	metrics              Emitter
 	location             string
+	collector            *metrics.SubscriptionCollector
+	healthGauge          prometheus.Gauge
 }
 
-func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net.Listener, emitter Emitter, dbClient database.DBClient, location string, csClient ocm.ClusterServiceClientSpec) *Frontend {
+func NewFrontend(
+	logger *slog.Logger,
+	listener net.Listener,
+	metricsListener net.Listener,
+	reg prometheus.Registerer,
+	dbClient database.DBClient,
+	location string,
+	csClient ocm.ClusterServiceClientSpec,
+) *Frontend {
 	f := &Frontend{
 		clusterServiceClient: csClient,
 		listener:             listener,
 		metricsListener:      metricsListener,
-		metrics:              emitter,
 		server: http.Server{
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
@@ -64,12 +73,19 @@ func NewFrontend(logger *slog.Logger, listener net.Listener, metricsListener net
 				return ContextWithLogger(context.Background(), logger)
 			},
 		},
-		dbClient: dbClient,
-		done:     make(chan struct{}),
-		location: strings.ToLower(location),
+		dbClient:  dbClient,
+		done:      make(chan struct{}),
+		location:  strings.ToLower(location),
+		collector: metrics.NewSubscriptionCollector(reg, dbClient, location),
+		healthGauge: promauto.With(reg).NewGauge(
+			prometheus.GaugeOpts{
+				Name: healthGaugeName,
+				Help: "Reports the health status of the service (0: not healthy, 1: healthy).",
+			},
+		),
 	}
 
-	f.server.Handler = f.routes()
+	f.server.Handler = f.routes(reg)
 	f.metricsServer.Handler = f.metricsRoutes()
 
 	return f
@@ -101,8 +117,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 		return f.metricsServer.Serve(f.metricsListener)
 	})
 	errs.Go(func() error {
-		collector := metrics.NewSubscriptionCollector(prometheus.DefaultRegisterer, f.dbClient, f.location)
-		collector.Run(logger, stop)
+		f.collector.Run(logger, stop)
 		return nil
 	})
 
@@ -137,19 +152,14 @@ func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
-	var healthStatus float64
-
 	if f.CheckReady(request.Context()) {
 		writer.WriteHeader(http.StatusOK)
-		healthStatus = 1.0
-	} else {
-		arm.WriteInternalServerError(writer)
-		healthStatus = 0.0
+		f.healthGauge.Set(1.0)
+		return
 	}
 
-	f.metrics.EmitGauge("frontend_health", healthStatus, map[string]string{
-		"endpoint": "/healthz",
-	})
+	arm.WriteInternalServerError(writer)
+	f.healthGauge.Set(0.0)
 }
 
 func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
