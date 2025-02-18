@@ -589,6 +589,9 @@
               "managedIdentityName": {
                 "type": "string"
               },
+              "loglevel": {
+                "type": "string"
+              },
               "k8s": {
                 "type": "object",
                 "properties": {
@@ -610,6 +613,7 @@
             "required": [
               "mqttClientName",
               "managedIdentityName",
+              "loglevel",
               "k8s"
             ]
           },

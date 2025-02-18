@@ -155,6 +155,7 @@
         "namespace": "maestro",
         "serviceAccountName": "maestro"
       },
+      "loglevel": "4",
       "managedIdentityName": "maestro-server",
       "mqttClientName": "maestro-server"
     }
