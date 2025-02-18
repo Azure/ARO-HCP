@@ -139,7 +139,7 @@
       "private": false
     },
     "imageRepo": "redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
-    "imageTag": "c9a36e110a32c0c25aa5025cfe6d51af797e6d4b",
+    "imageTag": "8244a76cbc7d020192648b17ac7b7467abf1f2cb",
     "postgres": {
       "databaseName": "maestro",
       "deploy": false,
@@ -155,6 +155,7 @@
         "namespace": "maestro",
         "serviceAccountName": "maestro"
       },
+      "loglevel": "4",
       "managedIdentityName": "maestro-server",
       "mqttClientName": "maestro-server-usw3tst"
     }

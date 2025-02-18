@@ -73,6 +73,7 @@ defaults:
   maestro:
     server:
       mqttClientName: maestro-server
+      loglevel: "4"
       managedIdentityName: maestro-server
       k8s:
         namespace: maestro

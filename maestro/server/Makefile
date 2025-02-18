@@ -16,6 +16,7 @@ deploy:
 		--namespace ${NAMESPACE} \
 		-f helm/$${OVERRIDES} \
 		--set maestro.serviceAccount=${SERVICE_ACCOUNT_NAME} \
+		--set maestro.glog_v=${MAESTRO_LOG_LEVEL} \
 		--set broker.host=$${EVENTGRID_HOSTNAME} \
 		--set credsKeyVault.name=${KEYVAULT_NAME} \
 		--set credsKeyVault.secret=${MQTT_CLIENT_NAME} \
