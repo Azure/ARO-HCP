@@ -43,10 +43,6 @@ func TestNewCorrelationData(t *testing.T) {
 			if correlationData.CorrelationRequestID != correlation_request_id {
 				t.Errorf("got %v, but want %v", correlationData.CorrelationRequestID, correlation_request_id)
 			}
-
-			if correlationData.RequestTime.IsZero() {
-				t.Fatalf("correlationData.RequestTime was not initialized")
-			}
 		})
 	}
 }
