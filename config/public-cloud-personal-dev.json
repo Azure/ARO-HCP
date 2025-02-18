@@ -138,7 +138,7 @@
       "name": "arohcp-maestro-usw3tst",
       "private": false
     },
-    "imageBase": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
+    "imageBase": "arohcpsvcdev.azurecr.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
     "imageTag": "c9a36e110a32c0c25aa5025cfe6d51af797e6d4b",
     "postgres": {
       "databaseName": "maestro",
