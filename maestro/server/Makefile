@@ -22,8 +22,9 @@ deploy:
 		--set azure.clientId=$${MAESTRO_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
 		--set istio.restrictIngress=${ISTIO_RESTRICT_INGRESS} \
-		--set image.base=${IMAGE_BASE} \
 		--set image.tag=${IMAGE_TAG} \
+		--set image.registry=${ACR_NAME}.azurecr.io \
+		--set image.repository=${IMAGE_REPO} \
 		--set database.host=$${DATABASE_HOST} \
 		--set database.name=${DATABASE_NAME} \
 		--set clusterService.namespace=${CS_NAMESPACE} \

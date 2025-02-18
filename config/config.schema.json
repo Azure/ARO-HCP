@@ -633,7 +633,7 @@
               "private"
             ]
           },
-          "imageBase": {
+          "imageRepo": {
             "type": "string"
           },
           "imageTag": {
@@ -697,7 +697,7 @@
           "consumerName",
           "server",
           "eventGrid",
-          "imageBase",
+          "imageRepo",
           "imageTag",
           "postgres",
           "restrictIstioIngress",

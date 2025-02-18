@@ -22,8 +22,8 @@ resourceGroups:
       configRef: svc.rg
     - name: AKS_NAME
       configRef: svc.aks.name
-    - name: IMAGE_BASE
-      configRef: maestro.imageBase
+    - name: IMAGE_REPO
+      configRef: maestro.imageRepo
     - name: IMAGE_TAG
       configRef: maestro.imageTag
     - name: USE_AZURE_DB

@@ -41,7 +41,7 @@ spec:
             secretProviderClass: "maestro"
       initContainers:
       - name: migration
-        image: "{{ .Values.image.base }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: IfNotPresent
         volumeMounts:
         - name: db
@@ -61,7 +61,7 @@ spec:
         - --db-auth-method={{ .Values.database.authMethod }}
       containers:
       - name: service
-        image: "{{ .Values.image.base }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: IfNotPresent
         volumeMounts:
         - name: db
