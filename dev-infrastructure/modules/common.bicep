@@ -411,10 +411,16 @@ var _locationAvailabilityZones = {
 }
 
 @export()
+func csvToArray(inputString string) array => inputString == '' ? [] : split(inputString, ',')
+
+@export()
+func arrayToCSV(inputArray array) string => join(inputArray, ',')
+
+@export()
 func getLocationAvailabilityZones(region string) array => _locationAvailabilityZones[region].availabilityZones
 
 @export()
-func getLocationAvailabilityZonesCSV(region string) string => join(getLocationAvailabilityZones(region), ',')
+func getLocationAvailabilityZonesCSV(region string) string => arrayToCSV(getLocationAvailabilityZones(region))
 
 @export()
 func determineZoneRedundancyForRegion(region string, mode string) bool => determineZoneRedundancy(getLocationAvailabilityZones(region), mode)
