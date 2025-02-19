@@ -6,6 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-20250205092925-ef76031a2bc1
 	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
+	github.com/sirupsen/logrus v1.9.3
 )
 
 require (

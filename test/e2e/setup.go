@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"os"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -11,36 +12,49 @@ import (
 )
 
 var (
-	clients *api.ClientFactory
+	clients        *api.ClientFactory
+	subscriptionID string
 )
 
-const (
-	subscriptionID = "00000000-0000-0000-0000-000000000000"
-)
-
-func setup(ctx context.Context) error {
+func prepareDevelopmentConf() azcore.ClientOptions {
 	c := cloud.Configuration{
+		ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
 		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 			cloud.ResourceManager: {
-				Audience: "hcp-underlay-dev-svc",
-				Endpoint: "https://localhost:8443",
+				Audience: "https://management.core.windows.net/",
+				Endpoint: "http://localhost:8443",
 			},
 		},
 	}
 	opts := azcore.ClientOptions{
 		Cloud:                           c,
-		InsecureAllowCredentialWithHTTP: false,
+		InsecureAllowCredentialWithHTTP: true,
 	}
 
-	/*envOptions := &azidentity.EnvironmentCredentialOptions{
-		ClientOptions: opts,
-	}
-	creds, err := azidentity.NewEnvironmentCredential(envOptions)*/
+	return opts
+}
 
-	defaultOptions := &azidentity.DefaultAzureCredentialOptions{
+func setup(ctx context.Context) error {
+	var (
+		found bool
+		creds azcore.TokenCredential
+		err   error
+	)
+
+	if subscriptionID, found = os.LookupEnv("SUBSCRIPTION_ID"); !found {
+		subscriptionID = "00000000-0000-0000-0000-000000000000"
+	}
+
+	opts := prepareDevelopmentConf()
+
+	envOptions := &azidentity.EnvironmentCredentialOptions{
 		ClientOptions: opts,
 	}
-	creds, err := azidentity.NewDefaultAzureCredential(defaultOptions)
+	creds, err = azidentity.NewEnvironmentCredential(envOptions)
+
+	if _, found := os.LookupEnv("LOCAL_DEVELOPMENT"); found {
+		creds, err = azidentity.NewAzureCLICredential(nil)
+	}
 	if err != nil {
 		return err
 	}

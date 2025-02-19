@@ -8,6 +8,7 @@ import (
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
 var _ = Describe("List operations", func() {
@@ -31,8 +32,10 @@ var _ = Describe("List operations", func() {
 			for {
 				clusterList, err := pager.NextPage(ctx)
 				Expect(err).To(BeNil())
+				log.Logger.Infoln("Number of clusters:", len(clusterList.Value))
 				for _, val := range clusterList.Value {
-					Expect(val.ID).ToNot(BeEmpty())
+					Expect(*val.ID).ToNot(BeEmpty())
+					log.Logger.Infoln(*val.ID)
 				}
 				if !pager.More() {
 					break
@@ -41,15 +44,17 @@ var _ = Describe("List operations", func() {
 		})
 
 		It("List clusters by resource group", labels.Medium, func(ctx context.Context) {
-			rgName := "test-resource-group"
+			rgName := "psuba-net-rg"
 			By("List clusters")
 			pager := clustersClient.NewListByResourceGroupPager(rgName, nil)
 			By("Access IDs of all fetched clusters")
 			for {
 				clusterList, err := pager.NextPage(ctx)
 				Expect(err).To(BeNil())
+				log.Logger.Infoln("Number of clusters:", len(clusterList.Value))
 				for _, val := range clusterList.Value {
-					Expect(val.ID).ToNot(BeEmpty())
+					Expect(*val.ID).ToNot(BeEmpty())
+					log.Logger.Infoln(*val.ID)
 				}
 				if !pager.More() {
 					break

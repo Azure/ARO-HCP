@@ -1,8 +1,18 @@
 # Testing
 
-## Run E2E tests
+## Run E2E tests locally
 
-Run test suite with command:
+1. Login with AZCLI
+2. Port-forward RP running on SC: `kubectl port-forward -n aro-hcp svc/aro-hcp-frontend 8443:8443`
+3. Export environment variables LOCAL_DEVELOPMENT and SUBSCRIPTION_ID
+
+```bash
+export LOCAL_DEVELOPMENT=true
+export SUBSCRIPTION_ID=<subscriptionId>
+```
+
+4. Run test suite with commands:
+
 ```bash
 ginkgo ./e2e
 ```
