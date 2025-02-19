@@ -51,12 +51,6 @@ make patch-clusteservice
 
 Traces are automatically generated for incoming http requests. A simple way to generate incoming requests is to run the `aro-hcp demo` scripts, e.g. to create a cluster.
 
-#### Common Span Attributes
+#### Common Attributes
 
-The following span attributes are set in the root span and propagated to the next service via baggage: 
-
-```
-aro.correlation.id
-aro.request.id
-aro.client.request.id
-```
+A list of relevant span and resource attributes that are likely propagated to the next service via baggage can be found [here](tracing-common-attributes.md)
