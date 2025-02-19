@@ -4,6 +4,7 @@ metadata:
   labels:
     app: aro-hcp-frontend
   name: aro-hcp-frontend
+  namespace: {{ .Release.namespace }}
 spec:
   ports:
     - port: 8443
