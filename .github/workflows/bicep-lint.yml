@@ -25,6 +25,7 @@ jobs:
         run: |
           az bicep version
           make fmt
+          make modules/metrics/rules/generatedPrometheusAlertingRules.bicep
           make lint
 
       - name: Check for uncommitted changes
