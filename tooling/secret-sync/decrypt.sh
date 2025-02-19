@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eu
+
 if [[ $# -ne 3 ]];
 then
     echo "usage"
@@ -14,13 +16,13 @@ filename=${1}
 keyvault=${2}
 privateKeySecret=${3}
 
-secretFile=$(mktemp)
-
-az keyvault secret show --vault-name "${keyvault}" --name "${privateKeySecret}" |jq '.value' -r |base64 -d > ${secretFile}
-
 outputSecret=$(basename -s '.enc' ${filename})
+
+decryptedSecret=$(az keyvault key decrypt --name ${privateKeySecret} \
+    --algorithm RSA-OAEP --vault-name "${keyvault}" \
+    --data-type base64 --value "$(cat ${filename})" | jq '.result' -r | base64 -d)
 
 az keyvault secret set \
     --name "${outputSecret}" \
     --vault-name "${keyvault}" \
-    --value $(openssl pkeyutl -decrypt -inkey ${secretFile} -in ${filename})
+    --value "${decryptedSecret}"
