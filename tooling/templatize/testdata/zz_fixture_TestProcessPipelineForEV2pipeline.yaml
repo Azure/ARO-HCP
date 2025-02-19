@@ -27,25 +27,55 @@ resourceGroups:
           action: DelegateChildZone
           dependsOn:
             - deploy
-          parentZone:
-            configRef: parentZone
           childZone:
             configRef: childZone
+          parentZone:
+            configRef: parentZone
         - name: issuerTest
           action: SetCertificateIssuer
           dependsOn:
             - deploy
-          vaultBaseUrl:
-            configRef: vaultBaseUrl
           issuer:
             configRef: provider
+          vaultBaseUrl:
+            configRef: vaultBaseUrl
         - name: issuerTestOutputChaining
           action: SetCertificateIssuer
           dependsOn:
             - deploy
+          issuer:
+            value: provider
           vaultBaseUrl:
             input:
                 name: kvUrl
                 step: deploy
+        - name: cert
+          action: CreateCertificate
+          certificateName:
+            value: hcp-mdsd
+          contentType:
+            value: x-pem-file
           issuer:
-            value: provider
+            value: OneCertV2-PrivateCA
+          san:
+            value: hcp-mdsd.geneva.keyvault.aro-int.azure.com
+          vaultBaseUrl:
+            value: https://arohcp-svc-ln.vault.azure.net
+        - name: rpRegistration
+          action: ResourceProviderRegistration
+          resourceProviderNamespaces:
+            value:
+                - Microsoft.Storage
+                - Microsoft.EventHub
+                - Microsoft.Insights
+        - name: clusterAccount
+          action: LogsAccount
+          certdescription:
+            value: HCP Management Cluster
+          certsan:
+            value: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
+          namespace:
+            value: HCPManagementLogs
+          subscriptionId:
+            value:
+                - abc
