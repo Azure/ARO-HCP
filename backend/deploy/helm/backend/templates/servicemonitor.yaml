@@ -2,6 +2,7 @@ apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: aro-hcp-backend-service-monitor
+  namespace: {{ .Release.Namespace }}
 spec:
   endpoints:
   - interval: 30s
@@ -10,7 +11,7 @@ spec:
     scheme: http
   namespaceSelector:
     matchNames:
-    - aro-hcp
+    - {{ .Release.Namespace }}
   selector:
     matchLabels:
       app: aro-hcp-backend

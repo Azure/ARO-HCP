@@ -1,10 +1,15 @@
+# the configuration of the backend service
 configMap:
   location: ""
   currentVersion: ""
   backendMiClientId: ""
   databaseUrl: ""
   databaseName: ""
+
+# values used by the backend deployment resource
 deployment:
   imageName: ""
+
+# the ServiceAccount of the backend service
 serviceAccount:
   workloadIdentityClientId: ""

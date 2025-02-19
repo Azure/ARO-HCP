@@ -23,3 +23,11 @@ pullBinding:
 clusterService:
   namespace: cluster-service
   serviceAccount: clusters-service
+  service:
+    name: clusters-service
+    port: 8000
+ingress:
+  namespace: aks-istio-ingress
+  gatewayName: aro-hcp-gateway-external
+  istioSelector:
+    istio: aks-istio-ingressgateway-external
