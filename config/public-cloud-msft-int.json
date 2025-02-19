@@ -1,19 +1,19 @@
 {
   "acrPullImageDigest": "sha256:1d18e828564dcd509a8551185808549bd8bfddec1fcc4a2783914dc2103bc2ca",
-  "armHelperCertName": "armHelperCert",
-  "armHelperClientId": "f2af6a70-fc23-4a9a-bbf2-3236f86e65e4",
-  "armHelperFPAPrincipalId": "4026d9e7-2897-4f0c-83d4-897858a5f8a8",
+  "armHelperCertName": "armHelperCert2",
+  "armHelperClientId": "3331e670-0804-48e8-a086-6241671ddc93",
+  "armHelperFPAPrincipalId": "47f69502-0065-4d9a-b19b-d403e183d2f4",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
-    "imageTag": "be13820"
+    "imageTag": "8dab517"
   },
   "clusterService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
-        "roleName": "Azure Red Hat OpenShift Cloud Controller Manager Role"
+        "roleName": "Azure Red Hat OpenShift Cloud Controller Manager"
       },
       "cloudNetworkConfig": {
-        "roleName": "Azure Red Hat OpenShift Network Operator Role"
+        "roleName": "Azure Red Hat OpenShift Network Operator"
       },
       "clusterApiAzure": {
         "roleName": "Contributor"
@@ -22,16 +22,16 @@
         "roleName": "Contributor"
       },
       "diskCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift Storage Operator Role"
+        "roleName": "Azure Red Hat OpenShift Disk Storage Operator"
       },
       "fileCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift Azure Files Storage Operator Role"
+        "roleName": "Azure Red Hat OpenShift File Storage Operator"
       },
       "imageRegistry": {
-        "roleName": "Azure Red Hat OpenShift Image Registry Operator Role"
+        "roleName": "Azure Red Hat OpenShift Image Registry Operator"
       },
       "ingress": {
-        "roleName": "Azure Red Hat OpenShift Cluster Ingress Operator Role"
+        "roleName": "Azure Red Hat OpenShift Cluster Ingress Operator"
       },
       "kms": {
         "roleName": "Key Vault Crypto User"
@@ -65,8 +65,8 @@
     "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "extraVars": {},
-  "firstPartyAppCertName": "firstPartyCert",
-  "firstPartyAppClientId": "5bc505bc-50ef-4be9-9a82-2ed7973f1c37",
+  "firstPartyAppCertName": "firstPartyCert2",
+  "firstPartyAppClientId": "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
   "frontend": {
     "cert": {
       "issuer": "OneCertV2-PublicCA",
@@ -79,7 +79,7 @@
       "private": false,
       "zoneRedundantMode": "Auto"
     },
-    "imageTag": "be13820"
+    "imageTag": "8dab517"
   },
   "global": {
     "globalMSIName": "global-ev2-identity",
@@ -202,9 +202,9 @@
     "private": false,
     "softDelete": false
   },
-  "miMockCertName": "msiMockCert",
-  "miMockClientId": "f13a22ee-4f55-4d33-a614-a703e5501202",
-  "miMockPrincipalId": "d9356bcd-fb81-483e-9b5f-180c0aa27a16",
+  "miMockCertName": "msiMockCert2",
+  "miMockClientId": "e8723db7-9b9e-46a4-9f7d-64d75c3534f0",
+  "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",
