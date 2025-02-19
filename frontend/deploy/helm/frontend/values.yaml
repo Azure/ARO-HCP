@@ -1,6 +1,7 @@
 azure:
   clientId: ""
   tenantId: ""
+deployMise: true
 configMap:
   databaseUrl: ""
   frontendMiClientId: ""

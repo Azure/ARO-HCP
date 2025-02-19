@@ -1,0 +1,16 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  labels:
+    istio.io/rev: asm-1-23
+  name: istio-shared-configmap-asm-1-23
+  namespace: aks-istio-system
+data:
+  mesh: |-
+    extensionProviders:
+    - name: "ext-authz"
+      envoyExtAuthzHttp:
+        service: "mise/mise.mise.svc.cluster.local"
+        port: "8080"
+        includeRequestHeadersInCheck: ["x-ext-authz"]
+        pathPrefix: "/v1/EnvoyValidateRequest"

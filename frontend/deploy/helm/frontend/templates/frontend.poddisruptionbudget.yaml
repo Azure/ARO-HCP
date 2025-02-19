@@ -2,6 +2,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: aro-hcp-frontend
+  namespace: {{ .Release.namespace }}
 spec:
   minAvailable: 1
   selector:

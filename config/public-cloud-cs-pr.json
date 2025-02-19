@@ -244,6 +244,18 @@
   "miMockCertName": "msiMockCert2",
   "miMockClientId": "e8723db7-9b9e-46a4-9f7d-64d75c3534f0",
   "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
+  "mise": {
+    "armInstance": "",
+    "azureAdInstance": "",
+    "deploy": false,
+    "image": {
+      "digest": "",
+      "registry": "",
+      "repository": ""
+    },
+    "validAppId0": "",
+    "validAppId1": ""
+  },
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "6b6d3adf-8476-4727-9812-20ffdef2b85c",
     "grafanaName": "arohcp-dev",

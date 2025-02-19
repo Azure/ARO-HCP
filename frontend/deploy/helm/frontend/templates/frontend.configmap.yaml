@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: frontend-config
+  namespace: {{ .Release.namespace }}
 data:
   DB_NAME: '{{ .Values.configMap.databaseName }}'
   DB_URL: '{{ .Values.configMap.databaseUrl }}'

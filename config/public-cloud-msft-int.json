@@ -251,6 +251,18 @@
   "miMockCertName": "msiMockCert2",
   "miMockClientId": "e8723db7-9b9e-46a4-9f7d-64d75c3534f0",
   "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
+  "mise": {
+    "armInstance": "https://management.core.windows.net/",
+    "azureAdInstance": "https://login.microsoftonline.com/",
+    "deploy": true,
+    "image": {
+      "digest": "sha256:ad3f7efeeb6691c25bf31d46d7b879e06093ec2ff43c05ad32b5bc5315ab96a7",
+      "registry": "arohcpsvcint.azurecr.io",
+      "repository": "mise"
+    },
+    "validAppId0": "",
+    "validAppId1": ""
+  },
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",

@@ -1,0 +1,10 @@
+mise:
+  imageRegistry: ""
+  imageRepository: ""
+  imageDigest: ""
+  tenantId: ""
+  adInstance: ""
+  armInstance: ""
+  validAppId0: ""
+  validAppId1: ""
+  namespace: ""
