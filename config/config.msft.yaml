@@ -213,9 +213,9 @@ clouds:
         ocMirror:
           imageTag: d1021e2
       frontend:
-        imageTag: be13820
+        imageTag: 8dab517
       backend:
-        imageTag: be13820
+        imageTag: 8dab517
 
     environments:
       int:

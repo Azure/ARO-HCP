@@ -5,7 +5,7 @@
   "armHelperFPAPrincipalId": "47f69502-0065-4d9a-b19b-d403e183d2f4",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
-    "imageTag": "be13820"
+    "imageTag": "8dab517"
   },
   "clusterService": {
     "azureOperatorsManagedIdentities": {
@@ -79,7 +79,7 @@
       "private": false,
       "zoneRedundantMode": "Auto"
     },
-    "imageTag": "be13820"
+    "imageTag": "8dab517"
   },
   "global": {
     "globalMSIName": "global-ev2-identity",
