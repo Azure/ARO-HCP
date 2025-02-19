@@ -20,10 +20,9 @@ import (
 )
 
 const (
-	billingContainer       = "Billing"
-	locksContainer         = "Locks"
-	resourcesContainer     = "Resources"
-	partitionKeysContainer = "PartitionKeys"
+	billingContainer   = "Billing"
+	locksContainer     = "Locks"
+	resourcesContainer = "Resources"
 
 	operationTimeToLive = 604800 // 7 days
 )
@@ -150,10 +149,9 @@ var _ DBClient = &cosmosDBClient{}
 
 // cosmosDBClient defines the needed values to perform CRUD operations against Cosmos DB.
 type cosmosDBClient struct {
-	database      *azcosmos.DatabaseClient
-	resources     *azcosmos.ContainerClient
-	partitionKeys *azcosmos.ContainerClient
-	lockClient    *LockClient
+	database   *azcosmos.DatabaseClient
+	resources  *azcosmos.ContainerClient
+	lockClient *LockClient
 }
 
 // NewDBClient instantiates a DBClient from a Cosmos DatabaseClient instance
@@ -162,7 +160,6 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 	// NewContainer only fails if the container ID argument is
 	// empty, so we can safely disregard the error return value.
 	resources, _ := database.NewContainer(resourcesContainer)
-	partitionKeys, _ := database.NewContainer(partitionKeysContainer)
 	locks, _ := database.NewContainer(locksContainer)
 
 	lockClient, err := NewLockClient(ctx, locks)
@@ -171,10 +168,9 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 	}
 
 	return &cosmosDBClient{
-		database:      database,
-		resources:     resources,
-		partitionKeys: partitionKeys,
-		lockClient:    lockClient,
+		database:   database,
+		resources:  resources,
+		lockClient: lockClient,
 	}, nil
 }
 
@@ -501,13 +497,6 @@ func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscription
 		return fmt.Errorf("failed to create Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
-	// Add an item to the PartitionKeys container, which serves
-	// as a partition key index for the Resources container.
-	err = upsertPartitionKey(ctx, d.partitionKeys, subscriptionID)
-	if err != nil {
-		return fmt.Errorf("failed to upsert partition keys index for '%s': %w", subscriptionID, err)
-	}
-
 	return nil
 }
 
@@ -552,7 +541,20 @@ func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 }
 
 func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscription] {
-	return listPartitionKeys(d.partitionKeys, d)
+	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
+	opt := azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{
+			{
+				Name:  "@resourceType",
+				Value: azcorearm.SubscriptionResourceType.String(),
+			},
+		},
+	}
+
+	// Empty partition key triggers a cross-partition query.
+	pager := d.resources.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), &opt)
+
+	return newQueryItemsIterator[arm.Subscription](pager)
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

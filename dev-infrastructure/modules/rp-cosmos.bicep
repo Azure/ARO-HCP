@@ -18,9 +18,6 @@ var containers = [
     defaultTtl: -1 // enable ttl on items
   }
   {
-    name: 'PartitionKeys'
-  }
-  {
     name: 'Billing'
   }
   {
