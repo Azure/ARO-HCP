@@ -577,9 +577,6 @@
           "certIssuer": {
             "$ref": "#/definitions/certificateIssuer"
           },
-          "consumerName": {
-            "type": "string"
-          },
           "server": {
             "type": "object",
             "properties": {
@@ -590,7 +587,7 @@
                 "type": "string"
               },
               "loglevel": {
-                "type": "string"
+                "type": "integer"
               },
               "k8s": {
                 "type": "object",
@@ -615,6 +612,34 @@
               "managedIdentityName",
               "loglevel",
               "k8s"
+            ]
+          },
+          "agent": {
+            "type": "object",
+            "properties": {
+              "consumerName": {
+                "type": "string"
+              },
+              "loglevel": {
+                "type": "integer"
+              },
+              "sidecar":{
+                "type:": "object",
+                "properties": {
+                  "imageBase":{
+                    "type": "string"
+                  },
+                  "imageTag":{
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "consumerName",
+              "loglevel",
+              "sidecar"
             ]
           },
           "eventGrid": {
@@ -680,17 +705,6 @@
               "databaseName"
             ]
           },
-          "agentSideCar":{
-            "type:": "object",
-            "properties": {
-              "imageBase":{
-                "type": "string"
-              },
-              "imageTag":{
-                "type": "string"
-              }
-            }
-          },
           "restrictIstioIngress": {
             "type": "boolean"
           }
@@ -698,14 +712,13 @@
         "additionalProperties": false,
         "required": [
           "certIssuer",
-          "consumerName",
+          "agent",
           "server",
           "eventGrid",
           "imageRepo",
           "imageTag",
           "postgres",
-          "restrictIstioIngress",
-          "agentSideCar"
+          "restrictIstioIngress"
         ]
       },
       "mce": {

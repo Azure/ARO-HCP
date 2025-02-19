@@ -21,7 +21,9 @@ resourceGroups:
     - name: MGMT_RG
       configRef: mgmt.rg
     - name: CONSUMER_NAME
-      configRef: maestro.consumerName
+      configRef: maestro.agent.consumerName
+    - name: MAESTRO_LOG_LEVEL
+      configRef: maestro.agent.loglevel
     - name: KEYVAULT_NAME
       configRef: mgmtKeyVault.name
     - name: IMAGE_REPO
@@ -29,9 +31,9 @@ resourceGroups:
     - name: IMAGE_TAG
       configRef: maestro.imageTag
     - name: SIDECAR_IMAGE_BASE
-      configRef: maestro.agentSideCar.imageBase
+      configRef: maestro.agent.sidecar.imageBase
     - name: SIDECAR_IMAGE_TAG
-      configRef: maestro.agentSideCar.imageTag
+      configRef: maestro.agent.sidecar.imageTag
     - name: ACR_NAME
       configRef: svcAcrName
 - name: {{ .svc.rg }}
@@ -47,7 +49,7 @@ resourceGroups:
         value: "true"
     variables:
     - name: CONSUMER_NAME
-      configRef: maestro.consumerName
+      configRef: maestro.agent.consumerName
     - name: NAMESPACE
       configRef: maestro.server.k8s.namespace
     dependsOn:

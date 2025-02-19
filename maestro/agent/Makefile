@@ -9,6 +9,7 @@ deploy:
 	${HELM_CMD} maestro-agent ./helm \
 		--namespace maestro \
 		--set consumerName=${CONSUMER_NAME} \
+		--set glog_v=${MAESTRO_LOG_LEVEL} \
 		--set broker.host=$${EVENTGRID_HOSTNAME} \
 		--set credsKeyVault.name=${KEYVAULT_NAME} \
 		--set credsKeyVault.secret=${CONSUMER_NAME} \
