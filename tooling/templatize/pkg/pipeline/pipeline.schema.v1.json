@@ -3,6 +3,19 @@
     "title": "pipeline.schema.v1",
     "type": "object",
     "definitions": {
+        "staticVariableValue": {
+            "oneOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            ]
+        },
         "variableRef": {
             "type": "object",
             "properties": {
@@ -26,7 +39,7 @@
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
+                    "$ref": "#/definitions/staticVariableValue"
                 }
             },
             "oneOf": [
@@ -73,7 +86,7 @@
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
+                    "$ref": "#/definitions/staticVariableValue"
                 }
             },
             "oneOf": [
@@ -130,7 +143,7 @@
                                 },
                                 "action": {
                                     "type": "string",
-                                    "enum": ["ARM", "Shell", "DelegateChildZone", "SetCertificateIssuer"]
+                                    "enum": ["ARM", "Shell", "DelegateChildZone", "SetCertificateIssuer", "CreateCertificate", "ResourceProviderRegistration", "LogsAccount"]
                                 },
                                 "template": {
                                     "type": "string"
@@ -163,6 +176,15 @@
                                 "vaultBaseUrl": {
                                     "$ref": "#/definitions/variableRef"
                                 },
+                                "certificateName": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "contentType": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "san": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
                                 "issuer": {
                                     "$ref": "#/definitions/variableRef"
                                 },
@@ -170,6 +192,21 @@
                                     "$ref": "#/definitions/variableRef"
                                 },
                                 "childZone": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "subscriptionId": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "resourceProviderNamespaces": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "namespace": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "certsan": {
+                                    "$ref": "#/definitions/variableRef"
+                                },
+                                "certdescription": {
                                     "$ref": "#/definitions/variableRef"
                                 },
                                 "outputOnly": {
@@ -318,6 +355,106 @@
                                     "required": [
                                         "vaultBaseUrl",
                                         "issuer"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "type": "string",
+                                            "enum": ["CreateCertificate"]
+                                        },
+                                        "vaultBaseUrl": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "certificateName": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "contentType": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "san": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "issuer": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "vaultBaseUrl",
+                                        "certificateName",
+                                        "contentType",
+                                        "san",
+                                        "issuer"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "type": "string",
+                                            "enum": ["ResourceProviderRegistration"]
+                                        },
+                                        "resourceProviderNamespaces": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "resourceProviderNamespaces"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "type": "string",
+                                            "enum": ["LogsAccount"]
+                                        },
+                                        "subscriptionId": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "namespace": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "certsan": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "certdescription": {
+                                            "$ref": "#/definitions/variableRef"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "subscriptionId",
+                                        "namespace",
+                                        "certsan",
+                                        "certdescription"
                                     ]
                                 }
                             ],
