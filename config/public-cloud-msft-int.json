@@ -10,10 +10,10 @@
   "clusterService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
-        "roleName": "Azure Red Hat OpenShift Cloud Controller Manager Role"
+        "roleName": "Azure Red Hat OpenShift Cloud Controller Manager"
       },
       "cloudNetworkConfig": {
-        "roleName": "Azure Red Hat OpenShift Network Operator Role"
+        "roleName": "Azure Red Hat OpenShift Network Operator"
       },
       "clusterApiAzure": {
         "roleName": "Contributor"
@@ -22,16 +22,16 @@
         "roleName": "Contributor"
       },
       "diskCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift Storage Operator Role"
+        "roleName": "Azure Red Hat OpenShift Disk Storage Operator"
       },
       "fileCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift Azure Files Storage Operator Role"
+        "roleName": "Azure Red Hat OpenShift File Storage Operator"
       },
       "imageRegistry": {
-        "roleName": "Azure Red Hat OpenShift Image Registry Operator Role"
+        "roleName": "Azure Red Hat OpenShift Image Registry Operator"
       },
       "ingress": {
-        "roleName": "Azure Red Hat OpenShift Cluster Ingress Operator Role"
+        "roleName": "Azure Red Hat OpenShift Cluster Ingress Operator"
       },
       "kms": {
         "roleName": "Key Vault Crypto User"

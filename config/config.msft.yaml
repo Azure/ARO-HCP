@@ -106,17 +106,17 @@ defaults:
     imageRepo: app-sre/uhc-clusters-service
     azureOperatorsManagedIdentities:
       cloudControllerManager:
-        roleName: Azure Red Hat OpenShift Cloud Controller Manager Role
+        roleName: Azure Red Hat OpenShift Cloud Controller Manager
       ingress:
-        roleName: Azure Red Hat OpenShift Cluster Ingress Operator Role
+        roleName: Azure Red Hat OpenShift Cluster Ingress Operator
       diskCsiDriver:
-        roleName: Azure Red Hat OpenShift Storage Operator Role
+        roleName: Azure Red Hat OpenShift Disk Storage Operator
       fileCsiDriver:
-        roleName: Azure Red Hat OpenShift Azure Files Storage Operator Role
+        roleName: Azure Red Hat OpenShift File Storage Operator
       imageRegistry:
-        roleName: Azure Red Hat OpenShift Image Registry Operator Role
+        roleName: Azure Red Hat OpenShift Image Registry Operator
       cloudNetworkConfig:
-        roleName: Azure Red Hat OpenShift Network Operator Role
+        roleName: Azure Red Hat OpenShift Network Operator
       kms:
         roleName: Key Vault Crypto User
       # below two are supposed to be replaced with ARO-specific builtin roles
