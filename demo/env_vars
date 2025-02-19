@@ -4,6 +4,9 @@
 if [ -z "${CUSTOMER_RG_NAME:-}" ]; then
     export CUSTOMER_RG_NAME="$USER-net-rg"
 fi
+if [ -z "${NETWORK_TYPE:-}" ]; then
+    export NETWORK_TYPE="OVNKubernetes"
+fi
 export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
