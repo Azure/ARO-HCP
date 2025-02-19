@@ -21,6 +21,7 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
