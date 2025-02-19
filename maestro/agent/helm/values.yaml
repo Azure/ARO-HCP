@@ -12,6 +12,7 @@ credsKeyVault:
   name: ""
   secret: ""
 consumerName: ""
+glog_v: "4"
 installAppliedManifestWorkCRD: false
 sideCar:
   imageBase: ""

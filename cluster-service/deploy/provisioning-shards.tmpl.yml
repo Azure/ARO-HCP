@@ -8,7 +8,7 @@ provision_shards:
       "grpc_api_config": {
         "url": "{{ .extraVars.maestroGrpUrl }}"
       },
-      "consumer_name": "{{ .maestro.consumerName }}"
+      "consumer_name": "{{ .maestro.agent.consumerName }}"
     }
   status: active
   management_cluster_id: local-cluster

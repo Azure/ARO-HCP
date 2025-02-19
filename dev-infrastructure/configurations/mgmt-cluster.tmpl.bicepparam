@@ -20,7 +20,7 @@ param aksUserOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
 
 // Maestro
-param maestroConsumerName = '{{ .maestro.consumerName }}'
+param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
 param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
 param maestroCertDomain = '{{ .maestro.certDomain }}'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'

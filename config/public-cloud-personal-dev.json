@@ -126,13 +126,16 @@
     "serviceAccountName": "genevabit-aggregator"
   },
   "maestro": {
-    "agentSideCar": {
-      "imageBase": "mcr.microsoft.com/azurelinux/base/nginx",
-      "imageTag": "1.25"
+    "agent": {
+      "consumerName": "hcp-underlay-usw3tst-mgmt-1",
+      "loglevel": 4,
+      "sidecar": {
+        "imageBase": "mcr.microsoft.com/azurelinux/base/nginx",
+        "imageTag": "1.25"
+      }
     },
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
     "certIssuer": "Self",
-    "consumerName": "hcp-underlay-usw3tst-mgmt-1",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
       "name": "arohcp-maestro-usw3tst",
@@ -155,7 +158,7 @@
         "namespace": "maestro",
         "serviceAccountName": "maestro"
       },
-      "loglevel": "4",
+      "loglevel": 4,
       "managedIdentityName": "maestro-server",
       "mqttClientName": "maestro-server-usw3tst"
     }

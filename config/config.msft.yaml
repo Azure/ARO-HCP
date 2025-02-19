@@ -73,11 +73,17 @@ defaults:
   maestro:
     server:
       mqttClientName: maestro-server
-      loglevel: "4"
+      loglevel: 4
       managedIdentityName: maestro-server
       k8s:
         namespace: maestro
         serviceAccountName: maestro
+    agent:
+      consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+      loglevel: 4
+      sidecar:
+        imageBase: mcr.microsoft.com/azurelinux/base/nginx
+        imageTag: '1.25'
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       maxClientSessionsPerAuthName: 4
@@ -93,11 +99,7 @@ defaults:
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
     restrictIstioIngress: true
-    consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     imageRepo: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-    agentSideCar:
-      imageBase: mcr.microsoft.com/azurelinux/base/nginx
-      imageTag: '1.25'
 
   # Cluster Service
   clusterService:
