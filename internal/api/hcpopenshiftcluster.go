@@ -24,7 +24,6 @@ type HCPOpenShiftClusterProperties struct {
 	Network                       NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
 	Console                       ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
 	API                           APIProfile                `json:"api,omitempty"                           visibility:"read create"`
-	FIPS                          bool                      `json:"fips,omitempty"                          visibility:"read create"`
 	EtcdEncryption                bool                      `json:"etcdEncryption,omitempty"                visibility:"read create"`
 	DisableUserWorkloadMonitoring bool                      `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
 	Proxy                         ProxyProfile              `json:"proxy,omitempty"                         visibility:"read create update"`

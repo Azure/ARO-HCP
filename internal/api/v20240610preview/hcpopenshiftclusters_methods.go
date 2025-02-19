@@ -182,7 +182,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Network:                       newNetworkProfile(&from.Properties.Network),
 				Console:                       newConsoleProfile(&from.Properties.Console),
 				API:                           newAPIProfile(&from.Properties.API),
-				Fips:                          api.Ptr(from.Properties.FIPS),
 				EtcdEncryption:                api.Ptr(from.Properties.EtcdEncryption),
 				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.DisableUserWorkloadMonitoring),
 				Proxy:                         newProxyProfile(&from.Properties.Proxy),
@@ -285,9 +284,6 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.API != nil {
 				normalizeAPI(c.Properties.API, &out.Properties.API)
-			}
-			if c.Properties.Fips != nil {
-				out.Properties.FIPS = *c.Properties.Fips
 			}
 			if c.Properties.EtcdEncryption != nil {
 				out.Properties.EtcdEncryption = *c.Properties.EtcdEncryption

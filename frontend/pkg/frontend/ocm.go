@@ -103,7 +103,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				URL:        cluster.API().URL(),
 				Visibility: convertListeningToVisibility(cluster.API().Listening()),
 			},
-			FIPS:                          cluster.FIPS(),
 			EtcdEncryption:                cluster.EtcdEncryption(),
 			DisableUserWorkloadMonitoring: cluster.DisableUserWorkloadMonitoring(),
 			Proxy: api.ProxyProfile{
@@ -217,7 +216,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 				HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
 			API(arohcpv1alpha1.NewClusterAPI().
 				Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility))).
-			FIPS(hcpCluster.Properties.FIPS).
 			EtcdEncryption(hcpCluster.Properties.EtcdEncryption)
 
 		azureBuilder := arohcpv1alpha1.NewAzure().

@@ -251,9 +251,6 @@ type HcpOpenShiftClusterProperties struct {
 // provider
 	ExternalAuth *ExternalAuthConfigProfile
 
-	// Enable FIPS mode for the cluster When set to true, etcdEncryption must be set to true
-	Fips *bool
-
 	// Cluster network configuration
 	Network *NetworkProfile
 
