@@ -3,7 +3,7 @@
 if [[ $# -ne 2 ]];
 then
     echo "usage"
-    echo "echo content | catencrypt.sh certificate.pfx outputFile"
+    echo "echo content | encrypt.sh certificate.pfx outputFile"
 fi
 
 certificate=${1}
