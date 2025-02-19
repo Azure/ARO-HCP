@@ -201,7 +201,8 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	err = f.ExposeOperation(writer, request, pk, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

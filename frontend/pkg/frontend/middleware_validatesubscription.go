@@ -41,7 +41,7 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 
 	// TODO: Ideally, we don't want to have to hit the database in this middleware
 	// Currently, we are using the database to retrieve the subscription's tenantID and state
-	sub, err := dbClient.GetSubscriptionDoc(ctx, subscriptionId)
+	subscription, err := dbClient.GetSubscriptionDoc(ctx, subscriptionId)
 	if err != nil {
 		arm.WriteError(
 			w, http.StatusBadRequest,
@@ -56,16 +56,15 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 	// header may not be present, in which case we can try to fudge it
 	// from the SubscriptionDocument.
 	if r.Header.Get(arm.HeaderNameHomeTenantID) == "" {
-		if sub.Subscription != nil &&
-			sub.Subscription.Properties != nil &&
-			sub.Subscription.Properties.TenantId != nil {
+		if subscription.Properties != nil &&
+			subscription.Properties.TenantId != nil {
 			r.Header.Set(
 				arm.HeaderNameHomeTenantID,
-				*sub.Subscription.Properties.TenantId)
+				*subscription.Properties.TenantId)
 		}
 	}
 
-	switch sub.Subscription.State {
+	switch subscription.State {
 	case arm.SubscriptionStateRegistered:
 		next(w, r)
 	case arm.SubscriptionStateUnregistered:
@@ -79,7 +78,7 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorCodeInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
-				sub.Subscription.State)
+				subscription.State)
 			return
 		}
 		next(w, r)
@@ -88,9 +87,9 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
-			sub.Subscription.State)
+			subscription.State)
 	default:
-		logger.Error(fmt.Sprintf("unsupported subscription state %q", sub.Subscription.State))
+		logger.Error(fmt.Sprintf("unsupported subscription state %q", subscription.State))
 		arm.WriteInternalServerError(w)
 	}
 }
