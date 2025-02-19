@@ -18,4 +18,9 @@ secretFile=$(mktemp)
 
 az keyvault secret show --vault-name "${keyvault}" --name "${privateKeySecret}" |jq '.value' -r |base64 -d > ${secretFile}
 
-openssl pkeyutl -decrypt -inkey ${secretFile} -in ${filename}
+outputSecret=$(basename -s '.enc' ${filename})
+
+az keyvault secret set \
+    --name "${outputSecret}" \
+    --vault-name "${keyvault}" \
+    --value $(openssl pkeyutl -decrypt -inkey ${secretFile} -in ${filename})
