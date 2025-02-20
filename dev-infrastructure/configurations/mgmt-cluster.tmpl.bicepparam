@@ -51,3 +51,6 @@ param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param logsNamespace = '{{ .logs.namespace }}'
 param logsMSI = '{{ .logs.msiName }}'
 param logsServiceAccount = '{{ .logs.serviceAccountName }}'
+
+// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
+param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
