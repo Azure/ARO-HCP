@@ -9,7 +9,7 @@ resource amw 'microsoft.monitor/accounts@2021-06-03-preview' existing = {
 
 // default recording rules from https://github.com/Azure/prometheus-collector/blob/main/AddonBicepTemplate/FullAzureMonitorMetricsProfile.bicep
 resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'all-clusters-defaultK8sRecordingRules' 
+  name: 'all-clusters-defaultK8sRecordingRules'
   location: azureMonitorWorkspaceLocation
   properties: {
     description: 'default kubernetes recording rules'
@@ -110,7 +110,7 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
 }
 // default recording rules from https://github.com/Azure/prometheus-collector/blob/main/AddonBicepTemplate/FullAzureMonitorMetricsProfile.bicep
 resource nodeRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'all-clusters-defaultNodeRecordingRules' 
+  name: 'all-clusters-defaultNodeRecordingRules'
 
   location: azureMonitorWorkspaceLocation
   properties: {

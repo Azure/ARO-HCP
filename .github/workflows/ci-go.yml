@@ -40,12 +40,22 @@ jobs:
           go-version-file: 'go.work'
           check-latest: true
 
+      - name: 'Check Go modules'
+        run: |
+          make all-tidy
+          if [[ ! -z "$(git status --short)" ]]
+          then
+            echo "there are some modified files, rerun 'make all-tidy' to update them and check the changes in"
+            git status
+            exit 1
+          fi
+
       - name: 'Regenerate mocks'
         run: |
           make mocks
           if [[ ! -z "$(git status --short)" ]]
           then
-            echo "there are some modified files"
+            echo "there are some modified files, rerun 'make mocks' to update them and check the changes in"
             git status
             exit 1
           fi

@@ -423,7 +423,9 @@ func getLocationAvailabilityZones(region string) array => _locationAvailabilityZ
 func getLocationAvailabilityZonesCSV(region string) string => arrayToCSV(getLocationAvailabilityZones(region))
 
 @export()
-func determineZoneRedundancyForRegion(region string, mode string) bool => determineZoneRedundancy(getLocationAvailabilityZones(region), mode)
+func determineZoneRedundancyForRegion(region string, mode string) bool =>
+  determineZoneRedundancy(getLocationAvailabilityZones(region), mode)
 
 @export()
-func determineZoneRedundancy(availabilityZones array, mode string) bool => mode == 'Auto' ? length(availabilityZones) > 0 : mode == 'Enabled' && length(availabilityZones) > 0
+func determineZoneRedundancy(availabilityZones array, mode string) bool =>
+  mode == 'Auto' ? length(availabilityZones) > 0 : mode == 'Enabled' && length(availabilityZones) > 0

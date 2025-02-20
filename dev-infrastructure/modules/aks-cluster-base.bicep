@@ -506,9 +506,7 @@ var acrPullRoleDefinitionId = subscriptionResourceId(
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 )
 
-var acrReferences = [
-  for acrId in pullAcrResourceIds: res.acrRefFromId(acrId)
-]
+var acrReferences = [for acrId in pullAcrResourceIds: res.acrRefFromId(acrId)]
 
 module acrPullRole 'acr/acr-permissions.bicep' = [
   for acrRef in acrReferences: {
@@ -578,7 +576,6 @@ resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federa
     }
   }
 ]
-
 
 // grant aroDevopsMsi the aksClusterAdmin role on the aksCluster so it can
 // deploy services to the cluster

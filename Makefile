@@ -37,6 +37,14 @@ fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
+tidy: $(MODULES:/...=.tidy)
+
+%.tidy:
+	cd $(basename $@) && go mod tidy
+
+all-tidy: tidy
+	go work sync
+
 #
 # Infra
 #

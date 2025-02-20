@@ -26,12 +26,13 @@ list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
 
-modules := $(wildcard ./templates/*.bicep)
+templates := $(wildcard ./templates/*.bicep)
+modules := $(shell find ./modules -name "*.bicep")
 parameters := $(filter-out $(wildcard ./templates/*.tmpl.bicepparam),$(wildcard ./templates/*.bicepparam))
 
-fmt: $(modules:.bicep=.bicep.fmt) $(parameters:.bicepparam=.biceparam.fmt)
+fmt: $(templates:.bicep=.bicep.fmt) $(modules:.bicep=.bicep.fmt) $(parameters:.bicepparam=.biceparam.fmt)
 
-lint: $(modules:.bicep=.bicep.lint) $(parameters:.bicepparam=.biceparam.lint)
+lint: $(templates:.bicep=.bicep.lint) $(modules:.bicep=.bicep.lint) $(parameters:.bicepparam=.biceparam.lint)
 
 %.bicep.fmt %.bicepparam.fmt:
 	az bicep format --file $(basename $@)
@@ -376,3 +377,10 @@ clean: svc.clean mgmt.clean region.clean
 
 local-cs-permissions: svc.dev.permissions mgmt.dev.permissions
 .PHONY: local-cs-permissions
+
+#
+# Generated Prometheus Rules
+#
+modules/metrics/rules/generatedPrometheusAlertingRules.bicep:
+	$(MAKE) -C ./../tooling/prometheus-rules/ prometheus-rules
+	./../tooling/prometheus-rules/prometheus-rules --input-rules ./../tooling/prometheus-rules/kubernetesControlPlane-prometheusRule.yaml --output-bicep $@

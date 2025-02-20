@@ -6,7 +6,6 @@ param principalId string
 @description('Whether to grant push access to the ACR')
 param grantPushAccess bool = false
 
-
 @description('Whether to grant pull access from the ACR')
 param grantPullAccess bool = false
 
