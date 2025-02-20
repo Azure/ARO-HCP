@@ -799,9 +799,6 @@
           "grafanaName": {
             "type": "string"
           },
-          "msiName": {
-            "type": "string"
-          },
           "workspaceName": {
             "type": "string"
           }
@@ -810,7 +807,6 @@
         "required": [
           "grafanaAdminGroupPrincipalId",
           "grafanaName",
-          "msiName",
           "workspaceName"
         ]
       },

@@ -210,7 +210,6 @@
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",
-    "msiName": "aro-hcp-metrics-msi-int",
     "workspaceName": "arohcp-int"
   },
   "msiKeyVault": {

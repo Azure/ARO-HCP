@@ -189,7 +189,6 @@ defaults:
   # Metrics
   monitoring:
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
-    msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
 
   # Logs
   logs:

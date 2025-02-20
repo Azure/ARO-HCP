@@ -1,23 +1,37 @@
 #!/bin/bash
 # This script integrates an existing Azure Monitoring Workspace with the global Azure Managed Grafana Instance.
-set -e
+set -o errexit
+set -o nounset
+set -o pipefail
 
-MONITOR_DATA_SOURCE=Managed_Prometheus_${MONITOR_NAME}
+# parse resource IDs
+IFS='/'
+read -ra ADDR <<< "$GRAFANA_RESOURCE_ID"
+GRAFANA_SUBSCRIPTION_ID=${ADDR[2]}
+GRAFANA_RG=${ADDR[4]}
+GRAFANA_NAME=${ADDR[8]}
+read -ra ADDR <<< "$MONITOR_ID"
+MONITOR_DATA_SOURCE_SUBSCRIPTION_ID=${ADDR[2]}
+MONITOR_RG=${ADDR[4]}
+MONITOR_NAME=${ADDR[8]}
+IFS=' '
 
-DATA_SOURCE_URL=$(az grafana data-source list --name ${GRAFANA_NAME} \
-    --resource-group ${GRAFANA_RG} \
+echo "Grafana subscription id: ${GRAFANA_SUBSCRIPTION_ID}"
+echo "Grafana resource group: ${GRAFANA_RG}"
+echo "Grafana name: ${GRAFANA_NAME}"
+echo "Monitor subscription id: ${MONITOR_DATA_SOURCE_SUBSCRIPTION_ID}"
+echo "Monitor resource group: ${MONITOR_RG}"
+echo "Monitor name: ${MONITOR_NAME}"
+
+# lookup existing azure monitoring workspace registration
+MONITOR_DATA_SOURCE="Managed_Prometheus_${MONITOR_NAME}"
+EXISTING_DATA_SOURCE_URL=$(az grafana data-source list --name ${GRAFANA_NAME} \
+    --resource-group ${GRAFANA_RG} --subscription ${GRAFANA_SUBSCRIPTION_ID} \
     --query "[?contains(name, '${MONITOR_DATA_SOURCE}')].url | [0]" -o tsv)
-
-MONITOR_JSON=$(az monitor account list \
-    --query "[?contains(name, '${MONITOR_NAME}')].{id:id, name: name, promUrl: metrics.prometheusQueryEndpoint}"[0])
-
-PROM_QUERY_URL=$(echo $MONITOR_JSON | jq '.promUrl' -r )
-
-MONITOR_ID=$(echo $MONITOR_JSON | jq '.id' )
 
 # In dev resource groups are purged which causes data sources to become out of sync in the Azure Grafana Instance.
 # If prometheus urls don't match then delete the integration to cleanup the data source.
-if [[ -n "${DATA_SOURCE_URL}" && ${DATA_SOURCE_URL} != ${PROM_QUERY_URL} ]];
+if [[ -n "${EXISTING_DATA_SOURCE_URL}" && ${EXISTING_DATA_SOURCE_URL} != ${PROM_QUERY_URL} ]];
 then
     echo "Removing ${MONITOR_NAME} integration from ${GRAFANA_NAME}"
     az grafana integrations monitor delete \
@@ -26,25 +40,15 @@ then
         --monitor-name ${MONITOR_NAME} \
         --monitor-resource-group-name ${MONITOR_RG} \
         --skip-role-assignment true
-
-    az resource wait --updated --ids $(az grafana show --name ${GRAFANA_NAME} --resource-group ${GRAFANA_RG} --query 'id' -o tsv)
+    az resource wait --updated --ids $GRAFANA_RESOURCE_ID
 fi
 
-MONITORS=$(az grafana integrations monitor list \
-    --name ${GRAFANA_NAME} \
-    --resource-group ${GRAFANA_RG})
-
-IS_INTEGRATED=$(echo ${MONITORS} | jq "contains([${MONITOR_ID}])")
-
+# add the azure monitor workspace to grafana if it is not already integrated
+MONITORS=$(az grafana show --ids ${GRAFANA_RESOURCE_ID} -o json | jq .properties.grafanaIntegrations.azureMonitorWorkspaceIntegrations)
+IS_INTEGRATED=$(echo "$MONITORS" | jq --arg id "${MONITOR_ID}" 'map(.azureMonitorWorkspaceResourceId) | contains([$id])')
 if [[ ${IS_INTEGRATED} == "false" ]];
 then
-    echo "Adding monitor account ${MONITOR_NAME} as a data source to ${GRAFANA_NAME}"
-    az grafana integrations monitor add \
-        --name ${GRAFANA_NAME} \
-        --resource-group ${GRAFANA_RG} \
-        --monitor-name ${MONITOR_NAME} \
-        --monitor-resource-group-name ${MONITOR_RG} \
-        --skip-role-assignments true
-        
-    az resource wait --updated --ids $(az grafana show --name ${GRAFANA_NAME} --resource-group ${GRAFANA_RG} --query 'id' -o tsv)
+    MONITOR_UPDATES=$(echo "${MONITORS}" | jq --arg id "${MONITOR_ID}" '. + [{"azureMonitorWorkspaceResourceId": $id}]')
+    az resource update --ids ${GRAFANA_RESOURCE_ID} --set properties.grafanaIntegrations.azureMonitorWorkspaceIntegrations="${MONITOR_UPDATES}"
+    az resource wait --updated --ids $GRAFANA_RESOURCE_ID
 fi

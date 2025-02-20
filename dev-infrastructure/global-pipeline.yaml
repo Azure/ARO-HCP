@@ -11,6 +11,12 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  # creates the global Grafana instance for the ARO HCP services
+  - name: global-grafana
+    action: ARM
+    template: templates/global-grafana.bicep
+    parameters: configurations/global-grafana.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
