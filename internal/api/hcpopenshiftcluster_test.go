@@ -243,38 +243,6 @@ func TestClusterValidateTags(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad startswith=http:",
-			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
-					Proxy: ProxyProfile{
-						HTTPProxy: "ftp://not_an_http_url",
-					},
-				},
-			},
-			expectErrors: []arm.CloudErrorBody{
-				{
-					Message: "Invalid value 'ftp://not_an_http_url' for field 'httpProxy' (must start with 'http:')",
-					Target:  "properties.proxy.httpProxy",
-				},
-			},
-		},
-		{
-			name: "Bad url",
-			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
-					Proxy: ProxyProfile{
-						HTTPProxy: "http_but_not_a_url",
-					},
-				},
-			},
-			expectErrors: []arm.CloudErrorBody{
-				{
-					Message: "Invalid value 'http_but_not_a_url' for field 'httpProxy' (must be a URL)",
-					Target:  "properties.proxy.httpProxy",
-				},
-			},
-		},
-		{
 			name: "Bad enum_managedserviceidentitytype",
 			tweaks: &HCPOpenShiftCluster{
 				Identity: arm.ManagedServiceIdentity{Type: "brokenServiceType"},

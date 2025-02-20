@@ -56,15 +56,6 @@ func newAPIProfile(from *api.APIProfile) *generated.APIProfile {
 	}
 }
 
-func newProxyProfile(from *api.ProxyProfile) *generated.ProxyProfile {
-	return &generated.ProxyProfile{
-		HTTPProxy:  api.Ptr(from.HTTPProxy),
-		HTTPSProxy: api.Ptr(from.HTTPSProxy),
-		NoProxy:    api.Ptr(from.NoProxy),
-		TrustedCa:  api.Ptr(from.TrustedCA),
-	}
-}
-
 func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
 	return &generated.PlatformProfile{
 		ManagedResourceGroup:    api.Ptr(from.ManagedResourceGroup),
@@ -184,7 +175,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				API:                           newAPIProfile(&from.Properties.API),
 				EtcdEncryption:                api.Ptr(from.Properties.EtcdEncryption),
 				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.DisableUserWorkloadMonitoring),
-				Proxy:                         newProxyProfile(&from.Properties.Proxy),
 				Platform:                      newPlatformProfile(&from.Properties.Platform),
 				IssuerURL:                     api.Ptr(from.Properties.IssuerURL),
 				ExternalAuth: &generated.ExternalAuthConfigProfile{
@@ -290,9 +280,6 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.DisableUserWorkloadMonitoring != nil {
 				out.Properties.DisableUserWorkloadMonitoring = *c.Properties.DisableUserWorkloadMonitoring
-			}
-			if c.Properties.Proxy != nil {
-				normalizeProxy(c.Properties.Proxy, &out.Properties.Proxy)
 			}
 			if c.Properties.Platform != nil {
 				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
@@ -477,21 +464,6 @@ func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
 	}
 	if p.Visibility != nil {
 		out.Visibility = api.Visibility(*p.Visibility)
-	}
-}
-
-func normalizeProxy(p *generated.ProxyProfile, out *api.ProxyProfile) {
-	if p.HTTPProxy != nil {
-		out.HTTPProxy = *p.HTTPProxy
-	}
-	if p.HTTPSProxy != nil {
-		out.HTTPSProxy = *p.HTTPSProxy
-	}
-	if p.NoProxy != nil {
-		out.NoProxy = *p.NoProxy
-	}
-	if p.TrustedCa != nil {
-		out.TrustedCA = *p.TrustedCa
 	}
 }
 

@@ -21,13 +21,7 @@
           "version": {
             "id": "nsj"
           },
-          "disableUserWorkloadMonitoring": true,
-          "proxy": {
-            "httpProxy": "sjjbjvkimlvtwdnwjodcajidcoompt",
-            "httpsProxy": "xwjukendejiksp",
-            "noProxy": "mlsbdpjpyzpydpkeqvt",
-            "trustedCa": "uxebp"
-          }
+          "disableUserWorkloadMonitoring": true
         }
       }
     }
@@ -59,12 +53,6 @@
             "api": {
               "url": "dkjmzzhkvyoqx",
               "visibility": "public"
-            },
-            "proxy": {
-              "httpProxy": "sjjbjvkimlvtwdnwjodcajidcoompt",
-              "httpsProxy": "xwjukendejiksp",
-              "noProxy": "mlsbdpjpyzpydpkeqvt",
-              "trustedCa": "uxebp"
             },
             "platform": {
               "managedResourceGroup": "nhyhywrxupo",

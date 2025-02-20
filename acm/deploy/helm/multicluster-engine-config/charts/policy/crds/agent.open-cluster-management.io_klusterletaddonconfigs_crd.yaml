@@ -109,19 +109,6 @@ spec:
                     - CustomProxy
                     type: string
                 type: object
-              proxyConfig:
-                description: ProxyConfig defines the cluster-wide proxy configuration of the OCP managed cluster.
-                properties:
-                  httpProxy:
-                    description: HTTPProxy is the URL of the proxy for HTTP requests.  Empty means unset and will not result in an env var.
-                    type: string
-                  httpsProxy:
-                    description: HTTPSProxy is the URL of the proxy for HTTPS requests.  Empty means unset and will not result in an env var.
-                    type: string
-                  noProxy:
-                    description: NoProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in an env var. The API Server of Hub cluster should be added here. And If you scale up workers that are not included in the network defined by the networking.machineNetwork[].cidr field from the installation configuration, you must add them to this list to prevent connection issues.
-                    type: string
-                type: object
               searchCollector:
                 description: SearchCollectorConfig defines the configurations of SearchCollector addon agent.
                 properties:
@@ -192,19 +179,6 @@ spec:
                   - type
                   type: object
                 type: array
-              ocpGlobalProxy:
-                description: OCPGlobalProxy is the cluster-wide proxy config of the OCP cluster provisioned by ACM
-                properties:
-                  httpProxy:
-                    description: HTTPProxy is the URL of the proxy for HTTP requests.  Empty means unset and will not result in an env var.
-                    type: string
-                  httpsProxy:
-                    description: HTTPSProxy is the URL of the proxy for HTTPS requests.  Empty means unset and will not result in an env var.
-                    type: string
-                  noProxy:
-                    description: NoProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in an env var. The API Server of Hub cluster should be added here. And If you scale up workers that are not included in the network defined by the networking.machineNetwork[].cidr field from the installation configuration, you must add them to this list to prevent connection issues.
-                    type: string
-                type: object
             type: object
         type: object
     served: true
