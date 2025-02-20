@@ -4,4 +4,5 @@ kind: Kustomization
 namespace: observability
 resources:
   - namespace.yaml
+  - service.yaml
   - jaeger.yaml
