@@ -42,7 +42,12 @@ resourceGroups:
       input:
         step: svc-output
         name: cs
+    - name: logAnalyticsWorkspaceId
+      input:
+        step: region-output
+        name: logAnalyticsWorkspaceId
     dependsOn:
+    - region-output
     - svc-output
   # Configure certificate issuers for the MC KVs
   - name: cx-oncert-public-kv-issuer
