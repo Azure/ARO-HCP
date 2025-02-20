@@ -84,6 +84,29 @@ model HcpOpenShiftClusterProperties {
   /** Azure platform configuration */
   @visibility("create", "read")
   platform?: PlatformProfile;
+
+  /** Configure cluter capabilities. */
+  @visibility("create", "read")
+  capabilities?: ClusterCapabilitiesProfile;
+}
+
+/** Cluster capabilities configuration. */
+model ClusterCapabilitiesProfile {
+  /**
+   * Immutable list of disabled capabilities. May only contain "ImageRegistry" at
+   * this time. Additional capabilities may be available in the future. Clients
+   * should expect to handle additional values.
+   */
+  @visibility("create", "read")
+  disabled?: OptionalClusterCapability[];
+}
+
+/** Cluster capabilities that can be disabled. */
+union OptionalClusterCapability {
+  string,
+
+  /** Enables the OpenShift internal image registry. */
+  ImageRegistry: "ImageRegistry",
 }
 
 /** HCP patchable cluster properties */
