@@ -3,11 +3,11 @@ go 1.23.3
 toolchain go1.23.3
 
 use (
-	./frontend
 	./backend
+	./frontend
 	./internal
 	./tooling/image-sync
-	./tooling/templatize
 	./tooling/mcerepkg
+	./tooling/templatize
 	tooling/prometheus-rules
 )
