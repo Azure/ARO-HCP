@@ -50,3 +50,33 @@ resourceGroups:
       value: provider
     dependsOn:
     - deploy
+  - name: cert
+    action: CreateCertificate
+    vaultBaseUrl:
+      value: https://arohcp-svc-ln.vault.azure.net
+    certificateName:
+      value: hcp-mdsd
+    contentType:
+      value: x-pem-file # GCS certificate file in PEM format
+    san:
+      value: hcp-mdsd.geneva.keyvault.aro-int.azure.com
+    issuer:
+      value: OneCertV2-PrivateCA
+  - name: rpRegistration
+    action: ResourceProviderRegistration
+    resourceProviderNamespaces:
+      value:
+      - Microsoft.Storage
+      - Microsoft.EventHub
+      - Microsoft.Insights
+  - name: clusterAccount
+    action: LogsAccount
+    subscriptionId:
+      value:
+      - abc
+    namespace:
+      value: HCPManagementLogs
+    certsan:
+      value: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
+    certdescription:
+      value: HCP Management Cluster

@@ -65,12 +65,8 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 				rg.Steps[i] = &ShellStep{}
 			case "ARM":
 				rg.Steps[i] = &ARMStep{}
-			case "DelegateChildZone":
-				rg.Steps[i] = &DelegateChildZoneStep{}
-			case "SetCertificateIssuer":
-				rg.Steps[i] = &SetCertificateIssuerStep{}
 			default:
-				return nil, fmt.Errorf("unknown action type %s", stepMeta.Action)
+				rg.Steps[i] = &GenericStep{}
 			}
 			err = mapToStruct(rawStep, rg.Steps[i])
 			if err != nil {
@@ -207,23 +203,12 @@ func (s *ARMStep) Description() string {
 	return fmt.Sprintf("Step %s\n  Kind: %s\n  %s", s.Name, s.Action, strings.Join(details, "\n  "))
 }
 
-type DelegateChildZoneStep struct {
-	StepMeta       `yaml:",inline"`
-	ParentZoneName VariableRef `yaml:"parentZone"`
-	ChildZoneName  VariableRef `yaml:"childZone"`
+type GenericStep struct {
+	StepMeta `yaml:",inline"`
+	Body     map[string]any `yaml:",inline"`
 }
 
-func (s *DelegateChildZoneStep) Description() string {
-	return fmt.Sprintf("Step %s\n  Kind: %s", s.Name, s.Action)
-}
-
-type SetCertificateIssuerStep struct {
-	StepMeta     `yaml:",inline"`
-	VaultBaseUrl VariableRef `yaml:"vaultBaseUrl"`
-	Issuer       VariableRef `yaml:"issuer"`
-}
-
-func (s *SetCertificateIssuerStep) Description() string {
+func (s *GenericStep) Description() string {
 	return fmt.Sprintf("Step %s\n  Kind: %s", s.Name, s.Action)
 }
 
