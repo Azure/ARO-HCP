@@ -751,6 +751,14 @@
           },
           "subscription": {
             "type": "string"
+          },
+          "logs": {
+            "san": {
+              "type": "string"
+            },
+            "required": [
+              "san"
+            ]
           }
         },
         "additionalProperties": false,
@@ -815,6 +823,25 @@
           },
           "serviceAccountName": {
             "type": "string"
+          },
+          "cert": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "issuer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "type",
+              "issuer"
+            ]
           }
         },
         "additionalProperties": false,
@@ -934,7 +961,15 @@
             "required": [
               "ingressGatewayIPAddressName"
             ]
-        }
+          },
+          "logs": {
+            "san": {
+              "type": "string"
+            },
+            "required": [
+              "san"
+            ]
+          }
         },
         "additionalProperties": false,
         "required": [
