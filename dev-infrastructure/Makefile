@@ -47,13 +47,6 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
-cleanup-orphaned-rolebindings:
-	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
-	@scripts/cleanup-orphaned-rolebindings.sh $(MGMT_RESOURCEGROUP)
-	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
-	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
-.PHONY: cleanup-orphaned-rolebindings
-
 create-mock-identities:
 	az deployment group wait --created --name "aro-hcp-dev-mock-certificates" --resource-group $(GLOBAL_RESOURCEGROUP) --interval 10
 	az deployment group create \
@@ -108,7 +101,6 @@ global.what-if:
 #
 
 region:
-	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
 	../templatize.sh $(DEPLOY_ENV) -p region-pipeline.yaml -P run -c public
 .PHONY: region
 
@@ -128,7 +120,6 @@ region.what-if:
 #
 
 svc:
-	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
 	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run -c public
 .PHONY: svc
 
