@@ -26,7 +26,6 @@ type HCPOpenShiftClusterProperties struct {
 	API                           APIProfile                `json:"api,omitempty"                           visibility:"read create"`
 	EtcdEncryption                bool                      `json:"etcdEncryption,omitempty"                visibility:"read create"`
 	DisableUserWorkloadMonitoring bool                      `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
-	Proxy                         ProxyProfile              `json:"proxy,omitempty"                         visibility:"read create update"`
 	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"`
 	IssuerURL                     string                    `json:"issuerUrl,omitempty"                     visibility:"read"`
 	ExternalAuth                  ExternalAuthConfigProfile `json:"externalAuth,omitempty"                  visibility:"read create"`
@@ -65,15 +64,6 @@ type ConsoleProfile struct {
 type APIProfile struct {
 	URL        string     `json:"url,omitempty"        visibility:"read"`
 	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"required_for_put,enum_visibility"`
-}
-
-// ProxyProfile represents the cluster proxy configuration.
-// Visibility for the entire struct is "read create update".
-type ProxyProfile struct {
-	HTTPProxy  string `json:"httpProxy,omitempty"  validate:"omitempty,url,startswith=http:"`
-	HTTPSProxy string `json:"httpsProxy,omitempty" validate:"omitempty,url"`
-	NoProxy    string `json:"noProxy,omitempty"`
-	TrustedCA  string `json:"trustedCa,omitempty"  validate:"omitempty,pem_certificates"`
 }
 
 // PlatformProfile represents the Azure platform configuration.

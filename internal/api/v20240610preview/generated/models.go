@@ -223,9 +223,6 @@ type HcpOpenShiftClusterPatchProperties struct {
 	// Disable user workload monitoring
 	DisableUserWorkloadMonitoring *bool
 
-	// Openshift cluster proxy configuration
-	Proxy *ProxyProfile
-
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
 }
@@ -256,9 +253,6 @@ type HcpOpenShiftClusterProperties struct {
 
 	// Azure platform configuration
 	Platform *PlatformProfile
-
-	// Openshift cluster proxy configuration
-	Proxy *ProxyProfile
 
 	// READ-ONLY; Shows the cluster API server profile
 	API *APIProfile
@@ -572,21 +566,6 @@ type PlatformProfile struct {
 
 	// The core outgoing configuration
 	OutboundType *OutboundType
-}
-
-// ProxyProfile - OpenShift cluster proxy configuration
-type ProxyProfile struct {
-	// http proxy config
-	HTTPProxy *string
-
-	// https proxy config
-	HTTPSProxy *string
-
-	// no proxy config
-	NoProxy *string
-
-	// The trusted CA for the proxy
-	TrustedCa *string
 }
 
 // ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a

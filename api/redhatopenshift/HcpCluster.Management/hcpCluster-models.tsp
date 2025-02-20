@@ -87,10 +87,6 @@ model HcpOpenShiftClusterProperties {
   @visibility("create", "update")
   disableUserWorkloadMonitoring?: boolean = false;
 
-  /** Openshift cluster proxy configuration */
-  @visibility("create", "update")
-  proxy?: ProxyProfile;
-
   /** Azure platform configuration */
   @visibility("create", "read")
   platform?: PlatformProfile;
@@ -117,10 +113,6 @@ model HcpOpenShiftClusterPatchProperties {
   /** Disable user workload monitoring */
   @visibility("update")
   disableUserWorkloadMonitoring?: boolean;
-
-  /** Openshift cluster proxy configuration */
-  @visibility("update")
-  proxy?: ProxyProfile;
 }
 
 model ManagedServiceIdentityUpdate
@@ -269,21 +261,6 @@ union Visibility {
 
   /** The API server is not visible from the internet. */
   private: "private",
-}
-
-/** OpenShift cluster proxy configuration */
-model ProxyProfile {
-  /** http proxy config */
-  httpProxy?: url;
-
-  /** https proxy config */
-  httpsProxy?: url;
-
-  /** no proxy config */
-  noProxy?: string;
-
-  /** The trusted CA for the proxy */
-  trustedCa?: string;
 }
 
 /** Azure specific configuration */
