@@ -2,16 +2,16 @@
 
 ## General flow
 
-![overview](overview.png)
-
 Secrets are encrypted using the public part of RSA. We can generate RSA Key Pair by creating a key in Azure Key Vault. 
 
 For this we'd have to do:
 
  * Create an RSA key in Key Vault (target key vault for secret)
  * Download the Public key and store in this repo
- * Use `encrypt.sh` to encrypt a secret using this Certificate
+ * Use `encrypt.sh` to encrypt a secret using this key
  * In target environment use `decrypt.sh` to decrypt this secret and store it in the target key vault
+
+![overview](overview.png)
 
 
 ## Planned Pipeline
