@@ -1177,13 +1177,6 @@
           "x-ms-mutability": [
             "update"
           ]
-        },
-        "proxy": {
-          "$ref": "#/definitions/ProxyProfile",
-          "description": "Openshift cluster proxy configuration",
-          "x-ms-mutability": [
-            "update"
-          ]
         }
       }
     },
@@ -1230,14 +1223,6 @@
           "type": "boolean",
           "description": "Disable user workload monitoring",
           "default": false,
-          "x-ms-mutability": [
-            "update",
-            "create"
-          ]
-        },
-        "proxy": {
-          "$ref": "#/definitions/ProxyProfile",
-          "description": "Openshift cluster proxy configuration",
           "x-ms-mutability": [
             "update",
             "create"
@@ -1804,30 +1789,6 @@
         ]
       },
       "readOnly": true
-    },
-    "ProxyProfile": {
-      "type": "object",
-      "description": "OpenShift cluster proxy configuration",
-      "properties": {
-        "httpProxy": {
-          "type": "string",
-          "format": "uri",
-          "description": "http proxy config"
-        },
-        "httpsProxy": {
-          "type": "string",
-          "format": "uri",
-          "description": "https proxy config"
-        },
-        "noProxy": {
-          "type": "string",
-          "description": "no proxy config"
-        },
-        "trustedCa": {
-          "type": "string",
-          "description": "The trusted CA for the proxy"
-        }
-      }
     },
     "SubnetResourceId": {
       "type": "string",

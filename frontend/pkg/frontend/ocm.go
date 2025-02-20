@@ -103,12 +103,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				Visibility: convertListeningToVisibility(cluster.API().Listening()),
 			},
 			DisableUserWorkloadMonitoring: cluster.DisableUserWorkloadMonitoring(),
-			Proxy: api.ProxyProfile{
-				HTTPProxy:  cluster.Proxy().HTTPProxy(),
-				HTTPSProxy: cluster.Proxy().HTTPSProxy(),
-				NoProxy:    cluster.Proxy().NoProxy(),
-				TrustedCA:  cluster.AdditionalTrustBundle(),
-			},
 			Platform: api.PlatformProfile{
 				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
 				SubnetID:               cluster.Azure().SubnetResourceID(),
@@ -260,27 +254,8 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		}
 	}
 
-	proxyBuilder := arohcpv1alpha1.NewProxy()
-	// Cluster Service allows an empty HTTPProxy on PATCH but not PUT.
-	if updating || hcpCluster.Properties.Proxy.HTTPProxy != "" {
-		proxyBuilder = proxyBuilder.
-			HTTPProxy(hcpCluster.Properties.Proxy.HTTPProxy)
-	}
-	// Cluster Service allows an empty HTTPSProxy on PATCH but not PUT.
-	if updating || hcpCluster.Properties.Proxy.HTTPSProxy != "" {
-		proxyBuilder = proxyBuilder.
-			HTTPSProxy(hcpCluster.Properties.Proxy.HTTPSProxy)
-	}
-	// Cluster Service allows an empty HTTPSProxy on PATCH but not PUT.
-	if updating || hcpCluster.Properties.Proxy.NoProxy != "" {
-		proxyBuilder = proxyBuilder.
-			NoProxy(hcpCluster.Properties.Proxy.NoProxy)
-	}
-
 	clusterBuilder = clusterBuilder.
-		DisableUserWorkloadMonitoring(hcpCluster.Properties.DisableUserWorkloadMonitoring).
-		Proxy(proxyBuilder).
-		AdditionalTrustBundle(hcpCluster.Properties.Proxy.TrustedCA)
+		DisableUserWorkloadMonitoring(hcpCluster.Properties.DisableUserWorkloadMonitoring)
 
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 
