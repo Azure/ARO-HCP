@@ -193,12 +193,26 @@ Please not that these kubeconfig files require an active Azure CLI session (`az 
 If you loose these files, you can recreate them by running
 
   ```bash
+  # Service cluster's kubeconfig file.
   make --directory=dev-infrastructure svc.aks.admin-access svc.aks.kubeconfig
-  or
+
+  # Management cluster's kubeconfig file.
   make --directory=dev-infrastructure mgmt.aks.admin-access mgmt.aks.kubeconfig
   ```
 
 > Freshly granted cluster admin permissions might not be effective immediately. If you get permission denied errors on your `kubectl` commands, consider waiting a couple of minutes for the permissions to be propagated
+
+### Observability
+
+By default, metrics from infra/management services are ingested into Azure Managed Prometheus (AMP).
+
+It is possible to enable tracing and collect traces into a Jaeger all-in-one instance:
+
+  ```bash
+  make infra.observability
+  ```
+
+Refer to the [observability docs](../observability/README.md) for more details.
 
 ### Cleanup
 
