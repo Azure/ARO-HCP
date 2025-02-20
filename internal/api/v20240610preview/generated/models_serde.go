@@ -735,7 +735,6 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "disableUserWorkloadMonitoring", h.DisableUserWorkloadMonitoring)
 	populate(objectMap, "etcdEncryption", h.EtcdEncryption)
 	populate(objectMap, "externalAuth", h.ExternalAuth)
-	populate(objectMap, "fips", h.Fips)
 	populate(objectMap, "issuerUrl", h.IssuerURL)
 	populate(objectMap, "network", h.Network)
 	populate(objectMap, "platform", h.Platform)
@@ -771,9 +770,6 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "externalAuth":
 				err = unpopulate(val, "ExternalAuth", &h.ExternalAuth)
-			delete(rawMsg, key)
-		case "fips":
-				err = unpopulate(val, "Fips", &h.Fips)
 			delete(rawMsg, key)
 		case "issuerUrl":
 				err = unpopulate(val, "IssuerURL", &h.IssuerURL)

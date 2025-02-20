@@ -26,7 +26,6 @@
           "api": {
             "visibility": "public"
           },
-          "fips": true,
           "etcdEncryption": true,
           "disableUserWorkloadMonitoring": true,
           "proxy": {

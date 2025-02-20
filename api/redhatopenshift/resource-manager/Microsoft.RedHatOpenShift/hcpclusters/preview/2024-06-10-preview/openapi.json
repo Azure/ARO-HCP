@@ -1382,15 +1382,6 @@
           "description": "Shows the cluster API server profile",
           "readOnly": true
         },
-        "fips": {
-          "type": "boolean",
-          "description": "Enable FIPS mode for the cluster\nWhen set to true, `etcdEncryption` must be set to true",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
         "etcdEncryption": {
           "type": "boolean",
           "description": "Enables customer ETCD encryption, set during creation\nWhen set to true, `platform.etcdEncryptionSetId` must be set",

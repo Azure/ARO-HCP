@@ -77,12 +77,6 @@ model HcpOpenShiftClusterProperties {
   @visibility("read")
   api: ApiProfile;
 
-  /** Enable FIPS mode for the cluster
-   * When set to true, `etcdEncryption` must be set to true
-   */
-  @visibility("create", "read")
-  fips?: boolean = false;
-
   /** Enables customer ETCD encryption, set during creation
    * When set to true, `platform.etcdEncryptionSetId` must be set
    */
