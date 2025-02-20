@@ -108,6 +108,9 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
+// Log Analytics Workspace ID will be passed from global pipeline if enabled in config
+param logAnalyticsWorkspaceId string = ''
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster'
   scope: resourceGroup()
@@ -142,6 +145,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       }
     })
     aksKeyVaultName: aksKeyVaultName
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
     userAgentMinCount: userAgentMinCount
     userAgentPoolAZCount: userAgentPoolAZCount
