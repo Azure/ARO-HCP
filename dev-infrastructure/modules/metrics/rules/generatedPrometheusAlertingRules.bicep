@@ -197,7 +197,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'Job did not complete in time'
         }
         expression: 'time() - max by(namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics"}   and kube_job_status_active{job="kube-state-metrics"} > 0) > 43200'
-        for: '<nil>'
         severity: 3
       }
       {
@@ -802,7 +801,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet client certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 604800'
-        for: '<nil>'
         severity: 3
       }
       {
@@ -817,7 +815,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet client certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 86400'
-        for: '<nil>'
         severity: 2
       }
       {
@@ -832,7 +829,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet server certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 604800'
-        for: '<nil>'
         severity: 3
       }
       {
@@ -847,7 +843,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet server certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 86400'
-        for: '<nil>'
         severity: 2
       }
       {

@@ -172,7 +172,9 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
 		}
 {{- end }}
 		expression: '{{.Expression}}'
+{{- if .For }}
         for: '{{.For}}'
+{{- end }}
         severity: {{.Severity}}
       }
 {{- end -}}
