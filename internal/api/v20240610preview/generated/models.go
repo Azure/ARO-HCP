@@ -18,6 +18,13 @@ type APIProfile struct {
 	URL *string
 }
 
+// ClusterCapabilitiesProfile - Cluster capabilities configuration.
+type ClusterCapabilitiesProfile struct {
+	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
+// available in the future. Clients should expect to handle additional values.
+	Disabled []*OptionalClusterCapability
+}
+
 type ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
@@ -154,6 +161,12 @@ type HcpOpenShiftClusterProperties struct {
 	// Cluster DNS configuration
 	DNS *DNSProfile
 
+	// READ-ONLY; Shows the cluster web console information
+	Console *ConsoleProfile
+
+	// Configure cluter capabilities.
+	Capabilities *ClusterCapabilitiesProfile
+
 	// Disable user workload monitoring
 	DisableUserWorkloadMonitoring *bool
 
@@ -165,9 +178,6 @@ type HcpOpenShiftClusterProperties struct {
 
 	// READ-ONLY; Shows the cluster API server profile
 	API *APIProfile
-
-	// READ-ONLY; Shows the cluster web console information
-	Console *ConsoleProfile
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
