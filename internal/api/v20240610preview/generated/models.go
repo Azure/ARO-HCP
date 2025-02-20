@@ -18,6 +18,12 @@ type APIProfile struct {
 	URL *string
 }
 
+// ClusterCapabilitiesProfile - Cluster capabilities configuration.
+type ClusterCapabilitiesProfile struct {
+	// Disabled cluter capabilities.
+	Disabled []*OptionalClusterCapability
+}
+
 type ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
@@ -154,6 +160,15 @@ type HcpOpenShiftClusterProperties struct {
 	// Cluster DNS configuration
 	DNS *DNSProfile
 
+	// READ-ONLY; Shows the cluster web console information
+	Console *ConsoleProfile
+
+	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
+	IssuerURL *string
+
+	// Configure cluter capabilities.
+	Capabilities *ClusterCapabilitiesProfile
+
 	// Disable user workload monitoring
 	DisableUserWorkloadMonitoring *bool
 
@@ -165,12 +180,6 @@ type HcpOpenShiftClusterProperties struct {
 
 	// READ-ONLY; Shows the cluster API server profile
 	API *APIProfile
-
-	// READ-ONLY; Shows the cluster web console information
-	Console *ConsoleProfile
-
-	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
-	IssuerURL *string
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
