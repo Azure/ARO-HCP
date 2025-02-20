@@ -36,6 +36,12 @@
                   "url": "dkjmzzhkvyoqx",
                   "visibility": "public"
                 },
+                "proxy": {
+                  "httpProxy": "sjjbjvkimlvtwdnwjodcajidcoompt",
+                  "httpsProxy": "xwjukendejiksp",
+                  "noProxy": "mlsbdpjpyzpydpkeqvt",
+                  "trustedCa": "uxebp"
+                },
                 "platform": {
                   "managedResourceGroup": "nhyhywrxupo",
                   "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
