@@ -62,6 +62,8 @@ var istioIngressGatewayIPAddressIPTagsArray = [
 @maxLength(24)
 param aksKeyVaultName string
 
+param logAnalyticsWorkspaceId string = ''
+
 // Local Params
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
 param dnsPrefix string = aksClusterName
@@ -459,6 +461,25 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
     aksClusterOutboundIPAddress
   ]
 }
+
+resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2017-05-01-preview' = if (logAnalyticsWorkspaceId != '') {
+  scope: aksCluster
+  name: aksClusterName
+  properties: {
+    logs: [
+      {
+        category: 'kube-audit'
+        enabled: true
+      }
+      {
+        category: 'kube-audit-admin'
+        enabled: true
+      }
+    ]
+    workspaceId: logAnalyticsWorkspaceId
+  }
+}
+
 
 resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-04-02-preview' = [
   for i in range(0, userAgentPoolAZCount): {
