@@ -999,6 +999,23 @@
         "prefixPolicy"
       ]
     },
+    "ClusterCapabilitiesProfile": {
+      "type": "object",
+      "description": "Cluster capabilities configuration.",
+      "properties": {
+        "disabled": {
+          "type": "array",
+          "description": "Disabled cluter capabilities.",
+          "items": {
+            "$ref": "#/definitions/OptionalClusterCapability"
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      }
+    },
     "ClusterPatchSpec": {
       "type": "object",
       "description": "The patchable cluster specification",
@@ -1105,6 +1122,14 @@
         "externalAuth": {
           "$ref": "#/definitions/ExternalAuthConfigProfile",
           "description": "Configuration to override the openshift-oauth-apiserver inside cluster\nThis changes user login into the cluster to external provider",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "capabilities": {
+          "$ref": "#/definitions/ClusterCapabilitiesProfile",
+          "description": "Configure cluter capabilities.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1926,6 +1951,24 @@
       "required": [
         "userAssignedIdentities"
       ]
+    },
+    "OptionalClusterCapability": {
+      "type": "string",
+      "description": "Cluster capabilities that can be disabled.",
+      "enum": [
+        "ImageRegistry"
+      ],
+      "x-ms-enum": {
+        "name": "OptionalClusterCapability",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "ImageRegistry",
+            "value": "ImageRegistry",
+            "description": "Enables the OpenShift internal image registry."
+          }
+        ]
+      }
     },
     "PlatformProfile": {
       "type": "object",

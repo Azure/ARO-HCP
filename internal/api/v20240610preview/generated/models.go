@@ -30,6 +30,12 @@ type ClaimProfile struct {
 	PrefixPolicy *string
 }
 
+// ClusterCapabilitiesProfile - Cluster capabilities configuration.
+type ClusterCapabilitiesProfile struct {
+	// Disabled cluter capabilities.
+	Disabled []*OptionalClusterCapability
+}
+
 // ClusterPatchSpec - The patchable cluster specification
 type ClusterPatchSpec struct {
 	// Disable user workload monitoring
@@ -44,11 +50,17 @@ type ClusterSpec struct {
 	// REQUIRED; Version of the control plane components
 	Version *VersionProfile
 
+	// Cluster DNS configuration
+	DNS *DNSProfile
+
+	// READ-ONLY; Shows the cluster web console information
+	Console *ConsoleProfile
+
 	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
 	IssuerURL *string
 
-	// Cluster DNS configuration
-	DNS *DNSProfile
+	// Configure cluter capabilities.
+	Capabilities *ClusterCapabilitiesProfile
 
 	// Disable user workload monitoring
 	DisableUserWorkloadMonitoring *bool
@@ -74,9 +86,6 @@ type ClusterSpec struct {
 
 	// READ-ONLY; Shows the cluster API server profile
 	API *APIProfile
-
-	// READ-ONLY; Shows the cluster web console information
-	Console *ConsoleProfile
 }
 
 type ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
