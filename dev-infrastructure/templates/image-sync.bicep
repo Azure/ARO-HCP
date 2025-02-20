@@ -93,6 +93,14 @@ module kv '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
+module encryptionKey '../modules/keyvault/key-vault-key.bicep' = {
+  name: 'imagesync-secretSyncKey'
+  params: {
+    keyVaultName: kv.outputs.kvName
+    keyName: 'secretSyncKey'
+  }
+}
+
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
   name: containerAppLogAnalyticsName
   location: location
