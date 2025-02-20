@@ -195,6 +195,10 @@ defaults:
     namespace: logs
     msiName: logs-mdsd
     serviceAccountName: genevabit-aggregator
+    cert:
+      name: logs-mdsd
+      type: x-pem-file # GCS certificate file in PEM format
+      issuer: OneCertV2-PrivateCA
 
 clouds:
   public:
@@ -251,6 +255,10 @@ clouds:
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
+
+            logs:
+              san: SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
+
           # MC
           mgmt:
             aks:
@@ -267,6 +275,9 @@ clouds:
                 osDiskSizeGB: 128
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
+
+            logs:
+              san: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
 
           # DNS
           dns:
