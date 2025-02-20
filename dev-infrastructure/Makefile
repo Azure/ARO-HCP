@@ -124,7 +124,6 @@ svc:
 .PHONY: svc
 
 svc.cs-pr-check-msi:
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) cs-integ-msi
 	az deployment group create \
 		--name cs-integ-msi \
 		--resource-group $(SVC_RESOURCEGROUP) \
@@ -174,7 +173,6 @@ svc.what-if:
 .PHONY: svc.what-if
 
 svc.dev-role-assignments:
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME}
 	az deployment group create \
 		--name ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME} \
 		--resource-group "${SVC_RESOURCEGROUP}" \
@@ -249,7 +247,6 @@ acr.what-if: acr-svc-cfg.what-if acr-ocp-cfg.what-if
 .PHONY: acr.what-if
 
 acr-svc-cfg: # DEV only setup of caching rules in OCP ACR
-	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -269,7 +266,6 @@ acr-svc-cfg.what-if:
 .PHONY: acr-svc-cfg.what-if
 
 acr-ocp-cfg: # DEV only setup of caching rules in OCP ACR
-	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
