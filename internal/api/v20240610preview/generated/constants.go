@@ -127,6 +127,21 @@ func PossibleNetworkTypeValues() []NetworkType {
 	}
 }
 
+// OptionalClusterCapability - Cluster capabilities that can be disabled.
+type OptionalClusterCapability string
+
+const (
+	// OptionalClusterCapabilityImageRegistry - Enables the OpenShift internal image registry.
+	OptionalClusterCapabilityImageRegistry OptionalClusterCapability = "ImageRegistry"
+)
+
+// PossibleOptionalClusterCapabilityValues returns the possible values for the OptionalClusterCapability const type.
+func PossibleOptionalClusterCapabilityValues() []OptionalClusterCapability {
+	return []OptionalClusterCapability{
+		OptionalClusterCapabilityImageRegistry,
+	}
+}
+
 // Origin - The intended executor of the operation; as in Resource Based Access Control (RBAC) and audit logs UX. Default
 // value is "user,system"
 type Origin string
