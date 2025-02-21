@@ -33,6 +33,7 @@ func GenerateNodePoolHREF(clusterPath string, nodePoolName string) string {
 // InternalID represents a Cluster Service resource.
 type InternalID struct {
 	path string
+	kind string
 }
 
 func (id *InternalID) validate() error {
@@ -45,14 +46,18 @@ func (id *InternalID) validate() error {
 	// and any other legacy transitional versions we see to "v2".
 
 	if match, _ = path.Match(v1ClusterPattern, id.path); match {
+		id.kind = cmv1.ClusterKind
 		return nil
 	}
 
 	if match, _ = path.Match(v1NodePoolPattern, id.path); match {
+		id.kind = cmv1.NodePoolKind
 		return nil
 	}
 
 	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
+		// Temporarily use cmv1 constant for backward-compatibility.
+		id.kind = cmv1.ClusterKind
 		return nil
 	}
 
@@ -93,24 +98,7 @@ func (id *InternalID) ID() string {
 // Kind returns the kind of resource described by InternalID, currently
 // limited to "Cluster" and "NodePool".
 func (id *InternalID) Kind() string {
-	var match bool
-	var kind string
-
-	if match, _ = path.Match(v1ClusterPattern, id.path); match {
-		kind = cmv1.ClusterKind
-	}
-
-	// support clusters received via ARO HCP APIs
-	// without duplicating the whole codebase calling this method
-	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
-		kind = cmv1.ClusterKind
-	}
-
-	if match, _ = path.Match(v1NodePoolPattern, id.path); match {
-		kind = cmv1.NodePoolKind
-	}
-
-	return kind
+	return id.kind
 }
 
 // GetClusterClient returns a v1 ClusterClient from the InternalID.
@@ -170,8 +158,8 @@ func matchClusterPath(clusterPath string) string {
 // GetNodePoolClient returns a v1 NodePoolClient from the InternalID.
 // The transport is most likely to be a Connection object from the SDK.
 func (id *InternalID) GetNodePoolClient(transport http.RoundTripper) (*cmv1.NodePoolClient, bool) {
-	if match, _ := path.Match(v1NodePoolPattern, id.path); match {
-		return cmv1.NewNodePoolClient(transport, id.path), true
+	if id.Kind() != cmv1.NodePoolKind {
+		return nil, false
 	}
-	return nil, false
+	return cmv1.NewNodePoolClient(transport, id.path), true
 }
