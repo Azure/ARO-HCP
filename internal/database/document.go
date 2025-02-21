@@ -74,6 +74,10 @@ const (
 	OperationRequestCreate OperationRequest = "Create"
 	OperationRequestUpdate OperationRequest = "Update"
 	OperationRequestDelete OperationRequest = "Delete"
+
+	// These are for POST actions on resources.
+	OperationRequestRequestCredential OperationRequest = "RequestCredential"
+	OperationRequestRevokeCredentials OperationRequest = "RevokeCredentials"
 )
 
 // OperationResourceType is an artificial resource type for OperationDocuments
