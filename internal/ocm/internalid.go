@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	v1Pattern         = "/api/clusters_mgmt/v1"
-	v1ClusterPattern  = v1Pattern + "/clusters/*"
-	v1NodePoolPattern = v1ClusterPattern + "/node_pools/*"
+	v1Pattern                     = "/api/clusters_mgmt/v1"
+	v1ClusterPattern              = v1Pattern + "/clusters/*"
+	v1NodePoolPattern             = v1ClusterPattern + "/node_pools/*"
+	v1BreakGlassCredentialPattern = v1ClusterPattern + "/break_glass_credentials/*"
 
 	aroHcpV1Alpha1Pattern        = "/api/aro_hcp/v1alpha1"
 	aroHcpV1Alpha1ClusterPattern = aroHcpV1Alpha1Pattern + "/clusters/*"
@@ -52,6 +53,11 @@ func (id *InternalID) validate() error {
 
 	if match, _ = path.Match(v1NodePoolPattern, id.path); match {
 		id.kind = cmv1.NodePoolKind
+		return nil
+	}
+
+	if match, _ = path.Match(v1BreakGlassCredentialPattern, id.path); match {
+		id.kind = cmv1.BreakGlassCredentialKind
 		return nil
 	}
 
@@ -162,4 +168,14 @@ func (id *InternalID) GetNodePoolClient(transport http.RoundTripper) (*cmv1.Node
 		return nil, false
 	}
 	return cmv1.NewNodePoolClient(transport, id.path), true
+}
+
+// GetBreakGlassCredentialClient returns a v1 BreakGlassCredentialClient
+// from the InternalID. The transport is most likely to be a Connection
+// object from the SDK.
+func (id *InternalID) GetBreakGlassCredentialClient(transport http.RoundTripper) (*cmv1.BreakGlassCredentialClient, bool) {
+	if id.Kind() != cmv1.BreakGlassCredentialKind {
+		return nil, false
+	}
+	return cmv1.NewBreakGlassCredentialClient(transport, id.path), true
 }
