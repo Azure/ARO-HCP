@@ -13,6 +13,7 @@ import (
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/mock/gomock"
 
@@ -81,33 +82,22 @@ func TestCreateNodePool(t *testing.T) {
 			expectedStatusCode: http.StatusCreated,
 		},
 	}
-	mockCSClient := ocm.NewMockClusterServiceClient()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
 			reg := prometheus.NewRegistry()
 
 			f := &Frontend{
 				dbClient:             mockDBClient,
 				metrics:              NewPrometheusEmitter(reg),
-				clusterServiceClient: &mockCSClient,
+				clusterServiceClient: mockCSClient,
 			}
-			hcpCluster := api.NewDefaultHCPOpenShiftCluster()
 
 			requestHeader := make(http.Header)
 			requestHeader.Add(arm.HeaderNameHomeTenantID, dummyTenantId)
-
-			hcpCluster.Name = dummyClusterName
-			csCluster, _ := f.BuildCSCluster(clusterResourceID, requestHeader, hcpCluster, false)
-
-			if test.clusterDoc != nil {
-				_, err := f.clusterServiceClient.PostCluster(context.TODO(), csCluster)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
 
 			body, _ := json.Marshal(requestBody)
 
@@ -120,6 +110,18 @@ func TestCreateNodePool(t *testing.T) {
 
 				return ctx
 			}
+
+			// CreateOrUpdateNodePool
+			mockCSClient.EXPECT().
+				PostNodePool(gomock.Any(), clusterDoc.InternalID, gomock.Any()).
+				DoAndReturn(
+					func(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
+						builder := cmv1.NewNodePool().
+							Copy(nodePool).
+							HREF(dummyNodePoolHREF)
+						return builder.Build()
+					},
+				)
 
 			// MiddlewareLockSubscription
 			mockDBClient.EXPECT().
