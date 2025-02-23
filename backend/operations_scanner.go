@@ -319,9 +319,16 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 		switch operationDoc.InternalID.Kind() {
 		case cmv1.ClusterKind:
-			s.pollClusterOperation(ctx, op)
+			switch operationDoc.Request {
+			case database.OperationRequestRevokeCredentials:
+				s.pollBreakGlassCredentialRevoke(ctx, op)
+			default:
+				s.pollClusterOperation(ctx, op)
+			}
 		case cmv1.NodePoolKind:
 			s.pollNodePoolOperation(ctx, op)
+		case cmv1.BreakGlassCredentialKind:
+			s.pollBreakGlassCredential(ctx, op)
 		}
 	}
 
@@ -382,6 +389,109 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 			op.logger.Error(fmt.Sprintf("Failed to get node pool status: %v", err))
 		}
 		return
+	}
+}
+
+// pollBreakGlassCredential updates the status of a credential creation operation.
+func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op operation) {
+	breakGlassCredential, err := s.clusterService.GetBreakGlassCredential(ctx, op.doc.InternalID)
+	if err != nil {
+		op.logger.Error(fmt.Sprintf("Failed to get break-glass credential: %v", err))
+		return
+	}
+
+	var opStatus arm.ProvisioningState = op.doc.Status
+	var opError *arm.CloudErrorBody
+
+	switch status := breakGlassCredential.Status(); status {
+	case cmv1.BreakGlassCredentialStatusCreated:
+		opStatus = arm.ProvisioningStateProvisioning
+	case cmv1.BreakGlassCredentialStatusFailed:
+		// XXX Cluster Service does not provide a reason for the failure,
+		//     so we have no choice but to use a generic error message.
+		opStatus = arm.ProvisioningStateFailed
+		opError = &arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: "Failed to provision cluster credential",
+		}
+	case cmv1.BreakGlassCredentialStatusIssued:
+		opStatus = arm.ProvisioningStateSucceeded
+	default:
+		op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
+		return
+	}
+
+	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
+		return updateDoc.UpdateStatus(opStatus, opError)
+	})
+	if err != nil {
+		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+	}
+	if updated {
+		op.logger.Info(fmt.Sprintf("Updated status to '%s'", opStatus))
+		s.maybePostAsyncNotification(ctx, op)
+	}
+}
+
+// pollBreakGlassCredentialRevoke updates the status of a credential revocation operation.
+func (s *OperationsScanner) pollBreakGlassCredentialRevoke(ctx context.Context, op operation) {
+	var opStatus arm.ProvisioningState = arm.ProvisioningStateSucceeded
+	var opError *arm.CloudErrorBody
+
+	// XXX Error handling here is tricky. Since the operation applies to multiple
+	//     Cluster Service objects, we can find a mix of successes and failures.
+	//     And with only a Failed status for each object, it's difficult to make
+	//     intelligent decisions like whether to retry. This is just to say the
+	//     error handling policy here may need revising once Cluster Service
+	//     offers more detail to accompany BreakGlassCredentialStatusFailed.
+
+	iterator := s.clusterService.ListBreakGlassCredentials(op.doc.InternalID, "")
+
+loop:
+	for breakGlassCredential := range iterator.Items(ctx) {
+		// An expired credential is as good as a revoked credential
+		// for this operation, regardless of the credential status.
+		if breakGlassCredential.ExpirationTimestamp().After(time.Now()) {
+			switch status := breakGlassCredential.Status(); status {
+			case cmv1.BreakGlassCredentialStatusAwaitingRevocation:
+				opStatus = arm.ProvisioningStateDeleting
+				// break alone just breaks out of select.
+				// Use a label to break out of the loop.
+				break loop
+			case cmv1.BreakGlassCredentialStatusRevoked:
+				// maintain ProvisioningStateSucceeded
+			case cmv1.BreakGlassCredentialStatusFailed:
+				// XXX Cluster Service does not provide a reason for the failure,
+				//     so we have no choice but to use a generic error message.
+				opStatus = arm.ProvisioningStateFailed
+				opError = &arm.CloudErrorBody{
+					Code:    arm.CloudErrorCodeInternalServerError,
+					Message: "Failed to revoke cluster credential",
+				}
+				// break alone just breaks out of select.
+				// Use a label to break out of the loop.
+				break loop
+			default:
+				op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
+			}
+		}
+	}
+
+	err := iterator.GetError()
+	if err != nil {
+		op.logger.Error(fmt.Sprintf("Error while paging through Cluster Service query results: %v", err.Error()))
+		return
+	}
+
+	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
+		return updateDoc.UpdateStatus(opStatus, opError)
+	})
+	if err != nil {
+		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+	}
+	if updated {
+		op.logger.Info(fmt.Sprintf("Updated status to '%s'", opStatus))
+		s.maybePostAsyncNotification(ctx, op)
 	}
 }
 
