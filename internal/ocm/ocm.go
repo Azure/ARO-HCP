@@ -15,6 +15,7 @@ import (
 type ClusterServiceClientSpec interface {
 	AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder
 	GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error)
+	GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error)
 	PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
 	UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
 	DeleteCluster(ctx context.Context, internalID InternalID) error

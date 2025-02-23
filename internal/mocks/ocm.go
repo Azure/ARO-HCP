@@ -100,6 +100,21 @@ func (mr *MockClusterServiceClientSpecMockRecorder) GetCluster(ctx, internalID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetCluster), ctx, internalID)
 }
 
+// GetClusterStatus mocks base method.
+func (m *MockClusterServiceClientSpec) GetClusterStatus(ctx context.Context, internalID ocm.InternalID) (*v1alpha1.ClusterStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetClusterStatus", ctx, internalID)
+	ret0, _ := ret[0].(*v1alpha1.ClusterStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetClusterStatus indicates an expected call of GetClusterStatus.
+func (mr *MockClusterServiceClientSpecMockRecorder) GetClusterStatus(ctx, internalID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterStatus", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetClusterStatus), ctx, internalID)
+}
+
 // GetNodePool mocks base method.
 func (m *MockClusterServiceClientSpec) GetNodePool(ctx context.Context, internalID ocm.InternalID) (*v1.NodePool, error) {
 	m.ctrl.T.Helper()
