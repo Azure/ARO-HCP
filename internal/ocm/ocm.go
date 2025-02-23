@@ -13,17 +13,44 @@ import (
 )
 
 type ClusterServiceClientSpec interface {
+	// AddProperties injects the some additional properties into the ClusterBuilder.
 	AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder
+
+	// GetCluster sends a GET request to fetch a cluster from Cluster Service.
 	GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error)
+
+	// GetClusterStatus sends a GET request to fetch a cluster's status from Cluster Service.
 	GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error)
+
+	// PostCluster sends a POST request to create a cluster in Cluster Service.
 	PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
+
+	// UpdateCluster sends a PATCH request to update a cluster in Cluster Service.
 	UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
+
+	// DeleteCluster sends a DELETE request to delete a cluster from Cluster Service.
 	DeleteCluster(ctx context.Context, internalID InternalID) error
+
+	// ListClusters prepares a GET request with the given search expression. Call Items() on
+	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
 	ListClusters(searchExpression string) ClusterListIterator
+
+	// GetNodePool sends a GET request to fetch a node pool from Cluster Service.
 	GetNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error)
+
+	// PostNodePool sends a POST request to create a node pool in Cluster Service.
 	PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
+
+	// UpdateNodePool sends a PATCH request to update a node pool in Cluster Service.
 	UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
+
+	// DeleteNodePool sends a DELETE request to delete a node pool from Cluster Service.
 	DeleteNodePool(ctx context.Context, internalID InternalID) error
+
+	// ListNodePools prepares a GET request with the given search expression. Call Items() on
+	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
 	ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator
 }
 
@@ -44,7 +71,6 @@ type ClusterServiceClient struct {
 	ProvisionerNoOpDeprovision bool
 }
 
-// AddProperties injects the some additional properties into the ClusterBuilder.
 func (csc *ClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
 	additionalProperties := map[string]string{}
 	if csc.ProvisionShardID != nil {
@@ -59,7 +85,6 @@ func (csc *ClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBu
 	return builder.Properties(additionalProperties)
 }
 
-// GetCluster creates and sends a GET request to fetch a cluster from Clusters Service
 func (csc *ClusterServiceClient) GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
 	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
@@ -76,7 +101,6 @@ func (csc *ClusterServiceClient) GetCluster(ctx context.Context, internalID Inte
 	return cluster, nil
 }
 
-// GetClusterStatus creates and sends a GET request to fetch a cluster's status from Clusters Service
 func (csc *ClusterServiceClient) GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error) {
 	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
@@ -93,7 +117,6 @@ func (csc *ClusterServiceClient) GetClusterStatus(ctx context.Context, internalI
 	return status, nil
 }
 
-// PostCluster creates and sends a POST request to create a cluster in Clusters Service
 func (csc *ClusterServiceClient) PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 	clustersAddResponse, err := csc.Conn.AroHCP().V1alpha1().Clusters().Add().Body(cluster).SendContext(ctx)
 	if err != nil {
@@ -106,7 +129,6 @@ func (csc *ClusterServiceClient) PostCluster(ctx context.Context, cluster *arohc
 	return cluster, nil
 }
 
-// UpdateCluster sends a PATCH request to update a cluster in Clusters Service
 func (csc *ClusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
@@ -123,7 +145,6 @@ func (csc *ClusterServiceClient) UpdateCluster(ctx context.Context, internalID I
 	return cluster, nil
 }
 
-// DeleteCluster creates and sends a DELETE request to delete a cluster from Clusters Service
 func (csc *ClusterServiceClient) DeleteCluster(ctx context.Context, internalID InternalID) error {
 	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
@@ -133,9 +154,6 @@ func (csc *ClusterServiceClient) DeleteCluster(ctx context.Context, internalID I
 	return err
 }
 
-// ListClusters prepares a GET request with the given search expression. Call Items() on
-// the returned iterator in a for/range loop to execute the request and paginate over results,
-// then call GetError() to check for an iteration error.
 func (csc *ClusterServiceClient) ListClusters(searchExpression string) ClusterListIterator {
 	clustersListRequest := csc.Conn.AroHCP().V1alpha1().Clusters().List()
 	if searchExpression != "" {
@@ -144,7 +162,6 @@ func (csc *ClusterServiceClient) ListClusters(searchExpression string) ClusterLi
 	return ClusterListIterator{request: clustersListRequest}
 }
 
-// GetNodePool creates and sends a GET request to fetch a node pool from Clusters Service
 func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
@@ -161,7 +178,6 @@ func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 	return nodePool, nil
 }
 
-// PostNodePool creates and sends a POST request to create a node pool in Clusters Service
 func (csc *ClusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
 	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
 	if !ok {
@@ -178,7 +194,6 @@ func (csc *ClusterServiceClient) PostNodePool(ctx context.Context, clusterIntern
 	return nodePool, nil
 }
 
-// UpdateNodePool sends a PATCH request to update a node pool in Clusters Service
 func (csc *ClusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
@@ -195,7 +210,6 @@ func (csc *ClusterServiceClient) UpdateNodePool(ctx context.Context, internalID 
 	return nodePool, nil
 }
 
-// DeleteNodePool creates and sends a DELETE request to delete a node pool from Clusters Service
 func (csc *ClusterServiceClient) DeleteNodePool(ctx context.Context, internalID InternalID) error {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
@@ -205,9 +219,6 @@ func (csc *ClusterServiceClient) DeleteNodePool(ctx context.Context, internalID 
 	return err
 }
 
-// ListNodePools prepares a GET request with the given search expression. Call Items() on
-// the returned iterator in a for/range loop to execute the request and paginate over results,
-// then call GetError() to check for an iteration error.
 func (csc *ClusterServiceClient) ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
 	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
 	if !ok {
