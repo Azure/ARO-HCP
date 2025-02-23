@@ -52,6 +52,20 @@ type ClusterServiceClientSpec interface {
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
 	ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator
+
+	// GetBreakGlassCredential sends a GET request to fetch a break-glass cluster credential from Cluster Service.
+	GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error)
+
+	// PostBreakGlassCredential sends a POST request to create a break-glass cluster credential in Cluster Service.
+	PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error)
+
+	// DeleteBreakGlassCredentials sends a DELETE request to revoke all break-glass credentials for a cluster in Cluster Service.
+	DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error
+
+	// ListBreakGlassCredentials prepares a GET request with the given search expression. Call
+	// Items() on the returned iterator in a for/range loop to execute the request and paginate
+	// over results, then call GetError() to check for an iteration error.
+	ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator
 }
 
 type ClusterServiceClient struct {
@@ -229,4 +243,57 @@ func (csc *ClusterServiceClient) ListNodePools(clusterInternalID InternalID, sea
 		nodePoolsListRequest.Search(searchExpression)
 	}
 	return NodePoolListIterator{request: nodePoolsListRequest}
+}
+
+func (csc *ClusterServiceClient) GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error) {
+	client, ok := internalID.GetBreakGlassCredentialClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a break-glass credential: %s", internalID)
+	}
+	breakGlassCredentialGetResponse, err := client.Get().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	breakGlassCredential, ok := breakGlassCredentialGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return breakGlassCredential, nil
+}
+
+func (csc *ClusterServiceClient) PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error) {
+	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
+	}
+	breakGlassCredentialsAddResponse, err := client.BreakGlassCredentials().Add().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	breakGlassCredential, ok := breakGlassCredentialsAddResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return breakGlassCredential, nil
+}
+
+func (csc *ClusterServiceClient) DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error {
+	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+	if !ok {
+		return fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
+	}
+	_, err := client.BreakGlassCredentials().Delete().SendContext(ctx)
+	return err
+}
+
+func (csc *ClusterServiceClient) ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator {
+	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+	if !ok {
+		return BreakGlassCredentialListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
+	}
+	breakGlassCredentialsListRequest := client.BreakGlassCredentials().List()
+	if searchExpression != "" {
+		breakGlassCredentialsListRequest.Search(searchExpression)
+	}
+	return BreakGlassCredentialListIterator{request: breakGlassCredentialsListRequest}
 }

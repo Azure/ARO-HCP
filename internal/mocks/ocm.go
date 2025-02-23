@@ -57,6 +57,20 @@ func (mr *MockClusterServiceClientSpecMockRecorder) AddProperties(builder any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProperties", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).AddProperties), builder)
 }
 
+// DeleteBreakGlassCredentials mocks base method.
+func (m *MockClusterServiceClientSpec) DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID ocm.InternalID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteBreakGlassCredentials", ctx, clusterInternalID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteBreakGlassCredentials indicates an expected call of DeleteBreakGlassCredentials.
+func (mr *MockClusterServiceClientSpecMockRecorder) DeleteBreakGlassCredentials(ctx, clusterInternalID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBreakGlassCredentials", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).DeleteBreakGlassCredentials), ctx, clusterInternalID)
+}
+
 // DeleteCluster mocks base method.
 func (m *MockClusterServiceClientSpec) DeleteCluster(ctx context.Context, internalID ocm.InternalID) error {
 	m.ctrl.T.Helper()
@@ -83,6 +97,21 @@ func (m *MockClusterServiceClientSpec) DeleteNodePool(ctx context.Context, inter
 func (mr *MockClusterServiceClientSpecMockRecorder) DeleteNodePool(ctx, internalID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNodePool", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).DeleteNodePool), ctx, internalID)
+}
+
+// GetBreakGlassCredential mocks base method.
+func (m *MockClusterServiceClientSpec) GetBreakGlassCredential(ctx context.Context, internalID ocm.InternalID) (*v1.BreakGlassCredential, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBreakGlassCredential", ctx, internalID)
+	ret0, _ := ret[0].(*v1.BreakGlassCredential)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBreakGlassCredential indicates an expected call of GetBreakGlassCredential.
+func (mr *MockClusterServiceClientSpecMockRecorder) GetBreakGlassCredential(ctx, internalID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBreakGlassCredential", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetBreakGlassCredential), ctx, internalID)
 }
 
 // GetCluster mocks base method.
@@ -130,6 +159,20 @@ func (mr *MockClusterServiceClientSpecMockRecorder) GetNodePool(ctx, internalID 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodePool", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetNodePool), ctx, internalID)
 }
 
+// ListBreakGlassCredentials mocks base method.
+func (m *MockClusterServiceClientSpec) ListBreakGlassCredentials(clusterInternalID ocm.InternalID, searchExpression string) ocm.BreakGlassCredentialListIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListBreakGlassCredentials", clusterInternalID, searchExpression)
+	ret0, _ := ret[0].(ocm.BreakGlassCredentialListIterator)
+	return ret0
+}
+
+// ListBreakGlassCredentials indicates an expected call of ListBreakGlassCredentials.
+func (mr *MockClusterServiceClientSpecMockRecorder) ListBreakGlassCredentials(clusterInternalID, searchExpression any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBreakGlassCredentials", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).ListBreakGlassCredentials), clusterInternalID, searchExpression)
+}
+
 // ListClusters mocks base method.
 func (m *MockClusterServiceClientSpec) ListClusters(searchExpression string) ocm.ClusterListIterator {
 	m.ctrl.T.Helper()
@@ -156,6 +199,21 @@ func (m *MockClusterServiceClientSpec) ListNodePools(clusterInternalID ocm.Inter
 func (mr *MockClusterServiceClientSpecMockRecorder) ListNodePools(clusterInternalID, searchExpression any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListNodePools", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).ListNodePools), clusterInternalID, searchExpression)
+}
+
+// PostBreakGlassCredential mocks base method.
+func (m *MockClusterServiceClientSpec) PostBreakGlassCredential(ctx context.Context, clusterInternalID ocm.InternalID) (*v1.BreakGlassCredential, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PostBreakGlassCredential", ctx, clusterInternalID)
+	ret0, _ := ret[0].(*v1.BreakGlassCredential)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PostBreakGlassCredential indicates an expected call of PostBreakGlassCredential.
+func (mr *MockClusterServiceClientSpecMockRecorder) PostBreakGlassCredential(ctx, clusterInternalID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostBreakGlassCredential", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostBreakGlassCredential), ctx, clusterInternalID)
 }
 
 // PostCluster mocks base method.
