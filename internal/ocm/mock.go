@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	sdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/openshift-online/ocm-sdk-go/errors"
@@ -39,8 +38,6 @@ func NewMockClusterServiceClient() MockClusterServiceClient {
 		nodePools: make(map[InternalID]*cmv1.NodePool),
 	}
 }
-
-func (mcsc *MockClusterServiceClient) GetConn() *sdk.Connection { panic("GetConn not implemented") }
 
 func (csc *MockClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
 	additionalProperties := map[string]string{}

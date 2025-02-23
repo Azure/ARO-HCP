@@ -13,7 +13,6 @@ import (
 )
 
 type ClusterServiceClientSpec interface {
-	GetConn() *sdk.Connection
 	AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder
 	GetCSCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error)
 	PostCSCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
@@ -43,8 +42,6 @@ type ClusterServiceClient struct {
 	// Service, which short-circuits the full deprovision flow during testing
 	ProvisionerNoOpDeprovision bool
 }
-
-func (csc *ClusterServiceClient) GetConn() *sdk.Connection { return csc.Conn }
 
 // AddProperties injects the some additional properties into the CSCluster Object.
 func (csc *ClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
