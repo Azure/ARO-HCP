@@ -305,8 +305,6 @@ func (s *OperationsScanner) processSubscriptions(logger *slog.Logger) {
 func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionID string, logger *slog.Logger) {
 	defer s.updateOperationMetrics(processOperationsLabel)()
 
-	var numProcessed int
-
 	pk := database.NewPartitionKey(subscriptionID)
 
 	iterator := s.dbClient.ListActiveOperationDocs(pk, nil)
@@ -322,10 +320,8 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 		switch operationDoc.InternalID.Kind() {
 		case cmv1.ClusterKind:
 			s.pollClusterOperation(ctx, op)
-			numProcessed++
 		case cmv1.NodePoolKind:
 			s.pollNodePoolOperation(ctx, op)
-			numProcessed++
 		}
 	}
 
