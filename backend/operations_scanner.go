@@ -239,7 +239,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 // pollClusterOperation updates the status of a cluster operation.
 func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operation) {
-	clusterStatus, err := s.clusterService.GetCSClusterStatus(ctx, op.doc.InternalID)
+	clusterStatus, err := s.clusterService.GetClusterStatus(ctx, op.doc.InternalID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {

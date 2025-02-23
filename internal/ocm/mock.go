@@ -44,7 +44,7 @@ func (csc *MockClusterServiceClient) AddProperties(builder *arohcpv1alpha1.Clust
 	return builder.Properties(additionalProperties)
 }
 
-func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
+func (mcsc *MockClusterServiceClient) GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
 	cluster, ok := mcsc.clusters[internalID]
 
 	if !ok {
@@ -53,7 +53,7 @@ func (mcsc *MockClusterServiceClient) GetCSCluster(ctx context.Context, internal
 	return cluster, nil
 }
 
-func (mcsc *MockClusterServiceClient) PostCSCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+func (mcsc *MockClusterServiceClient) PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 	href := GenerateClusterHREF(cluster.Name())
 	// Adding the HREF to correspond with what the full client does when crating the body
 	clusterBuilder := arohcpv1alpha1.NewCluster()
@@ -69,7 +69,7 @@ func (mcsc *MockClusterServiceClient) PostCSCluster(ctx context.Context, cluster
 	return enrichedCluster, nil
 }
 
-func (mcsc *MockClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+func (mcsc *MockClusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 
 	_, ok := mcsc.clusters[internalID]
 	if !ok {
@@ -80,7 +80,7 @@ func (mcsc *MockClusterServiceClient) UpdateCSCluster(ctx context.Context, inter
 
 }
 
-func (mcsc *MockClusterServiceClient) DeleteCSCluster(ctx context.Context, internalID InternalID) error {
+func (mcsc *MockClusterServiceClient) DeleteCluster(ctx context.Context, internalID InternalID) error {
 	_, ok := mcsc.clusters[internalID]
 	if !ok {
 		return mockNotFoundError(internalID)
@@ -89,11 +89,11 @@ func (mcsc *MockClusterServiceClient) DeleteCSCluster(ctx context.Context, inter
 	return nil
 }
 
-func (mcsc *MockClusterServiceClient) ListCSClusters(searchExpression string) ClusterListIterator {
-	return ClusterListIterator{err: fmt.Errorf("ListCSClusters not implemented")}
+func (mcsc *MockClusterServiceClient) ListClusters(searchExpression string) ClusterListIterator {
+	return ClusterListIterator{err: fmt.Errorf("ListClusters not implemented")}
 }
 
-func (mcsc *MockClusterServiceClient) GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
+func (mcsc *MockClusterServiceClient) GetNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
 	nodePool, ok := mcsc.nodePools[internalID]
 	if !ok {
 		return nil, mockNotFoundError(internalID)
@@ -102,7 +102,7 @@ func (mcsc *MockClusterServiceClient) GetCSNodePool(ctx context.Context, interna
 
 }
 
-func (mcsc *MockClusterServiceClient) PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
+func (mcsc *MockClusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
 	href := GenerateNodePoolHREF(clusterInternalID.path, nodePool.ID())
 	// Adding the HREF to correspond with what the full client does when crating the body
 	npBuilder := cmv1.NewNodePool()
@@ -118,7 +118,7 @@ func (mcsc *MockClusterServiceClient) PostCSNodePool(ctx context.Context, cluste
 	return enrichedNodePool, nil
 }
 
-func (mcsc *MockClusterServiceClient) UpdateCSNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
+func (mcsc *MockClusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
 	_, ok := mcsc.nodePools[internalID]
 	if !ok {
 		return nil, mockNotFoundError(internalID)
@@ -127,7 +127,7 @@ func (mcsc *MockClusterServiceClient) UpdateCSNodePool(ctx context.Context, inte
 	return nodePool, nil
 }
 
-func (mcsc *MockClusterServiceClient) DeleteCSNodePool(ctx context.Context, internalID InternalID) error {
+func (mcsc *MockClusterServiceClient) DeleteNodePool(ctx context.Context, internalID InternalID) error {
 	_, ok := mcsc.nodePools[internalID]
 	if !ok {
 		return mockNotFoundError(internalID)
@@ -136,6 +136,6 @@ func (mcsc *MockClusterServiceClient) DeleteCSNodePool(ctx context.Context, inte
 	return nil
 }
 
-func (mcsc *MockClusterServiceClient) ListCSNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
-	return NodePoolListIterator{err: fmt.Errorf("ListCSClusters not implemented")}
+func (mcsc *MockClusterServiceClient) ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
+	return NodePoolListIterator{err: fmt.Errorf("ListNodePools not implemented")}
 }

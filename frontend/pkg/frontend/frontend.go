@@ -241,7 +241,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 	switch resourceTypeName {
 	case strings.ToLower(api.ClusterResourceTypeName):
-		csIterator := f.clusterServiceClient.ListCSClusters(query)
+		csIterator := f.clusterServiceClient.ListClusters(query)
 
 		for csCluster := range csIterator.Items(ctx) {
 			if doc, ok := documentMap[csCluster.ID()]; ok {
@@ -271,7 +271,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			return
 		}
 
-		csIterator := f.clusterServiceClient.ListCSNodePools(resourceDoc.InternalID, query)
+		csIterator := f.clusterServiceClient.ListNodePools(resourceDoc.InternalID, query)
 
 		for csNodePool := range csIterator.Items(ctx) {
 			if doc, ok := documentMap[csNodePool.ID()]; ok {
@@ -403,7 +403,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// No special treatment here for "not found" errors. A "not found"
 		// error indicates the database has gotten out of sync and so it's
 		// appropriate to fail.
-		csCluster, err := f.clusterServiceClient.GetCSCluster(ctx, doc.InternalID)
+		csCluster, err := f.clusterServiceClient.GetCluster(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
@@ -487,7 +487,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.UpdateCSCluster(ctx, doc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, doc.InternalID, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -495,7 +495,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.PostCSCluster(ctx, csCluster)
+		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)

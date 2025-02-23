@@ -103,7 +103,7 @@ func TestCreateNodePool(t *testing.T) {
 			csCluster, _ := f.BuildCSCluster(clusterResourceID, requestHeader, hcpCluster, false)
 
 			if test.clusterDoc != nil {
-				_, err := f.clusterServiceClient.PostCSCluster(context.TODO(), csCluster)
+				_, err := f.clusterServiceClient.PostCluster(context.TODO(), csCluster)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -249,7 +249,7 @@ func TestCreateNodePool(t *testing.T) {
 // 				if err != nil {
 // 					t.Fatal(err)
 // 				}
-// 				_, err = f.clusterServiceClient.PostCSCluster(context.TODO(), csCluster)
+// 				_, err = f.clusterServiceClient.PostCluster(context.TODO(), csCluster)
 // 				if err != nil {
 // 					t.Fatal(err)
 // 				}
@@ -260,7 +260,7 @@ func TestCreateNodePool(t *testing.T) {
 // 				if err != nil {
 // 					t.Fatal(err)
 // 				}
-// 				_, err = f.clusterServiceClient.PostCSNodePool(context.TODO(), clusterDoc.InternalID, csNodePool)
+// 				_, err = f.clusterServiceClient.PostNodePool(context.TODO(), clusterDoc.InternalID, csNodePool)
 // 				if err != nil {
 // 					t.Fatal(err)
 // 				}
