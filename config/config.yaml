@@ -147,7 +147,7 @@ defaults:
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
     rg: hcp-underlay-{{ .ctx.regionShort }}
-    region: { ? { .ctx.region } }
+    region: {{ .ctx.region }}
     softDelete: true
     private: true
 
