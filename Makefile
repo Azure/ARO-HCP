@@ -136,7 +136,12 @@ services_all = $(join services_svc,services_mgmt)
 # Pipelines section
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
-services_svc_pipelines = istio acrpull backend frontend cluster-service maestro.server
+# Don't install istio in persona dev
+ifeq ($(DEPLOY_ENV), personal-dev)
+	services_svc_pipelines = acrpull backend frontend cluster-service maestro.server
+else
+	services_svc_pipelines = istio acrpull backend frontend cluster-service maestro.server
+endif
 # Don't apply mgmt cluster fixes to personal clusters
 ifeq ($(DEPLOY_ENV), personal-dev)
 	services_mgmt_pipelines = hypershiftoperator maestro.agent acm

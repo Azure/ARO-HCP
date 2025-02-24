@@ -24,6 +24,9 @@ resourceGroups:
     template: templates/svc-cluster.bicep
     parameters: test.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+      - name: envType             
+        configRef: envType
   - name: cxChildZone
     action: DelegateChildZone
     parentZone:

@@ -1,6 +1,11 @@
 #!/bin/bash
 
 set -euo pipefail
+# Exit early if running in personal-dev environment
+if [[ "${DEPLOY_ENV:-}" == "personal-dev" ]]; then
+    echo "Skipping Istio upgrade: Running in personal-dev environment."
+    exit 0
+fi
 ISTIO_NAMESPACE="aks-istio-system"
 echo "********** Check istio is up and running **************"
 ISTIO_PODS_COUNT=$(kubectl get pods -n ${ISTIO_NAMESPACE} -l istio.io/rev="${TARGET_VERSION}" --field-selector=status.phase=Running --no-headers | wc -l)
