@@ -43,7 +43,7 @@ deploy:
 	  --set serviceKeyvaultName=${SERVICE_KV} \
 	  --set imageRegistry=${ACR_NAME}.azurecr.io \
 	  --set imageRepository=${IMAGE_REPO} \
-	  --set imageTag=${IMAGE_DIGEST} \
+	  --set imageDigest=${IMAGE_DIGEST} \
 	  --set azureFirstPartyApplicationClientId=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
 	  --set fpaCertName=${FPA_CERT_NAME} \
 	  --set ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID} \
