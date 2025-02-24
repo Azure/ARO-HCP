@@ -34,8 +34,8 @@ imageRegistry: ""
 # Image Repository
 imageRepository: ""
 
-# Image Tag
-imageTag: ""
+# Image Digest
+imageDigest: ""
 
 # log verbosity level
 logLevel: "debug"

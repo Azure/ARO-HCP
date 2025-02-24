@@ -78,7 +78,7 @@ spec:
             secretProviderClass: cs-keyvault
       initContainers:
       - name: init
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}:{{ .Values.imageTag }}'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
         volumeMounts:
         - name: rds
