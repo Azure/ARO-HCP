@@ -306,6 +306,7 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
+          envType: 'dev'
           mgmt:
             aks:
               systemAgentPool:
@@ -335,6 +336,7 @@ clouds:
       cs-pr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
+          envType: 'cs-pr'
           svc:
             aks:
               # MC AKS nodepools
@@ -372,6 +374,7 @@ clouds:
       personal-dev:
         # this is the personal DEV environment
         defaults:
+          envType: 'personal-dev'
           # Cluster Service
           clusterService:
             postgres:
@@ -392,6 +395,7 @@ clouds:
               zoneRedundantMode: 'Disabled'
       personal-perfscale:
         defaults:
+          envType: 'personal-perfscale'
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           mgmt:

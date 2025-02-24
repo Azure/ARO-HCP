@@ -1,5 +1,6 @@
 using '../templates/svc-cluster.bicep'
 
+param envType = '{{ .envType }}'
 param istioVersions = '{{ .svc.istio.versions }}'
 
 // AKS

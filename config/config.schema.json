@@ -119,6 +119,11 @@
       }
     },
     "properties": {
+      "envType": {
+        "type": "string",
+        "enum": ["personal-dev", "personal-perfscale", "dev", "cs-pr"],
+        "description": "Defines the environment type for conditional logic or templating."
+    },
       "aroDevopsMsiId": {
         "type": "string"
       },
@@ -178,6 +183,7 @@
           "imageTag"
         ]
       },
+
       "clusterService": {
         "type": "object",
         "properties": {

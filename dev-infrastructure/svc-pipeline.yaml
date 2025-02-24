@@ -81,6 +81,8 @@ resourceGroups:
       input:
         step: region-output
         name: azureMonitoringWorkspaceId
+    - name: envType
+      configRef: envType
     dependsOn:
     - svc-oncert-private-kv-issuer
     - svc-oncert-public-kv-issuer

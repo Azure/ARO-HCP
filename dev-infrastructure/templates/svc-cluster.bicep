@@ -1,5 +1,8 @@
 import { getLocationAvailabilityZonesCSV, determineZoneRedundancy, csvToArray } from '../modules/common.bicep'
 
+@description('Environment type, e.g., personal-dev, int')
+param envType string
+
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
@@ -217,7 +220,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
     aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
     kubernetesVersion: kubernetesVersion
-    deployIstio: true
+    deployIstio: envType != 'personal-dev'
     istioVersions: split(istioVersions, ',')
     istioIngressGatewayIPAddressName: istioIngressGatewayIPAddressName
     istioIngressGatewayIPAddressIPTags: istioIngressGatewayIPAddressIPTags
