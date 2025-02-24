@@ -122,7 +122,7 @@ svc.cs-pr-check-msi:
 	az deployment group create \
 		--name cs-integ-msi \
 		--resource-group $(SVC_RESOURCEGROUP) \
-		--template-file templates/cs-integration-msi.bicep \
+		--template-file templates/dev-cs-integration-msi.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/cs-integ-msi.bicepparam
