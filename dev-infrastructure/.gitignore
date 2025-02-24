@@ -15,7 +15,6 @@ configurations/output-svc.bicepparam
 configurations/mock-identities.bicepparam
 configurations/global-acr.bicepparam
 configurations/global-infra.bicepparam
-configurations/output-global.bicepparam
 configurations/output-svc.bicepparam
 config.mk
 
