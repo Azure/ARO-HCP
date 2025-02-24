@@ -103,7 +103,9 @@ defaults:
 
   # Cluster Service
   clusterService:
-    imageRepo: app-sre/uhc-clusters-service
+    image:
+      repository:
+        imageRepo: app-sre/uhc-clusters-service
     azureOperatorsManagedIdentities:
       cloudControllerManager:
         roleName: Azure Red Hat OpenShift Cloud Controller Manager
@@ -204,7 +206,9 @@ clouds:
       maestro:
         imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
       clusterService:
-        imageTag: 9fd02a4
+        image:
+          digest: d519094
+          repository: app-sre/uhc-clusters-service
       hypershiftOperator:
         imageTag: 1bb8b1a
       imageSync:

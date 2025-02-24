@@ -97,6 +97,20 @@
           "systemAgentPool"
         ]
       },
+      "containerImage": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "repository"
+        ]
+      },
       "keyColonValueCSV": {
         "type": "string",
         "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
@@ -186,11 +200,8 @@
             "minLength": 1,
             "maxLength": 10
           },
-          "imageRepo": {
-            "type": "string"
-          },
-          "imageTag": {
-            "type": "string"
+          "image": {
+            "$ref": "#/definitions/containerImage"
           },
           "managedIdentityName": {
             "type": "string",
@@ -284,8 +295,7 @@
         "additionalProperties": false,
         "required": [
           "environment",
-          "imageRepo",
-          "imageTag",
+          "image",
           "managedIdentityName",
           "k8s",
           "azureOperatorsManagedIdentities",

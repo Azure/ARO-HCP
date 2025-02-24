@@ -106,6 +106,8 @@ defaults:
 
   # Cluster Service
   clusterService:
+    image:
+      repository: app-sre/uhc-clusters-service
     environment: arohcpdev
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
@@ -192,8 +194,8 @@ clouds:
         imageTag: 8244a76cbc7d020192648b17ac7b7467abf1f2cb
       # Cluster Service
       clusterService:
-        imageTag: 9fd02a4
-        imageRepo: app-sre/uhc-clusters-service
+        image:
+          digest: d519094
         azureOperatorsManagedIdentities:
           clusterApiAzure:
             roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev

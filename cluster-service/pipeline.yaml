@@ -25,9 +25,9 @@ resourceGroups:
     - name: OIDC_STORAGE_ACCOUNT
       configRef: oidcStorageAccountName
     - name: IMAGE_REPO
-      configRef: clusterService.imageRepo
-    - name: IMAGE_TAG
-      configRef: clusterService.imageTag
+      configRef: clusterService.image.repository
+    - name: IMAGE_DIGEST
+      configRef: clusterService.image.digest
     - name: ACR_NAME
       configRef: svcAcrName
     - name: OCP_ACR_NAME

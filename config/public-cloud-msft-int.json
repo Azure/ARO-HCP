@@ -38,8 +38,10 @@
       }
     },
     "environment": "arohcpint",
-    "imageRepo": "app-sre/uhc-clusters-service",
-    "imageTag": "9fd02a4",
+    "image": {
+      "digest": "d519094",
+      "repository": "app-sre/uhc-clusters-service"
+    },
     "k8s": {
       "namespace": "cluster-service",
       "serviceAccountName": "clusters-service"
