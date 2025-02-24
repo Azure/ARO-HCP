@@ -195,7 +195,7 @@ clouds:
       # Cluster Service
       clusterService:
         image:
-          digest: d519094
+          digest: sha256:aaa14dad6c01f06f2c380e0333db56097aa7b1dd8e696d9b3a8848d7d5362be0
         azureOperatorsManagedIdentities:
           clusterApiAzure:
             roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev
