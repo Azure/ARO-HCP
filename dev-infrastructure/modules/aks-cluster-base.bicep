@@ -480,6 +480,63 @@ resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2017-05-01
   }
 }
 
+resource aksClusterDcr 'Microsoft.Insights/dataCollectionRules@2023-03-11' = if (logAnalyticsWorkspaceId != '') {
+  name: '${aksClusterName}-dcr'
+  location: location
+  kind: 'Linux'
+  properties: {
+    dataSources: {
+      extensions: [
+        {
+          name: 'ContainerInsightsExtension'
+          streams: [
+            'Microsoft-ContainerLog'
+            'Microsoft-ContainerLogV2'
+            'Microsoft-KubeEvents'
+            'Microsoft-KubePodInventory'
+          ]
+          extensionSettings: {
+            dataCollectionSettings: {
+              interval: '1m'
+              namespaceFilteringMode: 'Off'
+              enableContainerLogV2: true
+            }
+          }
+          extensionName: 'ContainerInsights'
+        }
+      ]
+    }
+    destinations: {
+      logAnalytics: [
+        {
+          name: 'ContainerInsightsWorkspace'
+          workspaceResourceId: logAnalyticsWorkspaceId
+        }
+      ]
+    }
+    dataFlows: [
+      {
+        destinations: [
+          'ContainerInsightsWorkspace'
+        ]
+        streams: [
+          'Microsoft-ContainerLog'
+          'Microsoft-ContainerLogV2'
+          'Microsoft-KubeEvents'
+        ]
+      }
+    ]
+  }
+}
+
+resource aksClusterDcra 'Microsoft.Insights/dataCollectionRuleAssociations@2023-03-11' = if (logAnalyticsWorkspaceId != '') {
+  name: '${aksClusterName}-dcra'
+  scope: aksCluster
+  properties: {
+    description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'
+    dataCollectionRuleId: aksClusterDcr.id
+  }
+}
 
 resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-04-02-preview' = [
   for i in range(0, userAgentPoolAZCount): {
