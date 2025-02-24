@@ -26,7 +26,6 @@
           "api": {
             "visibility": "public"
           },
-          "etcdEncryption": true,
           "disableUserWorkloadMonitoring": true,
           "proxy": {
             "httpProxy": "sjjbjvkimlvtwdnwjodcajidcoompt",
@@ -38,8 +37,7 @@
             "managedResourceGroup": "nhyhywrxupo",
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
             "outboundType": "loadBalancer",
-            "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
-            "etcdEncryptionSetId": "mrhumnvbsnnzduuhw"
+            "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example"
           },
           "externalAuth": {
             "enabled": true
@@ -96,8 +94,7 @@
               "managedResourceGroup": "nhyhywrxupo",
               "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
               "outboundType": "loadBalancer",
-              "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
-              "etcdEncryptionSetId": "mrhumnvbsnnzduuhw"
+              "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example"
             },
             "issuerUrl": "https://oidc.contoso.com",
             "externalAuth": {
@@ -215,8 +212,7 @@
               "managedResourceGroup": "nhyhywrxupo",
               "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
               "outboundType": "loadBalancer",
-              "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
-              "etcdEncryptionSetId": "mrhumnvbsnnzduuhw"
+              "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example"
             },
             "issuerUrl": "https://oidc.contoso.com",
             "externalAuth": {

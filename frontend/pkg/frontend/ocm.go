@@ -103,7 +103,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				URL:        cluster.API().URL(),
 				Visibility: convertListeningToVisibility(cluster.API().Listening()),
 			},
-			EtcdEncryption:                cluster.EtcdEncryption(),
 			DisableUserWorkloadMonitoring: cluster.DisableUserWorkloadMonitoring(),
 			Proxy: api.ProxyProfile{
 				HTTPProxy:  cluster.Proxy().HTTPProxy(),
@@ -116,7 +115,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				SubnetID:               cluster.Azure().SubnetResourceID(),
 				OutboundType:           convertOutboundTypeCSToRP(cluster.Azure().NodesOutboundConnectivity().OutboundType()),
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
-				EtcdEncryptionSetID:    "",
 			},
 			IssuerURL: "",
 			ExternalAuth: api.ExternalAuthConfigProfile{
@@ -186,7 +184,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 
 	// FIXME HcpOpenShiftCluster attributes not being passed:
-	//       PlatformProfile.EtcdEncryptionSetID (no CS equivalent?)
 	//       ExternalAuth                        (TODO, complicated)
 
 	// These attributes cannot be updated after cluster creation.
@@ -215,8 +212,7 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 				MachineCIDR(hcpCluster.Properties.Network.MachineCIDR).
 				HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
 			API(arohcpv1alpha1.NewClusterAPI().
-				Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility))).
-			EtcdEncryption(hcpCluster.Properties.EtcdEncryption)
+				Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility)))
 
 		azureBuilder := arohcpv1alpha1.NewAzure().
 			TenantID(requestHeader.Get(arm.HeaderNameHomeTenantID)).

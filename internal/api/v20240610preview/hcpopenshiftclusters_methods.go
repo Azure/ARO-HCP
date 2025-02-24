@@ -71,7 +71,6 @@ func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
 		SubnetID:                api.Ptr(from.SubnetID),
 		OutboundType:            api.Ptr(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  api.Ptr(from.NetworkSecurityGroupID),
-		EtcdEncryptionSetID:     api.Ptr(from.EtcdEncryptionSetID),
 		OperatorsAuthentication: newOperatorsAuthenticationProfile(&from.OperatorsAuthentication),
 	}
 }
@@ -182,7 +181,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Network:                       newNetworkProfile(&from.Properties.Network),
 				Console:                       newConsoleProfile(&from.Properties.Console),
 				API:                           newAPIProfile(&from.Properties.API),
-				EtcdEncryption:                api.Ptr(from.Properties.EtcdEncryption),
 				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.DisableUserWorkloadMonitoring),
 				Proxy:                         newProxyProfile(&from.Properties.Proxy),
 				Platform:                      newPlatformProfile(&from.Properties.Platform),
@@ -284,9 +282,6 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.API != nil {
 				normalizeAPI(c.Properties.API, &out.Properties.API)
-			}
-			if c.Properties.EtcdEncryption != nil {
-				out.Properties.EtcdEncryption = *c.Properties.EtcdEncryption
 			}
 			if c.Properties.DisableUserWorkloadMonitoring != nil {
 				out.Properties.DisableUserWorkloadMonitoring = *c.Properties.DisableUserWorkloadMonitoring
@@ -507,9 +502,6 @@ func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
 	}
 	if p.NetworkSecurityGroupID != nil {
 		out.NetworkSecurityGroupID = *p.NetworkSecurityGroupID
-	}
-	if p.EtcdEncryptionSetID != nil {
-		out.EtcdEncryptionSetID = *p.EtcdEncryptionSetID
 	}
 	if p.OperatorsAuthentication != nil {
 		normalizeOperatorsAuthentication(p.OperatorsAuthentication, &out.OperatorsAuthentication)

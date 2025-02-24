@@ -1382,15 +1382,6 @@
           "description": "Shows the cluster API server profile",
           "readOnly": true
         },
-        "etcdEncryption": {
-          "type": "boolean",
-          "description": "Enables customer ETCD encryption, set during creation\nWhen set to true, `platform.etcdEncryptionSetId` must be set",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
         "disableUserWorkloadMonitoring": {
           "type": "boolean",
           "description": "Disable user workload monitoring",
@@ -1912,10 +1903,6 @@
         "networkSecurityGroupId": {
           "$ref": "#/definitions/NetworkSecurityGroupResourceId",
           "description": "ResourceId for the network security group attached to the cluster subnet"
-        },
-        "etcdEncryptionSetId": {
-          "type": "string",
-          "description": "The id of the disk encryption set to be used for etcd.\nConfigure this when `etcdEncryption` is set to true\nIs used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview"
         },
         "operatorsAuthentication": {
           "$ref": "#/definitions/OperatorsAuthenticationProfile",
