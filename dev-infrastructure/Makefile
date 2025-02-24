@@ -48,13 +48,6 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
-cleanup-orphaned-rolebindings:
-	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
-	@scripts/cleanup-orphaned-rolebindings.sh $(MGMT_RESOURCEGROUP)
-	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
-	@scripts/cleanup-orphaned-rolebindings.sh ${GLOBAL_RESOURCEGROUP}
-.PHONY: cleanup-orphaned-rolebindings
-
 create-mock-identities:
 	az deployment group wait --created --name "aro-hcp-dev-mock-certificates" --resource-group $(GLOBAL_RESOURCEGROUP) --interval 10
 	az deployment group create \
@@ -109,7 +102,6 @@ global.what-if:
 #
 
 region:
-	@scripts/cleanup-orphaned-rolebindings.sh $(REGIONAL_RESOURCEGROUP)
 	../templatize.sh $(DEPLOY_ENV) -p region-pipeline.yaml -P run -c public
 .PHONY: region
 
@@ -129,12 +121,10 @@ region.what-if:
 #
 
 svc:
-	@scripts/cleanup-orphaned-rolebindings.sh $(SVC_RESOURCEGROUP)
 	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run -c public
 .PHONY: svc
 
 svc.cs-pr-check-msi:
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) cs-integ-msi
 	az deployment group create \
 		--name cs-integ-msi \
 		--resource-group $(SVC_RESOURCEGROUP) \
@@ -184,7 +174,6 @@ svc.what-if:
 .PHONY: svc.what-if
 
 svc.dev-role-assignments:
-	@./ensure-no-running-deployment.sh $(SVC_RESOURCEGROUP) ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME}
 	az deployment group create \
 		--name ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME} \
 		--resource-group "${SVC_RESOURCEGROUP}" \
@@ -259,7 +248,6 @@ acr.what-if: acr-svc-cfg.what-if acr-ocp-cfg.what-if
 .PHONY: acr.what-if
 
 acr-svc-cfg: # DEV only setup of caching rules in OCP ACR
-	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -279,7 +267,6 @@ acr-svc-cfg.what-if:
 .PHONY: acr-svc-cfg.what-if
 
 acr-ocp-cfg: # DEV only setup of caching rules in OCP ACR
-	@./ensure-no-running-deployment.sh $(GLOBAL_RESOURCEGROUP) ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \

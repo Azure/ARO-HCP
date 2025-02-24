@@ -214,7 +214,6 @@ There are more fine grained cleanup tasks available as well
   make infra.svc.clean
   make infra.mgmt.clean
   make infra.region.clean
-  make infra.imagesync.clean
   ```
 
 > Please note that all resource groups not tagged with `persist=true` will be deleted by our cleanup pipeline after 48 hours. In order to prevent that from happening, run the infrastructure deployment make targets with a `PERSIST=true` env variable defined

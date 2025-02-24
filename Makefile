@@ -73,10 +73,6 @@ infra.mgmt.aks.kubeconfigfile:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfigfile
 .PHONY: infra.mgmt.aks.kubeconfigfile
 
-infra.imagesync:
-	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make imagesync
-.PHONY: infra.imagesync
-
 infra.all:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make infra
 .PHONY: infra.all
@@ -92,10 +88,6 @@ infra.mgmt.clean:
 infra.region.clean:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make region.clean
 .PHONY: infra.region.clean
-
-infra.imagesync.clean:
-	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make imagesync.clean
-.PHONY: infra.imagesync.clean
 
 infra.clean:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make clean
