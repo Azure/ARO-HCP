@@ -16,7 +16,7 @@ defaults:
   ocpAcrZoneRedundantMode: Enabled
 
   # ACR Pull
-  acrPullImageDigest: sha256:a62416c386ad8d1670d26ddbaf610c00a716facc26f80a3a04df2f7018b44d29 #v0.1.11
+  acrPullImageDigest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
 
   # Hypershift
   hypershift:
