@@ -195,8 +195,20 @@ The "payload" section of an asynchronous operation document includes all the inf
 
 11. The `error` field contains the structured error section of the [operation resource format](https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/async-api-reference.md#azure-asyncoperation-resource-format)<sup>(RPC)</sup>. This is set when the operation status becomes `Failed` or `Canceled`. See [Error Response Content](https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/common-api-details.md#error-response-content)<sup>(RPC)</sup> for more details about the error structure.
 
-## Frontend vs Backend Pods
+## Asynchronous Operation Flow
 
-The frontend pods collectively serve as a load-balanced endpoint for communication with the Azure Resource Manager (ARM).
+The best way to illustrate how asynchronous operations are handled by the ARO-HCP resource provider is to walk through a few examples. First, however, it's important to understand the roles of the ARO-HCP frontend and backend pods with respect to asynchronous operations.
+
+The frontend pods collectively serve as a load-balanced endpoint for communication with the Azure Resource Manager (ARM). When a request from ARM arrives that requires asynchronous handling, the frontend pod will initiate an asynchronous operation by creating an [asynchronous operation](#asynchronous-operations) document in Cosmos DB. As ARM then begins polling for status updates on the operation, the frontend pods will read back the asynchronous operation document from Cosmos DB and convert it to the response format ARM expects.
+
+That's the extent of what the frontend pods do with asynchronous operation documents. The rest is handled by the lead backend pod.
+
+The lead backend pod periodically iterates over all registered Azure subscriptions and looks for any asynchronous operation documents in Cosmos DB with a non-terminal status.  It then queries Cluster Service for the current status of the resource the operation is acting on.  If the backend receives an updated status for the resource, it updates the asynchronous operation document.
+
+Now let's walk through a few concrete examples.
+
+### Create an HCP OpenShift Cluster
+
+
 
 ... FINISH ME ...
