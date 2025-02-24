@@ -30,7 +30,7 @@ The Service Cluster hosts the primary control plane service components for the A
 - **Cluster Service (CS)**
   - The orchestration engine responsible for processing requests from RP.
   - Manages the baseline infrastructure needed for ARO HCP clusters (networking, compute, storage).
-  - Delegates cluster creation to Hypershift to the Management Clusters, using Maestro as communication mechanism.
+  - Delegates cluster creation to Hypershift on the Management Clusters, using Maestro as communication mechanism.
 
 - **Maestro**
   - Bridges the Service Cluster and Management Cluster.
