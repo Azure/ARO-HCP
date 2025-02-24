@@ -76,13 +76,6 @@ create-mock-identities:
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 
-	# Assign additional roles to aro-dev-msi-mock2
-	@for ROLE in "Managed Identity Contributor" "Network Contributor"; do \
-	az role assignment create \
-	--assignee "$(shell az ad sp list --display-name aro-dev-msi-mock2 --query [0].appId -o tsv)" \
-	--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
-	--role "$$ROLE"; \
-	done
 .PHONY: create-mock-identities
 
 #
