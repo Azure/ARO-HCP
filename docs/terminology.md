@@ -1,24 +1,81 @@
-# WIP - ARO HCP Terminology
+# ARO HCP Terminology
 
-- **HCP**
-  - Hosted Control Plane
+- **Definition**:
+- **Abbreviation**:
+- **References**:
 
-- **SC / SVC**
-  - Service Cluster
-  - Orchestration layer of ARO HCP, host the **RP**, **CS** and **Maestro**
+## Azure Terminology
 
-- **MC / MGMT**
-  - Management Cluster
-  - Execution Layer of ARO HCP, hosting the **HCPs**
+### Azure Resource Manager
 
-- **RP**
-  - Resource Provider
-  - Azure terminology for an ARM API that implements a certain resource type
+- **Definition**: Deployment and management service for Azure
+- **Abbreviation**: ARM
+- **References**:
+  - [Docs](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/overview)
 
-- **CS**
-  - Cluster Service
-  - a multi-cloud OCP provisioning service
+### Resource Provider
 
-- **ACR**
-  - Azure Container Registry
-  - used to store images for the ARO HCP service
+- **Definition**: Azure terminology for an ARM API that implements a certain resource type
+- **Abbreviation**: RP
+- **References**:
+  - [ARO HCP RP](../frontend/)
+
+### Bicep Templates
+
+- **Definition**: Domain-specific language for deploying Azure resources. Translates to ARM templates.
+- **References**:
+  - [ARM templates documentation](https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/overview)
+  - [Bicep documentation](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview)
+
+## ARO HCP Terminology
+
+### Hosted Control Plane
+
+- **Definition:** OCP control plane running as Pods on a Kubernetes cluster. These Pods are managed by [Hypershift](#hosted-control-plane).
+- **Abbreviation:** HCP
+- **References**:
+  - [Blog](https://www.redhat.com/en/blog/red-hat-openshift-service-aws-hosted-control-planes-now-available)
+
+### Hypershift
+
+- **Definition** Hypershift is a middleware to host OCP control planes on Kubernetes clusters.
+- **Reference:**
+  - [Documentation](https://hypershift-docs.netlify.app/how-to/)
+  - [Source](https://github.com/openshift/hypershift)
+
+### Service Cluster
+
+- **Definition**: Hosts the regional entry point services like [RP](#resource-provider) and [CS](#service-cluster) for HCP creation and management
+- **Abbreviation**: SC, SVC
+- **References**:
+  - [High Level Architecture](high-level-architecture.md#service-cluster)
+  - [Source](../dev-infrastructure)
+
+### Management Cluster
+
+- **Definition**: Execution layer for [HCPs](#hosted-control-plane) within a region, leveraging [Hypershift](#hypershift)
+- **Abbreviation**: MC, MGMT
+- **References**:
+  - [High Level Architecture](high-level-architecture.md#management-clusters)
+  - [Source](../dev-infrastructure)
+
+### Clusters Service
+
+- **Definition:**: Service that orchestrates the creation and day two management of managed OpenShift clusters
+- **Abbreviation**: CS
+- **References**:
+  - [Source](https://gitlab.cee.redhat.com/service/uhc-clusters-service/)
+
+### Maestro
+
+- **Definition**: Maestro is a system to leverage CloudEvents over MQTT to transport Kubernetes resources to the target clusters, and then transport the resource status back.
+- **References**:
+  - [Source](https://github.com/openshift-online/maestro)
+  - [High Level Architecture](high-level-architecture.md#service-cluster)
+
+### Advanced Cluster Manager
+
+- **Definition**: Advanced Cluster Manager is a service that provides additional lifecycle and policy management for OCP clusters.
+- **Abbreviation**: ACM
+- **References**:
+  - [Documentation](https://www.redhat.com/en/technologies/management/advanced-cluster-management)
