@@ -13,7 +13,7 @@ make build-push
 ## Production deployment
 
 oc-mirror and the required configurations are deployed as Azure Container App
-via the `dev-infrastructure/templates/image-sync.bicep` template.
+via the `dev-infrastructure/templates/global-image-sync.bicep` template.
 
 ## Local dry-run
 

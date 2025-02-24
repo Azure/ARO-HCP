@@ -43,8 +43,8 @@ resourceGroups:
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM
-    template: templates/image-sync.bicep
-    parameters: configurations/image-sync.tmpl.bicepparam
+    template: templates/global-image-sync.bicep
+    parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
     - global-acrs

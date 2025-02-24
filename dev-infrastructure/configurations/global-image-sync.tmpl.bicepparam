@@ -1,4 +1,4 @@
-using '../templates/image-sync.bicep'
+using '../templates/global-image-sync.bicep'
 
 param containerAppEnvName = '{{ .imageSync.environmentName }}'
 
