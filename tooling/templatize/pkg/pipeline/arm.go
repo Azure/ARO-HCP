@@ -140,6 +140,14 @@ func printChangeReport(changes []*armresources.WhatIfChange) {
 	printChanges(armresources.ChangeTypeUnsupported, changes)
 }
 
+func createError(errors armresources.ErrorResponse) error {
+	errB, err := errors.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("%s", string(errB))
+}
+
 func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	resp, err := p.PollUntilDone(ctx, nil)
 	if err != nil {
@@ -147,8 +155,14 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	}
 	switch m := any(resp).(type) {
 	case armresources.DeploymentsClientWhatIfResponse:
+		if *m.Status == "Failed" {
+			return createError(*m.Error)
+		}
 		printChangeReport(m.Properties.Changes)
 	case armresources.DeploymentsClientWhatIfAtSubscriptionScopeResponse:
+		if *m.Status == "Failed" {
+			return createError(*m.Error)
+		}
 		printChangeReport(m.Properties.Changes)
 	default:
 		return fmt.Errorf("unknown type %T", m)
