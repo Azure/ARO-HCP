@@ -15,7 +15,9 @@ resourceGroups:
               value: "true"
         variables:
           - name: ACRPULL_DIGEST
-            configRef: acrPullImageDigest
+            configRef: acrPull.image.digest
+          - name: ACRPULL_REPO
+            configRef: acrPull.image.repository
   - name: {{ .mgmt.rg }}
     subscription: {{ .mgmt.subscription }}
     aksCluster: {{ .mgmt.aks.name }}
@@ -29,4 +31,6 @@ resourceGroups:
               value: "true"
         variables:
           - name: ACRPULL_DIGEST
-            configRef: acrPullImageDigest
+            configRef: acrPull.image.digest
+          - name: ACRPULL_REPO
+            configRef: acrPull.image.repository
