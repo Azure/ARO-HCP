@@ -4,7 +4,7 @@ description: A Helm chart to manage Hypershift Operator and dependencies for ARO
 name: aro-hcp-hypershift-operator
 
 image: ""
-imageTag: ""
+imageDigest: ""
 registryOverrides: ""
 azureKeyVaultClientId: ""
 additionalArgs: ""

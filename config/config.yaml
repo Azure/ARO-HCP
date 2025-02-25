@@ -220,7 +220,9 @@ clouds:
             roleName: Azure Red Hat OpenShift KMS Plugin - Dev
       # Hypershift Operator
       hypershiftOperator:
-        imageTag: 1bb8b1a
+        image:
+          repository: acm-d/rhtap-hypershift-operator
+          digest: sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f
       # Frontend
       frontend:
         imageTag: '' # if empty uses commit sha of repo

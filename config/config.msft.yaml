@@ -212,7 +212,9 @@ clouds:
         image:
           digest: sha256:aaa14dad6c01f06f2c380e0333db56097aa7b1dd8e696d9b3a8848d7d5362be0
       hypershiftOperator:
-        imageTag: 1bb8b1a
+        image:
+          repository: acm-d/rhtap-hypershift-operator
+          digest: sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f
       imageSync:
         componentSync:
           imageTag: d1021e2
