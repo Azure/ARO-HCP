@@ -13,7 +13,8 @@ defaults:
   # ACR Pull
   acrPull:
     image:
-      repository: mcr.microsoft.com/aks/msi-acrpull
+      registry: mcr.microsoft.com
+      repository: aks/msi-acrpull
       digest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
 
   # Hypershift

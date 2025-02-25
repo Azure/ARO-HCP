@@ -121,5 +121,7 @@ resourceGroups:
       configRef: acrPull.image.digest
     - name: ACRPULL_REPO
       configRef: acrPull.image.repository
+    - name: ACRPULL_REGISTRY
+      configRef: acrPull.image.registry
     dependsOn:
     - mgmt-cluster
