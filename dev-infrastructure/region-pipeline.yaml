@@ -85,8 +85,8 @@ resourceGroups:
           name: monitorPrometheusQueryEndpoint
       - name: MONITOR_ID
         input:
-          step: metrics-infra
-          name: monitorId
+          step: region-output
+          name: azureMonitoringWorkspaceId
     dependsOn:
     - metrics-infra
     - region-output
