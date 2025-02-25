@@ -110,7 +110,7 @@
     "componentSync": {
       "enabled": true,
       "image": {
-        "digest": "d1021e2",
+        "digest": "sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f",
         "repository": "image-sync/component-sync"
       },
       "pullSecretName": "component-sync-pull-secret",
@@ -126,7 +126,7 @@
     "ocMirror": {
       "enabled": true,
       "image": {
-        "digest": "d1021e2",
+        "digest": "sha256:4affed9ff6397a5c44e9d1451fd58667f56e826b122819ccb6e1e8e045803c18",
         "repository": "image-sync/oc-mirror"
       },
       "pullSecretName": "pull-secret"
