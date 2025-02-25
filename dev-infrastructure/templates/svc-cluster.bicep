@@ -450,19 +450,22 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
 }
 
 //
-//   F R O N T E N D   C E R T I F I C A T E
+//   F R O N T E N D
 //
+
+var frontendDnsName = 'frontend'
+var frontendDnsFQDN = '${frontendDnsName}.${regionalSvcDNSZoneName}'
 
 module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'frontend-cert-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=frontend.${regionalSvcDNSZoneName}'
+    subjectName: 'CN=${frontendDnsFQDN}'
     certName: frontendIngressCertName
     keyVaultManagedIdentityId: aroDevopsMsiId
     dnsNames: [
-      'frontend.${regionalSvcDNSZoneName}'
+      frontendDnsFQDN
     ]
     issuerName: frontendIngressCertIssuer
   }
@@ -476,5 +479,16 @@ module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
     roleName: 'Key Vault Secrets User'
     managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
     secretName: frontendIngressCertName
+  }
+}
+
+module frontendDNS '../modules/dns/a-record.bicep' = {
+  name: 'frontend-dns'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalSvcDNSZoneName
+    recordName: frontendDnsName
+    ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
+    ttl: 300
   }
 }
