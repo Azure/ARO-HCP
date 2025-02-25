@@ -145,7 +145,7 @@ func createError(errors armresources.ErrorResponse) error {
 	if err != nil {
 		return err
 	}
-	return fmt.Errorf(string(errB))
+	return fmt.Errorf("%s", string(errB))
 }
 
 func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
