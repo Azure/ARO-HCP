@@ -188,6 +188,7 @@ defaults:
 
   # Metrics
   monitoring:
+    grafanaZoneRedundantMode: Enabled
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
 
   # Logs

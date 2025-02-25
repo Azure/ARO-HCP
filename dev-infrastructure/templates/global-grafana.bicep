@@ -1,3 +1,8 @@
+import { getLocationAvailabilityZonesCSV, determineZoneRedundancy, csvToArray } from '../modules/common.bicep'
+
+@description('Azure Global Location')
+param location string = resourceGroup().location
+
 @description('The global msi name')
 param globalMSIName string
 
@@ -6,6 +11,13 @@ param grafanaName string
 
 @description('The admin group principal ID to manage Grafana')
 param grafanaAdminGroupPrincipalId string
+
+@description('The zone redundant mode of Grafana')
+param grafanaZoneRedundantMode string
+
+@description('Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location')
+param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
+var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 
 resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
@@ -32,6 +44,9 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
   }
   identity: {
     type: 'SystemAssigned'
+  }
+  properties: {
+    zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode) ? 'Enabled' : 'Disabled'
   }
 }
 

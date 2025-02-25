@@ -210,6 +210,7 @@
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",
+    "grafanaZoneRedundantMode": "Enabled",
     "workspaceName": "arohcp-int"
   },
   "msiKeyVault": {
