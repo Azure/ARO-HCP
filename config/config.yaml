@@ -129,7 +129,7 @@ defaults:
     environmentName: aro-hcp-image-sync
     componentSync:
       enabled: true
-      image: 
+      image:
         repository: image-sync/component-sync
         digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
       repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager
