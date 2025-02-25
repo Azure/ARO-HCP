@@ -100,7 +100,10 @@
     "namespace": "hypershift"
   },
   "hypershiftOperator": {
-    "imageTag": "1bb8b1a"
+    "image": {
+      "digest": "1bb8b1a",
+      "repository": "acm-d/rhtap-hypershift-operator"
+    }
   },
   "imageSync": {
     "acrRG": "global-shared-resources",

@@ -464,15 +464,15 @@
         ]
       },
       "hypershiftOperator": {
-        "type": "object",
+       "type": "object",
         "properties": {
-          "imageTag": {
-            "type": "string"
+          "image": {
+            "$ref": "#/definitions/containerImage"
           }
         },
         "additionalProperties": false,
         "required": [
-          "imageTag"
+          "image"
         ]
       },
       "imageSync": {
