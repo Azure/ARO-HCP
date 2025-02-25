@@ -490,11 +490,8 @@
               "enabled": {
                 "type": "boolean"
               },
-              "imageRepo": {
-                "type": "string"
-              },
-              "imageTag": {
-                "type": "string"
+              "image": {
+                "$ref": "#/definitions/containerImage"
               },
               "repositories": {
                 "type": "string"
@@ -509,8 +506,7 @@
             "additionalProperties": false,
             "required": [
               "enabled",
-              "imageRepo",
-              "imageTag",
+              "image",
               "repositories",
               "secrets",
               "pullSecretName"
@@ -522,11 +518,8 @@
               "enabled": {
                 "type": "boolean"
               },
-              "imageRepo": {
-                "type": "string"
-              },
-              "imageTag": {
-                "type": "string"
+              "image": {
+                "$ref": "#/definitions/containerImage"
               },
               "pullSecretName": {
                 "type": "string"
@@ -535,8 +528,7 @@
             "additionalProperties": false,
             "required": [
               "enabled",
-              "imageRepo",
-              "imageTag",
+              "image",
               "pullSecretName"
             ]
           },
