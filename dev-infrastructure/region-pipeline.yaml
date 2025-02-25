@@ -59,6 +59,15 @@ resourceGroups:
         name: grafanaResourceId
     dependsOn:
     - region
+  - name: region-output
+    action: ARM
+    template: templates/output-region.bicep
+    parameters: configurations/output-region.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - region
+    - metrics-infra
 - name: {{ .global.rg }}
   subscription: {{ .global.subscription }}
   steps:
@@ -72,7 +81,7 @@ resourceGroups:
           name: grafanaResourceId
       - name: PROM_QUERY_URL
         input:
-          step: metrics-infra
+          step: region-output
           name: monitorPrometheusQueryEndpoint
       - name: MONITOR_ID
         input:
@@ -80,3 +89,4 @@ resourceGroups:
           name: monitorId
     dependsOn:
     - metrics-infra
+    - region-output
