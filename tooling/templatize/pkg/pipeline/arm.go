@@ -117,6 +117,12 @@ func printChanges(t armresources.ChangeType, changes []*armresources.WhatIfChang
 
 func printChangeReport(changes []*armresources.WhatIfChange) {
 	fmt.Println("Change report for WhatIf deployment")
+
+	if changes == nil {
+		fmt.Println("Received empty changed report")
+		return
+	}
+
 	fmt.Println("----------")
 	fmt.Println("Creating")
 	printChanges(armresources.ChangeTypeCreate, changes)
@@ -147,8 +153,16 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	}
 	switch m := any(resp).(type) {
 	case armresources.DeploymentsClientWhatIfResponse:
+		if m.Properties == nil {
+			fmt.Println("Received nil properties")
+			return nil
+		}
 		printChangeReport(m.Properties.Changes)
 	case armresources.DeploymentsClientWhatIfAtSubscriptionScopeResponse:
+		if m.Properties == nil {
+			fmt.Println("Received nil properties")
+			return nil
+		}
 		printChangeReport(m.Properties.Changes)
 	default:
 		return fmt.Errorf("unknown type %T", m)
