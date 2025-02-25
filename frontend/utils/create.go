@@ -70,8 +70,7 @@ func CreateJSONFile() error {
 				SubnetID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
 				OutboundType:           api.OutboundType("loadBalancer"),
 			},
-			IssuerURL:    "",
-			ExternalAuth: api.ExternalAuthConfigProfile{},
+			IssuerURL: "",
 		},
 	}
 

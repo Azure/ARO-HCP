@@ -94,12 +94,6 @@ model HcpOpenShiftClusterProperties {
    */
   @visibility("read")
   issuerUrl: url;
-
-  /** Configuration to override the openshift-oauth-apiserver inside cluster
-   *  This changes user login into the cluster to external provider
-   */
-  @visibility("create", "read")
-  externalAuth?: ExternalAuthConfigProfile;
 }
 
 /** HCP patchable cluster properties */
@@ -358,119 +352,6 @@ scalar UserAssignedIdentityResourceId
 /*
  * =======================================
  *   End HCP cluster core resources
- * =======================================
- */
-
-/*
- * =======================================
- *  ExternalAuth resources
- * =======================================
- */
-
-/** External authentication configuration profile */
-model ExternalAuthConfigProfile {
-  /** This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster */
-  @visibility("create", "read")
-  enabled?: boolean = false;
-
-  /** This can only be set as a day-2 resource on a separate endpoint to provide a self-managed auth service */
-  @visibility("read")
-  @OpenAPI.extension("x-ms-identifiers", ["issuer", "clients", "claim"])
-  externalAuths: ExternalAuthProfile[];
-}
-
-/** External authentication profile */
-model ExternalAuthProfile {
-  /** Token Issuer profile */
-  issuer: TokenIssuerProfile;
-
-  /** External auth clients */
-  clients: ExternalAuthClientProfile[];
-
-  /** External auth claim */
-  claim: ExternalAuthClaimProfile;
-}
-
-/** Token issuer profile */
-model TokenIssuerProfile {
-  /** The URL of the token issuer */
-  url: url;
-
-  /** The audience of the token issuer */
-  audiences: string[];
-
-  /** The issuer of the token */
-  ca: string;
-}
-
-/** External auth client profile */
-model ExternalAuthClientProfile {
-  /** External auth client component */
-  component: ExternalAuthClientComponentProfile;
-
-  /** external auth client id */
-  id: string;
-
-  /** external auth client secret */
-  @secret
-  secret: string;
-
-  /** external auth client scopes */
-  extraScopes: string[];
-}
-
-/** External auth component profile */
-model ExternalAuthClientComponentProfile {
-  /** The name of the external auth client */
-  name: string;
-
-  /** The namespace of the external auth client */
-  authClientNamespace: string;
-}
-
-/** External auth claim profile */
-model ExternalAuthClaimProfile {
-  /** The claim mappings */
-  mappings: TokenClaimMappingsProfile;
-
-  /** The claim validation rules */
-  @OpenAPI.extension("x-ms-identifiers", ["claim", "requiredValue"])
-  validationRules: TokenClaimValidationRuleProfile[];
-}
-
-/** External auth claim mappings profile */
-model TokenClaimMappingsProfile {
-  /** The claim mappings username */
-  username: ClaimProfile;
-
-  /** The claim mappings groups */
-  groups: ClaimProfile;
-}
-
-/** External auth claim profile */
-model ClaimProfile {
-  /** Claim name of the external profile */
-  claim: string;
-
-  /** Prefix for the claim external profile */
-  prefix: string;
-
-  /** Prefix policy */
-  prefixPolicy: string;
-}
-
-/** External auth claim validation rule */
-model TokenClaimValidationRuleProfile {
-  /** Claim name for the validation profile */
-  claim: string;
-
-  /** Required value */
-  requiredValue: string;
-}
-
-/*
- * =======================================
- *  End ExternalAuth resources
  * =======================================
  */
 

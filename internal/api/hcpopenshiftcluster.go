@@ -4,8 +4,6 @@ package api
 // Licensed under the Apache License 2.0.
 
 import (
-	configv1 "github.com/openshift/api/config/v1"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -18,17 +16,16 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState             arm.ProvisioningState     `json:"provisioningState,omitempty" visibility:"read"`
-	Version                       VersionProfile            `json:"version,omitempty"                       visibility:"read create"`
-	DNS                           DNSProfile                `json:"dns,omitempty"                           visibility:"read create update"`
-	Network                       NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
-	Console                       ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
-	API                           APIProfile                `json:"api,omitempty"                           visibility:"read create"`
-	DisableUserWorkloadMonitoring bool                      `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
-	Proxy                         ProxyProfile              `json:"proxy,omitempty"                         visibility:"read create update"`
-	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"`
-	IssuerURL                     string                    `json:"issuerUrl,omitempty"                     visibility:"read"`
-	ExternalAuth                  ExternalAuthConfigProfile `json:"externalAuth,omitempty"                  visibility:"read create"`
+	ProvisioningState             arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
+	Version                       VersionProfile        `json:"version,omitempty"                       visibility:"read create"`
+	DNS                           DNSProfile            `json:"dns,omitempty"                           visibility:"read create update"`
+	Network                       NetworkProfile        `json:"network,omitempty"                       visibility:"read create"`
+	Console                       ConsoleProfile        `json:"console,omitempty"                       visibility:"read"`
+	API                           APIProfile            `json:"api,omitempty"                           visibility:"read create"`
+	DisableUserWorkloadMonitoring bool                  `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
+	Proxy                         ProxyProfile          `json:"proxy,omitempty"                         visibility:"read create update"`
+	Platform                      PlatformProfile       `json:"platform,omitempty"                      visibility:"read create"`
+	IssuerURL                     string                `json:"issuerUrl,omitempty"                     visibility:"read"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -97,12 +94,6 @@ type UserAssignedIdentitiesProfile struct {
 	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
-}
-
-// ExternalAuthConfigProfile represents the external authentication configuration.
-type ExternalAuthConfigProfile struct {
-	Enabled       bool                     `json:"enabled,omitempty"       visibility:"read create"`
-	ExternalAuths []*configv1.OIDCProvider `json:"externalAuths,omitempty" visibility:"read"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
