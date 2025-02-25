@@ -100,7 +100,7 @@ spec:
         - --batch-processes={{ .Values.batchProcesses }}
       containers:
       - name: service
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}:{{ .Values.imageTag }}'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}:{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
         volumeMounts:
         - name: service
