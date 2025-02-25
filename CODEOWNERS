@@ -1,14 +1,15 @@
 * @bennerv @jharrington22 @SudoBrendan @ulrichschlueter @zgalor
 go.work* @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
-/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521 @tony-schndr @jfchevrette
+/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521 @tony-schndr @jfchevrette @mmazur @stevekuznetsov
 /dev-infrastructure/modules/rp-cosmos.bicep @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
 /image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521
 /api/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25
 /frontend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
 /backend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
 /internal/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
-/tooling/ @bennerv @geoberle @janboll @weinong @whober0521 @tony-schndr @jfchevrette
-/config/ @bennerv @geoberle @janboll @weinong @whober0521 @tony-schndr @jfchevrette
-/metrics/ @bennerv @geoberle @janboll @weinong @whober0521 @tony-schndr @jfchevrette
+/tooling/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
+/config/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
+/metrics/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
 /cluster-service/ @machi1990 @zgalor @miguelsorianod @JameelB
 /observability/ @frzifus @simonpasquier @dinhxuanvu @mbarnes
+/docs/ @geoberle @janboll @tony-schndr @jfchevrette @mmazur @weinong @whober0521 @jonathan34c @stevekuznetsov
