@@ -6,9 +6,12 @@ package frontend
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -80,9 +83,7 @@ func TestMiddlewareBody(t *testing.T) {
 				writer := httptest.NewRecorder()
 
 				request, err := http.NewRequest(method, "", bytes.NewReader(tt.body))
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 				request.Header = tt.header
 
 				next := func(w http.ResponseWriter, r *http.Request) {
@@ -92,36 +93,29 @@ func TestMiddlewareBody(t *testing.T) {
 
 				MiddlewareBody(writer, request, next)
 
-				if tt.wantErr == "" {
-					if writer.Code != http.StatusOK {
-						t.Error(writer.Code)
-					}
+				res := writer.Result()
+				b, err := io.ReadAll(res.Body)
+				assert.NoError(t, err)
 
-					if writer.Body.String() != "" {
-						t.Error(writer.Body.String())
-					}
+				if tt.wantErr == "" {
+					assert.Equal(t, http.StatusOK, res.StatusCode)
+					assert.Empty(t, string(b))
 
 					if method != http.MethodGet {
 						body, err := BodyFromContext(request.Context())
-						if err != nil {
-							t.Fatal(err)
-						}
-						if !bytes.Equal(body, tt.body) {
-							t.Error(string(body))
-						}
+						assert.NoError(t, err)
+						assert.Equal(t, string(tt.body), string(body))
 					}
-				} else {
-					var cloudErr *arm.CloudError
-					err = json.Unmarshal(writer.Body.Bytes(), &cloudErr)
-					if err != nil {
-						t.Fatal(err)
-					}
-					cloudErr.StatusCode = writer.Code
 
-					if tt.wantErr != cloudErr.Error() {
-						t.Error(cloudErr)
-					}
+					return
 				}
+
+				var cloudErr *arm.CloudError
+				err = json.Unmarshal(b, &cloudErr)
+				assert.NoError(t, err)
+
+				cloudErr.StatusCode = res.StatusCode
+				assert.Equal(t, tt.wantErr, cloudErr.Error())
 			})
 		}
 	}

@@ -6,13 +6,12 @@ package frontend
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -186,9 +185,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			writer := httptest.NewRecorder()
 
 			request, err := http.NewRequest(tt.httpMethod, tt.requestPath, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			assert.NoError(t, err)
 
 			// Add a logger to the context so parsing errors will be logged.
 			ctx := request.Context()
@@ -207,18 +204,19 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 			MiddlewareValidateSubscriptionState(writer, request, next)
 
+			res := writer.Result()
 			if tt.expectedError != nil {
-				var actualError *arm.CloudError
-				body, _ := io.ReadAll(http.MaxBytesReader(writer, writer.Result().Body, 4*megabyte))
-				_ = json.Unmarshal(body, &actualError)
-				if (writer.Result().StatusCode != tt.expectedError.StatusCode) || actualError.Code != tt.expectedError.Code || actualError.Message != tt.expectedError.Message {
-					t.Errorf("unexpected CloudError, wanted %v, got %v", tt.expectedError, actualError)
-				}
-			} else {
-				if doc.Subscription.State != tt.expectedState {
-					t.Error(cmp.Diff(doc.Subscription.State, tt.expectedState))
-				}
+				var actualError arm.CloudError
+				err = json.NewDecoder(res.Body).Decode(&actualError)
+				assert.NoError(t, err)
+
+				assert.Equal(t, tt.expectedError.StatusCode, res.StatusCode)
+				assert.Equal(t, tt.expectedError.Code, actualError.Code)
+				assert.Equal(t, tt.expectedError.Message, actualError.Message)
+				return
 			}
+
+			assert.Equal(t, tt.expectedState, doc.Subscription.State)
 		})
 	}
 
@@ -226,9 +224,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		writer := httptest.NewRecorder()
 
 		request, err := http.NewRequest(http.MethodGet, defaultRequestPath, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		assert.NoError(t, err)
 		request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 
 		ctx := request.Context()
@@ -237,8 +233,8 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 		next := func(w http.ResponseWriter, r *http.Request) {}
 		MiddlewareValidateSubscriptionState(writer, request, next)
-		if writer.Code != http.StatusInternalServerError {
-			t.Errorf("expected status code %d, got %d", http.StatusInternalServerError, writer.Code)
-		}
+
+		res := writer.Result()
+		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 	})
 }
