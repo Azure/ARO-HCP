@@ -574,8 +574,17 @@
           "rg"
         ]
       },
-      "acrPullImageDigest": {
-        "type": "string"
+      "acrPull": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "$ref": "#/definitions/containerImage"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "image"
+        ]
       },
       "maestro": {
         "type": "object",
@@ -974,7 +983,7 @@
       "hypershift",
       "hypershiftOperator",
       "imageSync",
-      "acrPullImageDigest",
+      "acrPull",
       "maestro",
       "mgmt",
       "mgmtKeyVault",
