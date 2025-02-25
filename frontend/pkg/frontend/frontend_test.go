@@ -3,6 +3,7 @@ package frontend
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -301,6 +302,218 @@ func TestSubscriptionsPUT(t *testing.T) {
 			lintMetrics(t, reg)
 			if test.expectedStatusCode != http.StatusBadRequest {
 				assertHTTPMetrics(t, reg, test.subDoc)
+			}
+		})
+	}
+}
+
+func TestDeploymentPreflight(t *testing.T) {
+	tests := []struct {
+		name         string
+		resource     map[string]any
+		expectStatus arm.DeploymentPreflightStatus
+		expectErrors int
+	}{
+		{
+			name: "Unhandled resource type returns no error",
+			resource: map[string]any{
+				"name":       "virtual-machine",
+				"type":       "Microsoft.Compute/virtualMachines",
+				"location":   "eastus",
+				"apiVersion": "2024-07-01",
+			},
+			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+		},
+		{
+			name: "Unrecognized API version returns no error",
+			resource: map[string]any{
+				"name":       "my-hcp-cluster",
+				"type":       api.ClusterResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "1980-01-01",
+			},
+			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+		},
+		{
+			name: "Well-formed cluster resource returns no error",
+			resource: map[string]any{
+				"name":       "my-hcp-cluster",
+				"type":       api.ClusterResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "2024-06-10-preview",
+				"properties": map[string]any{
+					"version": map[string]any{
+						"id":           "4.0.0",
+						"channelGroup": "stable",
+					},
+					"network": map[string]any{
+						"podCidr":     "10.128.0.0/14",
+						"serviceCidr": "172.30.0.0/16",
+						"machineCidr": "10.0.0.0/16",
+					},
+					"api": map[string]any{
+						"visibility": "public",
+					},
+					"platform": map[string]any{
+						"subnetId": "/something/something/virtualNetworks/subnets",
+					},
+				},
+			},
+			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+		},
+		{
+			name: "Preflight catches cluster resource with invalid fields",
+			resource: map[string]any{
+				"name":       "my-hcp-cluster",
+				"type":       api.ClusterResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "2024-06-10-preview",
+				"properties": map[string]any{
+					"version": map[string]any{
+						"id":           "openshift-v4.0.0",
+						"channelGroup": "stable",
+					},
+					"network": map[string]any{
+						// 1 invalid + 2 missing required fields
+						"podCidr": "invalidCidr",
+					},
+					"api": map[string]any{
+						// 1 invalid field
+						"visibility": "invisible",
+					},
+					"platform": map[string]any{
+						// 1 missing required field
+					},
+				},
+			},
+			expectStatus: arm.DeploymentPreflightStatusFailed,
+			expectErrors: 5,
+		},
+		{
+			name: "Well-formed node pool resource returns no error",
+			resource: map[string]any{
+				"name":       "my-node-pool",
+				"type":       api.NodePoolResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "2024-06-10-preview",
+				"properties": map[string]any{
+					"version": map[string]any{
+						"id":           "openshift-v4.0.0",
+						"channelGroup": "stable",
+					},
+					"platform": map[string]any{
+						"vmSize": "Standard_D8s_v3",
+					},
+				},
+			},
+			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+		},
+		{
+			name: "Preflight catches node pool resource with invalid fields",
+			resource: map[string]any{
+				"name":       "my-node-pool",
+				"type":       api.NodePoolResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "2024-06-10-preview",
+				"properties": map[string]any{
+					"version": map[string]any{
+						"id":           "openshift-v4.0.0",
+						"channelGroup": "stable",
+					},
+					"platform": map[string]any{
+						// 1 missing required field
+					},
+					"autoScaling": map[string]any{
+						// 1 invalid field
+						"min": 3,
+						"max": 1,
+					},
+					"taints": []map[string]any{
+						{
+							// 1 invalid + 1 missing required field
+							"effect": "NoTouchy",
+						},
+					},
+				},
+			},
+			expectStatus: arm.DeploymentPreflightStatusFailed,
+			expectErrors: 4,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			preflightPath := fmt.Sprintf("/subscriptions/%s/resourceGroups/myRG/providers/%s/deployments/myDeployment/preflight", subscriptionID, api.ProviderNamespace)
+
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+			reg := prometheus.NewRegistry()
+
+			f := NewFrontend(
+				testLogger,
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				nil,
+			)
+
+			// MiddlewareValidateSubscriptionState and MetricsMiddleware
+			mockDBClient.EXPECT().
+				GetSubscriptionDoc(gomock.Any(), subscriptionID).
+				Return(&arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				}, nil).
+				MaxTimes(2)
+
+			subs := map[string]*arm.Subscription{
+				subscriptionID: &arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				},
+			}
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+
+			resource, err := json.Marshal(&test.resource)
+			require.NoError(t, err)
+			preflightReq := arm.DeploymentPreflight{
+				Resources: []json.RawMessage{resource},
+			}
+			body, err := json.Marshal(&preflightReq)
+			require.NoError(t, err)
+
+			req, err := http.NewRequest(http.MethodPost, ts.URL+preflightPath, bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			defer resp.Body.Close()
+			body, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var preflightResp arm.DeploymentPreflightResponse
+			err = json.Unmarshal(body, &preflightResp)
+			require.NoError(t, err)
+
+			assert.Equal(t, test.expectStatus, preflightResp.Status)
+			switch test.expectErrors {
+			case 0:
+				assert.Nil(t, preflightResp.Error)
+			case 1:
+				if assert.NotNil(t, preflightResp.Error) {
+					assert.Nil(t, preflightResp.Error.Details)
+					assert.NotEmpty(t, preflightResp.Error.Code)
+					assert.NotEmpty(t, preflightResp.Error.Message)
+					assert.NotEmpty(t, preflightResp.Error.Target)
+				}
+			default:
+				if assert.NotNil(t, preflightResp.Error) {
+					assert.Equal(t, test.expectErrors, len(preflightResp.Error.Details))
+				}
 			}
 		})
 	}

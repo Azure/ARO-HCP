@@ -785,12 +785,9 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *http.Request) {
 	var subscriptionID string = request.PathValue(PathSegmentSubscriptionID)
 	var resourceGroup string = request.PathValue(PathSegmentResourceGroupName)
-	var apiVersion string = request.URL.Query().Get("api-version")
 
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
-
-	logger.Info(fmt.Sprintf("%s: ArmDeploymentPreflight", apiVersion))
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
@@ -810,38 +807,74 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	preflightErrors := []arm.CloudErrorBody{}
 
 	for index, raw := range deploymentPreflight.Resources {
-		resource := &arm.DeploymentPreflightResource{}
-		err = json.Unmarshal(raw, resource)
+		var cloudError *arm.CloudError
+
+		preflightResource := &arm.DeploymentPreflightResource{}
+		err = json.Unmarshal(raw, preflightResource)
 		if err != nil {
 			cloudError = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
 			logger.Warn(cloudError.Message)
 		}
 
-		// This is just "preliminary" validation to ensure all the base resource
-		// fields are present and the API version is valid.
-		resourceErrors := api.ValidateRequest(validate, request.Method, resource)
-		if len(resourceErrors) > 0 {
-			// Preflight is best-effort: a malformed resource is not a validation failure.
-			logger.Warn(
-				fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
-				"details", resourceErrors)
+		switch strings.ToLower(preflightResource.Type) {
+		case strings.ToLower(api.ClusterResourceType.String()):
+			// This is just "preliminary" validation to ensure all the base resource
+			// fields are present and the API version is valid.
+			resourceErrors := api.ValidateRequest(validate, request.Method, preflightResource)
+			if len(resourceErrors) > 0 {
+				// Preflight is best-effort: a malformed resource is not a validation failure.
+				logger.Warn(
+					fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
+					"details", resourceErrors)
+				continue
+			}
+
+			// API version is already validated by this point.
+			versionedInterface, _ := api.Lookup(preflightResource.APIVersion)
+			versionedCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
+
+			err = preflightResource.Convert(versionedCluster)
+			if err != nil {
+				// Preflight is best effort: failure to parse a resource is not a validation failure.
+				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				continue
+			}
+
+			// Perform static validation as if for a cluster creation request.
+			cloudError = versionedCluster.ValidateStatic(versionedCluster, false, http.MethodPut)
+
+		case strings.ToLower(api.NodePoolResourceType.String()):
+			// This is just "preliminary" validation to ensure all the base resource
+			// fields are present and the API version is valid.
+			resourceErrors := api.ValidateRequest(validate, request.Method, preflightResource)
+			if len(resourceErrors) > 0 {
+				// Preflight is best-effort: a malformed resource is not a validation failure.
+				logger.Warn(
+					fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
+					"details", resourceErrors)
+				continue
+			}
+
+			// API version is already validated by this point.
+			versionedInterface, _ := api.Lookup(preflightResource.APIVersion)
+			versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+
+			err = preflightResource.Convert(versionedNodePool)
+			if err != nil {
+				// Preflight is best effort: failure to parse a resource is not a validation failure.
+				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				continue
+			}
+
+			// Perform static validation as if for a node pool creation request.
+			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, false, http.MethodPut)
+
+		default:
+			// Disregard foreign resource types.
 			continue
 		}
 
-		// API version is already validated by this point.
-		versionedInterface, _ := api.Lookup(resource.APIVersion)
-		versionedCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
-
-		err = json.Unmarshal(raw, versionedCluster)
-		if err != nil {
-			// Preflight is best effort: failure to parse a resource is not a validation failure.
-			logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", resource.Type, resource.Name, err))
-			continue
-		}
-
-		// Perform static validation as if for a cluster creation request.
-		cloudError := versionedCluster.ValidateStatic(versionedCluster, false, http.MethodPut)
 		if cloudError != nil {
 			var details []arm.CloudErrorBody
 
@@ -882,8 +915,8 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 			preflightErrors = append(preflightErrors, arm.CloudErrorBody{
 				Code:    cloudError.Code,
-				Message: fmt.Sprintf("Content validation failed for '%s'", resource.Name),
-				Target:  resource.ResourceID(subscriptionID, resourceGroup),
+				Message: fmt.Sprintf("Content validation failed for '%s'", preflightResource.Name),
+				Target:  preflightResource.ResourceID(subscriptionID, resourceGroup),
 				Details: details,
 			})
 			continue
