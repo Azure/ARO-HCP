@@ -244,9 +244,6 @@ type HcpOpenShiftClusterProperties struct {
 	// Disable user workload monitoring
 	DisableUserWorkloadMonitoring *bool
 
-	// Enables customer ETCD encryption, set during creation When set to true, platform.etcdEncryptionSetId must be set
-	EtcdEncryption *bool
-
 	// Configuration to override the openshift-oauth-apiserver inside cluster This changes user login into the cluster to external
 // provider
 	ExternalAuth *ExternalAuthConfigProfile
@@ -559,10 +556,6 @@ type PlatformProfile struct {
 
 	// REQUIRED; ResourceId for the subnet used by the control plane
 	SubnetID *string
-
-	// The id of the disk encryption set to be used for etcd. Configure this when etcdEncryption is set to true Is used the
-// https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
-	EtcdEncryptionSetID *string
 
 	// Resource group to put cluster resources
 	ManagedResourceGroup *string

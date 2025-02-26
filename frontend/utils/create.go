@@ -62,7 +62,6 @@ func CreateJSONFile() error {
 			API: api.APIProfile{
 				Visibility: api.Visibility("public"),
 			},
-			EtcdEncryption:                false,
 			DisableUserWorkloadMonitoring: false,
 			Proxy:                         api.ProxyProfile{},
 			Platform: api.PlatformProfile{

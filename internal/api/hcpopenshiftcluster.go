@@ -24,7 +24,6 @@ type HCPOpenShiftClusterProperties struct {
 	Network                       NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
 	Console                       ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
 	API                           APIProfile                `json:"api,omitempty"                           visibility:"read create"`
-	EtcdEncryption                bool                      `json:"etcdEncryption,omitempty"                visibility:"read create"`
 	DisableUserWorkloadMonitoring bool                      `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
 	Proxy                         ProxyProfile              `json:"proxy,omitempty"                         visibility:"read create update"`
 	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"`
@@ -83,7 +82,6 @@ type PlatformProfile struct {
 	SubnetID                string                         `json:"subnetId,omitempty"             validate:"required_for_put"`
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
 	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
-	EtcdEncryptionSetID     string                         `json:"etcdEncryptionSetId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 }
 

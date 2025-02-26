@@ -77,12 +77,6 @@ model HcpOpenShiftClusterProperties {
   @visibility("read")
   api: ApiProfile;
 
-  /** Enables customer ETCD encryption, set during creation
-   * When set to true, `platform.etcdEncryptionSetId` must be set
-   */
-  @visibility("create", "read")
-  etcdEncryption?: boolean = false;
-
   /** Disable user workload monitoring */
   @visibility("create", "update")
   disableUserWorkloadMonitoring?: boolean = false;
@@ -299,12 +293,6 @@ model PlatformProfile {
 
   /** ResourceId for the network security group attached to the cluster subnet */
   networkSecurityGroupId?: NetworkSecurityGroupResourceId;
-
-  /** The id of the disk encryption set to be used for etcd.
-   * Configure this when `etcdEncryption` is set to true
-   * Is used the https://learn.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview
-   */
-  etcdEncryptionSetId?: string;
 
   /** The configuration that the operators of the cluster have to authenticate to Azure */
   operatorsAuthentication: OperatorsAuthenticationProfile;
