@@ -1,995 +1,1005 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Generated schema for Root",
-    "type": "object",
-    "definitions": {
-      "operatorConfig": {
-        "type": "object",
-        "properties": {
-          "roleName": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "roleName"
-        ]
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Generated schema for Root",
+  "type": "object",
+  "definitions": {
+    "operatorConfig": {
+      "type": "object",
+      "properties": {
+        "roleName": {
+          "type": "string"
+        }
       },
-      "aksAgentPool": {
-        "type": "object",
-        "properties": {
-          "maxCount": {
-            "type": "number"
-          },
-          "minCount": {
-            "type": "number"
-          },
-          "osDiskSizeGB": {
-            "type": "number"
-          },
-          "vmSize": {
-            "type": "string"
-          },
-          "azCount": {
-            "type": "number"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "maxCount",
-          "minCount",
-          "osDiskSizeGB",
-          "vmSize"
-        ]
-      },
-      "aksConfig": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "vnetAddressPrefix": {
-            "type": "string"
-          },
-          "subnetPrefix": {
-            "type": "string"
-          },
-          "podSubnetPrefix": {
-            "type": "string"
-          },
-          "kubernetesVersion": {
-            "type": "string"
-          },
-          "etcd": {
-            "type": "object",
-            "properties": {
-              "kvName": {
-                "type": "string"
-              },
-              "kvSoftDelete": {
-                "type": "boolean"
-              }
-            },
-            "additionalProperties": false,
-            "required": [
-              "kvName",
-              "kvSoftDelete"
-            ]
-          },
-          "userAgentPool": {
-            "$ref": "#/definitions/aksAgentPool"
-          },
-          "systemAgentPool": {
-            "$ref": "#/definitions/aksAgentPool"
-          },
-          "clusterOutboundIPAddressIPTags": {
-            "$ref": "#/definitions/keyColonValueCSV"
-          }
-        },
-        "required": [
-          "name",
-          "vnetAddressPrefix",
-          "subnetPrefix",
-          "podSubnetPrefix",
-          "kubernetesVersion",
-          "etcd",
-          "userAgentPool",
-          "systemAgentPool"
-        ]
-      },
-      "containerImage": {
-        "type": "object",
-        "properties": {
-          "repository": {
-            "type": "string"
-          },
-          "digest": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "repository"
-        ]
-      },
-      "keyColonValueCSV": {
-        "type": "string",
-        "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
-      },
-      "certificateIssuer": {
-        "type": "string",
-        "enum": [
-          "Self",
-          "OneCertV2-PublicCA",
-          "OneCertV2-PrivateCA"
-        ]
-      },
-      "zoneRedundantMode": {
-        "type": "string",
-        "enum": [
-          "Enabled",
-          "Disabled",
-          "Auto"
-        ]
-      }
+      "additionalProperties": false,
+      "required": [
+        "roleName"
+      ]
     },
-    "properties": {
-      "aroDevopsMsiId": {
-        "type": "string"
-      },
-      "kvCertOfficerPrincipalId": {
-        "type": "string",
-        "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
-      },
-      "dns": {
-        "type": "object",
-        "properties": {
-          "baseDnsZoneRG": {
-            "type": "string",
-            "description": "The Azure RG that holds the parent DNS zones"
-          },
-          "cxParentZoneName": {
-            "type": "string",
-            "description": "The parent DNS zone name for regional HCP cluster DNS zones"
-          },
-          "svcParentZoneName": {
-            "type": "string",
-            "description": "The parent DNS zone name for regional ARO-HCP infrastructure, e.g. the RP"
-          },
-          "regionalSubdomain": {
-            "type": "string",
-            "description": "The regional subdomain to be used to construct the regional hcp and svc zones under their respective parents, e.g. regionalSubdomain.svcParentZoneName"
-          },
-          "parentZoneName": {
-            "type": "string",
-            "description": "The global parent DNS zone name"
-          }
+    "aksAgentPool": {
+      "type": "object",
+      "properties": {
+        "maxCount": {
+          "type": "number"
         },
-        "additionalProperties": false,
-        "required": [
-          "baseDnsZoneRG",
-          "cxParentZoneName",
-          "svcParentZoneName",
-          "regionalSubdomain"
-        ]
-      },
-      "pko": {
-        "type": "object",
-        "properties": {
-          "image": {
-            "type": "string"
-          },
-          "imageManager": {
-            "type": "string"
-          },
-          "imageTag": {
-            "type": "string"
-          }
+        "minCount": {
+          "type": "number"
         },
-        "additionalProperties": false,
-        "required": [
-          "image",
-          "imageManager",
-          "imageTag"
-        ]
+        "osDiskSizeGB": {
+          "type": "number"
+        },
+        "vmSize": {
+          "type": "string"
+        },
+        "azCount": {
+          "type": "number"
+        }
       },
-      "clusterService": {
-        "type": "object",
-        "properties": {
-          "environment" :{
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 10
-          },
-          "image": {
-            "$ref": "#/definitions/containerImage"
-          },
-          "managedIdentityName": {
-            "type": "string",
-            "description": "The name of the MSI that will be used by CS to interact with Azure"
-          },
-          "k8s": {
-            "type": "object",
-            "properties": {
-              "namespace": {
-                "type": "string"
-              },
-              "serviceAccountName": {
-                "type": "string"
-              }
+      "additionalProperties": false,
+      "required": [
+        "maxCount",
+        "minCount",
+        "osDiskSizeGB",
+        "vmSize"
+      ]
+    },
+    "aksConfig": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "vnetAddressPrefix": {
+          "type": "string"
+        },
+        "subnetPrefix": {
+          "type": "string"
+        },
+        "podSubnetPrefix": {
+          "type": "string"
+        },
+        "kubernetesVersion": {
+          "type": "string"
+        },
+        "etcd": {
+          "type": "object",
+          "properties": {
+            "kvName": {
+              "type": "string"
             },
-            "additionalProperties": false,
-            "required": [
-              "namespace",
-              "serviceAccountName"
-            ]
+            "kvSoftDelete": {
+              "type": "boolean"
+            }
           },
-          "postgres": {
-            "type": "object",
-            "properties": {
-              "deploy": {
-                "type": "boolean"
-              },
-              "name": {
-                "type": "string"
-              },
-              "private": {
-                "type": "boolean"
-              },
-              "minTLSVersion": {
-                "type": "string",
-                "enum": ["TLSV1.2", "TLSV1.3"]
-              }
+          "additionalProperties": false,
+          "required": [
+            "kvName",
+            "kvSoftDelete"
+          ]
+        },
+        "userAgentPool": {
+          "$ref": "#/definitions/aksAgentPool"
+        },
+        "systemAgentPool": {
+          "$ref": "#/definitions/aksAgentPool"
+        },
+        "clusterOutboundIPAddressIPTags": {
+          "$ref": "#/definitions/keyColonValueCSV"
+        }
+      },
+      "required": [
+        "name",
+        "vnetAddressPrefix",
+        "subnetPrefix",
+        "podSubnetPrefix",
+        "kubernetesVersion",
+        "etcd",
+        "userAgentPool",
+        "systemAgentPool"
+      ]
+    },
+    "containerImage": {
+      "type": "object",
+      "properties": {
+        "registry": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository"
+      ]
+    },
+    "keyColonValueCSV": {
+      "type": "string",
+      "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
+    },
+    "certificateIssuer": {
+      "type": "string",
+      "enum": [
+        "Self",
+        "OneCertV2-PublicCA",
+        "OneCertV2-PrivateCA"
+      ]
+    },
+    "zoneRedundantMode": {
+      "type": "string",
+      "enum": [
+        "Enabled",
+        "Disabled",
+        "Auto"
+      ]
+    }
+  },
+  "properties": {
+    "aroDevopsMsiId": {
+      "type": "string"
+    },
+    "kvCertOfficerPrincipalId": {
+      "type": "string",
+      "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
+    },
+    "dns": {
+      "type": "object",
+      "properties": {
+        "baseDnsZoneRG": {
+          "type": "string",
+          "description": "The Azure RG that holds the parent DNS zones"
+        },
+        "cxParentZoneName": {
+          "type": "string",
+          "description": "The parent DNS zone name for regional HCP cluster DNS zones"
+        },
+        "svcParentZoneName": {
+          "type": "string",
+          "description": "The parent DNS zone name for regional ARO-HCP infrastructure, e.g. the RP"
+        },
+        "regionalSubdomain": {
+          "type": "string",
+          "description": "The regional subdomain to be used to construct the regional hcp and svc zones under their respective parents, e.g. regionalSubdomain.svcParentZoneName"
+        },
+        "parentZoneName": {
+          "type": "string",
+          "description": "The global parent DNS zone name"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "baseDnsZoneRG",
+        "cxParentZoneName",
+        "svcParentZoneName",
+        "regionalSubdomain"
+      ]
+    },
+    "pko": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "imageManager": {
+          "type": "string"
+        },
+        "imageTag": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "imageManager",
+        "imageTag"
+      ]
+    },
+    "clusterService": {
+      "type": "object",
+      "properties": {
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by CS to interact with Azure"
+        },
+        "k8s": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "type": "string"
             },
-            "required": [
-              "deploy",
-              "name",
-              "private",
-              "minTLSVersion"
-            ]
+            "serviceAccountName": {
+              "type": "string"
+            }
           },
-          "azureOperatorsManagedIdentities": {
-            "type": "object",
-            "properties": {
-              "clusterApiAzure": {
-                "$ref": "#/definitions/operatorConfig"
-              },
-              "controlPlane": {
-                "$ref": "#/definitions/operatorConfig"
-              },
-              "cloudControllerManager": {
-                "$ref": "#/definitions/operatorConfig"
-              },
-              "ingress": {
-                "$ref": "#/definitions/operatorConfig"
-              },
-              "diskCsiDriver": {
-                "$ref": "#/definitions/operatorConfig"
-              },
-              "fileCsiDriver": {
-                "$ref": "#/definitions/operatorConfig"
-              },
-              "imageRegistry": {
-                "$ref": "#/definitions/operatorConfig"
-              },
-              "cloudNetworkConfig": {
-                "$ref": "#/definitions/operatorConfig"
-              },
-              "kms": {
-                "$ref": "#/definitions/operatorConfig"
-              }
+          "additionalProperties": false,
+          "required": [
+            "namespace",
+            "serviceAccountName"
+          ]
+        },
+        "postgres": {
+          "type": "object",
+          "properties": {
+            "deploy": {
+              "type": "boolean"
             },
-            "additionalProperties": false,
-            "required": [
-              "clusterApiAzure",
-              "controlPlane",
-              "cloudControllerManager",
-              "ingress",
-              "diskCsiDriver",
-              "fileCsiDriver",
-              "imageRegistry",
-              "cloudNetworkConfig",
-              "kms"
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "environment",
-          "image",
-          "managedIdentityName",
-          "k8s",
-          "azureOperatorsManagedIdentities",
-          "postgres"
-        ]
-      },
-      "cxKeyVault": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "private": {
-            "type": "boolean"
-          },
-          "softDelete": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "private",
-          "softDelete"
-        ]
-      },
-      "extraVars": {
-        "type": "object",
-        "properties": {},
-        "required": []
-      },
-      "firstPartyAppClientId": {
-        "type": "string"
-      },
-      "firstPartyAppCertName": {
-        "type": "string"
-      },
-      "miMockClientId": {
-        "type": "string"
-      },
-      "miMockPrincipalId": {
-        "type": "string"
-      },
-      "miMockCertName": {
-        "type": "string"
-      },
-      "armHelperClientId": {
-        "type": "string"
-      },
-      "armHelperFPAPrincipalId": {
-        "type": "string"
-      },
-      "armHelperCertName": {
-        "type": "string"
-      },
-      "backend": {
-        "type": "object",
-        "properties": {
-          "imageTag": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "imageTag"
-        ]
-      },
-      "frontend": {
-        "type": "object",
-        "properties": {
-          "imageTag": {
-            "type": "string"
-          },
-          "cosmosDB": {
-            "type": "object",
-            "properties": {
-              "deploy": {
-                "type": "boolean"
-              },
-              "disableLocalAuth": {
-                "type": "boolean"
-              },
-              "name": {
-                "type": "string"
-              },
-              "private": {
-                "type": "boolean"
-              },
-              "zoneRedundantMode": {
-                "$ref": "#/definitions/zoneRedundantMode"
-              }
+            "name": {
+              "type": "string"
             },
-            "additionalProperties": false,
-            "required": [
-              "deploy",
-              "disableLocalAuth",
-              "name",
-              "private"
-            ]
-          },
-          "cert": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "issuer": {
-                "$ref": "#/definitions/certificateIssuer"
-              }
+            "private": {
+              "type": "boolean"
             },
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "issuer"
-            ]
-          }
+            "minTLSVersion": {
+              "type": "string",
+              "enum": [
+                "TLSV1.2",
+                "TLSV1.3"
+              ]
+            }
+          },
+          "required": [
+            "deploy",
+            "name",
+            "private",
+            "minTLSVersion"
+          ]
         },
-        "additionalProperties": false,
-        "required": [
-          "imageTag",
-          "cosmosDB",
-          "cert"
-        ]
-      },
-      "global": {
-        "type": "object",
-        "properties": {
-          "rg": {
-            "type": "string"
-          },
-          "subscription": {
-            "type": "string"
-          },
-          "region": {
-            "type": "string"
-          },
-          "globalMSIName": {
-            "type": "string",
-            "description": "The name of the MSI that will be used for ev2"
-          },
-          "safeDnsIntAppObjectId": {
-            "type": "string",
-            "description": "SafeDnsIntApplication object ID use to delegate child DNS"
-          }
-        },
-        "required": [
-          "rg",
-          "subscription",
-          "region"
-        ]
-      },
-      "hypershift": {
-        "type": "object",
-        "properties": {
-          "additionalInstallArg": {
-            "type": "string"
-          },
-          "namespace": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "additionalInstallArg",
-          "namespace"
-        ]
-      },
-      "hypershiftOperator": {
-        "type": "object",
-        "properties": {
-          "imageTag": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "imageTag"
-        ]
-      },
-      "imageSync": {
-        "type": "object",
-        "properties": {
-          "acrRG": {
-            "type": "string"
-          },
-          "environmentName": {
-            "type": "string"
-          },
-          "componentSync": {
-            "type": "object",
-            "properties": {
-              "enabled": {
-                "type": "boolean"
-              },
-              "imageRepo": {
-                "type": "string"
-              },
-              "imageTag": {
-                "type": "string"
-              },
-              "repositories": {
-                "type": "string"
-              },
-              "secrets": {
-                "$ref": "#/definitions/keyColonValueCSV"
-              },
-              "pullSecretName": {
-                "type": "string"
-              }
+        "azureOperatorsManagedIdentities": {
+          "type": "object",
+          "properties": {
+            "clusterApiAzure": {
+              "$ref": "#/definitions/operatorConfig"
             },
-            "additionalProperties": false,
-            "required": [
-              "enabled",
-              "imageRepo",
-              "imageTag",
-              "repositories",
-              "secrets",
-              "pullSecretName"
-            ]
-          },
-          "ocMirror": {
-            "type": "object",
-            "properties": {
-              "enabled": {
-                "type": "boolean"
-              },
-              "imageRepo": {
-                "type": "string"
-              },
-              "imageTag": {
-                "type": "string"
-              },
-              "pullSecretName": {
-                "type": "string"
-              }
+            "controlPlane": {
+              "$ref": "#/definitions/operatorConfig"
             },
-            "additionalProperties": false,
-            "required": [
-              "enabled",
-              "imageRepo",
-              "imageTag",
-              "pullSecretName"
-            ]
-          },
-          "keyVault": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "private": {
-                "type": "boolean"
-              },
-              "softDelete": {
-                "type": "boolean"
-              }
+            "cloudControllerManager": {
+              "$ref": "#/definitions/operatorConfig"
             },
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "private",
-              "softDelete"
-            ]
+            "ingress": {
+              "$ref": "#/definitions/operatorConfig"
+            },
+            "diskCsiDriver": {
+              "$ref": "#/definitions/operatorConfig"
+            },
+            "fileCsiDriver": {
+              "$ref": "#/definitions/operatorConfig"
+            },
+            "imageRegistry": {
+              "$ref": "#/definitions/operatorConfig"
+            },
+            "cloudNetworkConfig": {
+              "$ref": "#/definitions/operatorConfig"
+            },
+            "kms": {
+              "$ref": "#/definitions/operatorConfig"
+            }
           },
-          "rg": {
-            "type": "string"
-          }
+          "additionalProperties": false,
+          "required": [
+            "clusterApiAzure",
+            "controlPlane",
+            "cloudControllerManager",
+            "ingress",
+            "diskCsiDriver",
+            "fileCsiDriver",
+            "imageRegistry",
+            "cloudNetworkConfig",
+            "kms"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "environment",
+        "image",
+        "managedIdentityName",
+        "k8s",
+        "azureOperatorsManagedIdentities",
+        "postgres"
+      ]
+    },
+    "cxKeyVault": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
         },
-        "additionalProperties": false,
-        "required": [
-          "acrRG",
-          "environmentName",
-          "componentSync",
-          "ocMirror",
-          "keyVault",
-          "rg"
-        ]
+        "private": {
+          "type": "boolean"
+        },
+        "softDelete": {
+          "type": "boolean"
+        }
       },
-      "acrPullImageDigest": {
-        "type": "string"
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "private",
+        "softDelete"
+      ]
+    },
+    "extraVars": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "firstPartyAppClientId": {
+      "type": "string"
+    },
+    "firstPartyAppCertName": {
+      "type": "string"
+    },
+    "miMockClientId": {
+      "type": "string"
+    },
+    "miMockPrincipalId": {
+      "type": "string"
+    },
+    "miMockCertName": {
+      "type": "string"
+    },
+    "armHelperClientId": {
+      "type": "string"
+    },
+    "armHelperFPAPrincipalId": {
+      "type": "string"
+    },
+    "armHelperCertName": {
+      "type": "string"
+    },
+    "backend": {
+      "type": "object",
+      "properties": {
+        "imageTag": {
+          "type": "string"
+        }
       },
-      "maestro": {
-        "type": "object",
-        "properties": {
-          "certDomain": {
-            "type": "string",
-            "description": "Optional SAN base domain for Maestro Eventgrid certificates. If missing, defaults to maestro.${dns.regionalSubdomain}.${dns.svcParentZoneName}"
+      "additionalProperties": false,
+      "required": [
+        "imageTag"
+      ]
+    },
+    "frontend": {
+      "type": "object",
+      "properties": {
+        "imageTag": {
+          "type": "string"
+        },
+        "cosmosDB": {
+          "type": "object",
+          "properties": {
+            "deploy": {
+              "type": "boolean"
+            },
+            "disableLocalAuth": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "private": {
+              "type": "boolean"
+            },
+            "zoneRedundantMode": {
+              "$ref": "#/definitions/zoneRedundantMode"
+            }
           },
-          "certIssuer": {
-            "$ref": "#/definitions/certificateIssuer"
+          "additionalProperties": false,
+          "required": [
+            "deploy",
+            "disableLocalAuth",
+            "name",
+            "private"
+          ]
+        },
+        "cert": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
           },
-          "server": {
-            "type": "object",
-            "properties": {
-              "mqttClientName": {
-                "type": "string"
-              },
-              "managedIdentityName": {
-                "type": "string"
-              },
-              "loglevel": {
-                "type": "integer"
-              },
-              "k8s": {
-                "type": "object",
-                "properties": {
-                  "namespace": {
-                    "type": "string"
-                  },
-                  "serviceAccountName": {
-                    "type": "string"
-                  }
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "imageTag",
+        "cosmosDB",
+        "cert"
+      ]
+    },
+    "global": {
+      "type": "object",
+      "properties": {
+        "rg": {
+          "type": "string"
+        },
+        "subscription": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "globalMSIName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used for ev2"
+        },
+        "safeDnsIntAppObjectId": {
+          "type": "string",
+          "description": "SafeDnsIntApplication object ID use to delegate child DNS"
+        }
+      },
+      "required": [
+        "rg",
+        "subscription",
+        "region"
+      ]
+    },
+    "hypershift": {
+      "type": "object",
+      "properties": {
+        "additionalInstallArg": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "additionalInstallArg",
+        "namespace"
+      ]
+    },
+    "hypershiftOperator": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
+    "imageSync": {
+      "type": "object",
+      "properties": {
+        "acrRG": {
+          "type": "string"
+        },
+        "environmentName": {
+          "type": "string"
+        },
+        "componentSync": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "repositories": {
+              "type": "string"
+            },
+            "secrets": {
+              "$ref": "#/definitions/keyColonValueCSV"
+            },
+            "pullSecretName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "image",
+            "repositories",
+            "secrets",
+            "pullSecretName"
+          ]
+        },
+        "ocMirror": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "pullSecretName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "image",
+            "pullSecretName"
+          ]
+        },
+        "keyVault": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "private": {
+              "type": "boolean"
+            },
+            "softDelete": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "private",
+            "softDelete"
+          ]
+        },
+        "rg": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "acrRG",
+        "environmentName",
+        "componentSync",
+        "ocMirror",
+        "keyVault",
+        "rg"
+      ]
+    },
+    "acrPull": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
+    "maestro": {
+      "type": "object",
+      "properties": {
+        "certDomain": {
+          "type": "string",
+          "description": "Optional SAN base domain for Maestro Eventgrid certificates. If missing, defaults to maestro.${dns.regionalSubdomain}.${dns.svcParentZoneName}"
+        },
+        "certIssuer": {
+          "$ref": "#/definitions/certificateIssuer"
+        },
+        "server": {
+          "type": "object",
+          "properties": {
+            "mqttClientName": {
+              "type": "string"
+            },
+            "managedIdentityName": {
+              "type": "string"
+            },
+            "loglevel": {
+              "type": "integer"
+            },
+            "k8s": {
+              "type": "object",
+              "properties": {
+                "namespace": {
+                  "type": "string"
                 },
-                "additionalProperties": false,
-                "required": [
-                  "namespace",
-                  "serviceAccountName"
-                ]
-              }
-            },
-            "additionalProperties": false,
-            "required": [
-              "mqttClientName",
-              "managedIdentityName",
-              "loglevel",
-              "k8s"
-            ]
+                "serviceAccountName": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "namespace",
+                "serviceAccountName"
+              ]
+            }
           },
-          "agent": {
-            "type": "object",
-            "properties": {
-              "consumerName": {
-                "type": "string"
-              },
-              "loglevel": {
-                "type": "integer"
-              },
-              "sidecar":{
-                "type:": "object",
-                "properties": {
-                  "imageBase":{
-                    "type": "string"
-                  },
-                  "imageTag":{
-                    "type": "string"
-                  }
+          "additionalProperties": false,
+          "required": [
+            "mqttClientName",
+            "managedIdentityName",
+            "loglevel",
+            "k8s"
+          ]
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "consumerName": {
+              "type": "string"
+            },
+            "loglevel": {
+              "type": "integer"
+            },
+            "sidecar": {
+              "type:": "object",
+              "properties": {
+                "imageBase": {
+                  "type": "string"
+                },
+                "imageTag": {
+                  "type": "string"
                 }
               }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "consumerName",
+            "loglevel",
+            "sidecar"
+          ]
+        },
+        "eventGrid": {
+          "type": "object",
+          "properties": {
+            "maxClientSessionsPerAuthName": {
+              "type": "integer"
             },
-            "additionalProperties": false,
-            "required": [
-              "consumerName",
-              "loglevel",
-              "sidecar"
-            ]
-          },
-          "eventGrid": {
-            "type": "object",
-            "properties": {
-              "maxClientSessionsPerAuthName": {
-                "type": "integer"
-              },
-              "name": {
-                "type": "string"
-              },
-              "private": {
-                "type": "boolean"
-              }
+            "name": {
+              "type": "string"
             },
-            "additionalProperties": false,
-            "required": [
-              "maxClientSessionsPerAuthName",
-              "name",
-              "private"
-            ]
+            "private": {
+              "type": "boolean"
+            }
           },
-          "imageRepo": {
-            "type": "string"
-          },
-          "imageTag": {
-            "type": "string"
-          },
-          "postgres": {
-            "type": "object",
-            "properties": {
-              "deploy": {
-                "type": "boolean"
-              },
-              "name": {
-                "type": "string"
-              },
-              "private": {
-                "type": "boolean"
-              },
-              "serverStorageSizeGB": {
-                "type": "integer"
-              },
-              "serverVersion": {
-                "type": "string"
-              },
-              "minTLSVersion": {
-                "type": "string",
-                "enum": ["TLSV1.2", "TLSV1.3"]
-              },
-              "databaseName": {
-                "type": "string"
-              }
+          "additionalProperties": false,
+          "required": [
+            "maxClientSessionsPerAuthName",
+            "name",
+            "private"
+          ]
+        },
+        "imageRepo": {
+          "type": "string"
+        },
+        "imageTag": {
+          "type": "string"
+        },
+        "postgres": {
+          "type": "object",
+          "properties": {
+            "deploy": {
+              "type": "boolean"
             },
-            "additionalProperties": false,
-            "required": [
-              "deploy",
-              "name",
-              "private",
-              "serverStorageSizeGB",
-              "serverVersion",
-              "minTLSVersion",
-              "databaseName"
-            ]
-          },
-          "restrictIstioIngress": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "certIssuer",
-          "agent",
-          "server",
-          "eventGrid",
-          "imageRepo",
-          "imageTag",
-          "postgres",
-          "restrictIstioIngress"
-        ]
-      },
-      "mce": {
-        "type": "object",
-        "properties": {
-          "clcStateMetrics": {
-            "type": "object",
-            "properties": {
-              "imageDigest": {
-                "type": "string"
-              }
+            "name": {
+              "type": "string"
             },
-            "required": [
-              "imageDigest"
-            ]
-          }
-        },
-        "required": [
-          "clcStateMetrics"
-        ]
-      },
-      "mgmt": {
-        "type": "object",
-        "properties": {
-          "aks": {
-            "$ref": "#/definitions/aksConfig"
-          },
-          "rg": {
-            "type": "string"
-          },
-          "subscription": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "aks",
-          "rg",
-          "subscription"
-        ]
-      },
-      "mgmtKeyVault": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "private": {
-            "type": "boolean"
-          },
-          "softDelete": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "private",
-          "softDelete"
-        ]
-      },
-      "monitoring": {
-        "type": "object",
-        "properties": {
-          "grafanaAdminGroupPrincipalId": {
-            "type": "string"
-          },
-          "grafanaName": {
-            "type": "string"
-          },
-          "grafanaZoneRedundantMode": {
-            "$ref": "#/definitions/zoneRedundantMode"
-          },
-          "workspaceName": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "grafanaAdminGroupPrincipalId",
-          "grafanaName",
-          "grafanaZoneRedundantMode",
-          "workspaceName"
-        ]
-      },
-      "logs": {
-        "type": "object",
-        "properties": {
-          "namespace": {
-            "type": "string"
-          },
-          "msiName": {
-            "type": "string"
-          },
-          "serviceAccountName": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "namespace",
-          "msiName",
-          "serviceAccountName"
-        ]
-      },
-      "msiKeyVault": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "private": {
-            "type": "boolean"
-          },
-          "softDelete": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "private",
-          "softDelete"
-        ]
-      },
-      "ocpAcrName": {
-        "type": "string"
-      },
-      "ocpAcrZoneRedundantMode": {
-        "$ref": "#/definitions/zoneRedundantMode"
-      },
-      "oidcStorageAccountName": {
-        "type": "string"
-      },
-      "oidcZoneRedundantMode": {
-        "$ref": "#/definitions/zoneRedundantMode"
-      },
-      "region": {
-        "type": "string"
-      },
-      "regionRG": {
-        "type": "string"
-      },
-      "serviceKeyVault": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "private": {
-            "type": "boolean"
-          },
-          "region": {
-            "type": "string"
-          },
-          "rg": {
-            "type": "string"
-          },
-          "softDelete": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "private",
-          "region",
-          "rg",
-          "softDelete"
-        ]
-      },
-      "svc": {
-        "type": "object",
-        "properties": {
-          "aks": {
-            "$ref": "#/definitions/aksConfig"
-          },
-          "rg": {
-            "type": "string"
-          },
-          "subscription": {
-            "type": "string"
-          },
-          "istio": {
-            "type": "object",
-            "properties": {
-              "istioctlVersion": {
-                "description": "Latest version of istioctl. This is used to download the istioctl",
-                "type": "string"
-              },
-              "tag": {
-                "description": "The revision tag used in istioctl",
-                "type": "string"
-              },
-              "versions": {
-                "description": "The current istio version in the AKS cluster as CSV, will need to change to array once tooling is ready",
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
-              },
-              "targetVersion": {
-                "description": "The target istio version that will be updated to",
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9-]+$"
-              },
-              "ingressGatewayIPAddressName": {
-                "type": "string"
-              },
-              "ingressGatewayIPAddressIPTags": {
-                "$ref": "#/definitions/keyColonValueCSV"
-              }
+            "private": {
+              "type": "boolean"
             },
-            "additionalProperties": false,
-            "required": [
-              "ingressGatewayIPAddressName"
-            ]
+            "serverStorageSizeGB": {
+              "type": "integer"
+            },
+            "serverVersion": {
+              "type": "string"
+            },
+            "minTLSVersion": {
+              "type": "string",
+              "enum": [
+                "TLSV1.2",
+                "TLSV1.3"
+              ]
+            },
+            "databaseName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "deploy",
+            "name",
+            "private",
+            "serverStorageSizeGB",
+            "serverVersion",
+            "minTLSVersion",
+            "databaseName"
+          ]
+        },
+        "restrictIstioIngress": {
+          "type": "boolean"
         }
-        },
-        "additionalProperties": false,
-        "required": [
-          "rg",
-          "subscription",
-          "aks",
-          "istio"
-        ]
       },
-      "svcAcrName": {
-        "type": "string"
-      },
-      "svcAcrZoneRedundantMode": {
-        "$ref": "#/definitions/zoneRedundantMode"
-      }
+      "additionalProperties": false,
+      "required": [
+        "certIssuer",
+        "agent",
+        "server",
+        "eventGrid",
+        "imageRepo",
+        "imageTag",
+        "postgres",
+        "restrictIstioIngress"
+      ]
     },
-    "additionalProperties": false,
-    "required": [
-      "aroDevopsMsiId",
-      "kvCertOfficerPrincipalId",
-      "clusterService",
-      "cxKeyVault",
-      "firstPartyAppClientId",
-      "firstPartyAppCertName",
-      "frontend",
-      "global",
-      "hypershift",
-      "hypershiftOperator",
-      "imageSync",
-      "acrPullImageDigest",
-      "maestro",
-      "mgmt",
-      "mgmtKeyVault",
-      "mce",
-      "monitoring",
-      "msiKeyVault",
-      "ocpAcrName",
-      "ocpAcrZoneRedundantMode",
-      "oidcStorageAccountName",
-      "oidcZoneRedundantMode",
-      "region",
-      "regionRG",
-      "serviceKeyVault",
-      "svc",
-      "svcAcrName",
-      "svcAcrZoneRedundantMode"
-    ]
-  }
+    "mce": {
+      "type": "object",
+      "properties": {
+        "clcStateMetrics": {
+          "type": "object",
+          "properties": {
+            "imageDigest": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "imageDigest"
+          ]
+        }
+      },
+      "required": [
+        "clcStateMetrics"
+      ]
+    },
+    "mgmt": {
+      "type": "object",
+      "properties": {
+        "aks": {
+          "$ref": "#/definitions/aksConfig"
+        },
+        "rg": {
+          "type": "string"
+        },
+        "subscription": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "aks",
+        "rg",
+        "subscription"
+      ]
+    },
+    "mgmtKeyVault": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "softDelete": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "private",
+        "softDelete"
+      ]
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "grafanaAdminGroupPrincipalId": {
+          "type": "string"
+        },
+        "grafanaName": {
+          "type": "string"
+        },
+        "grafanaZoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "workspaceName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "grafanaAdminGroupPrincipalId",
+        "grafanaName",
+        "grafanaZoneRedundantMode",
+        "workspaceName"
+      ]
+    },
+    "logs": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "msiName": {
+          "type": "string"
+        },
+        "serviceAccountName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "msiName",
+        "serviceAccountName"
+      ]
+    },
+    "msiKeyVault": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "softDelete": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "private",
+        "softDelete"
+      ]
+    },
+    "ocpAcrName": {
+      "type": "string"
+    },
+    "ocpAcrZoneRedundantMode": {
+      "$ref": "#/definitions/zoneRedundantMode"
+    },
+    "oidcStorageAccountName": {
+      "type": "string"
+    },
+    "oidcZoneRedundantMode": {
+      "$ref": "#/definitions/zoneRedundantMode"
+    },
+    "region": {
+      "type": "string"
+    },
+    "regionRG": {
+      "type": "string"
+    },
+    "serviceKeyVault": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "region": {
+          "type": "string"
+        },
+        "rg": {
+          "type": "string"
+        },
+        "softDelete": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "private",
+        "region",
+        "rg",
+        "softDelete"
+      ]
+    },
+    "svc": {
+      "type": "object",
+      "properties": {
+        "aks": {
+          "$ref": "#/definitions/aksConfig"
+        },
+        "rg": {
+          "type": "string"
+        },
+        "subscription": {
+          "type": "string"
+        },
+        "istio": {
+          "type": "object",
+          "properties": {
+            "istioctlVersion": {
+              "description": "Latest version of istioctl. This is used to download the istioctl",
+              "type": "string"
+            },
+            "tag": {
+              "description": "The revision tag used in istioctl",
+              "type": "string"
+            },
+            "versions": {
+              "description": "The current istio version in the AKS cluster as CSV, will need to change to array once tooling is ready",
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
+            },
+            "targetVersion": {
+              "description": "The target istio version that will be updated to",
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "ingressGatewayIPAddressName": {
+              "type": "string"
+            },
+            "ingressGatewayIPAddressIPTags": {
+              "$ref": "#/definitions/keyColonValueCSV"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "ingressGatewayIPAddressName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rg",
+        "subscription",
+        "aks",
+        "istio"
+      ]
+    },
+    "svcAcrName": {
+      "type": "string"
+    },
+    "svcAcrZoneRedundantMode": {
+      "$ref": "#/definitions/zoneRedundantMode"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "aroDevopsMsiId",
+    "kvCertOfficerPrincipalId",
+    "clusterService",
+    "cxKeyVault",
+    "firstPartyAppClientId",
+    "firstPartyAppCertName",
+    "frontend",
+    "global",
+    "hypershift",
+    "hypershiftOperator",
+    "imageSync",
+    "acrPull",
+    "maestro",
+    "mgmt",
+    "mgmtKeyVault",
+    "mce",
+    "monitoring",
+    "msiKeyVault",
+    "ocpAcrName",
+    "ocpAcrZoneRedundantMode",
+    "oidcStorageAccountName",
+    "oidcZoneRedundantMode",
+    "region",
+    "regionRG",
+    "serviceKeyVault",
+    "svc",
+    "svcAcrName",
+    "svcAcrZoneRedundantMode"
+  ]
+}

@@ -1,5 +1,11 @@
 {
-  "acrPullImageDigest": "sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589",
+  "acrPull": {
+    "image": {
+      "digest": "sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589",
+      "registry": "mcr.microsoft.com",
+      "repository": "aks/msi-acrpull"
+    }
+  },
   "armHelperCertName": "armHelperCert2",
   "armHelperClientId": "3331e670-0804-48e8-a086-6241671ddc93",
   "armHelperFPAPrincipalId": "47f69502-0065-4d9a-b19b-d403e183d2f4",
@@ -95,14 +101,19 @@
     "namespace": "hypershift"
   },
   "hypershiftOperator": {
-    "imageTag": "1bb8b1a"
+    "image": {
+      "digest": "sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f",
+      "repository": "acm-d/rhtap-hypershift-operator"
+    }
   },
   "imageSync": {
     "acrRG": "global-shared-resources",
     "componentSync": {
       "enabled": true,
-      "imageRepo": "image-sync/component-sync",
-      "imageTag": "d1021e2",
+      "image": {
+        "digest": "sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f",
+        "repository": "image-sync/component-sync"
+      },
       "pullSecretName": "component-sync-pull-secret",
       "repositories": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,arohcpsvcdev.azurecr.io/image-sync/component-sync,arohcpsvcdev.azurecr.io/arohcpfrontend,arohcpsvcdev.azurecr.io/arohcpbackend,quay.io/acm-d/rhtap-hypershift-operator,arohcpsvcdev.azurecr.io/image-sync/oc-mirror,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
       "secrets": "quay.io:quay-io-bearer,arohcpsvcdev.azurecr.io:arohcpsvcdev-bearer"
@@ -115,8 +126,10 @@
     },
     "ocMirror": {
       "enabled": true,
-      "imageRepo": "image-sync/oc-mirror",
-      "imageTag": "d1021e2",
+      "image": {
+        "digest": "sha256:4affed9ff6397a5c44e9d1451fd58667f56e826b122819ccb6e1e8e045803c18",
+        "repository": "image-sync/oc-mirror"
+      },
       "pullSecretName": "ocp-pull-secret"
     },
     "rg": "global-shared-resources"

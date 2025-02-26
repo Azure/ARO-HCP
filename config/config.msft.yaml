@@ -16,7 +16,12 @@ defaults:
   ocpAcrZoneRedundantMode: Enabled
 
   # ACR Pull
-  acrPullImageDigest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
+  acrPull:
+    image:
+      registry: mcr.microsoft.com
+      repository: aks/msi-acrpull
+      digest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
+
 
   # Hypershift
   hypershift:
@@ -142,13 +147,15 @@ defaults:
     environmentName: global-shared-resources
     componentSync:
       enabled: true
-      imageRepo: image-sync/component-sync
+      image:
+        repository: image-sync/component-sync
       repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,arohcpsvcdev.azurecr.io/image-sync/component-sync,arohcpsvcdev.azurecr.io/arohcpfrontend,arohcpsvcdev.azurecr.io/arohcpbackend,quay.io/acm-d/rhtap-hypershift-operator,arohcpsvcdev.azurecr.io/image-sync/oc-mirror,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
       secrets: 'quay.io:quay-io-bearer,arohcpsvcdev.azurecr.io:arohcpsvcdev-bearer'
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
-      imageRepo: image-sync/oc-mirror
+      image:
+        repository: image-sync/oc-mirror
       pullSecretName: ocp-pull-secret
     keyVault:
       name: arohcp-imagesync-int
@@ -208,12 +215,16 @@ clouds:
         image:
           digest: sha256:aaa14dad6c01f06f2c380e0333db56097aa7b1dd8e696d9b3a8848d7d5362be0
       hypershiftOperator:
-        imageTag: 1bb8b1a
+        image:
+          repository: acm-d/rhtap-hypershift-operator
+          digest: sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f
       imageSync:
         componentSync:
-          imageTag: d1021e2
+          image:
+            digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
         ocMirror:
-          imageTag: d1021e2
+          image:
+            digest: sha256:4affed9ff6397a5c44e9d1451fd58667f56e826b122819ccb6e1e8e045803c18
       frontend:
         imageTag: 8dab517
       backend:

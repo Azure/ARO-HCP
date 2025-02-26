@@ -11,7 +11,11 @@ defaults:
     safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
 
   # ACR Pull
-  acrPullImageDigest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
+  acrPull:
+    image:
+      registry: mcr.microsoft.com
+      repository: aks/msi-acrpull
+      digest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
 
   # Hypershift
   hypershift:
@@ -126,15 +130,17 @@ defaults:
     environmentName: aro-hcp-image-sync
     componentSync:
       enabled: true
-      imageRepo: image-sync/component-sync
-      imageTag: d1021e2
+      image:
+        repository: image-sync/component-sync
+        digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
       repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager
       secrets: 'quay.io:bearer-secret'
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
-      imageRepo: image-sync/oc-mirror
-      imageTag: d1021e2
+      image:
+        repository: image-sync/oc-mirror
+        digest: sha256:4affed9ff6397a5c44e9d1451fd58667f56e826b122819ccb6e1e8e045803c18
       pullSecretName: pull-secret
     keyVault:
       name: arohcp-imagesync-dev
@@ -217,7 +223,9 @@ clouds:
             roleName: Azure Red Hat OpenShift KMS Plugin - Dev
       # Hypershift Operator
       hypershiftOperator:
-        imageTag: 1bb8b1a
+        image:
+          repository: acm-d/rhtap-hypershift-operator
+          digest: sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f
       # Frontend
       frontend:
         imageTag: '' # if empty uses commit sha of repo
