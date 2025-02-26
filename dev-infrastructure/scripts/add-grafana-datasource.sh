@@ -16,13 +16,6 @@ MONITOR_RG=${ADDR[4]}
 MONITOR_NAME=${ADDR[8]}
 IFS=' '
 
-echo "Grafana subscription id: ${GRAFANA_SUBSCRIPTION_ID}"
-echo "Grafana resource group: ${GRAFANA_RG}"
-echo "Grafana name: ${GRAFANA_NAME}"
-echo "Monitor subscription id: ${MONITOR_DATA_SOURCE_SUBSCRIPTION_ID}"
-echo "Monitor resource group: ${MONITOR_RG}"
-echo "Monitor name: ${MONITOR_NAME}"
-
 # lookup existing azure monitoring workspace registration
 MONITOR_DATA_SOURCE="Managed_Prometheus_${MONITOR_NAME}"
 EXISTING_DATA_SOURCE_URL=$(az grafana data-source list --name ${GRAFANA_NAME} \
