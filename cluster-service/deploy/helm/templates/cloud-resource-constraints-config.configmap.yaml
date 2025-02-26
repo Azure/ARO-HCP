@@ -10,6 +10,9 @@ data:
       - id: Standard_D8s_v3
         ccs_only: true
         enabled: true
+      - id: Standard_D8ps_v6
+        ccs_only: true
+        enabled: true
   cloud-region-constraints.yaml: |
     cloud_regions:
       - id: {{ .Values.region }}

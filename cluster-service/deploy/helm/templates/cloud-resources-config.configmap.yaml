@@ -15,6 +15,15 @@ data:
         category: general_purpose
         size: d8s_v3
         generic_name: standard-d8s_v3
+      - id: Standard_D8ps_v6
+        name: D8ps_v6 - General purpose
+        cloud_provider_id: azure
+        cpu_cores: 8
+        memory: 34359738368
+        category: general_purpose
+        size: d8ps_v6
+        generic_name: standard-d8ps_v6
+        architecture: arm64
   cloud-regions.yaml: |
     cloud_regions:
       - id: {{ .Values.region }}
