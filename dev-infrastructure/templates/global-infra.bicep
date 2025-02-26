@@ -1,3 +1,8 @@
+import { getLocationAvailabilityZonesCSV, determineZoneRedundancy, csvToArray } from '../modules/common.bicep'
+
+@description('Azure Global Location')
+param location string = resourceGroup().location
+
 @description('The global msi name')
 param globalMSIName string
 
@@ -10,10 +15,53 @@ param svcParentZoneName string
 @description('Domain Team MSI to delegate child DNS')
 param safeDnsIntAppObjectId string
 
-resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+@description('Global Grafana instance name')
+param grafanaName string
+
+@description('The admin group principal ID to use Grafana')
+param grafanaAdminGroupPrincipalId string
+
+@description('The zone redundant mode of Grafana')
+param grafanaZoneRedundantMode string
+
+@description('Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location')
+param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
+var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
+
+//
+//  G L O B A L   M S I
+//
+
+resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: globalMSIName
   location: resourceGroup().location
 }
+
+//
+//   R E A D E R   R O L E S
+//
+// service deployments running as the aroDevopsMsi need to lookup metadata about all kinds
+// of resources, e.g. AKS metadata, database metadata, MI metadata, etc.
+
+// Reader role
+// https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
+var readerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
+
+resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, globalMSI.id, readerRoleId)
+  properties: {
+    principalId: globalMSI.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: readerRoleId
+  }
+}
+
+//
+//   P A R E N T   Z O N E S
+//
 
 resource cxParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: cxParentZoneName
@@ -28,24 +76,6 @@ resource svcParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
 // DNS Zone Contributor: Lets SafeDnsIntApplication manage DNS zones and record sets in Azure DNS, but does not let it control who has access to them.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/networking#dns-zone-contributor
 var dnsZoneContributor = 'befefa01-2a29-4197-83a8-272ff33ce314'
-
-// Reader role
-// https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
-var readerRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-)
-
-// service deployments running as the aroDevopsMsi need to lookup metadata about all kinds
-// of resources, e.g. AKS metadata, database metadata, MI metadata, etc.
-resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, ev2MSI.id, readerRoleId)
-  properties: {
-    principalId: ev2MSI.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 resource cxParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(cxParentZone.id, safeDnsIntAppObjectId, dnsZoneContributor)
@@ -64,5 +94,35 @@ resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@20
     principalId: safeDnsIntAppObjectId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', dnsZoneContributor)
+  }
+}
+
+//
+//   G R A F A N A
+//
+
+// why do we read the registered workspace IDs and feed it into grafana creation again?
+// becaue the grafana ARM resource expects the list to be provided or otherwise wipes the
+// existing integrations. This is a workaround to keep the existing integrations while
+// still being able to reconcile the grafana resource itself.
+// we might want to have another source of truth for the integrations in the future, e.g.
+// some sort of inventory of the regions of ARO HCP
+
+module grafanaWorkspaceIdLookup '../modules/grafana/integration-lookup.bicep' = {
+  name: 'grafana-workspace-lookup'
+  params: {
+    grafanaName: grafanaName
+    deploymentScriptIdentityId: globalMSI.id
+  }
+}
+
+module grafana '../modules/grafana/instance.bicep' = {
+  name: 'grafana'
+  params: {
+    grafanaName: grafanaName
+    grafanaAdminGroupPrincipalId: grafanaAdminGroupPrincipalId
+    grafanaManagerPrincipalId: globalMSI.properties.principalId
+    zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
+    azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
   }
 }

@@ -5,17 +5,13 @@ resourceGroups:
 - name: {{ .global.rg }}
   subscription: {{ .global.subscription }}
   steps:
-  # creates the parent DNS zones for the ARO HCP services
+  # creates global infra
+  # * the parent DNS zones for the ARO HCP services
+  # * the global Grafana instance
   - name: global-infra
     action: ARM
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-  # creates the global Grafana instance for the ARO HCP services
-  - name: global-grafana
-    action: ARM
-    template: templates/global-grafana.bicep
-    parameters: configurations/global-grafana.tmpl.bicepparam
     deploymentLevel: ResourceGroup
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
