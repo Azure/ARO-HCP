@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -191,10 +192,13 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			ctx := request.Context()
 			ctx = ContextWithLogger(ctx, slog.Default())
 			ctx = ContextWithDBClient(ctx, mockDBClient)
+			ctx, sr := initSpanRecorder(ctx)
 			request = request.WithContext(ctx)
+
 			next := func(w http.ResponseWriter, r *http.Request) {
 				request = r // capture modified request
 			}
+
 			if tt.requestPath == defaultRequestPath {
 				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 				mockDBClient.EXPECT().
@@ -217,6 +221,12 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.expectedState, doc.Subscription.State)
+
+			// Check that the attributes have been added to the span too.
+			ss := sr.collect()
+			require.Len(t, ss, 1)
+			span := ss[0]
+			equalSpanAttributes(t, span, map[string]string{"aro.subscription.state": string(doc.Subscription.State)})
 		})
 	}
 

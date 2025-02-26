@@ -4,6 +4,7 @@ package frontend
 // Licensed under the Apache License 2.0.
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 )
 
 func TestMiddlewareResourceID(t *testing.T) {
@@ -19,6 +22,7 @@ func TestMiddlewareResourceID(t *testing.T) {
 		name          string
 		path          string
 		resourceTypes []string
+		expectedErr   bool
 	}{
 		{
 			name: "subscription resource",
@@ -92,6 +96,12 @@ func TestMiddlewareResourceID(t *testing.T) {
 				"Microsoft.Resources/tenants",
 			},
 		},
+		{
+			name:          "invalid path",
+			path:          "/healthz",
+			resourceTypes: []string{},
+			expectedErr:   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -101,9 +111,13 @@ func TestMiddlewareResourceID(t *testing.T) {
 			// Convert path to simulate MiddlewareLowercase
 			url := "http://example.com" + strings.ToLower(tt.path)
 
-			request := httptest.NewRequest("GET", url, nil)
-			request = request.WithContext(ContextWithLogger(request.Context(), slog.Default()))
-			request = request.WithContext(ContextWithOriginalPath(request.Context(), tt.path))
+			ctx := context.Background()
+			ctx = ContextWithLogger(ctx, slog.Default())
+			ctx = ContextWithOriginalPath(ctx, tt.path)
+
+			ctx, sr := initSpanRecorder(ctx)
+
+			request := httptest.NewRequestWithContext(ctx, "GET", url, nil)
 
 			next := func(w http.ResponseWriter, r *http.Request) {
 				request = r // capture modified request
@@ -113,9 +127,11 @@ func TestMiddlewareResourceID(t *testing.T) {
 			MiddlewareResourceID(writer, request, next)
 
 			resourceID, err := ResourceIDFromContext(request.Context())
-			if err != nil {
-				t.Error(err)
+			if tt.expectedErr {
+				require.Error(t, err)
+				return
 			}
+			require.NoError(t, err)
 
 			resourceTypes := []string{}
 			for resourceID != nil {
@@ -126,6 +142,13 @@ func TestMiddlewareResourceID(t *testing.T) {
 			if !reflect.DeepEqual(resourceTypes, tt.resourceTypes) {
 				t.Error(cmp.Diff(resourceTypes, tt.resourceTypes))
 			}
+
+			// Check that the "cloud.resource_id" attribute has been added and isn't empty.
+			ss := sr.collect()
+			require.Len(t, ss, 1)
+			require.Len(t, ss[0].Attributes(), 1)
+			require.Equal(t, semconv.CloudResourceIDKey, ss[0].Attributes()[0].Key)
+			require.NotEmpty(t, ss[0].Attributes()[0].Value.AsString())
 		})
 	}
 }

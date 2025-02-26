@@ -11,10 +11,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/baggage"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -28,7 +29,6 @@ func TestMiddlewareTracing(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		data *arm.CorrelationData
-		//withoutSpanContext bool
 
 		expectedAttrs   map[string]string
 		expectedBaggage map[string]string
@@ -37,10 +37,10 @@ func TestMiddlewareTracing(t *testing.T) {
 			name: "empty correlation data",
 			data: &arm.CorrelationData{},
 			expectedAttrs: map[string]string{
-				"aro.request.id": "00000000-0000-0000-0000-000000000000",
+				"aro.request_id": "00000000-0000-0000-0000-000000000000",
 			},
 			expectedBaggage: map[string]string{
-				"aro.request.id": "00000000-0000-0000-0000-000000000000",
+				"aro.request_id": "00000000-0000-0000-0000-000000000000",
 			},
 		},
 		{
@@ -51,26 +51,21 @@ func TestMiddlewareTracing(t *testing.T) {
 				CorrelationRequestID: testCorrelationRequestID,
 			},
 			expectedAttrs: map[string]string{
-				"aro.request.id":        testRequestID.String(),
-				"aro.client.request.id": testClientRequestID,
-				"aro.correlation.id":    testCorrelationRequestID,
+				"aro.request_id":        testRequestID.String(),
+				"aro.client.request_id": testClientRequestID,
+				"aro.correlation_id":    testCorrelationRequestID,
 			},
 			expectedBaggage: map[string]string{
-				"aro.request.id":        testRequestID.String(),
-				"aro.client.request.id": testClientRequestID,
-				"aro.correlation.id":    testCorrelationRequestID,
+				"aro.request_id":        testRequestID.String(),
+				"aro.client.request_id": testClientRequestID,
+				"aro.correlation_id":    testCorrelationRequestID,
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup the testing tracer.
-			inMemoryExporter := tracetest.NewInMemoryExporter()
-			tp := sdktrace.NewTracerProvider(
-				sdktrace.WithSpanProcessor(
-					sdktrace.NewSimpleSpanProcessor(inMemoryExporter),
-				),
-			)
-			otel.SetTracerProvider(tp)
+			sr := tracetest.NewSpanRecorder()
+			tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
 
 			var (
 				ctx = context.Background()
@@ -87,26 +82,13 @@ func TestMiddlewareTracing(t *testing.T) {
 			}
 
 			writer := httptest.NewRecorder()
-			MiddlewareTracing(writer, req, next)
+			middlewareTracing(writer, req, next, otelhttp.WithTracerProvider(tp))
 
-			stubs := inMemoryExporter.GetSpans()
-			ss := stubs.Snapshots()
+			ss := sr.Ended()
 
-			// Check the span attributes.
 			assert.Len(t, ss, 1)
 			span := ss[0]
-			for k, v := range tc.expectedAttrs {
-				var found bool
-				for _, attr := range span.Attributes() {
-					if string(attr.Key) == k {
-						assert.Equal(t, v, attr.Value.AsString())
-						found = true
-						continue
-					}
-				}
-
-				assert.True(t, found)
-			}
+			containSpanAttributes(t, span, tc.expectedAttrs)
 
 			// Check that the baggage has been extended.
 			assert.Len(t, b.Members(), len(tc.expectedBaggage))
@@ -115,4 +97,55 @@ func TestMiddlewareTracing(t *testing.T) {
 			}
 		})
 	}
+}
+
+// equalSpanAttributes ensures that the span's attributes are strictly equal to
+// the expected map.
+func equalSpanAttributes(t *testing.T, span sdktrace.ReadOnlySpan, expected map[string]string) {
+	t.Helper()
+	assert.Len(t, span.Attributes(), len(expected))
+	containSpanAttributes(t, span, expected)
+}
+
+// containSpanAttributes ensures that all the key/value pairs of the map are
+// found in the span's attributes.
+// Compared to equalSpanAttributes(), it won't fail if there are more
+// attributes than expected in the span.
+func containSpanAttributes(t *testing.T, span sdktrace.ReadOnlySpan, expected map[string]string) {
+	t.Helper()
+
+	for k, v := range expected {
+		var found bool
+		for _, attr := range span.Attributes() {
+			if string(attr.Key) == k {
+				assert.Equal(t, v, attr.Value.AsString(), "span attribute %q", k)
+				found = true
+				continue
+			}
+		}
+
+		if !found {
+			t.Errorf("expected span attribute %q but found none", k)
+		}
+	}
+}
+
+// initSpanRecorder returns a child context containing a new root span and a
+// span recorder to introspect the final span and children.
+func initSpanRecorder(ctx context.Context) (context.Context, *spanRecorder) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	ctx, span := tp.Tracer("test").Start(ctx, "root", trace.WithNewRoot())
+
+	return ctx, &spanRecorder{sr: sr, span: span}
+}
+
+type spanRecorder struct {
+	sr   *tracetest.SpanRecorder
+	span trace.Span
+}
+
+func (sr *spanRecorder) collect() []sdktrace.ReadOnlySpan {
+	sr.span.End()
+	return sr.sr.Ended()
 }

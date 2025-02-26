@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 )
@@ -31,40 +32,36 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 
 	type testCase struct {
 		name            string
-		want            []slog.Attr
+		wantLogAttrs    []slog.Attr
+		wantSpanAttrs   map[string]string
 		setReqPathValue ReqPathModifier
 	}
 
 	tests := []testCase{
 		{
 			name:            "handles the common logging attributes",
-			want:            []slog.Attr{},
+			wantLogAttrs:    []slog.Attr{},
 			setReqPathValue: noModifyReqfunc,
 		},
 		{
-			name: "handles the common attributes and the attributes for the subscription_id segment path",
-			want: []slog.Attr{slog.String("subscription_id", fakeSubscriptionId)},
+			name:          "handles the common attributes and the attributes for the subscription_id segment path",
+			wantLogAttrs:  []slog.Attr{slog.String("subscription_id", fakeSubscriptionId)},
+			wantSpanAttrs: map[string]string{"aro.subscription.id": fakeSubscriptionId},
 			setReqPathValue: func(req *http.Request) {
 				req.SetPathValue(PathSegmentSubscriptionID, fakeSubscriptionId)
 			},
 		},
 		{
-			name: "handles the common attributes and the attributes for the resourcegroupname path",
-			want: []slog.Attr{slog.String("resource_group", fakeResourceGroupName)},
-			setReqPathValue: func(req *http.Request) {
-				req.SetPathValue(PathSegmentResourceGroupName, fakeResourceGroupName)
-			},
-		},
-		{
-			name: "handles the common attributes and the attributes for the resourcegroupname path",
-			want: []slog.Attr{slog.String("resource_group", fakeResourceGroupName)},
+			name:          "handles the common attributes and the attributes for the resourcegroupname path",
+			wantLogAttrs:  []slog.Attr{slog.String("resource_group", fakeResourceGroupName)},
+			wantSpanAttrs: map[string]string{"aro.resource_group.name": fakeResourceGroupName},
 			setReqPathValue: func(req *http.Request) {
 				req.SetPathValue(PathSegmentResourceGroupName, fakeResourceGroupName)
 			},
 		},
 		{
 			name: "handles the common attributes and the attributes for the resourcename path, and produces the correct resourceID attribute",
-			want: []slog.Attr{
+			wantLogAttrs: []slog.Attr{
 				slog.String("subscription_id", fakeSubscriptionId),
 				slog.String("resource_group", fakeResourceGroupName),
 				slog.String("resource_name", fakeResourceName),
@@ -76,6 +73,11 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 						fakeResourceGroupName,
 						api.ClusterResourceType,
 						fakeResourceName)),
+			},
+			wantSpanAttrs: map[string]string{
+				"aro.subscription.id":     fakeSubscriptionId,
+				"aro.resource_group.name": fakeResourceGroupName,
+				"aro.resource.name":       fakeResourceName,
 			},
 			setReqPathValue: func(req *http.Request) {
 				// assuming the PathSegmentResourceName is present in the Path
@@ -99,6 +101,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			)
 
 			ctx := ContextWithLogger(context.Background(), logger)
+			ctx, sr := initSpanRecorder(ctx)
 			req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 			assert.NoError(t, err)
 			tt.setReqPathValue(req)
@@ -114,12 +117,18 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 
 			// Check that the contextual logger has the expected attributes.
 			lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
-			assert.Equal(t, 1, len(lines))
+			require.Equal(t, 1, len(lines))
 
 			line := string(lines[0])
-			for _, attr := range tt.want {
+			for _, attr := range tt.wantLogAttrs {
 				assert.Contains(t, line, attr.String())
 			}
+
+			// Check that the attributes have been added to the span too.
+			ss := sr.collect()
+			require.Len(t, ss, 1)
+			span := ss[0]
+			equalSpanAttributes(t, span, tt.wantSpanAttrs)
 		})
 	}
 }

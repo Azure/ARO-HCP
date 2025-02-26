@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 
 // MiddlewareTracing starts an OpenTelemetry span wrapping all incoming HTTP
@@ -22,27 +23,36 @@ import (
 // The middleware expects that the trace provider is initialized and configured
 // in advance.
 func MiddlewareTracing(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	otelhttp.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var (
-			ctx    = r.Context()
-			logger = LoggerFromContext(ctx)
-		)
+	middlewareTracing(w, r, next)
+}
 
-		data, err := CorrelationDataFromContext(ctx)
-		if err != nil {
-			span := trace.SpanFromContext(ctx)
-			span.RecordError(err)
-			logger.ErrorContext(ctx, "failed to find correlation data in context", "error", err)
+// middlewareTracing allows to modify the default otelhttp handler for the tests.
+func middlewareTracing(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, opts ...otelhttp.Option) {
+	otelhttp.NewHandler(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var (
+				ctx    = r.Context()
+				logger = LoggerFromContext(ctx)
+			)
+
+			data, err := CorrelationDataFromContext(ctx)
+			if err != nil {
+				span := trace.SpanFromContext(ctx)
+				span.RecordError(err)
+				logger.ErrorContext(ctx, "failed to find correlation data in context", "error", err)
+				next(w, r)
+				return
+			}
+
+			ctx = addCorrelationDataToSpanContext(ctx, data)
+
+			r = r.WithContext(ctx)
+
 			next(w, r)
-			return
-		}
-
-		r = r.WithContext(
-			addCorrelationDataToSpanContext(ctx, data),
-		)
-
-		next(w, r)
-	}), fmt.Sprintf("HTTP %s", r.Method)).ServeHTTP(w, r)
+		}),
+		fmt.Sprintf("HTTP %s", r.Method),
+		opts...,
+	).ServeHTTP(w, r)
 }
 
 // addCorrelationDataToSpanContext adds the correlation data as attributes to
@@ -58,19 +68,19 @@ func addCorrelationDataToSpanContext(ctx context.Context, data *arm.CorrelationD
 	// Calling New() without any member never returns an error.
 	bag, _ := baggage.New()
 	for _, e := range []struct {
-		name  string
+		attr  attribute.Key
 		value string
 	}{
 		{
-			name:  "aro.correlation.id",
+			attr:  tracing.CorrelationIDKey,
 			value: data.CorrelationRequestID,
 		},
 		{
-			name:  "aro.client.request.id",
+			attr:  tracing.ClientRequestIDKey,
 			value: data.ClientRequestID,
 		},
 		{
-			name:  "aro.request.id",
+			attr:  tracing.RequestIDKey,
 			value: data.RequestID.String(),
 		},
 	} {
@@ -78,11 +88,11 @@ func addCorrelationDataToSpanContext(ctx context.Context, data *arm.CorrelationD
 			continue
 		}
 
-		span.SetAttributes(attribute.String(e.name, e.value))
+		span.SetAttributes(e.attr.String(e.value))
 
-		m, err := baggage.NewMemberRaw(e.name, e.value)
+		m, err := baggage.NewMemberRaw(string(e.attr), e.value)
 		if err != nil {
-			msg := fmt.Sprintf("unable to create baggage member %q", e.name)
+			msg := fmt.Sprintf("unable to create baggage member %q", e.attr)
 			span.RecordError(fmt.Errorf("%s: %w", msg, err))
 			logger.ErrorContext(ctx, msg, "error", err)
 
