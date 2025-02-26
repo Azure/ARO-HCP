@@ -24,7 +24,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	AutoRepair        bool                    `json:"autoRepair,omitempty" visibility:"read create"`
 	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty" visibility:"read create update"`
 	Labels            map[string]string       `json:"labels,omitempty" visibility:"read create update"`
-	Taints            []*Taint                `json:"taints,omitempty" visibility:"read create update"`
+	Taints            []*Taint                `json:"taints,omitempty" visibility:"read create update"   validate:"dive"`
 	TuningConfigs     []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
 }
 
