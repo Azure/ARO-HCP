@@ -46,7 +46,9 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
     type: 'SystemAssigned'
   }
   properties: {
-    zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode) ? 'Enabled' : 'Disabled'
+    zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
+      ? 'Enabled'
+      : 'Disabled'
   }
 }
 
