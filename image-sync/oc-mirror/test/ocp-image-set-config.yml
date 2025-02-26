@@ -11,8 +11,8 @@ mirror:
         minVersion: 4.17.0
         maxVersion: 4.17.0
         type: ocp
-      - name: candidate-4.18
-        minVersion: 4.18.0-rc.6
+      - name: stable-4.18
+        minVersion: 4.18.1
         full: true
         type: ocp
     graph: true
