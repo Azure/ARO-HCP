@@ -799,8 +799,8 @@
           "grafanaName": {
             "type": "string"
           },
-          "msiName": {
-            "type": "string"
+          "grafanaZoneRedundantMode": {
+            "$ref": "#/definitions/zoneRedundantMode"
           },
           "workspaceName": {
             "type": "string"
@@ -810,7 +810,7 @@
         "required": [
           "grafanaAdminGroupPrincipalId",
           "grafanaName",
-          "msiName",
+          "grafanaZoneRedundantMode",
           "workspaceName"
         ]
       },

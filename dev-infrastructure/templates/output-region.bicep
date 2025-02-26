@@ -13,4 +13,5 @@ resource maestroEventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-pr
 }
 
 output azureMonitoringWorkspaceId string = monitor.id
+output monitorPrometheusQueryEndpoint string = monitor.properties.metrics.prometheusQueryEndpoint
 output maestroEventGridNamespaceId string = maestroEventGridNamespace.id

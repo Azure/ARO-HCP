@@ -71,3 +71,15 @@ func eventgridNamespaceRefFromId(eventgridNamespaceResourceId string) eventgridN
   resourceGroup: resourceGroupFromResourceId(eventgridNamespaceResourceId)
   name: last(split(eventgridNamespaceResourceId, '/'))
 }
+
+@export()
+type grafanaRef = {
+  resourceGroup: resourceGroupReference
+  name: string
+}
+
+@export()
+func grafanaRefFromId(grafanaResourceId string) grafanaRef => {
+  resourceGroup: resourceGroupFromResourceId(grafanaResourceId)
+  name: last(split(grafanaResourceId, '/'))
+}

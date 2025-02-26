@@ -294,7 +294,7 @@ clouds:
       monitoring:
         workspaceName: 'arohcp-{{ .ctx.regionShort }}'
         grafanaName: 'arohcp-dev'
-        msiName: 'aro-hcp-metrics-msi-{{ .ctx.regionShort }}'
+        grafanaZoneRedundantMode: Disabled
         grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
       # Logs
       logs:

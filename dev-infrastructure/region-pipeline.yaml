@@ -52,23 +52,41 @@ resourceGroups:
     template: modules/metrics/metrics.bicep
     parameters: configurations/metrics.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: grafanaResourceId
+      input:
+        step: global-output
+        name: grafanaResourceId
     dependsOn:
     - region
-# this will not work in case grafana is in another subscription as the workspace
-# - name: {{ .global.rg }}
-#   subscription: {{ .global.subscription }}
-#   steps:
-#   - name: add-grafana-datasource
-#     action: Shell
-#     command: scripts/add-grafana-datasource.sh
-#     variables:
-#       - name: GRAFANA_NAME
-#         configRef: monitoring.grafanaName
-#       - name: GRAFANA_RG
-#         configRef: global.rg
-#       - name: MONITOR_NAME
-#         configRef: monitoring.workspaceName
-#       - name: MONITOR_RG
-#         configRef: regionRG
-#     dependsOn:
-#     - metrics-infra
+  - name: region-output
+    action: ARM
+    template: templates/output-region.bicep
+    parameters: configurations/output-region.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - region
+    - metrics-infra
+- name: {{ .global.rg }}
+  subscription: {{ .global.subscription }}
+  steps:
+  - name: add-grafana-datasource
+    action: Shell
+    command: scripts/add-grafana-datasource.sh
+    variables:
+      - name: GRAFANA_RESOURCE_ID
+        input:
+          step: global-output
+          name: grafanaResourceId
+      - name: PROM_QUERY_URL
+        input:
+          step: region-output
+          name: monitorPrometheusQueryEndpoint
+      - name: MONITOR_ID
+        input:
+          step: region-output
+          name: azureMonitoringWorkspaceId
+    dependsOn:
+    - metrics-infra
+    - region-output
