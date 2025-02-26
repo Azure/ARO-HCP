@@ -4,7 +4,6 @@ HELM_CMD ?= helm upgrade --install
 
 CURRENT_COMMIT := $(shell git rev-parse --short=7 HEAD)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-ARO_HCP_IMAGE_REPOSITORY ?= arohcpbackend
 ARO_HCP_BACKEND_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ARO_HCP_IMAGE_REPOSITORY)
 
 .DEFAULT_GOAL := backend
@@ -37,7 +36,7 @@ push: image
 .PHONY: push
 
 deploy:
-	IMAGE_TAG=$$(../get-tag.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
+	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
 	BACKEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n backend \
@@ -51,9 +50,9 @@ deploy:
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE}:$${IMAGE_TAG} \
+		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE}:$${DIGEST} \
 		--set configMap.location=${LOCATION} \
-		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE}:$${IMAGE_TAG} \
+		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE}@$${DIGEST} \
 		--namespace aro-hcp
 .PHONY: deploy
 
