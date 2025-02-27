@@ -11,7 +11,10 @@
   "armHelperFPAPrincipalId": "47f69502-0065-4d9a-b19b-d403e183d2f4",
   "aroDevopsMsiId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity",
   "backend": {
-    "imageTag": ""
+    "image": {
+      "digest": "",
+      "repository": "arohcpbackend"
+    }
   },
   "clusterService": {
     "azureOperatorsManagedIdentities": {
@@ -87,7 +90,10 @@
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
-    "imageTag": ""
+    "image": {
+      "digest": "",
+      "repository": "arohcpfrontend"
+    }
   },
   "global": {
     "globalMSIName": "global-rollout-identity",
