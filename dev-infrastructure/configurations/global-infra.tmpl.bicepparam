@@ -9,3 +9,5 @@ param safeDnsIntAppObjectId = '{{ .global.safeDnsIntAppObjectId }}'
 param grafanaName = '{{ .monitoring.grafanaName }}'
 param grafanaAdminGroupPrincipalId = '{{ .monitoring.grafanaAdminGroupPrincipalId }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'
+
+param enableLogAnalytics = {{ .logs.enableLogAnalytics }}

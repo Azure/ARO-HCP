@@ -42,7 +42,12 @@ resourceGroups:
       input:
         step: svc-output
         name: cs
+    - name: logAnalyticsWorkspaceId
+      input:
+        step: global-output
+        name: logAnalyticsWorkspaceId
     dependsOn:
+    - global-output
     - svc-output
   # Configure certificate issuers for the MC KVs
   - name: cx-oncert-public-kv-issuer
@@ -98,6 +103,10 @@ resourceGroups:
       input:
         step: region-output
         name: maestroEventGridNamespaceId
+    - name: logAnalyticsWorkspaceId
+      input:
+        step: global-output
+        name: logAnalyticsWorkspaceId
     dependsOn:
     - cx-oncert-public-kv-issuer
     - mgmt-oncert-private-kv-issuer

@@ -201,6 +201,9 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
+// Log Analytics Workspace ID will be passed from global pipeline if enabled in config
+param logAnalyticsWorkspaceId string = ''
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -267,6 +270,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       }
     })
     aksKeyVaultName: aksKeyVaultName
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     aroDevopsMsiId: aroDevopsMsiId
     dcrId: dataCollection.outputs.dcrId
