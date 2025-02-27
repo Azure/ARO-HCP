@@ -6,15 +6,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -70,7 +70,8 @@ func TestCreateNodePool(t *testing.T) {
 		{
 			name:    "PUT Node Pool - Create a new Node Pool",
 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
-			subDoc: database.NewSubscriptionDocument(dummySubscriptionId,
+			subDoc: database.NewSubscriptionDocument(
+				dummySubscriptionId,
 				&arm.Subscription{
 					State:            arm.SubscriptionStateRegistered,
 					RegistrationDate: api.Ptr(time.Now().String()),
@@ -78,7 +79,6 @@ func TestCreateNodePool(t *testing.T) {
 				}),
 			clusterDoc:         clusterDoc,
 			nodePoolDoc:        nodePoolDoc,
-			systemData:         &arm.SystemData{},
 			expectedStatusCode: http.StatusCreated,
 		},
 	}
@@ -90,26 +90,22 @@ func TestCreateNodePool(t *testing.T) {
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
 			reg := prometheus.NewRegistry()
 
-			f := &Frontend{
-				dbClient:             mockDBClient,
-				metrics:              NewPrometheusEmitter(reg),
-				clusterServiceClient: mockCSClient,
-			}
+			f := NewFrontend(
+				testLogger,
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				mockCSClient,
+			)
 
 			requestHeader := make(http.Header)
 			requestHeader.Add(arm.HeaderNameHomeTenantID, dummyTenantId)
 
 			body, _ := json.Marshal(requestBody)
 
-			ts := httptest.NewServer(f.routes())
-			ts.Config.BaseContext = func(net.Listener) context.Context {
-				ctx := context.Background()
-				ctx = ContextWithLogger(ctx, testLogger) // defined in frontend_test.go
-				ctx = ContextWithDBClient(ctx, f.dbClient)
-				ctx = ContextWithSystemData(ctx, test.systemData)
-
-				return ctx
-			}
+			ts := newHTTPServer(f, ctrl, mockDBClient, test.subDoc)
 
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().
@@ -126,11 +122,11 @@ func TestCreateNodePool(t *testing.T) {
 			// MiddlewareLockSubscription
 			mockDBClient.EXPECT().
 				GetLockClient()
-			// MiddlewareValidateSubscriptionState and MetricsMiddleware
+			// MiddlewareValidateSubscriptionState
 			mockDBClient.EXPECT().
 				GetSubscriptionDoc(gomock.Any(), test.subDoc.ID).
 				Return(test.subDoc, nil).
-				Times(2)
+				Times(1)
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
 				GetResourceDoc(gomock.Any(), equalResourceID(test.nodePoolDoc.ResourceID)).
@@ -155,19 +151,16 @@ func TestCreateNodePool(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(arm.HeaderNameARMResourceSystemData, "{}")
 
 			rs, err := ts.Client().Do(req)
 			t.Log(rs)
-			if err != nil {
-				t.Log(err)
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if rs.StatusCode != test.expectedStatusCode {
-				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
-			}
+			assert.Equal(t, test.expectedStatusCode, rs.StatusCode)
 
 			lintMetrics(t, reg)
+			assertHTTPMetrics(t, reg, test.subDoc)
 		})
 	}
 }

@@ -80,5 +80,22 @@ func NewMiddlewareMux(functions ...MiddlewareFunc) *MiddlewareMux {
 // ServeHTTP dispatches the request to each middleware function, and then to
 // the handler whose pattern most closely matches the request URL.
 func (mux *MiddlewareMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	mux.middleware.Handler(&mux.ServeMux).ServeHTTP(w, r)
+	// Initialize a string pointer to record the pattern matched by ServeMux.
+	//
+	// This is useful for middlewares that are executed before ServeMux and
+	// want to know the matched pattern. They can't rely on the value stored in
+	// r.Pattern because the original request can be mutated by following
+	// middlewares in which case r.Pattern remains empty.
+	//
+	// Since the handlers execute sequentially, there's no risk of concurrent
+	// access to the value.
+	patt := new(string)
+	r = r.WithContext(ContextWithPattern(r.Context(), patt))
+
+	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.ServeMux.ServeHTTP(w, r)
+		*patt = r.Pattern
+	})
+
+	mux.middleware.Handler(mainHandler).ServeHTTP(w, r)
 }

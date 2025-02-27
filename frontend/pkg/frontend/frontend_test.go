@@ -2,13 +2,12 @@ package frontend
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +15,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -66,29 +68,30 @@ func TestReadiness(t *testing.T) {
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			reg := prometheus.NewRegistry()
 
-			f := &Frontend{
-				dbClient: mockDBClient,
-				metrics:  NewPrometheusEmitter(reg),
-			}
+			f := NewFrontend(
+				testLogger,
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				nil,
+			)
 			f.ready.Store(test.ready)
-			ts := httptest.NewServer(f.routes())
-			ts.Config.BaseContext = func(net.Listener) context.Context {
-				return ContextWithLogger(context.Background(), testLogger)
-			}
 
-			// Call expected but is irrelevant to the test.
 			mockDBClient.EXPECT().DBConnectionTest(gomock.Any())
 
-			rs, err := ts.Client().Get(ts.URL + "/healthz")
-			if err != nil {
-				t.Fatal(err)
-			}
+			ts := newHTTPServer(f, ctrl, mockDBClient)
 
-			if rs.StatusCode != test.expectedStatusCode {
-				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
-			}
+			rs, err := ts.Client().Get(ts.URL + "/healthz")
+			require.NoError(t, err)
+			require.Equal(t, test.expectedStatusCode, rs.StatusCode)
 
 			lintMetrics(t, reg)
+
+			got, err := testutil.GatherAndCount(reg, healthGaugeName)
+			require.NoError(t, err)
+			assert.Equal(t, 1, got)
 		})
 	}
 }
@@ -122,24 +125,28 @@ func TestSubscriptionsGET(t *testing.T) {
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			reg := prometheus.NewRegistry()
 
-			f := &Frontend{
-				dbClient: mockDBClient,
-				metrics:  NewPrometheusEmitter(reg),
-			}
+			f := NewFrontend(
+				testLogger,
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				nil,
+			)
 
-			// ArmSubscriptionGet and MetricsMiddleware
+			// ArmSubscriptionGet.
 			mockDBClient.EXPECT().
 				GetSubscriptionDoc(gomock.Any(), gomock.Any()).
 				Return(getMockDBDoc(test.subDoc)).
-				Times(2)
+				Times(1)
 
-			ts := httptest.NewServer(f.routes())
-			ts.Config.BaseContext = func(net.Listener) context.Context {
-				ctx := context.Background()
-				ctx = ContextWithLogger(ctx, testLogger)
-				ctx = ContextWithDBClient(ctx, f.dbClient)
-				return ctx
+			// The subscription collector lists all documents once.
+			var subs []*database.SubscriptionDocument
+			if test.subDoc != nil {
+				subs = append(subs, test.subDoc)
 			}
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs...)
 
 			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + subscriptionID + "?api-version=2.0")
 			if err != nil {
@@ -151,6 +158,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			}
 
 			lintMetrics(t, reg)
+			assertHTTPMetrics(t, reg, test.subDoc)
 		})
 	}
 }
@@ -240,10 +248,15 @@ func TestSubscriptionsPUT(t *testing.T) {
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			reg := prometheus.NewRegistry()
 
-			f := &Frontend{
-				dbClient: mockDBClient,
-				metrics:  NewPrometheusEmitter(reg),
-			}
+			f := NewFrontend(
+				testLogger,
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				nil,
+			)
 
 			body, err := json.Marshal(&test.subscription)
 			if err != nil {
@@ -269,20 +282,12 @@ func TestSubscriptionsPUT(t *testing.T) {
 						UpdateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any())
 				}
 			}
-			// MiddlewareMetrics
-			// (except when MiddlewareValidateStatic fails)
-			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), gomock.Any()).
-				Return(database.NewSubscriptionDocument(subscriptionID, test.subscription), nil).
-				MaxTimes(1)
 
-			ts := httptest.NewServer(f.routes())
-			ts.Config.BaseContext = func(net.Listener) context.Context {
-				ctx := context.Background()
-				ctx = ContextWithLogger(ctx, testLogger)
-				ctx = ContextWithDBClient(ctx, f.dbClient)
-				return ctx
+			var subs []*database.SubscriptionDocument
+			if test.subDoc != nil {
+				subs = append(subs, test.subDoc)
 			}
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs...)
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
 			if err != nil {
@@ -291,15 +296,14 @@ func TestSubscriptionsPUT(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			rs, err := ts.Client().Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if rs.StatusCode != test.expectedStatusCode {
-				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
-			}
+			assert.Equal(t, test.expectedStatusCode, rs.StatusCode)
 
 			lintMetrics(t, reg)
+			if test.expectedStatusCode != http.StatusBadRequest {
+				assertHTTPMetrics(t, reg, test.subDoc)
+			}
 		})
 	}
 }
@@ -308,11 +312,94 @@ func lintMetrics(t *testing.T, r prometheus.Gatherer) {
 	t.Helper()
 
 	problems, err := testutil.GatherAndLint(r)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	for _, p := range problems {
 		t.Errorf("metric %q: %s", p.Metric, p.Text)
 	}
+}
+
+// assertHTTPMetrics ensures that HTTP metrics have been recorded.
+func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscriptionDoc *database.SubscriptionDocument) {
+	t.Helper()
+
+	metrics, err := r.Gather()
+	assert.NoError(t, err)
+
+	var mfs []*dto.MetricFamily
+	for _, mf := range metrics {
+		if mf.GetName() != requestCounterName && mf.GetName() != requestDurationName {
+			continue
+		}
+
+		mfs = append(mfs, mf)
+
+		for _, m := range mf.GetMetric() {
+			var (
+				route      string
+				apiVersion string
+				state      string
+			)
+			for _, l := range m.GetLabel() {
+				switch l.GetName() {
+				case "route":
+					route = l.GetValue()
+				case "api_version":
+					apiVersion = l.GetValue()
+				case "state":
+					state = l.GetValue()
+				}
+			}
+
+			// Verify that route and API version labels have known values.
+			assert.NotEmpty(t, route)
+			assert.NotEqual(t, route, noMatchRouteLabel)
+			assert.NotEmpty(t, apiVersion)
+			assert.NotEqual(t, apiVersion, unknownVersionLabel)
+
+			if mf.GetName() == requestCounterName {
+				assert.NotEmpty(t, state)
+				if subscriptionDoc != nil {
+					assert.Equal(t, string(subscriptionDoc.Subscription.State), state)
+				} else {
+					assert.Equal(t, "Unknown", state)
+				}
+			}
+		}
+	}
+
+	// We need request counter and latency histogram.
+	assert.Len(t, mfs, 2)
+}
+
+// newHTTPServer returns a test HTTP server. When a mock DB client is provided,
+// the subscription collector will be bootstrapped with the provided
+// subscription documents.
+func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.MockDBClient, subs ...*database.SubscriptionDocument) *httptest.Server {
+	ts := httptest.NewUnstartedServer(f.server.Handler)
+	ts.Config.BaseContext = f.server.BaseContext
+	ts.Start()
+
+	mockIter := mocks.NewMockDBClientIterator[database.SubscriptionDocument](ctrl)
+	mockIter.EXPECT().
+		Items(gomock.Any()).
+		Return(database.DBClientIteratorItem[database.SubscriptionDocument](slices.Values(subs)))
+
+	mockIter.EXPECT().
+		GetError().
+		Return(nil)
+
+	mockDBClient.EXPECT().
+		ListAllSubscriptionDocs().
+		Return(mockIter).
+		Times(1)
+
+	// The initialization of the subscriptions collector is normally part of
+	// the Run() method but the method doesn't get called in the tests so it's
+	// executed here.
+	stop := make(chan struct{})
+	close(stop)
+	f.collector.Run(testLogger, stop)
+
+	return ts
 }
