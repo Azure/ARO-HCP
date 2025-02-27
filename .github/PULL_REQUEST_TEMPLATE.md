@@ -1,8 +1,12 @@
-### What this PR does
+<!-- Link to Jira issue -->
 
+### What
 
-Jira: <!-- optional: link to Jira issue -->
-Link to demo recording: <!-- optional: link to a demo recording -->
+<!-- Briefly describe what this PR does -->
+
+### Why
+
+<!-- Briefly explain why this change is needed -->
 
 ### Special notes for your reviewer
 
