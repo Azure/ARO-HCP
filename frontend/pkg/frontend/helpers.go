@@ -111,10 +111,10 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 
 	switch resourceDoc.InternalID.Kind() {
 	case cmv1.ClusterKind:
-		err = f.clusterServiceClient.DeleteCSCluster(ctx, resourceDoc.InternalID)
+		err = f.clusterServiceClient.DeleteCluster(ctx, resourceDoc.InternalID)
 
 	case cmv1.NodePoolKind:
-		err = f.clusterServiceClient.DeleteCSNodePool(ctx, resourceDoc.InternalID)
+		err = f.clusterServiceClient.DeleteNodePool(ctx, resourceDoc.InternalID)
 
 	default:
 		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", resourceDoc.InternalID))
@@ -231,7 +231,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 
 	switch doc.InternalID.Kind() {
 	case cmv1.ClusterKind:
-		csCluster, err := f.clusterServiceClient.GetCSCluster(ctx, doc.InternalID)
+		csCluster, err := f.clusterServiceClient.GetCluster(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
 			var ocmError *ocmerrors.Error
@@ -247,7 +247,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		}
 
 	case cmv1.NodePoolKind:
-		csNodePool, err := f.clusterServiceClient.GetCSNodePool(ctx, doc.InternalID)
+		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
 			var ocmError *ocmerrors.Error

@@ -13,18 +13,59 @@ import (
 )
 
 type ClusterServiceClientSpec interface {
-	GetConn() *sdk.Connection
+	// AddProperties injects the some additional properties into the ClusterBuilder.
 	AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder
-	GetCSCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error)
-	PostCSCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
-	UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
-	DeleteCSCluster(ctx context.Context, internalID InternalID) error
-	ListCSClusters(searchExpression string) ClusterListIterator
-	GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error)
-	PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
-	UpdateCSNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
-	DeleteCSNodePool(ctx context.Context, internalID InternalID) error
-	ListCSNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator
+
+	// GetCluster sends a GET request to fetch a cluster from Cluster Service.
+	GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error)
+
+	// GetClusterStatus sends a GET request to fetch a cluster's status from Cluster Service.
+	GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error)
+
+	// PostCluster sends a POST request to create a cluster in Cluster Service.
+	PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
+
+	// UpdateCluster sends a PATCH request to update a cluster in Cluster Service.
+	UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
+
+	// DeleteCluster sends a DELETE request to delete a cluster from Cluster Service.
+	DeleteCluster(ctx context.Context, internalID InternalID) error
+
+	// ListClusters prepares a GET request with the given search expression. Call Items() on
+	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListClusters(searchExpression string) ClusterListIterator
+
+	// GetNodePool sends a GET request to fetch a node pool from Cluster Service.
+	GetNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error)
+
+	// PostNodePool sends a POST request to create a node pool in Cluster Service.
+	PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
+
+	// UpdateNodePool sends a PATCH request to update a node pool in Cluster Service.
+	UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
+
+	// DeleteNodePool sends a DELETE request to delete a node pool from Cluster Service.
+	DeleteNodePool(ctx context.Context, internalID InternalID) error
+
+	// ListNodePools prepares a GET request with the given search expression. Call Items() on
+	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator
+
+	// GetBreakGlassCredential sends a GET request to fetch a break-glass cluster credential from Cluster Service.
+	GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error)
+
+	// PostBreakGlassCredential sends a POST request to create a break-glass cluster credential in Cluster Service.
+	PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error)
+
+	// DeleteBreakGlassCredentials sends a DELETE request to revoke all break-glass credentials for a cluster in Cluster Service.
+	DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error
+
+	// ListBreakGlassCredentials prepares a GET request with the given search expression. Call
+	// Items() on the returned iterator in a for/range loop to execute the request and paginate
+	// over results, then call GetError() to check for an iteration error.
+	ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator
 }
 
 type ClusterServiceClient struct {
@@ -44,9 +85,6 @@ type ClusterServiceClient struct {
 	ProvisionerNoOpDeprovision bool
 }
 
-func (csc *ClusterServiceClient) GetConn() *sdk.Connection { return csc.Conn }
-
-// AddProperties injects the some additional properties into the CSCluster Object.
 func (csc *ClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
 	additionalProperties := map[string]string{}
 	if csc.ProvisionShardID != nil {
@@ -61,8 +99,7 @@ func (csc *ClusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBu
 	return builder.Properties(additionalProperties)
 }
 
-// GetCSCluster creates and sends a GET request to fetch a cluster from Clusters Service
-func (csc *ClusterServiceClient) GetCSCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
+func (csc *ClusterServiceClient) GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
 	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
@@ -78,8 +115,7 @@ func (csc *ClusterServiceClient) GetCSCluster(ctx context.Context, internalID In
 	return cluster, nil
 }
 
-// GetCSClusterStatus creates and sends a GET request to fetch a cluster's status from Clusters Service
-func (csc *ClusterServiceClient) GetCSClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error) {
+func (csc *ClusterServiceClient) GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error) {
 	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
@@ -95,8 +131,7 @@ func (csc *ClusterServiceClient) GetCSClusterStatus(ctx context.Context, interna
 	return status, nil
 }
 
-// PostCSCluster creates and sends a POST request to create a cluster in Clusters Service
-func (csc *ClusterServiceClient) PostCSCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+func (csc *ClusterServiceClient) PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 	clustersAddResponse, err := csc.Conn.AroHCP().V1alpha1().Clusters().Add().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, err
@@ -108,8 +143,7 @@ func (csc *ClusterServiceClient) PostCSCluster(ctx context.Context, cluster *aro
 	return cluster, nil
 }
 
-// UpdateCSCluster sends a PATCH request to update a cluster in Clusters Service
-func (csc *ClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+func (csc *ClusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
@@ -125,8 +159,7 @@ func (csc *ClusterServiceClient) UpdateCSCluster(ctx context.Context, internalID
 	return cluster, nil
 }
 
-// DeleteCSCluster creates and sends a DELETE request to delete a cluster from Clusters Service
-func (csc *ClusterServiceClient) DeleteCSCluster(ctx context.Context, internalID InternalID) error {
+func (csc *ClusterServiceClient) DeleteCluster(ctx context.Context, internalID InternalID) error {
 	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a cluster: %s", internalID)
@@ -135,10 +168,7 @@ func (csc *ClusterServiceClient) DeleteCSCluster(ctx context.Context, internalID
 	return err
 }
 
-// ListCSClusters prepares a GET request with the given search expression. Call Items() on
-// the returned iterator in a for/range loop to execute the request and paginate over results,
-// then call GetError() to check for an iteration error.
-func (csc *ClusterServiceClient) ListCSClusters(searchExpression string) ClusterListIterator {
+func (csc *ClusterServiceClient) ListClusters(searchExpression string) ClusterListIterator {
 	clustersListRequest := csc.Conn.AroHCP().V1alpha1().Clusters().List()
 	if searchExpression != "" {
 		clustersListRequest.Search(searchExpression)
@@ -146,8 +176,7 @@ func (csc *ClusterServiceClient) ListCSClusters(searchExpression string) Cluster
 	return ClusterListIterator{request: clustersListRequest}
 }
 
-// GetCSNodePool creates and sends a GET request to fetch a node pool from Clusters Service
-func (csc *ClusterServiceClient) GetCSNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
+func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
@@ -163,8 +192,7 @@ func (csc *ClusterServiceClient) GetCSNodePool(ctx context.Context, internalID I
 	return nodePool, nil
 }
 
-// PostCSNodePool creates and sends a POST request to create a node pool in Clusters Service
-func (csc *ClusterServiceClient) PostCSNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
+func (csc *ClusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
 	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
@@ -180,8 +208,7 @@ func (csc *ClusterServiceClient) PostCSNodePool(ctx context.Context, clusterInte
 	return nodePool, nil
 }
 
-// UpdateCSNodePool sends a PATCH request to update a node pool in Clusters Service
-func (csc *ClusterServiceClient) UpdateCSNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
+func (csc *ClusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
@@ -197,8 +224,7 @@ func (csc *ClusterServiceClient) UpdateCSNodePool(ctx context.Context, internalI
 	return nodePool, nil
 }
 
-// DeleteCSNodePool creates and sends a DELETE request to delete a node pool from Clusters Service
-func (csc *ClusterServiceClient) DeleteCSNodePool(ctx context.Context, internalID InternalID) error {
+func (csc *ClusterServiceClient) DeleteNodePool(ctx context.Context, internalID InternalID) error {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a node pool: %s", internalID)
@@ -207,10 +233,7 @@ func (csc *ClusterServiceClient) DeleteCSNodePool(ctx context.Context, internalI
 	return err
 }
 
-// ListCSNodePools prepares a GET request with the given search expression. Call Items() on
-// the returned iterator in a for/range loop to execute the request and paginate over results,
-// then call GetError() to check for an iteration error.
-func (csc *ClusterServiceClient) ListCSNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
+func (csc *ClusterServiceClient) ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
 	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
 	if !ok {
 		return NodePoolListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
@@ -220,4 +243,57 @@ func (csc *ClusterServiceClient) ListCSNodePools(clusterInternalID InternalID, s
 		nodePoolsListRequest.Search(searchExpression)
 	}
 	return NodePoolListIterator{request: nodePoolsListRequest}
+}
+
+func (csc *ClusterServiceClient) GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error) {
+	client, ok := internalID.GetBreakGlassCredentialClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a break-glass credential: %s", internalID)
+	}
+	breakGlassCredentialGetResponse, err := client.Get().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	breakGlassCredential, ok := breakGlassCredentialGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return breakGlassCredential, nil
+}
+
+func (csc *ClusterServiceClient) PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error) {
+	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
+	}
+	breakGlassCredentialsAddResponse, err := client.BreakGlassCredentials().Add().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	breakGlassCredential, ok := breakGlassCredentialsAddResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return breakGlassCredential, nil
+}
+
+func (csc *ClusterServiceClient) DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error {
+	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+	if !ok {
+		return fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
+	}
+	_, err := client.BreakGlassCredentials().Delete().SendContext(ctx)
+	return err
+}
+
+func (csc *ClusterServiceClient) ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator {
+	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+	if !ok {
+		return BreakGlassCredentialListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
+	}
+	breakGlassCredentialsListRequest := client.BreakGlassCredentials().List()
+	if searchExpression != "" {
+		breakGlassCredentialsListRequest.Search(searchExpression)
+	}
+	return BreakGlassCredentialListIterator{request: breakGlassCredentialsListRequest}
 }

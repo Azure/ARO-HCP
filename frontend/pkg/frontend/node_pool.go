@@ -78,7 +78,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// No special treatment here for "not found" errors. A "not found"
 		// error indicates the database has gotten out of sync and so it's
 		// appropriate to fail.
-		csNodePool, err := f.clusterServiceClient.GetCSNodePool(ctx, doc.InternalID)
+		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
 			arm.WriteInternalServerError(writer)
@@ -162,7 +162,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csNodePool, err = f.clusterServiceClient.UpdateCSNodePool(ctx, doc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, doc.InternalID, csNodePool)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -177,7 +177,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		csNodePool, err = f.clusterServiceClient.PostCSNodePool(ctx, clusterDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePool)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
