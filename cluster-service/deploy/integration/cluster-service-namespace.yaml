@@ -11,7 +11,7 @@ parameters:
   - name: CLIENT_ID
     description: The Azure Client ID used for federation
     required: true
-  - name: ORPHANED_NAMESPACE_CLEANER
+  - name: ORPHANED_NAMESPACE_CLEANER_NAMESPACE
     description: The namespace to create to have a cronjob which will delete the orphaned namespace which are not deleted due to any issues with the jenkins job.
     value: orphaned-namespace-cleaner
   - name: KUBECTL_IMAGE
@@ -79,10 +79,14 @@ objects:
     data:
       cs-client-id: ${CLIENT_ID}
   - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+  - apiVersion: v1
     kind: ServiceAccount
     metadata:
       name: orphaned-namespace-cleaner-cronjob
-      namespace: ${ORPHANED_NAMESPACE_CLEANER}
+      namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
   - apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -90,7 +94,7 @@ objects:
     subjects:
       - kind: ServiceAccount
         name: orphaned-namespace-cleaner-cronjob
-        namespace: ${ORPHANED_NAMESPACE_CLEANER}
+        namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
     roleRef:
       kind: ClusterRole
       name: namespace-admin
@@ -99,7 +103,7 @@ objects:
     kind: CronJob
     metadata:
       name: orphaned-namespace-cleaner
-      namespace: ${ORPHANED_NAMESPACE_CLEANER}
+      namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
     spec:
       schedule: "0 0 * * *"
       successfulJobsHistoryLimit: 3
