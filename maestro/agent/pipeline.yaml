@@ -27,13 +27,15 @@ resourceGroups:
     - name: KEYVAULT_NAME
       configRef: mgmtKeyVault.name
     - name: IMAGE_REPO
-      configRef: maestro.imageRepo
-    - name: IMAGE_TAG
-      configRef: maestro.imageTag
-    - name: SIDECAR_IMAGE_BASE
-      configRef: maestro.agent.sidecar.imageBase
-    - name: SIDECAR_IMAGE_TAG
-      configRef: maestro.agent.sidecar.imageTag
+      configRef: maestro.image.repository
+    - name: IMAGE_DIGEST
+      configRef: maestro.image.digest
+    - name: SIDECAR_IMAGE_REGISTRY
+      configRef: maestro.agent.sidecar.image.registry
+    - name: SIDECAR_IMAGE_REPOSITORY
+      configRef: maestro.agent.sidecar.image.repository
+    - name: SIDECAR_IMAGE_DIGEST
+      configRef: maestro.agent.sidecar.image.digest
     - name: ACR_NAME
       configRef: svcAcrName
 - name: {{ .svc.rg }}

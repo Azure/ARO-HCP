@@ -42,7 +42,7 @@ azure:
 image:
   registry: ""
   repository: ""
-  tag: ""
+  digest: ""
 credsKeyVault:
   name: ""
   secret: "maestro-server"

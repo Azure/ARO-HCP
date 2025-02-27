@@ -151,8 +151,11 @@
       "consumerName": "hcp-underlay-dev-mgmt-1",
       "loglevel": 4,
       "sidecar": {
-        "imageBase": "mcr.microsoft.com/azurelinux/base/nginx",
-        "imageTag": "1.25"
+        "image": {
+          "digest": "sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83",
+          "registry": "mcr.microsoft.com",
+          "repository": "azurelinux/base/nginx"
+        }
       }
     },
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
@@ -162,8 +165,10 @@
       "name": "arohcp-maestro-dev",
       "private": false
     },
-    "imageRepo": "redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
-    "imageTag": "8244a76cbc7d020192648b17ac7b7467abf1f2cb",
+    "image": {
+      "digest": "sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5",
+      "repository": "redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro"
+    },
     "postgres": {
       "databaseName": "maestro",
       "deploy": true,

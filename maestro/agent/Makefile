@@ -17,7 +17,8 @@ deploy:
 		--set azure.tenantId=$${TENANT_ID} \
 		--set image.registry=${ACR_NAME}.azurecr.io \
 		--set image.repository=${IMAGE_REPO} \
-		--set image.tag=${IMAGE_TAG} \
-		--set sideCar.imageBase=${SIDECAR_IMAGE_BASE} \
-		--set sideCar.imageTag=${SIDECAR_IMAGE_TAG}
+		--set image.digest=${IMAGE_DIGEST} \
+		--set sideCar.image.registry=${SIDECAR_IMAGE_REGISTRY} \
+		--set sideCar.image.repository=${SIDECAR_IMAGE_REPOSITORY} \
+		--set sideCar.image.digest=${SIDECAR_IMAGE_DIGEST}
 .PHONY: deploy

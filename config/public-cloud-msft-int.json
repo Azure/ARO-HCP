@@ -151,8 +151,11 @@
       "consumerName": "hcp-underlay-int-mgmt-1",
       "loglevel": 4,
       "sidecar": {
-        "imageBase": "mcr.microsoft.com/azurelinux/base/nginx",
-        "imageTag": "1.25"
+        "image": {
+          "digest": "sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83",
+          "registry": "mcr.microsoft.com",
+          "repository": "azurelinux/base/nginx"
+        }
       }
     },
     "certDomain": "",
@@ -162,8 +165,10 @@
       "name": "arohcp-maestro-int",
       "private": false
     },
-    "imageRepo": "redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro",
-    "imageTag": "c9a36e110a32c0c25aa5025cfe6d51af797e6d4b",
+    "image": {
+      "digest": "sha256:fe8dbccbadf3de107d362bf11f98b4fe89d474b3aa287276c1d48d582e863bf7",
+      "repository": "redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro"
+    },
     "postgres": {
       "databaseName": "maestro",
       "deploy": true,
