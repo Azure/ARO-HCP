@@ -24,7 +24,9 @@ resourceGroups:
       configRef: svc.aks.name
     - name: DB_NAME
       configRef: frontend.cosmosDB.name
-    - name: COMMIT
-      configRef: backend.imageTag
+    - name: IMAGE_DIGEST
+      configRef: backend.image.digest
+    - name: ARO_HCP_IMAGE_REPOSITORY
+      configRef: backend.image.repository
     - name: ISTO_TAG
       configRef: svc.istio.tag

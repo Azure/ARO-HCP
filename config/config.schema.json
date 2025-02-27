@@ -360,20 +360,20 @@
     "backend": {
       "type": "object",
       "properties": {
-        "imageTag": {
-          "type": "string"
+        "image": {
+          "$ref": "#/definitions/containerImage"
         }
       },
       "additionalProperties": false,
       "required": [
-        "imageTag"
+        "image"
       ]
     },
     "frontend": {
       "type": "object",
       "properties": {
-        "imageTag": {
-          "type": "string"
+        "image": {
+          "$ref": "#/definitions/containerImage"
         },
         "cosmosDB": {
           "type": "object",
@@ -421,7 +421,7 @@
       },
       "additionalProperties": false,
       "required": [
-        "imageTag",
+        "image",
         "cosmosDB",
         "cert"
       ]
