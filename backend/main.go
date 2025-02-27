@@ -5,8 +5,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -17,7 +19,10 @@ import (
 
 	"github.com/go-logr/logr"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection"
@@ -38,13 +43,14 @@ const (
 )
 
 var (
-	argKubeconfig         string
-	argNamespace          string
-	argLocation           string
-	argCosmosName         string
-	argCosmosURL          string
-	argClustersServiceURL string
-	argInsecure           bool
+	argKubeconfig           string
+	argNamespace            string
+	argLocation             string
+	argCosmosName           string
+	argCosmosURL            string
+	argClustersServiceURL   string
+	argInsecure             bool
+	argMetricsListenAddress string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -77,6 +83,7 @@ func init() {
 	rootCmd.Flags().StringVar(&argCosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
 	rootCmd.Flags().StringVar(&argClustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway")
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
+	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
 
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
@@ -156,38 +163,82 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	logger.Info(fmt.Sprintf("%s (%s) started", cmd.Short, cmd.Version))
 
-	operationsScanner := NewOperationsScanner(dbClient, ocmConnection)
+	group, ctx := errgroup.WithContext(context.Background())
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	var srv *http.Server
+	if argMetricsListenAddress != "" {
+		http.Handle("/metrics", promhttp.InstrumentMetricHandler(
+			prometheus.DefaultRegisterer,
+			promhttp.HandlerFor(
+				prometheus.DefaultGatherer,
+				promhttp.HandlerOpts{},
+			),
+		))
+
+		srv = &http.Server{Addr: argMetricsListenAddress}
+
+		group.Go(func() error {
+			logger.Info(fmt.Sprintf("metrics server listening on %s", argMetricsListenAddress))
+			err := srv.ListenAndServe()
+			if errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+
+			return err
+		})
+	}
+
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	go func() {
 		<-ctx.Done()
 		logger.Info("Caught interrupt signal")
+		if srv != nil {
+			_ = srv.Close()
+		}
 	}()
 
-	var startedLeading atomic.Bool
+	group.Go(func() error {
+		var (
+			startedLeading    atomic.Bool
+			operationsScanner = NewOperationsScanner(dbClient, ocmConnection)
+		)
 
-	// FIXME Integrate leaderelection.HealthzAdaptor into a /healthz endpoint.
-	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
-		Lock:          leaderElectionLock,
-		LeaseDuration: leaderElectionLeaseDuration,
-		RenewDeadline: leaderElectionRenewDeadline,
-		RetryPeriod:   leaderElectionRetryPeriod,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(ctx context.Context) {
-				startedLeading.Store(true)
-				go operationsScanner.Run(ctx, logger)
+		// FIXME Integrate leaderelection.HealthzAdaptor into a /healthz endpoint.
+		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+			Lock:          leaderElectionLock,
+			LeaseDuration: leaderElectionLeaseDuration,
+			RenewDeadline: leaderElectionRenewDeadline,
+			RetryPeriod:   leaderElectionRetryPeriod,
+			Callbacks: leaderelection.LeaderCallbacks{
+				OnStartedLeading: func(ctx context.Context) {
+					operationsScanner.leaderGauge.Set(1)
+					startedLeading.Store(true)
+					go operationsScanner.Run(ctx, logger)
+				},
+				OnStoppedLeading: func() {
+					operationsScanner.leaderGauge.Set(0)
+					if startedLeading.Load() {
+						operationsScanner.Join()
+					}
+				},
 			},
-			OnStoppedLeading: func() {
-				if startedLeading.Load() {
-					operationsScanner.Join()
-				}
-			},
-		},
-		ReleaseOnCancel: true,
-		Name:            leaderElectionLockName,
+			ReleaseOnCancel: true,
+			Name:            leaderElectionLockName,
+		})
+		if err != nil {
+			return err
+		}
+
+		le.Run(ctx)
+		return nil
 	})
+
+	if err := group.Wait(); err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
 
 	logger.Info(fmt.Sprintf("%s (%s) stopped", cmd.Short, cmd.Version))
 
