@@ -48,7 +48,7 @@
     },
     "environment": "arohcpdev",
     "image": {
-      "digest": "sha256:2d8d8819267b01e34e8303a6904aa9e283c79a0a82d5b73f3c8c3afdb787e141",
+      "digest": "sha256:c8de5ac6f2000ee185b42442c3b7f29e2b6b1068849f48620075cd811834202b",
       "repository": "app-sre/uhc-clusters-service"
     },
     "k8s": {
