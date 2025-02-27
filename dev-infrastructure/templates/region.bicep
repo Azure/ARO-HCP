@@ -42,9 +42,6 @@ param svcAcrResourceId string
 @description('MSI that will be used during pipeline runs')
 param aroDevopsMsiId string
 
-// Log Analytics Workspace ID will be passed from global pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 import * as res from '../modules/resource.bicep'
 
 // Tags the resource group
@@ -158,6 +155,5 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
     publicNetworkAccess: maestroEventGridPrivate ? 'Disabled' : 'Enabled'
     certificateIssuer: maestroCertificateIssuer
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }

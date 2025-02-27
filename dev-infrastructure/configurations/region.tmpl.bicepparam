@@ -21,6 +21,3 @@ param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
 
 // MI for resource access during pipeline runs
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
-
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'

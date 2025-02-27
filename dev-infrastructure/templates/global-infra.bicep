@@ -15,9 +15,6 @@ param svcParentZoneName string
 @description('Domain Team MSI to delegate child DNS')
 param safeDnsIntAppObjectId string
 
-@description('Enable Log Analytics')
-param enableLogAnalytics bool
-
 @description('Global Grafana instance name')
 param grafanaName string
 
@@ -127,20 +124,5 @@ module grafana '../modules/grafana/instance.bicep' = {
     grafanaManagerPrincipalId: globalMSI.properties.principalId
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
     azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
-  }
-}
-
-//
-//   L O G   A N A L Y T I C S
-//
-
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if (enableLogAnalytics) {
-  name: 'log-analytics-workspace'
-  location: resourceGroup().location
-  properties: {
-    sku: {
-      name: 'PerGB2018'
-    }
-    retentionInDays: 90
   }
 }

@@ -45,10 +45,6 @@ resourceGroups:
         input:
           step: global-output
           name: svcParentZoneResourceId
-      - name: logAnalyticsWorkspaceId
-        input:
-          step: global-output
-          name: logAnalyticsWorkspaceId
     dependsOn:
     - global-output
   - name: metrics-infra

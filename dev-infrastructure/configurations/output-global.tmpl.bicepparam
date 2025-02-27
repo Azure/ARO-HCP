@@ -5,4 +5,3 @@ param ocpAcrName = '{{ .ocpAcrName }}'
 param cxParentZoneName = '{{ .dns.cxParentZoneName }}'
 param svcParentZoneName = '{{ .dns.svcParentZoneName }}'
 param grafanaName = '{{ .monitoring.grafanaName }}'
-param enableLogAnalytics = {{ .logs.enableLogAnalytics }}

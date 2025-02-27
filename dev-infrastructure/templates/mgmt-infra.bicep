@@ -40,9 +40,6 @@ param kvCertOfficerPrincipalId string
 @description('MSI that will be used during pipeline runs')
 param aroDevopsMsiId string
 
-// Log Analytics Workspace ID will be passed from global pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
   scope: resourceGroup()
@@ -83,7 +80,6 @@ module cxKeyVault '../modules/keyvault/keyvault.bicep' = {
     private: cxKeyVaultPrivate
     enableSoftDelete: cxKeyVaultSoftDelete
     purpose: 'cx'
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
@@ -114,7 +110,6 @@ module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
     private: msiKeyVaultPrivate
     enableSoftDelete: msiKeyVaultSoftDelete
     purpose: 'msi'
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
@@ -128,7 +123,6 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
     private: mgmtKeyVaultPrivate
     enableSoftDelete: mgmtKeyVaultSoftDelete
     purpose: 'mgmt'
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 

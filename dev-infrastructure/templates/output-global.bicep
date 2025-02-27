@@ -13,9 +13,6 @@ param svcParentZoneName string
 @description('Metrics global Grafana name')
 param grafanaName string
 
-@description('Enable Log Analytics')
-param enableLogAnalytics bool
-
 //
 //   A C R
 //
@@ -55,13 +52,3 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
 }
 
 output grafanaResourceId string = grafana.id
-
-//
-//   L O G   A N A L Y T I C S
-//
-
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = if (enableLogAnalytics) {
-  name: 'log-analytics-workspace'
-}
-
-output logAnalyticsWorkspaceId string = enableLogAnalytics ? logAnalyticsWorkspace.id : ''

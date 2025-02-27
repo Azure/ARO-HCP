@@ -22,9 +22,6 @@ defaults:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
 
-  logs:
-    enableLogAnalytics: false
-
   # SVC cluster specifics
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
@@ -327,8 +324,6 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
-          logs:
-            enableLogAnalytics: true
           mgmt:
             aks:
               systemAgentPool:
@@ -358,8 +353,6 @@ clouds:
       cs-pr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
-          logs:
-            enableLogAnalytics: true
           svc:
             aks:
               # MC AKS nodepools

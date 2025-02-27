@@ -13,9 +13,6 @@ param private bool
 @description('Purpose of the keyvault.')
 param purpose string
 
-@description('Log Analytics Workspace ID if logging to Log Analytics')
-param logAnalyticsWorkspaceId string = ''
-
 resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
   location: location
   name: keyVaultName
@@ -35,24 +32,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
       family: 'A'
     }
     tenantId: subscription().tenantId
-  }
-}
-
-resource keyVaultDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2017-05-01-preview' = if (logAnalyticsWorkspaceId != '') {
-  scope: keyVault
-  name: keyVaultName
-  properties: {
-    logs: [
-      {
-        category: 'AuditEvent'
-        enabled: true
-      }
-      {
-        category: 'AzurePolicyEvaluationDetails'
-        enabled: true
-      }
-    ]
-    workspaceId: logAnalyticsWorkspaceId
   }
 }
 
