@@ -252,6 +252,10 @@ clouds:
           clusterService:
             environment: "arohcpint"
 
+          # Geneva Actions
+          genevaActions:
+            serviceTag: GenevaActionsNonProd
+
           # OIDC
           oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }}
           oidcZoneRedundantMode: Auto

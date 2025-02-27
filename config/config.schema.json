@@ -426,6 +426,18 @@
         "cert"
       ]
     },
+    "genevaActions": {
+      "type": "object",
+      "properties": {
+        "serviceTag": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "serviceTag"
+      ]
+    },
     "global": {
       "type": "object",
       "properties": {
@@ -977,6 +989,7 @@
     "firstPartyAppClientId",
     "firstPartyAppCertName",
     "frontend",
+    "genevaActions",
     "global",
     "hypershift",
     "hypershiftOperator",

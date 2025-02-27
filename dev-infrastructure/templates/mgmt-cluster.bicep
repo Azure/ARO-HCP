@@ -111,6 +111,15 @@ param logsServiceAccount string
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
+resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
+  location: location
+  name: 'mgmt-cluster-node-nsg'
+  properties: {
+    securityRules: [
+    ]
+  }
+}
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster'
   scope: resourceGroup()
@@ -124,6 +133,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     deployIstio: false
     kubernetesVersion: kubernetesVersion
     vnetAddressPrefix: vnetAddressPrefix
+    nodeSubnetNSGId: mgmtClusterNSG.id
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'mgmt-cluster'
