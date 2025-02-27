@@ -145,8 +145,11 @@
       "consumerName": "hcp-underlay-cspr-mgmt-1",
       "loglevel": 4,
       "sidecar": {
-        "imageBase": "mcr.microsoft.com/azurelinux/base/nginx",
-        "imageTag": "1.25"
+        "image": {
+          "digest": "sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83",
+          "registry": "mcr.microsoft.com",
+          "repository": "azurelinux/base/nginx"
+        }
       }
     },
     "certDomain": "selfsigned.maestro.keyvault.azure.com",
