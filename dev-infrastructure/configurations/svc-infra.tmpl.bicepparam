@@ -11,6 +11,3 @@ param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
 // SP for KV certificate issuer registration
 param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
-
-// Log Analytics Workspace ID will be passed from global pipeline if enabled in config
-param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'

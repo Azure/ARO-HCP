@@ -142,7 +142,6 @@
   },
   "kvCertOfficerPrincipalId": "32af88de-a61c-4f71-b709-50538598c4f2",
   "logs": {
-    "enableLogAnalytics": false,
     "msiName": "logs-mdsd",
     "namespace": "logs",
     "serviceAccountName": "genevabit-aggregator"
