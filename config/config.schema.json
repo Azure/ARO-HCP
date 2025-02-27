@@ -820,6 +820,9 @@
     "logs": {
       "type": "object",
       "properties": {
+        "enableLogAnalytics": {
+          "type": "boolean"
+        },
         "namespace": {
           "type": "string"
         },
@@ -832,6 +835,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "enableLogAnalytics",
         "namespace",
         "msiName",
         "serviceAccountName"

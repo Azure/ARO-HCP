@@ -22,6 +22,9 @@ param aroDevopsMsiId string
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
 
+// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
+param logAnalyticsWorkspaceId string = ''
+
 // Tags the resource group
 resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
   name: 'default'
@@ -70,6 +73,7 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
     private: serviceKeyVaultPrivate
     enableSoftDelete: serviceKeyVaultSoftDelete
     purpose: 'service'
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
