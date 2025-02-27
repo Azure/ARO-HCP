@@ -87,8 +87,10 @@ defaults:
       consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
       loglevel: 4
       sidecar:
-        imageBase: mcr.microsoft.com/azurelinux/base/nginx
-        imageTag: '1.25'
+        image:
+          registry: mcr.microsoft.com
+          repository: azurelinux/base/nginx
+          digest: sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83
     eventGrid:
       name: arohcp-maestro-{{ .ctx.regionShort }}
       maxClientSessionsPerAuthName: 4
@@ -104,7 +106,8 @@ defaults:
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
     restrictIstioIngress: true
-    imageRepo: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+    image:
+      repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
 
   # Cluster Service
   clusterService:
@@ -210,7 +213,8 @@ clouds:
     # the following vars need approprivate overrides:
     defaults:
       maestro:
-        imageTag: c9a36e110a32c0c25aa5025cfe6d51af797e6d4b
+        image:
+          digest: sha256:fe8dbccbadf3de107d362bf11f98b4fe89d474b3aa287276c1d48d582e863bf7
       clusterService:
         image:
           digest: sha256:2d8d8819267b01e34e8303a6904aa9e283c79a0a82d5b73f3c8c3afdb787e141

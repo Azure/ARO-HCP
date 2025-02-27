@@ -643,11 +643,8 @@
             "sidecar": {
               "type:": "object",
               "properties": {
-                "imageBase": {
-                  "type": "string"
-                },
-                "imageTag": {
-                  "type": "string"
+                "image": {
+                  "$ref": "#/definitions/containerImage"
                 }
               }
             }
@@ -679,11 +676,8 @@
             "private"
           ]
         },
-        "imageRepo": {
-          "type": "string"
-        },
-        "imageTag": {
-          "type": "string"
+        "image": {
+          "$ref": "#/definitions/containerImage"
         },
         "postgres": {
           "type": "object",
@@ -735,8 +729,7 @@
         "agent",
         "server",
         "eventGrid",
-        "imageRepo",
-        "imageTag",
+        "image",
         "postgres",
         "restrictIstioIngress"
       ]

@@ -7,7 +7,7 @@ azure:
 image:
   registry: ""
   repository: ""
-  tag: ""
+  digest: ""
 credsKeyVault:
   name: ""
   secret: ""
@@ -15,5 +15,7 @@ consumerName: ""
 glog_v: "4"
 installAppliedManifestWorkCRD: false
 sideCar:
-  imageBase: ""
-  imageTag: ""
+  image:
+    registry: ""
+    repository: ""
+    digest: ""

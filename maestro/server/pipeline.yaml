@@ -23,9 +23,9 @@ resourceGroups:
     - name: AKS_NAME
       configRef: svc.aks.name
     - name: IMAGE_REPO
-      configRef: maestro.imageRepo
-    - name: IMAGE_TAG
-      configRef: maestro.imageTag
+      configRef: maestro.image.repository
+    - name: IMAGE_DIGEST
+      configRef: maestro.image.digest
     - name: USE_AZURE_DB
       configRef: maestro.postgres.deploy
     - name: DATABASE_SERVER_NAME

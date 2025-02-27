@@ -22,7 +22,7 @@ deploy:
 		--set azure.clientId=$${MAESTRO_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
 		--set istio.restrictIngress=${ISTIO_RESTRICT_INGRESS} \
-		--set image.tag=${IMAGE_TAG} \
+		--set image.digest=${IMAGE_DIGEST} \
 		--set image.registry=${ACR_NAME}.azurecr.io \
 		--set image.repository=${IMAGE_REPO} \
 		--set database.host=$${DATABASE_HOST} \
