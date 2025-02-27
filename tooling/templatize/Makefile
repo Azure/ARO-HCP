@@ -5,7 +5,7 @@ SHELL = /bin/bash
 BINARY = templatize
 
 # Define the source files
-SOURCES = $(shell find . -name '*.go')
+SOURCES = $(shell find . -name '*.go' -o -name '*.json')
 
 # Build the binary
 $(BINARY): $(SOURCES) $(MAKEFILE_LIST)

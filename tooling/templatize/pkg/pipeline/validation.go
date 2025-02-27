@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"gopkg.in/yaml.v3"
@@ -36,19 +37,42 @@ func ValidatePipelineSchema(pipelineContent []byte) error {
 	return nil
 }
 
-func getSchemaForPipeline(pipelineMap map[string]interface{}) (pipelineSchema *jsonschema.Schema, schemaRef string, err error) {
-	schemaRef, ok := pipelineMap["$schema"].(string)
-	if !ok {
-		schemaRef = defaultSchemaRef
+func ValidatePipelineSchemaForStruct(pipeline *Pipeline) error {
+	pipelineBytes, err := yaml.Marshal(pipeline)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pipeline: %w", err)
 	}
 
+	return ValidatePipelineSchema(pipelineBytes)
+}
+
+func getSchemaForPipeline(pipelineMap map[string]interface{}) (pipelineSchema *jsonschema.Schema, schemaRef string, err error) {
+	schemaRef, _ = pipelineMap["$schema"].(string)
+	return getSchemaForRef(schemaRef)
+}
+
+func getSchemaForRef(schemaRef string) (*jsonschema.Schema, string, error) {
+	if schemaRef == "" {
+		schemaRef = defaultSchemaRef
+	}
 	switch schemaRef {
 	case pipelineSchemaV1Ref:
-		pipelineSchema, err = compileSchema(schemaRef, pipelineSchemaV1Content)
+		pipelineSchema, err := compileSchema(schemaRef, pipelineSchemaV1Content)
+		return pipelineSchema, schemaRef, err
 	default:
 		return nil, "", fmt.Errorf("unsupported schema reference: %s", schemaRef)
 	}
-	return
+}
+
+func getVariableRefStepProperties(pipelineSchema *jsonschema.Schema) (map[string]*jsonschema.Schema, error) {
+	stepProperties := pipelineSchema.Properties["resourceGroups"].Items.(*jsonschema.Schema).Properties["steps"].Items.(*jsonschema.Schema).Properties
+	variableRefProperties := make(map[string]*jsonschema.Schema)
+	for propName, propValue := range stepProperties {
+		if propValue.Ref != nil && strings.HasSuffix(propValue.Ref.Location, "#/definitions/variableRef") {
+			variableRefProperties[propName] = propValue
+		}
+	}
+	return variableRefProperties, nil
 }
 
 func compileSchema(schemaRef string, schemaBytes []byte) (*jsonschema.Schema, error) {

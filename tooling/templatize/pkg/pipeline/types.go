@@ -11,6 +11,7 @@ import (
 type subsciptionLookup func(context.Context, string) (string, error)
 
 type Pipeline struct {
+	schema           string `yaml:"$schema,omitempty"`
 	pipelineFilePath string
 	ServiceGroup     string           `yaml:"serviceGroup"`
 	RolloutName      string           `yaml:"rolloutName"`
@@ -26,20 +27,33 @@ type ResourceGroup struct {
 
 func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error) {
 	rawPipeline := &struct {
+		Schema         string `yaml:"$schema,omitempty"`
 		ServiceGroup   string `yaml:"serviceGroup"`
 		RolloutName    string `yaml:"rolloutName"`
 		ResourceGroups []struct {
-			Name         string `yaml:"name"`
-			Subscription string `yaml:"subscription"`
-			AKSCluster   string `yaml:"aksCluster,omitempty"`
-			Steps        []any  `yaml:"steps"`
+			Name         string           `yaml:"name"`
+			Subscription string           `yaml:"subscription"`
+			AKSCluster   string           `yaml:"aksCluster,omitempty"`
+			Steps        []map[string]any `yaml:"steps"`
 		} `yaml:"resourceGroups"`
 	}{}
 	err := yaml.Unmarshal(bytes, rawPipeline)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal pipeline: %w", err)
 	}
+
+	// find step properties that are variableRefs
+	pipelineSchema, _, err := getSchemaForRef(rawPipeline.Schema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schema for pipeline: %w", err)
+	}
+	variableRefStepProperties, err := getVariableRefStepProperties(pipelineSchema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get variableRef step properties: %w", err)
+	}
+
 	pipeline := &Pipeline{
+		schema:           rawPipeline.Schema,
 		pipelineFilePath: filepath,
 		ServiceGroup:     rawPipeline.ServiceGroup,
 		RolloutName:      rawPipeline.RolloutName,
@@ -54,6 +68,14 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 		rg.AKSCluster = rawRg.AKSCluster
 		rg.Steps = make([]Step, len(rawRg.Steps))
 		for i, rawStep := range rawRg.Steps {
+			// preprocess variableRef step properties
+			for propName := range rawStep {
+				if _, ok := variableRefStepProperties[propName]; ok {
+					variableRef := rawStep[propName].(map[string]any)
+					variableRef["name"] = propName
+				}
+			}
+
 			// unmarshal the map into a StepMeta
 			stepMeta := &StepMeta{}
 			err := mapToStruct(rawStep, stepMeta)
@@ -73,6 +95,12 @@ func NewPlainPipelineFromBytes(filepath string, bytes []byte) (*Pipeline, error)
 				return nil, err
 			}
 		}
+	}
+
+	// another round of validation after postprocessing
+	err = ValidatePipelineSchemaForStruct(pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("pipeline schema validation failed after postprocessing: %w", err)
 	}
 
 	return pipeline, nil
@@ -218,13 +246,7 @@ type DryRun struct {
 }
 
 type Variable struct {
-	Name      string `yaml:"name"`
-	ConfigRef string `yaml:"configRef,omitempty"`
-	Value     string `yaml:"value,omitempty"`
-	Input     *Input `yaml:"input,omitempty"`
-}
-
-type VariableRef struct {
+	Name      string `yaml:"name,omitempty"`
 	ConfigRef string `yaml:"configRef,omitempty"`
 	Value     string `yaml:"value,omitempty"`
 	Input     *Input `yaml:"input,omitempty"`

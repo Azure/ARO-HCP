@@ -29,41 +29,53 @@ resourceGroups:
             - deploy
           childZone:
             configRef: childZone
+            name: childZone
           parentZone:
             configRef: parentZone
+            name: parentZone
         - name: issuerTest
           action: SetCertificateIssuer
           dependsOn:
             - deploy
           issuer:
             configRef: provider
+            name: issuer
           vaultBaseUrl:
             configRef: vaultBaseUrl
+            name: vaultBaseUrl
         - name: issuerTestOutputChaining
           action: SetCertificateIssuer
           dependsOn:
             - deploy
           issuer:
+            name: issuer
             value: provider
           vaultBaseUrl:
             input:
                 name: kvUrl
                 step: deploy
+            name: vaultBaseUrl
         - name: cert
           action: CreateCertificate
           certificateName:
+            name: certificateName
             value: hcp-mdsd
           contentType:
+            name: contentType
             value: x-pem-file
           issuer:
+            name: issuer
             value: OneCertV2-PrivateCA
           san:
+            name: san
             value: hcp-mdsd.geneva.keyvault.aro-int.azure.com
           vaultBaseUrl:
+            name: vaultBaseUrl
             value: https://arohcp-svc-ln.vault.azure.net
         - name: rpRegistration
           action: ResourceProviderRegistration
           resourceProviderNamespaces:
+            name: resourceProviderNamespaces
             value:
                 - Microsoft.Storage
                 - Microsoft.EventHub
@@ -71,11 +83,15 @@ resourceGroups:
         - name: clusterAccount
           action: LogsAccount
           certdescription:
+            name: certdescription
             value: HCP Management Cluster
           certsan:
+            name: certsan
             value: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
           namespace:
+            name: namespace
             value: HCPManagementLogs
           subscriptionId:
+            name: subscriptionId
             value:
                 - abc

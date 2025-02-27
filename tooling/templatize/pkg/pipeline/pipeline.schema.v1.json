@@ -18,7 +18,11 @@
         },
         "variableRef": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
+                "name": {
+                    "type": "string"
+                },
                 "input": {
                     "type": "object",
                     "additionalProperties": false,
@@ -62,6 +66,7 @@
         },
         "variable": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "name": {
                     "type": "string"
