@@ -1012,6 +1012,42 @@
     },
     "svcAcrZoneRedundantMode": {
       "$ref": "#/definitions/zoneRedundantMode"
+    },
+    "logs": {
+      "type": "object",
+      "properties": {
+        "cert": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "Logs certificate name",
+              "type": "string"
+            },
+            "type": {
+              "description": "Logs certificate type",
+              "type": "string"
+            },
+            "issuer": {
+              "description": "Logs certificate issuer",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "type",
+            "issuer"
+          ]
+        },
+        "subscriptions": {
+          "description": "Geneva logs resources subscriptions",
+          "type": "array"
+        },
+        "additionalProperties": false,
+        "required": [
+          "subscriptions"
+        ]
+      }
     }
   },
   "additionalProperties": false,
@@ -1044,41 +1080,5 @@
     "svc",
     "svcAcrName",
     "svcAcrZoneRedundantMode"
-  ],
-  "logs": {
-    "type": "object",
-    "properties": {
-      "cert": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "description": "Logs certificate name",
-            "type": "string"
-          },
-          "type": {
-            "description": "Logs certificate type",
-            "type": "string"
-          },
-          "issuer": {
-            "description": "Logs certificate issuer",
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "type",
-          "issuer"
-        ]
-      },
-      "subscriptions": {
-        "description": "Geneva logs resources subscriptions",
-        "type": "array"
-      },
-      "additionalProperties": false,
-      "required": [
-        "subscriptions"
-      ]
-    }
-  }
+  ]
 }
