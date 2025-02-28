@@ -764,6 +764,29 @@
         },
         "subscription": {
           "type": "string"
+        },
+        "logs": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "description": "Geneva logs account namespace",
+              "type": "string"
+            },
+            "san": {
+              "description": "Geneva logs account certificate SAN",
+              "type": "string"
+            },
+            "configVersion": {
+              "description": "Geneva logs account namespace configuration version",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "namespace",
+            "san",
+            "configVersion"
+          ]
         }
       },
       "additionalProperties": false,
@@ -951,6 +974,29 @@
           "required": [
             "ingressGatewayIPAddressName"
           ]
+        },
+        "logs": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "description": "Geneva logs account namespace",
+              "type": "string"
+            },
+            "san": {
+              "description": "Geneva logs account certificate SAN",
+              "type": "string"
+            },
+            "configVersion": {
+              "description": "Geneva logs account namespace configuration version",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "namespace",
+            "san",
+            "configVersion"
+          ]
         }
       },
       "additionalProperties": false,
@@ -998,5 +1044,41 @@
     "svc",
     "svcAcrName",
     "svcAcrZoneRedundantMode"
-  ]
+  ],
+  "logs": {
+    "type": "object",
+    "properties": {
+      "cert": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "Logs certificate name",
+            "type": "string"
+          },
+          "type": {
+            "description": "Logs certificate type",
+            "type": "string"
+          },
+          "issuer": {
+            "description": "Logs certificate issuer",
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "type",
+          "issuer"
+        ]
+      },
+      "subscriptions": {
+        "description": "Geneva logs resources subscriptions",
+        "type": "array"
+      },
+      "additionalProperties": false,
+      "required": [
+        "subscriptions"
+      ]
+    }
+  }
 }
