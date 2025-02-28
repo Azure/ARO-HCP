@@ -139,6 +139,15 @@ type HcpOpenShiftCluster struct {
 	Type *string
 }
 
+// HcpOpenShiftClusterAdminCredential - HCP cluster admin credential
+type HcpOpenShiftClusterAdminCredential struct {
+	// READ-ONLY; Expiration timestamp for the kubeconfig's client certificate
+	ExpirationTimestamp *time.Time
+
+	// READ-ONLY; Admin kubeconfig with a temporary client certificate
+	Kubeconfig *string
+}
+
 // HcpOpenShiftClusterListResult - The response of a HcpOpenShiftCluster list operation.
 type HcpOpenShiftClusterListResult struct {
 	// REQUIRED; The HcpOpenShiftCluster items on this page

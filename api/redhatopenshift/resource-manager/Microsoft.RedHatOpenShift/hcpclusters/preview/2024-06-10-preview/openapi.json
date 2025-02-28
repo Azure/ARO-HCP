@@ -754,6 +754,120 @@
         },
         "x-ms-long-running-operation": true
       }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/requestAdminCredential": {
+      "post": {
+        "operationId": "HcpOpenShiftClusters_RequestAdminCredential",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "Request a temporary admin kubeconfig for the cluster",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "The name of the HcpOpenShiftCluster",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftClusterAdminCredential"
+            }
+          },
+          "202": {
+            "description": "Resource operation accepted.",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "description": "The Location header contains the URL where the status of the long running operation can be checked."
+              },
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "location"
+        },
+        "x-ms-long-running-operation": true
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/revokeCredentials": {
+      "post": {
+        "operationId": "HcpOpenShiftClusters_RevokeCredentials",
+        "tags": [
+          "HcpOpenShiftClusters"
+        ],
+        "description": "Revoke all credentials issued by requestAdminCredential",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "The name of the HcpOpenShiftCluster",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Resource operation accepted.",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "description": "The Location header contains the URL where the status of the long running operation can be checked."
+              },
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "location"
+        },
+        "x-ms-long-running-operation": true
+      }
     }
   },
   "definitions": {
@@ -942,6 +1056,29 @@
         {
           "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
         }
+      ]
+    },
+    "HcpOpenShiftClusterAdminCredential": {
+      "type": "object",
+      "description": "HCP cluster admin credential",
+      "properties": {
+        "kubeconfig": {
+          "type": "string",
+          "format": "password",
+          "description": "Admin kubeconfig with a temporary client certificate",
+          "readOnly": true,
+          "x-ms-secret": true
+        },
+        "expirationTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Expiration timestamp for the kubeconfig's client certificate",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "kubeconfig",
+        "expirationTimestamp"
       ]
     },
     "HcpOpenShiftClusterListResult": {

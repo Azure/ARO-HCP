@@ -414,6 +414,39 @@ func (h *HcpOpenShiftCluster) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterAdminCredential.
+func (h HcpOpenShiftClusterAdminCredential) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populateDateTimeRFC3339(objectMap, "expirationTimestamp", h.ExpirationTimestamp)
+	populate(objectMap, "kubeconfig", h.Kubeconfig)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterAdminCredential.
+func (h *HcpOpenShiftClusterAdminCredential) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", h, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "expirationTimestamp":
+			err = unpopulateDateTimeRFC3339(val, "ExpirationTimestamp", &h.ExpirationTimestamp)
+			delete(rawMsg, key)
+		case "kubeconfig":
+			err = unpopulate(val, "Kubeconfig", &h.Kubeconfig)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", h, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterListResult.
 func (h HcpOpenShiftClusterListResult) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)

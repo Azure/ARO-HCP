@@ -474,3 +474,27 @@ model NodePoolAutoScaling {
  * End NodePool resources
  * =======================================
  */
+
+/*
+ * =======================================
+ *   HCP cluster credentials
+ * =======================================
+ */
+
+/** HCP cluster admin credential */
+model HcpOpenShiftClusterAdminCredential {
+  /** Admin kubeconfig with a temporary client certificate */
+  @visibility(Lifecycle.Read)
+  @secret
+  kubeconfig: string;
+
+  /** Expiration timestamp for the kubeconfig's client certificate */
+  @visibility(Lifecycle.Read)
+  expirationTimestamp: utcDateTime;
+}
+
+/*
+ * =======================================
+ *   End HCP cluster credentials
+ * =======================================
+ */
