@@ -44,6 +44,8 @@ defaults:
       versions: "asm-1-23"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
+    logs:
+      namespace: HCPServiceLogs
 
   # MGMT cluster specifics
   mgmt:
@@ -59,6 +61,8 @@ defaults:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
+    logs:
+      namespace: HCPManagementLogs
 
   # Frontend
   frontend:
@@ -332,3 +336,8 @@ clouds:
           aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: '32af88de-a61c-4f71-b709-50538598c4f2'  # aro-ev2-admin-int-sp
+
+          # Logs
+          logs:
+            subscriptions:
+            - 5299e6b7-b23b-46c8-8277-dc1147807117
