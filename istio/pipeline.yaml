@@ -13,3 +13,6 @@ resourceGroups:
       variables:
         - name: DRY_RUN
           value: "true"
+    variables:
+      - name: ISTIO_VERSIONS
+        configRef: svc.istio.versions
