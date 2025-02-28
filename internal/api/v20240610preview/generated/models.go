@@ -76,21 +76,6 @@ type ErrorResponse struct {
 	Error *ErrorDetail
 }
 
-// HcpOpenShiftClusterCredentials - HCP cluster credentials
-type HcpOpenShiftClusterCredentials struct {
-	// READ-ONLY; kube admin password
-	KubeadminPassword *string
-
-	// READ-ONLY; kubeadmin user name
-	KubeadminUsername *string
-}
-
-// HcpOpenShiftClusterKubeconfig - HCP cluster admin kubeconfig
-type HcpOpenShiftClusterKubeconfig struct {
-	// READ-ONLY; The kubeconfig file
-	Kubeconfig *string
-}
-
 // HcpOpenShiftClusterNodePoolPatch - The template for adding optional properties.
 type HcpOpenShiftClusterNodePoolPatch struct {
 	// Managed Service Identity

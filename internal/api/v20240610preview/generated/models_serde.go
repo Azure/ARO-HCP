@@ -249,68 +249,6 @@ func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterCredentials.
-func (h HcpOpenShiftClusterCredentials) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "kubeadminPassword", h.KubeadminPassword)
-	populate(objectMap, "kubeadminUsername", h.KubeadminUsername)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterCredentials.
-func (h *HcpOpenShiftClusterCredentials) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", h, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "kubeadminPassword":
-				err = unpopulate(val, "KubeadminPassword", &h.KubeadminPassword)
-			delete(rawMsg, key)
-		case "kubeadminUsername":
-				err = unpopulate(val, "KubeadminUsername", &h.KubeadminUsername)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", h, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterKubeconfig.
-func (h HcpOpenShiftClusterKubeconfig) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "kubeconfig", h.Kubeconfig)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type HcpOpenShiftClusterKubeconfig.
-func (h *HcpOpenShiftClusterKubeconfig) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", h, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "kubeconfig":
-				err = unpopulate(val, "Kubeconfig", &h.Kubeconfig)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", h, err)
-		}
-	}
-	return nil
-}
-
 // MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterNodePoolPatch.
 func (h HcpOpenShiftClusterNodePoolPatch) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
