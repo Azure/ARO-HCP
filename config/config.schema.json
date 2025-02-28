@@ -42,6 +42,29 @@
         "vmSize"
       ]
     },
+    "aksLogConfig": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "description": "Geneva logs account namespace",
+          "type": "string"
+        },
+        "san": {
+          "description": "Geneva logs account certificate SAN",
+          "type": "string"
+        },
+        "configVersion": {
+          "description": "Geneva logs account namespace configuration version",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "san",
+        "configVersion"
+      ]
+    },
     "aksConfig": {
       "type": "object",
       "properties": {
@@ -766,27 +789,7 @@
           "type": "string"
         },
         "logs": {
-          "type": "object",
-          "properties": {
-            "namespace": {
-              "description": "Geneva logs account namespace",
-              "type": "string"
-            },
-            "san": {
-              "description": "Geneva logs account certificate SAN",
-              "type": "string"
-            },
-            "configVersion": {
-              "description": "Geneva logs account namespace configuration version",
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "namespace",
-            "san",
-            "configVersion"
-          ]
+          "$ref": "#/definitions/aksLogConfig"
         }
       },
       "additionalProperties": false,
@@ -1024,27 +1027,7 @@
           ]
         },
         "logs": {
-          "type": "object",
-          "properties": {
-            "namespace": {
-              "description": "Geneva logs account namespace",
-              "type": "string"
-            },
-            "san": {
-              "description": "Geneva logs account certificate SAN",
-              "type": "string"
-            },
-            "configVersion": {
-              "description": "Geneva logs account namespace configuration version",
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "namespace",
-            "san",
-            "configVersion"
-          ]
+          "$ref": "#/definitions/aksLogConfig"
         }
       },
       "additionalProperties": false,
