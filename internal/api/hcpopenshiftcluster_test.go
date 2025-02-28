@@ -35,6 +35,8 @@ func newTestValidator() *validator.Validate {
 		arm.ManagedServiceIdentityTypeSystemAssigned,
 		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
 		arm.ManagedServiceIdentityTypeUserAssigned))
+	validate.RegisterAlias("enum_optionalclustercapability", EnumValidateTag(
+		OptionalClusterCapabilityImageRegistry))
 
 	return validate
 }
