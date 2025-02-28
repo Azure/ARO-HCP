@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"dario.cat/mergo"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	validator "github.com/go-playground/validator/v10"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -25,6 +26,7 @@ func newTestValidator() *validator.Validate {
 		arm.ManagedServiceIdentityTypeSystemAssigned,
 		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
 		arm.ManagedServiceIdentityTypeUserAssigned))
+	validate.RegisterAlias("enum_optionalclustercapability", EnumValidateTag(generated.PossibleOptionalClusterCapabilityValues()...))
 
 	return validate
 }
