@@ -492,7 +492,7 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
 //   F R O N T E N D
 //
 
-var frontendDnsName = 'frontend'
+var frontendDnsName = 'rp'
 var frontendDnsFQDN = '${frontendDnsName}.${regionalSvcDNSZoneName}'
 
 module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
