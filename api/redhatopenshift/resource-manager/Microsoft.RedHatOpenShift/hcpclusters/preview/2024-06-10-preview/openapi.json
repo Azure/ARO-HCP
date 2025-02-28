@@ -976,29 +976,6 @@
       },
       "readOnly": true
     },
-    "ClaimProfile": {
-      "type": "object",
-      "description": "External auth claim profile",
-      "properties": {
-        "claim": {
-          "type": "string",
-          "description": "Claim name of the external profile"
-        },
-        "prefix": {
-          "type": "string",
-          "description": "Prefix for the claim external profile"
-        },
-        "prefixPolicy": {
-          "type": "string",
-          "description": "Prefix policy"
-        }
-      },
-      "required": [
-        "claim",
-        "prefix",
-        "prefixPolicy"
-      ]
-    },
     "ConsoleProfile": {
       "type": "object",
       "description": "Configuration of the cluster web console",
@@ -1064,139 +1041,6 @@
           }
         ]
       }
-    },
-    "ExternalAuthClaimProfile": {
-      "type": "object",
-      "description": "External auth claim profile",
-      "properties": {
-        "mappings": {
-          "$ref": "#/definitions/TokenClaimMappingsProfile",
-          "description": "The claim mappings"
-        },
-        "validationRules": {
-          "type": "array",
-          "description": "The claim validation rules",
-          "items": {
-            "$ref": "#/definitions/TokenClaimValidationRuleProfile"
-          },
-          "x-ms-identifiers": [
-            "claim",
-            "requiredValue"
-          ]
-        }
-      },
-      "required": [
-        "mappings",
-        "validationRules"
-      ]
-    },
-    "ExternalAuthClientComponentProfile": {
-      "type": "object",
-      "description": "External auth component profile",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the external auth client"
-        },
-        "authClientNamespace": {
-          "type": "string",
-          "description": "The namespace of the external auth client"
-        }
-      },
-      "required": [
-        "name",
-        "authClientNamespace"
-      ]
-    },
-    "ExternalAuthClientProfile": {
-      "type": "object",
-      "description": "External auth client profile",
-      "properties": {
-        "component": {
-          "$ref": "#/definitions/ExternalAuthClientComponentProfile",
-          "description": "External auth client component"
-        },
-        "id": {
-          "type": "string",
-          "description": "external auth client id"
-        },
-        "secret": {
-          "type": "string",
-          "format": "password",
-          "description": "external auth client secret",
-          "x-ms-secret": true
-        },
-        "extraScopes": {
-          "type": "array",
-          "description": "external auth client scopes",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "component",
-        "id",
-        "secret",
-        "extraScopes"
-      ]
-    },
-    "ExternalAuthConfigProfile": {
-      "type": "object",
-      "description": "External authentication configuration profile",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "externalAuths": {
-          "type": "array",
-          "description": "This can only be set as a day-2 resource on a separate endpoint to provide a self-managed auth service",
-          "items": {
-            "$ref": "#/definitions/ExternalAuthProfile"
-          },
-          "readOnly": true,
-          "x-ms-identifiers": [
-            "issuer",
-            "clients",
-            "claim"
-          ]
-        }
-      },
-      "required": [
-        "externalAuths"
-      ]
-    },
-    "ExternalAuthProfile": {
-      "type": "object",
-      "description": "External authentication profile",
-      "properties": {
-        "issuer": {
-          "$ref": "#/definitions/TokenIssuerProfile",
-          "description": "Token Issuer profile"
-        },
-        "clients": {
-          "type": "array",
-          "description": "External auth clients",
-          "items": {
-            "$ref": "#/definitions/ExternalAuthClientProfile"
-          }
-        },
-        "claim": {
-          "$ref": "#/definitions/ExternalAuthClaimProfile",
-          "description": "External auth claim"
-        }
-      },
-      "required": [
-        "issuer",
-        "clients",
-        "claim"
-      ]
     },
     "HcpOpenShiftClusterCredentials": {
       "type": "object",
@@ -1412,14 +1256,6 @@
           "format": "uri",
           "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
           "readOnly": true
-        },
-        "externalAuth": {
-          "$ref": "#/definitions/ExternalAuthConfigProfile",
-          "description": "Configuration to override the openshift-oauth-apiserver inside cluster\nThis changes user login into the cluster to external provider",
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
         }
       },
       "required": [
@@ -2022,69 +1858,6 @@
           "description": "The effect of the taint\nThe good example of the taint effect is `NoSchedule`"
         }
       }
-    },
-    "TokenClaimMappingsProfile": {
-      "type": "object",
-      "description": "External auth claim mappings profile",
-      "properties": {
-        "username": {
-          "$ref": "#/definitions/ClaimProfile",
-          "description": "The claim mappings username"
-        },
-        "groups": {
-          "$ref": "#/definitions/ClaimProfile",
-          "description": "The claim mappings groups"
-        }
-      },
-      "required": [
-        "username",
-        "groups"
-      ]
-    },
-    "TokenClaimValidationRuleProfile": {
-      "type": "object",
-      "description": "External auth claim validation rule",
-      "properties": {
-        "claim": {
-          "type": "string",
-          "description": "Claim name for the validation profile"
-        },
-        "requiredValue": {
-          "type": "string",
-          "description": "Required value"
-        }
-      },
-      "required": [
-        "claim",
-        "requiredValue"
-      ]
-    },
-    "TokenIssuerProfile": {
-      "type": "object",
-      "description": "Token issuer profile",
-      "properties": {
-        "url": {
-          "type": "string",
-          "format": "uri",
-          "description": "The URL of the token issuer"
-        },
-        "audiences": {
-          "type": "array",
-          "description": "The audience of the token issuer",
-          "items": {
-            "type": "string"
-          }
-        },
-        "ca": {
-          "type": "string",
-          "description": "The issuer of the token"
-        }
-      },
-      "required": [
-        "url",
-        "audiences",
-        "ca"
-      ]
     },
     "UserAssignedIdentitiesProfile": {
       "type": "object",

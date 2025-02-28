@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -117,10 +116,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 			},
 			IssuerURL: "",
-			ExternalAuth: api.ExternalAuthConfigProfile{
-				Enabled:       false,
-				ExternalAuths: []*configv1.OIDCProvider{},
-			},
 		},
 	}
 

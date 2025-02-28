@@ -1566,6 +1566,8 @@ github.com/opencontainers/selinux v1.11.1 h1:nHFvthhM0qY8/m+vfhJylliSshm8G1jJ2jD
 github.com/opencontainers/selinux v1.11.1/go.mod h1:E5dMC3VPuVvVHDYmi78qvhJp8+M586T4DlDRYpFkyec=
 github.com/openshift-online/ocm-sdk-go v0.1.424 h1:fTNC0qs/s3IZWym3g7R4aS0YtyEkKuoasKvru18iKAs=
 github.com/openshift-online/ocm-sdk-go v0.1.424/go.mod h1:CiAu2jwl3ITKOxkeV0Qnhzv4gs35AmpIzVABQLtcI2Y=
+github.com/openshift/api v0.0.0-20240429104249-ac9356ba1784 h1:SmOZFMxuAH4d1Cj7dOftVyo4Wg/mEC4pwz6QIJJsAkc=
+github.com/openshift/api v0.0.0-20240429104249-ac9356ba1784/go.mod h1:CxgbWAlvu2iQB0UmKTtRu1YfepRg1/vJ64n2DlIEVz4=
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
 github.com/opentracing/opentracing-go v1.2.0 h1:uEJPy/1a5RIPAJ0Ov+OIO8OxWu77jEv+1B0VhjKrZUs=
 github.com/opentracing/opentracing-go v1.2.0/go.mod h1:GxEUsuufX4nBwe+T+Wl9TAgYrxe9dPLANfrWvHYVTgc=
