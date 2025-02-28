@@ -45,7 +45,7 @@ defaults:
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
     logs:
-      namespace: HCPServiceLogs
+      namespace: HCPService
 
   # MGMT cluster specifics
   mgmt:
@@ -62,7 +62,7 @@ defaults:
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
     logs:
-      namespace: HCPManagementLogs
+      namespace: HCPManagement
 
   # Frontend
   frontend:
