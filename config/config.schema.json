@@ -842,26 +842,74 @@
     },
     "logs": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "enableLogAnalytics": {
-          "type": "boolean"
+        "loganalytics": {
+          "type": "object",
+          "description": "Log Analytics configuration",
+          "properties": {
+            "enable": {
+              "type": "boolean"
+            }
+
+          },
+          "additionalProperties": false,
+          "required": [
+            "enable"
+          ]
         },
-        "namespace": {
-          "type": "string"
-        },
-        "msiName": {
-          "type": "string"
-        },
-        "serviceAccountName": {
-          "type": "string"
+        "mdsd": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "type": "string"
+            },
+            "msiName": {
+              "type": "string"
+            },
+            "serviceAccountName": {
+              "type": "string"
+            },
+            "cert": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "Logs certificate name",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Logs certificate type",
+                  "type": "string"
+                },
+                "issuer": {
+                  "description": "Logs certificate issuer",
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "type",
+                "issuer"
+              ]
+            },
+            "subscriptions": {
+              "description": "Geneva logs resources subscriptions",
+              "type": "array"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "namespace",
+            "msiName",
+            "serviceAccountName",
+            "cert",
+            "subscriptions"
+          ]
         }
       },
-      "additionalProperties": false,
       "required": [
-        "enableLogAnalytics",
-        "namespace",
-        "msiName",
-        "serviceAccountName"
+        "loganalytics"
       ]
     },
     "msiKeyVault": {
@@ -1012,42 +1060,6 @@
     },
     "svcAcrZoneRedundantMode": {
       "$ref": "#/definitions/zoneRedundantMode"
-    },
-    "logs": {
-      "type": "object",
-      "properties": {
-        "cert": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "description": "Logs certificate name",
-              "type": "string"
-            },
-            "type": {
-              "description": "Logs certificate type",
-              "type": "string"
-            },
-            "issuer": {
-              "description": "Logs certificate issuer",
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "name",
-            "type",
-            "issuer"
-          ]
-        },
-        "subscriptions": {
-          "description": "Geneva logs resources subscriptions",
-          "type": "array"
-        },
-        "additionalProperties": false,
-        "required": [
-          "subscriptions"
-        ]
-      }
     }
   },
   "additionalProperties": false,

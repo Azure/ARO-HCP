@@ -142,10 +142,9 @@
   },
   "kvCertOfficerPrincipalId": "c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb",
   "logs": {
-    "enableLogAnalytics": false,
-    "msiName": "logs-mdsd",
-    "namespace": "logs",
-    "serviceAccountName": "genevabit-aggregator"
+    "loganalytics": {
+      "enable": false
+    }
   },
   "maestro": {
     "agent": {

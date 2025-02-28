@@ -22,8 +22,10 @@ defaults:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
 
+  # Log settings
   logs:
-    enableLogAnalytics: false
+    loganalytics:
+      enable: false
 
   # SVC cluster specifics
   svc:
@@ -315,11 +317,6 @@ clouds:
         grafanaName: 'arohcp-dev'
         grafanaZoneRedundantMode: Disabled
         grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
-      # Logs
-      logs:
-        namespace: logs
-        msiName: logs-mdsd
-        serviceAccountName: genevabit-aggregator
       # DEVOPS MSI
       aroDevopsMsiId: '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity'
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
@@ -328,7 +325,8 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           logs:
-            enableLogAnalytics: true
+            loganalytics:
+              enable: true
           mgmt:
             aks:
               systemAgentPool:
@@ -359,7 +357,8 @@ clouds:
         # this is the cluster service PR check and full cycle test environment
         defaults:
           logs:
-            enableLogAnalytics: true
+            loganalytics:
+              enable: true
           svc:
             aks:
               # MC AKS nodepools

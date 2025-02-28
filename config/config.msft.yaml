@@ -22,6 +22,18 @@ defaults:
       repository: aks/msi-acrpull
       digest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
 
+  # Logs
+  logs:
+    mdsd:
+      namespace: logs
+      msiName: logs-mdsd
+      serviceAccountName: genevabit-aggregator
+      cert:
+        name: logs-mdsd
+        type: x-pem-file # GCS certificate file in PEM format
+        issuer: OneCertV2-PrivateCA
+    loganalytics:
+      enable: false
 
   # Hypershift
   hypershift:
@@ -205,17 +217,6 @@ defaults:
     grafanaZoneRedundantMode: Enabled
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
 
-  # Logs
-  logs:
-    enableLogAnalytics: false
-    namespace: logs
-    msiName: logs-mdsd
-    serviceAccountName: genevabit-aggregator
-    cert:
-      name: logs-mdsd
-      type: x-pem-file # GCS certificate file in PEM format
-      issuer: OneCertV2-PrivateCA
-
 clouds:
   public:
     # this configuration serves as a template for for all RH DEV subscription deployments
@@ -361,5 +362,6 @@ clouds:
 
           # Logs
           logs:
-            subscriptions:
-            - 5299e6b7-b23b-46c8-8277-dc1147807117
+            mdsd:
+              subscriptions:
+              - 5299e6b7-b23b-46c8-8277-dc1147807117
