@@ -107,6 +107,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				API:                           newAPIProfile(&from.Properties.API),
 				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.DisableUserWorkloadMonitoring),
 				Platform:                      newPlatformProfile(&from.Properties.Platform),
+				Capabilities:                  newClusterCapabilitiesProfile(&from.Properties.Capabilities),
 			},
 		},
 	}
@@ -120,6 +121,18 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			LastModifiedByType: api.Ptr(generated.CreatedByType(from.Resource.SystemData.LastModifiedByType)),
 			LastModifiedAt:     from.Resource.SystemData.LastModifiedAt,
 		}
+	}
+
+	return out
+}
+
+func newClusterCapabilitiesProfile(from *api.ClusterCapabilitiesProfile) *generated.ClusterCapabilitiesProfile {
+	out := &generated.ClusterCapabilitiesProfile{
+		Disabled: make([]*generated.OptionalClusterCapability, len(from.Disabled)),
+	}
+
+	for index, item := range from.Disabled {
+		out.Disabled[index] = api.Ptr(generated.OptionalClusterCapability(item))
 	}
 
 	return out
