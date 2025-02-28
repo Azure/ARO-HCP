@@ -25,6 +25,10 @@ defaults:
   logs:
     enableLogAnalytics: false
 
+  # Geneva Actions
+  genevaActions:
+    serviceTag: GenevaActionsNonProd
+
   # SVC cluster specifics
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)

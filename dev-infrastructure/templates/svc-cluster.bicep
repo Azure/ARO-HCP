@@ -179,6 +179,9 @@ param frontendIngressCertName string
 @description('Frontend Ingress Certificate Issuer')
 param frontendIngressCertIssuer string
 
+@description('The service tag for Geneva Actions')
+param genevaActionsServiceTag string
+
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
 
@@ -209,6 +212,41 @@ resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing
   scope: resourceGroup(serviceKeyVaultResourceGroup)
 }
 
+resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
+  location: location
+  name: 'svc-cluster-node-nsg'
+  properties: {
+    securityRules: [
+      {
+        name: 'rp-in-arm'
+        properties: {
+          access: 'Allow'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '443'
+          direction: 'Inbound'
+          priority: 120
+          protocol: 'Tcp'
+          sourceAddressPrefix: 'AzureResourceManager'
+          sourcePortRange: '*'
+        }
+      }
+      {
+        name: 'admin-in-geneva'
+        properties: {
+          access: 'Allow'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '443'
+          direction: 'Inbound'
+          priority: 130
+          protocol: 'Tcp'
+          sourceAddressPrefix: genevaActionsServiceTag
+          sourcePortRange: '*'
+        }
+      }
+    ]
+  }
+}
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster'
   scope: resourceGroup()
@@ -225,6 +263,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     istioIngressGatewayIPAddressName: istioIngressGatewayIPAddressName
     istioIngressGatewayIPAddressIPTags: istioIngressGatewayIPAddressIPTags
     vnetAddressPrefix: vnetAddressPrefix
+    nodeSubnetNSGId: svcClusterNSG.id
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
@@ -450,19 +489,22 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
 }
 
 //
-//   F R O N T E N D   C E R T I F I C A T E
+//   F R O N T E N D
 //
+
+var frontendDnsName = 'rp'
+var frontendDnsFQDN = '${frontendDnsName}.${regionalSvcDNSZoneName}'
 
 module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'frontend-cert-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=frontend.${regionalSvcDNSZoneName}'
+    subjectName: 'CN=${frontendDnsFQDN}'
     certName: frontendIngressCertName
     keyVaultManagedIdentityId: aroDevopsMsiId
     dnsNames: [
-      'frontend.${regionalSvcDNSZoneName}'
+      frontendDnsFQDN
     ]
     issuerName: frontendIngressCertIssuer
   }
@@ -476,5 +518,16 @@ module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
     roleName: 'Key Vault Secrets User'
     managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
     secretName: frontendIngressCertName
+  }
+}
+
+module frontendDNS '../modules/dns/a-record.bicep' = {
+  name: 'frontend-dns'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalSvcDNSZoneName
+    recordName: frontendDnsName
+    ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
+    ttl: 300
   }
 }

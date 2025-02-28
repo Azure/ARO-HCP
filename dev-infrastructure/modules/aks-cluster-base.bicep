@@ -37,6 +37,7 @@ param subnetPrefix string
 param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
+param nodeSubnetNSGId string
 
 @description('Istio Ingress Gateway Public IP Address resource name')
 param istioIngressGatewayIPAddressName string = ''
@@ -192,6 +193,9 @@ resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = 
         service: 'Microsoft.KeyVault'
       }
     ]
+    networkSecurityGroup: {
+      id: nodeSubnetNSGId
+    }
   }
 }
 
@@ -691,3 +695,4 @@ output aksNodeSubnetId string = aksNodeSubnet.id
 output aksOidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
 output aksClusterName string = aksClusterName
 output aksClusterKeyVaultSecretsProviderPrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
+output istioIngressGatewayIPAddress string = deployIstio ? istioIngressGatewayIPAddress.outputs.ipAddress : ''

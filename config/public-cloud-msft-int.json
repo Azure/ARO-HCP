@@ -95,6 +95,9 @@
       "repository": "arohcpfrontend"
     }
   },
+  "genevaActions": {
+    "serviceTag": "GenevaActionsNonProd"
+  },
   "global": {
     "globalMSIName": "global-ev2-identity",
     "region": "uksouth",

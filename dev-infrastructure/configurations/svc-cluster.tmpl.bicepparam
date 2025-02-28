@@ -72,6 +72,7 @@ param regionalResourceGroup = '{{ .regionRG }}'
 
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
 param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
+param genevaActionsServiceTag = '{{ .genevaActions.serviceTag }}'
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
