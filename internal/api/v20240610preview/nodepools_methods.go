@@ -266,3 +266,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 
 	return out
 }
+
+func (v version) MarshalHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) ([]byte, error) {
+	return arm.MarshalJSON(v.NewHCPOpenShiftClusterNodePool(from))
+}

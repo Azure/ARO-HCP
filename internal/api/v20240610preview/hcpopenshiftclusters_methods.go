@@ -79,6 +79,18 @@ func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) *
 	}
 }
 
+func newClusterCapabilitiesProfile(from *api.ClusterCapabilitiesProfile) *generated.ClusterCapabilitiesProfile {
+	out := &generated.ClusterCapabilitiesProfile{
+		Disabled: make([]*generated.OptionalClusterCapability, len(from.Disabled)),
+	}
+
+	for index, item := range from.Disabled {
+		out.Disabled[index] = api.Ptr(generated.OptionalClusterCapability(item))
+	}
+
+	return out
+}
+
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
 		from = api.NewDefaultHCPOpenShiftCluster()
@@ -126,16 +138,8 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	return out
 }
 
-func newClusterCapabilitiesProfile(from *api.ClusterCapabilitiesProfile) *generated.ClusterCapabilitiesProfile {
-	out := &generated.ClusterCapabilitiesProfile{
-		Disabled: make([]*generated.OptionalClusterCapability, len(from.Disabled)),
-	}
-
-	for index, item := range from.Disabled {
-		out.Disabled[index] = api.Ptr(generated.OptionalClusterCapability(item))
-	}
-
-	return out
+func (v version) MarshalHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) ([]byte, error) {
+	return arm.MarshalJSON(v.NewHCPOpenShiftCluster(from))
 }
 
 func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
