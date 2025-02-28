@@ -24,18 +24,19 @@ type HCPOpenShiftClusterProperties struct {
 
 // ClusterSpec represents a high level cluster configuration.
 type ClusterSpec struct {
-	Version                       VersionProfile            `json:"version,omitempty"                       visibility:"read create"`
-	DNS                           DNSProfile                `json:"dns,omitempty"                           visibility:"read create update"`
-	Network                       NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
-	Console                       ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
-	API                           APIProfile                `json:"api,omitempty"                           visibility:"read create"`
-	FIPS                          bool                      `json:"fips,omitempty"                          visibility:"read create"`
-	EtcdEncryption                bool                      `json:"etcdEncryption,omitempty"                visibility:"read create"`
-	DisableUserWorkloadMonitoring bool                      `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
-	Proxy                         ProxyProfile              `json:"proxy,omitempty"                         visibility:"read create update"`
-	Platform                      PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"`
-	IssuerURL                     string                    `json:"issuerUrl,omitempty"                     visibility:"read"`
-	ExternalAuth                  ExternalAuthConfigProfile `json:"externalAuth,omitempty"                  visibility:"read create"`
+	Version                       VersionProfile             `json:"version,omitempty"                       visibility:"read create"`
+	DNS                           DNSProfile                 `json:"dns,omitempty"                           visibility:"read create update"`
+	Network                       NetworkProfile             `json:"network,omitempty"                       visibility:"read create"`
+	Console                       ConsoleProfile             `json:"console,omitempty"                       visibility:"read"`
+	API                           APIProfile                 `json:"api,omitempty"                           visibility:"read create"`
+	FIPS                          bool                       `json:"fips,omitempty"                          visibility:"read create"`
+	EtcdEncryption                bool                       `json:"etcdEncryption,omitempty"                visibility:"read create"`
+	DisableUserWorkloadMonitoring bool                       `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
+	Proxy                         ProxyProfile               `json:"proxy,omitempty"                         visibility:"read create update"`
+	Platform                      PlatformProfile            `json:"platform,omitempty"                      visibility:"read create"`
+	IssuerURL                     string                     `json:"issuerUrl,omitempty"                     visibility:"read"`
+	ExternalAuth                  ExternalAuthConfigProfile  `json:"externalAuth,omitempty"                  visibility:"read create"`
+	Capabilities                  ClusterCapabilitiesProfile `json:"capabilities,omitempty"                  visibility:"read create"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -111,6 +112,12 @@ type UserAssignedIdentitiesProfile struct {
 type ExternalAuthConfigProfile struct {
 	Enabled       bool                     `json:"enabled,omitempty"       visibility:"read create"`
 	ExternalAuths []*configv1.OIDCProvider `json:"externalAuths,omitempty" visibility:"read"`
+}
+
+// ClusterCapabilitiesProfile - Cluster capabilities configuration.
+type ClusterCapabilitiesProfile struct {
+	// Disabled cluter capabilities.
+	Disabled []*OptionalClusterCapability
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.

@@ -182,6 +182,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 					Version:                       newVersionProfile(&from.Properties.Spec.Version),
 					DNS:                           newDNSProfile(&from.Properties.Spec.DNS),
 					Network:                       newNetworkProfile(&from.Properties.Spec.Network),
+					Capabilities:                  newClusterCapabilitiesProfile(&from.Properties.Spec.Capabilities),
 					Console:                       newConsoleProfile(&from.Properties.Spec.Console),
 					API:                           newAPIProfile(&from.Properties.Spec.API),
 					Fips:                          api.Ptr(from.Properties.Spec.FIPS),
@@ -212,6 +213,18 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 
 	for index, item := range from.Properties.Spec.ExternalAuth.ExternalAuths {
 		out.Properties.Spec.ExternalAuth.ExternalAuths[index] = newExternalAuthProfile(item)
+	}
+
+	return out
+}
+
+func newClusterCapabilitiesProfile(from *api.ClusterCapabilitiesProfile) *generated.ClusterCapabilitiesProfile {
+	out := &generated.ClusterCapabilitiesProfile{
+		Disabled: make([]*generated.OptionalClusterCapability, len(from.Disabled)),
+	}
+
+	for index, item := range from.Disabled {
+		out.Disabled[index] = api.Ptr(generated.OptionalClusterCapability(*item))
 	}
 
 	return out
