@@ -115,8 +115,7 @@ resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'mgmt-cluster-node-nsg'
   properties: {
-    securityRules: [
-    ]
+    securityRules: []
   }
 }
 

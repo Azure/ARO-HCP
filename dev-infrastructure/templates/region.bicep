@@ -158,7 +158,7 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
     publicNetworkAccess: maestroEventGridPrivate ? 'Disabled' : 'Enabled'
     certificateIssuer: maestroCertificateIssuer
-    logAnalyticsWorkspaceId: logAnalyticsWorkspace.id
+    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalyticsWorkspace.id : ''
   }
 }
 
