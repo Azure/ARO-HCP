@@ -20,6 +20,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -30,6 +32,12 @@ const (
 	defaultSubscriptionConcurrency   = 10
 	defaultPollIntervalSubscriptions = 10 * time.Minute
 	defaultPollIntervalOperations    = 10 * time.Second
+
+	collectSubscriptionsLabel  = "list_subscriptions"
+	processSubscriptionsLabel  = "process_subscriptions"
+	processOperationsLabel     = "process_operations"
+	pollClusterOperationLabel  = "poll_cluster"
+	pollNodePoolOperationLabel = "poll_node_pool"
 )
 
 type operation struct {
@@ -47,16 +55,84 @@ type OperationsScanner struct {
 	subscriptionsLock   sync.Mutex
 	subscriptionChannel chan string
 	subscriptionWorkers sync.WaitGroup
+
+	leaderGauge            prometheus.Gauge
+	workerGauge            prometheus.Gauge
+	operationsCount        *prometheus.CounterVec
+	operationsFailedCount  *prometheus.CounterVec
+	operationsDuration     *prometheus.HistogramVec
+	lastOperationTimestamp *prometheus.GaugeVec
 }
 
 func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
-	return &OperationsScanner{
+	s := &OperationsScanner{
 		dbClient:           dbClient,
 		lockClient:         dbClient.GetLockClient(),
 		clusterService:     ocm.ClusterServiceClient{Conn: ocmConnection},
 		notificationClient: http.DefaultClient,
 		subscriptions:      make([]string, 0),
+
+		leaderGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
+			prometheus.GaugeOpts{
+				Name: "backend_leader_election_state",
+				Help: "Leader election state (1 when leader).",
+			},
+		),
+		workerGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
+			prometheus.GaugeOpts{
+				Name: "backend_workers",
+				Help: "Number of concurrent workers.",
+			},
+		),
+		operationsCount: promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "backend_operations_total",
+				Help: "Total count of operations.",
+			},
+			[]string{"type"},
+		),
+		operationsFailedCount: promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "backend_failed_operations_total",
+				Help: "Total count of failed operations.",
+			},
+			[]string{"type"},
+		),
+		operationsDuration: promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:                            "backend_operations_duration_seconds",
+				Help:                            "Histogram of operation latencies.",
+				Buckets:                         []float64{.25, .5, 1, 2, 5},
+				NativeHistogramBucketFactor:     1.1,
+				NativeHistogramMaxBucketNumber:  100,
+				NativeHistogramMinResetDuration: 1 * time.Hour,
+			},
+			[]string{"type"},
+		),
+		lastOperationTimestamp: promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "backend_last_operation_timestamp_seconds",
+				Help: "Timestamp of the last operation.",
+			},
+			[]string{"type"},
+		),
 	}
+
+	// Initialize the counter and histogram metrics.
+	for _, v := range []string{
+		collectSubscriptionsLabel,
+		processSubscriptionsLabel,
+		processOperationsLabel,
+		pollClusterOperationLabel,
+		pollNodePoolOperationLabel,
+	} {
+		s.operationsCount.WithLabelValues(v)
+		s.operationsFailedCount.WithLabelValues(v)
+		s.operationsDuration.WithLabelValues(v)
+		s.lastOperationTimestamp.WithLabelValues(v)
+	}
+
+	return s
 }
 
 // getInterval parses an environment variable into a time.Duration value.
@@ -83,12 +159,14 @@ func getPositiveInt(envName string, defaultVal int, logger *slog.Logger) int {
 		if err == nil && positiveInt <= 0 {
 			err = errors.New("value must be positive")
 		}
+
 		if err == nil {
 			return positiveInt
-		} else {
-			logger.Warn(fmt.Sprintf("Cannot use %s: %v", envName, err.Error()))
 		}
+
+		logger.Warn(fmt.Sprintf("Cannot use %s: %v", envName, err.Error()))
 	}
+
 	return defaultVal
 }
 
@@ -106,6 +184,7 @@ func (s *OperationsScanner) Run(ctx context.Context, logger *slog.Logger) {
 
 	numWorkers := getPositiveInt("BACKEND_SUBSCRIPTION_CONCURRENCY", defaultSubscriptionConcurrency, logger)
 	logger.Info(fmt.Sprintf("Processing %d subscriptions at a time", numWorkers))
+	s.workerGauge.Set(float64(numWorkers))
 
 	// Create a buffered channel using worker pool size as a heuristic.
 	s.subscriptionChannel = make(chan string, numWorkers)
@@ -147,11 +226,23 @@ loop:
 // Join waits for the OperationsScanner to gracefully shut down.
 func (s *OperationsScanner) Join() {
 	s.subscriptionWorkers.Wait()
+	s.leaderGauge.Set(0)
+}
+
+func (s *OperationsScanner) updateOperationMetrics(label string) func() {
+	startTime := time.Now()
+	s.operationsCount.WithLabelValues(label).Inc()
+	return func() {
+		s.operationsDuration.WithLabelValues(label).Observe(time.Since(startTime).Seconds())
+		s.lastOperationTimestamp.WithLabelValues(label).SetToCurrentTime()
+	}
 }
 
 // collectSubscriptions builds an internal list of Azure subscription IDs by
 // querying Cosmos DB.
 func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *slog.Logger) {
+	defer s.updateOperationMetrics(collectSubscriptionsLabel)()
+
 	var subscriptions []string
 
 	iterator := s.dbClient.ListAllSubscriptionDocs()
@@ -166,6 +257,7 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 
 	err := iterator.GetError()
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(collectSubscriptionsLabel).Inc()
 		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
 		return
 	}
@@ -184,6 +276,8 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 // to the worker pool for processing. processSubscriptions may block if the
 // worker pool gets overloaded. The log will indicate if this occurs.
 func (s *OperationsScanner) processSubscriptions(logger *slog.Logger) {
+	defer s.updateOperationMetrics(processSubscriptionsLabel)()
+
 	// This method may block while feeding subscription IDs to the
 	// worker pool, so take a clone of the subscriptions slice to
 	// iterate over.
@@ -207,6 +301,8 @@ func (s *OperationsScanner) processSubscriptions(logger *slog.Logger) {
 
 // processOperations processes all operations in a single Azure subscription.
 func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionID string, logger *slog.Logger) {
+	defer s.updateOperationMetrics(processOperationsLabel)()
+
 	var numProcessed int
 
 	iterator := s.dbClient.ListOperationDocs(subscriptionID)
@@ -233,12 +329,15 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 	err := iterator.GetError()
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(processOperationsLabel).Inc()
 		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
 	}
 }
 
 // pollClusterOperation updates the status of a cluster operation.
 func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operation) {
+	defer s.updateOperationMetrics(pollClusterOperationLabel)()
+
 	clusterStatus, err := s.clusterService.GetClusterStatus(ctx, op.doc.InternalID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
@@ -250,17 +349,21 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 		} else {
 			op.logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
 		}
+
+		s.operationsFailedCount.WithLabelValues(pollClusterOperationLabel).Inc()
 		return
 	}
 
 	opStatus, opError, err := convertClusterStatus(clusterStatus, op.doc.Status)
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollClusterOperationLabel).Inc()
 		op.logger.Warn(err.Error())
 		return
 	}
 
 	err = s.updateOperationStatus(ctx, op, opStatus, opError)
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollClusterOperationLabel).Inc()
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 }
@@ -268,6 +371,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 // pollNodePoolOperation updates the status of a node pool operation.
 func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operation) {
 	// FIXME Implement when new OCM API is available.
+	defer s.updateOperationMetrics(pollNodePoolOperationLabel)()
 }
 
 // withSubscriptionLock holds a subscription lock while executing the given function.

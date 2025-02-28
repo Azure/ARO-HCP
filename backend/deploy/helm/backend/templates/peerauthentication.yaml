@@ -1,0 +1,11 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: aro-hcp-backend-metrics
+spec:
+  selector:
+    matchLabels:
+      app: aro-hcp-backend
+  portLevelMtls:
+    8081:
+      mode: PERMISSIVE
