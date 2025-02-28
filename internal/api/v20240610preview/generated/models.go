@@ -76,6 +76,15 @@ type ErrorResponse struct {
 	Error *ErrorDetail
 }
 
+// HcpOpenShiftClusterAdminCredential - HCP cluster admin credential
+type HcpOpenShiftClusterAdminCredential struct {
+	// READ-ONLY; Expiration timestamp for the kubeconfig's client certificate
+	ExpirationTimestamp *time.Time
+
+	// READ-ONLY; Admin kubeconfig with a temporary client certificate
+	Kubeconfig *string
+}
+
 // HcpOpenShiftClusterNodePoolPatch - The template for adding optional properties.
 type HcpOpenShiftClusterNodePoolPatch struct {
 	// Managed Service Identity
