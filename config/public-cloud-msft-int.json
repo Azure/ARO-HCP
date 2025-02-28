@@ -145,10 +145,22 @@
   },
   "kvCertOfficerPrincipalId": "32af88de-a61c-4f71-b709-50538598c4f2",
   "logs": {
-    "enableLogAnalytics": false,
-    "msiName": "logs-mdsd",
-    "namespace": "logs",
-    "serviceAccountName": "genevabit-aggregator"
+    "loganalytics": {
+      "enable": false
+    },
+    "mdsd": {
+      "cert": {
+        "issuer": "OneCertV2-PrivateCA",
+        "name": "logs-mdsd",
+        "type": "x-pem-file"
+      },
+      "msiName": "logs-mdsd",
+      "namespace": "logs",
+      "serviceAccountName": "genevabit-aggregator",
+      "subscriptions": [
+        "5299e6b7-b23b-46c8-8277-dc1147807117"
+      ]
+    }
   },
   "maestro": {
     "agent": {
@@ -224,6 +236,11 @@
       },
       "vnetAddressPrefix": "10.128.0.0/14"
     },
+    "logs": {
+      "configVersion": "1.0",
+      "namespace": "HCPManagementLogs",
+      "san": "MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
+    },
     "rg": "hcp-underlay-westus3-mgmt-1",
     "subscription": "hcp-westus3"
   },
@@ -292,6 +309,11 @@
       "tag": "prod-stable",
       "targetVersion": "asm-1-23",
       "versions": "asm-1-23"
+    },
+    "logs": {
+      "configVersion": "1.0",
+      "namespace": "HCPServiceLogs",
+      "san": "SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
     },
     "rg": "hcp-underlay-westus3-svc",
     "subscription": "hcp-westus3"

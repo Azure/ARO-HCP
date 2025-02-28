@@ -23,4 +23,4 @@ param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
 // Log Analytics
-param enableLogAnalytics = {{ .logs.enableLogAnalytics }}
+param enableLogAnalytics = {{ .logs.loganalytics.enable }}

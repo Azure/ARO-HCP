@@ -22,6 +22,18 @@ defaults:
       repository: aks/msi-acrpull
       digest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
 
+  # Logs
+  logs:
+    mdsd:
+      namespace: logs
+      msiName: logs-mdsd
+      serviceAccountName: genevabit-aggregator
+      cert:
+        name: logs-mdsd
+        type: x-pem-file # GCS certificate file in PEM format
+        issuer: OneCertV2-PrivateCA
+    loganalytics:
+      enable: false
 
   # Hypershift
   hypershift:
@@ -49,6 +61,8 @@ defaults:
       versions: "asm-1-23"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
+    logs:
+      namespace: HCPServiceLogs
 
   # MGMT cluster specifics
   mgmt:
@@ -64,6 +78,8 @@ defaults:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
+    logs:
+      namespace: HCPManagementLogs
 
   # Frontend
   frontend:
@@ -201,13 +217,6 @@ defaults:
     grafanaZoneRedundantMode: Enabled
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
 
-  # Logs
-  logs:
-    enableLogAnalytics: false
-    namespace: logs
-    msiName: logs-mdsd
-    serviceAccountName: genevabit-aggregator
-
 clouds:
   public:
     # this configuration serves as a template for for all RH DEV subscription deployments
@@ -277,6 +286,10 @@ clouds:
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
+            logs:
+              san: SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
+              configVersion: "1.0"
+
           # MC
           mgmt:
             aks:
@@ -293,6 +306,9 @@ clouds:
                 osDiskSizeGB: 128
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
+            logs:
+              san: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
+              configVersion: "1.0"
 
           # DNS
           dns:
@@ -347,3 +363,9 @@ clouds:
           aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: '32af88de-a61c-4f71-b709-50538598c4f2'  # aro-ev2-admin-int-sp
+
+          # Logs
+          logs:
+            mdsd:
+              subscriptions:
+              - 5299e6b7-b23b-46c8-8277-dc1147807117

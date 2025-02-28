@@ -42,6 +42,29 @@
         "vmSize"
       ]
     },
+    "aksLogConfig": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "description": "Geneva logs account namespace",
+          "type": "string"
+        },
+        "san": {
+          "description": "Geneva logs account certificate SAN",
+          "type": "string"
+        },
+        "configVersion": {
+          "description": "Geneva logs account namespace configuration version",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "san",
+        "configVersion"
+      ]
+    },
     "aksConfig": {
       "type": "object",
       "properties": {
@@ -776,6 +799,10 @@
         },
         "subscription": {
           "type": "string"
+        },
+        "logs": {
+          "description": "MDSD / Genevabits log aggregation and shipping configuration",
+          "$ref": "#/definitions/aksLogConfig"
         }
       },
       "additionalProperties": false,
@@ -831,26 +858,76 @@
     },
     "logs": {
       "type": "object",
+      "additionalProperties": false,
+      "description": "Log infrastructure configuration",
       "properties": {
-        "enableLogAnalytics": {
-          "type": "boolean"
+        "loganalytics": {
+          "type": "object",
+          "description": "Log Analytics configuration",
+          "properties": {
+            "enable": {
+              "type": "boolean"
+            }
+
+          },
+          "additionalProperties": false,
+          "required": [
+            "enable"
+          ]
         },
-        "namespace": {
-          "type": "string"
-        },
-        "msiName": {
-          "type": "string"
-        },
-        "serviceAccountName": {
-          "type": "string"
+        "mdsd": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "type": "string"
+            },
+            "msiName": {
+              "type": "string"
+            },
+            "serviceAccountName": {
+              "type": "string"
+            },
+            "cert": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "Logs certificate name",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Logs certificate type",
+                  "type": "string"
+                },
+                "issuer": {
+                  "description": "Logs certificate issuer",
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "type",
+                "issuer"
+              ]
+            },
+            "subscriptions": {
+              "description": "Geneva logs resources subscriptions",
+              "type": "array"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "namespace",
+            "msiName",
+            "serviceAccountName",
+            "cert",
+            "subscriptions"
+          ]
         }
       },
-      "additionalProperties": false,
       "required": [
-        "enableLogAnalytics",
-        "namespace",
-        "msiName",
-        "serviceAccountName"
+        "mdsd",
+        "loganalytics"
       ]
     },
     "msiKeyVault": {
@@ -963,6 +1040,10 @@
           "required": [
             "ingressGatewayIPAddressName"
           ]
+        },
+        "logs": {
+          "description": "MDSD / Genevabits log aggregation and shipping configuration",
+          "$ref": "#/definitions/aksLogConfig"
         }
       },
       "additionalProperties": false,

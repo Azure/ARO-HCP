@@ -69,14 +69,31 @@ resourceGroups:
       - Microsoft.Storage
       - Microsoft.EventHub
       - Microsoft.Insights
-  - name: clusterAccount
-    action: LogsAccount
+  - name: rpAccount
+    action: RPLogsAccount
     subscriptionId:
-      value:
-      - abc
+      value: sub
     namespace:
-      value: HCPManagementLogs
+      value: ns
     certsan:
-      value: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
+      value: san
+    certdescription:
+      value: HCP Service Cluster
+    configVersion:
+      value: version
+    events:
+      akskubesystem: kubesystem
+  - name: clusterAccount
+    action: ClusterLogsAccount
+    subscriptionId:
+      value: sub
+    namespace:
+      value: ns
+    certsan:
+      value: san
     certdescription:
       value: HCP Management Cluster
+    configVersion:
+      value: version
+    events:
+      akskubesystem: kubesystem
