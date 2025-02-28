@@ -21,6 +21,20 @@ type HcpOpenShiftClustersClientBeginDeleteOptions struct {
 	ResumeToken string
 }
 
+// HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginRequestAdminCredential
+// method.
+type HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// HcpOpenShiftClustersClientBeginRevokeCredentialsOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginRevokeCredentials
+// method.
+type HcpOpenShiftClustersClientBeginRevokeCredentialsOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
 // HcpOpenShiftClustersClientBeginUpdateOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginUpdate
 // method.
 type HcpOpenShiftClustersClientBeginUpdateOptions struct {
