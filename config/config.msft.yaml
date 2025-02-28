@@ -262,7 +262,7 @@ clouds:
 
             logs:
               san: SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
-              configVersion: 1.0
+              configVersion: "1.0"
 
           # MC
           mgmt:
@@ -283,7 +283,7 @@ clouds:
 
             logs:
               san: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
-              configVersion: 1.0
+              configVersion: "1.0"
 
           # DNS
           dns:
