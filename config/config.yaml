@@ -24,6 +24,15 @@ defaults:
 
   # Log settings
   logs:
+    mdsd:
+      namespace: logs
+      msiName: logs-mdsd
+      serviceAccountName: genevabit-aggregator
+      cert:
+        name: ""
+        type: ""
+        issuer: ""
+      subscriptions: []
     loganalytics:
       enable: false
 

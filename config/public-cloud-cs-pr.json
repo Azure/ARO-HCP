@@ -144,6 +144,17 @@
   "logs": {
     "loganalytics": {
       "enable": true
+    },
+    "mdsd": {
+      "cert": {
+        "issuer": "",
+        "name": "",
+        "type": ""
+      },
+      "msiName": "logs-mdsd",
+      "namespace": "logs",
+      "serviceAccountName": "genevabit-aggregator",
+      "subscriptions": []
     }
   },
   "maestro": {

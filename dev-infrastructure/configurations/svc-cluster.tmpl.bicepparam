@@ -76,11 +76,11 @@ param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 
-// logs
+// MDSD / Genevabits
 @description('The namespace of the logs')
-param logsNamespace = '{{ .logs.namespace }}'
-param logsMSI = '{{ .logs.msiName }}'
-param logsServiceAccount = '{{ .logs.serviceAccountName }}'
+param logsNamespace = '{{ .logs.mdsd.namespace }}'
+param logsMSI = '{{ .logs.mdsd.msiName }}'
+param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'

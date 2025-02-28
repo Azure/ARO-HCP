@@ -912,6 +912,7 @@
         }
       },
       "required": [
+        "mdsd",
         "loganalytics"
       ]
     },
