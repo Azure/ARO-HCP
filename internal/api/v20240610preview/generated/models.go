@@ -76,18 +76,12 @@ type ErrorResponse struct {
 	Error *ErrorDetail
 }
 
-// HcpOpenShiftClusterCredentials - HCP cluster credentials
-type HcpOpenShiftClusterCredentials struct {
-	// READ-ONLY; kube admin password
-	KubeadminPassword *string
+// HcpOpenShiftClusterAdminCredential - HCP cluster admin credential
+type HcpOpenShiftClusterAdminCredential struct {
+	// READ-ONLY; Expiration timestamp for the kubeconfig's client certificate
+	ExpirationTimestamp *time.Time
 
-	// READ-ONLY; kubeadmin user name
-	KubeadminUsername *string
-}
-
-// HcpOpenShiftClusterKubeconfig - HCP cluster admin kubeconfig
-type HcpOpenShiftClusterKubeconfig struct {
-	// READ-ONLY; The kubeconfig file
+	// READ-ONLY; Admin kubeconfig with a temporary client certificate
 	Kubeconfig *string
 }
 

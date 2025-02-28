@@ -26,19 +26,18 @@ interface HcpOpenShiftClusters {
   listBySubscription is ArmListBySubscription<HcpOpenShiftClusterResource>;
 
   // ------------------------------
-  // The credentials and kubeconfig operations for the cluster
-  // These are implemented as POST to not be forced to use the Provisioning state in the response
-  /** Return the kubeconfig for the cluster */
-  kubeConfig is ArmResourceActionSync<
+  // The requestAdminCredential and revokeAdminCredentials are
+  // asynchronous POST actions on an HcpOpenShiftClusterResource.
+  /** Request a temporary admin kubeconfig for the cluster */
+  requestAdminCredential is ArmResourceActionAsync<
     HcpOpenShiftClusterResource,
     void,
-    HcpOpenShiftClusterKubeconfig
+    HcpOpenShiftClusterAdminCredential
   >;
-  /** Returns the admin cluster credentials */
-  adminCredentials is ArmResourceActionSync<
+  /** Revoke all credentials issued by requestAdminCredential */
+  revokeCredentials is ArmResourceActionNoResponseContentAsync<
     HcpOpenShiftClusterResource,
-    void,
-    HcpOpenShiftClusterCredentials
+    void
   >;
 }
 
