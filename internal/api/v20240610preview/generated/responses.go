@@ -13,12 +13,6 @@ type HcpClusterVersionsClientListResponse struct {
 	HcpOpenShiftVersionResourceListResult
 }
 
-// HcpOpenShiftClustersClientAdminCredentialsResponse contains the response from method HcpOpenShiftClustersClient.AdminCredentials.
-type HcpOpenShiftClustersClientAdminCredentialsResponse struct {
-	// HCP cluster credentials
-	HcpOpenShiftClusterCredentials
-}
-
 // HcpOpenShiftClustersClientCreateOrUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginCreateOrUpdate.
 type HcpOpenShiftClustersClientCreateOrUpdateResponse struct {
 	// HCP cluster resource
@@ -34,12 +28,6 @@ type HcpOpenShiftClustersClientDeleteResponse struct {
 type HcpOpenShiftClustersClientGetResponse struct {
 	// HCP cluster resource
 	HcpOpenShiftClusterResource
-}
-
-// HcpOpenShiftClustersClientKubeConfigResponse contains the response from method HcpOpenShiftClustersClient.KubeConfig.
-type HcpOpenShiftClustersClientKubeConfigResponse struct {
-	// HCP cluster admin kubeconfig
-	HcpOpenShiftClusterKubeconfig
 }
 
 // HcpOpenShiftClustersClientListByResourceGroupResponse contains the response from method HcpOpenShiftClustersClient.NewListByResourceGroupPager.
