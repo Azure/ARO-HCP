@@ -1,3 +1,4 @@
+{{- if eq .Values.deployMise true }}
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
@@ -11,10 +12,7 @@ spec:
         namespaces: ["aks-istio-ingress"]
     to:
     - operation:
-        {{- if eq .Values.deployMise true }}
         methods: ["GET", "PUT", "POST","PATCH", "DELETE"]
-        {{- else }}
-        methods: ["GET"]
-        {{- end }}
         ports:
         - "8443"
+{{- end }}
