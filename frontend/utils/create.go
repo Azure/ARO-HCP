@@ -63,7 +63,6 @@ func CreateJSONFile() error {
 				Visibility: api.Visibility("public"),
 			},
 			DisableUserWorkloadMonitoring: false,
-			Proxy:                         api.ProxyProfile{},
 			Platform: api.PlatformProfile{
 				ManagedResourceGroup:   "dev-test-mrg",
 				NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
