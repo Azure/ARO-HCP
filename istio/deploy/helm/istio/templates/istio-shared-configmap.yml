@@ -1,0 +1,19 @@
+{{ range $version := .Values.istioVersions }}
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  labels:
+    istio.io/rev: {{ $version }}
+  name: istio-shared-configmap-{{ $version }}
+  namespace: aks-istio-system
+data:
+  mesh: |-
+    extensionProviders:
+    - name: "ext-authz"
+      envoyExtAuthzHttp:
+        service: "mise/mise.mise.svc.cluster.local"
+        port: "8080"
+        includeRequestHeadersInCheck: ["x-ext-authz"]
+        pathPrefix: "/v1/EnvoyValidateRequest"
+{{ end }}

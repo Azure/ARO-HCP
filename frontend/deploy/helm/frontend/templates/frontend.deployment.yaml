@@ -4,6 +4,7 @@ metadata:
   labels:
     app: aro-hcp-frontend
   name: aro-hcp-frontend
+  namespace: {{ .Release.namespace }}
 spec:
   progressDeadlineSeconds: 600
   replicas: 2

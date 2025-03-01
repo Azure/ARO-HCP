@@ -1,0 +1,15 @@
+{{- if eq .Values.deployMise true }}
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: ext-authz
+  namespace: {{ .Release.namespace }}
+spec:
+  action: CUSTOM
+  provider:
+    name: ext-authz
+  rules:
+  - to:
+    - operation:
+        paths: ["/*"]
+{{- end }}

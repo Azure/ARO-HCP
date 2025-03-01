@@ -1,8 +1,9 @@
+{{- if eq .Values.deployMise true }}
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
   name: allow-istio-ingress
-  namespace: aro-hcp
+  namespace: {{ .Release.namespace }}
 spec:
   action: ALLOW
   rules:
@@ -11,6 +12,7 @@ spec:
         namespaces: ["aks-istio-ingress"]
     to:
     - operation:
-        methods: ["GET"]
+        methods: ["GET", "PUT", "POST","PATCH", "DELETE"]
         ports:
         - "8443"
+{{- end }}
