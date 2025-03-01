@@ -547,35 +547,3 @@ model NodePoolAutoScaling {
  * End NodePool resources
  * =======================================
  */
-
-/*
- * =======================================
- *   HCP cluster credentials
- * =======================================
- */
-
-/** HCP cluster credentials */
-model HcpOpenShiftClusterCredentials {
-  /** kubeadmin user name */
-  @visibility("read")
-  kubeadminUsername: string;
-
-  /** kube admin password */
-  @visibility("read")
-  @secret
-  kubeadminPassword: string;
-}
-
-/** HCP cluster admin kubeconfig */
-model HcpOpenShiftClusterKubeconfig {
-  /** The kubeconfig file */
-  @visibility("read")
-  @secret
-  kubeconfig: string;
-}
-
-/*
- * =======================================
- *   End HCP cluster credentials
- * =======================================
- */
