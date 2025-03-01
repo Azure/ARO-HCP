@@ -309,7 +309,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 	pk := database.NewPartitionKey(subscriptionID)
 
-	iterator := s.dbClient.ListActiveOperationDocs(pk)
+	iterator := s.dbClient.ListActiveOperationDocs(pk, nil)
 
 	for operationID, operationDoc := range iterator.Items(ctx) {
 		operationLogger := logger.With(
