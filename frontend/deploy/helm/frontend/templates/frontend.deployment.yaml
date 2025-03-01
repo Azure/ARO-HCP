@@ -4,6 +4,7 @@ metadata:
   labels:
     app: aro-hcp-frontend
   name: aro-hcp-frontend
+  namespace: {{ .Release.Namespace }}
 spec:
   progressDeadlineSeconds: 600
   replicas: 2
@@ -27,7 +28,7 @@ spec:
         - name: aro-hcp-frontend
           image: '{{ .Values.deployment.imageName }}'
           imagePullPolicy: Always
-          args: ["--clusters-service-url", "http://clusters-service.{{ .Values.clusterService.namespace }}.svc.cluster.local:8000"]
+          args: ["--clusters-service-url", "http://{{ .Values.clusterService.service.name }}.{{ .Values.clusterService.namespace }}.svc.cluster.local:{{ .Values.clusterService.service.port }}"]
           env:
           - name: DB_NAME
             valueFrom:
