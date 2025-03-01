@@ -20,6 +20,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
@@ -671,6 +672,205 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	writer.WriteHeader(http.StatusAccepted)
 }
 
+func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseWriter, request *http.Request) {
+	const operationRequest = database.OperationRequestRequestCredential
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Parent resource is the hcpOpenShiftCluster.
+	resourceID = resourceID.Parent
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		logger.Error(err.Error())
+		if errors.Is(err, database.ErrNotFound) {
+			arm.WriteResourceNotFoundError(writer, resourceID)
+		} else {
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	// New credential cannot be requested while credentials are being revoked.
+
+	iterator := f.dbClient.ListActiveOperationDocs(pk, &database.DBClientListActiveOperationDocsOptions{
+		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
+		ExternalID: resourceID,
+	})
+
+	for _, _ = range iterator.Items(ctx) {
+		writer.Header().Set("Retry-After", strconv.Itoa(10))
+		arm.WriteConflictError(
+			writer, resourceID,
+			"Cannot request credential while credentials are being revoked")
+		return
+	}
+
+	err = iterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, resourceDoc.InternalID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	internalID, err := ocm.NewInternalID(csCredential.HREF())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, internalID)
+
+	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.ExposeOperation(writer, request, pk, operationID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+}
+
+func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter, request *http.Request) {
+	const operationRequest = database.OperationRequestRevokeCredentials
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Parent resource is the hcpOpenShiftCluster.
+	resourceID = resourceID.Parent
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		logger.Error(err.Error())
+		if errors.Is(err, database.ErrNotFound) {
+			arm.WriteResourceNotFoundError(writer, resourceID)
+		} else {
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	// Credential revocation cannot be requested while another revocation is in progress.
+
+	iterator := f.dbClient.ListActiveOperationDocs(pk, &database.DBClientListActiveOperationDocsOptions{
+		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
+		ExternalID: resourceID,
+	})
+
+	for _, _ = range iterator.Items(ctx) {
+		writer.Header().Set("Retry-After", strconv.Itoa(10))
+		arm.WriteConflictError(
+			writer, resourceID,
+			"Credentials are already being revoked")
+		return
+	}
+
+	err = iterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, resourceDoc.InternalID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Just as deleting an ARM resource cancels any other operations on the resource,
+	// revoking credentials cancels any credential requests in progress.
+
+	iterator = f.dbClient.ListActiveOperationDocs(pk, &database.DBClientListActiveOperationDocsOptions{
+		Request:    api.Ptr(database.OperationRequestRequestCredential),
+		ExternalID: resourceID,
+	})
+
+	for operationID, _ := range iterator.Items(ctx) {
+		err := f.CancelOperation(ctx, pk, operationID)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+	}
+
+	err = iterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID)
+
+	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.ExposeOperation(writer, request, pk, operationID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+}
+
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
@@ -1097,16 +1297,41 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	case database.OperationRequestDelete:
 		writer.WriteHeader(http.StatusNoContent)
 		return
+	case database.OperationRequestRequestCredential:
+		successStatusCode = http.StatusOK
+	case database.OperationRequestRevokeCredentials:
+		writer.WriteHeader(http.StatusNoContent)
+		return
 	default:
 		logger.Error(fmt.Sprintf("Unhandled request type: %s", doc.Request))
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	responseBody, cloudError := f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
-	if cloudError != nil {
-		writer.WriteHeader(cloudError.StatusCode)
-		return
+	var responseBody []byte
+
+	if doc.InternalID.Kind() == cmv1.BreakGlassCredentialKind {
+		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.InternalID)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ConvertCStoAdminCredential(csBreakGlassCredential))
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+	} else {
+		var cloudError *arm.CloudError
+
+		responseBody, cloudError = f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
+		if cloudError != nil {
+			arm.WriteCloudError(writer, cloudError)
+			return
+		}
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)

@@ -116,7 +116,7 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 
 		// Add callback header(s) based on the request method.
 		switch request.Method {
-		case http.MethodDelete, http.MethodPatch:
+		case http.MethodDelete, http.MethodPatch, http.MethodPost:
 			f.AddLocationHeader(writer, request, updateDoc)
 			fallthrough
 		case http.MethodPut:
