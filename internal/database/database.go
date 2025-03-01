@@ -47,6 +47,14 @@ type DBClientIterator[T DocumentProperties] interface {
 	GetError() error
 }
 
+// DBClientListActiveOperationDocsOptions allows for limiting the results of DBClient.ListActiveOperationDocs.
+type DBClientListActiveOperationDocsOptions struct {
+	// Request matches the type of asynchronous operation requested
+	Request *OperationRequest
+	// ExternalID matches (case-insensitively) the Azure resource ID of the cluster or node pool
+	ExternalID *azcorearm.ResourceID
+}
+
 // DBClient provides a customized interface to the Cosmos DB containers used by the
 // ARO-HCP resource provider.
 type DBClient interface {
@@ -110,12 +118,13 @@ type DBClient interface {
 	UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error)
 
 	// ListActiveOperationDocs returns an iterator that searches for asynchronous operation documents
-	// with a non-terminal status in the "Resources" container under the given partition key.
+	// with a non-terminal status in the "Resources" container under the given partition key. The
+	// options argument can further limit the search to documents that match the provided values.
 	//
 	// Note that ListActiveOperationDocs does not perform the search, but merely prepares an iterator
 	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
-	ListActiveOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument]
+	ListActiveOperationDocs(pk azcosmos.PartitionKey, options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a subscription document from the "Resources" container.
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
@@ -437,8 +446,8 @@ func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.Par
 	return false, err
 }
 
-func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument] {
-	var opt azcosmos.QueryOptions
+func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument] {
+	var queryOptions azcosmos.QueryOptions
 
 	query := fmt.Sprintf(
 		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
@@ -448,7 +457,27 @@ func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey) DBCli
 		arm.ProvisioningStateFailed,
 		arm.ProvisioningStateCanceled)
 
-	pager := d.resources.NewQueryItemsPager(query, pk, &opt)
+	if options != nil {
+		if options.Request != nil {
+			query += " AND c.properties.request == @request"
+			queryParameter := azcosmos.QueryParameter{
+				Name:  "@request",
+				Value: string(*options.Request),
+			}
+			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
+		}
+
+		if options.ExternalID != nil {
+			query += " AND STRINGEQUALS(c.properties.externalId, @externalId, true)"
+			queryParameter := azcosmos.QueryParameter{
+				Name:  "@externalId",
+				Value: options.ExternalID.String(),
+			}
+			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
+		}
+	}
+
+	pager := d.resources.NewQueryItemsPager(query, pk, &queryOptions)
 
 	return newQueryItemsIterator[OperationDocument](pager)
 }
