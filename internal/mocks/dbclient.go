@@ -567,17 +567,17 @@ func (c *MockDBClientListAllSubscriptionDocsCall) DoAndReturn(f func() database.
 }
 
 // ListOperationDocs mocks base method.
-func (m *MockDBClient) ListOperationDocs(pk azcosmos.PartitionKey) database.DBClientIterator[database.OperationDocument] {
+func (m *MockDBClient) ListOperationDocs(pk azcosmos.PartitionKey, request *database.OperationRequest) database.DBClientIterator[database.OperationDocument] {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListOperationDocs", pk)
+	ret := m.ctrl.Call(m, "ListOperationDocs", pk, request)
 	ret0, _ := ret[0].(database.DBClientIterator[database.OperationDocument])
 	return ret0
 }
 
 // ListOperationDocs indicates an expected call of ListOperationDocs.
-func (mr *MockDBClientMockRecorder) ListOperationDocs(pk any) *MockDBClientListOperationDocsCall {
+func (mr *MockDBClientMockRecorder) ListOperationDocs(pk, request any) *MockDBClientListOperationDocsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListOperationDocs), pk)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListOperationDocs), pk, request)
 	return &MockDBClientListOperationDocsCall{Call: call}
 }
 
@@ -593,13 +593,13 @@ func (c *MockDBClientListOperationDocsCall) Return(arg0 database.DBClientIterato
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBClientListOperationDocsCall) Do(f func(azcosmos.PartitionKey) database.DBClientIterator[database.OperationDocument]) *MockDBClientListOperationDocsCall {
+func (c *MockDBClientListOperationDocsCall) Do(f func(azcosmos.PartitionKey, *database.OperationRequest) database.DBClientIterator[database.OperationDocument]) *MockDBClientListOperationDocsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientListOperationDocsCall) DoAndReturn(f func(azcosmos.PartitionKey) database.DBClientIterator[database.OperationDocument]) *MockDBClientListOperationDocsCall {
+func (c *MockDBClientListOperationDocsCall) DoAndReturn(f func(azcosmos.PartitionKey, *database.OperationRequest) database.DBClientIterator[database.OperationDocument]) *MockDBClientListOperationDocsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
