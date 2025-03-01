@@ -15,42 +15,29 @@ updates:
     schedule:
       interval: 'weekly'
   - package-ecosystem: gomod
-    directory: /frontend
+    directories:
+      - '/frontend'
+      - '/backend'
+      - '/internal'
+      - '/tooling/image-sync'
+      - '/tooling/mcerepkg'
+      - '/tooling/prometheus-rules'
+      - '/tooling/templatize'
     schedule:
       interval: 'weekly'
     groups:
       azure-sdk-for-go:
         patterns:
           - 'github.com/Azure/azure-sdk-for-go/*'
-    open-pull-requests-limit: 3
-  - package-ecosystem: gomod
-    directory: /backend
-    schedule:
-      interval: 'weekly'
-    groups:
-      azure-sdk-for-go:
+      kubernetes:
         patterns:
-          - 'github.com/Azure/azure-sdk-for-go/*'
-    open-pull-requests-limit: 3
-  - package-ecosystem: gomod
-    directory: /internal
-    schedule:
-      interval: 'weekly'
-    open-pull-requests-limit: 3
-  - package-ecosystem: gomod
-    directory: /tooling/image-sync
-    schedule:
-      interval: 'weekly'
+          - 'k8s.io/*'
+          - 'sigs.k8s.io/*'
     open-pull-requests-limit: 3
   - package-ecosystem: docker
-    directory: "/frontend"
-    schedule:
-      interval: 'weekly'
-  - package-ecosystem: docker
-    directory: "/backend"
-    schedule:
-      interval: 'weekly'
-  - package-ecosystem: docker
-    directory: "/tooling/image-sync"
+    directories:
+      - '/frontend'
+      - '/backend'
+      - '/tooling/image-sync'
     schedule:
       interval: 'weekly'
