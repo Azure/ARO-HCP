@@ -110,12 +110,13 @@ type DBClient interface {
 	UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error)
 
 	// ListOperationDocs returns an iterator that searches for asynchronous operation documents
-	// in the "Resources" container under the given partition key.
+	// in the "Resources" container under the given partition key. The request argument can limit
+	// the search to documents with a matching OperationRequest value.
 	//
 	// Note that ListOperationDocs does not perform the search, but merely prepares an iterator to
 	// do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
-	ListOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument]
+	ListOperationDocs(pk azcosmos.PartitionKey, request *OperationRequest) DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a subscription document from the "Resources" container.
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
@@ -437,7 +438,7 @@ func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.Par
 	return false, err
 }
 
-func (d *cosmosDBClient) ListOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument] {
+func (d *cosmosDBClient) ListOperationDocs(pk azcosmos.PartitionKey, request *OperationRequest) DBClientIterator[OperationDocument] {
 	query := "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
 	opt := azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{
@@ -446,6 +447,15 @@ func (d *cosmosDBClient) ListOperationDocs(pk azcosmos.PartitionKey) DBClientIte
 				Value: OperationResourceType.String(),
 			},
 		},
+	}
+
+	if request != nil {
+		query += " AND c.properties.request == @request"
+		queryParameter := azcosmos.QueryParameter{
+			Name:  "@request",
+			Value: request,
+		}
+		opt.QueryParameters = append(opt.QueryParameters, queryParameter)
 	}
 
 	pager := d.resources.NewQueryItemsPager(query, pk, &opt)
