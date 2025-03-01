@@ -1,11 +1,14 @@
 package metrics
 
+// Copyright (c) Microsoft Corporation.
+// Licensed under the Apache License 2.0.
+
 import (
 	"bytes"
 	"errors"
 	"io"
 	"log/slog"
-	"slices"
+	"maps"
 	"testing"
 	"time"
 
@@ -20,19 +23,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
-// Copyright (c) Microsoft Corporation.
-// Licensed under the Apache License 2.0.
-
 func TestSubscriptionCollector(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	nosubs := slices.Values([]*database.SubscriptionDocument{})
-	subs := slices.Values([]*database.SubscriptionDocument{
-		database.NewSubscriptionDocument(
-			"00000000-0000-0000-0000-000000000000",
-			&arm.Subscription{
-				State:            arm.SubscriptionStateRegistered,
-				RegistrationDate: api.Ptr(time.Now().String()),
-			}),
+	nosubs := maps.All(map[string]*arm.Subscription{})
+	subs := maps.All(map[string]*arm.Subscription{
+		"00000000-0000-0000-0000-000000000000": &arm.Subscription{
+			State:            arm.SubscriptionStateRegistered,
+			RegistrationDate: api.Ptr(time.Now().String()),
+		},
 	})
 	ctrl := gomock.NewController(t)
 
@@ -42,10 +40,10 @@ func TestSubscriptionCollector(t *testing.T) {
 	collector := NewSubscriptionCollector(r, mockDBClient, "test")
 
 	t.Run("no subscription", func(t *testing.T) {
-		mockIter := mocks.NewMockDBClientIterator[database.SubscriptionDocument](ctrl)
+		mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
 		mockIter.EXPECT().
 			Items(gomock.Any()).
-			Return(database.DBClientIteratorItem[database.SubscriptionDocument](nosubs))
+			Return(database.DBClientIteratorItem[arm.Subscription](nosubs))
 		mockIter.EXPECT().
 			GetError().
 			Return(nil)
@@ -69,10 +67,10 @@ frontend_subscription_collector_last_sync 1
 	})
 
 	t.Run("db error", func(t *testing.T) {
-		mockIter := mocks.NewMockDBClientIterator[database.SubscriptionDocument](ctrl)
+		mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
 		mockIter.EXPECT().
 			Items(gomock.Any()).
-			Return(database.DBClientIteratorItem[database.SubscriptionDocument](nosubs))
+			Return(database.DBClientIteratorItem[arm.Subscription](nosubs))
 		mockIter.EXPECT().
 			GetError().
 			Return(errors.New("db error"))
@@ -96,10 +94,10 @@ frontend_subscription_collector_last_sync 0
 	})
 
 	t.Run("refresh with 1 subscription", func(t *testing.T) {
-		mockIter := mocks.NewMockDBClientIterator[database.SubscriptionDocument](ctrl)
+		mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
 		mockIter.EXPECT().
 			Items(gomock.Any()).
-			Return(database.DBClientIteratorItem[database.SubscriptionDocument](subs))
+			Return(database.DBClientIteratorItem[arm.Subscription](subs))
 		mockIter.EXPECT().
 			GetError().
 			Return(nil)
