@@ -184,9 +184,6 @@ type HcpOpenShiftClusterProperties struct {
 	// READ-ONLY; Shows the cluster web console information
 	Console *ConsoleProfile
 
-	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
-	IssuerURL *string
-
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
 }
@@ -489,6 +486,9 @@ type PlatformProfile struct {
 
 	// The core outgoing configuration
 	OutboundType *OutboundType
+
+	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
+	IssuerURL *string
 }
 
 // ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
