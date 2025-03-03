@@ -16,7 +16,6 @@
     "api": {
       "visibility": "public"
     },
-    "proxy": {},
     "platform": {
       "managedResourceGroup": "$managed-resource-group",
       "subnetId": "/subscriptions/$sub/resourceGroups/$customer-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
@@ -29,8 +28,7 @@
           "serviceManagedIdentity": "example_resource_id"
         }
       }
-    },
-    "externalAuth": {}
+    }
   },
   "identity": {
     "type": "UserAssigned",
