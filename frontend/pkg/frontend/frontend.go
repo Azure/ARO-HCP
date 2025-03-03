@@ -1054,14 +1054,42 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	if !doc.Status.IsTerminal() {
+	// Handle non-terminal statuses and (maybe?) failure/cancellation.
+	//
+	// XXX ARM requirements for failed async operations get fuzzy here.
+	//
+	//     My best understanding, based on a Stack Overflow answer [1], is
+	//     returning an Azure-AsyncOperation header will cause ARM to poll
+	//     that endpoint first.
+	//
+	//     If ARM finds the operation in a "Failed" or "Canceled" state,
+	//     it will propagate details from the response's "error" property.
+	//
+	//     If ARM finds the operation in a "Succeeded" state, ONLY THEN is
+	//     this endpoint called (if a Location header was also returned).
+	//
+	//     So for the "Failed or Canceled" case we just give a generic
+	//     "Internal Server Error" response since, in theory, this case
+	//     should never be reached.
+	//
+	//     [1] https://stackoverflow.microsoft.com/a/318573/106707
+	//
+	switch doc.Status {
+	case arm.ProvisioningStateSucceeded:
+		// Handled below.
+	case arm.ProvisioningStateFailed, arm.ProvisioningStateCanceled:
+		// Should never be reached?
+		arm.WriteInternalServerError(writer)
+		return
+	default:
+		// Operation is still in progress.
 		f.AddLocationHeader(writer, request, doc)
 		writer.WriteHeader(http.StatusAccepted)
 		return
 	}
 
 	// The response henceforth should be exactly as though the operation
-	// completed synchronously.
+	// succeeded synchronously.
 
 	var successStatusCode int
 
@@ -1071,8 +1099,6 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	case database.OperationRequestUpdate:
 		successStatusCode = http.StatusOK
 	case database.OperationRequestDelete:
-		// XXX Ideally, deletion of Azure resources should never fail.
-		//     In the event of failure, it's unclear what to do here.
 		writer.WriteHeader(http.StatusNoContent)
 		return
 	default:
