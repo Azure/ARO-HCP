@@ -40,9 +40,9 @@ resourceGroups:
       configRef: clusterService.k8s.serviceAccountName
     - name: DEPLOY_MISE
       configRef: mise.deploy
-    - name: VALID_APP_ID_0
+    - name: MISE_VALID_APP_ID_0
       configRef: mise.validAppId0
-    - name: VALID_APP_ID_1
+    - name: MISE_VALID_APP_ID_1
       configRef: mise.validAppId1
     - name: MISE_IMAGE_REGISTRY
       configRef: mise.image.registry
@@ -52,5 +52,7 @@ resourceGroups:
       configRef: mise.image.digest
     - name: MISE_AZURE_AD_INSTANCE
       configRef: mise.azureAdInstance
+    - name: MISE_AZURE_AD_CLIENT_ID
+      configRef: mise.azureAdClientId
     - name: MISE_ARM_INSTANCE
       configRef: mise.armInstance
