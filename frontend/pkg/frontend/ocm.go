@@ -405,6 +405,14 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 	return npBuilder.Build()
 }
 
+// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential.
+func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential) *api.HCPOpenShiftClusterAdminCredential {
+	return &api.HCPOpenShiftClusterAdminCredential{
+		ExpirationTimestamp: breakGlassCredential.ExpirationTimestamp(),
+		Kubeconfig:          breakGlassCredential.Kubeconfig(),
+	}
+}
+
 // transportFunc implements the http.RoundTripper interface.
 type transportFunc func(*http.Request) (*http.Response, error)
 
