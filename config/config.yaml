@@ -94,6 +94,7 @@ defaults:
   mise:
     deploy: false
     azureAdInstance: ""
+    azureAdClientId: ""
     armInstance: ""
     validAppId0: ""
     validAppId1: ""

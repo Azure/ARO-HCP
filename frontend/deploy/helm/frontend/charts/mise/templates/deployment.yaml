@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mise
-  namespace: {{ .Values.mise.namespace }}
+  namespace: {{ .Values.namespace }}
 spec:
   replicas: 1
   selector:
@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: mise
-        image: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}:{{ .Values.imageDigest }}"
+        image: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}"
         ports:
         - containerPort: 8080
         livenessProbe:
@@ -30,7 +30,7 @@ spec:
         - name: AzureAd__Instance
           value: {{ .Values.azureAdInstance }}
         - name: AzureAd__ClientId
-          value: {{ .Values.frontendClientId }}
+          value: {{ .Values.azureAdClientId }}
         - name: AzureAd__TenantId
           value: {{ .Values.tenantId }}
         - name: AzureAd__InboundPolicies__0__Label

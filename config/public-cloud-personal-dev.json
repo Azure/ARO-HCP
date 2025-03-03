@@ -246,6 +246,7 @@
   "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
   "mise": {
     "armInstance": "",
+    "azureAdClientId": "",
     "azureAdInstance": "",
     "deploy": false,
     "image": {

@@ -253,6 +253,7 @@
   "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
   "mise": {
     "armInstance": "https://management.core.windows.net/",
+    "azureAdClientId": "",
     "azureAdInstance": "https://login.microsoftonline.com/",
     "deploy": true,
     "image": {

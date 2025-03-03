@@ -92,8 +92,9 @@ deploy:
 		--set mise.imageRegistry=${MISE_IMAGE_REGISTRY} \
 		--set mise.imageRepository=${MISE_IMAGE_REPOSITORY} \
 		--set mise.imageDigest=${MISE_IMAGE_DIGEST} \
-		--set mise.tenantId=${MISE_TENANT_ID} \
-		--set mise.adInstance=${MISE_AD_INSTANCE} \
+		--set mise.tenantId=$${TENANT_ID} \
+		--set mise.azureAdInstance=${MISE_AZURE_AD_INSTANCE} \
+		--set mise.azureAdClientId=${MISE_AZURE_AD_CLIENT_ID} \
 		--set mise.armInstance=${MISE_ARM_INSTANCE} \
 		--set mise.validAppId0=${MISE_VALID_APP_ID_0} \
 		--set mise.validAppId1=${MISE_VALID_APP_ID_1} \

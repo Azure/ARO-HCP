@@ -469,13 +469,14 @@
         "azureAdInstance":{
           "type":"string"
         },
+        "azureAdClientId":{
+          "type":"string"
+        },
         "validAppId0":{
-          "type":"string",
-          "description": ""
+          "type":"string"
         },
         "validAppId1":{
-          "type":"string",
-          "description": ""
+          "type":"string"
         },
         "image":{
           "$ref": "#/definitions/containerImage"
@@ -485,6 +486,7 @@
         "deploy",
         "image",
         "azureAdInstance",
+        "azureAdClientId",
         "validAppId0",
         "validAppId1"
       ]

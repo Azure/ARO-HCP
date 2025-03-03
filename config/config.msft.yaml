@@ -132,6 +132,7 @@ defaults:
   mise:
     deploy: true
     azureAdInstance: https://login.microsoftonline.com/
+    azureAdClientId: ""
     armInstance: https://management.core.windows.net/
     validAppId0: ""
     validAppId1: ""
