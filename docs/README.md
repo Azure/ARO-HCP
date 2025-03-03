@@ -19,9 +19,10 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 1. **Deployment Concept**
    - [Pipelines concept](pipeline-concept.md)
+   - [Service deployment concept](service-deployment-concept.md)
    - Deployment artifacts
      - [Azure infrastructure Bicep templates](bicep.md)
-     - [Helm Charts](helm.md)
+     - [Helm Charts](service-deployment-concept.md#helm-chart)
      - [Container images](images.md)
 
 1. **Deploying ARO HCP**

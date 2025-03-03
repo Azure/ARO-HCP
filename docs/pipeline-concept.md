@@ -75,6 +75,8 @@ Used for deploying Azure infrastructure using Bicep templates. These steps allow
 3. `parameters`: The path to the Bicep parameters file that provides input values for the template.
 4. `deploymentLevel`: The scope at which the deployment should occur. Valid values are `ResourceGroup` and `Subscription`.
 
+This step type supports dry-run testing via [what-if](https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/deploy-what-if?tabs=azure-powershell).
+
 Detailed information about Bicep templates in general and how to use the ARM step type, can be found in the [Bicep documentation](bicep.md#deploying-bicep-templates).
 
 #### Shell Step
@@ -103,13 +105,36 @@ Execute shell commands or scripts within the pipeline environment. Shell steps a
 
 Currently, the following list of tools can be used within shell scripts:
 
-- az
-- helm
-- kubectl
-- jq
+- `az`
+- `helm`
+- `kubectl`
+- `jq`
+- `make`
+- ...
+
+See the [Shell extension](https://ev2docs.azure.net/features/service-artifacts/actions/shell-extensions/overview.html) documentation for more details.
+
+Shell steps also support dry-run testing, but such scripts need to explicitely implement it and mark support for it with the `dryRun` property.
+
+```yaml
+  ...
+  steps:
+  - ...
+    action: Shell
+    ...
+    dryRun:                                          (1)
+      variables:
+      - name: DRY_RUN                                (2)
+        value: "true"
+```
+
+1. `dryRun`: Marks the step as supporting dry-run testing.
+2. `variables`: A list of environment variables that are set before executing the script.
+
+It is the scripts responsibility to react to the `DRY_RUN` environment variable correctly and not perform any real update actions on the target subscription/resourcegroup/AKS cluster.
 
 >[!WARNING]
-> TODO: we need to alignt the tool versions between the EV2 execution context and the Red Hat pipeline runner.
+> TODO: we need to align the tool versions between the EV2 execution context and the Red Hat pipeline runner.
 
 Shell steps are mostly used for service deployments leveraging [Helm charts](helm.md).
 
