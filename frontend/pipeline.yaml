@@ -38,3 +38,21 @@ resourceGroups:
       configRef: clusterService.k8s.namespace
     - name: CS_SERVICE_ACCOUNT_NAME
       configRef: clusterService.k8s.serviceAccountName
+    - name: DEPLOY_MISE
+      configRef: mise.deploy
+    - name: MISE_VALID_APP_ID_0
+      configRef: mise.validAppId0
+    - name: MISE_VALID_APP_ID_1
+      configRef: mise.validAppId1
+    - name: MISE_IMAGE_REGISTRY
+      configRef: mise.image.registry
+    - name: MISE_IMAGE_REPOSITORY
+      configRef: mise.image.repository
+    - name: MISE_IMAGE_DIGEST
+      configRef: mise.image.digest
+    - name: MISE_AZURE_AD_INSTANCE
+      configRef: mise.azureAdInstance
+    - name: MISE_AZURE_AD_CLIENT_ID
+      configRef: mise.azureAdClientId
+    - name: MISE_ARM_INSTANCE
+      configRef: mise.armInstance

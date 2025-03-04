@@ -2,6 +2,7 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-metrics-frontend
+  namespace: {{ .Release.namespace }}
 spec:
   action: "ALLOW"
   rules:

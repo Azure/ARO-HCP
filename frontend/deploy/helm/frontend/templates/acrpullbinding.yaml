@@ -2,6 +2,7 @@ apiVersion: acrpull.microsoft.com/v1beta2
 kind: AcrPullBinding
 metadata:
   name: pull-binding
+  namespace: {{ .Release.namespace }}
 spec:
   acr:
     environment: PublicCloud

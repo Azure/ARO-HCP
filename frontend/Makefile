@@ -65,6 +65,8 @@ deploy:
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
+	kubectl create namespace mise --dry-run=client -o json | kubectl apply -f - && \
+	kubectl label namespace mise "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	${HELM_CMD} aro-hcp-frontend-dev \
 		deploy/helm/frontend/ \
 		--set azure.clientId=$${SECRET_STORE_MI_CLIENT_ID} \
@@ -85,6 +87,17 @@ deploy:
 		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
 		--set clusterService.namespace=${CS_NAMESPACE} \
 		--set clusterService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
+		--set deployMise=${DEPLOY_MISE} \
+		--set mise.namespace=mise \
+		--set mise.imageRegistry=${MISE_IMAGE_REGISTRY} \
+		--set mise.imageRepository=${MISE_IMAGE_REPOSITORY} \
+		--set mise.imageDigest=${MISE_IMAGE_DIGEST} \
+		--set mise.tenantId=$${TENANT_ID} \
+		--set mise.azureAdInstance=${MISE_AZURE_AD_INSTANCE} \
+		--set mise.azureAdClientId=${MISE_AZURE_AD_CLIENT_ID} \
+		--set mise.armInstance=${MISE_ARM_INSTANCE} \
+		--set mise.validAppId0=${MISE_VALID_APP_ID_0} \
+		--set mise.validAppId1=${MISE_VALID_APP_ID_1} \
 		--namespace aro-hcp
 .PHONY: deploy
 
