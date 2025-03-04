@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	WildcardActionName        = "{" + PathSegmentActionName + "}"
 	WildcardDeploymentName    = "{" + PathSegmentDeploymentName + "}"
 	WildcardLocation          = "{" + PathSegmentLocation + "}"
 	WildcardNodePoolName      = "{" + PathSegmentNodePoolName + "}"
@@ -99,9 +98,6 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
-	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, WildcardActionName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
