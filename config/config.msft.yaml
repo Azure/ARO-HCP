@@ -376,7 +376,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f
+              digest: sha256:305f45bf036f84255d41c20517c70a9cb18af3dcdfa71a82a5716dde77c9e2c3
 
           # Maestro
           maestro:
