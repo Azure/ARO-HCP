@@ -978,7 +978,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 		hcpCluster.Identity.Type = doc.Identity.Type
 	}
 
-	return arm.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
+	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
