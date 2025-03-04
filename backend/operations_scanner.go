@@ -370,8 +370,21 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 
 // pollNodePoolOperation updates the status of a node pool operation.
 func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operation) {
-	// FIXME Implement when new OCM API is available.
 	defer s.updateOperationMetrics(pollNodePoolOperationLabel)()
+
+	_, err := s.clusterService.GetNodePool(ctx, op.doc.InternalID)
+	if err != nil {
+		var ocmError *ocmerrors.Error
+		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
+			err = s.setDeleteOperationAsCompleted(ctx, op)
+			if err != nil {
+				op.logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
+			}
+		} else {
+			op.logger.Error(fmt.Sprintf("Failed to get node pool status: %v", err))
+		}
+		return
+	}
 }
 
 // withSubscriptionLock holds a subscription lock while executing the given function.
