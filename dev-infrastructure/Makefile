@@ -21,6 +21,7 @@ SVC_RG_DEPLOYMENT_NAME ?= svc${DEPLOYMENT_NAME_SUFFIX}
 REGIONAL_RG_DEPLOYMENT_NAME ?= region${DEPLOYMENT_NAME_SUFFIX}
 METRICS_INFRA_RG_DEPLOYMENT_NAME ?= metrics-infra${DEPLOYMENT_NAME_SUFFIX}
 ROLE_ASSIGNMENTS_DEPLOYMENT_NAME ?= role-assignments${DEPLOYMENT_NAME_SUFFIX}
+AUTOMATION_ACCOUNT_RG = "hcp-dev-automation-account"
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -364,3 +365,17 @@ local-cs-permissions: svc.dev.permissions mgmt.dev.permissions
 modules/metrics/rules/generatedPrometheusAlertingRules.bicep:
 	$(MAKE) -C ./../tooling/prometheus-rules/ prometheus-rules
 	./../tooling/prometheus-rules/prometheus-rules --input-rules ./../tooling/prometheus-rules/kubernetesControlPlane-prometheusRule.yaml --output-bicep $@
+
+#
+# Automation Account creation
+#
+automation-account:
+	az group create -g ${AUTOMATION_ACCOUNT_RG} -l eastus && \
+	az deployment group create \
+		--name dev-automation-account \
+		--resource-group $(AUTOMATION_ACCOUNT_RG) \
+		--template-file templates/dev-automation-account.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters \
+			configurations/dev-automation-account.bicepparam
+.PHONY: automation-account
