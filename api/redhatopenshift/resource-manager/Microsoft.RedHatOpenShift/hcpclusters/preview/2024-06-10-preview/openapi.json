@@ -936,6 +936,7 @@
           "description": "should the API server be accessible from the internet",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         }
@@ -1007,6 +1008,7 @@
           "pattern": "^[a-z]([-a-z0-9]*[a-z0-9])?$",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         }
@@ -1194,6 +1196,7 @@
           "description": "Version of the control plane components",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1206,6 +1209,7 @@
           "description": "Cluster network configuration",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1233,6 +1237,7 @@
           "description": "Azure platform configuration",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1412,6 +1417,7 @@
           },
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1420,6 +1426,7 @@
           "description": "The CIDR of the pod IP addresses\nexample: 10.128.0.0/14",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1428,6 +1435,7 @@
           "description": "The CIDR block for assigned service IPs,\nexample: 172.30.0.0/16",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1436,6 +1444,7 @@
           "description": "from which to assign machine IP addresses,\nexample: 10.0.0.0/16",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1446,6 +1455,7 @@
           "default": 23,
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         }
@@ -1601,6 +1611,7 @@
           "description": "OpenShift version for the nodepool",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1626,6 +1637,7 @@
           "default": false,
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1843,6 +1855,7 @@
           "description": "Represents the information associated to an Azure User-Assigned Managed Identity whose\npurpose is to perform service level actions.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         }
@@ -1874,6 +1887,7 @@
           "description": "ID is the unique identifier of the version.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1882,6 +1896,7 @@
           "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
