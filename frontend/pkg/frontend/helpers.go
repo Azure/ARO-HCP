@@ -45,6 +45,24 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 				"Cannot update resource while resource is %s",
 				strings.ToLower(string(doc.ProvisioningState)))
 		}
+	case database.OperationRequestRequestCredential:
+		if !doc.ProvisioningState.IsTerminal() {
+			return arm.NewCloudError(
+				http.StatusConflict,
+				arm.CloudErrorCodeConflict,
+				doc.ResourceID.String(),
+				"Cannot request credential while resource is %s",
+				strings.ToLower(string(doc.ProvisioningState)))
+		}
+	case database.OperationRequestRevokeCredentials:
+		if !doc.ProvisioningState.IsTerminal() {
+			return arm.NewCloudError(
+				http.StatusConflict,
+				arm.CloudErrorCodeConflict,
+				doc.ResourceID.String(),
+				"Cannot revoke credentials while resource is %s",
+				strings.ToLower(string(doc.ProvisioningState)))
+		}
 	}
 
 	parent := doc.ResourceID.Parent
