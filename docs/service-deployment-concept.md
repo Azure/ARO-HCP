@@ -24,7 +24,7 @@ my-service
 
 Service and infrastructure deployments in MSFTs tenants need to be orchestrated by EV2. EV2 offers a various tooling types for deployment, with the most flexible being the [Shell](pipeline-concept.md#shell-step) extension. The tools that can be used within a Shell extension are well defined and offer `helm`. In addition, EV2 has support for direct Helm deployments in the working, which might be an option in the future.
 
-Bringing in additional tools into shell steps, like `oc` etc is not an option for environments with strict security requirements like Fairfax.
+See the [Shell extension](https://ev2docs.azure.net/features/service-artifacts/actions/shell-extensions/overview.html) documentation for more details about the supported tools that can be used in scripts and Makefiles. Bringing in additional tools into shell steps, like `oc` etc. is not an option for environments with strict security requirements like Fairfax.
 
 #### Namespace management
 
