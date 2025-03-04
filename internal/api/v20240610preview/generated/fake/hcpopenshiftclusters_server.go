@@ -23,10 +23,6 @@ import (
 
 // HcpOpenShiftClustersServer is a fake server for instances of the generated.HcpOpenShiftClustersClient type.
 type HcpOpenShiftClustersServer struct{
-	// AdminCredentials is the fake for method HcpOpenShiftClustersClient.AdminCredentials
-	// HTTP status codes to indicate success: http.StatusOK
-	AdminCredentials func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *generated.HcpOpenShiftClustersClientAdminCredentialsOptions) (resp azfake.Responder[generated.HcpOpenShiftClustersClientAdminCredentialsResponse], errResp azfake.ErrorResponder)
-
 	// BeginCreateOrUpdate is the fake for method HcpOpenShiftClustersClient.BeginCreateOrUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusCreated
 	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, resource generated.HcpOpenShiftClusterResource, options *generated.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
@@ -38,10 +34,6 @@ type HcpOpenShiftClustersServer struct{
 	// Get is the fake for method HcpOpenShiftClustersClient.Get
 	// HTTP status codes to indicate success: http.StatusOK
 	Get func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *generated.HcpOpenShiftClustersClientGetOptions) (resp azfake.Responder[generated.HcpOpenShiftClustersClientGetResponse], errResp azfake.ErrorResponder)
-
-	// KubeConfig is the fake for method HcpOpenShiftClustersClient.KubeConfig
-	// HTTP status codes to indicate success: http.StatusOK
-	KubeConfig func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *generated.HcpOpenShiftClustersClientKubeConfigOptions) (resp azfake.Responder[generated.HcpOpenShiftClustersClientKubeConfigResponse], errResp azfake.ErrorResponder)
 
 	// NewListByResourceGroupPager is the fake for method HcpOpenShiftClustersClient.NewListByResourceGroupPager
 	// HTTP status codes to indicate success: http.StatusOK
@@ -94,16 +86,12 @@ func (h *HcpOpenShiftClustersServerTransport) Do(req *http.Request) (*http.Respo
 	var err error
 
 	switch method {
-	case "HcpOpenShiftClustersClient.AdminCredentials":
-		resp, err = h.dispatchAdminCredentials(req)
 	case "HcpOpenShiftClustersClient.BeginCreateOrUpdate":
 		resp, err = h.dispatchBeginCreateOrUpdate(req)
 	case "HcpOpenShiftClustersClient.BeginDelete":
 		resp, err = h.dispatchBeginDelete(req)
 	case "HcpOpenShiftClustersClient.Get":
 		resp, err = h.dispatchGet(req)
-	case "HcpOpenShiftClustersClient.KubeConfig":
-		resp, err = h.dispatchKubeConfig(req)
 	case "HcpOpenShiftClustersClient.NewListByResourceGroupPager":
 		resp, err = h.dispatchNewListByResourceGroupPager(req)
 	case "HcpOpenShiftClustersClient.NewListBySubscriptionPager":
@@ -118,39 +106,6 @@ func (h *HcpOpenShiftClustersServerTransport) Do(req *http.Request) (*http.Respo
 		return nil, err
 	}
 
-	return resp, nil
-}
-
-func (h *HcpOpenShiftClustersServerTransport) dispatchAdminCredentials(req *http.Request) (*http.Response, error) {
-	if h.srv.AdminCredentials == nil {
-		return nil, &nonRetriableError{errors.New("fake for method AdminCredentials not implemented")}
-	}
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/adminCredentials`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := h.srv.AdminCredentials(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
-	respContent := server.GetResponseContent(respr)
-	if !contains([]int{http.StatusOK}, respContent.HTTPStatus) {
-		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusOK", respContent.HTTPStatus)}
-	}
-	resp, err := server.MarshalResponseAsJSON(respContent, server.GetResponse(respr).HcpOpenShiftClusterCredentials, req)
-	if err != nil {
-		return nil, err
-	}
 	return resp, nil
 }
 
@@ -273,39 +228,6 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchGet(req *http.Request) (*h
 		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusOK", respContent.HTTPStatus)}
 	}
 	resp, err := server.MarshalResponseAsJSON(respContent, server.GetResponse(respr).HcpOpenShiftClusterResource, req)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (h *HcpOpenShiftClustersServerTransport) dispatchKubeConfig(req *http.Request) (*http.Response, error) {
-	if h.srv.KubeConfig == nil {
-		return nil, &nonRetriableError{errors.New("fake for method KubeConfig not implemented")}
-	}
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/kubeConfig`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := h.srv.KubeConfig(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
-	respContent := server.GetResponseContent(respr)
-	if !contains([]int{http.StatusOK}, respContent.HTTPStatus) {
-		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusOK", respContent.HTTPStatus)}
-	}
-	resp, err := server.MarshalResponseAsJSON(respContent, server.GetResponse(respr).HcpOpenShiftClusterKubeconfig, req)
 	if err != nil {
 		return nil, err
 	}
