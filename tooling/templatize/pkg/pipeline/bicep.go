@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -54,11 +55,12 @@ func transformParameters(ctx context.Context, vars config.Variables, inputs map[
 		return nil, nil, fmt.Errorf("failed to write to target file: %w", err)
 	}
 
+	var errBuff bytes.Buffer
 	cmd := exec.CommandContext(ctx, "az", "bicep", "build-params", "-f", bicepParamFile.Name(), "--stdout")
+	cmd.Stderr = &errBuff
 	output, err := cmd.Output()
 	if err != nil {
-		combinedOutput, _ := cmd.CombinedOutput()
-		return nil, nil, fmt.Errorf("failed to get output from command: %w\n%s", err, string(combinedOutput))
+		return nil, nil, fmt.Errorf("failed to get output from command: %w\n%s", err, errBuff.String())
 	}
 
 	var result generationResult
