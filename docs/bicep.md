@@ -76,7 +76,7 @@ resourceGroups:
 3. The name of the Azure deployment
 4. The action type `ARM` marks this step as ARM/Bicep deployment action
 5. File reference to the Bicep template, relative to the location of the pipeline file
-6. File reference to the Bicep parameter file, relative to the location of the pipeline file.
+6. File reference to the Bicep parameter file, relative to the location of the pipeline file. This is a Go template file that will be processed to generate the final parameter file
 7. The deployment level for the Bicep template.
 8. covered in detail in the [Output templates and output chaining](#output-templates-and-output-chaining) section
 9. If `true`, a Bicep step is not allowed to declare any resources and can only provide output by inspecting `existing` resources. See details in the [output templates and output chaining](#output-templates-and-output-chaining) and [dry runs](#dry-runs) sections.

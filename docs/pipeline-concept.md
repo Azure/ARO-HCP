@@ -23,13 +23,13 @@ resourceGroups:                                  (3)
 1. Defines the logical grouping of services being deployed. This value can be freely chosen as long as it is unique and prefixed with `Microsoft.Azure.ARO.HCP`.
 2. `rolloutName`: Specifies a human-readable name for the rollout process.
 3. `resourceGroups`: A list of deployment contexts targeted by the pipeline.
-4. `resourceGroups.name`: The name of the resource group. Can be configured statically or dynamically using configuration lookups via Go template syntax.
-5. `resourceGroups.subscription`: The Azure subscription ID associated with the resource group. Can be configured statically or dynamically using configuration lookups via Go template syntax.
-6. `resourceGroups.aksCluster`: Optional. Specifies the name of the AKS cluster that deployment steps should target. Can be configured statically or dynamically using configuration lookups via Go template syntax.
+4. `resourceGroups.name`: The name of the resource group. Can be configured statically or dynamically using [configuration lookups](configuration.md) via Go template syntax.
+5. `resourceGroups.subscription`: The Azure subscription ID associated with the resource group. Can be configured statically or dynamically using [configuration lookups](configuration.md) via Go template syntax.
+6. `resourceGroups.aksCluster`: Optional. Specifies the name of the AKS cluster that deployment steps should target. Can be configured statically or dynamically using [configuration lookups](configuration.md) via Go template syntax.
 
 ## Pipeline Steps
 
-A subscription/resourcegroup/AKS execution context needs to define a sequence of deployment steps. These steps define what needs to be deployed, how, and in what order.
+A subscription/resourcegroup/AKS execution context needs to define a sequence of deployment steps. These steps define what is to deployed, how, and in what order.
 
 ### Step Structure
 
@@ -58,7 +58,7 @@ ARO HCP pipelines support multiple step types, each designed for a specific depl
 
 #### ARM / Bicep Step
 
-Used for deploying Azure infrastructure using Bicep templates. These steps allow defining and updating Azure resources declaratively.
+Used for deploying Azure infrastructure using [Bicep](bicep.md) templates. These steps allow defining and updating Azure resources declaratively.
 
 ```yaml
   ...
@@ -134,9 +134,9 @@ Shell steps also support dry-run testing, but such scripts need to explicitely i
 It is the scripts responsibility to react to the `DRY_RUN` environment variable correctly and not perform any real update actions on the target subscription/resourcegroup/AKS cluster.
 
 >[!WARNING]
-> TODO: we need to align the tool versions between the EV2 execution context and the Red Hat pipeline runner.
+> TODO: we need to align and document the tool versions between the EV2 execution context and the Red Hat pipeline runner.
 
-Shell steps are mostly used for service deployments leveraging [Helm charts](helm.md).
+Shell steps are mostly used for service deployments leveraging [Helm charts](service-deployment-concept.md#helm-chart).
 
 ### Step execution context
 
@@ -146,7 +146,8 @@ All steps share a common execution context:
 
 When executing step, an Azure session is provided for the defined subscription (`resourceGroups.subscription`) and resourcegroup (`resourceGroups.name`), allowing authenticated Azure operations. The identity used for this session is provided in the [configuration](configuration.md) as `aroDevopsMsiId`.
 
-Please note that this identity does not have access to all Azure resources in our subscriptions and resourcegroups by default. The necessary permissions need to be granted explicitly. You can observe this in various Bicep templates, where this identity is granted specific permissions, e.g. on Key Vaults or storage accounts.
+> [!IMPORTANT]
+> Please note that this identity does not have access to all Azure resources in our subscriptions and resourcegroups by default. The necessary permissions need to be granted explicitly. You can observe this in various Bicep templates, where this identity is granted specific permissions, e.g. on Key Vaults or storage accounts.
 
 #### Azure resource groups
 
