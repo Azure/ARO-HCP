@@ -84,12 +84,6 @@ model HcpOpenShiftClusterProperties {
   /** Azure platform configuration */
   @visibility("create", "read")
   platform?: PlatformProfile;
-
-  /** URL for the OIDC provider to be used for authentication
-   * to authenticate against user Azure cloud account
-   */
-  @visibility("read")
-  issuerUrl: url;
 }
 
 /** HCP patchable cluster properties */
@@ -267,6 +261,12 @@ model PlatformProfile {
 
   /** The configuration that the operators of the cluster have to authenticate to Azure */
   operatorsAuthentication: OperatorsAuthenticationProfile;
+
+  /** URL for the OIDC provider to be used for authentication
+   * to authenticate against user Azure cloud account
+   */
+  @visibility("read")
+  issuerUrl: url;
 }
 
 scalar SubnetResourceId

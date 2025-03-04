@@ -24,7 +24,6 @@ type HCPOpenShiftClusterProperties struct {
 	API                           APIProfile            `json:"api,omitempty"                           visibility:"read create"`
 	DisableUserWorkloadMonitoring bool                  `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
 	Platform                      PlatformProfile       `json:"platform,omitempty"                      visibility:"read create"`
-	IssuerURL                     string                `json:"issuerUrl,omitempty"                     visibility:"read"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -70,6 +69,7 @@ type PlatformProfile struct {
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
 	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
+	IssuerURL               string                         `json:"issuerUrl,omitempty"                     visibility:"read"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for
