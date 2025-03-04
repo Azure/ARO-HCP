@@ -26,7 +26,7 @@ func TestWriteJSONResponse(t *testing.T) {
 		},
 	}
 
-	resourceBytes, err := Marshal(resourceStruct)
+	resourceBytes, err := MarshalJSON(resourceStruct)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestWriteJSONResponse(t *testing.T) {
 				t.Errorf("Got Content-Type %s, expected application/json", contentType)
 			}
 
-			expectBody, err := Marshal(resourceStruct)
+			expectBody, err := MarshalJSON(resourceStruct)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -600,7 +600,7 @@ func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operat
 		return err
 	}
 
-	data, err := arm.Marshal(doc.ToStatus())
+	data, err := arm.MarshalJSON(doc.ToStatus())
 	if err != nil {
 		return err
 	}
