@@ -671,10 +671,6 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	writer.WriteHeader(http.StatusAccepted)
 }
 
-func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
-	writer.WriteHeader(http.StatusOK)
-}
-
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
