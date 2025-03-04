@@ -36,14 +36,21 @@ Modules provide a structured way to organize and reuse infrastructure definition
 
 ### Parameters
 
-The configuration directory contains Bicep parameter files (.bicepparam). Each top-level Bicep template has a corresponding Bicep parameter file to define its configuration. These parameter files are Go templates, which are processed dynamically to generate final configuration files based on the targeted cloud, deployment environment, and region. The configuration references used in these Bicep parameter Go templates adhere to the configuration management concept described in configuration.md. This...
+The configuration directory contains Bicep parameter files (`.bicepparam`). Each top-level Bicep template has a corresponding Bicep parameter file to define its configuration. These parameter files are Go templates, which are processed dynamically to generate final configuration files based on the targeted cloud, deployment environment, and region. The configuration references used in these Bicep parameter Go templates adhere to the configuration management concept described in the [configuration documentation](configuration.md).
+
+```bicep
+using '../templates/region.bicep'
+
+param globalRegion = '{{ .global.region }}'
+param regionalRegion = '{{ .region }}'
+```
 
 ## Deploying Bicep templates
 
 In ARO HCP, we deploy Bicep templates via [pipeline](pipeline.md) files by supporting a dedicated step type for ARM/Bicep deployments.
 
 > [!IMPORTANT]
-> Read the documentation about [pipeline] files and their general format and functionality. The following documentation covers only the Bicep specific information
+> Read the documentation about [pipeline files](pipeline-concept.md) and their general format and functionality. The following documentation covers only the Bicep specific information
 
 ```yaml
 $schema: "pipeline.schema.v1"
@@ -72,7 +79,7 @@ resourceGroups:
 6. File reference to the Bicep parameter file, relative to the location of the pipeline file.
 7. The deployment level for the Bicep template.
 8. covered in detail in the [Output templates and output chaining](#output-templates-and-output-chaining) section
-9. If true, a Bicep step is not allowed to declare any resources and can only provide output by inspecting `existing` resources. See details in the [output templates and output chaining](#output-templates-and-output-chaining) and [dry runs](#dry-runs) sections.
+9. If `true`, a Bicep step is not allowed to declare any resources and can only provide output by inspecting `existing` resources. See details in the [output templates and output chaining](#output-templates-and-output-chaining) and [dry runs](#dry-runs) sections.
 
 ## Cross-Subscription deployments
 
@@ -80,7 +87,7 @@ By default, a Bicep template deployment runs within a specified subscription and
 
 For example, during the regional DNS zone setup, the deployment also needs to interact with the parent DNS zone located in another resource group—and depending on the environment, even in a different subscription—to set up the zone delegation properly.
 
-Here is the essence of the implementation the the DNS scenario. region.bicep template accepts the Azure resource ID of the parent zones as input parameter, uses the helper functions in resource.bicep to extract the subscription and resourcegroup bits from the ID and builds the proper scope from them.
+Here is the essence of the implementation the the DNS scenario. The [region.bicep](../dev-infrastructure/templates/region.bicep) template accepts the Azure resource ID of the parent zones as input parameter, uses the helper functions in [resource.bicep](../dev-infrastructure/modules/resource.bicep) to extract the subscription and resourcegroup bits from the ID and builds the proper scope from them to run the [zone-delegation.bicep](../dev-infrastructure/modules/dns/zone-delegation.bicep) module within the other scope.
 
 ```bicep
 // region.bicep
