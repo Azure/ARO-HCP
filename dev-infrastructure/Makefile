@@ -44,7 +44,7 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 	@az deployment sub create \
 		--name "feature-registration" \
 		--location eastus \
-		--template-file templates/feature-registration.bicep \
+		--template-file templates/dev-feature-registration.bicep \
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
@@ -121,7 +121,7 @@ svc.cs-pr-check-msi:
 	az deployment group create \
 		--name cs-integ-msi \
 		--resource-group $(SVC_RESOURCEGROUP) \
-		--template-file templates/cs-integration-msi.bicep \
+		--template-file templates/dev-cs-integration-msi.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
 			configurations/cs-integ-msi.bicepparam
