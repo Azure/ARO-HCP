@@ -7,7 +7,7 @@ spec:
   hosts:
     - "*"
   gateways:
-    - aks-istio-ingress/aro-hcp-gateway-external
+    - {{ .Values.ingress.namespace }}/{{ .Values.ingress.gatewayName }}
   http:
     - match:
         - uri:
