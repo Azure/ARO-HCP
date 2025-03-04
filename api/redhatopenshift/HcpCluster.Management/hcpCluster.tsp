@@ -24,22 +24,6 @@ interface HcpOpenShiftClusters {
   delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftClusterResource>;
   listByResourceGroup is ArmResourceListByParent<HcpOpenShiftClusterResource>;
   listBySubscription is ArmListBySubscription<HcpOpenShiftClusterResource>;
-
-  // ------------------------------
-  // The credentials and kubeconfig operations for the cluster
-  // These are implemented as POST to not be forced to use the Provisioning state in the response
-  /** Return the kubeconfig for the cluster */
-  kubeConfig is ArmResourceActionSync<
-    HcpOpenShiftClusterResource,
-    void,
-    HcpOpenShiftClusterKubeconfig
-  >;
-  /** Returns the admin cluster credentials */
-  adminCredentials is ArmResourceActionSync<
-    HcpOpenShiftClusterResource,
-    void,
-    HcpOpenShiftClusterCredentials
-  >;
 }
 
 /** HCP cluster node pools */

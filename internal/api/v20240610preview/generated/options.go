@@ -12,12 +12,6 @@ type HcpClusterVersionsClientListOptions struct {
 	// placeholder for future optional parameters
 }
 
-// HcpOpenShiftClustersClientAdminCredentialsOptions contains the optional parameters for the HcpOpenShiftClustersClient.AdminCredentials
-// method.
-type HcpOpenShiftClustersClientAdminCredentialsOptions struct {
-	// placeholder for future optional parameters
-}
-
 // HcpOpenShiftClustersClientBeginCreateOrUpdateOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginCreateOrUpdate
 // method.
 type HcpOpenShiftClustersClientBeginCreateOrUpdateOptions struct {
@@ -41,12 +35,6 @@ type HcpOpenShiftClustersClientBeginUpdateOptions struct {
 
 // HcpOpenShiftClustersClientGetOptions contains the optional parameters for the HcpOpenShiftClustersClient.Get method.
 type HcpOpenShiftClustersClientGetOptions struct {
-	// placeholder for future optional parameters
-}
-
-// HcpOpenShiftClustersClientKubeConfigOptions contains the optional parameters for the HcpOpenShiftClustersClient.KubeConfig
-// method.
-type HcpOpenShiftClustersClientKubeConfigOptions struct {
 	// placeholder for future optional parameters
 }
 
