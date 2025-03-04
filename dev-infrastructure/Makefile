@@ -370,7 +370,7 @@ modules/metrics/rules/generatedPrometheusAlertingRules.bicep:
 # Automation Account creation
 #
 automation-account:
-	az group create -g ${AUTOMATION_ACCOUNT_RG} -l westus3 && \
+	az group create -g ${AUTOMATION_ACCOUNT_RG} -l eastus && \
 	az deployment group create \
 		--name dev-automation-account \
 		--resource-group $(AUTOMATION_ACCOUNT_RG) \

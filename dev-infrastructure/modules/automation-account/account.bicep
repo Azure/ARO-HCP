@@ -46,4 +46,71 @@ resource python3Package 'Microsoft.Automation/automationAccounts/python3Packages
   }
 ]
 
+resource emailActionGroup 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
+  name: 'singleEmailAction'
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${uami.id}': {}
+    }
+  }
+  properties: {
+    emailReceivers: [
+      {
+        emailAddress: 'aro-hcp-service-lifecycle-team@redhat.com'
+        name: 'aro-hcp-service-lifecycle-team'
+        useCommonAlertSchema: false
+      }
+    ]
+    enabled: true
+    groupShortName: 'email'
+  }
+  tags: {
+    app: 'cleanup-resources'
+  }
+}
+
+resource failedJobAlertRule 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
+  name: 'failed jobs alert'
+  location: location
+  properties: {
+    actions: {
+      actionGroups: [
+        emailActionGroup.id
+      ]
+    }
+    autoMitigate: false
+    criteria: {
+      allOf: [
+        {
+          dimensions: []
+          failingPeriods: {
+            minFailingPeriodsToAlert: 1
+            numberOfEvaluationPeriods: 1
+          }
+          operator: 'GreaterThan'
+          query: '''AzureDiagnostics 
+| where ResourceProvider == "MICROSOFT.AUTOMATION"
+    and Category == "JobLogs"
+    and (ResultType == "Failed") 
+| project TimeGenerated, RunbookName_s, ResultType, _ResourceId, JobId_g
+'''
+          resourceIdColumn: ''
+          threshold: 0
+          timeAggregation: 'Count'
+        }
+      ]
+    }
+    description: 'Alert configured to trigger when there are Jobs that failed'
+    displayName: 'failed jobs alert'
+    enabled: true
+    evaluationFrequency: 'P1D'
+    scopes: [automationAccount.id]
+    severity: 2
+    targetResourceTypes: ['Microsoft.Automation/automationAccounts']
+    windowSize: 'P1D'
+  }
+}
+
 output automationAccountManagedIdentityId string = uami.properties.principalId
