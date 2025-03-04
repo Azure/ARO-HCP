@@ -1,8 +1,33 @@
 $schema: config.schema.json
+
+#
+#   A B O U T   N A M I N G
+#
+# For Azure resource names that need to be unique within a cloud, use {{ .ctx }} variables to ensure uniqueness, e.g.
+# - for global, regional and SC naming use {{ .ctx.regionShort }} or {{ .ctx.region }}
+# - for MGMT naming additionally use {{ .ctx.stamp }}
+#
+# We have different requirements for naming uniqueness for Azure resources
+#
+# - [globally-unique] - a resource needs to be unique within the Azure cloud.
+#   This is a technical requirement of Azure for certain resource types
+# - [env-unique] - a resource needs to be unique within an ARO HCP environment,
+#   so accross all regions of ARO HCP in the same environment.
+#   An environment unique names does not need to be unique within the Azure cloud
+#
+# To implement names, we leverate static strings combined with the {{ .ctx }} variables, e.g.
+# - {{ .ctx.regionShort }} length: 2-4 / starts with a character, may end with a digit
+# - {{ .ctx.region }} very long, up to 20 characters / starts with a character, may end with a digit
+# - {{ .ctx.stamp }} used for for uniqueness for MGMT stamps within a region / digits only
+
 defaults:
+  #
+  # All defaults mentioned in this section need to be environment and region agnostic.
+  #
+
+  # The long Azure region name
   region: {{ .ctx.region }}
 
-  # Resourcegroups
   regionRG: '{{ .ctx.region }}-shared-resources'
 
   global:
@@ -39,19 +64,23 @@ defaults:
   hypershift:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
+    image:
+      repository: acm-d/rhtap-hypershift-operator
+
+  # OIDC
+  oidcZoneRedundantMode: Auto
 
   # SVC cluster specifics
   svc:
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
     aks:
-      name: "{{ .ctx.regionShort }}-svc"
+      name: "{{ .ctx.regionShort }}-svc" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
       kubernetesVersion: 1.31.3
       etcd:
-        kvName: arohcp-etcd-{{ .ctx.regionShort }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundsvc"
     istio:
@@ -69,26 +98,34 @@ defaults:
     subscription: hcp-{{ .ctx.region }}
     rg: hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}
     aks:
-      name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+      name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
       kubernetesVersion: 1.31.3
       etcd:
-        kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
     logs:
       namespace: HCPManagementLogs
 
-  # Frontend
+  # RP Frontend
   frontend:
+    image:
+      repository: arohcpfrontend
+    cert:
+      name: frontend-cert
+      issuer: OneCertV2-PublicCA
     cosmosDB:
       deploy: true
       disableLocalAuth: true
-      name: arohcp-rp-{{ .ctx.regionShort }}
       private: true
       zoneRedundantMode: 'Auto'
+
+  # RP Backend
+  backend:
+    image:
+      repository: arohcpbackend
 
   # Maestro
   maestro:
@@ -100,7 +137,7 @@ defaults:
         namespace: maestro
         serviceAccountName: maestro
     agent:
-      consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+      consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }} # [env-unique]
       loglevel: 4
       sidecar:
         image:
@@ -108,13 +145,11 @@ defaults:
           repository: azurelinux/base/nginx
           digest: sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83
     eventGrid:
-      name: arohcp-maestro-{{ .ctx.regionShort }}
-      maxClientSessionsPerAuthName: 4
+      maxClientSessionsPerAuthName: 6
       private: false
     certDomain: ""
     certIssuer: OneCertV2-PrivateCA
     postgres:
-      name: arohcp-maestro-{{ .ctx.regionShort }}
       serverVersion: '15'
       serverStorageSizeGB: 32
       deploy: true
@@ -150,7 +185,6 @@ defaults:
       controlPlane:
         roleName: Contributor
     postgres:
-      name: arohcp-cs-{{ .ctx.regionShort }}
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
@@ -177,7 +211,6 @@ defaults:
         repository: image-sync/oc-mirror
       pullSecretName: ocp-pull-secret
     keyVault:
-      name: arohcp-imagesync-int
       private: false
       softDelete: true
 
@@ -186,8 +219,8 @@ defaults:
     clcStateMetrics:
       imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
 
+  # SVC KV
   serviceKeyVault:
-    name: arohcp-svc-{{ .ctx.regionShort }}
     rg: hcp-underlay-{{ .ctx.region }}-svc
     region: {{ .ctx.region }}
     softDelete: false
@@ -195,17 +228,14 @@ defaults:
 
   # Management Cluster KV
   cxKeyVault:
-    name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: false
-    private: false
+    softDelete: true
+    private: true
   msiKeyVault:
-    name: arohcp-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: false
-    private: false
+    softDelete: true
+    private: true
   mgmtKeyVault:
-    name: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: false
-    private: false
+    softDelete: true
+    private: true
 
   # DNS
   dns:
@@ -219,19 +249,7 @@ defaults:
 
 clouds:
   public:
-    # this configuration serves as a template for for all RH DEV subscription deployments
-    # the following vars need approprivate overrides:
     defaults:
-      maestro:
-        image:
-          digest: sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5
-      clusterService:
-        image:
-          digest: sha256:c8de5ac6f2000ee185b42442c3b7f29e2b6b1068849f48620075cd811834202b
-      hypershiftOperator:
-        image:
-          repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f
       imageSync:
         componentSync:
           image:
@@ -239,14 +257,6 @@ clouds:
         ocMirror:
           image:
             digest: sha256:4affed9ff6397a5c44e9d1451fd58667f56e826b122819ccb6e1e8e045803c18
-      frontend:
-        image:
-          repository: arohcpfrontend
-          digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
-      backend:
-        image:
-          repository: arohcpbackend
-          digest: sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c
 
     environments:
       int:
@@ -260,16 +270,42 @@ clouds:
           # Cluster Service
           clusterService:
             environment: "arohcpint"
+            postgres:
+              name: arohcp-cs-{{ .ctx.regionShort }} # [globally-unique]
+            image:
+              digest: sha256:c8de5ac6f2000ee185b42442c3b7f29e2b6b1068849f48620075cd811834202b
 
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActionsNonProd
 
           # OIDC
-          oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }}
-          oidcZoneRedundantMode: Auto
+          oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }} # [globally-unique]
 
-          # SVC
+          # Image Sync
+          imageSync:
+            keyVault:
+              name: arohcp-imagesync-int # [globally-unique]
+
+          # SVC KV
+          serviceKeyVault:
+            name: arohcp-svc-{{ .ctx.regionShort }} # [globally-unique]
+
+          # Management Cluster KV
+          cxKeyVault:
+            name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+            softDelete: false
+            private: false
+          msiKeyVault:
+            name: arohcp-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+            softDelete: false
+            private: false
+          mgmtKeyVault:
+            name: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+            softDelete: false
+            private: false
+
+          # SVC cluster settings
           svc:
             aks:
               systemAgentPool:
@@ -284,13 +320,15 @@ clouds:
                 osDiskSizeGB: 32
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
+              etcd:
+                kvName: arohcp-etcd-{{ .ctx.regionShort }} # [globally-unique]
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
               san: SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
               configVersion: "1.0"
 
-          # MC
+          # MC cluster settings
           mgmt:
             aks:
               # MGMTM AKS nodepools - big enough for 2 HCPs
@@ -306,6 +344,8 @@ clouds:
                 osDiskSizeGB: 128
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
+              etcd:
+                kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
             logs:
               san: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
               configVersion: "1.0"
@@ -317,16 +357,35 @@ clouds:
             parentZoneName: azure-test.net
 
           # ACR
-          svcAcrName: arohcpsvcint
-          ocpAcrName: arohcpocpint
+          svcAcrName: arohcpsvcint # [globally-unique]
+          ocpAcrName: arohcpocpint # [globally-unique]
 
-          # Frontend
+          # RP Frontend
           frontend:
             cosmosDB:
+              name: arohcp-rp-{{ .ctx.regionShort }} # [globally-unique]
               private: false
-            cert:
-              name: frontend-cert-{{ .ctx.regionShort }}
-              issuer: OneCertV2-PublicCA
+            image:
+              digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
+
+          # RP Backend
+          backend:
+            image:
+              digest: sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c
+
+          # Hypershift
+          hypershift:
+            image:
+              digest: sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f
+
+          # Maestro
+          maestro:
+            eventGrid:
+              name: arohcp-maestro-{{ .ctx.regionShort }} # [globally-unique]
+            postgres:
+              name: arohcp-maestro-{{ .ctx.regionShort }} # [globally-unique]
+            image:
+              digest: sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5
 
           # 1P app - from RH Tenant
           firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
@@ -341,17 +400,6 @@ clouds:
           armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
           armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
           armHelperCertName: armHelperCert2
-
-          # disable KV softdelete for easy cleanup and recreate in INT
-          cxKeyVault:
-            softDelete: false
-            private: false
-          msiKeyVault:
-            softDelete: false
-            private: false
-          mgmtKeyVault:
-            softDelete: false
-            private: false
 
           # Grafana
           monitoring:

@@ -81,7 +81,7 @@
   "frontend": {
     "cert": {
       "issuer": "OneCertV2-PublicCA",
-      "name": "frontend-cert-int"
+      "name": "frontend-cert"
     },
     "cosmosDB": {
       "deploy": true,
@@ -107,13 +107,11 @@
   },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
-    "namespace": "hypershift"
-  },
-  "hypershiftOperator": {
     "image": {
       "digest": "sha256:c802cd5c71b279926ed3f02871d5a414d0b852dd276406046fc4e893404d468f",
       "repository": "acm-d/rhtap-hypershift-operator"
-    }
+    },
+    "namespace": "hypershift"
   },
   "imageSync": {
     "acrRG": "global-shared-resources",
@@ -177,7 +175,7 @@
     "certDomain": "",
     "certIssuer": "OneCertV2-PrivateCA",
     "eventGrid": {
-      "maxClientSessionsPerAuthName": 4,
+      "maxClientSessionsPerAuthName": 6,
       "name": "arohcp-maestro-int",
       "private": false
     },

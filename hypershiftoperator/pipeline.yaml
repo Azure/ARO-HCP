@@ -19,9 +19,9 @@ resourceGroups:
     - name: ARO_HCP_OCP_ACR
       configRef: ocpAcrName
     - name: HO_IMAGE_DIGEST
-      configRef: hypershiftOperator.image.digest
+      configRef: hypershift.image.digest
     - name: HO_IMAGE_REPOSITORY
-      configRef: hypershiftOperator.image.repository
+      configRef: hypershift.image.repository
     - name: RESOURCEGROUP
       configRef: mgmt.rg
     - name: AKS_NAME
