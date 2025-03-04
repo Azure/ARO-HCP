@@ -491,6 +491,9 @@
     "hypershift": {
       "type": "object",
       "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
         "additionalInstallArg": {
           "type": "string"
         },
@@ -502,18 +505,6 @@
       "required": [
         "additionalInstallArg",
         "namespace"
-      ]
-    },
-    "hypershiftOperator": {
-      "type": "object",
-      "properties": {
-        "image": {
-          "$ref": "#/definitions/containerImage"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "image"
       ]
     },
     "imageSync": {
@@ -1073,7 +1064,6 @@
     "genevaActions",
     "global",
     "hypershift",
-    "hypershiftOperator",
     "imageSync",
     "acrPull",
     "maestro",
