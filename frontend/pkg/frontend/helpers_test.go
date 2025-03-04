@@ -47,6 +47,18 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
+			name:             "Request cluster credential",
+			resourceID:       clusterResourceID,
+			operationRequest: database.OperationRequestRequestCredential,
+			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+		},
+		{
+			name:             "Revoke cluster credentials",
+			resourceID:       clusterResourceID,
+			operationRequest: database.OperationRequestRevokeCredentials,
+			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+		},
+		{
 			name:             "Create node pool",
 			resourceID:       nodePoolResourceID,
 			operationRequest: database.OperationRequestCreate,
