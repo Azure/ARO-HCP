@@ -107,7 +107,7 @@ Not all configuration provided via `bicepparam` files can be statically defined 
 
 We can pass such dynamic parameter values by chaining multiple bicep modules, one providing the required dynamic values as output and the other one consuming them. This chaining approach is not a Bicep feature but something offered by our pipelines.
 
-In the following example the `region.bicep` template wants to setup DNS zone delegation from the parent zone to the regional zone. For that it requires the Azure resource ID of the parent zone. The `output-global.bicep` provides the `svcParentZoneResourceId` as an output parameter, while `region.tmpl.bicepparam` asks for it as input parameter. The pipeline hooks up both steps to pass the value from one to the other.
+In the following example the [region.bicep](../dev-infrastructure/templates/region.bicep) template wants to setup DNS zone delegation from the parent zone to the regional zone. For that it requires the Azure resource ID of the parent zone. The [output-global.bicep](../dev-infrastructure/templates/output-global.bicep) provides the `svcParentZoneResourceId` as an output parameter, while `region.tmpl.bicepparam` asks for it as input parameter. The pipeline hooks up both steps to pass the value from one to the other.
 
 ```bicep
 // output-global.bicep
@@ -147,7 +147,7 @@ resourceGroups:
 ```
 
 1. declare the output
-2. declare the input - the value `__svcParentZoneResourceId__` needs to match the name of the parameter
+2. declare the input - the value `__svcParentZoneResourceId__` needs to match the name of the parameter. The double-underscore wrapping is a convention required by output chaining to work properly within EV2 (we might want to simplify this in the future)
 3. run the `output-global.bicep` template towards the global scope where the parent DNS zone are managed
 4. since this is an output only bicep template, we mark it as such. this makes it safe to run during dry-runs
 5. run the `region.bicep` template towards the regional scope where the DNS subzones are managed
