@@ -13,12 +13,6 @@ type HcpClusterVersionsClientListResponse struct {
 	HcpOpenShiftVersionResourceListResult
 }
 
-// HcpOpenShiftClustersClientAdminCredentialsResponse contains the response from method HcpOpenShiftClustersClient.AdminCredentials.
-type HcpOpenShiftClustersClientAdminCredentialsResponse struct {
-	// HCP cluster credentials
-	HcpOpenShiftClusterCredentials
-}
-
 // HcpOpenShiftClustersClientCreateOrUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginCreateOrUpdate.
 type HcpOpenShiftClustersClientCreateOrUpdateResponse struct {
 	// HCP cluster resource
@@ -36,12 +30,6 @@ type HcpOpenShiftClustersClientGetResponse struct {
 	HcpOpenShiftClusterResource
 }
 
-// HcpOpenShiftClustersClientKubeConfigResponse contains the response from method HcpOpenShiftClustersClient.KubeConfig.
-type HcpOpenShiftClustersClientKubeConfigResponse struct {
-	// HCP cluster admin kubeconfig
-	HcpOpenShiftClusterKubeconfig
-}
-
 // HcpOpenShiftClustersClientListByResourceGroupResponse contains the response from method HcpOpenShiftClustersClient.NewListByResourceGroupPager.
 type HcpOpenShiftClustersClientListByResourceGroupResponse struct {
 	// The response of a HcpOpenShiftClusterResource list operation.
@@ -52,6 +40,17 @@ type HcpOpenShiftClustersClientListByResourceGroupResponse struct {
 type HcpOpenShiftClustersClientListBySubscriptionResponse struct {
 	// The response of a HcpOpenShiftClusterResource list operation.
 	HcpOpenShiftClusterResourceListResult
+}
+
+// HcpOpenShiftClustersClientRequestAdminCredentialResponse contains the response from method HcpOpenShiftClustersClient.BeginRequestAdminCredential.
+type HcpOpenShiftClustersClientRequestAdminCredentialResponse struct {
+	// HCP cluster admin credential
+	HcpOpenShiftClusterAdminCredential
+}
+
+// HcpOpenShiftClustersClientRevokeCredentialsResponse contains the response from method HcpOpenShiftClustersClient.BeginRevokeCredentials.
+type HcpOpenShiftClustersClientRevokeCredentialsResponse struct {
+	// placeholder for future response values
 }
 
 // HcpOpenShiftClustersClientUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginUpdate.

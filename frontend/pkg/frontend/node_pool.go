@@ -201,7 +201,8 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	err = f.ExposeOperation(writer, request, pk, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -279,5 +280,5 @@ func marshalCSNodePool(csNodePool *cmv1.NodePool, doc *database.ResourceDocument
 	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
 
-	return arm.Marshal(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
+	return versionedInterface.MarshalHCPOpenShiftClusterNodePool(hcpNodePool)
 }

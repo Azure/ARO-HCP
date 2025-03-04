@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -42,6 +43,7 @@ const (
 
 type operation struct {
 	id     string
+	pk     azcosmos.PartitionKey
 	doc    *database.OperationDocument
 	logger *slog.Logger
 }
@@ -247,11 +249,11 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 
 	iterator := s.dbClient.ListAllSubscriptionDocs()
 
-	for subscriptionDoc := range iterator.Items(ctx) {
+	for subscriptionID, subscription := range iterator.Items(ctx) {
 		// Unregistered subscriptions should have no active operations,
 		// not even deletes.
-		if subscriptionDoc.Subscription.State != arm.SubscriptionStateUnregistered {
-			subscriptions = append(subscriptions, subscriptionDoc.ID)
+		if subscription.State != arm.SubscriptionStateUnregistered {
+			subscriptions = append(subscriptions, subscriptionID)
 		}
 	}
 
@@ -303,26 +305,31 @@ func (s *OperationsScanner) processSubscriptions(logger *slog.Logger) {
 func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionID string, logger *slog.Logger) {
 	defer s.updateOperationMetrics(processOperationsLabel)()
 
-	var numProcessed int
+	pk := database.NewPartitionKey(subscriptionID)
 
-	iterator := s.dbClient.ListOperationDocs(subscriptionID)
+	iterator := s.dbClient.ListOperationDocs(pk, nil)
 
-	for operationDoc := range iterator.Items(ctx) {
+	for operationID, operationDoc := range iterator.Items(ctx) {
 		if !operationDoc.Status.IsTerminal() {
 			operationLogger := logger.With(
 				"operation", operationDoc.Request,
-				"operation_id", operationDoc.ID,
+				"operation_id", operationID,
 				"resource_id", operationDoc.ExternalID.String(),
 				"internal_id", operationDoc.InternalID.String())
-			op := operation{operationDoc.ID, operationDoc, operationLogger}
+			op := operation{operationID, pk, operationDoc, operationLogger}
 
 			switch operationDoc.InternalID.Kind() {
 			case cmv1.ClusterKind:
-				s.pollClusterOperation(ctx, op)
-				numProcessed++
+				switch operationDoc.Request {
+				case database.OperationRequestRevokeCredentials:
+					s.pollBreakGlassCredentialRevoke(ctx, op)
+				default:
+					s.pollClusterOperation(ctx, op)
+				}
 			case cmv1.NodePoolKind:
 				s.pollNodePoolOperation(ctx, op)
-				numProcessed++
+			case cmv1.BreakGlassCredentialKind:
+				s.pollBreakGlassCredential(ctx, op)
 			}
 		}
 	}
@@ -387,6 +394,109 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	}
 }
 
+// pollBreakGlassCredential updates the status of a credential creation operation.
+func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op operation) {
+	breakGlassCredential, err := s.clusterService.GetBreakGlassCredential(ctx, op.doc.InternalID)
+	if err != nil {
+		op.logger.Error(fmt.Sprintf("Failed to get break-glass credential: %v", err))
+		return
+	}
+
+	var opStatus arm.ProvisioningState = op.doc.Status
+	var opError *arm.CloudErrorBody
+
+	switch status := breakGlassCredential.Status(); status {
+	case cmv1.BreakGlassCredentialStatusCreated:
+		opStatus = arm.ProvisioningStateProvisioning
+	case cmv1.BreakGlassCredentialStatusFailed:
+		// XXX Cluster Service does not provide a reason for the failure,
+		//     so we have no choice but to use a generic error message.
+		opStatus = arm.ProvisioningStateFailed
+		opError = &arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: "Failed to provision cluster credential",
+		}
+	case cmv1.BreakGlassCredentialStatusIssued:
+		opStatus = arm.ProvisioningStateSucceeded
+	default:
+		op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
+		return
+	}
+
+	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
+		return updateDoc.UpdateStatus(opStatus, opError)
+	})
+	if err != nil {
+		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+	}
+	if updated {
+		op.logger.Info(fmt.Sprintf("Updated status to '%s'", opStatus))
+		s.maybePostAsyncNotification(ctx, op)
+	}
+}
+
+// pollBreakGlassCredentialRevoke updates the status of a credential revocation operation.
+func (s *OperationsScanner) pollBreakGlassCredentialRevoke(ctx context.Context, op operation) {
+	var opStatus arm.ProvisioningState = arm.ProvisioningStateSucceeded
+	var opError *arm.CloudErrorBody
+
+	// XXX Error handling here is tricky. Since the operation applies to multiple
+	//     Cluster Service objects, we can find a mix of successes and failures.
+	//     And with only a Failed status for each object, it's difficult to make
+	//     intelligent decisions like whether to retry. This is just to say the
+	//     error handling policy here may need revising once Cluster Service
+	//     offers more detail to accompany BreakGlassCredentialStatusFailed.
+
+	iterator := s.clusterService.ListBreakGlassCredentials(op.doc.InternalID, "")
+
+loop:
+	for breakGlassCredential := range iterator.Items(ctx) {
+		// An expired credential is as good as a revoked credential
+		// for this operation, regardless of the credential status.
+		if breakGlassCredential.ExpirationTimestamp().After(time.Now()) {
+			switch status := breakGlassCredential.Status(); status {
+			case cmv1.BreakGlassCredentialStatusAwaitingRevocation:
+				opStatus = arm.ProvisioningStateDeleting
+				// break alone just breaks out of select.
+				// Use a label to break out of the loop.
+				break loop
+			case cmv1.BreakGlassCredentialStatusRevoked:
+				// maintain ProvisioningStateSucceeded
+			case cmv1.BreakGlassCredentialStatusFailed:
+				// XXX Cluster Service does not provide a reason for the failure,
+				//     so we have no choice but to use a generic error message.
+				opStatus = arm.ProvisioningStateFailed
+				opError = &arm.CloudErrorBody{
+					Code:    arm.CloudErrorCodeInternalServerError,
+					Message: "Failed to revoke cluster credential",
+				}
+				// break alone just breaks out of select.
+				// Use a label to break out of the loop.
+				break loop
+			default:
+				op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
+			}
+		}
+	}
+
+	err := iterator.GetError()
+	if err != nil {
+		op.logger.Error(fmt.Sprintf("Error while paging through Cluster Service query results: %v", err.Error()))
+		return
+	}
+
+	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
+		return updateDoc.UpdateStatus(opStatus, opError)
+	})
+	if err != nil {
+		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+	}
+	if updated {
+		op.logger.Info(fmt.Sprintf("Updated status to '%s'", opStatus))
+		s.maybePostAsyncNotification(ctx, op)
+	}
+}
+
 // withSubscriptionLock holds a subscription lock while executing the given function.
 // In the event the subscription lock is lost, the context passed to the function will
 // be canceled.
@@ -421,7 +531,7 @@ func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, o
 
 	// Save a final "succeeded" operation status until TTL expires.
 	const opStatus arm.ProvisioningState = arm.ProvisioningStateSucceeded
-	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.id, func(updateDoc *database.OperationDocument) bool {
+	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
 		return updateDoc.UpdateStatus(opStatus, nil)
 	})
 	if err != nil {
@@ -437,7 +547,7 @@ func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, o
 
 // updateOperationStatus updates Cosmos DB to reflect an updated resource status.
 func (s *OperationsScanner) updateOperationStatus(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.id, func(updateDoc *database.OperationDocument) bool {
+	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
 		return updateDoc.UpdateStatus(opStatus, opError)
 	})
 	if err != nil {
@@ -475,7 +585,7 @@ func (s *OperationsScanner) updateOperationStatus(ctx context.Context, op operat
 // operation if the initial request included an "Azure-AsyncNotificationUri" header.
 func (s *OperationsScanner) maybePostAsyncNotification(ctx context.Context, op operation) {
 	if len(op.doc.NotificationURI) > 0 {
-		err := s.postAsyncNotification(ctx, op.id)
+		err := s.postAsyncNotification(ctx, op)
 		if err == nil {
 			op.logger.Info("Posted async notification")
 		} else {
@@ -485,14 +595,14 @@ func (s *OperationsScanner) maybePostAsyncNotification(ctx context.Context, op o
 }
 
 // postAsyncNotification submits an POST request with status payload to the given URL.
-func (s *OperationsScanner) postAsyncNotification(ctx context.Context, operationID string) error {
+func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operation) error {
 	// Refetch the operation document to provide the latest status.
-	doc, err := s.dbClient.GetOperationDoc(ctx, operationID)
+	doc, err := s.dbClient.GetOperationDoc(ctx, op.pk, op.id)
 	if err != nil {
 		return err
 	}
 
-	data, err := arm.Marshal(doc.ToStatus())
+	data, err := arm.MarshalJSON(doc.ToStatus())
 	if err != nil {
 		return err
 	}

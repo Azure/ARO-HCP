@@ -13,25 +13,27 @@ import (
 	context "context"
 	reflect "reflect"
 
+	arm "github.com/Azure/ARO-HCP/internal/api/arm"
 	database "github.com/Azure/ARO-HCP/internal/database"
-	arm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	arm0 "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcosmos "github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	gomock "go.uber.org/mock/gomock"
 )
 
 // MockDBClientIterator is a mock of DBClientIterator interface.
-type MockDBClientIterator[T any] struct {
+type MockDBClientIterator[T database.DocumentProperties] struct {
 	ctrl     *gomock.Controller
 	recorder *MockDBClientIteratorMockRecorder[T]
 	isgomock struct{}
 }
 
 // MockDBClientIteratorMockRecorder is the mock recorder for MockDBClientIterator.
-type MockDBClientIteratorMockRecorder[T any] struct {
+type MockDBClientIteratorMockRecorder[T database.DocumentProperties] struct {
 	mock *MockDBClientIterator[T]
 }
 
 // NewMockDBClientIterator creates a new mock instance.
-func NewMockDBClientIterator[T any](ctrl *gomock.Controller) *MockDBClientIterator[T] {
+func NewMockDBClientIterator[T database.DocumentProperties](ctrl *gomock.Controller) *MockDBClientIterator[T] {
 	mock := &MockDBClientIterator[T]{ctrl: ctrl}
 	mock.recorder = &MockDBClientIteratorMockRecorder[T]{mock}
 	return mock
@@ -138,17 +140,17 @@ func (mr *MockDBClientMockRecorder) CreateResourceDoc(ctx, doc any) *gomock.Call
 }
 
 // CreateSubscriptionDoc mocks base method.
-func (m *MockDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, doc *database.SubscriptionDocument) error {
+func (m *MockDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSubscriptionDoc", ctx, subscriptionID, doc)
+	ret := m.ctrl.Call(m, "CreateSubscriptionDoc", ctx, subscriptionID, subscription)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateSubscriptionDoc indicates an expected call of CreateSubscriptionDoc.
-func (mr *MockDBClientMockRecorder) CreateSubscriptionDoc(ctx, subscriptionID, doc any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) CreateSubscriptionDoc(ctx, subscriptionID, subscription any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubscriptionDoc", reflect.TypeOf((*MockDBClient)(nil).CreateSubscriptionDoc), ctx, subscriptionID, doc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubscriptionDoc", reflect.TypeOf((*MockDBClient)(nil).CreateSubscriptionDoc), ctx, subscriptionID, subscription)
 }
 
 // DBConnectionTest mocks base method.
@@ -166,7 +168,7 @@ func (mr *MockDBClientMockRecorder) DBConnectionTest(ctx any) *gomock.Call {
 }
 
 // DeleteResourceDoc mocks base method.
-func (m *MockDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm.ResourceID) error {
+func (m *MockDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm0.ResourceID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteResourceDoc", ctx, resourceID)
 	ret0, _ := ret[0].(error)
@@ -194,22 +196,22 @@ func (mr *MockDBClientMockRecorder) GetLockClient() *gomock.Call {
 }
 
 // GetOperationDoc mocks base method.
-func (m *MockDBClient) GetOperationDoc(ctx context.Context, operationID string) (*database.OperationDocument, error) {
+func (m *MockDBClient) GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*database.OperationDocument, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOperationDoc", ctx, operationID)
+	ret := m.ctrl.Call(m, "GetOperationDoc", ctx, pk, operationID)
 	ret0, _ := ret[0].(*database.OperationDocument)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOperationDoc indicates an expected call of GetOperationDoc.
-func (mr *MockDBClientMockRecorder) GetOperationDoc(ctx, operationID any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) GetOperationDoc(ctx, pk, operationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationDoc", reflect.TypeOf((*MockDBClient)(nil).GetOperationDoc), ctx, operationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationDoc", reflect.TypeOf((*MockDBClient)(nil).GetOperationDoc), ctx, pk, operationID)
 }
 
 // GetResourceDoc mocks base method.
-func (m *MockDBClient) GetResourceDoc(ctx context.Context, resourceID *arm.ResourceID) (*database.ResourceDocument, error) {
+func (m *MockDBClient) GetResourceDoc(ctx context.Context, resourceID *arm0.ResourceID) (*database.ResourceDocument, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetResourceDoc", ctx, resourceID)
 	ret0, _ := ret[0].(*database.ResourceDocument)
@@ -224,10 +226,10 @@ func (mr *MockDBClientMockRecorder) GetResourceDoc(ctx, resourceID any) *gomock.
 }
 
 // GetSubscriptionDoc mocks base method.
-func (m *MockDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*database.SubscriptionDocument, error) {
+func (m *MockDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSubscriptionDoc", ctx, subscriptionID)
-	ret0, _ := ret[0].(*database.SubscriptionDocument)
+	ret0, _ := ret[0].(*arm.Subscription)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -239,10 +241,10 @@ func (mr *MockDBClientMockRecorder) GetSubscriptionDoc(ctx, subscriptionID any) 
 }
 
 // ListAllSubscriptionDocs mocks base method.
-func (m *MockDBClient) ListAllSubscriptionDocs() database.DBClientIterator[database.SubscriptionDocument] {
+func (m *MockDBClient) ListAllSubscriptionDocs() database.DBClientIterator[arm.Subscription] {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAllSubscriptionDocs")
-	ret0, _ := ret[0].(database.DBClientIterator[database.SubscriptionDocument])
+	ret0, _ := ret[0].(database.DBClientIterator[arm.Subscription])
 	return ret0
 }
 
@@ -253,21 +255,21 @@ func (mr *MockDBClientMockRecorder) ListAllSubscriptionDocs() *gomock.Call {
 }
 
 // ListOperationDocs mocks base method.
-func (m *MockDBClient) ListOperationDocs(subscriptionID string) database.DBClientIterator[database.OperationDocument] {
+func (m *MockDBClient) ListOperationDocs(pk azcosmos.PartitionKey, request *database.OperationRequest) database.DBClientIterator[database.OperationDocument] {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListOperationDocs", subscriptionID)
+	ret := m.ctrl.Call(m, "ListOperationDocs", pk, request)
 	ret0, _ := ret[0].(database.DBClientIterator[database.OperationDocument])
 	return ret0
 }
 
 // ListOperationDocs indicates an expected call of ListOperationDocs.
-func (mr *MockDBClientMockRecorder) ListOperationDocs(subscriptionID any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) ListOperationDocs(pk, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListOperationDocs), subscriptionID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListOperationDocs), pk, request)
 }
 
 // ListResourceDocs mocks base method.
-func (m *MockDBClient) ListResourceDocs(prefix *arm.ResourceID, maxItems int32, continuationToken *string) database.DBClientIterator[database.ResourceDocument] {
+func (m *MockDBClient) ListResourceDocs(prefix *arm0.ResourceID, maxItems int32, continuationToken *string) database.DBClientIterator[database.ResourceDocument] {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListResourceDocs", prefix, maxItems, continuationToken)
 	ret0, _ := ret[0].(database.DBClientIterator[database.ResourceDocument])
@@ -281,22 +283,22 @@ func (mr *MockDBClientMockRecorder) ListResourceDocs(prefix, maxItems, continuat
 }
 
 // UpdateOperationDoc mocks base method.
-func (m *MockDBClient) UpdateOperationDoc(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
+func (m *MockDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOperationDoc", ctx, operationID, callback)
+	ret := m.ctrl.Call(m, "UpdateOperationDoc", ctx, pk, operationID, callback)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateOperationDoc indicates an expected call of UpdateOperationDoc.
-func (mr *MockDBClientMockRecorder) UpdateOperationDoc(ctx, operationID, callback any) *gomock.Call {
+func (mr *MockDBClientMockRecorder) UpdateOperationDoc(ctx, pk, operationID, callback any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperationDoc", reflect.TypeOf((*MockDBClient)(nil).UpdateOperationDoc), ctx, operationID, callback)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperationDoc", reflect.TypeOf((*MockDBClient)(nil).UpdateOperationDoc), ctx, pk, operationID, callback)
 }
 
 // UpdateResourceDoc mocks base method.
-func (m *MockDBClient) UpdateResourceDoc(ctx context.Context, resourceID *arm.ResourceID, callback func(*database.ResourceDocument) bool) (bool, error) {
+func (m *MockDBClient) UpdateResourceDoc(ctx context.Context, resourceID *arm0.ResourceID, callback func(*database.ResourceDocument) bool) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateResourceDoc", ctx, resourceID, callback)
 	ret0, _ := ret[0].(bool)
@@ -311,7 +313,7 @@ func (mr *MockDBClientMockRecorder) UpdateResourceDoc(ctx, resourceID, callback 
 }
 
 // UpdateSubscriptionDoc mocks base method.
-func (m *MockDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*database.SubscriptionDocument) bool) (bool, error) {
+func (m *MockDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSubscriptionDoc", ctx, subscriptionID, callback)
 	ret0, _ := ret[0].(bool)
