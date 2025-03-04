@@ -102,8 +102,9 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 
 			mockDBClient.EXPECT().
 				DeleteResourceDoc(gomock.Any(), resourceID).
-				Do(func(ctx context.Context, resourceID *azcorearm.ResourceID) {
+				Do(func(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 					resourceDocDeleted = tt.resourceDocPresent
+					return nil
 				})
 			mockDBClient.EXPECT().
 				UpdateOperationDoc(gomock.Any(), op.id, gomock.Any()).

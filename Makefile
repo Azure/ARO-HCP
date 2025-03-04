@@ -18,6 +18,10 @@ test:
 	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -tags=$(GOTAGS) -cover
 .PHONY: test
 
+test-compile:
+	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
+.PHONY: test-compile
+
 mocks: install-tools
 	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
 .PHONY: mocks
