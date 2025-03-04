@@ -35,10 +35,30 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 				"Resource is already deleting")
 		}
 	case database.OperationRequestUpdate:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
 		if !doc.ProvisioningState.IsTerminal() {
 			return arm.NewConflictError(
 				doc.ResourceID,
 				"Cannot update resource while resource is %s",
+				strings.ToLower(string(doc.ProvisioningState)))
+		}
+	case database.OperationRequestRequestCredential:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
+		if !doc.ProvisioningState.IsTerminal() {
+			return arm.NewConflictError(
+				doc.ResourceID,
+				"Cannot request credential while resource is %s",
+				strings.ToLower(string(doc.ProvisioningState)))
+		}
+	case database.OperationRequestRevokeCredentials:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
+		if !doc.ProvisioningState.IsTerminal() {
+			return arm.NewConflictError(
+				doc.ResourceID,
+				"Cannot revoke credentials while resource is %s",
 				strings.ToLower(string(doc.ProvisioningState)))
 		}
 	}
