@@ -59,14 +59,14 @@ model HcpOpenShiftClusterProperties {
   provisioningState?: ProvisioningState;
 
   /** Version of the control plane components */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   version: VersionProfile;
 
   /** Cluster DNS configuration */
   dns?: DnsProfile;
 
   /** Cluster network configuration */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   network?: NetworkProfile;
 
   /** Shows the cluster web console information */
@@ -82,7 +82,7 @@ model HcpOpenShiftClusterProperties {
   disableUserWorkloadMonitoring?: boolean = false;
 
   /** Azure platform configuration */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   platform?: PlatformProfile;
 
   /** URL for the OIDC provider to be used for authentication
@@ -152,11 +152,11 @@ union ProvisioningState {
 /** Versions represents an OpenShift version. */
 model VersionProfile {
   /** ID is the unique identifier of the version. */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   id: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   channelGroup: string;
 
   /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
@@ -173,7 +173,7 @@ model DnsProfile {
   /**  BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.
    * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
    * */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   @maxLength(15)
   @pattern(
     "^[a-z]([-a-z0-9]*[a-z0-9])?$",
@@ -185,29 +185,29 @@ model DnsProfile {
 /** Network profile of the cluster */
 model NetworkProfile {
   /** The main controller responsible for rendering the core networking components */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   networkType?: NetworkType = NetworkType.OVNKubernetes;
 
   /** The CIDR of the pod IP addresses
    * example: 10.128.0.0/14
    */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   podCidr: string;
 
   /** The CIDR block for assigned service IPs,
    * example: 172.30.0.0/16
    */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   serviceCidr: string;
 
   /** from which to assign machine IP addresses,
    * example: 10.0.0.0/16
    */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   machineCidr: string;
 
   /** Network host prefix which is defaulted to 23 if not specified. */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   hostPrefix?: int32 = 23;
 }
 
@@ -236,7 +236,7 @@ model ApiProfile {
   url: url;
 
   /** should the API server be accessible from the internet */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   visibility: Visibility;
 }
 
@@ -315,7 +315,7 @@ model UserAssignedIdentitiesProfile {
 
   /** Represents the information associated to an Azure User-Assigned Managed Identity whose
    * purpose is to perform service level actions. */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   serviceManagedIdentity: UserAssignedIdentityResourceId;
 }
 
@@ -345,7 +345,7 @@ model NodePoolProperties {
   provisioningState?: ProvisioningState;
 
   /** OpenShift version for the nodepool */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   version: VersionProfile;
 
   /** Azure node pool platform configuration */
@@ -357,7 +357,7 @@ model NodePoolProperties {
   replicas?: int32;
 
   /** Auto-repair */
-  @visibility("create", "read")
+  @visibility("create", "read", "update")
   autoRepair?: boolean = false;
 
   /** Representation of a autoscaling in a node pool. */
