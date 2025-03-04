@@ -1694,6 +1694,8 @@ github.com/sagikazarmark/crypt v0.19.0 h1:WMyLTjHBo64UvNcWqpzY3pbZTYgnemZU8FBZig
 github.com/sagikazarmark/crypt v0.19.0/go.mod h1:c6vimRziqqERhtSe0MhIvzE1w54FrCHtrXb5NH/ja78=
 github.com/sanchezl/ocm-sdk-go v0.0.0-20250228013841-940a99155963 h1:M0bibIbFQH/fBIBzgc58xfsN3L8QA3ocErwNVrikwEY=
 github.com/sanchezl/ocm-sdk-go v0.0.0-20250228013841-940a99155963/go.mod h1:CiAu2jwl3ITKOxkeV0Qnhzv4gs35AmpIzVABQLtcI2Y=
+github.com/sanchezl/ocm-sdk-go v0.0.0-20250310184821-c17d630a6998 h1:pBaxEqh6YSNRVk+6LKjKlRy3Kv4FycE3jcIOn78nnbE=
+github.com/sanchezl/ocm-sdk-go v0.0.0-20250310184821-c17d630a6998/go.mod h1:CiAu2jwl3ITKOxkeV0Qnhzv4gs35AmpIzVABQLtcI2Y=
 github.com/sanchezl/ocm-sdk-go v0.0.0-20250319184135-5de14887d7f8 h1:QhwfqM59ErzAbhwqnyDZPZ1hDzgf6rUClBhaHtMZgQw=
 github.com/sanchezl/ocm-sdk-go v0.0.0-20250319184135-5de14887d7f8/go.mod h1:CiAu2jwl3ITKOxkeV0Qnhzv4gs35AmpIzVABQLtcI2Y=
 github.com/sassoftware/relic v7.2.1+incompatible h1:Pwyh1F3I0r4clFJXkSI8bOyJINGqpgjJU3DYAZeI05A=
