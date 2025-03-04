@@ -266,11 +266,15 @@ func (csc *ClusterServiceClient) PostBreakGlassCredential(ctx context.Context, c
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
 	}
-	breakGlassCredentialsAddResponse, err := client.BreakGlassCredentials().Add().SendContext(ctx)
+	breakGlassCredential, err := cmv1.NewBreakGlassCredential().Build()
 	if err != nil {
 		return nil, err
 	}
-	breakGlassCredential, ok := breakGlassCredentialsAddResponse.GetBody()
+	breakGlassCredentialsAddResponse, err := client.BreakGlassCredentials().Add().Body(breakGlassCredential).SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	breakGlassCredential, ok = breakGlassCredentialsAddResponse.GetBody()
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
