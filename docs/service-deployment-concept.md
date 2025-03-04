@@ -28,7 +28,7 @@ Bringing in additional tools into shell steps, like `oc` etc is not an option fo
 
 #### Namespace management
 
-Helm is not supposed to manage the deployment namespace. This is the responsibility of the Makefile described in the [service deployment concept](service-deployment-concept.md). Helm can rely on the namespace being present and the correct `KUBECONFIG`context being set for deployment.
+Helm is not supposed to manage the deployment namespace. This is the responsibility of the [Makefile](#makefile). Helm can rely on the namespace being present and the correct `KUBECONFIG`context being set for deployment.
 
 Namespaced manifest should declare their namespace in the manifest itself.
 
