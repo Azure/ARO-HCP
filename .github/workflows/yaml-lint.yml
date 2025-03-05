@@ -22,4 +22,4 @@ jobs:
       - name: Linters
         uses: oxsecurity/megalinter/flavors/ci_light@v8
         env:
-          FILTER_REGEX_EXCLUDE: 'hypershiftoperator/deploy/base/|hypershiftoperator/deploy/crds/|maestro/server/helm/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts'
+          FILTER_REGEX_EXCLUDE: 'hypershiftoperator/deploy/helm/hypershift/crds/|maestro/server/deploy/helm/server/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts'

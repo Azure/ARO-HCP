@@ -16,8 +16,21 @@ my-service
 ├── Makefile
 ├── pipeline.yaml
 ├── some-script.sh
-└── helm
+└── deploy
     └── <chart goes here>
+```
+
+If a service consists of multiple individual sub-services, each of them can have their own directory structure as shown above underneath their parent directory.
+
+```plaintext
+my-service
+├── sub-service-1
+...
+└── sub-service-2
+    ├── Makefile
+    ├── pipeline.yaml
+    └── deploy
+        └── <chart goes here>
 ```
 
 ### Helm chart
@@ -64,7 +77,7 @@ The `Makefile` in the service directory is the entry point for its deployment op
 
 deploy:                                                (3)
     kubectl create namespace <namespace> --dry-run=client -o json | kubectl apply -f -
-    $(HELM_CMD) <deployment-name> ./helm \             (4)
+    $(HELM_CMD) <deployment-name> ./deploy \           (4)
     --namespace <namespace> \                          (5)
     --set some_key=${SOME_ENV_VAR}                     (6)
 ```

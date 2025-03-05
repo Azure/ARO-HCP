@@ -5,7 +5,7 @@ deploy:
 		echo "Error: Service 'maestro' not found in namespace '${NAMESPACE}'"; \
 		exit 1; \
 	fi
-	${HELM_CMD} ${CONSUMER_NAME} ./helm \
+	${HELM_CMD} ${CONSUMER_NAME} ./deploy \
 		--namespace ${NAMESPACE} \
 		--set consumerName=${CONSUMER_NAME}
 .PHONY: deploy

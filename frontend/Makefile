@@ -1,6 +1,5 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
-HELM_CMD ?= helm upgrade --install
 
 CURRENT_COMMIT := $(shell git rev-parse --short=7 HEAD)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
@@ -68,7 +67,7 @@ deploy:
 	kubectl create namespace mise --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace mise "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	${HELM_CMD} aro-hcp-frontend-dev \
-		deploy/helm/frontend/ \
+		deploy/ \
 		--set azure.clientId=$${SECRET_STORE_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
 		--set configMap.databaseName=${DB_NAME} \

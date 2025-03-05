@@ -1,6 +1,5 @@
-deploy/tmp-provisioning-shard.yml
-deploy/provisioning-shards.yml
-deploy/local-provisioning-shards.yml
-deploy/azure-runtime-config.yaml
-config.mk
+local/tmp-provisioning-shard.yml
+local/provisioning-shards.yml
+local/local-provisioning-shards.yml
+local/azure-runtime-config.yaml
 azure-operators-managed-identities-config.yaml
