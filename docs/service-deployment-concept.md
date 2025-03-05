@@ -16,8 +16,23 @@ my-service
 ├── Makefile
 ├── pipeline.yaml
 ├── some-script.sh
-└── helm
-    └── <chart goes here>
+└── deploy
+    └── helm
+        ├── <chart-name>
+            ...  <chart goes here>
+```
+
+If a service consists of multiple individual sub-services, each of them can have their own directory structure as shown above underneath their parent directory.
+
+```plaintext
+my-service
+├── sub-service-1
+...
+└── sub-service-2
+    ├── Makefile
+    ├── pipeline.yaml
+    └── deploy
+        ...
 ```
 
 ### Helm chart

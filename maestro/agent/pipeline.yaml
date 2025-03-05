@@ -44,7 +44,7 @@ resourceGroups:
   steps:
   - name: register-agent-with-server
     action: Shell
-    command: make -C ../registration deploy
+    command: make register-agent-with-server
     dryRun:
       variables:
       - name: DRY_RUN

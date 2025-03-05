@@ -1,6 +1,5 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
-HELM_CMD ?= helm upgrade --install
 
 deploy:
 	${HELM_CMD} istio \

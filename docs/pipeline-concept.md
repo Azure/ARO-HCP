@@ -198,13 +198,13 @@ The custom pipeline runner can be found in [tooling/templatize](tooling/templati
 To manually run a pipeline you can use the `templatize.sh` script, e.g. to deploy `my-pipeline.yaml` with the `personal-dev` environment architetype in the `public` cloud, run
 
 ```sh
-./templatize.sh personal-dev my-pipeline.yaml -P run -c public
+./templatize.sh personal-dev -p my-pipeline.yaml -P run -c public
 ```
 
 The pipeline runner supports a dry-run mode that allows you to simulate the execution of a pipeline without actually deploying any resources. This is useful for verifying the correctness of the pipeline file and the expected behavior of the steps. Add the `-d` option to the `templatize.sh` command to enable dry-run mode:
 
 ```sh
-./templatize.sh personal-dev my-pipeline.yaml -P run -c public -d
+./templatize.sh personal-dev -p my-pipeline.yaml -P run -c public -d
 ```
 
 > [!IMPORTANT]
