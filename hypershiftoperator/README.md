@@ -1,3 +1,3 @@
 # HyperShift Operator
 
-To promote HyperShift Operator, increment the `hypershiftOperatorImageTag` parameter in the `config/config.yaml` file.
+To promote HyperShift Operator, patch the `hypershift.image.digest` parameter in the respective configuration file, e.g. [config/config.yaml](../config/config.yaml).
