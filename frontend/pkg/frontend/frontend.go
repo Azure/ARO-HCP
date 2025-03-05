@@ -20,6 +20,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
@@ -224,7 +225,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 	// Build a map of cluster documents by Cluster Service cluster ID.
 	documentMap := make(map[string]*database.ResourceDocument)
-	for doc := range dbIterator.Items(ctx) {
+	for _, doc := range dbIterator.Items(ctx) {
 		// FIXME This filtering could be made part of the query expression. It would
 		//       require some reworking (or elimination) of the DBClient interface.
 		if strings.HasSuffix(strings.ToLower(doc.ResourceID.ResourceType.Type), resourceTypeName) {
@@ -529,7 +530,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	err = f.ExposeOperation(writer, request, pk, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -659,7 +661,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	err = f.ExposeOperation(writer, request, pk, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -669,8 +672,181 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	writer.WriteHeader(http.StatusAccepted)
 }
 
-func (f *Frontend) ArmResourceAction(writer http.ResponseWriter, request *http.Request) {
-	writer.WriteHeader(http.StatusOK)
+func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseWriter, request *http.Request) {
+	const operationRequest = database.OperationRequestRequestCredential
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Parent resource is the hcpOpenShiftCluster.
+	resourceID = resourceID.Parent
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		logger.Error(err.Error())
+		if errors.Is(err, database.ErrNotFound) {
+			arm.WriteResourceNotFoundError(writer, resourceID)
+		} else {
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	// New credential cannot be requested while credentials are being revoked.
+
+	iterator := f.dbClient.ListOperationDocs(pk, api.Ptr(database.OperationRequestRevokeCredentials))
+
+	for _, operationDoc := range iterator.Items(ctx) {
+		if !operationDoc.Status.IsTerminal() {
+			writer.Header().Set("Retry-After", strconv.Itoa(10))
+			arm.WriteError(
+				writer, http.StatusConflict,
+				arm.CloudErrorCodeConflict,
+				resourceID.String(),
+				"Cannot request credential while credentials are being revoked")
+			return
+		}
+	}
+
+	err = iterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, resourceDoc.InternalID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	internalID, err := ocm.NewInternalID(csCredential.HREF())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, internalID)
+
+	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.ExposeOperation(writer, request, pk, operationID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+}
+
+func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter, request *http.Request) {
+	const operationRequest = database.OperationRequestRevokeCredentials
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Parent resource is the hcpOpenShiftCluster.
+	resourceID = resourceID.Parent
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		logger.Error(err.Error())
+		if errors.Is(err, database.ErrNotFound) {
+			arm.WriteResourceNotFoundError(writer, resourceID)
+		} else {
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	// Credentials cannot be revoked while a credential request is in progress.
+
+	iterator := f.dbClient.ListOperationDocs(pk, api.Ptr(database.OperationRequestRequestCredential))
+
+	for _, operationDoc := range iterator.Items(ctx) {
+		if !operationDoc.Status.IsTerminal() {
+			writer.Header().Set("Retry-After", strconv.Itoa(10))
+			arm.WriteError(
+				writer, http.StatusConflict,
+				arm.CloudErrorCodeConflict,
+				resourceID.String(),
+				"Cannot revoke credentials while a credential is being created")
+			return
+		}
+	}
+
+	err = iterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, resourceDoc.InternalID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID)
+
+	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	err = f.ExposeOperation(writer, request, pk, operationID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
 }
 
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) {
@@ -686,7 +862,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
 		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
@@ -697,7 +873,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, &doc.Subscription)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, subscription)
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -733,8 +909,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 
 	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if errors.Is(err, database.ErrNotFound) {
-		doc := database.NewSubscriptionDocument(subscriptionID, &subscription)
-		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, doc)
+		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, &subscription)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -746,13 +921,13 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		arm.WriteInternalServerError(writer)
 		return
 	} else {
-		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(doc *database.SubscriptionDocument) bool {
-			messages := getSubscriptionDifferences(doc.Subscription, &subscription)
+		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(updateSubscription *arm.Subscription) bool {
+			messages := getSubscriptionDifferences(updateSubscription, &subscription)
 			for _, message := range messages {
 				logger.Info(message)
 			}
 
-			doc.Subscription = &subscription
+			*updateSubscription = subscription
 
 			return len(messages) > 0
 		})
@@ -905,7 +1080,8 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
@@ -943,7 +1119,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 		hcpCluster.Identity.Type = doc.Identity.Type
 	}
 
-	return arm.Marshal(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
+	return versionedInterface.MarshalHCPOpenShiftCluster(hcpCluster)
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
@@ -1000,7 +1176,8 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
@@ -1018,14 +1195,42 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	if !doc.Status.IsTerminal() {
+	// Handle non-terminal statuses and (maybe?) failure/cancellation.
+	//
+	// XXX ARM requirements for failed async operations get fuzzy here.
+	//
+	//     My best understanding, based on a Stack Overflow answer [1], is
+	//     returning an Azure-AsyncOperation header will cause ARM to poll
+	//     that endpoint first.
+	//
+	//     If ARM finds the operation in a "Failed" or "Canceled" state,
+	//     it will propagate details from the response's "error" property.
+	//
+	//     If ARM finds the operation in a "Succeeded" state, ONLY THEN is
+	//     this endpoint called (if a Location header was also returned).
+	//
+	//     So for the "Failed or Canceled" case we just give a generic
+	//     "Internal Server Error" response since, in theory, this case
+	//     should never be reached.
+	//
+	//     [1] https://stackoverflow.microsoft.com/a/318573/106707
+	//
+	switch doc.Status {
+	case arm.ProvisioningStateSucceeded:
+		// Handled below.
+	case arm.ProvisioningStateFailed, arm.ProvisioningStateCanceled:
+		// Should never be reached?
+		arm.WriteInternalServerError(writer)
+		return
+	default:
+		// Operation is still in progress.
 		f.AddLocationHeader(writer, request, doc)
 		writer.WriteHeader(http.StatusAccepted)
 		return
 	}
 
 	// The response henceforth should be exactly as though the operation
-	// completed synchronously.
+	// succeeded synchronously.
 
 	var successStatusCode int
 
@@ -1035,8 +1240,11 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	case database.OperationRequestUpdate:
 		successStatusCode = http.StatusOK
 	case database.OperationRequestDelete:
-		// XXX Ideally, deletion of Azure resources should never fail.
-		//     In the event of failure, it's unclear what to do here.
+		writer.WriteHeader(http.StatusNoContent)
+		return
+	case database.OperationRequestRequestCredential:
+		successStatusCode = http.StatusOK
+	case database.OperationRequestRevokeCredentials:
 		writer.WriteHeader(http.StatusNoContent)
 		return
 	default:
@@ -1045,10 +1253,30 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	responseBody, cloudError := f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
-	if cloudError != nil {
-		writer.WriteHeader(cloudError.StatusCode)
-		return
+	var responseBody []byte
+
+	if doc.InternalID.Kind() == cmv1.BreakGlassCredentialKind {
+		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.InternalID)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ConvertCStoAdminCredential(csBreakGlassCredential))
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+	} else {
+		var cloudError *arm.CloudError
+
+		responseBody, cloudError = f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
+		if cloudError != nil {
+			arm.WriteCloudError(writer, cloudError)
+			return
+		}
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
