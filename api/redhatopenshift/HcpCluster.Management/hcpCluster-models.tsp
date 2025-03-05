@@ -90,6 +90,25 @@ model HcpOpenShiftClusterProperties {
    */
   @visibility("read")
   issuerUrl: url;
+
+  /** Configure cluter capabilities. */
+  @visibility("create", "read")
+  capabilities?: ClusterCapabilitiesProfile;
+}
+
+/** Cluster capabilities configuration. */
+model ClusterCapabilitiesProfile {
+  /** Disabled cluter capabilities. */
+  @visibility("create", "read")
+  disabled?: OptionalClusterCapability[];
+}
+
+/** Cluster capabilities that can be disabled. */
+union OptionalClusterCapability {
+  string,
+
+  /** Enables the OpenShift internal image registry. */
+  ImageRegistry: "ImageRegistry",
 }
 
 /** HCP patchable cluster properties */

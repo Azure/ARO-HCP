@@ -11,3 +11,5 @@ use (
 	./tooling/templatize
 	tooling/prometheus-rules
 )
+
+replace github.com/openshift-online/ocm-sdk-go => github.com/sanchezl/ocm-sdk-go v0.0.0-20250228013841-940a99155963

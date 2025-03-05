@@ -878,6 +878,23 @@
       },
       "readOnly": true
     },
+    "ClusterCapabilitiesProfile": {
+      "type": "object",
+      "description": "Cluster capabilities configuration.",
+      "properties": {
+        "disabled": {
+          "type": "array",
+          "description": "Disabled cluter capabilities.",
+          "items": {
+            "$ref": "#/definitions/OptionalClusterCapability"
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      }
+    },
     "ConsoleProfile": {
       "type": "object",
       "description": "Configuration of the cluster web console",
@@ -1105,6 +1122,14 @@
           "format": "uri",
           "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
           "readOnly": true
+        },
+        "capabilities": {
+          "$ref": "#/definitions/ClusterCapabilitiesProfile",
+          "description": "Configure cluter capabilities.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
@@ -1553,6 +1578,24 @@
       "required": [
         "userAssignedIdentities"
       ]
+    },
+    "OptionalClusterCapability": {
+      "type": "string",
+      "description": "Cluster capabilities that can be disabled.",
+      "enum": [
+        "ImageRegistry"
+      ],
+      "x-ms-enum": {
+        "name": "OptionalClusterCapability",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "ImageRegistry",
+            "value": "ImageRegistry",
+            "description": "Enables the OpenShift internal image registry."
+          }
+        ]
+      }
     },
     "PlatformProfile": {
       "type": "object",
