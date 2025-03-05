@@ -224,7 +224,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 	// Build a map of cluster documents by Cluster Service cluster ID.
 	documentMap := make(map[string]*database.ResourceDocument)
-	for doc := range dbIterator.Items(ctx) {
+	for _, doc := range dbIterator.Items(ctx) {
 		// FIXME This filtering could be made part of the query expression. It would
 		//       require some reworking (or elimination) of the DBClient interface.
 		if strings.HasSuffix(strings.ToLower(doc.ResourceID.ResourceType.Type), resourceTypeName) {
@@ -529,7 +529,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	err = f.ExposeOperation(writer, request, pk, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -659,7 +660,8 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	err = f.ExposeOperation(writer, request, operationID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	err = f.ExposeOperation(writer, request, pk, operationID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -686,7 +688,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	doc, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
 		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
@@ -697,7 +699,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, &doc.Subscription)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, subscription)
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -733,8 +735,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 
 	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if errors.Is(err, database.ErrNotFound) {
-		doc := database.NewSubscriptionDocument(subscriptionID, &subscription)
-		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, doc)
+		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, &subscription)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -746,13 +747,13 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		arm.WriteInternalServerError(writer)
 		return
 	} else {
-		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(doc *database.SubscriptionDocument) bool {
-			messages := getSubscriptionDifferences(doc.Subscription, &subscription)
+		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(updateSubscription *arm.Subscription) bool {
+			messages := getSubscriptionDifferences(updateSubscription, &subscription)
 			for _, message := range messages {
 				logger.Info(message)
 			}
 
-			doc.Subscription = &subscription
+			*updateSubscription = subscription
 
 			return len(messages) > 0
 		})
@@ -905,7 +906,8 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
@@ -1000,7 +1002,8 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, resourceID.Name)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if errors.Is(err, database.ErrNotFound) {
