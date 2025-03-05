@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mise
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mise
+  template:
+    metadata:
+      labels:
+        app: mise
+    spec:
+      containers:
+      - name: mise
+        image: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}"
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+        env:
+        - name: AzureAd__Instance
+          value: {{ .Values.azureAdInstance }}
+        - name: AzureAd__ClientId
+          value: {{ .Values.azureAdClientId }}
+        - name: AzureAd__TenantId
+          value: {{ .Values.tenantId }}
+        - name: AzureAd__InboundPolicies__0__Label
+          value: "ARM Policy"
+        - name: AzureAd__InboundPolicies__0__Authority
+          value: "{{ .Values.azureAdInstance }}{{ .Values.tenantId }}"
+        - name: AzureAd__InboundPolicies__0__AuthenticationSchemes__0
+          value: "Bearer"
+        - name: AzureAd__InboundPolicies__0__ValidAudiences__0
+          value: {{ .Values.armInstance }}
+        - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
+          value: {{ .Values.validAppId0 }}
+        - name: AzureAd__InboundPolicies__0__ValidApplicationIds__1
+          value: {{ .Values.validAppId1 }}
+        - name: AllowedHosts
+          value: "*"
+        - name: Kestrel__Endpoints__Http__Url
+          value: "http://0.0.0.0:8080"

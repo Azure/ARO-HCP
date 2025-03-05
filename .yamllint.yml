@@ -6,6 +6,9 @@ yaml-files:
 ignore:
   - 'acm/deploy/helm/clc-state-metrics/'
   - 'acrpull/deploy/helm/acrpull/templates/deployment.yaml'
+  - 'frontend/deploy/helm/frontend/templates/ext-authz.authorizationpolicy.yaml'
+  - 'frontend/deploy/helm/frontend/templates/allow-ingress.authorizationpolicy.yaml'
+  - 'istio/deploy/helm/istio/templates/istio-shared-configmap.yml'
 
 rules:
   brackets: enable

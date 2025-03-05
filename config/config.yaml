@@ -90,6 +90,19 @@ defaults:
       name: frontend-cert-{{ .ctx.regionShort }}
       issuer: Self
 
+  # Mise
+  mise:
+    deploy: false
+    azureAdInstance: ""
+    azureAdClientId: ""
+    armInstance: ""
+    validAppId0: ""
+    validAppId1: ""
+    image:
+      registry: ""
+      repository: ""
+      digest: ""
+
   # Maestro
   maestro:
     server:

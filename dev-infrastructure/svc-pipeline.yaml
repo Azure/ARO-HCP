@@ -102,6 +102,16 @@ resourceGroups:
   subscription: {{ .svc.subscription }}
   aksCluster: {{ .svc.aks.name }}
   steps:
+  # configure istio
+  - name: istio-config
+    action: Shell
+    command: make -C ../istio deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    dependsOn:
+    - istio-upgrade
   # - updates workload to use istio on version svc.istio.targetVersion
   # - configures istio IP tag usage
   - name: istio-upgrade
@@ -120,16 +130,6 @@ resourceGroups:
       configRef: svc.rg
     dependsOn:
     - svc
-  # configure istio
-  - name: istio-config
-    action: Shell
-    command: make -C ../istio deploy
-    dryRun:
-      variables:
-        - name: DRY_RUN
-          value: "true"
-    dependsOn:
-    - istio-upgrade
   # Install ACRpull
   - name: acrpull
     action: Shell

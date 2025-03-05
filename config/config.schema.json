@@ -461,6 +461,36 @@
         "serviceTag"
       ]
     },
+    "mise":{
+      "properties": {
+        "deploy" :{
+          "type": "boolean"
+        },
+        "azureAdInstance":{
+          "type":"string"
+        },
+        "azureAdClientId":{
+          "type":"string"
+        },
+        "validAppId0":{
+          "type":"string"
+        },
+        "validAppId1":{
+          "type":"string"
+        },
+        "image":{
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "required" : [
+        "deploy",
+        "image",
+        "azureAdInstance",
+        "azureAdClientId",
+        "validAppId0",
+        "validAppId1"
+      ]
+    },
     "global": {
       "type": "object",
       "properties": {
