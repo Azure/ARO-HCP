@@ -167,6 +167,9 @@ In most cases, each service has its own dedicated pipeline. This allows services
 
 By structuring pipelines appropriately, deployments can be managed efficiently while ensuring the right level of isolation and access across scopes.
 
+> [!CAUTION]
+> A pipelines [ARM step `deploymentLevel`](bicep.md#deploying-bicep-templates) should not be confused with the pipeline deployment scope. While the `deploymentLevel` is a technical aspect that controls if a Bicep module gets applied on a Resource Group vs Subscription level, the deployment scope defined in this section is a conceptual term that describes the alignment of a pipeline with a specific [architectural scope](high-level-architecture.md).
+
 ## Pipeline Execution in Different Environments
 
 The various target environments for ARO HCP infrastructure and service deployment have very unique requirements on the rollout process, involving different tools and policies. Microsoft environments require deployments to be driven by ADO and their [EV2](https://ev2docs.azure.net) deployment service, which cannot be used for non-Microsoft environments. The Red Hat developemnt environment on the other hand does not have such strictly regulated rollout processes and we chose to use GitHub actions as the overall driver for rollouts.
