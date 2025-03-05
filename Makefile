@@ -145,7 +145,7 @@ services_svc_pipelines = istio acrpull backend frontend cluster-service maestro.
 ifeq ($(DEPLOY_ENV), personal-dev)
 	services_mgmt_pipelines = hypershiftoperator maestro.agent acm
 else
-	services_mgmt_pipelines = mgmt-fixes hypershiftoperator maestro.agent acm
+	services_mgmt_pipelines = hypershiftoperator maestro.agent acm
 endif
 %.deploy_pipeline:
 	$(eval export dirname=$(subst .,/,$(basename $@)))

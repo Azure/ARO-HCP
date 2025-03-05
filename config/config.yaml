@@ -66,6 +66,7 @@ defaults:
   mgmt:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+    applyKubeletFixes: true
     aks:
       name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
       vnetAddressPrefix: "10.128.0.0/14"
@@ -427,6 +428,9 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+          # MC
+          mgmt:
+            applyKubeletFixes: false
       personal-perfscale:
         defaults:
           dns:

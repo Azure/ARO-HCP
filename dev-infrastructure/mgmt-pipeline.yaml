@@ -134,3 +134,16 @@ resourceGroups:
       configRef: acrPull.image.registry
     dependsOn:
     - mgmt-cluster
+  # Install cluster patches
+  - name: mgmt-fixes
+    action: Shell
+    command: make -C ../mgmt-fixes deploy
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    variables:
+    - name: APPLY_KUBELET_FIXES
+      configRef: mgmt.applyKubeletFixes
+    dependsOn:
+    - mgmt-cluster

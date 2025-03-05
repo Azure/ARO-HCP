@@ -106,6 +106,7 @@ defaults:
       etcd:
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
+    applyKubeletFixes: true
     logs:
       namespace: HCPManagementLogs
 
