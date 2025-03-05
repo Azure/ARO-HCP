@@ -140,7 +140,11 @@ func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *datab
 	if resourceDoc.ActiveOperationID != "" {
 		pk := database.NewPartitionKey(resourceDoc.ResourceID.SubscriptionID)
 		updated, err := f.dbClient.UpdateOperationDoc(ctx, pk, resourceDoc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
-			return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, nil)
+			var cloudError = arm.CloudErrorBody{
+				Code:    arm.CloudErrorCodeCanceled,
+				Message: "This operation was superseded by another",
+			}
+			return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, &cloudError)
 		})
 		// Disregard "not found" errors; a missing operation is effectively canceled.
 		if err != nil && !errors.Is(err, database.ErrNotFound) {
