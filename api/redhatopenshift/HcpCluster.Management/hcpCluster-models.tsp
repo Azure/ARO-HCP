@@ -78,7 +78,7 @@ model HcpOpenShiftClusterProperties {
   api: ApiProfile;
 
   /** Disable user workload monitoring */
-  @visibility("create", "update")
+  @visibility("create", "update", "read")
   disableUserWorkloadMonitoring?: boolean = false;
 
   /** Azure platform configuration */
@@ -99,7 +99,7 @@ model HcpOpenShiftClusterPatchProperties {
   provisioningState?: ProvisioningState;
 
   /** Disable user workload monitoring */
-  @visibility("update")
+  @visibility("update", "read")
   disableUserWorkloadMonitoring?: boolean;
 }
 
@@ -349,11 +349,11 @@ model NodePoolProperties {
   version: VersionProfile;
 
   /** Azure node pool platform configuration */
-  @visibility("create")
+  @visibility("create", "read")
   platform: NodePoolPlatformProfile;
 
   /** The number of worker nodes, it cannot be used together with autoscaling */
-  @visibility("create", "update")
+  @visibility("create", "update", "read")
   replicas?: int32;
 
   /** Auto-repair */
@@ -369,12 +369,12 @@ model NodePoolProperties {
    * The good example of the label is `node-role.kubernetes.io/master: ""`
    */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" ""
-  @visibility("create", "update")
+  @visibility("create", "update", "read")
   @OpenAPI.extension("x-ms-identifiers", ["key", "value"])
   labels?: Label[];
 
   /** Taints for the nodes */
-  @visibility("create", "update")
+  @visibility("create", "update", "read")
   @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
   taints?: Taint[];
 
@@ -402,7 +402,7 @@ model NodePoolPatchProperties {
   provisioningState?: ResourceProvisioningState;
 
   /** The number of worker nodes, it cannot be used together with autoscaling */
-  @visibility("update")
+  @visibility("update", "read")
   replicas?: int32;
 
   /** Representation of a autoscaling in a node pool. */
@@ -413,12 +413,12 @@ model NodePoolPatchProperties {
   /** K8s labels to propagate to the NodePool Nodes
    * The good example of the label is `node-role.kubernetes.io/master: ""`
    */
-  @visibility("update")
+  @visibility("update", "read")
   @OpenAPI.extension("x-ms-identifiers", ["key", "value"])
   labels?: Label[];
 
   /** Taints for the nodes */
-  @visibility("update")
+  @visibility("update", "read")
   @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
   taints?: Taint[];
 
