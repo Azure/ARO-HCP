@@ -18,11 +18,22 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - Guidelines and limitations
 
 1. **Deployment Concept**
-   - [Pipelines concept](pipeline.md)
+   - [Pipelines concept](pipeline-concept.md)
+   - [Service deployment concept](service-deployment-concept.md)
    - Deployment artifacts
      - [Azure infrastructure Bicep templates](bicep.md)
-     - [Helm Charts](helm.md)
+     - [Helm Charts](service-deployment-concept.md#helm-chart)
      - [Container images](images.md)
-   - [Deploying to environments](deployment.md)
+
+1. **Deploying ARO HCP**
+   - [Pipelines](pipelines.md)
+      - documents existing pipelines
+   - Red Hat development tenant deployments
+     - [Personal ARO HCP instance](personal-dev.md)
+     - [Integrated DEV instance](integrated-dev.md)
+     - [CS PR instance](cspr.md)
+     - [Personal perfscale instance](perscale-deployment.md)
+   - MSFT deployments
+     - [MSIT INT](msit-int.md)
 
 1. **[Terminology](terminology.md)**

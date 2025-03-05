@@ -79,3 +79,20 @@
 - **Abbreviation**: ACM
 - **References**:
   - [Documentation](https://www.redhat.com/en/technologies/management/advanced-cluster-management)
+
+## Microsoft Terminology
+
+### Azure DevOps
+
+- **Definition**: Microsoft's cloud-based service for collaborating on code development. Includes source code hosting, CI/CD, and more.
+- **Abbreviation**: ADO
+- **References**:
+  - [Docs](https://learn.microsoft.com/en-us/azure/devops/)
+  - [ARO HCP ADO Pipelines](https://msazure.visualstudio.com/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Chcp)
+
+### EV2
+
+- **Definition**: Microsoft automated platform for deploying Azure resources accross clouds.
+- **References**:
+  - [Docs](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/overview)
+  - [ARO HCP EV2](https://ev2docs.azure.net/getting-started/overview.html)
