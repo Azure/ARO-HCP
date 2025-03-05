@@ -3,11 +3,12 @@ package frontend
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -81,7 +82,7 @@ func TestReadiness(t *testing.T) {
 
 			mockDBClient.EXPECT().DBConnectionTest(gomock.Any())
 
-			ts := newHTTPServer(f, ctrl, mockDBClient)
+			ts := newHTTPServer(f, ctrl, mockDBClient, nil)
 
 			rs, err := ts.Client().Get(ts.URL + "/healthz")
 			require.NoError(t, err)
@@ -99,17 +100,16 @@ func TestReadiness(t *testing.T) {
 func TestSubscriptionsGET(t *testing.T) {
 	tests := []struct {
 		name               string
-		subDoc             *database.SubscriptionDocument
+		subDoc             *arm.Subscription
 		expectedStatusCode int
 	}{
 		{
 			name: "GET Subscription - Doc Exists",
-			subDoc: database.NewSubscriptionDocument(subscriptionID,
-				&arm.Subscription{
-					State:            arm.SubscriptionStateRegistered,
-					RegistrationDate: api.Ptr(time.Now().String()),
-					Properties:       nil,
-				}),
+			subDoc: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -142,11 +142,11 @@ func TestSubscriptionsGET(t *testing.T) {
 				Times(1)
 
 			// The subscription collector lists all documents once.
-			var subs []*database.SubscriptionDocument
+			subs := make(map[string]*arm.Subscription)
 			if test.subDoc != nil {
-				subs = append(subs, test.subDoc)
+				subs[subscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs...)
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
 			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + subscriptionID + "?api-version=2.0")
 			if err != nil {
@@ -168,7 +168,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		name               string
 		urlPath            string
 		subscription       *arm.Subscription
-		subDoc             *database.SubscriptionDocument
+		subDoc             *arm.Subscription
 		expectedStatusCode int
 	}{
 		{
@@ -190,12 +190,11 @@ func TestSubscriptionsPUT(t *testing.T) {
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
-			subDoc: database.NewSubscriptionDocument(subscriptionID,
-				&arm.Subscription{
-					State:            arm.SubscriptionStateRegistered,
-					RegistrationDate: api.Ptr(time.Now().String()),
-					Properties:       nil,
-				}),
+			subDoc: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -283,11 +282,11 @@ func TestSubscriptionsPUT(t *testing.T) {
 				}
 			}
 
-			var subs []*database.SubscriptionDocument
+			subs := make(map[string]*arm.Subscription)
 			if test.subDoc != nil {
-				subs = append(subs, test.subDoc)
+				subs[subscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs...)
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
 			if err != nil {
@@ -308,6 +307,218 @@ func TestSubscriptionsPUT(t *testing.T) {
 	}
 }
 
+func TestDeploymentPreflight(t *testing.T) {
+	tests := []struct {
+		name         string
+		resource     map[string]any
+		expectStatus arm.DeploymentPreflightStatus
+		expectErrors int
+	}{
+		{
+			name: "Unhandled resource type returns no error",
+			resource: map[string]any{
+				"name":       "virtual-machine",
+				"type":       "Microsoft.Compute/virtualMachines",
+				"location":   "eastus",
+				"apiVersion": "2024-07-01",
+			},
+			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+		},
+		{
+			name: "Unrecognized API version returns no error",
+			resource: map[string]any{
+				"name":       "my-hcp-cluster",
+				"type":       api.ClusterResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "1980-01-01",
+			},
+			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+		},
+		{
+			name: "Well-formed cluster resource returns no error",
+			resource: map[string]any{
+				"name":       "my-hcp-cluster",
+				"type":       api.ClusterResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "2024-06-10-preview",
+				"properties": map[string]any{
+					"version": map[string]any{
+						"id":           "4.0.0",
+						"channelGroup": "stable",
+					},
+					"network": map[string]any{
+						"podCidr":     "10.128.0.0/14",
+						"serviceCidr": "172.30.0.0/16",
+						"machineCidr": "10.0.0.0/16",
+					},
+					"api": map[string]any{
+						"visibility": "public",
+					},
+					"platform": map[string]any{
+						"subnetId": "/something/something/virtualNetworks/subnets",
+					},
+				},
+			},
+			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+		},
+		{
+			name: "Preflight catches cluster resource with invalid fields",
+			resource: map[string]any{
+				"name":       "my-hcp-cluster",
+				"type":       api.ClusterResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "2024-06-10-preview",
+				"properties": map[string]any{
+					"version": map[string]any{
+						"id":           "openshift-v4.0.0",
+						"channelGroup": "stable",
+					},
+					"network": map[string]any{
+						// 1 invalid + 2 missing required fields
+						"podCidr": "invalidCidr",
+					},
+					"api": map[string]any{
+						// 1 invalid field
+						"visibility": "invisible",
+					},
+					"platform": map[string]any{
+						// 1 missing required field
+					},
+				},
+			},
+			expectStatus: arm.DeploymentPreflightStatusFailed,
+			expectErrors: 5,
+		},
+		{
+			name: "Well-formed node pool resource returns no error",
+			resource: map[string]any{
+				"name":       "my-node-pool",
+				"type":       api.NodePoolResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "2024-06-10-preview",
+				"properties": map[string]any{
+					"version": map[string]any{
+						"id":           "openshift-v4.0.0",
+						"channelGroup": "stable",
+					},
+					"platform": map[string]any{
+						"vmSize": "Standard_D8s_v3",
+					},
+				},
+			},
+			expectStatus: arm.DeploymentPreflightStatusSucceeded,
+		},
+		{
+			name: "Preflight catches node pool resource with invalid fields",
+			resource: map[string]any{
+				"name":       "my-node-pool",
+				"type":       api.NodePoolResourceType.String(),
+				"location":   "eastus",
+				"apiVersion": "2024-06-10-preview",
+				"properties": map[string]any{
+					"version": map[string]any{
+						"id":           "openshift-v4.0.0",
+						"channelGroup": "stable",
+					},
+					"platform": map[string]any{
+						// 1 missing required field
+					},
+					"autoScaling": map[string]any{
+						// 1 invalid field
+						"min": 3,
+						"max": 1,
+					},
+					"taints": []map[string]any{
+						{
+							// 1 invalid + 1 missing required field
+							"effect": "NoTouchy",
+						},
+					},
+				},
+			},
+			expectStatus: arm.DeploymentPreflightStatusFailed,
+			expectErrors: 4,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			preflightPath := fmt.Sprintf("/subscriptions/%s/resourceGroups/myRG/providers/%s/deployments/myDeployment/preflight", subscriptionID, api.ProviderNamespace)
+
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+			reg := prometheus.NewRegistry()
+
+			f := NewFrontend(
+				testLogger,
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				nil,
+			)
+
+			// MiddlewareValidateSubscriptionState and MetricsMiddleware
+			mockDBClient.EXPECT().
+				GetSubscriptionDoc(gomock.Any(), subscriptionID).
+				Return(&arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				}, nil).
+				MaxTimes(2)
+
+			subs := map[string]*arm.Subscription{
+				subscriptionID: &arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				},
+			}
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+
+			resource, err := json.Marshal(&test.resource)
+			require.NoError(t, err)
+			preflightReq := arm.DeploymentPreflight{
+				Resources: []json.RawMessage{resource},
+			}
+			body, err := json.Marshal(&preflightReq)
+			require.NoError(t, err)
+
+			req, err := http.NewRequest(http.MethodPost, ts.URL+preflightPath, bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+			defer resp.Body.Close()
+			body, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var preflightResp arm.DeploymentPreflightResponse
+			err = json.Unmarshal(body, &preflightResp)
+			require.NoError(t, err)
+
+			assert.Equal(t, test.expectStatus, preflightResp.Status)
+			switch test.expectErrors {
+			case 0:
+				assert.Nil(t, preflightResp.Error)
+			case 1:
+				if assert.NotNil(t, preflightResp.Error) {
+					assert.Nil(t, preflightResp.Error.Details)
+					assert.NotEmpty(t, preflightResp.Error.Code)
+					assert.NotEmpty(t, preflightResp.Error.Message)
+					assert.NotEmpty(t, preflightResp.Error.Target)
+				}
+			default:
+				if assert.NotNil(t, preflightResp.Error) {
+					assert.Equal(t, test.expectErrors, len(preflightResp.Error.Details))
+				}
+			}
+		})
+	}
+}
+
 func lintMetrics(t *testing.T, r prometheus.Gatherer) {
 	t.Helper()
 
@@ -320,7 +531,7 @@ func lintMetrics(t *testing.T, r prometheus.Gatherer) {
 }
 
 // assertHTTPMetrics ensures that HTTP metrics have been recorded.
-func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscriptionDoc *database.SubscriptionDocument) {
+func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Subscription) {
 	t.Helper()
 
 	metrics, err := r.Gather()
@@ -359,8 +570,8 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscriptionDoc *dat
 
 			if mf.GetName() == requestCounterName {
 				assert.NotEmpty(t, state)
-				if subscriptionDoc != nil {
-					assert.Equal(t, string(subscriptionDoc.Subscription.State), state)
+				if subscription != nil {
+					assert.Equal(t, string(subscription.State), state)
 				} else {
 					assert.Equal(t, "Unknown", state)
 				}
@@ -375,15 +586,15 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscriptionDoc *dat
 // newHTTPServer returns a test HTTP server. When a mock DB client is provided,
 // the subscription collector will be bootstrapped with the provided
 // subscription documents.
-func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.MockDBClient, subs ...*database.SubscriptionDocument) *httptest.Server {
+func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.MockDBClient, subs map[string]*arm.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()
 
-	mockIter := mocks.NewMockDBClientIterator[database.SubscriptionDocument](ctrl)
+	mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
 	mockIter.EXPECT().
 		Items(gomock.Any()).
-		Return(database.DBClientIteratorItem[database.SubscriptionDocument](slices.Values(subs)))
+		Return(database.DBClientIteratorItem[arm.Subscription](maps.All(subs)))
 
 	mockIter.EXPECT().
 		GetError().
