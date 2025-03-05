@@ -1,4 +1,4 @@
-using '../templates/cs-integration-msi.bicep'
+using '../templates/dev-cs-integration-msi.bicep'
 
 param namespaceFormatString = 'sandbox-jenkins-{0}-aro-hcp'
 param clusterServiceManagedIdentityName = '{{ .clusterService.managedIdentityName }}'
