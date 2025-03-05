@@ -6,7 +6,7 @@ deploy:
 	@TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	EVENTGRID_HOSTNAME=$(shell az resource show -n ${EVENTGRID_NAME} -g ${REGION_RG} --resource-type "Microsoft.EventGrid/namespaces" --query properties.topicSpacesConfiguration.hostname -o tsv) && \
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${MGMT_RG}" -n maestro-consumer --query clientId -o tsv) && \
-	${HELM_CMD} maestro-agent ./helm \
+	${HELM_CMD} maestro-agent ./deploy \
 		--namespace maestro \
 		--set consumerName=${CONSUMER_NAME} \
 		--set glog_v=${MAESTRO_LOG_LEVEL} \
