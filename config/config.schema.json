@@ -785,6 +785,9 @@
         "aks": {
           "$ref": "#/definitions/aksConfig"
         },
+        "applyKubeletFixes": {
+          "type": "boolean"
+        },
         "rg": {
           "type": "string"
         },
@@ -799,6 +802,7 @@
       "additionalProperties": false,
       "required": [
         "aks",
+        "applyKubeletFixes",
         "rg",
         "subscription"
       ]

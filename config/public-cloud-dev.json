@@ -232,6 +232,7 @@
       },
       "vnetAddressPrefix": "10.128.0.0/14"
     },
+    "applyKubeletFixes": true,
     "rg": "hcp-underlay-dev-mgmt-1",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },

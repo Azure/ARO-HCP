@@ -1,11 +1,16 @@
+PIPELINE = "../dev-infrastructure/mgmt-pipeline.yaml"
+PIPELINE_STEP = "mgmt-fixes"
 -include ../setup-env.mk
 -include ../helm-cmd.mk
-HELM_CMD ?= helm upgrade --install
 
 deploy:
-	${HELM_CMD} mgmt-fixes \
-		deploy/helm/mgmt-fixes/
+	@if [ "$(APPLY_KUBELET_FIXES)" = "true" ]; then \
+		${HELM_CMD} mgmt-fixes deploy/helm/mgmt-fixes/; \
+	else \
+		echo "Skipping kubelet patching"; \
+	fi
 .PHONY: deploy
+
 
 undeploy:
 	helm uninstall mgmt-fixes

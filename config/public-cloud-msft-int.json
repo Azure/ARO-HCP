@@ -234,6 +234,7 @@
       },
       "vnetAddressPrefix": "10.128.0.0/14"
     },
+    "applyKubeletFixes": true,
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPManagementLogs",
