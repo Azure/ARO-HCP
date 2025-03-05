@@ -6,7 +6,7 @@ deploy:
 	@TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	EVENTGRID_HOSTNAME=$(shell az resource show -n ${EVENTGRID_NAME} -g ${REGION_RG} --resource-type "Microsoft.EventGrid/namespaces" --query properties.topicSpacesConfiguration.hostname -o tsv) && \
 	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${MGMT_RG}" -n maestro-consumer --query clientId -o tsv) && \
-	${HELM_CMD} maestro-agent ./helm \
+	${HELM_CMD} maestro-agent ./helm/agent \
 		--namespace maestro \
 		--set consumerName=${CONSUMER_NAME} \
 		--set glog_v=${MAESTRO_LOG_LEVEL} \
@@ -22,3 +22,13 @@ deploy:
 		--set sideCar.image.repository=${SIDECAR_IMAGE_REPOSITORY} \
 		--set sideCar.image.digest=${SIDECAR_IMAGE_DIGEST}
 .PHONY: deploy
+
+register-agent-with-server:
+	@if ! kubectl get service maestro -n ${NAMESPACE} > /dev/null 2>&1; then \
+		echo "Error: Service 'maestro' not found in namespace '${NAMESPACE}'"; \
+		exit 1; \
+	fi
+	${HELM_CMD} ${CONSUMER_NAME} ./helm/registration \
+		--namespace ${NAMESPACE} \
+		--set consumerName=${CONSUMER_NAME}
+.PHONY: register-agent-with-server
