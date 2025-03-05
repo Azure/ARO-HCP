@@ -4,6 +4,7 @@ metadata:
   labels:
     app: aro-hcp-backend
   name: aro-hcp-backend
+  namespace: {{ .Release.Namespace }}
 spec:
   progressDeadlineSeconds: 600
   replicas: 2
