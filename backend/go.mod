@@ -6,7 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/go-logr/logr v1.4.2
-	github.com/openshift-online/ocm-sdk-go v0.1.459
+	github.com/openshift-online/ocm-sdk-go v0.1.460
 	github.com/prometheus/client_golang v1.21.0
 	github.com/spf13/cobra v1.9.1
 	go.uber.org/mock v0.5.0
