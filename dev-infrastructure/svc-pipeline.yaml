@@ -114,7 +114,7 @@ resourceGroups:
       - name: ISTIO_VERSIONS
         configRef: svc.istio.versions
     dependsOn:
-    - istio-upgrade
+    - svc
   # - updates workload to use istio on version svc.istio.targetVersion
   # - configures istio IP tag usage
   - name: istio-upgrade
@@ -132,7 +132,7 @@ resourceGroups:
     - name: SVC_RESOURCEGROUP
       configRef: svc.rg
     dependsOn:
-    - svc
+    - istio-config
   # Install ACRpull
   - name: acrpull
     action: Shell
