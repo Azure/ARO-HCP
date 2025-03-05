@@ -207,6 +207,7 @@ main() {
 
   jq \
     --arg managed_rg "$MANAGED_RESOURCE_GROUP" \
+    --arg network_type "$NETWORK_TYPE" \
     --arg subnet_id "$SUBNET_ID" \
     --arg nsg_id "$NSG_ID" \
     --argjson uamis_json_map "$UAMIS_JSON_MAP" \
@@ -216,7 +217,8 @@ main() {
       .properties.platform.subnetId = $subnet_id |
       .properties.platform.networkSecurityGroupId = $nsg_id |
       .properties.platform.operatorsAuthentication.userAssignedIdentities = $uamis_json_map |
-      .identity.userAssignedIdentities = $identity_uamis_json_map
+      .identity.userAssignedIdentities = $identity_uamis_json_map |
+      .properties.spec.network.networkType = $network_type
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
   (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl -sSi -X PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
