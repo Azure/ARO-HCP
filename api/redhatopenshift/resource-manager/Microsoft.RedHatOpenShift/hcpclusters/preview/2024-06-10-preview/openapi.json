@@ -1039,6 +1039,7 @@
           "type": "boolean",
           "description": "Disable user workload monitoring",
           "x-ms-mutability": [
+            "read",
             "update"
           ]
         }
@@ -1088,6 +1089,7 @@
           "description": "Disable user workload monitoring",
           "default": false,
           "x-ms-mutability": [
+            "read",
             "update",
             "create"
           ]
@@ -1364,6 +1366,7 @@
           "format": "int32",
           "description": "The number of worker nodes, it cannot be used together with autoscaling",
           "x-ms-mutability": [
+            "read",
             "update"
           ]
         },
@@ -1382,6 +1385,7 @@
             "value"
           ],
           "x-ms-mutability": [
+            "read",
             "update"
           ]
         },
@@ -1397,6 +1401,7 @@
             "effect"
           ],
           "x-ms-mutability": [
+            "read",
             "update"
           ]
         },
@@ -1472,6 +1477,7 @@
           "$ref": "#/definitions/NodePoolPlatformProfile",
           "description": "Azure node pool platform configuration",
           "x-ms-mutability": [
+            "read",
             "create"
           ]
         },
@@ -1480,6 +1486,7 @@
           "format": "int32",
           "description": "The number of worker nodes, it cannot be used together with autoscaling",
           "x-ms-mutability": [
+            "read",
             "update",
             "create"
           ]
@@ -1508,6 +1515,7 @@
             "value"
           ],
           "x-ms-mutability": [
+            "read",
             "update",
             "create"
           ]
@@ -1524,6 +1532,7 @@
             "effect"
           ],
           "x-ms-mutability": [
+            "read",
             "update",
             "create"
           ]
