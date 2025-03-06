@@ -123,6 +123,14 @@ defaults:
       name: arohcp-rp-{{ .ctx.regionShort }}
 ```
 
+## Configuration Best Practices
+
+- **Avoid Hardcoding**: Use templating to avoid hardcoding values that are unique to a region or environment. Also avoid hardcoding values if they are repeated in various contexts, e.g. a deployment script, Helm chart or Bicep template.
+- **Check name restrictions**: Ensure that the names of resources are compliant with Azure naming restrictions, especially when constructing names with templating using `{{ .ctx }}`. We have plans to improve configuration validation to catch these issues automatically.
+- **Be aware of the scope of name uniqueness**: Understand the scope of uniqueness for resource names and use appropriate measures like resourcename prefixes and templating. For example
+  - Key Vault names must be unique within an Azure cloud - this is an Azure restriction
+  - management cluster names must be unique within a deployment environment - this is an architectural restriction
+
 ## Materializing Configuration
 
 With multiple layers of overrides and templating in use, it can be difficult to determine the resulting configuration for a specific cloud/environment/region combination. To address this, tooling is available to materialize the configuration for a given deployment scenario.
