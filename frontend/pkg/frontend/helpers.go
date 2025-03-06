@@ -30,18 +30,14 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 		// Resource must already exist for there to be a conflict.
 	case database.OperationRequestDelete:
 		if doc.ProvisioningState == arm.ProvisioningStateDeleting {
-			return arm.NewCloudError(
-				http.StatusConflict,
-				arm.CloudErrorCodeConflict,
-				doc.ResourceID.String(),
+			return arm.NewConflictError(
+				doc.ResourceID,
 				"Resource is already deleting")
 		}
 	case database.OperationRequestUpdate:
 		if !doc.ProvisioningState.IsTerminal() {
-			return arm.NewCloudError(
-				http.StatusConflict,
-				arm.CloudErrorCodeConflict,
-				doc.ResourceID.String(),
+			return arm.NewConflictError(
+				doc.ResourceID,
 				"Cannot update resource while resource is %s",
 				strings.ToLower(string(doc.ProvisioningState)))
 		}
@@ -58,10 +54,8 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 		}
 
 		if parentDoc.ProvisioningState == arm.ProvisioningStateDeleting {
-			return arm.NewCloudError(
-				http.StatusConflict,
-				arm.CloudErrorCodeConflict,
-				doc.ResourceID.String(),
+			return arm.NewConflictError(
+				doc.ResourceID,
 				"Cannot %s resource while parent resource is deleting",
 				strings.ToLower(string(operationRequest)))
 		}
