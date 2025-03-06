@@ -123,7 +123,7 @@ defaults:
       name: arohcp-rp-{{ .ctx.regionShort }}
 ```
 
-## Materializing configuration
+## Materializing Configuration
 
 With multiple layers of overrides and templating in use, it can be difficult to determine the resulting configuration for a specific cloud/environment/region combination. To address this, tooling is available to materialize the configuration for a given deployment scenario.
 
@@ -141,7 +141,7 @@ With multiple layers of overrides and templating in use, it can be difficult to 
 
 - PR checks require materialized configurations for well-known cloud/environment/region combinations to be present in pull requests. These well-known combinations are specified in the [config/Makefile](../config/Makefile) and represent important deployment targets for the project. Failing to run `make -C config materialize` and commit the result will cause the PR checks to fail.
 
-## Using configuration
+## Using Configuration
 
 Configuration settings can be used in pipeline files and bicepparam files to customize service and infra deployments.
 
@@ -169,13 +169,18 @@ param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}' // quote strings ...
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }} // ... but not boolean or number values
 ```
 
+### Limitations
+
+- Only **basic fields** (string, boolean, or number types) should be referenced from pipeline files and Bicepparam files. Complex data types do not translate well to EV2 configuration settings right now.
+- Avoid using **arrays** in configuration. Instead, represent arrays as a list of comma separated values and parse them in Bicep templates using the `csvToArray` function from `modules/common.bicep`. Arrays do not translate well to EV2 configuration settings right now.
+
 ## Schema
 
 The structure of the configuration is strictly defined by a [JSON schema](https://json-schema.org/) to ensure correctness, enforce required fields, and enable validation. This schema is maintained in [config.schema.json](../config/config.schema.json) and dictates the format of the YAML configuration, including supported properties, nested structures, and allowed values.
 
 By enforcing a schema, configuration files remain predictable and can be automatically validated before deployment, reducing misconfigurations and ensuring consistency across environments.
 
-## Current configuration files
+## Current Configuration Files
 
 - **[config.yaml](../config/config.yaml)** - Contains the configuration for the Red Hat development environments.
   - **dev**: integrated DEV environment - the first environment where all services are deployed together.
@@ -185,7 +190,25 @@ By enforcing a schema, configuration files remain predictable and can be automat
 - **[config.msft.yaml](../config/config.msft.yaml)** - Contains the configuration for the Microsoft deployment environments.
   - **int**: MSIT INT environment - a dedicated environment for testing EV2 deployments and MISE.
 
-## Limitations
+## Update Configuration and Propagate Changes
 
-- Only **basic fields** (string, boolean, or number types) should be referenced from pipeline files and Bicepparam files. Complex data types do not translate well to EV2 configuration settings right now.
-- Avoid using **arrays** in configuration. Instead, represent arrays as a list of comma separated values and parse them in Bicep templates using the `csvToArray` function from `modules/common.bicep`. Arrays do not translate well to EV2 configuration settings right now.
+1. Update the respective YAML file and run:
+
+   ```sh
+   make -C config materialize
+   ```
+
+2. Inspect the effects of the changes in the materialized configuration files.
+3. Commit the materialized files, open a PR, review, and merge.
+
+## Propagate Configuration Changes
+
+Propagation of configuration changes varies depending on the environment:
+
+- **[config.yaml](../config/config.yaml)**:
+  - Only the **dev** and **cspr** environments are automatically reconciled with new changes for configuration, infrastructure, and service deployments.
+  - **personal-dev** are fully controlled by developers. If there are relevant changes, notify developers so they can apply updates manually.
+
+- **[config.msft.yaml](../config/config.msft.yaml)**:
+  - Propagation is **not automated**.
+  - Refer to the [EV2 deployment documentation](ev2-deployment.md) for details on how to trigger a deployment.
