@@ -145,7 +145,7 @@ With multiple layers of overrides and templating in use, it can be difficult to 
 
 Configuration settings can be used in pipeline files and bicepparam files to customize service and infra deployments.
 
-### Referencing Configuration in Pipeline Files
+### Pipelines
 
 Individual configuration properties can be referenced in pipeline files for use in shell steps:
 
@@ -160,7 +160,7 @@ steps:
 
 For more details on shell steps, refer to the **Shell Step Documentation**.
 
-### Referencing Configuration in Bicep Templates
+### Bicep Templates
 
 To use configuration values for Bicep templates, [bicepparam](bicep.md#parameters) files are processed as **Go templates**, allowing configuration lookups using the following syntax:
 
@@ -177,7 +177,13 @@ By enforcing a schema, configuration files remain predictable and can be automat
 
 ## Current configuration files
 
-todo describe current configuration files and how to use them
+- **[config.yaml](../config/config.yaml)** - Contains the configuration for the Red Hat development environments.
+  - **dev**: integrated DEV environment - the first environment where all services are deployed together.
+  - **cspr**: CS PR environment - a dedicated environment for testing Cluster Service PRs.
+  - **personal-dev**: personal DEV environment - used by developers to create new personal ARO HCP instances.
+  - **personal-perscale**: personal perfscale environment - used by the perfscale team to create new ARO HCP instances with production grade management cluster settings
+- **[config.msft.yaml](../config/config.msft.yaml)** - Contains the configuration for the Microsoft deployment environments.
+  - **int**: MSIT INT environment - a dedicated environment for testing EV2 deployments and MISE.
 
 ## Limitations
 
