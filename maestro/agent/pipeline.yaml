@@ -1,5 +1,5 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.MaestroAgent
+serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
 rolloutName: Maestro Agent Rollout
 resourceGroups:
 - name: {{ .mgmt.rg }}
