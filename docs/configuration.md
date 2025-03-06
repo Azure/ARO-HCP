@@ -198,7 +198,7 @@ By enforcing a schema, configuration files remain predictable and can be automat
 - **[config.msft.yaml](../config/config.msft.yaml)** - Contains the configuration for the Microsoft deployment environments.
   - **int**: MSIT INT environment - a dedicated environment for testing EV2 deployments and MISE.
 
-## Update Configuration and Propagate Changes
+## Update Configuration
 
 1. Update the respective YAML file and run:
 
@@ -208,6 +208,8 @@ By enforcing a schema, configuration files remain predictable and can be automat
 
 2. Inspect the effects of the changes in the materialized configuration files.
 3. Commit the materialized files, open a PR, review, and merge.
+
+Check the section about [Materializing Configuration](#materializing-configuration) and [Propagate Configuration Changes](#propagate-configuration-changes) for more details.
 
 ## Propagate Configuration Changes
 
