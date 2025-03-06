@@ -96,11 +96,6 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 				out.Properties.Taints[i].Value = *h.Properties.Taints[i].Value
 			}
 		}
-
-		out.Properties.TuningConfigs = make([]string, len(h.Properties.TuningConfigs))
-		for i := range h.Properties.TuningConfigs {
-			out.Properties.TuningConfigs[i] = *h.Properties.TuningConfigs[i]
-		}
 	}
 }
 
@@ -233,7 +228,6 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 				Labels:            []*generated.Label{},
 				Replicas:          api.Ptr(from.Properties.Replicas),
 				Taints:            make([]*generated.Taint, len(from.Properties.Taints)),
-				TuningConfigs:     make([]*string, len(from.Properties.TuningConfigs)),
 			},
 		},
 	}
@@ -258,9 +252,6 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 
 	for i := range from.Properties.Taints {
 		out.Properties.Taints[i] = newNodePoolTaint(from.Properties.Taints[i])
-	}
-	for i := range from.Properties.TuningConfigs {
-		out.Properties.TuningConfigs[i] = api.Ptr(from.Properties.TuningConfigs[i])
 	}
 
 	return out

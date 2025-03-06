@@ -324,12 +324,6 @@ type NodePoolPatchProperties struct {
 	// Taints for the nodes
 	Taints []*Taint
 
-	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
-	// Tuned resources to define the tuning configuration to be applied to nodes
-	// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
-	// or PerformanceProfile.
-	TuningConfigs []*string
-
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ResourceProvisioningState
 }
@@ -388,12 +382,6 @@ type NodePoolProperties struct {
 
 	// Taints for the nodes
 	Taints []*Taint
-
-	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
-	// Tuned resources to define the tuning configuration to be applied to nodes
-	// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
-	// or PerformanceProfile.
-	TuningConfigs []*string
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
