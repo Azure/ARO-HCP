@@ -20,6 +20,8 @@ spec:
         component: kubelet-parameters
         tier: node
     spec:
+      nodeSelector:
+        kubernetes.azure.com/mode: user
       containers:
       - command:
         - nsenter
