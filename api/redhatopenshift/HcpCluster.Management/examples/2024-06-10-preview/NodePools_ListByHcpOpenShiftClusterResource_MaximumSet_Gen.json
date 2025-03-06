@@ -33,10 +33,7 @@
                 "autoScaling": {
                   "min": 6,
                   "max": 29
-                },
-                "tuningConfigs": [
-                  "m"
-                ]
+                }
               }
             },
             "tags": {

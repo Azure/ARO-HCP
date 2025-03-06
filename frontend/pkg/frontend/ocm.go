@@ -288,9 +288,8 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 				DiskEncryptionSetID:    "", // TODO: Not implemented in OCM
 				EphemeralOSDisk:        np.AzureNodePool().EphemeralOSDiskEnabled(),
 			},
-			AutoRepair:    np.AutoRepair(),
-			Labels:        np.Labels(),
-			TuningConfigs: np.TuningConfigs(),
+			AutoRepair: np.AutoRepair(),
+			Labels:     np.Labels(),
 		},
 	}
 
@@ -346,8 +345,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 	}
 
 	npBuilder = npBuilder.
-		Labels(nodePool.Properties.Labels).
-		TuningConfigs(nodePool.Properties.TuningConfigs...)
+		Labels(nodePool.Properties.Labels)
 
 	if nodePool.Properties.AutoScaling != nil {
 		npBuilder.Autoscaling(cmv1.NewNodePoolAutoscaling().
