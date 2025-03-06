@@ -41,9 +41,6 @@
               "value": "x",
               "effect": "NoSchedule"
             }
-          ],
-          "tuningConfigs": [
-            "m"
           ]
         }
       },
@@ -77,10 +74,7 @@
             "autoScaling": {
               "min": 6,
               "max": 29
-            },
-            "tuningConfigs": [
-              "m"
-            ]
+            }
           }
         },
         "tags": {
@@ -126,10 +120,7 @@
             "autoScaling": {
               "min": 6,
               "max": 29
-            },
-            "tuningConfigs": [
-              "m"
-            ]
+            }
           }
         },
         "tags": {

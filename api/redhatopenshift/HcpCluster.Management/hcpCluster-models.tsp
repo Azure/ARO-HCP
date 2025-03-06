@@ -377,22 +377,6 @@ model NodePoolProperties {
   @visibility("create", "update", "read")
   @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
   taints?: Taint[];
-
-  /*
-   * The Tuned API is defined here:
-   * - https://github.com/openshift/cluster-node-tuning-operator/blob/2c76314fb3cc8f12aef4a0dcd67ddc3677d5b54f/pkg/apis/tuned/v1/tuned_types.go
-   *
-   * The PerformanceProfile API is defined here:
-   * - https://github.com/openshift/cluster-node-tuning-operator/tree/b41042d42d4ba5bb2e99960248cf1d6ae4935018/pkg/apis/performanceprofile/v2
-   */
-  /** Tuning configs, TODO provide meaningful explanation
-   * TuningConfig is a list of references to ConfigMaps containing serialized
-   * Tuned resources to define the tuning configuration to be applied to
-   * nodes in the NodePool.
-   * Each ConfigMap must have a single key named "tuned" whose value is the
-   * JSON or YAML of a serialized Tuned or PerformanceProfile.
-   */
-  tuningConfigs?: string[];
 }
 
 /** Represents the patchable node pool properties */
@@ -421,22 +405,6 @@ model NodePoolPatchProperties {
   @visibility("update", "read")
   @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
   taints?: Taint[];
-
-  /*
-   * The Tuned API is defined here:
-   * - https://github.com/openshift/cluster-node-tuning-operator/blob/2c76314fb3cc8f12aef4a0dcd67ddc3677d5b54f/pkg/apis/tuned/v1/tuned_types.go
-   *
-   * The PerformanceProfile API is defined here:
-   * - https://github.com/openshift/cluster-node-tuning-operator/tree/b41042d42d4ba5bb2e99960248cf1d6ae4935018/pkg/apis/performanceprofile/v2
-   */
-  /** Tuning configs, TODO provide meaningful explanation
-   * TuningConfig is a list of references to ConfigMaps containing serialized
-   * Tuned resources to define the tuning configuration to be applied to
-   * nodes in the NodePool.
-   * Each ConfigMap must have a single key named "tuned" whose value is the
-   * JSON or YAML of a serialized Tuned or PerformanceProfile.
-   */
-  tuningConfigs?: string[];
 }
 
 /** taintKey is the k8s valid key of the taint type on the nodepool nodes
