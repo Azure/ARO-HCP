@@ -122,6 +122,20 @@ func WriteInternalServerError(w http.ResponseWriter) {
 	WriteCloudError(w, NewInternalServerError())
 }
 
+// NewConflictError creates a CloudError for a conflict error
+func NewConflictError(resourceID *azcorearm.ResourceID, format string, a ...interface{}) *CloudError {
+	return NewCloudError(
+		http.StatusConflict,
+		CloudErrorCodeConflict,
+		resourceID.String(),
+		format, a...)
+}
+
+// WriteConflictError writes a conflict error to the given ResponseWriter
+func WriteConflictError(w http.ResponseWriter, resourceID *azcorearm.ResourceID, format string, a ...interface{}) {
+	WriteCloudError(w, NewConflictError(resourceID, format, a...))
+}
+
 // NewResourceNotFoundError creates a CloudError for a nonexistent resource error
 func NewResourceNotFoundError(resourceID *azcorearm.ResourceID) *CloudError {
 	var code string
