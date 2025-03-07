@@ -901,7 +901,6 @@ func (n NodePoolPatchProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "provisioningState", n.ProvisioningState)
 	populate(objectMap, "replicas", n.Replicas)
 	populate(objectMap, "taints", n.Taints)
-	populate(objectMap, "tuningConfigs", n.TuningConfigs)
 	return json.Marshal(objectMap)
 }
 
@@ -928,9 +927,6 @@ func (n *NodePoolPatchProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "taints":
 				err = unpopulate(val, "Taints", &n.Taints)
-			delete(rawMsg, key)
-		case "tuningConfigs":
-				err = unpopulate(val, "TuningConfigs", &n.TuningConfigs)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1009,7 +1005,6 @@ func (n NodePoolProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "provisioningState", n.ProvisioningState)
 	populate(objectMap, "replicas", n.Replicas)
 	populate(objectMap, "taints", n.Taints)
-	populate(objectMap, "tuningConfigs", n.TuningConfigs)
 	populate(objectMap, "version", n.Version)
 	return json.Marshal(objectMap)
 }
@@ -1043,9 +1038,6 @@ func (n *NodePoolProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "taints":
 				err = unpopulate(val, "Taints", &n.Taints)
-			delete(rawMsg, key)
-		case "tuningConfigs":
-				err = unpopulate(val, "TuningConfigs", &n.TuningConfigs)
 			delete(rawMsg, key)
 		case "version":
 				err = unpopulate(val, "Version", &n.Version)
