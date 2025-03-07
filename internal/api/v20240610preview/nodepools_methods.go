@@ -69,6 +69,7 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 			normalizeNodePoolPlatform(h.Properties.Platform, &out.Properties.Platform)
 		}
 		if h.Properties.AutoScaling != nil {
+			out.Properties.AutoScaling = &api.NodePoolAutoScaling{}
 			if h.Properties.AutoScaling.Max != nil {
 				out.Properties.AutoScaling.Max = *h.Properties.AutoScaling.Max
 			}
