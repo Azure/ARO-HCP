@@ -9,7 +9,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - Major services and how they interact
 
 1. **[Environments](environments.md)**
-   - Overview of different environment (development, integration, staging, production)
+   - Overview of different deployment environments and Azure tenants
    - Key differences and capabilities of each environment
 
 1. **[Configuration Management](configuration.md)**
