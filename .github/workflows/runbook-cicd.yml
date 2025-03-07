@@ -68,31 +68,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Upload Runbook to Azure Automation
+      - name: Deploy Automation Account
         run: |
-          az automation runbook update \
-            --automation-account-name "HCP-automation-account" \
-            --resource-group "HCP-automation-rg" \
-            --name "resources_cleanup" \
-            --type Python3 \
-            --content @tooling/azure-automation/resources-cleanup/src/resources_cleanup.py
-            --debug=${{ inputs.debug }}
+          cd dev-infrastructure/
+          make automation-account --debug=${{ inputs.debug }}
 
-      - name: Publish Runbook
+      - name: Migrate Runbook
         run: |
-          az automation runbook publish \
-            --automation-account-name "HCP-automation-account" \
-            --resource-group "HCP-automation-rg" \
-            --name "resources_cleanup"
-            --debug=${{ inputs.debug }}
-
-      - name: Schedule Runbook Execution
-        run: |
-          az automation schedule create \
-            --automation-account-name "HCP-automation-account" \
-            --resource-group "HCP-automation-rg" \
-            --name "resources_cleanup_schedule" \
-            --description "Runs every day" \
-            --frequency Day \
-            --interval 1
-            --debug=${{ inputs.debug }}
+          cd dev-infrastructure/
+          make automation-migrate --debug=${{ inputs.debug }}
