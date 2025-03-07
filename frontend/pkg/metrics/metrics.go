@@ -126,11 +126,11 @@ func (sc *SubscriptionCollector) updateCache() error {
 	subscriptions := make(map[string]subscription)
 
 	iter := sc.dbClient.ListAllSubscriptionDocs()
-	for sub := range iter.Items(context.Background()) {
-		subscriptions[sub.ID] = subscription{
-			id:         sub.ID,
-			state:      string(sub.Subscription.State),
-			updated_at: int64(sub.CosmosTimestamp),
+	for id, sub := range iter.Items(context.Background()) {
+		subscriptions[id] = subscription{
+			id:         id,
+			state:      string(sub.State),
+			updated_at: int64(sub.LastUpdated),
 		}
 	}
 	if err := iter.GetError(); err != nil {

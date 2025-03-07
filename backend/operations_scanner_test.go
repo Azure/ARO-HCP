@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"go.uber.org/mock/gomock"
 
@@ -107,13 +108,13 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 					return nil
 				})
 			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), op.id, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
+				UpdateOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
 					return callback(operationDoc), nil
 				})
 			if tt.expectAsyncNotification {
 				mockDBClient.EXPECT().
-					GetOperationDoc(gomock.Any(), op.id).
+					GetOperationDoc(gomock.Any(), op.pk, op.id).
 					Return(operationDoc, nil)
 			}
 
@@ -277,8 +278,8 @@ func TestUpdateOperationStatus(t *testing.T) {
 			}
 
 			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), op.id, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
+				UpdateOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
 					return callback(operationDoc), nil
 				})
 			mockDBClient.EXPECT().
@@ -292,7 +293,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 				})
 			if tt.expectAsyncNotification {
 				mockDBClient.EXPECT().
-					GetOperationDoc(gomock.Any(), op.id).
+					GetOperationDoc(gomock.Any(), op.pk, op.id).
 					Return(operationDoc, nil)
 			}
 

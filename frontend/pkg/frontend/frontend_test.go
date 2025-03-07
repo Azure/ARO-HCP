@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -81,7 +81,7 @@ func TestReadiness(t *testing.T) {
 
 			mockDBClient.EXPECT().DBConnectionTest(gomock.Any())
 
-			ts := newHTTPServer(f, ctrl, mockDBClient)
+			ts := newHTTPServer(f, ctrl, mockDBClient, nil)
 
 			rs, err := ts.Client().Get(ts.URL + "/healthz")
 			require.NoError(t, err)
@@ -99,17 +99,16 @@ func TestReadiness(t *testing.T) {
 func TestSubscriptionsGET(t *testing.T) {
 	tests := []struct {
 		name               string
-		subDoc             *database.SubscriptionDocument
+		subDoc             *arm.Subscription
 		expectedStatusCode int
 	}{
 		{
 			name: "GET Subscription - Doc Exists",
-			subDoc: database.NewSubscriptionDocument(subscriptionID,
-				&arm.Subscription{
-					State:            arm.SubscriptionStateRegistered,
-					RegistrationDate: api.Ptr(time.Now().String()),
-					Properties:       nil,
-				}),
+			subDoc: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -142,11 +141,11 @@ func TestSubscriptionsGET(t *testing.T) {
 				Times(1)
 
 			// The subscription collector lists all documents once.
-			var subs []*database.SubscriptionDocument
+			subs := make(map[string]*arm.Subscription)
 			if test.subDoc != nil {
-				subs = append(subs, test.subDoc)
+				subs[subscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs...)
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
 			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + subscriptionID + "?api-version=2.0")
 			if err != nil {
@@ -168,7 +167,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		name               string
 		urlPath            string
 		subscription       *arm.Subscription
-		subDoc             *database.SubscriptionDocument
+		subDoc             *arm.Subscription
 		expectedStatusCode int
 	}{
 		{
@@ -190,12 +189,11 @@ func TestSubscriptionsPUT(t *testing.T) {
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
-			subDoc: database.NewSubscriptionDocument(subscriptionID,
-				&arm.Subscription{
-					State:            arm.SubscriptionStateRegistered,
-					RegistrationDate: api.Ptr(time.Now().String()),
-					Properties:       nil,
-				}),
+			subDoc: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -283,11 +281,11 @@ func TestSubscriptionsPUT(t *testing.T) {
 				}
 			}
 
-			var subs []*database.SubscriptionDocument
+			subs := make(map[string]*arm.Subscription)
 			if test.subDoc != nil {
-				subs = append(subs, test.subDoc)
+				subs[subscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs...)
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
 			if err != nil {
@@ -320,7 +318,7 @@ func lintMetrics(t *testing.T, r prometheus.Gatherer) {
 }
 
 // assertHTTPMetrics ensures that HTTP metrics have been recorded.
-func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscriptionDoc *database.SubscriptionDocument) {
+func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Subscription) {
 	t.Helper()
 
 	metrics, err := r.Gather()
@@ -359,8 +357,8 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscriptionDoc *dat
 
 			if mf.GetName() == requestCounterName {
 				assert.NotEmpty(t, state)
-				if subscriptionDoc != nil {
-					assert.Equal(t, string(subscriptionDoc.Subscription.State), state)
+				if subscription != nil {
+					assert.Equal(t, string(subscription.State), state)
 				} else {
 					assert.Equal(t, "Unknown", state)
 				}
@@ -375,15 +373,15 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscriptionDoc *dat
 // newHTTPServer returns a test HTTP server. When a mock DB client is provided,
 // the subscription collector will be bootstrapped with the provided
 // subscription documents.
-func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.MockDBClient, subs ...*database.SubscriptionDocument) *httptest.Server {
+func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.MockDBClient, subs map[string]*arm.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()
 
-	mockIter := mocks.NewMockDBClientIterator[database.SubscriptionDocument](ctrl)
+	mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
 	mockIter.EXPECT().
 		Items(gomock.Any()).
-		Return(database.DBClientIteratorItem[database.SubscriptionDocument](slices.Values(subs)))
+		Return(database.DBClientIteratorItem[arm.Subscription](maps.All(subs)))
 
 	mockIter.EXPECT().
 		GetError().

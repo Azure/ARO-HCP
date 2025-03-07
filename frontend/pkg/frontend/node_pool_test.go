@@ -62,7 +62,7 @@ func TestCreateNodePool(t *testing.T) {
 		urlPath            string
 		subscription       *arm.Subscription
 		systemData         *arm.SystemData
-		subDoc             *database.SubscriptionDocument
+		subDoc             *arm.Subscription
 		clusterDoc         *database.ResourceDocument
 		nodePoolDoc        *database.ResourceDocument
 		expectedStatusCode int
@@ -70,13 +70,11 @@ func TestCreateNodePool(t *testing.T) {
 		{
 			name:    "PUT Node Pool - Create a new Node Pool",
 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
-			subDoc: database.NewSubscriptionDocument(
-				dummySubscriptionId,
-				&arm.Subscription{
-					State:            arm.SubscriptionStateRegistered,
-					RegistrationDate: api.Ptr(time.Now().String()),
-					Properties:       nil,
-				}),
+			subDoc: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
 			clusterDoc:         clusterDoc,
 			nodePoolDoc:        nodePoolDoc,
 			expectedStatusCode: http.StatusCreated,
@@ -105,7 +103,8 @@ func TestCreateNodePool(t *testing.T) {
 
 			body, _ := json.Marshal(requestBody)
 
-			ts := newHTTPServer(f, ctrl, mockDBClient, test.subDoc)
+			subs := map[string]*arm.Subscription{dummySubscriptionId: test.subDoc}
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().
@@ -124,7 +123,7 @@ func TestCreateNodePool(t *testing.T) {
 				GetLockClient()
 			// MiddlewareValidateSubscriptionState
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), test.subDoc.ID).
+				GetSubscriptionDoc(gomock.Any(), dummySubscriptionId).
 				Return(test.subDoc, nil).
 				Times(1)
 			// CreateOrUpdateNodePool
@@ -141,7 +140,7 @@ func TestCreateNodePool(t *testing.T) {
 				CreateOperationDoc(gomock.Any(), gomock.Any())
 			// ExposeOperation
 			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), gomock.Any(), gomock.Any())
+				UpdateOperationDoc(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
 				CreateResourceDoc(gomock.Any(), gomock.Any())
@@ -194,7 +193,7 @@ func TestCreateNodePool(t *testing.T) {
 // 		urlPath            string
 // 		subscription       *arm.Subscription
 // 		systemData         *arm.SystemData
-// 		subDoc             *database.SubscriptionDocument
+// 		subDoc             *arm.Subscription
 // 		clusterDoc         *database.ResourceDocument
 // 		nodePoolDoc        *database.ResourceDocument
 // 		expectedStatusCode int
@@ -202,12 +201,11 @@ func TestCreateNodePool(t *testing.T) {
 // 		{
 // 			name:    "PUT Node Pool - Update an existing Node Pool",
 // 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
-// 			subDoc: database.NewSubscriptionDocument(dummySubscriptionId,
-// 				&arm.Subscription{
-// 					State:            arm.SubscriptionStateRegistered,
-// 					RegistrationDate: api.Ptr(time.Now().String()),
-// 					Properties:       nil,
-// 				}),
+// 			subDoc: &arm.Subscription{
+// 				State:            arm.SubscriptionStateRegistered,
+// 				RegistrationDate: api.Ptr(time.Now().String()),
+// 				Properties:       nil,
+// 			},
 // 			clusterDoc:         clusterDoc,
 // 			nodePoolDoc:        nodePoolDoc,
 // 			systemData:         &arm.SystemData{},
