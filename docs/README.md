@@ -9,8 +9,10 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - Major services and how they interact
 
 1. **[Environments](environments.md)**
-   - Overview of different environment (development, integration, staging, production)
+   - Overview of different deployment environments and Azure tenants
    - Key differences and capabilities of each environment
+   - Access requirements and limitations
+   - Feature/Capability Matrix
 
 1. **[Configuration Management](configuration.md)**
    - Overview and override structures
@@ -29,10 +31,10 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - [Pipelines](pipelines.md)
       - documents existing pipelines
    - Red Hat development tenant deployments
-     - [Personal ARO HCP instance](personal-dev.md)
-     - [Integrated DEV instance](integrated-dev.md)
-     - [CS PR instance](cspr.md)
-     - [Personal perfscale instance](perscale-deployment.md)
+     - [Personal ARO HCP environment](personal-dev.md)
+     - [Integrated DEV environment](integrated-dev.md)
+     - [CS PR environment](cspr.md)
+     - [Personal perfscale environment](perscale-deployment.md)
    - MSFT deployments
      - [MSIT INT](msit-int.md)
 

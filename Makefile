@@ -61,6 +61,10 @@ infra.svc:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make svc.init
 .PHONY: infra.svc
 
+infra.svc.aks.kubeconfig:
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s svc.aks.kubeconfig
+.PHONY: infra.svc.aks.kubeconfig
+
 infra.svc.aks.kubeconfigfile:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s svc.aks.kubeconfigfile
 .PHONY: infra.svc.aks.kubeconfigfile
@@ -72,6 +76,10 @@ infra.mgmt:
 infra.mgmt.solo:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make mgmt.solo.init
 .PHONY: infra.mgmt.solo
+
+infra.mgmt.aks.kubeconfig:
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfig
+.PHONY: infra.mgmt.aks.kubeconfig
 
 infra.mgmt.aks.kubeconfigfile:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfigfile

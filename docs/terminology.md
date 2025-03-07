@@ -101,3 +101,9 @@
 - **Definition**: A stamp allows for partitioning a region into scaling units. Used to build multiple management clusters in a region.
 - **References**:
   - [Docs](https://ev2docs.azure.net/features/rollout-orchestration/configure-stamps.html)
+
+### MSI-RP
+
+- **Definition**: Managed Service Identity Resource Provider
+- **References**:
+  - [Docs](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
