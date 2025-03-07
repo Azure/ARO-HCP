@@ -5,7 +5,7 @@ PIPELINE_STEP = "mgmt-fixes"
 
 deploy:
 	@if [ "$(APPLY_KUBELET_FIXES)" = "true" ]; then \
-		${HELM_CMD} mgmt-fixes deploy/helm/mgmt-fixes/; \
+		${HELM_CMD} mgmt-fixes deploy/; \
 	else \
 		echo "Skipping kubelet patching"; \
 	fi

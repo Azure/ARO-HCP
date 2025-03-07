@@ -149,12 +149,7 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = istio acrpull backend frontend cluster-service maestro.server
-# Don't apply mgmt cluster fixes to personal clusters
-ifeq ($(DEPLOY_ENV), personal-dev)
-	services_mgmt_pipelines = hypershiftoperator maestro.agent acm
-else
-	services_mgmt_pipelines = hypershiftoperator maestro.agent acm
-endif
+services_mgmt_pipelines = hypershiftoperator maestro.agent acm
 %.deploy_pipeline:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c public
