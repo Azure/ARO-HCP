@@ -109,13 +109,13 @@ type DBClient interface {
 	// document was successfully replaced, or false with or without an error to indicate no change.
 	UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error)
 
-	// ListOperationDocs returns an iterator that searches for asynchronous operation documents
-	// in the "Resources" container under the given partition key.
+	// ListActiveOperationDocs returns an iterator that searches for asynchronous operation documents
+	// with a non-terminal status in the "Resources" container under the given partition key.
 	//
-	// Note that ListOperationDocs does not perform the search, but merely prepares an iterator to
-	// do so. Hence the lack of a Context argument. The search is performed by calling Items() on
+	// Note that ListActiveOperationDocs does not perform the search, but merely prepares an iterator
+	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
-	ListOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument]
+	ListActiveOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a subscription document from the "Resources" container.
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
@@ -437,16 +437,16 @@ func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.Par
 	return false, err
 }
 
-func (d *cosmosDBClient) ListOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument] {
-	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
-	opt := azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@resourceType",
-				Value: OperationResourceType.String(),
-			},
-		},
-	}
+func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey) DBClientIterator[OperationDocument] {
+	var opt azcosmos.QueryOptions
+
+	query := fmt.Sprintf(
+		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
+			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
+		OperationResourceType.String(),
+		arm.ProvisioningStateSucceeded,
+		arm.ProvisioningStateFailed,
+		arm.ProvisioningStateCanceled)
 
 	pager := d.resources.NewQueryItemsPager(query, pk, &opt)
 
