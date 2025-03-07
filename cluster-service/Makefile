@@ -95,6 +95,10 @@ create-pr-env-sp:
 	--display-name "cs-pr-authentication" \
 	--role 'Contributor' \
 	--scopes "$${CLUSTER_ID}"
+	az role assignment create \
+	--role "Key Vault Certificate User" \
+	--assignee "$(shell az ad sp list --display-name cs-pr-authentication --query [0].appId -o tsv)" \
+	--scope "$(shell az keyvault show --name ${SERVICE_KV} --query id -o tsv)"
 
 local-deploy-provision-shard:
 	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
