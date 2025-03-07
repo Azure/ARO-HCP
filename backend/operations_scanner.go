@@ -309,25 +309,23 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 	pk := database.NewPartitionKey(subscriptionID)
 
-	iterator := s.dbClient.ListOperationDocs(pk)
+	iterator := s.dbClient.ListActiveOperationDocs(pk)
 
 	for operationID, operationDoc := range iterator.Items(ctx) {
-		if !operationDoc.Status.IsTerminal() {
-			operationLogger := logger.With(
-				"operation", operationDoc.Request,
-				"operation_id", operationID,
-				"resource_id", operationDoc.ExternalID.String(),
-				"internal_id", operationDoc.InternalID.String())
-			op := operation{operationID, pk, operationDoc, operationLogger}
+		operationLogger := logger.With(
+			"operation", operationDoc.Request,
+			"operation_id", operationID,
+			"resource_id", operationDoc.ExternalID.String(),
+			"internal_id", operationDoc.InternalID.String())
+		op := operation{operationID, pk, operationDoc, operationLogger}
 
-			switch operationDoc.InternalID.Kind() {
-			case cmv1.ClusterKind:
-				s.pollClusterOperation(ctx, op)
-				numProcessed++
-			case cmv1.NodePoolKind:
-				s.pollNodePoolOperation(ctx, op)
-				numProcessed++
-			}
+		switch operationDoc.InternalID.Kind() {
+		case cmv1.ClusterKind:
+			s.pollClusterOperation(ctx, op)
+			numProcessed++
+		case cmv1.NodePoolKind:
+			s.pollNodePoolOperation(ctx, op)
+			numProcessed++
 		}
 	}
 
