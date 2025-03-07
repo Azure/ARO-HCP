@@ -48,3 +48,21 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - global-acrs
+  - name: decrypt bearer secret
+    action: Shell
+    command: ../tooling/secret-sync/decrypt.sh data/ecryptedsecrets/dev_global_imagesync_bearer-secret.enc $KEYVAULT secretSyncKey
+    variables:
+    - name: KEYVAULT
+      configRef: imageSync.keyVault.name
+  - name: decrypt component-sync pull secret
+    action: Shell
+    command: ../tooling/secret-sync/decrypt.sh data/ecryptedsecrets/dev_global_imagesync_component-sync-pull-secret.enc $KEYVAULT secretSyncKey
+    variables:
+    - name: KEYVAULT
+      configRef: imageSync.keyVault.name
+  - name: decrypt component-sync pull secret
+    action: Shell
+    command: ../tooling/secret-sync/decrypt.sh data/ecryptedsecrets/dev_global_imagesync_component-sync-pull-secret.enc $KEYVAULT secretSyncKey
+    variables:
+    - name: KEYVAULT
+      configRef: imageSync.keyVault.name
