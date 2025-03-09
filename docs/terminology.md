@@ -107,3 +107,10 @@
 - **Definition**: Managed Service Identity Resource Provider
 - **References**:
   - [Docs](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
+
+### Safe Deployment Practices
+
+- **Definition**: Microsoft best practices for deploying services to minimize any customer impact caused by platform changes.
+- **Abbreviation**: SDP
+- **References**:
+  - [Docs](https://ev2docs.azure.net/getting-started/sdp.html)
