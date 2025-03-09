@@ -1,14 +1,18 @@
-$schema: "pipeline.schema.v1"
-
-# This pipelines installes the infrastructure for the ARO HCP SVC cluster
 #
-# - create the SVC Key Vault and sets up the OneCert issuer
-# - create the AKS SVC cluster
-# - create MIs and CosmosDB and Azure permissions for the RP
-# - create MIs, Postgres DB and OIDC storage and Azure permission for Cluster Service
-# - create MIs, Postgres DB and Azure permissions for the Maestro Server
-# - configures and lifecycles Istio on the SVC cluster
-
+# Purpose: Manage service cluster and supporting infra for its services
+# Managed Resources:
+# * AKS SVC cluster
+# * SVC Key Vault with OneCert registration
+# * MIs, CosmosDB and RBAC for the RP
+# * MIs, Postgres DB, OIDC storage and RBAC for Cluster Service
+# * MIs, Postgres DB, certificates and RBAC for the Maestro Server
+# * MIs and RBAC for ACRPull
+# * metrics collection
+# Managed Processes:
+# * Manage ACRPull
+# * Configure and upgrade Istio
+#
+$schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
