@@ -1,14 +1,18 @@
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('The resource ID of the managed identity that will be used for Key Vault operations')
-param aroDevopsMsiId string
+@description('The name of the MSI used for Key Vault operations')
+param globalMsiName string
 
 @description('The name of the key vault')
 param keyVaultName string
 
 @description('Global resource group name')
 param globalResourceGroupName string = 'global'
+
+resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: globalMsiName
+}
 
 //
 // F I R S T   P A R T Y   I D E N T I T Y
@@ -18,7 +22,7 @@ module firstPartyIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'first-party-identity'
   params: {
     location: location
-    keyVaultManagedIdentityId: aroDevopsMsiId
+    keyVaultManagedIdentityId: globalMSI.id
     keyVaultName: keyVaultName
     certName: 'firstPartyCert2'
     subjectName: 'CN=firstparty.hcp.osadev.cloud'
@@ -59,7 +63,7 @@ module armHelperIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'arm-helper-identity'
   params: {
     location: location
-    keyVaultManagedIdentityId: aroDevopsMsiId
+    keyVaultManagedIdentityId: globalMSI.id
     keyVaultName: keyVaultName
     certName: 'armHelperCert2'
     subjectName: 'CN=armhelper.hcp.osadev.cloud'
@@ -77,7 +81,7 @@ module msiRPMockIdentity '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'msi-mock-identity'
   params: {
     location: location
-    keyVaultManagedIdentityId: aroDevopsMsiId
+    keyVaultManagedIdentityId: globalMSI.id
     keyVaultName: keyVaultName
     certName: 'msiMockCert2'
     subjectName: 'CN=msimock.hcp.osadev.cloud'
