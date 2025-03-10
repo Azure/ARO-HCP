@@ -18,8 +18,14 @@ import (
 func newTestValidator() *validator.Validate {
 	validate := NewValidator()
 
-	validate.RegisterAlias("enum_outboundtype", EnumValidateTag("loadBalancer"))
-	validate.RegisterAlias("enum_visibility", EnumValidateTag("private", "public"))
+	validate.RegisterAlias("enum_networktype", EnumValidateTag(
+		NetworkTypeOVNKubernetes,
+		NetworkTypeOther))
+	validate.RegisterAlias("enum_outboundtype", EnumValidateTag(
+		OutboundTypeLoadBalancer))
+	validate.RegisterAlias("enum_visibility", EnumValidateTag(
+		VisibilityPublic,
+		VisibilityPrivate))
 	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(
 		arm.ManagedServiceIdentityTypeNone,
 		arm.ManagedServiceIdentityTypeSystemAssigned,
@@ -52,7 +58,7 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 				Visibility: "public",
 			},
 			Platform: PlatformProfile{
-				SubnetID: "/something/something/virtualNetworks/subnets",
+				SubnetID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
 				OperatorsAuthentication: OperatorsAuthenticationProfile{
 					UserAssignedIdentities: UserAssignedIdentitiesProfile{
 						ControlPlaneOperators: map[string]string{
@@ -87,7 +93,7 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 				Visibility: "public",
 			},
 			Platform: PlatformProfile{
-				SubnetID: "/something/something/virtualNetworks/subnets",
+				SubnetID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
 				OperatorsAuthentication: OperatorsAuthenticationProfile{
 					UserAssignedIdentities: UserAssignedIdentitiesProfile{
 						ControlPlaneOperators: map[string]string{
@@ -257,7 +263,7 @@ func TestClusterValidateTags(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid value 'it's a secret to everybody' for field 'visibility' (must be one of: private public)",
+					Message: "Invalid value 'it's a secret to everybody' for field 'visibility' (must be one of: public private)",
 					Target:  "properties.api.visibility",
 				},
 			},
@@ -273,6 +279,54 @@ func TestClusterValidateTags(t *testing.T) {
 				{
 					Message: "Invalid value 'brokenServiceType' for field 'type' (must be one of: None SystemAssigned SystemAssigned,UserAssigned UserAssigned)",
 					Target:  "identity.type",
+				},
+			},
+		},
+		{
+			name: "Base domain prefix is too long",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					DNS: DNSProfile{
+						BaseDomainPrefix: "this-domain-is-too-long",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'this-domain-is-too-long' for field 'baseDomainPrefix' (maximum length is 15)",
+					Target:  "properties.dns.baseDomainPrefix",
+				},
+			},
+		},
+		{
+			name: "Host prefix is too small",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Network: NetworkProfile{
+						HostPrefix: 22,
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value '22' for field 'hostPrefix' (must be at least 23)",
+					Target:  "properties.network.hostPrefix",
+				},
+			},
+		},
+		{
+			name: "Host prefix is too large",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Network: NetworkProfile{
+						HostPrefix: 27,
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value '27' for field 'hostPrefix' (must be at most 26)",
+					Target:  "properties.network.hostPrefix",
 				},
 			},
 		},

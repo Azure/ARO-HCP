@@ -30,9 +30,9 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 // NodePoolPlatformProfile represents a worker node pool configuration.
 // Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
-	SubnetID               string `json:"subnetId,omitempty"`
+	SubnetID               string `json:"subnetId,omitempty"               validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
 	VMSize                 string `json:"vmSize,omitempty"                 validate:"required_for_put"`
-	DiskSizeGiB            int32  `json:"diskSizeGiB,omitempty"`
+	DiskSizeGiB            int32  `json:"diskSizeGiB,omitempty"            validate:"omitempty,gt=0"`
 	DiskStorageAccountType string `json:"diskStorageAccountType,omitempty"`
 	AvailabilityZone       string `json:"availabilityZone,omitempty"`
 	EncryptionAtHost       bool   `json:"encryptionAtHost,omitempty"`
@@ -49,8 +49,8 @@ type NodePoolAutoScaling struct {
 
 type Taint struct {
 	Effect Effect `json:"effect,omitempty" validate:"required_for_put,enum_effect"`
-	Key    string `json:"key,omitempty"    validate:"required_for_put"`
-	Value  string `json:"value,omitempty"`
+	Key    string `json:"key,omitempty"    validate:"required_for_put,min=1,max=316"`
+	Value  string `json:"value,omitempty"  validate:"omitempty,min=1,max=63"`
 }
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
