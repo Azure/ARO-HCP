@@ -79,7 +79,13 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.3
+      kubernetesVersion: 1.31.5
+      systemAgentPool:
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 32
+      userAgentPool:
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 32
       etcd:
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundsvc"
@@ -102,7 +108,13 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.3
+      kubernetesVersion: 1.31.5
+      systemAgentPool:
+        vmSize: 'Standard_E8s_v3'
+        osDiskSizeGB: 128
+      userAgentPool:
+        vmSize: 'Standard_D16s_v3'
+        osDiskSizeGB: 128
       etcd:
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
@@ -285,7 +297,7 @@ clouds:
           clusterService:
             environment: "arohcpint"
             postgres:
-              name: arohcp-cs-{{ .ctx.regionShort }} # [globally-unique]
+              name: arohcpint-cs-{{ .ctx.regionShort }} # [globally-unique]
             image:
               digest: sha256:c8de5ac6f2000ee185b42442c3b7f29e2b6b1068849f48620075cd811834202b
 
@@ -294,28 +306,28 @@ clouds:
             serviceTag: GenevaActionsNonProd
 
           # OIDC
-          oidcStorageAccountName: arohcpoidcint{{ .ctx.regionShort }} # [globally-unique]
+          oidcStorageAccountName: arohcpintoidc{{ .ctx.regionShort }} # [globally-unique]
 
           # Image Sync
           imageSync:
             keyVault:
-              name: arohcp-imagesync-int # [globally-unique]
+              name: arohcpint-imagesync # [globally-unique]
 
           # SVC KV
           serviceKeyVault:
-            name: arohcp-svc-{{ .ctx.regionShort }} # [globally-unique]
+            name: arohcpint-svc-{{ .ctx.regionShort }} # [globally-unique]
 
           # Management Cluster KV
           cxKeyVault:
-            name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+            name: arohcpint-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
             softDelete: false
             private: false
           msiKeyVault:
-            name: arohcp-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+            name: arohcpint-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
             softDelete: false
             private: false
           mgmtKeyVault:
-            name: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+            name: arohcpint-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
             softDelete: false
             private: false
 
@@ -325,13 +337,9 @@ clouds:
               systemAgentPool:
                 minCount: 1
                 maxCount: 3
-                vmSize: 'Standard_D2s_v3'
-                osDiskSizeGB: 32
               userAgentPool:
                 minCount: 1
                 maxCount: 3
-                vmSize: 'Standard_D2s_v3'
-                osDiskSizeGB: 32
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
               etcd:
@@ -345,21 +353,17 @@ clouds:
           # MC cluster settings
           mgmt:
             aks:
-              # MGMTM AKS nodepools - big enough for 2 HCPs
+              # MGMTM AKS nodepools
               systemAgentPool:
                 minCount: 1
                 maxCount: 4
-                vmSize: 'Standard_E8s_v3'
-                osDiskSizeGB: 128
               userAgentPool:
                 minCount: 1
                 maxCount: 12
-                vmSize: 'Standard_D16s_v3'
-                osDiskSizeGB: 128
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
               etcd:
-                kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+                kvName: arohcpint-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
             logs:
               san: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
               configVersion: "1.0"
@@ -377,7 +381,7 @@ clouds:
           # RP Frontend
           frontend:
             cosmosDB:
-              name: arohcp-rp-{{ .ctx.regionShort }} # [globally-unique]
+              name: arohcpint-rp-{{ .ctx.regionShort }} # [globally-unique]
               private: false
             image:
               digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
@@ -395,9 +399,9 @@ clouds:
           # Maestro
           maestro:
             eventGrid:
-              name: arohcp-maestro-{{ .ctx.regionShort }} # [globally-unique]
+              name: arohcpint-maestro-{{ .ctx.regionShort }} # [globally-unique]
             postgres:
-              name: arohcp-maestro-{{ .ctx.regionShort }} # [globally-unique]
+              name: arohcpint-maestro-{{ .ctx.regionShort }} # [globally-unique]
             image:
               digest: sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5
 
@@ -421,7 +425,6 @@ clouds:
             grafanaAdminGroupPrincipalId: '2fdb57d4-3fd3-415d-b604-1d0e37a188fe' # Azure Red Hat OpenShift MSFT Engineering
 
           # Global MSI
-          # Will move this MSI creationg to this repo. Currently it's in the hcp repo
           aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: '32af88de-a61c-4f71-b709-50538598c4f2'  # aro-ev2-admin-int-sp
