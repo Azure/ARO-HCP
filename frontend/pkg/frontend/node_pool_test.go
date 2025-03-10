@@ -121,6 +121,10 @@ func TestCreateNodePool(t *testing.T) {
 
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().
+				GetCluster(gomock.Any(), clusterDoc.InternalID).
+				Return(arohcpv1alpha1.NewCluster().Build())
+			// CreateOrUpdateNodePool
+			mockCSClient.EXPECT().
 				PostNodePool(gomock.Any(), clusterDoc.InternalID, gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
@@ -147,7 +151,7 @@ func TestCreateNodePool(t *testing.T) {
 			mockDBClient.EXPECT().
 				GetResourceDoc(gomock.Any(), equalResourceID(test.clusterDoc.ResourceID)). // defined in frontend_test.go
 				Return(test.clusterDoc, nil).
-				Times(2)
+				Times(3)
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
 				CreateOperationDoc(gomock.Any(), gomock.Any())

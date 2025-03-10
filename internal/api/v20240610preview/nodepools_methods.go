@@ -142,7 +142,7 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 }
 
-func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError {
+func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, method string) *arm.CloudError {
 	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
 
