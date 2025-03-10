@@ -61,6 +61,7 @@ func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
 		OutboundType:            api.Ptr(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  api.Ptr(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: newOperatorsAuthenticationProfile(&from.OperatorsAuthentication),
+		IssuerURL:               api.Ptr(from.IssuerURL),
 	}
 }
 
@@ -106,7 +107,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				API:                           newAPIProfile(&from.Properties.API),
 				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.DisableUserWorkloadMonitoring),
 				Platform:                      newPlatformProfile(&from.Properties.Platform),
-				IssuerURL:                     api.Ptr(from.Properties.IssuerURL),
 			},
 		},
 	}
@@ -202,9 +202,6 @@ func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.Platform != nil {
 				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
-			}
-			if c.Properties.IssuerURL != nil {
-				out.Properties.IssuerURL = *c.Properties.IssuerURL
 			}
 		}
 	}
@@ -398,6 +395,9 @@ func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
 	}
 	if p.OperatorsAuthentication != nil {
 		normalizeOperatorsAuthentication(p.OperatorsAuthentication, &out.OperatorsAuthentication)
+	}
+	if p.IssuerURL != nil {
+		out.IssuerURL = *p.IssuerURL
 	}
 }
 

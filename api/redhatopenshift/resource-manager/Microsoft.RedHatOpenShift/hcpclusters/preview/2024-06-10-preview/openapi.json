@@ -1101,19 +1101,12 @@
             "read",
             "create"
           ]
-        },
-        "issuerUrl": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
-          "readOnly": true
         }
       },
       "required": [
         "version",
         "console",
-        "api",
-        "issuerUrl"
+        "api"
       ]
     },
     "HcpOpenShiftClusterResource": {
@@ -1601,11 +1594,18 @@
         "operatorsAuthentication": {
           "$ref": "#/definitions/OperatorsAuthenticationProfile",
           "description": "The configuration that the operators of the cluster have to authenticate to Azure"
+        },
+        "issuerUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
+          "readOnly": true
         }
       },
       "required": [
         "subnetId",
-        "operatorsAuthentication"
+        "operatorsAuthentication",
+        "issuerUrl"
       ]
     },
     "ProvisioningState": {

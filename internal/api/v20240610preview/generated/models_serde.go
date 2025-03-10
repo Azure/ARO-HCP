@@ -453,7 +453,6 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "console", h.Console)
 	populate(objectMap, "dns", h.DNS)
 	populate(objectMap, "disableUserWorkloadMonitoring", h.DisableUserWorkloadMonitoring)
-	populate(objectMap, "issuerUrl", h.IssuerURL)
 	populate(objectMap, "network", h.Network)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
@@ -481,9 +480,6 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "disableUserWorkloadMonitoring":
 				err = unpopulate(val, "DisableUserWorkloadMonitoring", &h.DisableUserWorkloadMonitoring)
-			delete(rawMsg, key)
-		case "issuerUrl":
-				err = unpopulate(val, "IssuerURL", &h.IssuerURL)
 			delete(rawMsg, key)
 		case "network":
 				err = unpopulate(val, "Network", &h.Network)
@@ -1211,6 +1207,7 @@ func (o *OperatorsAuthenticationProfile) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type PlatformProfile.
 func (p PlatformProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "issuerUrl", p.IssuerURL)
 	populate(objectMap, "managedResourceGroup", p.ManagedResourceGroup)
 	populate(objectMap, "networkSecurityGroupId", p.NetworkSecurityGroupID)
 	populate(objectMap, "operatorsAuthentication", p.OperatorsAuthentication)
@@ -1228,6 +1225,9 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "issuerUrl":
+				err = unpopulate(val, "IssuerURL", &p.IssuerURL)
+			delete(rawMsg, key)
 		case "managedResourceGroup":
 				err = unpopulate(val, "ManagedResourceGroup", &p.ManagedResourceGroup)
 			delete(rawMsg, key)

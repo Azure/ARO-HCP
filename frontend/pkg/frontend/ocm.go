@@ -108,8 +108,8 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				SubnetID:               cluster.Azure().SubnetResourceID(),
 				OutboundType:           convertOutboundTypeCSToRP(cluster.Azure().NodesOutboundConnectivity().OutboundType()),
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
+				IssuerURL:              "",
 			},
-			IssuerURL: "",
 		},
 	}
 
