@@ -55,5 +55,5 @@ resourceGroups:
     parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - decrypt secrets
+    - decrypt-and-ingest-secrets
     - global-acrs
