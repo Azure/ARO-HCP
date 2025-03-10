@@ -144,7 +144,7 @@ All steps share a common execution context:
 
 #### Azure session
 
-When executing step, an Azure session is provided for the defined subscription (`resourceGroups.subscription`) and resourcegroup (`resourceGroups.name`), allowing authenticated Azure operations. The identity used for this session is provided in the [configuration](configuration.md) as `aroDevopsMsiId`.
+When executing step, an Azure session is provided for the defined subscription (`resourceGroups.subscription`) and resourcegroup (`resourceGroups.name`), allowing authenticated Azure operations. The identity used for this session is provided in the [configuration](configuration.md) as `global.globalMSIName` hosted in the `global.subscription` subscription. and `global.rg` Azure resourcegroup.
 
 > [!IMPORTANT]
 > Please note that this identity does not have access to all Azure resources in our subscriptions and resourcegroups by default. The necessary permissions need to be granted explicitly. You can observe this in various Bicep templates, where this identity is granted specific permissions, e.g. on Key Vaults or storage accounts.
