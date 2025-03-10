@@ -40,7 +40,7 @@ resourceGroups:
 - name: {{ .imageSync.rg }}
   subscription: {{ .global.subscription }}
   steps:
-  - name: decrypt secrets
+  - name: decrypt-and-ingest-secrets
     action: Shell
     command: ../tooling/secret-sync/decrypt-all.sh
     variables:
