@@ -212,11 +212,27 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					message += fmt.Sprintf(" (must be at least the value of '%s')", field2)
 				case "ipv4":
 					message += " (must be an IPv4 address)"
+				case "max":
+					switch fieldErr.Kind() {
+					case reflect.String:
+						message += fmt.Sprintf(" (maximum length is %s)", fieldErr.Param())
+					default:
+						if fieldErr.Param() == "0" {
+							message += " (must be non-positive)"
+						} else {
+							message += fmt.Sprintf(" (must be at most %s)", fieldErr.Param())
+						}
+					}
 				case "min":
-					if fieldErr.Param() == "0" {
-						message += " (must be non-negative)"
-					} else {
-						message += fmt.Sprintf(" (must be at least %s)", fieldErr.Param())
+					switch fieldErr.Kind() {
+					case reflect.String:
+						message += fmt.Sprintf(" (minimum length is %s)", fieldErr.Param())
+					default:
+						if fieldErr.Param() == "0" {
+							message += " (must be non-negative)"
+						} else {
+							message += fmt.Sprintf(" (must be at least %s)", fieldErr.Param())
+						}
 					}
 				case "startswith":
 					message += fmt.Sprintf(" (must start with '%s')", fieldErr.Param())

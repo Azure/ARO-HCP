@@ -355,7 +355,7 @@ func TestDeploymentPreflight(t *testing.T) {
 						"visibility": "public",
 					},
 					"platform": map[string]any{
-						"subnetId": "/something/something/virtualNetworks/subnets",
+						"subnetId": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
 					},
 				},
 			},

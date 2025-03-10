@@ -36,17 +36,17 @@ type VersionProfile struct {
 // DNSProfile represents the DNS configuration of the cluster.
 type DNSProfile struct {
 	BaseDomain       string `json:"baseDomain,omitempty"       visibility:"read"`
-	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create" validate:"omitempty,dns_rfc1035_label"`
+	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create" validate:"omitempty,dns_rfc1035_label,max=15"`
 }
 
 // NetworkProfile represents a cluster network configuration.
 // Visibility for the entire struct is "read create".
 type NetworkProfile struct {
-	NetworkType NetworkType `json:"networkType,omitempty"`
+	NetworkType NetworkType `json:"networkType,omitempty" validate:"omitempty,enum_networktype"`
 	PodCIDR     string      `json:"podCidr,omitempty"     validate:"required_for_put,cidrv4"`
 	ServiceCIDR string      `json:"serviceCidr,omitempty" validate:"required_for_put,cidrv4"`
 	MachineCIDR string      `json:"machineCidr,omitempty" validate:"required_for_put,cidrv4"`
-	HostPrefix  int32       `json:"hostPrefix,omitempty"`
+	HostPrefix  int32       `json:"hostPrefix,omitempty"  validate:"omitempty,min=23,max=26"`
 }
 
 // ConsoleProfile represents a cluster web console configuration.
@@ -65,9 +65,9 @@ type APIProfile struct {
 // Visibility for the entire struct is "read create".
 type PlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required_for_put"`
+	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required_for_put,resource_id=Microsoft.Network/virtualNetworks/subnets"`
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"omitempty,enum_outboundtype"`
-	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
+	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"omitempty,resource_id=Microsoft.Network/networkSecurityGroups"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
 }
