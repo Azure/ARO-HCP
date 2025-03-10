@@ -99,7 +99,6 @@ defaults:
     validAppId0: ""
     validAppId1: ""
     image:
-      registry: ""
       repository: ""
       digest: ""
 

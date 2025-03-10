@@ -258,7 +258,6 @@
     "deploy": true,
     "image": {
       "digest": "sha256:ad3f7efeeb6691c25bf31d46d7b879e06093ec2ff43c05ad32b5bc5315ab96a7",
-      "registry": "arohcpsvcint.azurecr.io",
       "repository": "mise"
     },
     "validAppId0": "",

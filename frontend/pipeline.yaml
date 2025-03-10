@@ -44,8 +44,6 @@ resourceGroups:
       configRef: mise.validAppId0
     - name: MISE_VALID_APP_ID_1
       configRef: mise.validAppId1
-    - name: MISE_IMAGE_REGISTRY
-      configRef: mise.image.registry
     - name: MISE_IMAGE_REPOSITORY
       configRef: mise.image.repository
     - name: MISE_IMAGE_DIGEST
