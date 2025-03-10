@@ -1,6 +1,5 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
-HELM_CMD ?= helm upgrade --install --wait --wait-for-jobs
 
 MCE_OPERATOR_BUNDLE_IMAGE ?= registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.7.0-116
 REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
