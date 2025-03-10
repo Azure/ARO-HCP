@@ -89,7 +89,7 @@ deploy:
 		--set clusterService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
 		--set deployMise=${DEPLOY_MISE} \
 		--set mise.namespace=mise \
-		--set mise.imageRegistry=${MISE_IMAGE_REGISTRY} \
+		--set mise.imageRegistry=${ARO_HCP_IMAGE_REGISTRY} \
 		--set mise.imageRepository=${MISE_IMAGE_REPOSITORY} \
 		--set mise.imageDigest=${MISE_IMAGE_DIGEST} \
 		--set mise.tenantId=$${TENANT_ID} \

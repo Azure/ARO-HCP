@@ -251,7 +251,6 @@
     "deploy": false,
     "image": {
       "digest": "",
-      "registry": "",
       "repository": ""
     },
     "validAppId0": "",
