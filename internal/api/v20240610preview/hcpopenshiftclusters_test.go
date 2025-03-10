@@ -146,8 +146,9 @@ func TestClusterValidateStaticComplex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var cluster HcpOpenShiftCluster
 			resource := api.ClusterTestCase(t, tt.tweaks)
-			actualErrors := validateStaticComplex(resource)
+			actualErrors := cluster.validateStaticComplex(resource)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {
