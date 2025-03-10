@@ -40,6 +40,14 @@ resourceGroups:
 - name: {{ .imageSync.rg }}
   subscription: {{ .global.subscription }}
   steps:
+  - name: decrypt secrets
+    action: Shell
+    command: ../tooling/secret-sync/decrypt-all.sh
+    variables:
+    - name: KEYVAULT
+      configRef: imageSync.keyVault.name
+    - name: SECRETS
+      configRef: imageSync.secretsToSync
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM
@@ -47,22 +55,5 @@ resourceGroups:
     parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
+    - decrypt secrets
     - global-acrs
-  - name: decrypt bearer secret
-    action: Shell
-    command: ../tooling/secret-sync/decrypt.sh data/ecryptedsecrets/dev_global_imagesync_bearer-secret.enc $KEYVAULT secretSyncKey
-    variables:
-    - name: KEYVAULT
-      configRef: imageSync.keyVault.name
-  - name: decrypt component-sync pull secret
-    action: Shell
-    command: ../tooling/secret-sync/decrypt.sh data/ecryptedsecrets/dev_global_imagesync_component-sync-pull-secret.enc $KEYVAULT secretSyncKey
-    variables:
-    - name: KEYVAULT
-      configRef: imageSync.keyVault.name
-  - name: decrypt component-sync pull secret
-    action: Shell
-    command: ../tooling/secret-sync/decrypt.sh data/ecryptedsecrets/dev_global_imagesync_component-sync-pull-secret.enc $KEYVAULT secretSyncKey
-    variables:
-    - name: KEYVAULT
-      configRef: imageSync.keyVault.name
