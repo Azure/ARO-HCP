@@ -23,7 +23,13 @@ fi
 
 dir_prefix=$(dirname $0)
 
+command=${dir_prefix}/decrypt.sh
+
+if [[ ${DRY_RUN} == "true" ]]; then
+    command="echo"
+fi
+
 while  read -d';' line
 do
-    ${dir_prefix}/decrypt.sh ${DATADIRPREFIX}/encryptedsecrets/${line} ${KEYVAULT} ${SECRETSYNCKEY}
+    ${command} ${DATADIRPREFIX}/encryptedsecrets/${line} ${KEYVAULT} ${SECRETSYNCKEY}
 done <<< $SECRETS
