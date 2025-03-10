@@ -11,7 +11,7 @@ require (
 	github.com/prometheus/client_golang v1.21.0
 	github.com/spf13/cobra v1.9.1
 	go.uber.org/mock v0.5.0
-	golang.org/x/sync v0.11.0
+	golang.org/x/sync v0.12.0
 	k8s.io/client-go v0.32.2
 	k8s.io/klog/v2 v2.130.1
 )
