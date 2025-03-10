@@ -37,6 +37,10 @@ resourceGroups:
         input:
           step: global-output
           name: svcAcrResourceId
+      - name: globalMsiId
+        input:
+          step: global-output
+          name: globalMsiId
       - name: cxParentZoneResourceId
         input:
           step: global-output

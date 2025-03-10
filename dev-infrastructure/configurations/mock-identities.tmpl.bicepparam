@@ -1,5 +1,5 @@
 using '../templates/mock-identities.bicep'
 
-param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+param globalMsiName = '{{ .global.globalMSIName }}'
 
 param keyVaultName = '{{ .serviceKeyVault.name }}'

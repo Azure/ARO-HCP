@@ -159,9 +159,6 @@
     }
   },
   "properties": {
-    "aroDevopsMsiId": {
-      "type": "string"
-    },
     "kvCertOfficerPrincipalId": {
       "type": "string",
       "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
@@ -1088,7 +1085,6 @@
   },
   "additionalProperties": false,
   "required": [
-    "aroDevopsMsiId",
     "kvCertOfficerPrincipalId",
     "clusterService",
     "cxKeyVault",

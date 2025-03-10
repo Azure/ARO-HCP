@@ -13,6 +13,9 @@ param svcParentZoneName string
 @description('Metrics global Grafana name')
 param grafanaName string
 
+@description('The global msi name')
+param globalMSIName string
+
 //
 //   A C R
 //
@@ -52,3 +55,13 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
 }
 
 output grafanaResourceId string = grafana.id
+
+//
+//  G L O B A L   M S I
+//
+
+resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: globalMSIName
+}
+
+output globalMsiId string = globalMSI.id

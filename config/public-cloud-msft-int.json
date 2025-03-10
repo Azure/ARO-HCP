@@ -9,7 +9,6 @@
   "armHelperCertName": "armHelperCert2",
   "armHelperClientId": "3331e670-0804-48e8-a086-6241671ddc93",
   "armHelperFPAPrincipalId": "47f69502-0065-4d9a-b19b-d403e183d2f4",
-  "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
     "image": {
       "digest": "sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c",
