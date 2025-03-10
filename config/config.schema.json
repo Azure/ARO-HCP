@@ -546,6 +546,9 @@
         "environmentName": {
           "type": "string"
         },
+        "secretsToSync": {
+          "type": "string"
+        },
         "componentSync": {
           "type": "object",
           "properties": {

@@ -139,7 +139,8 @@
       },
       "pullSecretName": "pull-secret"
     },
-    "rg": "hcp-underlay-westus3-imagesync-dev"
+    "rg": "hcp-underlay-westus3-imagesync-dev",
+    "secretsToSync": "dev_global_imagesync_bearer-secret.enc;dev_global_imagesync_component-sync-pull-secret.enc;"
   },
   "kvCertOfficerPrincipalId": "c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb",
   "logs": {
