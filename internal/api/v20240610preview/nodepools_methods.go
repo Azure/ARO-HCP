@@ -142,6 +142,15 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 }
 
+// validateStaticComplex performs more complex, multi-field validations than
+// are possible with struct tag validation. The returned CloudErrorBody slice
+// contains structured but user-friendly details for all discovered errors.
+func (h *NodePool) validateStaticComplex(normalized *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	return errorDetails
+}
+
 func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, method string) *arm.CloudError {
 	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
@@ -167,6 +176,17 @@ func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePo
 	errorDetails = api.ValidateRequest(validate, method, &normalized)
 	if errorDetails != nil {
 		cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
+
+	// Proceed with complex, multi-field validation only if single-field
+	// validation has passed. This avoids running further checks on data
+	// we already know to be invalid and prevents the response body from
+	// becoming overwhelming.
+	if len(cloudError.Details) == 0 {
+		errorDetails = h.validateStaticComplex(&normalized, cluster)
+		if errorDetails != nil {
+			cloudError.Details = append(cloudError.Details, errorDetails...)
+		}
 	}
 
 	switch len(cloudError.Details) {
