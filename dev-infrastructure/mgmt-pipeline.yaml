@@ -1,3 +1,11 @@
+#
+# Purpose: Manage management cluster and supporting infra for its services
+# Managed Resources:
+# * AKS MGMT cluster
+# * MSI, CX and MGMT Key Vaults with OneCert registration
+# * metrics collection
+# * MI, certificate and RBAC for Maestro
+#
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout

@@ -1,12 +1,13 @@
-$schema: "pipeline.schema.v1"
-
-# This pipelines prepares general regional resources for ARO HCP
 #
-# - create regional SVC and CX DNS zones and delegates them to the global ones
-# - create Eventgrid MQTT for Maestro
-# - create regional replication for the OCP and SVC ACRs
-# - create regional Azure Monitor workspace and Grafana instance
-
+# Purpose: Manage regional resources for ARO HCP shared by SC and MC
+# Managed Resources:
+# * regional SVC and CX DNS zones and delegates them to the global ones
+# * Eventgrid Namespaces MQTT for Maestro
+# * regional replication for the OCP and SVC ACRs
+# * regional Azure Monitor Workspace & linking into global Grafana
+# * regional Azure Log Analytics Workspace
+#
+$schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:

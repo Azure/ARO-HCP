@@ -1,3 +1,12 @@
+#
+# Purpose: Manage global infrastructure for ARO HCP
+# Managed Resources:
+# * global ARO HCP parent zones and ensures proper delegation
+# * global Grafana instance
+# * global MSI for Shell Step executions
+# * SVC and OCP ACRs
+# * image mirroring jobs
+#
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
