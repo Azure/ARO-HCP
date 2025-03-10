@@ -25,5 +25,5 @@ dir_prefix=$(dirname $0)
 
 while  read -d';' line
 do
-    ${dir_prefix}/decrypt.sh ${DATADIRPREFIX}/ecryptedsecrets/${line} ${KEYVAULT} ${SECRETSYNCKEY}
+    ${dir_prefix}/decrypt.sh ${DATADIRPREFIX}/encryptedsecrets/${line} ${KEYVAULT} ${SECRETSYNCKEY}
 done <<< $SECRETS
