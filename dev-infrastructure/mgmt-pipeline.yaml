@@ -38,6 +38,10 @@ resourceGroups:
     parameters: configurations/mgmt-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
+    - name: globalMsiId
+      input:
+        step: global-output
+        name: globalMsiId
     - name: clusterServiceMIResourceId
       input:
         step: svc-output
@@ -47,6 +51,7 @@ resourceGroups:
         step: region-output
         name: logAnalyticsWorkspaceId
     dependsOn:
+    - global-output
     - region-output
     - svc-output
   # Configure certificate issuers for the MC KVs
@@ -95,6 +100,10 @@ resourceGroups:
       input:
         step: global-output
         name: svcAcrResourceId
+    - name: globalMsiId
+      input:
+        step: global-output
+        name: globalMsiId
     - name: azureMonitoringWorkspaceId
       input:
         step: region-output
