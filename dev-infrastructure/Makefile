@@ -22,6 +22,10 @@ REGIONAL_RG_DEPLOYMENT_NAME ?= region${DEPLOYMENT_NAME_SUFFIX}
 METRICS_INFRA_RG_DEPLOYMENT_NAME ?= metrics-infra${DEPLOYMENT_NAME_SUFFIX}
 ROLE_ASSIGNMENTS_DEPLOYMENT_NAME ?= role-assignments${DEPLOYMENT_NAME_SUFFIX}
 AUTOMATION_ACCOUNT_RG = "hcp-dev-automation-account"
+AUTOMATION_ACCOUNT_NAME = "dev-automation-account"
+RUNBOOK_NAME ?= nightly-tests-runbook
+RUNBOOK_PATH ?= ./runbooks/existing-runbook.ps1
+SCHEDULE_NAME ?= nightly-schedule
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -379,3 +383,47 @@ automation-account:
 		--parameters \
 			configurations/dev-automation-account.bicepparam
 .PHONY: automation-account
+
+# Export existing runbook
+export-runbook:
+	az automation runbook export \
+		--resource-group HCP-automation-rg \
+		--automation-account-name HCP-automation-account \
+		--name $(RUNBOOK_NAME) \
+		--output-path $(RUNBOOK_PATH) || (echo "Failed to export runbook"; exit 1)
+
+# Import runbook into new Automation Account
+import-runbook:
+	az automation runbook import \
+		--resource-group $(AUTOMATION_ACCOUNT_RG) \
+		--automation-account-name $(AUTOMATION_ACCOUNT_NAME) \
+		--name $(RUNBOOK_NAME) \
+		--type Python3 \
+		--path $(RUNBOOK_PATH) || (echo "Failed to import runbook"; exit 1)
+
+# Publish runbook
+publish-runbook:
+	az automation runbook publish \
+		--automation-account-name "$(AUTOMATION_ACCOUNT_NAME)" \
+		--resource-group "$(AUTOMATION_ACCOUNT_RG)" \
+		--name "$(RUNBOOK_NAME)" || (echo "Failed to publish runbook"; exit 1)
+
+# Create schedule
+schedule-runbook:
+	az automation schedule create \
+		--automation-account-name "$(AUTOMATION_ACCOUNT_NAME)" \
+		--resource-group "$(AUTOMATION_ACCOUNT_RG)" \
+		--name "$(SCHEDULE_NAME)" \
+		--start-time '2023-10-01T00:00:00Z' \
+		--frequency Day \
+		--interval 1 || (echo "Failed to create schedule"; exit 1)
+
+	az automation job-schedule create \
+		--resource-group "$(AUTOMATION_ACCOUNT_RG)" \
+		--automation-account-name "$(AUTOMATION_ACCOUNT_NAME)" \
+		--runbook-name "$(RUNBOOK_NAME)" \
+		--schedule-name "$(SCHEDULE_NAME)" || (echo "Failed to bind runbook to schedule"; exit 1)
+
+# Full migration workflow
+automation-migrate: export-runbook import-runbook publish-runbook schedule-runbook
+.PHONY: export-runbook import-runbook publish-runbook schedule-runbook automation-migrate
