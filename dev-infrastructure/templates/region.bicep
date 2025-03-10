@@ -40,7 +40,7 @@ param ocpAcrResourceId string
 param svcAcrResourceId string
 
 @description('MSI that will be used during pipeline runs')
-param aroDevopsMsiId string
+param globalMsiId string
 
 @description('Enable Log Analytics')
 param enableLogAnalytics bool
@@ -68,9 +68,9 @@ var readerRoleId = subscriptionResourceId(
 // service deployments running as the aroDevopsMsi need to lookup metadata about all kinds
 // of resources, e.g. AKS metadata, database metadata, MI metadata, etc.
 resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aroDevopsMsiId, readerRoleId)
+  name: guid(resourceGroup().id, globalMsiId, readerRoleId)
   properties: {
-    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalId: reference(globalMsiId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: readerRoleId
   }

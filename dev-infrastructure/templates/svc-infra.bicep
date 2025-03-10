@@ -17,7 +17,7 @@ param serviceKeyVaultPrivate bool = true
 param kvCertOfficerPrincipalId string
 
 @description('MSI that will be used during pipeline runs')
-param aroDevopsMsiId string
+param globalMsiId string
 
 @description('Set to true to prevent resources from being pruned after 48 hours')
 param persist bool = false
@@ -46,9 +46,9 @@ var readerRoleId = subscriptionResourceId(
 // service deployments running as the aroDevopsMsi need to lookup metadata about all kinds
 // of resources, e.g. AKS metadata, database metadata, MI metadata, etc.
 resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aroDevopsMsiId, readerRoleId)
+  name: guid(resourceGroup().id, globalMsiId, readerRoleId)
   properties: {
-    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalId: reference(globalMsiId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: readerRoleId
   }
@@ -109,7 +109,7 @@ module serviceKeyVaultDevopsSecretsOfficer '../modules/keyvault/keyvault-secret-
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    managedIdentityPrincipalId: reference(globalMsiId, '2023-01-31').principalId
   }
   dependsOn: [
     serviceKeyVault
