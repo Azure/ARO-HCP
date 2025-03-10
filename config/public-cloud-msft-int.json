@@ -59,12 +59,12 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cs-int",
+      "name": "arohcpint-cs-usw3",
       "private": false
     }
   },
   "cxKeyVault": {
-    "name": "arohcp-cx-int-1",
+    "name": "arohcpint-cx-usw3-1",
     "private": false,
     "softDelete": false
   },
@@ -86,7 +86,7 @@
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-int",
+      "name": "arohcpint-rp-usw3",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -127,7 +127,7 @@
     },
     "environmentName": "global-shared-resources",
     "keyVault": {
-      "name": "arohcp-imagesync-int",
+      "name": "arohcpint-imagesync",
       "private": false,
       "softDelete": true
     },
@@ -162,7 +162,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-int-mgmt-1",
+      "consumerName": "hcp-underlay-usw3-mgmt-1",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -176,7 +176,7 @@
     "certIssuer": "OneCertV2-PrivateCA",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-maestro-int",
+      "name": "arohcpint-maestro-usw3",
       "private": false
     },
     "image": {
@@ -187,7 +187,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-maestro-int",
+      "name": "arohcpint-maestro-usw3",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15"
@@ -212,11 +212,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "etcd": {
-        "kvName": "arohcp-etcd-int-1",
+        "kvName": "arohcpint-etcd-usw3-1",
         "kvSoftDelete": true
       },
-      "kubernetesVersion": "1.31.3",
-      "name": "int-mgmt-1",
+      "kubernetesVersion": "1.31.5",
+      "name": "usw3-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -244,7 +244,7 @@
     "subscription": "hcp-westus3"
   },
   "mgmtKeyVault": {
-    "name": "arohcp-mgmt-int-1",
+    "name": "arohcpint-mgmt-usw3-1",
     "private": false,
     "softDelete": false
   },
@@ -267,21 +267,21 @@
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",
     "grafanaZoneRedundantMode": "Enabled",
-    "workspaceName": "arohcp-int"
+    "workspaceName": "arohcp-usw3"
   },
   "msiKeyVault": {
-    "name": "arohcp-msi-int-1",
+    "name": "arohcpint-msi-usw3-1",
     "private": false,
     "softDelete": false
   },
   "ocpAcrName": "arohcpocpint",
   "ocpAcrZoneRedundantMode": "Enabled",
-  "oidcStorageAccountName": "arohcpoidcintint",
+  "oidcStorageAccountName": "arohcpintoidcusw3",
   "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
   "serviceKeyVault": {
-    "name": "arohcp-svc-int",
+    "name": "arohcpint-svc-usw3",
     "private": false,
     "region": "westus3",
     "rg": "hcp-underlay-westus3-svc",
@@ -291,11 +291,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "etcd": {
-        "kvName": "arohcp-etcd-int",
+        "kvName": "arohcp-etcd-usw3",
         "kvSoftDelete": true
       },
-      "kubernetesVersion": "1.31.3",
-      "name": "int-svc",
+      "kubernetesVersion": "1.31.5",
+      "name": "usw3-svc",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
