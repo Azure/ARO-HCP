@@ -1,4 +1,3 @@
-
 param location string
 
 @description('Metrics global Grafana name')
