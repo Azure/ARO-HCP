@@ -118,7 +118,7 @@
     "componentSync": {
       "enabled": true,
       "image": {
-        "digest": "sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f",
+        "digest": "sha256:6a212720d25f270073318b1b480f326fcda08fbf6a1e435b7651e0336c72caee",
         "repository": "image-sync/component-sync"
       },
       "pullSecretName": "component-sync-pull-secret",
@@ -134,7 +134,7 @@
     "ocMirror": {
       "enabled": true,
       "image": {
-        "digest": "sha256:4affed9ff6397a5c44e9d1451fd58667f56e826b122819ccb6e1e8e045803c18",
+        "digest": "sha256:574ebb57e70c46ba3bc34db4776fd64b63a52e04afc1dddba7b91e0c5f247952",
         "repository": "image-sync/oc-mirror"
       },
       "pullSecretName": "ocp-pull-secret"
@@ -267,7 +267,7 @@
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaName": "arohcp-int",
-    "grafanaZoneRedundantMode": "Auto",
+    "grafanaZoneRedundantMode": "Disabled",
     "workspaceName": "arohcp-usw3"
   },
   "msiKeyVault": {
