@@ -223,6 +223,7 @@ defaults:
     rg: global-shared-resources
     acrRG: global-shared-resources
     environmentName: global-shared-resources
+    secretsToSync: ""
     componentSync:
       enabled: true
       image:
