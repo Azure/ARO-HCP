@@ -44,13 +44,23 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
   }
 }
 
-resource contributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource grafanaManagerContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(grafana.id, grafanaManagerPrincipalId, grafanaContributor)
   scope: grafana
   properties: {
     principalId: grafanaManagerPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', grafanaContributor)
+  }
+}
+
+resource grafanaManagerAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(grafana.id, grafanaManagerPrincipalId, grafanaAdminRole)
+  scope: grafana
+  properties: {
+    principalId: grafanaManagerPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', grafanaAdminRole)
   }
 }
 
