@@ -108,13 +108,13 @@ resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@20
 // we might want to have another source of truth for the integrations in the future, e.g.
 // some sort of inventory of the regions of ARO HCP
 
-module grafanaWorkspaceIdLookup '../modules/grafana/integration-lookup.bicep' = {
+/*module grafanaWorkspaceIdLookup '../modules/grafana/integration-lookup.bicep' = {
   name: 'grafana-workspace-lookup'
   params: {
     grafanaName: grafanaName
     deploymentScriptIdentityId: globalMSI.id
   }
-}
+}*/
 
 module grafana '../modules/grafana/instance.bicep' = {
   name: 'grafana'
@@ -123,6 +123,7 @@ module grafana '../modules/grafana/instance.bicep' = {
     grafanaAdminGroupPrincipalId: grafanaAdminGroupPrincipalId
     grafanaManagerPrincipalId: globalMSI.properties.principalId
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
-    azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
+    //azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
+    azureMonitorWorkspaceIds: []
   }
 }
