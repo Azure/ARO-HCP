@@ -254,14 +254,14 @@ defaults:
 
   # Management Cluster KV
   cxKeyVault:
-    softDelete: true
-    private: true
+    softDelete: false
+    private: false
   msiKeyVault:
-    softDelete: true
-    private: true
+    softDelete: false
+    private: false
   mgmtKeyVault:
-    softDelete: true
-    private: true
+    softDelete: false
+    private: false
 
   # DNS
   dns:
@@ -272,6 +272,14 @@ defaults:
   monitoring:
     grafanaZoneRedundantMode: Disabled
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
+
+  # Mock Managed Identities - not relevant for most MSFT envs
+  miMockClientId: ""
+  miMockPrincipalId: ""
+  miMockCertName: ""
+  armHelperClientId: ""
+  armHelperFPAPrincipalId: ""
+  armHelperCertName: ""
 
 clouds:
   public:
@@ -320,16 +328,10 @@ clouds:
           # Management Cluster KV
           cxKeyVault:
             name: arohcpint-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
-            softDelete: false
-            private: false
           msiKeyVault:
             name: arohcpint-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
-            softDelete: false
-            private: false
           mgmtKeyVault:
             name: arohcpint-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
-            softDelete: false
-            private: false
 
           # SVC cluster settings
           svc:
@@ -343,7 +345,7 @@ clouds:
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
               etcd:
-                kvName: arohcp-etcd-{{ .ctx.regionShort }} # [globally-unique]
+                kvName: arohcpint-etcd-{{ .ctx.regionShort }} # [globally-unique]
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
@@ -436,3 +438,133 @@ clouds:
             mdsd:
               subscriptions:
               - 5299e6b7-b23b-46c8-8277-dc1147807117
+      stg:
+        # this is the MSFT STAGE environment
+        defaults:
+
+          # Region for global resources in STAGE is uksouth
+          global:
+            region: uksouth
+
+          # Cluster Service
+          clusterService:
+            environment: "arohcpstg"
+            postgres:
+              name: arohcpstg-cs-{{ .ctx.regionShort }} # [globally-unique]
+            image:
+              digest: sha256:c8de5ac6f2000ee185b42442c3b7f29e2b6b1068849f48620075cd811834202b
+
+          # Geneva Actions
+          genevaActions:
+            serviceTag: GenevaActions
+
+          # OIDC
+          oidcStorageAccountName: arohcpstgoidc{{ .ctx.regionShort }} # [globally-unique]
+
+          # Image Sync
+          imageSync:
+            keyVault:
+              name: arohcpstg-imagesync # [globally-unique]
+
+          # SVC KV
+          serviceKeyVault:
+            name: arohcpstg-svc-{{ .ctx.regionShort }} # [globally-unique]
+
+          # Management Cluster KV
+          cxKeyVault:
+            name: arohcpstg-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+          msiKeyVault:
+            name: arohcpstg-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+          mgmtKeyVault:
+            name: arohcpstg-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+
+          # SVC cluster settings
+          svc:
+            aks:
+              systemAgentPool:
+                minCount: 1
+                maxCount: 3
+              userAgentPool:
+                minCount: 1
+                maxCount: 3
+                azCount: 3
+              etcd:
+                kvName: arohcpstg-etcd-{{ .ctx.regionShort }} # [globally-unique]
+            logs:
+              san: SVC.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM # TBD
+              configVersion: "1.0"
+
+          # MC cluster settings
+          mgmt:
+            aks:
+              # MGMTM AKS nodepools
+              systemAgentPool:
+                minCount: 1
+                maxCount: 4
+              userAgentPool:
+                minCount: 1
+                maxCount: 12
+                azCount: 3
+              etcd:
+                kvName: arohcpstg-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
+            logs:
+              san: MGMT.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM # TBD
+              configVersion: "1.0"
+
+          # DNS
+          dns:
+            cxParentZoneName: aroapp-hcp.TBD.com
+            svcParentZoneName: aro-hcp.TBD.com
+            parentZoneName: TBD.com
+
+          # ACR
+          svcAcrName: arohcpsvcstg # [globally-unique]
+          ocpAcrName: arohcpocpstg # [globally-unique]
+          svcAcrZoneRedundantMode: Enabled
+          ocpAcrZoneRedundantMode: Enabled
+
+          # RP Frontend
+          frontend:
+            cosmosDB:
+              name: arohcpstg-rp-{{ .ctx.regionShort }} # [globally-unique]
+              private: false
+            image:
+              digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
+
+          # RP Backend
+          backend:
+            image:
+              digest: sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c
+
+          # Hypershift
+          hypershift:
+            image:
+              digest: sha256:305f45bf036f84255d41c20517c70a9cb18af3dcdfa71a82a5716dde77c9e2c3
+
+          # Maestro
+          maestro:
+            eventGrid:
+              name: arohcpstg-maestro-{{ .ctx.regionShort }} # [globally-unique]
+            postgres:
+              name: arohcpstg-maestro-{{ .ctx.regionShort }} # [globally-unique]
+            image:
+              digest: sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5
+
+          # 1P app - from RH Tenant
+          firstPartyAppClientId: "TBD"
+          firstPartyAppCertName: firstPartyCert
+
+          # Grafana
+          monitoring:
+            grafanaName: 'arohcp-stg'
+            grafanaAdminGroupPrincipalId: '' # TBD
+
+          # Global MSI
+          aroDevopsMsiId: 'chicken-egg-value-to-be-filled-later'
+          # Cert Officer used for KV signer registration
+          kvCertOfficerPrincipalId: ''  # TBD
+
+          # Logs
+          logs:
+            mdsd:
+              subscriptions: [] # TBD

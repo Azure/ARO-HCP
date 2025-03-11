@@ -7,6 +7,8 @@ materialize:
 	@USER=tst ../templatize.sh personal-dev > public-cloud-personal-dev.json
 	@echo "Materializing public cloud int env of config/config.msft.yaml"
 	@CONFIG_FILE=../config/config.msft.yaml ../templatize.sh int > public-cloud-msft-int.json
+	@echo "Materializing public cloud stg env of config/config.msft.yaml"
+	@CONFIG_FILE=../config/config.msft.yaml ../templatize.sh stg > public-cloud-msft-stg.json
 .PHONY: materialize
 
 detect-change: materialize
