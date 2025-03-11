@@ -17,6 +17,9 @@ package v20240610preview
 import (
 	"fmt"
 	"net/http"
+	"strings"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -160,6 +163,36 @@ func (c *NodePool) validateVersion(normalized *api.HCPOpenShiftClusterNodePool, 
 	return errorDetails
 }
 
+func (h *NodePool) validateSubnet(subnetID string, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	// Cluster and node pool subnet IDs have already passed syntax validation so
+	// parsing should not fail. If parsing does somehow fail then skip the validation.
+
+	clusterSubnetResourceID, err := azcorearm.ParseResourceID(cluster.Properties.Platform.SubnetID)
+	if err != nil {
+		return nil
+	}
+
+	nodePoolSubnetResourceID, err := azcorearm.ParseResourceID(subnetID)
+	if err != nil {
+		return nil
+	}
+
+	clusterVNet := clusterSubnetResourceID.Parent.String()
+	nodePoolVNet := nodePoolSubnetResourceID.Parent.String()
+
+	if !strings.EqualFold(nodePoolVNet, clusterVNet) {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf("Subnet '%s' must belong to the same VNet as the parent cluster VNet '%s'", subnetID, clusterVNet),
+			Target:  "properties.platform.subnetId",
+		})
+	}
+
+	return errorDetails
+}
+
 // validateStaticComplex performs more complex, multi-field validations than
 // are possible with struct tag validation. The returned CloudErrorBody slice
 // contains structured but user-friendly details for all discovered errors.
@@ -168,6 +201,10 @@ func (h *NodePool) validateStaticComplex(normalized *api.HCPOpenShiftClusterNode
 
 	if cluster != nil {
 		errorDetails = append(errorDetails, h.validateVersion(normalized, cluster)...)
+
+		if normalized.Properties.Platform.SubnetID != "" {
+			errorDetails = append(errorDetails, h.validateSubnet(normalized.Properties.Platform.SubnetID, cluster)...)
+		}
 	}
 
 	return errorDetails

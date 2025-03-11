@@ -15,6 +15,8 @@
 package v20240610preview
 
 import (
+	"fmt"
+	"path"
 	"testing"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -44,6 +46,24 @@ func TestNodePoolValidateStaticComplex(t *testing.T) {
 				{
 					Message: "Node pool channel group 'freshmeat' must be the same as control plane channel group 'stable'",
 					Target:  "properties.version.channelGroup",
+				},
+			},
+		},
+		{
+			name: "Node pool with invalid subnet ID",
+			tweaks: &api.HCPOpenShiftClusterNodePool{
+				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+					Platform: api.NodePoolPlatformProfile{
+						SubnetID: path.Join(api.TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "otherVirtualNetwork", "subnets"),
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: fmt.Sprintf("Subnet '%s' must belong to the same VNet as the parent cluster VNet '%s'",
+						path.Join(api.TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "otherVirtualNetwork", "subnets"),
+						path.Join(api.TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "testVirtualNetwork")),
+					Target: "properties.platform.subnetId",
 				},
 			},
 		},
