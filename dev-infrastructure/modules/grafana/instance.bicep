@@ -1,3 +1,6 @@
+
+param location string
+
 @description('Metrics global Grafana name')
 param grafanaName string
 
@@ -23,7 +26,7 @@ var grafanaAdminRole = '22926164-76b3-42b3-bc55-97df8dab3e41'
 
 resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
   name: grafanaName
-  location: resourceGroup().location
+  location: location
   sku: {
     name: 'Standard'
   }
