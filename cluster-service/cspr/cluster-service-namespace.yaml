@@ -11,6 +11,9 @@ parameters:
   - name: CLIENT_ID
     description: The Azure Client ID used for federation
     required: true
+  - name: MSI_MOCK_ID
+    description: ID of MSI Mock
+    required: true
   - name: ORPHANED_NAMESPACE_CLEANER_NAMESPACE
     description: The namespace to create to have a cronjob which will delete the orphaned namespace which are not deleted due to any issues with the jenkins job.
     value: orphaned-namespace-cleaner
@@ -78,6 +81,7 @@ objects:
       namespace: ${NAMESPACE}
     data:
       cs-client-id: ${CLIENT_ID}
+      msi-mock-id: ${MSI_MOCK_ID}
   - apiVersion: v1
     kind: Namespace
     metadata:

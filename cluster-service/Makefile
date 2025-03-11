@@ -86,7 +86,8 @@ deploy:
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
 	oc process --local -f cspr/cluster-service-namespace.yaml \
-		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
+		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
+		-p MSI_MOCK_ID="e8723db7-9b9e-46a4-9f7d-64d75c3534f0" | oc apply -f -
 
 create-pr-env-sp:
 	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n ${AKS_NAME} --query id -o tsv) && \
