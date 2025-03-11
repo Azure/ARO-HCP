@@ -559,7 +559,7 @@
         "environmentName": {
           "type": "string"
         },
-        "secretsToSync": {
+        "secretsToSyncDir": {
           "type": "string"
         },
         "componentSync": {

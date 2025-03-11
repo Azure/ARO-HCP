@@ -161,7 +161,7 @@ defaults:
   imageSync:
     rg: hcp-underlay-{{ .ctx.regionShort }}-imagesync
     environmentName: aro-hcp-image-sync
-    secretsToSync: "dev/global/arohcp-imagesync-dev/bearer-secret.enc,dev/global/arohcp-imagesync-dev/component-sync-pull-secret.enc"
+    secretsToSyncDir: "dev/global/arohcp-imagesync-dev"
     componentSync:
       enabled: true
       image:

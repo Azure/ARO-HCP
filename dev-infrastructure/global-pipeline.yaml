@@ -59,8 +59,8 @@ resourceGroups:
     variables:
     - name: KEYVAULT
       configRef: imageSync.keyVault.name
-    - name: SECRETS
-      configRef: imageSync.secretsToSync
+    - name: SECRETFOLDER
+      configRef: imageSync.secretsToSyncDir
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM

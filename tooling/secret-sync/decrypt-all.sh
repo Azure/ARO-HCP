@@ -2,15 +2,19 @@
 
 function usage {
     echo "Need to set following environment variables"
-    echo "\$SECRETS base64 encoded json with secret configuration"
+    echo "\$SECRETFOLDER Folder containing secrets to sync to the configured keyvault"
     echo "\$KEYVAULT keyvault containing the sync key and receiver of decrypted secret"
     echo "Optional: \$SECRETSYNCKEY sync key, defaults to: secretSyncKey"
     echo "Optional: \$DATADIRPREFIX, path to read encrypted data from defaults to: data"
     exit 1
 }
 
-if [ -z ${SECRETS} ] || [ -z ${KEYVAULT} ]; then
+if [ -z ${SECRETFOLDER} ] || [ -z ${KEYVAULT} ]; then
     usage
+fi
+
+if [[ ${SECRETFOLDER} == "none" ]]; then
+    exit 0
 fi
 
 if [ -z ${SECRETSYNCKEY} ]; then
@@ -29,8 +33,8 @@ if [[ ${DRY_RUN} == "true" ]]; then
     command="echo"
 fi
 
-echo ${SECRETS} | tr ',' '\n' | while  read line
+ls -1 ${DATADIRPREFIX}/encryptedsecrets/${SECRETFOLDER} | while  read fileName
 do
-    secretName=$(basename -s .enc ${line})
-    ${command} ${DATADIRPREFIX}/encryptedsecrets/${line} ${secretName} ${KEYVAULT} ${SECRETSYNCKEY}
+    secretName=$(basename -s .enc ${fileName})
+    ${command} ${DATADIRPREFIX}/encryptedsecrets/${SECRETFOLDER}/${fileName} ${secretName} ${KEYVAULT} ${SECRETSYNCKEY}
 done
