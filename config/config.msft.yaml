@@ -32,7 +32,7 @@ defaults:
 
   global:
     rg: global-shared-resources
-    subscription: hcp-{{ .ctx.region }}
+    subscription: hcp-global
     globalMSIName: "global-ev2-identity"
     safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
 
