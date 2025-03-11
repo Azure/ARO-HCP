@@ -49,18 +49,18 @@ resourceGroups:
 - name: {{ .imageSync.rg }}
   subscription: {{ .global.subscription }}
   steps:
-  # - name: decrypt-and-ingest-secrets
-  #   action: Shell
-  #   command: ../tooling/secret-sync/decrypt-all.sh
-  #   dryRun:
-  #     variables:
-  #       - name: DRY_RUN
-  #         value: "true"
-  #   variables:
-  #   - name: KEYVAULT
-  #     configRef: imageSync.keyVault.name
-  #   - name: SECRETS
-  #     configRef: imageSync.secretsToSync
+  - name: decrypt-and-ingest-secrets
+    action: Shell
+    command: ../tooling/secret-sync/decrypt-all.sh
+    dryRun:
+      variables:
+        - name: DRY_RUN
+          value: "true"
+    variables:
+    - name: KEYVAULT
+      configRef: imageSync.keyVault.name
+    - name: SECRETS
+      configRef: imageSync.secretsToSync
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM
@@ -68,5 +68,5 @@ resourceGroups:
     parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    # - decrypt-and-ingest-secrets
+    - decrypt-and-ingest-secrets
     - global-acrs

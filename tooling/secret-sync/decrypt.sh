@@ -5,18 +5,17 @@ set -eu
 if [[ $# -ne 3 ]];
 then
     echo "usage"
-    echo "decrypt.sh file key-vault privateKeySecret"
+    echo "decrypt.sh file outputSecret key-vault privateKeySecret"
     echo ""
     echo "Use - as file parameter for stdin"
-    echo "cat secret.out | decrypt.sh - key-vault privateKeySecret"
+    echo "cat secret.out | decrypt.sh - outputSecret key-vault privateKeySecret"
     exit 1
 fi
 
 filename=${1}
-keyvault=${2}
-privateKeySecret=${3}
-
-outputSecret=$(basename -s '.enc' ${filename})
+outputSecret=${2}
+keyvault=${3}
+privateKeySecret=${4}
 
 decryptedSecret=$(az keyvault key decrypt --name ${privateKeySecret} \
     --algorithm RSA-OAEP --vault-name "${keyvault}" \
