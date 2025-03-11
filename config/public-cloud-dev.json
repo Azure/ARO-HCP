@@ -214,7 +214,7 @@
         "kvName": "arohcp-etcd-dev-1",
         "kvSoftDelete": false
       },
-      "kubernetesVersion": "1.31.2",
+      "kubernetesVersion": "1.31.5",
       "name": "dev-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
@@ -293,7 +293,7 @@
         "kvName": "arohcp-etcd-dev",
         "kvSoftDelete": false
       },
-      "kubernetesVersion": "1.31.2",
+      "kubernetesVersion": "1.31.5",
       "name": "dev-svc",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
