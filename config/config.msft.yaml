@@ -377,6 +377,8 @@ clouds:
           # ACR
           svcAcrName: arohcpsvcint # [globally-unique]
           ocpAcrName: arohcpocpint # [globally-unique]
+          svcAcrZoneRedundantMode: Disabled
+          ocpAcrZoneRedundantMode: Disabled
 
           # RP Frontend
           frontend:

@@ -276,7 +276,7 @@
     "softDelete": false
   },
   "ocpAcrName": "arohcpocpint",
-  "ocpAcrZoneRedundantMode": "Enabled",
+  "ocpAcrZoneRedundantMode": "Disabled",
   "oidcStorageAccountName": "arohcpintoidcusw3",
   "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
@@ -331,5 +331,5 @@
     "subscription": "hcp-westus3"
   },
   "svcAcrName": "arohcpsvcint",
-  "svcAcrZoneRedundantMode": "Enabled"
+  "svcAcrZoneRedundantMode": "Disabled"
 }
