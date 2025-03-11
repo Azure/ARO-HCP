@@ -4,7 +4,7 @@
 param acrName string
 
 @description('Location of the registry.')
-param location string = resourceGroup().location
+param location string
 
 @description('Service tier of the Azure Container Registry.')
 param acrSku string
@@ -48,7 +48,7 @@ var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 
 resource acrMsi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${acrName}-pull-identity'
-  location: resourceGroup().location
+  location: location
 }
 
 resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

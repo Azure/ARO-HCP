@@ -270,7 +270,7 @@ defaults:
 
   # Metrics
   monitoring:
-    grafanaZoneRedundantMode: Auto
+    grafanaZoneRedundantMode: Disabled
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
 
 clouds:
