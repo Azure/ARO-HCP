@@ -139,7 +139,8 @@
       },
       "pullSecretName": "ocp-pull-secret"
     },
-    "rg": "global-shared-resources"
+    "rg": "global-shared-resources",
+    "secretsToSync": ""
   },
   "kvCertOfficerPrincipalId": "32af88de-a61c-4f71-b709-50538598c4f2",
   "logs": {
