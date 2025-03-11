@@ -133,7 +133,7 @@ defaults:
       deploy: true
       disableLocalAuth: true
       private: true
-      zoneRedundantMode: 'Auto'
+      zoneRedundantMode: Auto
 
   # RP Backend
   backend:
@@ -270,7 +270,7 @@ defaults:
 
   # Metrics
   monitoring:
-    grafanaZoneRedundantMode: Enabled
+    grafanaZoneRedundantMode: Auto
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
 
 clouds:
