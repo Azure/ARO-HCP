@@ -11,8 +11,9 @@ import (
 	"runtime/debug"
 	"syscall"
 
-	"github.com/Azure/ARO-HCP/admin/pkg/admin"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/admin/pkg/admin"
 )
 
 type AdminOpts struct {
