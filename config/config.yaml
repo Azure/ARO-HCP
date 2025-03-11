@@ -400,6 +400,30 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+      nightly:
+        # this is an environment to test the deployability of infra nightly
+        defaults:
+          # Cluster Service
+          clusterService:
+            postgres:
+              deploy: false
+          # DNS
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}'
+          # Maestro
+          maestro:
+            postgres:
+              deploy: false
+            server:
+              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+          # Frontend
+          frontend:
+            cosmosDB:
+              private: false
+              zoneRedundantMode: 'Disabled'
+          # MC
+          mgmt:
+            applyKubeletFixes: false
       personal-dev:
         # this is the personal DEV environment
         defaults:
