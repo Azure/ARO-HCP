@@ -1,5 +1,6 @@
 using '../templates/global-infra.bicep'
 
+param location = '{{ .global.region }}'
 param globalMSIName = '{{ .global.globalMSIName }}'
 param cxParentZoneName = '{{ .dns.cxParentZoneName }}'
 param svcParentZoneName = '{{ .dns.svcParentZoneName }}'

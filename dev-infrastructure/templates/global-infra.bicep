@@ -1,7 +1,7 @@
 import { getLocationAvailabilityZonesCSV, determineZoneRedundancy, csvToArray } from '../modules/common.bicep'
 
 @description('Azure Global Location')
-param location string = resourceGroup().location
+param location string
 
 @description('The global msi name')
 param globalMSIName string
@@ -34,7 +34,7 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: globalMSIName
-  location: resourceGroup().location
+  location: location
 }
 
 //
@@ -111,6 +111,7 @@ resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@20
 module grafanaWorkspaceIdLookup '../modules/grafana/integration-lookup.bicep' = {
   name: 'grafana-workspace-lookup'
   params: {
+    location: location
     grafanaName: grafanaName
     deploymentScriptIdentityId: globalMSI.id
   }
@@ -119,6 +120,7 @@ module grafanaWorkspaceIdLookup '../modules/grafana/integration-lookup.bicep' = 
 module grafana '../modules/grafana/instance.bicep' = {
   name: 'grafana'
   params: {
+    location: location
     grafanaName: grafanaName
     grafanaAdminGroupPrincipalId: grafanaAdminGroupPrincipalId
     grafanaManagerPrincipalId: globalMSI.properties.principalId
