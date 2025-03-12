@@ -6,7 +6,7 @@ This document describes the deployment process of ARO HCP instances into Microso
 > Please note that this document does not cover the following details yet
 >
 > * using the EV2 portal
-> * AME deployments yet
+> * AME deployments
 
 ## Overview
 
