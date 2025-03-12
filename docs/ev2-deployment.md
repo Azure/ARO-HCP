@@ -1,6 +1,6 @@
 # Deployment via EV2
 
-This document describes the deployment process of ARO HCP instances into Microsoft tenants using EV2 tighing in all artifact types and configuration.
+This document describes the deployment process of ARO HCP instances into Microsoft tenants using EV2 tying in all artifact types and configuration.
 
 > [!NOTE]
 > Please note that this document does not cover the following details yet
