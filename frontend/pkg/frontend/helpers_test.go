@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -85,9 +86,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		var name string
 
 		resourceID, err := azcorearm.ParseResourceID(tt.resourceID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		for provisioningState := range arm.ListProvisioningStates() {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
