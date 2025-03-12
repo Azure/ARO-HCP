@@ -148,17 +148,9 @@ func TestMiddlewareCorrelation(t *testing.T) {
 
 			// Check that the correlation data was found in the next handler.
 			assert.NotNil(t, data)
-			if data.RequestID.String() == "" {
-				t.Fatalf("got empty request ID in the context")
-			}
-
-			if data.CorrelationRequestID != tt.expectedCorrelationID {
-				t.Fatalf("expected correlation ID %q, got %q", tt.expectedCorrelationID, data.CorrelationRequestID)
-			}
-
-			if data.ClientRequestID != tt.expectedClientRequestID {
-				t.Fatalf("expected client request ID %q, got %q", tt.expectedClientRequestID, data.ClientRequestID)
-			}
+			assert.NotEmpty(t, data.RequestID.String())
+			assert.Equal(t, tt.expectedCorrelationID, data.CorrelationRequestID)
+			assert.Equal(t, tt.expectedClientRequestID, data.ClientRequestID)
 
 			// Check that the contextual logger had the expected attributes.
 			lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")

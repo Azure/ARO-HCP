@@ -181,13 +181,9 @@ func TestSubscriptionsGET(t *testing.T) {
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
 			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + subscriptionID + "?api-version=" + arm.SubscriptionAPIVersion)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if rs.StatusCode != test.expectedStatusCode {
-				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
-			}
+			assert.Equal(t, test.expectedStatusCode, rs.StatusCode)
 
 			lintMetrics(t, reg)
 			assertHTTPMetrics(t, reg, test.subDoc)
@@ -290,9 +286,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			)
 
 			body, err := json.Marshal(&test.subscription)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			// MiddlewareLockSubscription
 			// (except when MiddlewareValidateStatic fails)
@@ -322,9 +316,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 
 			urlPath := test.urlPath + "?api-version=" + arm.SubscriptionAPIVersion
 			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 
 			rs, err := ts.Client().Do(req)

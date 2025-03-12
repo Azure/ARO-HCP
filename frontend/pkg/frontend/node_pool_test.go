@@ -1,5 +1,8 @@
 package frontend
 
+// Copyright (c) Microsoft Corporation.
+// Licensed under the Apache License 2.0.
+
 import (
 	// This will invoke the init() function in each
 	// API version package so it can register itself.
@@ -154,9 +157,7 @@ func TestCreateNodePool(t *testing.T) {
 				CreateResourceDoc(gomock.Any(), gomock.Any())
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set(arm.HeaderNameARMResourceSystemData, "{}")
 

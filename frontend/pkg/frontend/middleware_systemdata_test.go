@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -29,9 +30,7 @@ func TestMiddlewareSystemData(t *testing.T) {
 }`
 
 	timestamp, err := time.Parse(time.RFC3339, "2024-01-01T12:34:54.0000000Z")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	tests := []struct {
 		name               string
@@ -67,9 +66,7 @@ func TestMiddlewareSystemData(t *testing.T) {
 			writer := httptest.NewRecorder()
 
 			request, err := http.NewRequest(http.MethodPut, "", bytes.NewReader([]byte("")))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			if tt.systemData != "" {
 				request.Header = http.Header{

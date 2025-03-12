@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -43,25 +46,15 @@ func TestPutSubscriptions(t *testing.T) {
 	for _, test := range testSuite {
 		t.Run(test.name, func(t *testing.T) {
 			req, err := http.NewRequest(test.method, apiURL+test.resourceID, test.payload)
-			if err != nil {
-				t.Fatalf("failed to create new request: %v", err)
-			}
+			require.NoError(t, err)
 			req.Header.Set("Content-type", "application/json")
 
 			resp, err := runner.client.Do(req)
-			if err != nil {
-				t.Fatalf("failed to make http request: %v", err)
-			}
+			require.NoError(t, err)
 
-			if resp.StatusCode > 299 {
-				t.Fatalf("failed request, status code %d", resp.StatusCode)
+			if assert.Greater(t, resp.StatusCode, 299) {
+				assert.True(t, t.Run("PostTestValidation", runner.testValidation(t, test)))
 			}
-
-			validated := t.Run("PostTestValidation", runner.testValidation(t, test))
-			if !validated {
-				t.Fatal()
-			}
-
 		})
 	}
 }
@@ -97,16 +90,9 @@ func newRunner() *smokeTestRunner {
 func (s *smokeTestRunner) testValidation(t *testing.T, test smokeTest) func(t *testing.T) {
 	return func(t *testing.T) {
 		resp, err := s.client.Get(apiURL + testSubResourceID)
-		if err != nil {
-			t.Fatalf("post test validation failed: could not get the subscription doc: %v", err)
-		}
+		require.NoError(t, err)
 		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			_ = resp.Body.Close()
-			t.Fatalf("post test validation failed: error reading body: %v", err)
-		}
-		if string(body) != test.expect {
-			t.Errorf("post test validation failed: expected %s, got %s", test.expect, string(body))
-		}
+		require.NoError(t, err)
+		assert.Equal(t, test.expect, string(body))
 	}
 }
