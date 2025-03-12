@@ -11,6 +11,7 @@ import (
 	validator "github.com/go-playground/validator/v10"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -324,9 +325,7 @@ func TestClusterValidateTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := minimumValidCluster()
 			err := mergo.Merge(resource, tt.tweaks, mergo.WithOverride)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			actualErrors := ValidateRequest(validate, http.MethodPut, resource)
 

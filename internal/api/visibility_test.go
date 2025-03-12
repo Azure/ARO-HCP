@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestVisibilityFlags(t *testing.T) {
@@ -72,18 +72,10 @@ func TestVisibilityFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			flags, _ := GetVisibilityFlags(tt.tag)
-			if flags.String() != tt.expectString {
-				t.Errorf("Expected flags.String() to be %q, got %q", tt.expectString, flags.String())
-			}
-			if flags.ReadOnly() != tt.expectReadOnly {
-				t.Errorf("Expected flags.ReadOnly() to be %v, got %v", tt.expectReadOnly, flags.ReadOnly())
-			}
-			if flags.CanUpdate() != tt.expectCanUpdate {
-				t.Errorf("Expected flags.CanUpdate() to be %v, got %v", tt.expectCanUpdate, flags.CanUpdate())
-			}
-			if flags.CaseInsensitive() != tt.expectCaseInsensitive {
-				t.Errorf("Expected flags.CaseInsensitive() to be %v, got %v", tt.expectCaseInsensitive, flags.CaseInsensitive())
-			}
+			assert.Equal(t, tt.expectString, flags.String())
+			assert.Equal(t, tt.expectReadOnly, flags.ReadOnly())
+			assert.Equal(t, tt.expectCanUpdate, flags.CanUpdate())
+			assert.Equal(t, tt.expectCaseInsensitive, flags.CaseInsensitive())
 		})
 	}
 }
@@ -147,11 +139,7 @@ func TestStructTagMap(t *testing.T) {
 	}
 
 	// The test cases are encoded into the type itself.
-	if !cmp.Equal(TestModelTypeStructTagMap, expectedStructTagMap, nil) {
-		t.Errorf(
-			"StructTagMap had unexpected differences:\n%s",
-			cmp.Diff(expectedStructTagMap, TestModelTypeStructTagMap, nil))
-	}
+	assert.Equal(t, expectedStructTagMap, TestModelTypeStructTagMap)
 }
 
 func TestValidateVisibility(t *testing.T) {
@@ -1061,9 +1049,7 @@ func TestValidateVisibility(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cloudErrors := ValidateVisibility(tt.v, tt.w, tt.m, tt.updating)
-			if len(cloudErrors) != tt.errorsExpected {
-				t.Errorf("Expected %d errors, got %d: %v", tt.errorsExpected, len(cloudErrors), cloudErrors)
-			}
+			assert.Len(t, cloudErrors, tt.errorsExpected)
 		})
 	}
 }

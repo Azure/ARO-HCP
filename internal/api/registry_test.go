@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	validator "github.com/go-playground/validator/v10"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetJSONTagName(t *testing.T) {
@@ -47,9 +48,7 @@ func TestGetJSONTagName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actualResult := GetJSONTagName(tt.structTag)
-			if actualResult != tt.expectedResult {
-				t.Errorf("Expected field name '%s' for %s, got '%s'", tt.expectedResult, tt.structTag, actualResult)
-			}
+			assert.Equal(t, tt.expectedResult, actualResult)
 		})
 	}
 }
@@ -196,25 +195,18 @@ func TestNewValidator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validate.Struct(tt.context)
-			if err == nil {
-				if tt.expectError {
-					t.Errorf("Expected a FieldError but got none")
-				}
-			} else if !tt.expectError {
-				t.Errorf("Unexpected error: %v", err)
-			} else {
+			if !tt.expectError {
+				assert.NoError(t, err)
+
+			} else if assert.Error(t, err) {
 				for _, fieldError := range err.(validator.ValidationErrors) {
 					switch fieldError.Tag() {
 					case "api_version":
 						// Valid tag, nothing more to check.
 					case "required_for_put":
 						// Verify the validate instance is using GetJSONTagName.
-						if fieldError.Field() != "field" {
-							t.Errorf("Unexpected JSON field name '%s' in FieldError, expected 'field'", fieldError.Field())
-						}
-						if fieldError.StructField() != "StructField" {
-							t.Errorf("Unexpected struct field name '%s' in FieldError, expected 'StructField'", fieldError.StructField())
-						}
+						assert.Equal(t, "field", fieldError.Field())
+						assert.Equal(t, "StructField", fieldError.StructField())
 					default:
 						t.Errorf("Unexpected validation tag: %s", fieldError.Tag())
 					}
