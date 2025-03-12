@@ -221,7 +221,6 @@ defaults:
   # Image Sync
   imageSync:
     rg: global-shared-resources
-    acrRG: global-shared-resources
     environmentName: global-shared-resources
     secretsToSync: ""
     componentSync:

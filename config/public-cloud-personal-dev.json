@@ -114,7 +114,6 @@
     "namespace": "hypershift"
   },
   "imageSync": {
-    "acrRG": "global",
     "componentSync": {
       "enabled": true,
       "image": {

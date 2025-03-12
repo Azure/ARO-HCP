@@ -540,9 +540,6 @@
     "imageSync": {
       "type": "object",
       "properties": {
-        "acrRG": {
-          "type": "string"
-        },
         "environmentName": {
           "type": "string"
         },
@@ -623,7 +620,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "acrRG",
         "environmentName",
         "componentSync",
         "ocMirror",

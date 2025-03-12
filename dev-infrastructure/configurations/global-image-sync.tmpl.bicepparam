@@ -2,7 +2,7 @@ using '../templates/global-image-sync.bicep'
 
 param containerAppEnvName = '{{ .imageSync.environmentName }}'
 
-param acrResourceGroup = '{{ .imageSync.acrRG }}'
+param acrResourceGroup = '{{ .global.rg }}'
 param keyVaultName = '{{ .imageSync.keyVault.name}}'
 param keyVaultPrivate = {{ .imageSync.keyVault.private }}
 param keyVaultSoftDelete = {{ .imageSync.keyVault.softDelete }}

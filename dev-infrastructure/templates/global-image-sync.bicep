@@ -132,26 +132,15 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
 
 // ACR permissions
 
-module acrPushPermissions '../modules/acr/acr-permissions.bicep' = [
+module acrPushPullPermissions '../modules/acr/acr-permissions.bicep' = [
   for acrName in [svcAcrName, ocpAcrName]: {
-    name: guid(imageSyncManagedIdentity, acrName, location, 'acr', 'readwrite')
+    name: '${imageSyncManagedIdentity}-${acrName}-acr-pushpull'
     scope: resourceGroup(acrResourceGroup)
     params: {
       principalId: uami.properties.principalId
       grantPushAccess: true
-      acrName: acrName
-    }
-  }
-]
-
-module acrPullPermissions '../modules/acr/acr-permissions.bicep' = [
-  for acrName in [svcAcrName, ocpAcrName]: {
-    name: guid(imageSyncManagedIdentity, acrName, location, 'acr', 'pull')
-    scope: resourceGroup(acrResourceGroup)
-    params: {
-      principalId: uami.properties.principalId
-      acrName: acrName
       grantPullAccess: true
+      acrName: acrName
     }
   }
 ]
@@ -299,8 +288,7 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
   }
   dependsOn: [
     kv
-    acrPushPermissions
-    acrPullPermissions
+    acrPushPullPermissions
   ]
 }
 
@@ -499,8 +487,7 @@ resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
     }
     dependsOn: [
       kv
-      acrPushPermissions
-      acrPullPermissions
+      acrPushPullPermissions
     ]
   }
 ]
