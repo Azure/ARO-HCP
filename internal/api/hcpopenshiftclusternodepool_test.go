@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"dario.cat/mergo"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -151,9 +152,7 @@ func TestNodePoolValidateTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := minimumValidNodePool()
 			err := mergo.Merge(resource, tt.tweaks, mergo.WithOverride)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			actualErrors := ValidateRequest(validate, http.MethodPut, resource)
 
