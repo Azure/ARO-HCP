@@ -276,16 +276,15 @@
   "miMockClientId": "e8723db7-9b9e-46a4-9f7d-64d75c3534f0",
   "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
   "mise": {
-    "armInstance": "https://management.core.windows.net/",
-    "azureAdClientId": "",
+    "armAppId": "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7",
+    "armInstance": "https://management.azure.com",
     "azureAdInstance": "https://login.microsoftonline.com/",
     "deploy": true,
+    "firstPartyAppId": "7f4a113a-c61d-412a-bea1-85dee5baf4a8",
     "image": {
       "digest": "sha256:ad3f7efeeb6691c25bf31d46d7b879e06093ec2ff43c05ad32b5bc5315ab96a7",
       "repository": "mise"
-    },
-    "validAppId0": "",
-    "validAppId1": ""
+    }
   },
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
