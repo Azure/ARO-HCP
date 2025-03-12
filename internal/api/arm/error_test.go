@@ -1,6 +1,13 @@
 package arm
 
-import "testing"
+// Copyright (c) Microsoft Corporation.
+// Licensed under the Apache License 2.0.
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestCloudErrorBody_String(t *testing.T) {
 	tests := []struct {
@@ -51,10 +58,7 @@ func TestCloudErrorBody_String(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual := test.body.String()
-			if test.expected != actual {
-				t.Errorf("expected: %v\ngot: %v", test.expected, actual)
-			}
+			assert.Equal(t, test.expected, test.body.String())
 		})
 	}
 }

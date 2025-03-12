@@ -9,7 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWriteJSONResponse(t *testing.T) {
@@ -27,9 +28,7 @@ func TestWriteJSONResponse(t *testing.T) {
 	}
 
 	resourceBytes, err := MarshalJSON(resourceStruct)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	tests := []struct {
 		name       string
@@ -53,35 +52,24 @@ func TestWriteJSONResponse(t *testing.T) {
 			recorder := httptest.NewRecorder()
 
 			_, err := WriteJSONResponse(recorder, tt.statusCode, tt.body)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			result := recorder.Result()
 
-			if result.StatusCode != tt.statusCode {
-				t.Errorf("Got status code %d, expected %d", result.StatusCode, tt.statusCode)
-			}
+			assert.Equal(t, tt.statusCode, result.StatusCode)
 
 			contentType := result.Header.Get("Content-Type")
-			if contentType == "" {
-				t.Errorf("Response is missing a Content-Type header")
-			} else if contentType != "application/json" {
-				t.Errorf("Got Content-Type %s, expected application/json", contentType)
+			if assert.NotEmpty(t, contentType, "Response is missing a Content-Type header") {
+				assert.Equal(t, "application/json", contentType)
 			}
 
 			expectBody, err := MarshalJSON(resourceStruct)
-			if err != nil {
-				t.Fatal(err)
-			}
-			actualBody, err := io.ReadAll(result.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(actualBody) != string(expectBody) {
-				t.Error("Response body had unexpected variations:\n" + cmp.Diff(string(expectBody), string(actualBody)))
-			}
+			require.NoError(t, err)
 
+			actualBody, err := io.ReadAll(result.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, string(expectBody), string(actualBody))
 		})
 	}
 }
