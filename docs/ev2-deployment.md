@@ -53,7 +53,7 @@ flowchart LR
   classDef hidden display: none
 ```
 
-## Build an ADO Pipeline for EV2 Deployments
+## Create a New ADO Pipeline for EV2 Deployments
 
 To run a pipeline.yaml file within EV2 we leverage ADO pipelines. Each [pipeline.yaml](pipeline-concept.md) file / target [deployment environment](environments.md#aro-hcp-environment-overview) combination is represented by a dedicated ADO pipeline.
 
