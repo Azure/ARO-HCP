@@ -18,8 +18,8 @@ param runbookDescription string
 @description('Type of this runbook')
 param runbookType string
 
-@description('Name of the schedule for this runbook')
-param scheduleName string
+@description('Name of the schedule for this runbook(if empty, no schedule will be created)')
+param scheduleName string = ''
 
 @description('Schedule frequency (e.g., Hour, Day, Week)')
 param frequency string = 'Day'
@@ -58,7 +58,7 @@ resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-0
 
 // Create the Schedule
 resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022-08-08' = {
-  name: scheduleName
+  name: '${automationAccountName}_${scheduleName}'
   parent: automationAccount
   properties: {
     frequency: frequency
@@ -70,7 +70,7 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
 
 // Link Schedule to Runbook
 resource jobSchedule 'Microsoft.Automation/automationAccounts/jobSchedules@2022-08-08' = {
-  name: guid(runbookSchedule.id, runbookName)
+  name: guid(automationAccountName, runbookName, scheduleName)
   parent: automationAccount
   properties: {
     schedule: {

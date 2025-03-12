@@ -96,6 +96,5 @@ module assetManagement '../modules/automation-account/runbook.bicep' = {
       ref: '9f17bb8a93c5c820ff3095d836eb706acbdf75e8'
       path: 'tooling/azure-automation/resources-cleanup/src/automationassets.py'
     }
-    scheduleName: 'nightly-schedule'
   }
 }
