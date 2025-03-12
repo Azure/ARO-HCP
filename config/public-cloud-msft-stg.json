@@ -1,4 +1,14 @@
 {
+  "acr": {
+    "ocp": {
+      "name": "arohcpocpstg",
+      "zoneRedundantMode": "Enabled"
+    },
+    "svc": {
+      "name": "arohcpsvcstg",
+      "zoneRedundantMode": "Enabled"
+    }
+  },
   "acrPull": {
     "image": {
       "digest": "sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589",
@@ -114,7 +124,6 @@
     "namespace": "hypershift"
   },
   "imageSync": {
-    "acrRG": "global-shared-resources",
     "componentSync": {
       "enabled": true,
       "image": {
@@ -273,8 +282,6 @@
     "private": false,
     "softDelete": false
   },
-  "ocpAcrName": "arohcpocpstg",
-  "ocpAcrZoneRedundantMode": "Enabled",
   "oidcStorageAccountName": "arohcpstgoidcusw3",
   "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
@@ -327,7 +334,5 @@
     },
     "rg": "hcp-underlay-westus3-svc",
     "subscription": "hcp-westus3"
-  },
-  "svcAcrName": "arohcpsvcstg",
-  "svcAcrZoneRedundantMode": "Enabled"
+  }
 }

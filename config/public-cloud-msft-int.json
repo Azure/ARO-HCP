@@ -1,4 +1,14 @@
 {
+  "acr": {
+    "ocp": {
+      "name": "arohcpocpint",
+      "zoneRedundantMode": "Enabled"
+    },
+    "svc": {
+      "name": "arohcpsvcint",
+      "zoneRedundantMode": "Enabled"
+    }
+  },
   "acrPull": {
     "image": {
       "digest": "sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589",
@@ -274,8 +284,6 @@
     "private": false,
     "softDelete": false
   },
-  "ocpAcrName": "arohcpocpint",
-  "ocpAcrZoneRedundantMode": "Disabled",
   "oidcStorageAccountName": "arohcpintoidcusw3",
   "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
@@ -328,7 +336,5 @@
     },
     "rg": "hcp-underlay-westus3-svc",
     "subscription": "hcp-westus3"
-  },
-  "svcAcrName": "arohcpsvcint",
-  "svcAcrZoneRedundantMode": "Disabled"
+  }
 }

@@ -325,10 +325,13 @@ clouds:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
 
       # Shared ACRs
-      svcAcrName: arohcpsvcdev
-      svcAcrZoneRedundantMode: Disabled
-      ocpAcrName: arohcpocpdev
-      ocpAcrZoneRedundantMode: Disabled
+      acr:
+        svc:
+          name: arohcpsvcdev
+          zoneRedundantMode: Disabled
+        ocp:
+          name: arohcpocpdev
+          zoneRedundantMode: Disabled
 
       # Shared Image Sync
       imageSync:

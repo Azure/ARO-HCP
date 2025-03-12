@@ -1,6 +1,6 @@
 using '../templates/dev-acr.bicep'
 
-param acrName = '{{ .ocpAcrName }}'
+param acrName = '{{ .acr.ocp.name }}'
 
 param quayRepositoriesToCache = [
   {

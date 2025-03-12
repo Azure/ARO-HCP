@@ -15,7 +15,7 @@ resourceGroups:
           value: "true"
     variables:
     - name: ARO_HCP_IMAGE_ACR
-      configRef: svcAcrName
+      configRef: acr.svc.name
     - name: LOCATION
       configRef: region
     - name: RESOURCEGROUP
