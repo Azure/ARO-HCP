@@ -36,10 +36,31 @@ func UnmarshalDeploymentPreflight(data []byte) (*DeploymentPreflight, *CloudErro
 
 // DeploymentPreflightResource represents a desired resource in a deployment preflight request.
 type DeploymentPreflightResource struct {
-	Name       string `json:"name"       validate:"required"`
-	Type       string `json:"type"       validate:"required"`
-	Location   string `json:"location"   validate:"required"`
-	APIVersion string `json:"apiVersion" validate:"required,api_version"`
+	Name       string `json:"name"                 validate:"required"`
+	Type       string `json:"type"                 validate:"required"`
+	Location   string `json:"location"             validate:"required"`
+	APIVersion string `json:"apiVersion,omitempty" validate:"required,api_version"`
+
+	// Preserve other tracked resource fields as raw data.
+	Properties json.RawMessage `json:"properties,omitempty"`
+	SystemData json.RawMessage `json:"systemData,omitempty"`
+	Tags       json.RawMessage `json:"tags,omitempty"`
+}
+
+// Convert discards the APIVersion, marshals itself back to raw JSON,
+// and then unmarshals the raw JSON to the given value, which should
+// be an extension of the TrackedResource type.
+func (r *DeploymentPreflightResource) Convert(v any) error {
+	var clone DeploymentPreflightResource = *r
+
+	// Omit APIVersion from the clone.
+	clone.APIVersion = ""
+
+	data, err := json.Marshal(&clone)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
 }
 
 // ResourceID returns a resource ID string for the resource.
