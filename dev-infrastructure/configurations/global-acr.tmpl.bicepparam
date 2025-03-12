@@ -8,5 +8,5 @@ param ocpAcrSku = 'Premium'
 
 param location = '{{ .global.region }}'
 
-param svcAcrZoneRedundantMode = '{{ .svcAcrZoneRedundantMode }}'
-param ocpAcrZoneRedundantMode = '{{ .ocpAcrZoneRedundantMode }}'
+param svcAcrZoneRedundantMode = '{{ .acr.svc.zoneRedundantMode }}'
+param ocpAcrZoneRedundantMode = '{{ .acr.ocp.zoneRedundantMode }}'
