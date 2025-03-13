@@ -1,6 +1,6 @@
 using '../templates/dev-acr.bicep'
 
-param acrName = '{{ .svcAcrName }}'
+param acrName = '{{ .acr.svc.name }}'
 
 param quayRepositoriesToCache = [
   {

@@ -1,4 +1,14 @@
 {
+  "acr": {
+    "ocp": {
+      "name": "arohcpocpdev",
+      "zoneRedundantMode": "Disabled"
+    },
+    "svc": {
+      "name": "arohcpsvcdev",
+      "zoneRedundantMode": "Disabled"
+    }
+  },
   "acrPull": {
     "image": {
       "digest": "sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589",
@@ -114,7 +124,6 @@
     "namespace": "hypershift"
   },
   "imageSync": {
-    "acrRG": "global",
     "componentSync": {
       "enabled": true,
       "image": {
@@ -268,8 +277,6 @@
     "private": false,
     "softDelete": false
   },
-  "ocpAcrName": "arohcpocpdev",
-  "ocpAcrZoneRedundantMode": "Disabled",
   "oidcStorageAccountName": "arohcpoidcdev",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
@@ -322,7 +329,5 @@
     },
     "rg": "hcp-underlay-dev-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
-  },
-  "svcAcrName": "arohcpsvcdev",
-  "svcAcrZoneRedundantMode": "Disabled"
+  }
 }

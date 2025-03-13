@@ -15,9 +15,9 @@ resourceGroups:
           value: "true"
     variables:
     - name: ARO_HCP_SVC_ACR
-      configRef: svcAcrName
+      configRef: acr.svc.name
     - name: ARO_HCP_OCP_ACR
-      configRef: ocpAcrName
+      configRef: acr.ocp.name
     - name: HO_IMAGE_DIGEST
       configRef: hypershift.image.digest
     - name: HO_IMAGE_REPOSITORY

@@ -59,7 +59,7 @@ Helm charts need to provide enough configuration options via `values.yaml`. It i
 
 Image references for deployments need to use `sha256` digests instead of tags to enhance security and ensure immutability, e.g. see the configuration structure for `clusterService.image.digest` in [config.yaml](../config/config.yaml).
 
-Service component image need to be provided via the SVC ACR instance (or MSFTs MCR). The respective ACR name can be found in the [config.yaml](../config/config.yaml) under `svcAcrName`.
+Service component image need to be provided via the SVC ACR instance (or MSFTs MCR). The respective ACR name can be found in the [config.yaml](../config/config.yaml) under `acr.svc.name`.
 
 It is the responsibility of the Makefile to provide configuration values via `--set key=value` for all required Helm chart configuration options.
 

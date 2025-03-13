@@ -15,6 +15,22 @@
         "roleName"
       ]
     },
+    "acr": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "zoneRedundantMode"
+      ]
+    },
     "aksAgentPool": {
       "type": "object",
       "properties": {
@@ -540,9 +556,6 @@
     "imageSync": {
       "type": "object",
       "properties": {
-        "acrRG": {
-          "type": "string"
-        },
         "environmentName": {
           "type": "string"
         },
@@ -623,7 +636,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "acrRG",
         "environmentName",
         "componentSync",
         "ocMirror",
@@ -1082,11 +1094,21 @@
         "istio"
       ]
     },
-    "svcAcrName": {
-      "type": "string"
-    },
-    "svcAcrZoneRedundantMode": {
-      "$ref": "#/definitions/zoneRedundantMode"
+    "acr": {
+      "type": "object",
+      "properties": {
+        "svc": {
+          "$ref": "#/definitions/acr"
+        },
+        "ocp": {
+          "$ref": "#/definitions/acr"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "svc",
+        "ocp"
+      ]
     }
   },
   "additionalProperties": false,
@@ -1109,15 +1131,11 @@
     "mce",
     "monitoring",
     "msiKeyVault",
-    "ocpAcrName",
-    "ocpAcrZoneRedundantMode",
     "oidcStorageAccountName",
     "oidcZoneRedundantMode",
     "region",
     "regionRG",
     "serviceKeyVault",
-    "svc",
-    "svcAcrName",
-    "svcAcrZoneRedundantMode"
+    "svc"
   ]
 }

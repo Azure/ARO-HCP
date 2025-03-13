@@ -29,9 +29,9 @@ resourceGroups:
     - name: IMAGE_DIGEST
       configRef: clusterService.image.digest
     - name: ACR_NAME
-      configRef: svcAcrName
+      configRef: acr.svc.name
     - name: OCP_ACR_NAME
-      configRef: ocpAcrName
+      configRef: acr.ocp.name
     - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
       configRef: firstPartyAppClientId
     - name: FPA_CERT_NAME

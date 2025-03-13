@@ -37,8 +37,11 @@ defaults:
     safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
 
   # ACR
-  svcAcrZoneRedundantMode: Enabled
-  ocpAcrZoneRedundantMode: Enabled
+  acr:
+    svc:
+      zoneRedundantMode: Enabled
+    ocp:
+      zoneRedundantMode: Enabled
 
   # ACR Pull
   acrPull:
@@ -221,7 +224,6 @@ defaults:
   # Image Sync
   imageSync:
     rg: global-shared-resources
-    acrRG: global-shared-resources
     environmentName: global-shared-resources
     secretsToSync: ""
     componentSync:
@@ -377,10 +379,11 @@ clouds:
             parentZoneName: azure-test.net
 
           # ACR
-          svcAcrName: arohcpsvcint # [globally-unique]
-          ocpAcrName: arohcpocpint # [globally-unique]
-          svcAcrZoneRedundantMode: Disabled
-          ocpAcrZoneRedundantMode: Disabled
+          acr:
+            svc:
+              name: arohcpsvcint # [globally-unique]
+            ocp:
+              name: arohcpocpint # [globally-unique]
 
           # RP Frontend
           frontend:
@@ -518,10 +521,11 @@ clouds:
             parentZoneName: TBD.com
 
           # ACR
-          svcAcrName: arohcpsvcstg # [globally-unique]
-          ocpAcrName: arohcpocpstg # [globally-unique]
-          svcAcrZoneRedundantMode: Enabled
-          ocpAcrZoneRedundantMode: Enabled
+          acr:
+            svc:
+              name: arohcpsvcstg # [globally-unique]
+            ocp:
+              name: arohcpocpstg # [globally-unique]
 
           # RP Frontend
           frontend:
