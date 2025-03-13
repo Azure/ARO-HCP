@@ -149,7 +149,7 @@
       "pullSecretName": "pull-secret"
     },
     "rg": "hcp-underlay-westus3-imagesync-dev",
-    "secretsToSyncDir": "dev/global/arohcp-imagesync-dev"
+    "secretsToSyncDir": "dev/arohcp-imagesync-dev"
   },
   "kvCertOfficerPrincipalId": "c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb",
   "logs": {
