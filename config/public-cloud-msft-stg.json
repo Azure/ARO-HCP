@@ -149,7 +149,7 @@
       "pullSecretName": "ocp-pull-secret"
     },
     "rg": "global-shared-resources",
-    "secretsToSync": ""
+    "secretsToSyncDir": "none"
   },
   "kvCertOfficerPrincipalId": "",
   "logs": {

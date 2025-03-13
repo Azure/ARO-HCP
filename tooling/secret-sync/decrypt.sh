@@ -6,9 +6,6 @@ if [[ $# -ne 3 ]];
 then
     echo "usage"
     echo "decrypt.sh file outputSecret key-vault privateKeySecret"
-    echo ""
-    echo "Use - as file parameter for stdin"
-    echo "cat secret.out | decrypt.sh - outputSecret key-vault privateKeySecret"
     exit 1
 fi
 
