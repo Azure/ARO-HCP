@@ -12,7 +12,7 @@
         - main
       paths:
         - '.github/workflows/services-ci.yml'
-        - '.github/workflows/reusable/services-ci.yml'
+        - '.github/workflows/.services-ci.yml'
         - 'config/config.yaml'
         - 'api/**'
         - 'frontend/**'
@@ -52,6 +52,6 @@
         id-token: 'write'
         contents: 'read'
       secrets: inherit
-      uses: ./.github/workflows/reusable/services-ci.yml
+      uses: ./.github/workflows/.services-ci.yml
       with:
         push: false

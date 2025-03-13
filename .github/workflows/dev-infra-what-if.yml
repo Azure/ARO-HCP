@@ -12,8 +12,8 @@
       paths:
         - 'config/public-cloud-dev.json'
         - 'dev-infrastructure/**'
-        - '.github/workflows/infra-what-if.yml'
-        - '.github/workflows/reusable/dev-infra-what-if.yml'
+        - '.github/workflows/.infra-what-if.yml'
+        - '.github/workflows/dev-infra-what-if.yml'
         - 'templatize.sh'
 
   jobs:
@@ -24,6 +24,6 @@
         id-token: 'write'
         contents: 'read'
       secrets: inherit
-      uses: ./.github/workflows/reusable/infra-what-if.yml
+      uses: ./.github/workflows/.infra-what-if.yml
       with:
         deploy_env: dev
