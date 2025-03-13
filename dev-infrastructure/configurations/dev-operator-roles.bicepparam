@@ -59,6 +59,7 @@ param roles = [
       'Microsoft.Compute/disks/write'
       'Microsoft.Compute/disks/read'
       'Microsoft.Compute/disks/delete'
+      'Microsoft.Compute/disks/beginGetAccess/action'
       'Microsoft.Resources/subscriptions/resourceGroups/read'
     ]
     notActions: []
