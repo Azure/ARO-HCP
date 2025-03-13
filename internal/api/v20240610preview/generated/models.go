@@ -35,7 +35,7 @@ type ConsoleProfile struct {
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
 	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
-// that will appear in the cluster's DNS, provisioned cloud providers resources
+	// that will appear in the cluster's DNS, provisioned cloud providers resources
 	BaseDomainPrefix *string
 
 	// READ-ONLY; BaseDomain is the base DNS domain of the cluster.
@@ -260,14 +260,14 @@ type ManagedServiceIdentity struct {
 	Type *ManagedServiceIdentityType
 
 	// The set of user assigned identities associated with the resource. The userAssignedIdentities dictionary keys will be ARM
-// resource ids in the form:
-// '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/{identityName}.
-// The dictionary values can be empty objects ({}) in
-// requests.
+	// resource ids in the form:
+	// '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/{identityName}.
+	// The dictionary values can be empty objects ({}) in
+	// requests.
 	UserAssignedIdentities map[string]*UserAssignedIdentity
 
 	// READ-ONLY; The service principal ID of the system assigned identity. This property will only be provided for a system assigned
-// identity.
+	// identity.
 	PrincipalID *string
 
 	// READ-ONLY; The tenant ID of the system assigned identity. This property will only be provided for a system assigned identity.
@@ -325,9 +325,9 @@ type NodePoolPatchProperties struct {
 	Taints []*Taint
 
 	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
-// Tuned resources to define the tuning configuration to be applied to nodes
-// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
-// or PerformanceProfile.
+	// Tuned resources to define the tuning configuration to be applied to nodes
+	// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
+	// or PerformanceProfile.
 	TuningConfigs []*string
 
 	// READ-ONLY; Provisioning state
@@ -337,23 +337,23 @@ type NodePoolPatchProperties struct {
 // NodePoolPlatformProfile - Azure node pool platform configuration
 type NodePoolPlatformProfile struct {
 	// REQUIRED; The VM size according to the documentation:
-// * https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
 	VMSize *string
 
 	// The availability zone for the node pool. Please read the documentation to see which regions support availability zones
-// * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
+	// * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
 	AvailabilityZone *string
 
 	// Disk Encryption Set ID that will be used for encryption the Nodes disks
-// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
-// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
 	DiskEncryptionSetID *string
 
 	// The OS disk size in GiB
 	DiskSizeGiB *int32
 
 	// The type of the disk storage account
-// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *string
 
 	// Whether the worker machines should be encrypted at host
@@ -390,9 +390,9 @@ type NodePoolProperties struct {
 	Taints []*Taint
 
 	// Tuning configs, TODO provide meaningful explanation TuningConfig is a list of references to ConfigMaps containing serialized
-// Tuned resources to define the tuning configuration to be applied to nodes
-// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
-// or PerformanceProfile.
+	// Tuned resources to define the tuning configuration to be applied to nodes
+	// in the NodePool. Each ConfigMap must have a single key named "tuned" whose value is the JSON or YAML of a serialized Tuned
+	// or PerformanceProfile.
 	TuningConfigs []*string
 
 	// READ-ONLY; Provisioning state
@@ -408,15 +408,15 @@ type Operation struct {
 	ActionType *ActionType
 
 	// READ-ONLY; Whether the operation applies to data-plane. This is "true" for data-plane operations and "false" for ARM/control-plane
-// operations.
+	// operations.
 	IsDataAction *bool
 
 	// READ-ONLY; The name of the operation, as per Resource-Based Access Control (RBAC). Examples: "Microsoft.Compute/virtualMachines/write",
-// "Microsoft.Compute/virtualMachines/capture/action"
+	// "Microsoft.Compute/virtualMachines/capture/action"
 	Name *string
 
 	// READ-ONLY; The intended executor of the operation; as in Resource Based Access Control (RBAC) and audit logs UX. Default
-// value is "user,system"
+	// value is "user,system"
 	Origin *Origin
 }
 
@@ -426,15 +426,15 @@ type OperationDisplay struct {
 	Description *string
 
 	// READ-ONLY; The concise, localized friendly name for the operation; suitable for dropdowns. E.g. "Create or Update Virtual
-// Machine", "Restart Virtual Machine".
+	// Machine", "Restart Virtual Machine".
 	Operation *string
 
 	// READ-ONLY; The localized friendly form of the resource provider name, e.g. "Microsoft Monitoring Insights" or "Microsoft
-// Compute".
+	// Compute".
 	Provider *string
 
 	// READ-ONLY; The localized friendly name of the resource type related to this operation. E.g. "Virtual Machines" or "Job
-// Schedule Collections".
+	// Schedule Collections".
 	Resource *string
 }
 
@@ -451,7 +451,7 @@ type OperationListResult struct {
 // OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
 type OperatorsAuthenticationProfile struct {
 	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
-// based on Azure User-Assigned Managed Identities
+	// based on Azure User-Assigned Managed Identities
 	UserAssignedIdentities *UserAssignedIdentitiesProfile
 }
 
@@ -566,15 +566,15 @@ type TrackedResource struct {
 // perform Operators authentication based on Azure User-Assigned Managed Identities
 type UserAssignedIdentitiesProfile struct {
 	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The
-// set of required managed identities is dependent on the Cluster's OpenShift version.
+	// set of required managed identities is dependent on the Cluster's OpenShift version.
 	ControlPlaneOperators map[string]*string
 
 	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Data Plane operators of the cluster. The
-// set of required managed identities is dependent on the Cluster's OpenShift version.
+	// set of required managed identities is dependent on the Cluster's OpenShift version.
 	DataPlaneOperators map[string]*string
 
 	// REQUIRED; Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform
-// service level actions.
+	// service level actions.
 	ServiceManagedIdentity *string
 }
 
@@ -598,4 +598,3 @@ type VersionProfile struct {
 	// READ-ONLY; AvailableUpgrades is a list of version names the current version can be upgraded to.
 	AvailableUpgrades []*string
 }
-

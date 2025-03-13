@@ -2,9 +2,9 @@ $schema: pipeline.schema.v1
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: hcp-underlay-uksouth-dev
-  subscription: hcp-uksouth
-  aksCluster: aro-hcp-aks
+- name: 'hcp-underlay-uksouth-dev'
+  subscription: 'hcp-uksouth'
+  aksCluster: 'aro-hcp-aks'
   steps:
   - name: deploy
     action: Shell

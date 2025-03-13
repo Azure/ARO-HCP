@@ -1,4 +1,7 @@
 continue_on_error: true
+match_type: doublestar
+exclude:
+- '**/zz_fixture_*.yaml'
 formatter:
   type: basic
   indentless_arrays: true
