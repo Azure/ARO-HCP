@@ -188,6 +188,8 @@ spec:
         - --azure-arm-helper-identity-certificate-bundle-path=/secrets/keyvault/armHelperIndentityCertificateBundle
         - --azure-arm-helper-identity-client-id={{ .Values.azureArmHelperIdentityClientId }}
         - --azure-arm-helper-mock-fpa-principal-id={{ .Values.azureArmHelperMockFpaPrincipalId }}
+        # Baggage items are populated by the RP frontend and defined in internal/tracing/attributes.go.
+        - --log-fields-from-baggage=aro.correlation_id=correlation_id,aro.client.request_id=client_request_id
         livenessProbe:
           httpGet:
             path: /api/clusters_mgmt/v1

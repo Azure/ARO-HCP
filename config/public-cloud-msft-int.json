@@ -58,7 +58,7 @@
     },
     "environment": "arohcpint",
     "image": {
-      "digest": "sha256:c8de5ac6f2000ee185b42442c3b7f29e2b6b1068849f48620075cd811834202b",
+      "digest": "sha256:89a09675100b106a6e7e0b21d6841338ee229fa637abea67d32b53d8052696cd",
       "repository": "app-sre/uhc-clusters-service"
     },
     "k8s": {
