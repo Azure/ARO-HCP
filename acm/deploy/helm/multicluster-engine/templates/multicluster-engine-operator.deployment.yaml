@@ -1,176 +1,176 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-    annotations:
-        capabilities: Seamless Upgrades
-        categories: Integration & Delivery
-        certified: "true"
-        description: Foundational components for central management of multiple OpenShift Container Platform and Kubernetes clusters
-        support: Red Hat
-    creationTimestamp: null
-    labels:
-        control-plane: backplane-operator
-    name: multicluster-engine-operator
-    namespace: '{{ .Release.Namespace }}'
+  annotations:
+    capabilities: Seamless Upgrades
+    categories: Integration & Delivery
+    certified: "true"
+    description: Foundational components for central management of multiple OpenShift Container Platform and Kubernetes clusters
+    support: Red Hat
+  creationTimestamp: null
+  labels:
+    control-plane: backplane-operator
+  name: multicluster-engine-operator
+  namespace: '{{ .Release.Namespace }}'
 spec:
-    replicas: 2
-    selector:
-        matchLabels:
-            control-plane: backplane-operator
-    strategy: {}
-    template:
-        metadata:
-            creationTimestamp: null
-            labels:
-                control-plane: backplane-operator
-                ocm-antiaffinity-selector: backplane-operator
-        spec:
-            affinity:
-                podAntiAffinity:
-                    preferredDuringSchedulingIgnoredDuringExecution:
-                        - podAffinityTerm:
-                            labelSelector:
-                                matchExpressions:
-                                    - key: ocm-antiaffinity-selector
-                                      operator: In
-                                      values:
-                                        - backplane-operator
-                            topologyKey: topology.kubernetes.io/zone
-                          weight: 70
-                        - podAffinityTerm:
-                            labelSelector:
-                                matchExpressions:
-                                    - key: ocm-antiaffinity-selector
-                                      operator: In
-                                      values:
-                                        - backplane-operator
-                            topologyKey: kubernetes.io/hostname
-                          weight: 35
-            containers:
-                - args:
-                    - --leader-elect
-                  command:
-                    - /app/backplane-operator
-                  env:
-                    - name: POD_NAMESPACE
-                      valueFrom:
-                        fieldRef:
-                            fieldPath: metadata.namespace
-                    - name: OPERAND_IMAGE_ADDON_MANAGER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/addon-manager-rhel9@sha256:25cdce9461a24748fc6631fa4394b813deabdb27d0c95956508d2a38c504a6a9'
-                    - name: OPERAND_IMAGE_ASSISTED_IMAGE_SERVICE
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-image-service-rhel9@sha256:e1623f5819b3c3a1c79584846eb09c92583a3e88b47fd421d6b72ceccee857d0'
-                    - name: OPERAND_IMAGE_ASSISTED_INSTALLER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-rhel9@sha256:b030580e10ae9daa3832e1755e80b0638e5de1673b5bca2e34c742e507a900cd'
-                    - name: OPERAND_IMAGE_ASSISTED_INSTALLER_AGENT
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-agent-rhel9@sha256:2e71067d7e28e0b9e8463653be16b9bad711f3f05b0007dabd5282b88f32df05'
-                    - name: OPERAND_IMAGE_ASSISTED_INSTALLER_CONTROLLER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-controller-rhel9@sha256:07eb099581b1c8b65a05e80f876b58ac4fa9e3435634db52de5a22010cb7aeff'
-                    - name: OPERAND_IMAGE_ASSISTED_SERVICE_8
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-service-8-rhel8@sha256:e8260d0a6187638cc1a2219d553b8a681a026c80621335c6984675cef308aa57'
-                    - name: OPERAND_IMAGE_ASSISTED_SERVICE_9
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-service-9-rhel9@sha256:0e34d52ac6173678a7a7ebdc0ea9554c47876f2dcb4526a815a541d3762a5a5f'
-                    - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/must-gather-rhel9@sha256:8d7dd9a280551430eb9cb57709c8e0f6dc135bab306ed34b57b13d07d05e9719'
-                    - name: OPERAND_IMAGE_CLUSTER_API
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-api-rhel9@sha256:13276174e2955fdee35e2e1fa84de1be25229da2672b37f6c9ad4ed2a3eb5954'
-                    - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-api-provider-agent-rhel9@sha256:883427857d3960b365d0d8714b867f5a0c712be5a053b41779bc7feb2b95207d'
-                    - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_KUBEVIRT
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-api-provider-kubevirt-rhel9@sha256:0abf3c9c3db13749b4399de6ef162a00ec63ae18e6dc6e4c96a4d332f83bea18'
-                    - name: OPERAND_IMAGE_CLUSTERCLAIMS_CONTROLLER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/clusterclaims-controller-rhel9@sha256:4aeb801c624bffaa44c108bbad030f44cb69699564b06b7c12143d0c5b5db61c'
-                    - name: OPERAND_IMAGE_CLUSTER_CURATOR_CONTROLLER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-curator-controller-rhel9@sha256:f2025f357f1b7c3b516a66ece247a50fcceb048dff758944098efe672b020db2'
-                    - name: OPERAND_IMAGE_CLUSTER_IMAGE_SET_CONTROLLER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-image-set-controller-rhel9@sha256:d082cea8410f0f5f3684cbc1583519f17300d119ef3fb04e7876f03ea7b53da3'
-                    - name: OPERAND_IMAGE_CLUSTERLIFECYCLE_STATE_METRICS
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/clusterlifecycle-state-metrics-rhel9@sha256:bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7'
-                    - name: OPERAND_IMAGE_CLUSTER_PROXY_ADDON
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-proxy-addon-rhel9@sha256:87a3811feac15c463e6410d6d64653cc5b22915a1c9408d41713b54c94ffb6c1'
-                    - name: OPERAND_IMAGE_CLUSTER_PROXY
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-proxy-rhel9@sha256:3b2f833933763026fc0a5e3e86872d32432a50389a9c7d2f71e17d501bd219f1'
-                    - name: OPERAND_IMAGE_CONSOLE_MCE
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/console-mce-rhel9@sha256:407f44993e8b14e99990360333e1af3f7097591396f9cf56479b2b8438d47dca'
-                    - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/discovery-rhel9@sha256:2a03d06f5c412a896c491cbcbf00b2883980835fd94737482042c06d6a68022c'
-                    - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/hypershift-addon-rhel9-operator@sha256:af40c47a901c3c1851104427d3fd9db1f0cb6205e37917dc87af57facc90d75d'
-                    - name: OPERAND_IMAGE_HYPERSHIFT_CLI
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/hypershift-cli-rhel9@sha256:f68997b97948891fab2ce7f60c2b9657da147491f8c5bb0e804aab7b0d57c854'
-                    - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/hypershift-rhel9-operator@sha256:161292cbf4b81c928e6dc9162dc63b02b21c93bfa92b3272f437dc4ff5a02c3a'
-                    - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/image-based-install-rhel9@sha256:1b145d921805c94dcd9da4387944039c4ea1af782969d35b42f27c30198b8fbe'
-                    - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/kube-rbac-proxy-mce-rhel9@sha256:b1ada80f881131283a94d84cb37edc4b9725ccea9b66ebf8ccd6956cb515531a'
-                    - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/managedcluster-import-controller-rhel9@sha256:09a2f864c76373c9c6af4e8f7c2ffe4dffecc2637cf1647b7d2926419265e3f4'
-                    - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/managed-serviceaccount-rhel9@sha256:bc6ddc984411179e3882afbdb66664cec7cfd7cc65077e4866748939622f6687'
-                    - name: OPERAND_IMAGE_MULTICLOUD_MANAGER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/multicloud-manager-rhel9@sha256:a0873734a8e0d0b5092820d7ded0436c30fd572abdabb01159b53f0bb2e9d4a3'
-                    - name: OPERAND_IMAGE_OPENSHIFT_HIVE
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/hive-rhel9@sha256:504c80f8391fe6c5953ff058ef61db0d87880d24605ff872a2112d7003ede848'
-                    - name: OPERAND_IMAGE_PROVIDER_CREDENTIAL_CONTROLLER
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/provider-credential-controller-rhel9@sha256:1df5c14a22fffdcf04cc82e26fdd153f26f85dd78bc237f5a8f4379f142ccb22'
-                    - name: OPERAND_IMAGE_PLACEMENT
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/placement-rhel9@sha256:737cf1d7dcdf8c32d96894eebd686caf35959232f3fd774b307cf1df8068d26c'
-                    - name: OPERAND_IMAGE_REGISTRATION
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/registration-rhel9@sha256:26ef4145f464f1c5cdb6ab42c119766669f7f08e46cbd4185bdbd3f4cd70bb54'
-                    - name: OPERAND_IMAGE_REGISTRATION_OPERATOR
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/registration-operator-rhel9@sha256:8a37700e9848830dca9a3eebd4c8ca6abd7b04dc28ab5cefd743d00dd58be92a'
-                    - name: OPERAND_IMAGE_WORK
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/work-rhel9@sha256:1fecd5872ad4a0ce5ddab8a156a54315fc51508a4a18a80d901af7f9af294ec6'
-                    - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-                      value: '{{ .Values.imageRegistry }}/multicluster-engine/backplane-rhel9-operator@sha256:8c2f526398df56f92bfc62af8e42c3e373c236ab67e58e877cf9690fc480d46a'
-                    - name: OPERAND_IMAGE_POSTGRESQL_12
-                      value: '{{ .Values.imageRegistry }}/rhel8/postgresql-12@sha256:82d171ab0ce78a0157408662155b53d4f637947a303bfecb684f6132f5f468be'
-                    - name: OPERATOR_VERSION
-                      value: 2.7.0
-                    - name: OPERATOR_PACKAGE
-                      value: multicluster-engine
-                  image: '{{ .Values.imageRegistry }}/multicluster-engine/backplane-rhel9-operator@sha256:8c2f526398df56f92bfc62af8e42c3e373c236ab67e58e877cf9690fc480d46a'
-                  livenessProbe:
-                    httpGet:
-                        path: /healthz
-                        port: 8081
-                    initialDelaySeconds: 15
-                    periodSeconds: 20
-                  name: backplane-operator
-                  readinessProbe:
-                    httpGet:
-                        path: /readyz
-                        port: 8081
-                    initialDelaySeconds: 5
-                    periodSeconds: 10
-                  resources:
-                    limits:
-                        cpu: 100m
-                        memory: 2Gi
-                    requests:
-                        cpu: 100m
-                        memory: 20Mi
-                  securityContext:
-                    allowPrivilegeEscalation: false
-                    capabilities:
-                        drop:
-                            - ALL
-                    privileged: false
-                    readOnlyRootFilesystem: true
-                  volumeMounts:
-                    - mountPath: /tmp/k8s-webhook-server/serving-certs
-                      name: cert
-                      readOnly: true
-            securityContext:
-                runAsNonRoot: true
-                seccompProfile:
-                    type: RuntimeDefault
-            serviceAccountName: multicluster-engine-operator
-            terminationGracePeriodSeconds: 10
-            volumes:
-                - name: cert
-                  secret:
-                    defaultMode: 420
-                    secretName: multicluster-engine-operator-webhook
+  replicas: 2
+  selector:
+    matchLabels:
+      control-plane: backplane-operator
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        control-plane: backplane-operator
+        ocm-antiaffinity-selector: backplane-operator
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: ocm-antiaffinity-selector
+                  operator: In
+                  values:
+                  - backplane-operator
+              topologyKey: topology.kubernetes.io/zone
+            weight: 70
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: ocm-antiaffinity-selector
+                  operator: In
+                  values:
+                  - backplane-operator
+              topologyKey: kubernetes.io/hostname
+            weight: 35
+      containers:
+      - args:
+        - --leader-elect
+        command:
+        - /app/backplane-operator
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: OPERAND_IMAGE_ADDON_MANAGER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/addon-manager-rhel9@sha256:25cdce9461a24748fc6631fa4394b813deabdb27d0c95956508d2a38c504a6a9'
+        - name: OPERAND_IMAGE_ASSISTED_IMAGE_SERVICE
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-image-service-rhel9@sha256:e1623f5819b3c3a1c79584846eb09c92583a3e88b47fd421d6b72ceccee857d0'
+        - name: OPERAND_IMAGE_ASSISTED_INSTALLER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-rhel9@sha256:b030580e10ae9daa3832e1755e80b0638e5de1673b5bca2e34c742e507a900cd'
+        - name: OPERAND_IMAGE_ASSISTED_INSTALLER_AGENT
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-agent-rhel9@sha256:2e71067d7e28e0b9e8463653be16b9bad711f3f05b0007dabd5282b88f32df05'
+        - name: OPERAND_IMAGE_ASSISTED_INSTALLER_CONTROLLER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-controller-rhel9@sha256:07eb099581b1c8b65a05e80f876b58ac4fa9e3435634db52de5a22010cb7aeff'
+        - name: OPERAND_IMAGE_ASSISTED_SERVICE_8
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-service-8-rhel8@sha256:e8260d0a6187638cc1a2219d553b8a681a026c80621335c6984675cef308aa57'
+        - name: OPERAND_IMAGE_ASSISTED_SERVICE_9
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-service-9-rhel9@sha256:0e34d52ac6173678a7a7ebdc0ea9554c47876f2dcb4526a815a541d3762a5a5f'
+        - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/must-gather-rhel9@sha256:8d7dd9a280551430eb9cb57709c8e0f6dc135bab306ed34b57b13d07d05e9719'
+        - name: OPERAND_IMAGE_CLUSTER_API
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-api-rhel9@sha256:13276174e2955fdee35e2e1fa84de1be25229da2672b37f6c9ad4ed2a3eb5954'
+        - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-api-provider-agent-rhel9@sha256:883427857d3960b365d0d8714b867f5a0c712be5a053b41779bc7feb2b95207d'
+        - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_KUBEVIRT
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-api-provider-kubevirt-rhel9@sha256:0abf3c9c3db13749b4399de6ef162a00ec63ae18e6dc6e4c96a4d332f83bea18'
+        - name: OPERAND_IMAGE_CLUSTERCLAIMS_CONTROLLER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/clusterclaims-controller-rhel9@sha256:4aeb801c624bffaa44c108bbad030f44cb69699564b06b7c12143d0c5b5db61c'
+        - name: OPERAND_IMAGE_CLUSTER_CURATOR_CONTROLLER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-curator-controller-rhel9@sha256:f2025f357f1b7c3b516a66ece247a50fcceb048dff758944098efe672b020db2'
+        - name: OPERAND_IMAGE_CLUSTER_IMAGE_SET_CONTROLLER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-image-set-controller-rhel9@sha256:d082cea8410f0f5f3684cbc1583519f17300d119ef3fb04e7876f03ea7b53da3'
+        - name: OPERAND_IMAGE_CLUSTERLIFECYCLE_STATE_METRICS
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/clusterlifecycle-state-metrics-rhel9@sha256:bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7'
+        - name: OPERAND_IMAGE_CLUSTER_PROXY_ADDON
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-proxy-addon-rhel9@sha256:87a3811feac15c463e6410d6d64653cc5b22915a1c9408d41713b54c94ffb6c1'
+        - name: OPERAND_IMAGE_CLUSTER_PROXY
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/cluster-proxy-rhel9@sha256:3b2f833933763026fc0a5e3e86872d32432a50389a9c7d2f71e17d501bd219f1'
+        - name: OPERAND_IMAGE_CONSOLE_MCE
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/console-mce-rhel9@sha256:407f44993e8b14e99990360333e1af3f7097591396f9cf56479b2b8438d47dca'
+        - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/discovery-rhel9@sha256:2a03d06f5c412a896c491cbcbf00b2883980835fd94737482042c06d6a68022c'
+        - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/hypershift-addon-rhel9-operator@sha256:af40c47a901c3c1851104427d3fd9db1f0cb6205e37917dc87af57facc90d75d'
+        - name: OPERAND_IMAGE_HYPERSHIFT_CLI
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/hypershift-cli-rhel9@sha256:f68997b97948891fab2ce7f60c2b9657da147491f8c5bb0e804aab7b0d57c854'
+        - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/hypershift-rhel9-operator@sha256:161292cbf4b81c928e6dc9162dc63b02b21c93bfa92b3272f437dc4ff5a02c3a'
+        - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/image-based-install-rhel9@sha256:1b145d921805c94dcd9da4387944039c4ea1af782969d35b42f27c30198b8fbe'
+        - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/kube-rbac-proxy-mce-rhel9@sha256:b1ada80f881131283a94d84cb37edc4b9725ccea9b66ebf8ccd6956cb515531a'
+        - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/managedcluster-import-controller-rhel9@sha256:09a2f864c76373c9c6af4e8f7c2ffe4dffecc2637cf1647b7d2926419265e3f4'
+        - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/managed-serviceaccount-rhel9@sha256:bc6ddc984411179e3882afbdb66664cec7cfd7cc65077e4866748939622f6687'
+        - name: OPERAND_IMAGE_MULTICLOUD_MANAGER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/multicloud-manager-rhel9@sha256:a0873734a8e0d0b5092820d7ded0436c30fd572abdabb01159b53f0bb2e9d4a3'
+        - name: OPERAND_IMAGE_OPENSHIFT_HIVE
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/hive-rhel9@sha256:504c80f8391fe6c5953ff058ef61db0d87880d24605ff872a2112d7003ede848'
+        - name: OPERAND_IMAGE_PROVIDER_CREDENTIAL_CONTROLLER
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/provider-credential-controller-rhel9@sha256:1df5c14a22fffdcf04cc82e26fdd153f26f85dd78bc237f5a8f4379f142ccb22'
+        - name: OPERAND_IMAGE_PLACEMENT
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/placement-rhel9@sha256:737cf1d7dcdf8c32d96894eebd686caf35959232f3fd774b307cf1df8068d26c'
+        - name: OPERAND_IMAGE_REGISTRATION
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/registration-rhel9@sha256:26ef4145f464f1c5cdb6ab42c119766669f7f08e46cbd4185bdbd3f4cd70bb54'
+        - name: OPERAND_IMAGE_REGISTRATION_OPERATOR
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/registration-operator-rhel9@sha256:8a37700e9848830dca9a3eebd4c8ca6abd7b04dc28ab5cefd743d00dd58be92a'
+        - name: OPERAND_IMAGE_WORK
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/work-rhel9@sha256:1fecd5872ad4a0ce5ddab8a156a54315fc51508a4a18a80d901af7f9af294ec6'
+        - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
+          value: '{{ .Values.imageRegistry }}/multicluster-engine/backplane-rhel9-operator@sha256:8c2f526398df56f92bfc62af8e42c3e373c236ab67e58e877cf9690fc480d46a'
+        - name: OPERAND_IMAGE_POSTGRESQL_12
+          value: '{{ .Values.imageRegistry }}/rhel8/postgresql-12@sha256:82d171ab0ce78a0157408662155b53d4f637947a303bfecb684f6132f5f468be'
+        - name: OPERATOR_VERSION
+          value: 2.7.0
+        - name: OPERATOR_PACKAGE
+          value: multicluster-engine
+        image: '{{ .Values.imageRegistry }}/multicluster-engine/backplane-rhel9-operator@sha256:8c2f526398df56f92bfc62af8e42c3e373c236ab67e58e877cf9690fc480d46a'
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: backplane-operator
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 100m
+            memory: 2Gi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: multicluster-engine-operator
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: multicluster-engine-operator-webhook
 status: {}

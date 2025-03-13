@@ -1,37 +1,37 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-    annotations:
-        helm.sh/hook: post-install,post-upgrade
-        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
-        helm.sh/hook-weight: "1"
-    name: finalize-mce
-    namespace: '{{ .Release.Namespace }}'
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "1"
+  name: finalize-mce
+  namespace: '{{ .Release.Namespace }}'
 spec:
-    activeDeadlineSeconds: 1800
-    backoffLimit: 3
-    template:
-        spec:
-            containers:
-                - command:
-                    - /bin/sh
-                    - -c
-                    - |
-                      echo "Waiting for ClusterManagementAddOn 'work-manager' to exist..."
-                      until kubectl get clustermanagementaddon work-manager; do
-                        sleep 5
-                      done
+  activeDeadlineSeconds: 1800
+  backoffLimit: 3
+  template:
+    spec:
+      containers:
+      - command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for ClusterManagementAddOn 'work-manager' to exist..."
+          until kubectl get clustermanagementaddon work-manager; do
+            sleep 5
+          done
 
-                      echo "ClusterManagementAddOn 'work-manager' found. Patching..."
-                      kubectl patch clustermanagementaddon work-manager --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
-                      echo "Patch applied successfully."
+          echo "ClusterManagementAddOn 'work-manager' found. Patching..."
+          kubectl patch clustermanagementaddon work-manager --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
+          echo "Patch applied successfully."
 
-                      echo "Waiting for namespace 'local-cluster' to exist..."
-                      until kubectl get namespace local-cluster; do
-                        sleep 5
-                      done
-                      echo "Namespace 'local-cluster' found."
-                  image: mcr.microsoft.com/aks/command/runtime:master.240118.1
-                  name: finalize
-            restartPolicy: Never
-            serviceAccountName: multicluster-engine-operator
+          echo "Waiting for namespace 'local-cluster' to exist..."
+          until kubectl get namespace local-cluster; do
+            sleep 5
+          done
+          echo "Namespace 'local-cluster' found."
+        image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+        name: finalize
+      restartPolicy: Never
+      serviceAccountName: multicluster-engine-operator

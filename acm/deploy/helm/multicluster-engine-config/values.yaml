@@ -5,6 +5,5 @@ localCluster:
     certPolicyControllerEnabled: false
     policyControllerEnabled: true
     searchCollectorEnabled: false
-
 global:
   registryOverride: ""

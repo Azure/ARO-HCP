@@ -6,11 +6,11 @@ metadata:
   namespace: '{{ .Release.Namespace  }}'
 spec:
   ports:
-    - name: postgresql
-      nodePort: 0
-      port: {{ .Values.database.port }}
-      protocol: TCP
-      targetPort: 5432
+  - name: postgresql
+    nodePort: 0
+    port: {{ .Values.database.port }}
+    protocol: TCP
+    targetPort: 5432
   selector:
     name: maestro-db
   sessionAffinity: None

@@ -6,13 +6,13 @@ metadata:
 spec:
   action: "ALLOW"
   rules:
-    - from:
-      - source:
-          principals: ["cluster.local/ns/{{ .Release.Namespace  }}/sa/default"]
-      to:
-      - operation:
-          ports:
-            - "{{ .Values.maestro.httpBindPort }}"
+  - from:
+    - source:
+        principals: ["cluster.local/ns/{{ .Release.Namespace  }}/sa/default"]
+    to:
+    - operation:
+        ports:
+        - "{{ .Values.maestro.httpBindPort }}"
   selector:
     matchLabels:
       app: "maestro"

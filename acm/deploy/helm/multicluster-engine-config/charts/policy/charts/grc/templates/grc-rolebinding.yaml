@@ -12,6 +12,5 @@ roleRef:
   name: grc-grc-role
   apiGroup: rbac.authorization.k8s.io
 subjects:
-  - kind: ServiceAccount
-    name: grc-sa
-    
+- kind: ServiceAccount
+  name: grc-sa

@@ -8,7 +8,7 @@ metadata:
   namespace: '{{ .Values.namespace  }}'
 spec:
   podMetricsEndpoints:
-    - port: metrics
+  - port: metrics
   selector:
     matchLabels:
       app.kubernetes.io/name: acrpull

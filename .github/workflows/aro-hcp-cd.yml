@@ -1,163 +1,149 @@
----
-  name: ARO HCP Continuous Deployment
-  env:
-    DEPLOY_ENV: dev
-    PERSIST: true
-    SKIP_CONFIRM: true
-    AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-    AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-    AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
-  on:
-    workflow_dispatch:
-    pull_request:
-      branches:
-        - main
-      paths:
-        - '.github/workflows/aro-hcp-cd.yml'
-        - '.github/workflows/environment-infra-cd.yml'
-        - '.github/workflows/services-cd.yml'
-        - '.github/workflows/services-ci.yml'
-        - 'config/config.yaml'
-        - 'dev-infrastructure/**/*.bicep'
-        - 'dev-infrastructure/**/*.bicepparam'
-        - 'dev-infrastructure/configurations/*'
-        - 'frontend/**'
-        - 'backend/**'
-        - 'cluster-service/**'
-        - 'internal/**'
-        - 'maestro/**'
-        - 'pko/**'
-        - 'acm/**'
-        - 'hypershiftoperator/**'
-        - 'image-sync/**/'
-        - 'tooling/image-sync/**'
-        - 'tooling/templatize/**'
-        - 'config/*'
-      types:
-        - opened
-        - synchronize
-        - reopened
-        - closed
-
-  concurrency:
-    group: ${{ github.workflow }}
-    cancel-in-progress: false
-
-  jobs:
-    no_reruns:
-      runs-on: ubuntu-latest
-      steps:
-        - name: No reruns please
-          run: |
-            if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
-                echo "No re-runs allowed, trigger workflow manually."
-                exit 1
-              else
-                echo "not a re-run"
-              fi
-
-    deploy_global_rg:
-      name: 'Deploy global resources'
-      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-      permissions:
-        id-token: 'write'
-        contents: 'read'
-      needs:
-        - no_reruns
-      env:
-        DEPLOY_ENV: dev
-      runs-on: 'ubuntu-latest'
-      steps:
-        - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-          with:
-            fetch-depth: 1
-
-        - name: "install azure-cli"
-          uses: "Azure/ARO-HCP@main"
-
-        - name: 'Az CLI login'
-          uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
-          with:
-              client-id: ${{ secrets.AZURE_CLIENT_ID }}
-              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-        - name: 'Deploy'
-          run: |
-            cd dev-infrastructure/
-
-            # Manage ACR
-            make global acr
-
-            # Setup operator roles for platform workload identity
-            make operator-roles
-
-    service_ci:
-      name: 'Build service images'
-      permissions:
-        id-token: 'write'
-        contents: 'read'
-      secrets: inherit
-      uses: ./.github/workflows/services-ci.yml
+name: ARO HCP Continuous Deployment
+env:
+  DEPLOY_ENV: dev
+  PERSIST: true
+  SKIP_CONFIRM: true
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+    - main
+    paths:
+    - '.github/workflows/aro-hcp-cd.yml'
+    - '.github/workflows/environment-infra-cd.yml'
+    - '.github/workflows/services-cd.yml'
+    - '.github/workflows/services-ci.yml'
+    - 'config/config.yaml'
+    - 'dev-infrastructure/**/*.bicep'
+    - 'dev-infrastructure/**/*.bicepparam'
+    - 'dev-infrastructure/configurations/*'
+    - 'frontend/**'
+    - 'backend/**'
+    - 'cluster-service/**'
+    - 'internal/**'
+    - 'maestro/**'
+    - 'pko/**'
+    - 'acm/**'
+    - 'hypershiftoperator/**'
+    - 'image-sync/**/'
+    - 'tooling/image-sync/**'
+    - 'tooling/templatize/**'
+    - 'config/*'
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - closed
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+jobs:
+  no_reruns:
+    runs-on: ubuntu-latest
+    steps:
+    - name: No reruns please
+      run: |
+        if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+            echo "No re-runs allowed, trigger workflow manually."
+            exit 1
+          else
+            echo "not a re-run"
+          fi
+  deploy_global_rg:
+    name: 'Deploy global resources'
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    needs:
+    - no_reruns
+    env:
+      DEPLOY_ENV: dev
+    runs-on: 'ubuntu-latest'
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
-        push: ${{ github.event.pull_request.merged == true }}
-
-    deploy_dev_environment_infra:
-      name: 'Deploy integrated DEV infrastructure'
-      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-      needs:
-        - deploy_global_rg
-      permissions:
-        id-token: 'write'
-        contents: 'read'
-      secrets: inherit
-      uses: ./.github/workflows/environment-infra-cd.yml
+        fetch-depth: 1
+    - name: "install azure-cli"
+      uses: "Azure/ARO-HCP@main"
+    - name: 'Az CLI login'
+      uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
       with:
-        deploy_env: dev
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: 'Deploy'
+      run: |
+        cd dev-infrastructure/
 
-    deploy_dev_environment_services:
-      name: 'Deploy services to integrated DEV'
-      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-      needs:
-        - service_ci
-        - deploy_dev_environment_infra
-      permissions:
-        id-token: 'write'
-        contents: 'read'
-      secrets: inherit
-      uses: ./.github/workflows/services-cd.yml
-      with:
-        deploy_env: dev
+        # Manage ACR
+        make global acr
 
-
-    # CS PR env deployment disabled during testing
-
-    deploy_cs_pr_environment_infra:
-      name: 'Deploy CS PR infrastructure'
-      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-      needs:
-        - deploy_global_rg
-      permissions:
-        id-token: 'write'
-        contents: 'read'
-      secrets: inherit
-      uses: ./.github/workflows/environment-infra-cd.yml
-      with:
-        deploy_env: cs-pr
-        deploy_cs_pr_check_deps: true
-
-    deploy_cs_pr_environment_services:
-      name: 'Deploy services to CS PR'
-      if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-      needs:
-        - service_ci
-        - deploy_cs_pr_environment_infra
-      permissions:
-        id-token: 'write'
-        contents: 'read'
-      secrets: inherit
-      uses: ./.github/workflows/services-cd.yml
-      with:
-        deploy_env: cs-pr
-        deploy_cs_pr_check_deps: true
+        # Setup operator roles for platform workload identity
+        make operator-roles
+  service_ci:
+    name: 'Build service images'
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    secrets: inherit
+    uses: ./.github/workflows/services-ci.yml
+    with:
+      push: ${{ github.event.pull_request.merged == true }}
+  deploy_dev_environment_infra:
+    name: 'Deploy integrated DEV infrastructure'
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    needs:
+    - deploy_global_rg
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    secrets: inherit
+    uses: ./.github/workflows/environment-infra-cd.yml
+    with:
+      deploy_env: dev
+  deploy_dev_environment_services:
+    name: 'Deploy services to integrated DEV'
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    needs:
+    - service_ci
+    - deploy_dev_environment_infra
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    secrets: inherit
+    uses: ./.github/workflows/services-cd.yml
+    with:
+      deploy_env: dev
+  # CS PR env deployment disabled during testing
+  deploy_cs_pr_environment_infra:
+    name: 'Deploy CS PR infrastructure'
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    needs:
+    - deploy_global_rg
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    secrets: inherit
+    uses: ./.github/workflows/environment-infra-cd.yml
+    with:
+      deploy_env: cs-pr
+      deploy_cs_pr_check_deps: true
+  deploy_cs_pr_environment_services:
+    name: 'Deploy services to CS PR'
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    needs:
+    - service_ci
+    - deploy_cs_pr_environment_infra
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    secrets: inherit
+    uses: ./.github/workflows/services-cd.yml
+    with:
+      deploy_env: cs-pr
+      deploy_cs_pr_check_deps: true

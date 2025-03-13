@@ -6,13 +6,13 @@ metadata:
 spec:
   action: "ALLOW"
   rules:
-    - from:
-      - source:
-          principals: ["cluster.local/ns/{{ .Release.Namespace }}/sa/{{ .Values.maestro.serviceAccount }}"]
-      to:
-      - operation:
-          ports:
-            - "{{ .Values.database.port }}"
+  - from:
+    - source:
+        principals: ["cluster.local/ns/{{ .Release.Namespace }}/sa/{{ .Values.maestro.serviceAccount }}"]
+    to:
+    - operation:
+        ports:
+        - "{{ .Values.database.port }}"
   selector:
     matchLabels:
       name: "maestro-db"

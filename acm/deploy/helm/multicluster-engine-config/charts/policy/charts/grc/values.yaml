@@ -1,5 +1,4 @@
 # Copyright (c) 2020 Red Hat, Inc.
-
 global:
   registryOverride: ""
   imageOverrides:
@@ -13,10 +12,8 @@ global:
   pullSecret: null
   pullPolicy: Always
   hubSize: Small
-
   cma:
     defaultConfig: {}
-
 hubconfig:
   nodeSelector: null
   proxyConfigs: {}

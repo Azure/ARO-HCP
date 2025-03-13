@@ -1,148 +1,123 @@
----
-  name: ARO HCP Service PR Check
-  env:
-    DEPLOY_ENV: dev
-    SKIP_CONFIRM: true
-    AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-    AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-    AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    #AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
-    PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
-  on:
-    pull_request:
-      paths:
-        - '.github/workflows/aro-hcp-cd.yml'
-        - '.github/workflows/environment-infra-cd.yml'
-        - '.github/workflows/services-cd.yml'
-        - '.github/workflows/services-ci.yml'
-        - 'config/config.yaml'
-        - 'dev-infrastructure/**/*.bicep'
-        - 'dev-infrastructure/**/*.bicepparam'
-        - 'dev-infrastructure/configurations/*'
-        - 'frontend/**'
-        - 'backend/**'
-        - 'cluster-service/**'
-        - 'internal/**'
-        - 'maestro/**'
-        - 'pko/**'
-        - 'acm/**'
-        - 'hypershiftoperator/**'
-        - 'image-sync/**/'
-        - 'tooling/image-sync/**'
-        - 'tooling/templatize/**'
-        - 'config/*'
-      types:
-        - opened
-        - synchronize
-        - reopened
-
-  jobs:
-    service_cluster_pr_check:
-      permissions:
-        id-token: 'write'
-        contents: 'read'
-      runs-on: 'ubuntu-latest'
-      steps:
-        - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-          with:
-            fetch-depth: 1
-
-        - name: "install azure-cli"
-          uses: "Azure/ARO-HCP@main"
-
-        - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
-
-        # Used to deploy Cluster Service
-        - name: 'Install oc'
-          run: |
-            curl -sfLo - https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.15.9/openshift-client-linux.tar.gz | tar xzf -
-            sudo mv oc /usr/local/bin/oc
-            chmod +x /usr/local/bin/oc
-
-        # Used to deploy Maestro Server, Frontend
-        - uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
-          with:
-            version: 'v3.13.3'
-
-        - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.2
-          with:
-            kubelogin-version: 'v0.1.3'
-
-        - name: 'Install helm diff'
-          run: |
-            helm plugin install https://github.com/databus23/helm-diff
-
-        - name: 'Dry Run Cluster Service'
-          run: |
-            make cluster-service.dry_run
-
-        - name: 'Dry Run Backend'
-          run: |
-            make backend.dry_run
-
-        - name: 'Dry Run Frontend'
-          run: |
-            make frontend.dry_run
-
-        - name: 'Dry Run Maestro Server'
-          run: |
-            make maestro.server.dry_run
-
-        - name: 'Dry Run ACR Pull'
-          run: |
-            make acrpull.dry_run
-
-    mgmt_cluster_pr_check:
-      permissions:
-        id-token: 'write'
-        contents: 'read'
-      runs-on: 'ubuntu-latest'
-      steps:
-        - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-          with:
-            fetch-depth: 1
-
-        - name: "install azure-cli"
-          uses: "Azure/ARO-HCP@main"
-
-        - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
-
-        # Used to deploy Cluster Service
-        - name: 'Install oc'
-          run: |
-            curl -sfLo - https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.15.9/openshift-client-linux.tar.gz | tar xzf -
-            sudo mv oc /usr/local/bin/oc
-            chmod +x /usr/local/bin/oc
-
-        # Used to deploy Maestro Server, Frontend
-        - uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
-          with:
-            version: 'v3.13.3'
-
-        - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.2
-          with:
-            kubelogin-version: 'v0.1.3'
-
-        - name: 'Install helm diff'
-          run: |
-            helm plugin install https://github.com/databus23/helm-diff
-
-        - name: 'Dry Run ACR Pull on MGMT'
-          run: |
-            make acrpull.mgmt.dry_run
-
-        - name: 'Dry Run HypershiftOperator'
-          run: |
-            make hypershiftoperator.dry_run
-
-        - name: 'Dry Run Maestro Agent'
-          run: |
-            make maestro.agent.dry_run
-
-        - name: 'Dry Run PKO'
-          run: |
-            make pko.dry_run
-
-        - name: 'Dry Run ACM'
-          run: |
-            make acm.dry_run
+name: ARO HCP Service PR Check
+env:
+  DEPLOY_ENV: dev
+  SKIP_CONFIRM: true
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  #AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
+  PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
+on:
+  pull_request:
+    paths:
+    - '.github/workflows/aro-hcp-cd.yml'
+    - '.github/workflows/environment-infra-cd.yml'
+    - '.github/workflows/services-cd.yml'
+    - '.github/workflows/services-ci.yml'
+    - 'config/config.yaml'
+    - 'dev-infrastructure/**/*.bicep'
+    - 'dev-infrastructure/**/*.bicepparam'
+    - 'dev-infrastructure/configurations/*'
+    - 'frontend/**'
+    - 'backend/**'
+    - 'cluster-service/**'
+    - 'internal/**'
+    - 'maestro/**'
+    - 'pko/**'
+    - 'acm/**'
+    - 'hypershiftoperator/**'
+    - 'image-sync/**/'
+    - 'tooling/image-sync/**'
+    - 'tooling/templatize/**'
+    - 'config/*'
+    types:
+    - opened
+    - synchronize
+    - reopened
+jobs:
+  service_cluster_pr_check:
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    runs-on: 'ubuntu-latest'
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        fetch-depth: 1
+    - name: "install azure-cli"
+      uses: "Azure/ARO-HCP@main"
+    - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+    # Used to deploy Cluster Service
+    - name: 'Install oc'
+      run: |
+        curl -sfLo - https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.15.9/openshift-client-linux.tar.gz | tar xzf -
+        sudo mv oc /usr/local/bin/oc
+        chmod +x /usr/local/bin/oc
+    # Used to deploy Maestro Server, Frontend
+    - uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
+      with:
+        version: 'v3.13.3'
+    - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.2
+      with:
+        kubelogin-version: 'v0.1.3'
+    - name: 'Install helm diff'
+      run: |
+        helm plugin install https://github.com/databus23/helm-diff
+    - name: 'Dry Run Cluster Service'
+      run: |
+        make cluster-service.dry_run
+    - name: 'Dry Run Backend'
+      run: |
+        make backend.dry_run
+    - name: 'Dry Run Frontend'
+      run: |
+        make frontend.dry_run
+    - name: 'Dry Run Maestro Server'
+      run: |
+        make maestro.server.dry_run
+    - name: 'Dry Run ACR Pull'
+      run: |
+        make acrpull.dry_run
+  mgmt_cluster_pr_check:
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    runs-on: 'ubuntu-latest'
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        fetch-depth: 1
+    - name: "install azure-cli"
+      uses: "Azure/ARO-HCP@main"
+    - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+    # Used to deploy Cluster Service
+    - name: 'Install oc'
+      run: |
+        curl -sfLo - https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.15.9/openshift-client-linux.tar.gz | tar xzf -
+        sudo mv oc /usr/local/bin/oc
+        chmod +x /usr/local/bin/oc
+    # Used to deploy Maestro Server, Frontend
+    - uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
+      with:
+        version: 'v3.13.3'
+    - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.2
+      with:
+        kubelogin-version: 'v0.1.3'
+    - name: 'Install helm diff'
+      run: |
+        helm plugin install https://github.com/databus23/helm-diff
+    - name: 'Dry Run ACR Pull on MGMT'
+      run: |
+        make acrpull.mgmt.dry_run
+    - name: 'Dry Run HypershiftOperator'
+      run: |
+        make hypershiftoperator.dry_run
+    - name: 'Dry Run Maestro Agent'
+      run: |
+        make maestro.agent.dry_run
+    - name: 'Dry Run PKO'
+      run: |
+        make pko.dry_run
+    - name: 'Dry Run ACM'
+      run: |
+        make acm.dry_run

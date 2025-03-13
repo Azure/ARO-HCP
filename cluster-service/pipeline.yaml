@@ -84,8 +84,6 @@ resourceGroups:
       configRef: clusterService.k8s.serviceAccountName
     - name: ENVIRONMENT
       configRef: clusterService.environment
-
-
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME

@@ -1,43 +1,42 @@
----
 version: 2
 updates:
-  - package-ecosystem: 'github-actions'
-    directory: /
-    schedule:
-      interval: 'daily'
-  - package-ecosystem: 'npm'
-    directory: /api
-    groups:
-      typespec:
-        patterns:
-          - '@typespec/*'
-          - '@azure-tools/*'
-    schedule:
-      interval: 'weekly'
-  - package-ecosystem: gomod
-    directories:
-      - '/frontend'
-      - '/backend'
-      - '/internal'
-      - '/tooling/image-sync'
-      - '/tooling/mcerepkg'
-      - '/tooling/prometheus-rules'
-      - '/tooling/templatize'
-    schedule:
-      interval: 'weekly'
-    groups:
-      azure-sdk-for-go:
-        patterns:
-          - 'github.com/Azure/azure-sdk-for-go/*'
-      kubernetes:
-        patterns:
-          - 'k8s.io/*'
-          - 'sigs.k8s.io/*'
-    open-pull-requests-limit: 3
-  - package-ecosystem: docker
-    directories:
-      - '/frontend'
-      - '/backend'
-      - '/tooling/image-sync'
-    schedule:
-      interval: 'weekly'
+- package-ecosystem: 'github-actions'
+  directory: /
+  schedule:
+    interval: 'daily'
+- package-ecosystem: 'npm'
+  directory: /api
+  groups:
+    typespec:
+      patterns:
+      - '@typespec/*'
+      - '@azure-tools/*'
+  schedule:
+    interval: 'weekly'
+- package-ecosystem: gomod
+  directories:
+  - '/frontend'
+  - '/backend'
+  - '/internal'
+  - '/tooling/image-sync'
+  - '/tooling/mcerepkg'
+  - '/tooling/prometheus-rules'
+  - '/tooling/templatize'
+  schedule:
+    interval: 'weekly'
+  groups:
+    azure-sdk-for-go:
+      patterns:
+      - 'github.com/Azure/azure-sdk-for-go/*'
+    kubernetes:
+      patterns:
+      - 'k8s.io/*'
+      - 'sigs.k8s.io/*'
+  open-pull-requests-limit: 3
+- package-ecosystem: docker
+  directories:
+  - '/frontend'
+  - '/backend'
+  - '/tooling/image-sync'
+  schedule:
+    interval: 'weekly'

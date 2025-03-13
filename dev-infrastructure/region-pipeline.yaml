@@ -30,22 +30,22 @@ resourceGroups:
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-      - name: ocpAcrResourceId
-        input:
-          step: global-output
-          name: ocpAcrResourceId
-      - name: svcAcrResourceId
-        input:
-          step: global-output
-          name: svcAcrResourceId
-      - name: cxParentZoneResourceId
-        input:
-          step: global-output
-          name: cxParentZoneResourceId
-      - name: svcParentZoneResourceId
-        input:
-          step: global-output
-          name: svcParentZoneResourceId
+    - name: ocpAcrResourceId
+      input:
+        step: global-output
+        name: ocpAcrResourceId
+    - name: svcAcrResourceId
+      input:
+        step: global-output
+        name: svcAcrResourceId
+    - name: cxParentZoneResourceId
+      input:
+        step: global-output
+        name: cxParentZoneResourceId
+    - name: svcParentZoneResourceId
+      input:
+        step: global-output
+        name: svcParentZoneResourceId
     dependsOn:
     - global-output
   - name: metrics-infra
@@ -76,18 +76,18 @@ resourceGroups:
     action: Shell
     command: scripts/add-grafana-datasource.sh
     variables:
-      - name: GRAFANA_RESOURCE_ID
-        input:
-          step: global-output
-          name: grafanaResourceId
-      - name: PROM_QUERY_URL
-        input:
-          step: region-output
-          name: monitorPrometheusQueryEndpoint
-      - name: MONITOR_ID
-        input:
-          step: region-output
-          name: azureMonitoringWorkspaceId
+    - name: GRAFANA_RESOURCE_ID
+      input:
+        step: global-output
+        name: grafanaResourceId
+    - name: PROM_QUERY_URL
+      input:
+        step: region-output
+        name: monitorPrometheusQueryEndpoint
+    - name: MONITOR_ID
+      input:
+        step: region-output
+        name: azureMonitoringWorkspaceId
     dependsOn:
     - metrics-infra
     - region-output

@@ -1,9 +1,9 @@
 repositories:
-    - registry.k8s.io/external-dns/external-dns
-    - testingone.azurecr.io/azure-cli
+- registry.k8s.io/external-dns/external-dns
+- testingone.azurecr.io/azure-cli
 numberOfTags: 2
 acrTargetRegistry: testingtrgt.azurecr.io
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 secrets:
-  - registry: testingone.azurecr.io
-    azureSecretfile: /home/jboll/workspace/opensource/other-secret.json
+- registry: testingone.azurecr.io
+  azureSecretfile: /home/jboll/workspace/opensource/other-secret.json

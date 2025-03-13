@@ -1,4 +1,3 @@
----
 # Custom install of the azure-cli
 # Note that the azure-cli ships out of the box with ubuntu-latest for
 # github actions runs.  This allows us to pin a version and also allows us
@@ -15,28 +14,28 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: 'install azure-cli'
-      shell: bash
-      env:
-        AZ_VER: ${{ inputs.version }}
-      run: |
-        if [[ "${AZ_VER}" == "latest" ]]; then
-          # If AZ_VER == latest, then don't bother installing a specific version of az
-          exit 0
-        fi
-        sudo mkdir -p /etc/apt/keyrings
-        curl -sLS https://packages.microsoft.com/keys/microsoft.asc |
-        gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft.gpg > /dev/null
-        sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
-        AZ_DIST=$(lsb_release -cs)
-        echo "Types: deb
-        URIs: https://packages.microsoft.com/repos/azure-cli/
-        Suites: ${AZ_DIST}
-        Components: main
-        Architectures: $(dpkg --print-architecture)
-        Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
-        sudo apt-get update
-        # Obtain the currently installed distribution
-        AZ_DIST=$(lsb_release -cs)
-        # Install a specific version
-        sudo apt-get install azure-cli=${AZ_VER}-1~${AZ_DIST} --allow-downgrades
+  - name: 'install azure-cli'
+    shell: bash
+    env:
+      AZ_VER: ${{ inputs.version }}
+    run: |
+      if [[ "${AZ_VER}" == "latest" ]]; then
+        # If AZ_VER == latest, then don't bother installing a specific version of az
+        exit 0
+      fi
+      sudo mkdir -p /etc/apt/keyrings
+      curl -sLS https://packages.microsoft.com/keys/microsoft.asc |
+      gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft.gpg > /dev/null
+      sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
+      AZ_DIST=$(lsb_release -cs)
+      echo "Types: deb
+      URIs: https://packages.microsoft.com/repos/azure-cli/
+      Suites: ${AZ_DIST}
+      Components: main
+      Architectures: $(dpkg --print-architecture)
+      Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources
+      sudo apt-get update
+      # Obtain the currently installed distribution
+      AZ_DIST=$(lsb_release -cs)
+      # Install a specific version
+      sudo apt-get install azure-cli=${AZ_VER}-1~${AZ_DIST} --allow-downgrades

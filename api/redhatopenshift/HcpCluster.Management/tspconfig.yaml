@@ -1,6 +1,5 @@
----
 emit:
-  - "@azure-tools/typespec-autorest"
+- "@azure-tools/typespec-autorest"
 options:
   "@azure-tools/typespec-autorest":
     use-read-only-status-schema: true
@@ -10,6 +9,6 @@ options:
     omit-unreachable-types: true
 linter:
   extends:
-    - "@azure-tools/typespec-azure-rulesets/resource-manager"
+  - "@azure-tools/typespec-azure-rulesets/resource-manager"
   disable:
     "@azure-tools/typespec-azure-resource-manager/arm-common-types-version": "New rule"

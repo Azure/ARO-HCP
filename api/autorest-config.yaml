@@ -1,8 +1,7 @@
----
 input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2024-06-10-preview/openapi.json
 use:
-  # TODO: This is an old version. We should fix incompatibilities and remove this later
-  - "@autorest/go@4.0.0-preview.63"
+# TODO: This is an old version. We should fix incompatibilities and remove this later
+- "@autorest/go@4.0.0-preview.63"
 go:
   namespace: redhatopenshift
   project-folder: ../internal

@@ -1,6 +1,4 @@
----
 name: Config Change Detection
-
 on:
   pull_request:
     branches:
@@ -8,20 +6,18 @@ on:
     paths:
     - 'config/*'
     - .github/workflows/config-change-detection.yml
-
 permissions:
   contents: read
-
 jobs:
   build:
     name: change-detection
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 1
-      - name: 'Fail if there is uncommited change'
-        run: |
-            cd config/
-            make detect-change
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        fetch-depth: 1
+    - name: 'Fail if there is uncommited change'
+      run: |
+        cd config/
+        make detect-change

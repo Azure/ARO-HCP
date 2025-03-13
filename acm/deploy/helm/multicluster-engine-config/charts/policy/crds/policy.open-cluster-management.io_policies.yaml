@@ -1,4 +1,3 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -30,50 +29,32 @@ spec:
     schema:
       openAPIV3Schema:
         description: >-
-          Policy is the schema for the policies API. Policy wraps other policy engine resources in its
-          "policy-templates" array in order to deliver the resources to managed clusters.
+          Policy is the schema for the policies API. Policy wraps other policy engine resources in its "policy-templates" array in order to deliver the resources to managed clusters.
         properties:
           apiVersion:
             description: >-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
             description: >-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
           spec:
             description: >-
-              PolicySpec defines the configurations of the policy engine resources to deliver to the managed
-              clusters.
+              PolicySpec defines the configurations of the policy engine resources to deliver to the managed clusters.
             properties:
               copyPolicyMetadata:
                 description: >-
-                  CopyPolicyMetadata specifies whether the labels and annotations of a policy should be copied
-                  when replicating the policy to a managed cluster. If set to "true", all of the labels and
-                  annotations of the policy are copied to the replicated policy. If set to "false", only the
-                  policy framework-specific policy labels and annotations are copied to the replicated policy.
-                  This setting is useful if there is tracking for metadata that should only exist on the root
-                  policy. It is recommended to set this to "false" when using Argo CD to deploy the policy
-                  definition since Argo CD uses metadata for tracking that should not be replicated. The default
-                  value is "true".
+                  CopyPolicyMetadata specifies whether the labels and annotations of a policy should be copied when replicating the policy to a managed cluster. If set to "true", all of the labels and annotations of the policy are copied to the replicated policy. If set to "false", only the policy framework-specific policy labels and annotations are copied to the replicated policy. This setting is useful if there is tracking for metadata that should only exist on the root policy. It is recommended to set this to "false" when using Argo CD to deploy the policy definition since Argo CD uses metadata for tracking that should not be replicated. The default value is "true".
                 type: boolean
               dependencies:
                 description: >-
-                  PolicyDependencies is a list of dependency objects detailed with extra considerations for
-                  compliance that should be fulfilled before applying the policies to the managed clusters.
+                  PolicyDependencies is a list of dependency objects detailed with extra considerations for compliance that should be fulfilled before applying the policies to the managed clusters.
                 items:
                   description: >-
-                    Each PolicyDependency defines an object reference which must be in a certain compliance
-                    state before the policy should be created.
+                    Each PolicyDependency defines an object reference which must be in a certain compliance state before the policy should be created.
                   oneOf:
                   - properties:
                       kind:
@@ -89,15 +70,11 @@ spec:
                   properties:
                     apiVersion:
                       description: >-
-                        APIVersion defines the versioned schema of this representation of an object.
-                        Servers should convert recognized schemas to the latest internal value, and
-                        may reject unrecognized values.
-                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                        APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
                       type: string
                     compliance:
                       description: >-
-                        Compliance is the required ComplianceState of the object that the policy depends on, at the
-                        following path, .status.compliant.
+                        Compliance is the required ComplianceState of the object that the policy depends on, at the following path, .status.compliant.
                       enum:
                       - Compliant
                       - Pending
@@ -105,19 +82,13 @@ spec:
                       type: string
                     kind:
                       description: >-
-                        Kind is a string value representing the REST resource this object represents.
-                        Servers may infer this from the endpoint the client submits requests to.
-                        Cannot be updated.
-                        In CamelCase.
-                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                        Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
                       type: string
                     name:
-                      description: Name is the name of the object that the policy
-                        depends on.
+                      description: Name is the name of the object that the policy depends on.
                       type: string
                     namespace:
-                      description: Namespace is the namespace of the object that the
-                        policy depends on (optional).
+                      description: Namespace is the namespace of the object that the policy depends on (optional).
                       type: string
                   required:
                   - compliance
@@ -126,40 +97,29 @@ spec:
                 type: array
               disabled:
                 description: >-
-                  Disabled is a boolean parameter you can use to enable and disable the policy. When disabled,
-                  the policy is removed from managed clusters.
+                  Disabled is a boolean parameter you can use to enable and disable the policy. When disabled, the policy is removed from managed clusters.
                 type: boolean
               hubTemplateOptions:
-                description: HubTemplateOptions changes the default behavior of hub
-                  templates.
+                description: HubTemplateOptions changes the default behavior of hub templates.
                 properties:
                   serviceAccountName:
                     description: >-
-                      ServiceAccountName is the name of a service account in the same namespace as the policy to use for all hub
-                      template lookups. The service account must have list and watch permissions on any object the hub templates
-                      look up. If not specified, lookups are restricted to namespaced objects in the same namespace as the policy and
-                      to the `ManagedCluster` object associated with the propagated policy.
+                      ServiceAccountName is the name of a service account in the same namespace as the policy to use for all hub template lookups. The service account must have list and watch permissions on any object the hub templates look up. If not specified, lookups are restricted to namespaced objects in the same namespace as the policy and to the `ManagedCluster` object associated with the propagated policy.
                     type: string
                 type: object
               policy-templates:
                 description: >-
-                  PolicyTemplates is a list of definitions of policy engine resources to apply to managed
-                  clusters along with configurations on how it should be applied.
+                  PolicyTemplates is a list of definitions of policy engine resources to apply to managed clusters along with configurations on how it should be applied.
                 items:
                   description: >-
-                    PolicyTemplate is the definition of the policy engine resource to apply to the managed cluster,
-                    along with configurations on how it should be applied.
+                    PolicyTemplate is the definition of the policy engine resource to apply to the managed cluster, along with configurations on how it should be applied.
                   properties:
                     extraDependencies:
                       description: >-
-                        ExtraDependencies is additional PolicyDependencies that only apply to this policy template.
-                        ExtraDependencies is a list of dependency objects detailed with extra considerations for
-                        compliance that should be fulfilled before applying the policy template to the managed
-                        clusters.
+                        ExtraDependencies is additional PolicyDependencies that only apply to this policy template. ExtraDependencies is a list of dependency objects detailed with extra considerations for compliance that should be fulfilled before applying the policy template to the managed clusters.
                       items:
                         description: >-
-                          Each PolicyDependency defines an object reference which must be in a certain compliance
-                          state before the policy should be created.
+                          Each PolicyDependency defines an object reference which must be in a certain compliance state before the policy should be created.
                         oneOf:
                         - properties:
                             kind:
@@ -175,15 +135,11 @@ spec:
                         properties:
                           apiVersion:
                             description: >-
-                              APIVersion defines the versioned schema of this representation of an object.
-                              Servers should convert recognized schemas to the latest internal value, and
-                              may reject unrecognized values.
-                              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                              APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
                             type: string
                           compliance:
                             description: >-
-                              Compliance is the required ComplianceState of the object that the policy depends on, at the
-                              following path, .status.compliant.
+                              Compliance is the required ComplianceState of the object that the policy depends on, at the following path, .status.compliant.
                             enum:
                             - Compliant
                             - Pending
@@ -191,19 +147,13 @@ spec:
                             type: string
                           kind:
                             description: >-
-                              Kind is a string value representing the REST resource this object represents.
-                              Servers may infer this from the endpoint the client submits requests to.
-                              Cannot be updated.
-                              In CamelCase.
-                              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                              Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
                             type: string
                           name:
-                            description: Name is the name of the object that the policy
-                              depends on.
+                            description: Name is the name of the object that the policy depends on.
                             type: string
                           namespace:
-                            description: Namespace is the namespace of the object
-                              that the policy depends on (optional).
+                            description: Namespace is the namespace of the object that the policy depends on (optional).
                             type: string
                         required:
                         - compliance
@@ -212,13 +162,10 @@ spec:
                       type: array
                     ignorePending:
                       description: >-
-                        IgnorePending is a boolean parameter to specify whether to ignore the "Pending" status of this
-                        template when calculating the overall policy status. The default value is "false" to not ignore a
-                        "Pending" status.
+                        IgnorePending is a boolean parameter to specify whether to ignore the "Pending" status of this template when calculating the overall policy status. The default value is "false" to not ignore a "Pending" status.
                       type: boolean
                     objectDefinition:
-                      description: A Kubernetes object defining the policy to apply
-                        to a managed cluster
+                      description: A Kubernetes object defining the policy to apply to a managed cluster
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
                   required:
@@ -227,10 +174,7 @@ spec:
                 type: array
               remediationAction:
                 description: >-
-                  RemediationAction specifies the remediation of the policy. The parameter values are "enforce"
-                  and "inform". If specified, the value that is defined overrides any remediationAction parameter
-                  defined in the child policies in the "policy-templates" section. Important: Not all policy
-                  engine kinds support the enforce feature.
+                  RemediationAction specifies the remediation of the policy. The parameter values are "enforce" and "inform". If specified, the value that is defined overrides any remediationAction parameter defined in the child policies in the "policy-templates" section. Important: Not all policy engine kinds support the enforce feature.
                 enum:
                 - Inform
                 - inform
@@ -242,13 +186,11 @@ spec:
             - policy-templates
             type: object
           status:
-            description: PolicyStatus reports the observed status of the policy resulting
-              from its policy templates.
+            description: PolicyStatus reports the observed status of the policy resulting from its policy templates.
             properties:
               compliant:
                 description: >-
-                  ComplianceState reports the observed status resulting from the definitions of this policy. This
-                  status field is only used in the replicated policy in the managed cluster namespace.
+                  ComplianceState reports the observed status resulting from the definitions of this policy. This status field is only used in the replicated policy in the managed cluster namespace.
                 enum:
                 - Compliant
                 - Pending
@@ -256,16 +198,13 @@ spec:
                 type: string
               details:
                 description: >-
-                  Details is the list of compliance details for each policy template definition. This status
-                  field is only used in the replicated policy in the managed cluster namespace.
+                  Details is the list of compliance details for each policy template definition. This status field is only used in the replicated policy in the managed cluster namespace.
                 items:
                   description: >-
-                    DetailsPerTemplate reports the current compliance state and list of recent compliance messages
-                    for a given policy template.
+                    DetailsPerTemplate reports the current compliance state and list of recent compliance messages for a given policy template.
                   properties:
                     compliant:
-                      description: ComplianceState reports the observed status resulting
-                        from the definitions of the policy.
+                      description: ComplianceState reports the observed status resulting from the definitions of the policy.
                       enum:
                       - Compliant
                       - Pending
@@ -273,21 +212,17 @@ spec:
                       type: string
                     history:
                       items:
-                        description: ComplianceHistory reports a compliance message
-                          from a given time and event.
+                        description: ComplianceHistory reports a compliance message from a given time and event.
                         properties:
                           eventName:
-                            description: EventName is the name of the event attached
-                              to the message.
+                            description: EventName is the name of the event attached to the message.
                             type: string
                           lastTimestamp:
-                            description: LastTimestamp is the timestamp of the event
-                              that reported the message.
+                            description: LastTimestamp is the timestamp of the event that reported the message.
                             format: date-time
                             type: string
                           message:
-                            description: Message is the compliance message resulting
-                              from evaluating the policy resource.
+                            description: Message is the compliance message resulting from evaluating the policy resource.
                             type: string
                         type: object
                       type: array
@@ -298,18 +233,14 @@ spec:
                 type: array
               placement:
                 description: >-
-                  Placement is a list of managed cluster placement resources bound to the policy. This status
-                  field is only used in the root policy on the hub cluster.
+                  Placement is a list of managed cluster placement resources bound to the policy. This status field is only used in the root policy on the hub cluster.
                 items:
-                  description: Placement reports how and what managed cluster placement
-                    resources are attached to the policy.
+                  description: Placement reports how and what managed cluster placement resources are attached to the policy.
                   properties:
                     decisions:
-                      description: Decisions is the list of managed clusters returned
-                        by the placement resource for this binding.
+                      description: Decisions is the list of managed clusters returned by the placement resource for this binding.
                       items:
-                        description: PlacementDecision is the cluster name returned
-                          by the placement resource.
+                        description: PlacementDecision is the cluster name returned by the placement resource.
                         properties:
                           clusterName:
                             type: string
@@ -319,43 +250,35 @@ spec:
                       type: array
                     placement:
                       description: >-
-                        Placement is the name of the Placement resource, from the cluster.open-cluster-management.io
-                        API group, that is bound to the policy.
+                        Placement is the name of the Placement resource, from the cluster.open-cluster-management.io API group, that is bound to the policy.
                       type: string
                     placementBinding:
                       description: >-
-                        PlacementBinding is the name of the PlacementBinding resource, from the
-                        policies.open-cluster-management.io API group, that binds the placement resource to the policy.
+                        PlacementBinding is the name of the PlacementBinding resource, from the policies.open-cluster-management.io API group, that binds the placement resource to the policy.
                       type: string
                     placementRule:
                       description: >-
-                        PlacementRule (deprecated) is the name of the PlacementRule resource, from the
-                        apps.open-cluster-management.io API group, that is bound to the policy.
+                        PlacementRule (deprecated) is the name of the PlacementRule resource, from the apps.open-cluster-management.io API group, that is bound to the policy.
                       type: string
                     policySet:
                       description: >-
-                        PolicySet is the name of the policy set containing this policy and bound to the placement. If
-                        specified, then for this placement the policy is being propagated through this policy set
-                        rather than the policy being bound directly to a placement and propagated individually.
+                        PolicySet is the name of the policy set containing this policy and bound to the placement. If specified, then for this placement the policy is being propagated through this policy set rather than the policy being bound directly to a placement and propagated individually.
                       type: string
                   type: object
                 type: array
               status:
                 description: >-
-                  Status is a list of managed clusters and the current compliance state of each one. This
-                  status field is only used in the root policy on the hub cluster.
+                  Status is a list of managed clusters and the current compliance state of each one. This status field is only used in the root policy on the hub cluster.
                 items:
                   description: >-
-                    CompliancePerClusterStatus reports the name of a managed cluster and its compliance state for
-                    this policy.
+                    CompliancePerClusterStatus reports the name of a managed cluster and its compliance state for this policy.
                   properties:
                     clustername:
                       type: string
                     clusternamespace:
                       type: string
                     compliant:
-                      description: ComplianceState reports the observed status resulting
-                        from the definitions of the policy.
+                      description: ComplianceState reports the observed status resulting from the definitions of the policy.
                       enum:
                       - Compliant
                       - Pending

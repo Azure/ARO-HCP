@@ -1,120 +1,120 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-    - name: hcp-underlay-$(regionShortName)
-      subscription: hcp-$location()
-      aksCluster: aro-hcp-aks
-      steps:
-        - name: deploy
-          action: Shell
-          command: make deploy
-          variables:
-            - name: MAESTRO_IMAGE
-              configRef: maestro_image
-        - name: dry-run
-          action: Shell
-          command: make deploy
-          dryRun:
-            variables:
-                - name: DRY_RUN
-                  value: A very dry one
-        - name: svc
-          action: ARM
-          template: templates/svc-cluster.bicep
-          parameters: ev2-precompiled-test.bicepparam
-          deploymentLevel: ResourceGroup
-        - name: cxChildZone
-          action: DelegateChildZone
-          dependsOn:
-            - deploy
-          childZone:
-            configRef: childZone
-            name: childZone
-          parentZone:
-            configRef: parentZone
-            name: parentZone
-        - name: issuerTest
-          action: SetCertificateIssuer
-          dependsOn:
-            - deploy
-          issuer:
-            configRef: provider
-            name: issuer
-          vaultBaseUrl:
-            configRef: vaultBaseUrl
-            name: vaultBaseUrl
-        - name: issuerTestOutputChaining
-          action: SetCertificateIssuer
-          dependsOn:
-            - deploy
-          issuer:
-            name: issuer
-            value: provider
-          vaultBaseUrl:
-            input:
-                name: kvUrl
-                step: deploy
-            name: vaultBaseUrl
-        - name: cert
-          action: CreateCertificate
-          certificateName:
-            name: certificateName
-            value: hcp-mdsd
-          contentType:
-            name: contentType
-            value: x-pem-file
-          issuer:
-            name: issuer
-            value: OneCertV2-PrivateCA
-          san:
-            name: san
-            value: hcp-mdsd.geneva.keyvault.aro-int.azure.com
-          vaultBaseUrl:
-            name: vaultBaseUrl
-            value: https://arohcp-svc-ln.vault.azure.net
-        - name: rpRegistration
-          action: ResourceProviderRegistration
-          resourceProviderNamespaces:
-            name: resourceProviderNamespaces
-            value:
-                - Microsoft.Storage
-                - Microsoft.EventHub
-                - Microsoft.Insights
-        - name: rpAccount
-          action: RPLogsAccount
-          certdescription:
-            name: certdescription
-            value: HCP Service Cluster
-          certsan:
-            name: certsan
-            value: san
-          configVersion:
-            name: configVersion
-            value: version
-          events:
-            akskubesystem: kubesystem
-          namespace:
-            name: namespace
-            value: ns
-          subscriptionId:
-            name: subscriptionId
-            value: sub
-        - name: clusterAccount
-          action: ClusterLogsAccount
-          certdescription:
-            name: certdescription
-            value: HCP Management Cluster
-          certsan:
-            name: certsan
-            value: san
-          configVersion:
-            name: configVersion
-            value: version
-          events:
-            akskubesystem: kubesystem
-          namespace:
-            name: namespace
-            value: ns
-          subscriptionId:
-            name: subscriptionId
-            value: sub
+- name: hcp-underlay-$(regionShortName)
+  subscription: hcp-$location()
+  aksCluster: aro-hcp-aks
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    variables:
+    - name: MAESTRO_IMAGE
+      configRef: maestro_image
+  - name: dry-run
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: A very dry one
+  - name: svc
+    action: ARM
+    template: templates/svc-cluster.bicep
+    parameters: ev2-precompiled-test.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: cxChildZone
+    action: DelegateChildZone
+    dependsOn:
+    - deploy
+    childZone:
+      configRef: childZone
+      name: childZone
+    parentZone:
+      configRef: parentZone
+      name: parentZone
+  - name: issuerTest
+    action: SetCertificateIssuer
+    dependsOn:
+    - deploy
+    issuer:
+      configRef: provider
+      name: issuer
+    vaultBaseUrl:
+      configRef: vaultBaseUrl
+      name: vaultBaseUrl
+  - name: issuerTestOutputChaining
+    action: SetCertificateIssuer
+    dependsOn:
+    - deploy
+    issuer:
+      name: issuer
+      value: provider
+    vaultBaseUrl:
+      input:
+        name: kvUrl
+        step: deploy
+      name: vaultBaseUrl
+  - name: cert
+    action: CreateCertificate
+    certificateName:
+      name: certificateName
+      value: hcp-mdsd
+    contentType:
+      name: contentType
+      value: x-pem-file
+    issuer:
+      name: issuer
+      value: OneCertV2-PrivateCA
+    san:
+      name: san
+      value: hcp-mdsd.geneva.keyvault.aro-int.azure.com
+    vaultBaseUrl:
+      name: vaultBaseUrl
+      value: https://arohcp-svc-ln.vault.azure.net
+  - name: rpRegistration
+    action: ResourceProviderRegistration
+    resourceProviderNamespaces:
+      name: resourceProviderNamespaces
+      value:
+      - Microsoft.Storage
+      - Microsoft.EventHub
+      - Microsoft.Insights
+  - name: rpAccount
+    action: RPLogsAccount
+    certdescription:
+      name: certdescription
+      value: HCP Service Cluster
+    certsan:
+      name: certsan
+      value: san
+    configVersion:
+      name: configVersion
+      value: version
+    events:
+      akskubesystem: kubesystem
+    namespace:
+      name: namespace
+      value: ns
+    subscriptionId:
+      name: subscriptionId
+      value: sub
+  - name: clusterAccount
+    action: ClusterLogsAccount
+    certdescription:
+      name: certdescription
+      value: HCP Management Cluster
+    certsan:
+      name: certsan
+      value: san
+    configVersion:
+      name: configVersion
+      value: version
+    events:
+      akskubesystem: kubesystem
+    namespace:
+      name: namespace
+      value: ns
+    subscriptionId:
+      name: subscriptionId
+      value: sub

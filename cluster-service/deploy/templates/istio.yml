@@ -19,11 +19,11 @@ metadata:
 spec:
   action: "ALLOW"
   rules:
-    - to:
-      - operation:
-          paths: ["/metrics"]
-          methods: ["GET"]
-          ports: ["8080"]
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8080"]
   selector:
     matchLabels:
       app: "clusters-service"
@@ -43,15 +43,15 @@ metadata:
 spec:
   action: "ALLOW"
   rules:
-    - from:
-      - source:
-          principals:
-            - "cluster.local/ns/aro-hcp/sa/frontend"
-            - "cluster.local/ns/aro-hcp/sa/backend"
-      to:
-      - operation:
-          ports:
-            - "8000"
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/aro-hcp/sa/frontend"
+        - "cluster.local/ns/aro-hcp/sa/backend"
+    to:
+    - operation:
+        ports:
+        - "8000"
   selector:
     matchLabels:
       app: "clusters-service"
@@ -65,13 +65,13 @@ metadata:
 spec:
   action: "ALLOW"
   rules:
-    - from:
-      - source:
-          principals: ["cluster.local/ns/{{ .Release.Namespace }}/sa/{{ .Values.serviceAccountName }}"]
-      to:
-      - operation:
-          ports:
-            - "5432"
+  - from:
+    - source:
+        principals: ["cluster.local/ns/{{ .Release.Namespace }}/sa/{{ .Values.serviceAccountName }}"]
+    to:
+    - operation:
+        ports:
+        - "5432"
   selector:
     matchLabels:
       name: "ocm-cs-db"

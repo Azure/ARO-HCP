@@ -10,6 +10,6 @@ spec:
   selector:
     app: maestro
   ports:
-    - port: {{ .Values.maestro.grpcBindPort }}
-      targetPort: {{ .Values.maestro.grpcBindPort }}
-      protocol: TCP
+  - port: {{ .Values.maestro.grpcBindPort }}
+    targetPort: {{ .Values.maestro.grpcBindPort }}
+    protocol: TCP

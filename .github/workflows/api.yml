@@ -1,43 +1,35 @@
----
 name: Validate API Spec
-
 on:
   push:
     branches:
-      - main
+    - main
   pull_request:
     branches:
-      - main
+    - main
     paths:
-      - 'api/**'
-      - 'api/package.json'
-      - 'api/package-lock.json'
-
+    - 'api/**'
+    - 'api/package.json'
+    - 'api/package-lock.json'
 jobs:
   typescript_api_spec_validation:
     permissions:
       contents: 'read'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@eff380dfbcf941bf8832e4acb788cebe13dfd758 # v4.0.2
-        with:
-          node-version: 'v22.5.1'
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: './api'
-
-      - name: make generate
-        run: make generate
-        working-directory: './api'
-
-      - name: Check for Uncommitted Changes
-        run: |
-          git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)
+    - name: Checkout code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        fetch-depth: 1
+    - name: Setup Node.js
+      uses: actions/setup-node@eff380dfbcf941bf8832e4acb788cebe13dfd758 # v4.0.2
+      with:
+        node-version: 'v22.5.1'
+    - name: Install dependencies
+      run: npm ci
+      working-directory: './api'
+    - name: make generate
+      run: make generate
+      working-directory: './api'
+    - name: Check for Uncommitted Changes
+      run: |
+        git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)

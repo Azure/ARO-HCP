@@ -2,6 +2,5 @@ apiVersion: v2
 name: package-operator
 description: A Helm chart for package-operator
 type: application
-
 version: 0.1.0
 appVersion: "1.0.0"

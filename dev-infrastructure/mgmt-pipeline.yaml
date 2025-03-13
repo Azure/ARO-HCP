@@ -61,7 +61,7 @@ resourceGroups:
   - name: cx-oncert-public-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - mgmt-infra
+    - mgmt-infra
     vaultBaseUrl:
       input:
         name: cxKeyVaultUrl
@@ -71,7 +71,7 @@ resourceGroups:
   - name: mgmt-oncert-private-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - mgmt-infra
+    - mgmt-infra
     vaultBaseUrl:
       input:
         name: mgmtKeyVaultUrl
@@ -81,7 +81,7 @@ resourceGroups:
   - name: mgmt-oncert-public-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - mgmt-infra
+    - mgmt-infra
     vaultBaseUrl:
       input:
         name: mgmtKeyVaultUrl
@@ -131,8 +131,8 @@ resourceGroups:
     command: make -C ../acrpull deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: ACRPULL_DIGEST
       configRef: acrPull.image.digest
@@ -148,8 +148,8 @@ resourceGroups:
     command: make -C ../mgmt-fixes deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: APPLY_KUBELET_FIXES
       configRef: mgmt.applyKubeletFixes

@@ -24,46 +24,46 @@ spec:
     spec:
       serviceAccountName: backend
       containers:
-        - name: aro-hcp-backend
-          image: '{{ .Values.deployment.imageName }}'
-          imagePullPolicy: Always
-          args: ["--clusters-service-url", "http://clusters-service.cluster-service.svc.cluster.local:8000"]
-          env:
-          - name: DB_NAME
-            valueFrom:
-              configMapKeyRef:
-                name: backend-config
-                key: DB_NAME
-          - name: DB_URL
-            valueFrom:
-              configMapKeyRef:
-                name: backend-config
-                key: DB_URL
-          - name: LOCATION
-            valueFrom:
-              configMapKeyRef:
-                name: backend-config
-                key: LOCATION
-          - name: NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          ports:
-            - containerPort: 8081
-              protocol: TCP
-          resources:
-            limits:
-              memory: 1Gi
-            requests:
-              cpu: 100m
-              memory: 500Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
+      - name: aro-hcp-backend
+        image: '{{ .Values.deployment.imageName }}'
+        imagePullPolicy: Always
+        args: ["--clusters-service-url", "http://clusters-service.cluster-service.svc.cluster.local:8000"]
+        env:
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DB_NAME
+        - name: DB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DB_URL
+        - name: LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: LOCATION
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - containerPort: 8081
+          protocol: TCP
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 500Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

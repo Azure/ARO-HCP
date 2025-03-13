@@ -69,10 +69,10 @@ resourceGroups:
     command: make -C ../acrpull deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
-      - name: ACRPULL_DIGEST
-        configRef: acrPullImageDigest
+    - name: ACRPULL_DIGEST
+      configRef: acrPullImageDigest
     dependsOn:
     - mgmt-cluster

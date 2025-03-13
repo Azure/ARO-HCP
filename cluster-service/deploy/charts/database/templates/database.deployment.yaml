@@ -1,4 +1,3 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,53 +16,53 @@ spec:
         name: '{{ .Values.databaseServiceName  }}'
     spec:
       containers:
-        - env:
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  key: db.user
-                  name: '{{ .Values.databaseK8sSecretName  }}'
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  key: db.password
-                  name: '{{ .Values.databaseK8sSecretName  }}'
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  key: db.name
-                  name: '{{ .Values.databaseK8sSecretName  }}'
-            - name: PGDATA
-              value: /var/lib/pgsql/data/pgdata
-          image: docker.io/library/postgres:16.2
-          imagePullPolicy: IfNotPresent
-          livenessProbe:
-            tcpSocket:
-              port: 5432
-            initialDelaySeconds: 120
-            timeoutSeconds: 10
-          name: postgresql
-          ports:
-            - containerPort: 5432
-              protocol: TCP
-          readinessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - exec /usr/bin/pg_isready -U $POSTGRES_USER -d $POSTGRES_DB -h localhost -p 5432
-            initialDelaySeconds: 5
-            timeoutSeconds: 1
-          securityContext:
-            capabilities: {}
-            privileged: false
-          terminationMessagePath: /dev/termination-log
-          volumeMounts:
-            - mountPath: /var/lib/pgsql/data
-              name: '{{ .Values.databaseServiceName }}-data'
+      - env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              key: db.user
+              name: '{{ .Values.databaseK8sSecretName  }}'
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: db.password
+              name: '{{ .Values.databaseK8sSecretName  }}'
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              key: db.name
+              name: '{{ .Values.databaseK8sSecretName  }}'
+        - name: PGDATA
+          value: /var/lib/pgsql/data/pgdata
+        image: docker.io/library/postgres:16.2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 120
+          timeoutSeconds: 10
+        name: postgresql
+        ports:
+        - containerPort: 5432
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec /usr/bin/pg_isready -U $POSTGRES_USER -d $POSTGRES_DB -h localhost -p 5432
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+        securityContext:
+          capabilities: {}
+          privileged: false
+        terminationMessagePath: /dev/termination-log
+        volumeMounts:
+        - mountPath: /var/lib/pgsql/data
+          name: '{{ .Values.databaseServiceName }}-data'
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       volumes:
-        - name: '{{ .Values.databaseServiceName }}-data'
-          persistentVolumeClaim:
-            claimName: '{{ .Values.databaseServiceName  }}'
+      - name: '{{ .Values.databaseServiceName }}-data'
+        persistentVolumeClaim:
+          claimName: '{{ .Values.databaseServiceName  }}'

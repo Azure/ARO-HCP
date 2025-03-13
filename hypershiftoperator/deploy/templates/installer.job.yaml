@@ -14,19 +14,19 @@ spec:
   template:
     spec:
       containers:
-        - name: install
-          image: "{{ .Values.image }}@{{ .Values.imageDigest }}"
-          command:
-            - /bin/sh
-            - -c
-            - |
-              hypershift install \
-                --enable-conversion-webhook=false \
-                --managed-service ARO-HCP \
-                --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
-                --registry-overrides "{{ .Values.registryOverrides }}" \
-                --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} \
-                --platform-monitoring=None \
-                {{ .Values.additionalArgs }}
+      - name: install
+        image: "{{ .Values.image }}@{{ .Values.imageDigest }}"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          hypershift install \
+            --enable-conversion-webhook=false \
+            --managed-service ARO-HCP \
+            --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
+            --registry-overrides "{{ .Values.registryOverrides }}" \
+            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} \
+            --platform-monitoring=None \
+            {{ .Values.additionalArgs }}
       restartPolicy: Never
       serviceAccountName: hypershift-installer

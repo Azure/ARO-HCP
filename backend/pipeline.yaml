@@ -11,8 +11,8 @@ resourceGroups:
     command: make deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name

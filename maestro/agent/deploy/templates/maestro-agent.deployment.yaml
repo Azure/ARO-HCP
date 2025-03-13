@@ -21,11 +21,11 @@ spec:
       - name: init
         image: "{{ .Values.sideCar.image.registry }}/{{ .Values.sideCar.image.repository }}@{{ .Values.sideCar.image.digest }}"
         env:
-          - name: TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: metrics-access-token
-                key: token
+        - name: TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: metrics-access-token
+              key: token
         volumeMounts:
         - name: nginx-config
           mountPath: /etc/nginx/
@@ -33,9 +33,9 @@ spec:
           mountPath: /tmp/nginx/nginx.conf
           subPath: nginx.conf
         command:
-          - sh
-          - -c
-          - cp /tmp/nginx/nginx.conf /etc/nginx/nginx.conf && sed -i "s/TOKEN/$TOKEN/g" /etc/nginx/nginx.conf
+        - sh
+        - -c
+        - cp /tmp/nginx/nginx.conf /etc/nginx/nginx.conf && sed -i "s/TOKEN/$TOKEN/g" /etc/nginx/nginx.conf
       containers:
       - name: metrics-proxy
         image: "{{ .Values.sideCar.image.registry }}/{{ .Values.sideCar.image.repository }}@{{ .Values.sideCar.image.digest }}"

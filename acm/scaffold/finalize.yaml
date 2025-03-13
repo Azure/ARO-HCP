@@ -14,25 +14,25 @@ spec:
   template:
     spec:
       containers:
-        - name: finalize
-          image: mcr.microsoft.com/aks/command/runtime:master.240118.1
-          command:
-            - /bin/sh
-            - -c
-            - |
-              echo "Waiting for ClusterManagementAddOn 'work-manager' to exist..."
-              until kubectl get clustermanagementaddon work-manager; do
-                sleep 5
-              done
+      - name: finalize
+        image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for ClusterManagementAddOn 'work-manager' to exist..."
+          until kubectl get clustermanagementaddon work-manager; do
+            sleep 5
+          done
 
-              echo "ClusterManagementAddOn 'work-manager' found. Patching..."
-              kubectl patch clustermanagementaddon work-manager --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
-              echo "Patch applied successfully."
+          echo "ClusterManagementAddOn 'work-manager' found. Patching..."
+          kubectl patch clustermanagementaddon work-manager --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
+          echo "Patch applied successfully."
 
-              echo "Waiting for namespace 'local-cluster' to exist..."
-              until kubectl get namespace local-cluster; do
-                sleep 5
-              done
-              echo "Namespace 'local-cluster' found."
+          echo "Waiting for namespace 'local-cluster' to exist..."
+          until kubectl get namespace local-cluster; do
+            sleep 5
+          done
+          echo "Namespace 'local-cluster' found."
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator
