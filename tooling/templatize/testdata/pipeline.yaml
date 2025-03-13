@@ -2,9 +2,9 @@ $schema: pipeline.schema.v1
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: {{ .regionRG }}
-  subscription: {{ .serviceClusterSubscription }}
-  aksCluster: {{ .aksName }}
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .serviceClusterSubscription  }}'
+  aksCluster: '{{ .aksName  }}'
   steps:
   - name: deploy
     action: Shell

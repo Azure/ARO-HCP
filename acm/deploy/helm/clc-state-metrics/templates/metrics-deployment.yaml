@@ -4,7 +4,7 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: clusterlifecycle-state-metrics-v2
-  namespace: {{ .Values.global.namespace }}
+  namespace: '{{ .Values.global.namespace  }}'
 spec:
   replicas: 2
   selector:
@@ -18,7 +18,7 @@ spec:
     spec:
     {{- if .Values.global.pullSecret }}
       imagePullSecrets:
-        - name: {{ .Values.global.pullSecret }}
+        - name: '{{ .Values.global.pullSecret  }}'
     {{- end }}
       affinity:
         podAntiAffinity:
@@ -45,7 +45,7 @@ spec:
       containers:
       - name: clusterlifecycle-state-metrics
         image: "{{ .Values.global.imageOverrides.clusterlifecycle_state_metrics }}"
-        imagePullPolicy: {{ .Values.global.pullPolicy }}
+        imagePullPolicy: '{{ .Values.global.pullPolicy  }}'
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -79,11 +79,11 @@ spec:
             value: "1892MiB"
 {{- if .Values.hubconfig.proxyConfigs }}
           - name: HTTP_PROXY
-            value: {{ .Values.hubconfig.proxyConfigs.HTTP_PROXY }}
+            value: '{{ .Values.hubconfig.proxyConfigs.HTTP_PROXY  }}'
           - name: HTTPS_PROXY
-            value: {{ .Values.hubconfig.proxyConfigs.HTTPS_PROXY }}
+            value: '{{ .Values.hubconfig.proxyConfigs.HTTPS_PROXY  }}'
           - name: NO_PROXY
-            value: {{ .Values.hubconfig.proxyConfigs.NO_PROXY }}
+            value: '{{ .Values.hubconfig.proxyConfigs.NO_PROXY  }}'
 {{- end }}
         readinessProbe:
           httpGet:

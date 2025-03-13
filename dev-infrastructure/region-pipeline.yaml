@@ -11,8 +11,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   # Query parameters from global deployment, e.g. DNS hzone and ACR resource IDs
   - name: global-output
@@ -21,8 +21,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   - name: region
     action: ARM
@@ -69,8 +69,8 @@ resourceGroups:
     dependsOn:
     - region
     - metrics-infra
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   - name: add-grafana-datasource
     action: Shell

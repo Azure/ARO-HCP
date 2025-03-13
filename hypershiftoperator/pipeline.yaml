@@ -2,9 +2,9 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
 rolloutName: RP HypershiftOperator Rollout
 resourceGroups:
-- name: {{ .mgmt.rg }}
-  subscription: {{ .svc.subscription }}
-  aksCluster: {{ .mgmt.aks.name }}
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   - name: deploy
     action: Shell

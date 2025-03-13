@@ -1,6 +1,6 @@
 $schema: config.schema.json
 defaults:
-  region: {{ .ctx.region }}
+  region: '{{ .ctx.region  }}'
   regionRG: hcp-underlay-{{ .ctx.regionShort }}
 
   global:
@@ -190,7 +190,7 @@ defaults:
   serviceKeyVault:
     name: arohcp-svc-{{ .ctx.regionShort }}
     rg: hcp-underlay-{{ .ctx.regionShort }}
-    region: {{ .ctx.region }}
+    region: '{{ .ctx.region  }}'
     softDelete: true
     private: true
 

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: acrpull
-  namespace: {{ .Values.namespace }}
+  namespace: '{{ .Values.namespace  }}'
   labels:
     app.kubernetes.io/name: acrpull
     app.kubernetes.io/managed-by: Helm

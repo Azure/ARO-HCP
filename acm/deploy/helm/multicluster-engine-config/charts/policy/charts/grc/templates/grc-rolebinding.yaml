@@ -3,7 +3,7 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: grc-grc-rolebinding
-  namespace: {{ .Values.global.namespace }}
+  namespace: '{{ .Values.global.namespace  }}'
   labels:
     app: grc
     component: "ocm-grc-rolebinding"

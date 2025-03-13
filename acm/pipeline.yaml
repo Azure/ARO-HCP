@@ -2,9 +2,9 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.ACM
 rolloutName: ACM Rollout
 resourceGroups:
-- name: {{ .mgmt.rg }}
-  subscription: {{ .mgmt.subscription }}
-  aksCluster: {{ .mgmt.aks.name }}
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
+  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   - name: deploy
     action: Shell

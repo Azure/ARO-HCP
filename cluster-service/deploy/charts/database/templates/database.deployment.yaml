@@ -2,19 +2,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.databaseServiceName }}
-  namespace: {{ .Release.Namespace }}
+  name: '{{ .Values.databaseServiceName  }}'
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   replicas: 1
   selector:
     matchLabels:
-      name: {{ .Values.databaseServiceName }}
+      name: '{{ .Values.databaseServiceName  }}'
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        name: {{ .Values.databaseServiceName }}
+        name: '{{ .Values.databaseServiceName  }}'
     spec:
       containers:
         - env:
@@ -22,17 +22,17 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: db.user
-                  name: {{ .Values.databaseK8sSecretName }}
+                  name: '{{ .Values.databaseK8sSecretName  }}'
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   key: db.password
-                  name: {{ .Values.databaseK8sSecretName }}
+                  name: '{{ .Values.databaseK8sSecretName  }}'
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
                   key: db.name
-                  name: {{ .Values.databaseK8sSecretName }}
+                  name: '{{ .Values.databaseK8sSecretName  }}'
             - name: PGDATA
               value: /var/lib/pgsql/data/pgdata
           image: docker.io/library/postgres:16.2
@@ -66,4 +66,4 @@ spec:
       volumes:
         - name: '{{ .Values.databaseServiceName }}-data'
           persistentVolumeClaim:
-            claimName: {{ .Values.databaseServiceName }}
+            claimName: '{{ .Values.databaseServiceName  }}'

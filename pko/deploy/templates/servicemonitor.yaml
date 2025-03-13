@@ -3,7 +3,7 @@ apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: package-operator-monitor
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   endpoints:
   - interval: 30s
@@ -12,7 +12,7 @@ spec:
     scheme: http
   namespaceSelector:
     matchNames:
-    - {{ .Release.Namespace }}
+    - '{{ .Release.Namespace  }}'
   selector:
     matchLabels:
       app.kubernetes.io/name: package-operator

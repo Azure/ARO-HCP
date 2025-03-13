@@ -2,11 +2,11 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Values.databaseServiceName }}
-  namespace: {{ .Release.Namespace }}
+  name: '{{ .Values.databaseServiceName  }}'
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.databaseVolumeCapacity }}
+      storage: '{{ .Values.databaseVolumeCapacity  }}'

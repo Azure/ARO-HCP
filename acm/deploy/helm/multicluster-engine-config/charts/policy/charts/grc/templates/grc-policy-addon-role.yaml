@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: grc-grc-policy-addon-role
-  namespace: {{ .Values.global.namespace }}
+  namespace: '{{ .Values.global.namespace  }}'
   labels:
     app: grc
 rules:

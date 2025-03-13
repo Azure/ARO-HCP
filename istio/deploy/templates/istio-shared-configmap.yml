@@ -4,7 +4,7 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   labels:
-    istio.io/rev: {{ $version }}
+    istio.io/rev: '{{ $version  }}'
   name: istio-shared-configmap-{{ $version }}
   namespace: aks-istio-system
 data:

@@ -1,6 +1,6 @@
 $schema: schema.json
 defaults:
-  region: {{ .ctx.region }}
+  region: '{{ .ctx.region  }}'
   serviceClusterSubscription: hcp-{{ .ctx.region }}
   managementClusterSubscription: hcp-{{ .ctx.region }}
   globalRG: global

@@ -2,7 +2,7 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-maestro-to-db
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   action: "ALLOW"
   rules:

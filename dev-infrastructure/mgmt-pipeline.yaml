@@ -10,8 +10,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   - name: global-output
     action: ARM
@@ -19,8 +19,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   - name: svc-output
     action: ARM
@@ -28,8 +28,8 @@ resourceGroups:
     parameters: configurations/output-svc.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   - name: region-output
     action: ARM
@@ -37,8 +37,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .mgmt.rg }}
-  subscription: {{ .mgmt.subscription }}
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
   steps:
   - name: mgmt-infra
     action: ARM
@@ -121,9 +121,9 @@ resourceGroups:
     - mgmt-oncert-public-kv-issuer
     - global-output
     - region-output
-- name: {{ .mgmt.rg }}
-  subscription: {{ .mgmt.subscription }}
-  aksCluster: {{ .mgmt.aks.name }}
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
+  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   # Install ACRpull
   - name: acrpull

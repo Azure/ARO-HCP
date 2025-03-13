@@ -3,7 +3,7 @@ apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: clusters-service-service-monitor
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   endpoints:
   - interval: 30s

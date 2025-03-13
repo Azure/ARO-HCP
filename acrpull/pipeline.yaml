@@ -2,9 +2,9 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.ACRPull
 rolloutName: ACRPull Controller Rollout
 resourceGroups:
-  - name: {{ .svc.rg }}
-    subscription: {{ .svc.subscription }}
-    aksCluster: {{ .svc.aks.name }}
+  - name: '{{ .svc.rg  }}'
+    subscription: '{{ .svc.subscription  }}'
+    aksCluster: '{{ .svc.aks.name  }}'
     steps:
       - name: deploy
         action: Shell
@@ -20,9 +20,9 @@ resourceGroups:
             configRef: acrPull.image.repository
           - name: ACRPULL_REGISTRY
             configRef: acrPull.image.registry
-  - name: {{ .mgmt.rg }}
-    subscription: {{ .mgmt.subscription }}
-    aksCluster: {{ .mgmt.aks.name }}
+  - name: '{{ .mgmt.rg  }}'
+    subscription: '{{ .mgmt.subscription  }}'
+    aksCluster: '{{ .mgmt.aks.name  }}'
     steps:
       - name: deploy-mgmt
         action: Shell

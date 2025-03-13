@@ -10,7 +10,7 @@ spec:
   validationActions: [Deny]
   paramRef:
     name: "admission-policies-controller-config"
-    namespace: {{ .Values.namespace }}
+    namespace: '{{ .Values.namespace  }}'
     parameterNotFoundAction: "Allow"
 ---
 apiVersion: admissionregistration.k8s.io/v1
@@ -25,7 +25,7 @@ spec:
   validationActions: [Deny]
   paramRef:
     name: "admission-policies-controller-config"
-    namespace: {{ .Values.namespace }}
+    namespace: '{{ .Values.namespace  }}'
     parameterNotFoundAction: "Allow"
 ---
 apiVersion: admissionregistration.k8s.io/v1
@@ -40,5 +40,5 @@ spec:
   validationActions: [Deny]
   paramRef:
     name: "admission-policies-controller-config"
-    namespace: {{ .Values.namespace }}
+    namespace: '{{ .Values.namespace  }}'
     parameterNotFoundAction: "Allow"

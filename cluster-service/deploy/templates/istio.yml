@@ -2,7 +2,7 @@ apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
   name: default
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   selector:
     matchLabels:
@@ -15,7 +15,7 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-metrics
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   action: "ALLOW"
   rules:
@@ -32,14 +32,14 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-nothing
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec: {}
 ---
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-frontend
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   action: "ALLOW"
   rules:
@@ -61,7 +61,7 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-intra-namespace
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   action: "ALLOW"
   rules:

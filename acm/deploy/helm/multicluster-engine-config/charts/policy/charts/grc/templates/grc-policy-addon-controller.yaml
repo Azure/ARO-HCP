@@ -5,7 +5,7 @@ metadata:
     app: grc
     component: ocm-policy-addon-ctrl
   name: grc-policy-addon-controller
-  namespace: {{ .Values.global.namespace }}
+  namespace: '{{ .Values.global.namespace  }}'
 spec:
   progressDeadlineSeconds: 600
   replicas: {{ .Values.hubconfig.replicaCount }}

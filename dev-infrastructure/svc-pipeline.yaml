@@ -17,8 +17,8 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   - name: global-output
     action: ARM
@@ -27,8 +27,8 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   - name: region-output
     action: ARM
@@ -36,8 +36,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   # Create SVC KV
   - name: svc-infra
@@ -102,9 +102,9 @@ resourceGroups:
     - global-output
     - region-output
 # Now that we have the SVC cluster, we can configure istio.
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
-  aksCluster: {{ .svc.aks.name }}
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .svc.aks.name  }}'
   steps:
   # configure istio
   - name: istio-config

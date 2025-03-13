@@ -3,7 +3,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: clusters-service
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
   labels:
     app: clusters-service
     port: api
@@ -22,7 +22,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: clusters-service-metrics
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
   labels:
     # {app, port} labels together identify this service for monitoring
     app: clusters-service
@@ -40,7 +40,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: clusters-service-healthcheck
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
   labels:
     app: clusters-service
     port: healthcheck

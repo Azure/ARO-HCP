@@ -26,7 +26,7 @@ defaults:
   #
 
   # The long Azure region name
-  region: {{ .ctx.region }}
+  region: '{{ .ctx.region  }}'
 
   regionRG: '{{ .ctx.region }}-shared-resources'
 
@@ -250,7 +250,7 @@ defaults:
   # SVC KV
   serviceKeyVault:
     rg: hcp-underlay-{{ .ctx.region }}-svc
-    region: {{ .ctx.region }}
+    region: '{{ .ctx.region  }}'
     softDelete: false
     private: false
 
