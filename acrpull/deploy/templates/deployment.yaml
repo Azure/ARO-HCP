@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: acrpull
-  replicas: 2
+  replicas: {{ .Values.replicas }}
   template:
     metadata:
       labels:
@@ -19,59 +19,48 @@ spec:
       securityContext:
         runAsNonRoot: true
       containers:
-        - command:
-            - /manager
-          args:
-            - "--health-probe-bind-address=:8081"
-            - "--metrics-bind-address=127.0.0.1:8080"
-            - "--leader-elect"
-          image: "{{ .Values.image }}"
-          name: acrpull-controller
-          ports:
-            - containerPort: 8080
-              protocol: TCP
-              name: metrics
-          securityContext:
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - "ALL"
-            readOnlyRootFilesystem: true
-            runAsUser: 1000
-            runAsGroup: 3000
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8081
-            initialDelaySeconds: 15
-            periodSeconds: 20
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: 8081
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            limits:
-              cpu: 100m
-              memory: 100Mi
-            requests:
-              cpu: 100m
-              memory: 20Mi
+      - command:
+        - /manager
+        args:
+        - "--health-probe-bind-address=:8081"
+        - "--metrics-bind-address=127.0.0.1:8080"
+        - "--leader-elect"
+        - "--ttl-rotation-fraction={{ .Values.ttlRotationFraction }}"
+        image: "{{ .Values.image }}"
+        name: acrpull-controller
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+          name: metrics
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+          readOnlyRootFilesystem: true
+          runAsUser: 1000
+          runAsGroup: 3000
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
       serviceAccountName: acrpull
       terminationGracePeriodSeconds: 10
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}

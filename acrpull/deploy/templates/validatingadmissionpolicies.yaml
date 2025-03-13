@@ -74,12 +74,12 @@ spec:
   - name: matchesPreviousSecretType
     expression: "has(oldObject.metadata) ? oldObject.type == object.type : true"
   - name: hasLabel
-    expression: "has(object.metadata.labels) && ('acr.microsoft.com/binding' in object.metadata.labels)"
+    expression: "object.metadata.name.matches('-msi-acrpull-secret$') ? true : (has(object.metadata.labels) && ('acr.microsoft.com/binding' in object.metadata.?labels.orValue({})))"
   - name: matchesPreviousLabel
-    expression: "has(oldObject.metadata) ? oldObject.metadata.labels == object.metadata.labels : true"
+    expression: "object.metadata.name.matches('-msi-acrpull-secret$') ? true : (has(oldObject.metadata) ? oldObject.metadata.labels == object.metadata.labels : true)"
   validations:
   - expression: "variables.hasOwner == true && variables.matchesPreviousOwner == true && variables.hasSecretType == true && variables.matchesPreviousSecretType == true && variables.hasLabel == true && variables.matchesPreviousLabel == true"
-    messageExpression: "string(params.data.controllerServiceAccountName)  + ' has failed to ' +  string(request.operation) + ' secret with ' + string(object.type) + ' type ' + 'in the ' + string(request.namespace) + ' namespace. The controller can only create or update secrets that it owns, with the correct type and having the correct label.'"
+    messageExpression: "string(params.data.controllerServiceAccountName)  + ' has failed to ' +  string(request.operation) + ' secret with ' + string(object.type) + ' type ' + 'in the ' + string(request.namespace) + ' namespace. The controller can only create or update secrets that it owns, with the correct type and having the correct label.' + string(variables.hasOwner == true) + string(variables.matchesPreviousOwner == true) + string(variables.hasSecretType == true) + string(variables.matchesPreviousSecretType == true) + string(variables.hasLabel == true) + string(variables.matchesPreviousLabel == true )"
     reason: "Forbidden"
 ---
 # This policy will deny updates to serviceAccounts that do something other than changing the list of managed pull secrets.
@@ -122,9 +122,9 @@ spec:
   - name: removedPullSecrets
     expression: "variables.previousPullSecretNames.filter(s, !(s in variables.pullSecretNames))"
   - name: onlyCorrectPullSecretsAdded
-    expression: "variables.addedPullSecrets.all(s, s.matches('^acr-pull-.{1,44}-[a-zA-Z0-9]{10}$'))"
+    expression: "variables.addedPullSecrets.all(s, s.matches('^acr-pull-') || s.matches('-msi-acrpull-secret$'))"
   - name: onlyCorrectPullSecretsRemoved
-    expression: "variables.removedPullSecrets.all(s, s.matches('^acr-pull-.{1,44}-[a-zA-Z0-9]{10}$'))"
+    expression: "variables.removedPullSecrets.all(s, s.matches('^acr-pull-') || s.matches('-msi-acrpull-secret$'))"
   validations:
   - expression: "variables.secretsUnchanged == true && variables.automountUnchanged == true && variables.onlyCorrectPullSecretsAdded == true && variables.onlyCorrectPullSecretsRemoved == true"
     messageExpression: "string(params.data.controllerServiceAccountName) + ' has failed to ' + string(request.operation) + ' service account ' + string(request.name) + ' in the ' + string(request.namespace) + ' namespace. The controller may only update service accounts to add or remove pull secrets that the controller manages.' + string(variables.automountUnchanged == true) + string(variables.automountUnchanged == true) + string(variables.onlyCorrectPullSecretsAdded == true) + string(variables.onlyCorrectPullSecretsRemoved == true)"

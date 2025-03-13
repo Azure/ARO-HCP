@@ -1,5 +1,4 @@
 namespace: acrpull
 image: registry/image:tag
-nodeSelector: {}
-tolerations: []
-affinity: {}
+ttlRotationFraction: 0.5
+replicas: 2
