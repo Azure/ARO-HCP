@@ -8,6 +8,8 @@ on:
     paths:
     - 'config/*'
     - .github/workflows/config-change-detection.yml
+    - tooling/templatize/**
+    - templatize.sh
 
 permissions:
   contents: read
