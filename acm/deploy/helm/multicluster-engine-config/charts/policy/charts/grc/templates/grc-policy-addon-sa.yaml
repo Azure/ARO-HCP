@@ -1,9 +1,8 @@
-
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: grc-policy-addon-sa
-  namespace: {{ .Values.global.namespace }}
+  namespace: '{{ .Values.global.namespace  }}'
   labels:
     app: grc
     component: "ocm-policy-addon-ctrl"

@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: klusterlet-addon-controller-v2
-  namespace: {{ .Values.global.namespace }}
+  namespace: '{{ .Values.global.namespace  }}'
   labels:
     app: klusterlet-addon-controller-v2
     component: klusterlet-addon-controller
@@ -26,7 +26,7 @@ spec:
     spec:
       {{- if .Values.global.pullSecret }}
       imagePullSecrets:
-        - name: {{ .Values.global.pullSecret }}
+        - name: '{{ .Values.global.pullSecret  }}'
       {{- end }}
       serviceAccountName: klusterlet-addon-controller-v2
       hostNetwork: false
@@ -80,7 +80,7 @@ spec:
       containers:
       - name: klusterlet-addon-controller
         image: "{{ .Values.global.registryOverride}}/{{ .Values.global.imageOverrides.klusterlet_addon_controller }}"
-        imagePullPolicy: {{ .Values.global.pullPolicy }}
+        imagePullPolicy: '{{ .Values.global.pullPolicy  }}'
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -104,13 +104,13 @@ spec:
           - name: OPERATOR_NAME
             value: klusterlet-addon-controller
           - name: HUB_VERSION
-            value: {{ .Values.hubconfig.hubVersion }}
+            value: '{{ .Values.hubconfig.hubVersion  }}'
           - name: USE_SHA_MANIFEST
             value: "true"
           - name: DEFAULT_IMAGE_PULL_SECRET
-            value: {{ .Values.global.pullSecret }}
+            value: '{{ .Values.global.pullSecret  }}'
           - name: DEFAULT_IMAGE_REGISTRY
-            value: {{ .Values.global.imageRepository }}
+            value: '{{ .Values.global.imageRepository  }}'
           - name: ADDON_CLUSTERROLE_PREFIX
             value: "open-cluster-management:addons:"
           - name: POD_NAMESPACE

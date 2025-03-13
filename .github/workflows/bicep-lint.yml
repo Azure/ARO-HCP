@@ -1,34 +1,28 @@
----
 name: Bicep Lint
-
 on:
   pull_request:
     branches:
-      - main
+    - main
     paths:
-      - 'dev-infrastructure/**'
-
+    - 'dev-infrastructure/**'
 jobs:
   validate_bicep:
     permissions:
       contents: 'read'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 1
-
-      - name: 'az bicep format and lint'
-        working-directory: './dev-infrastructure'
-        run: |
-          az bicep version
-          make fmt
-          make modules/metrics/rules/generatedPrometheusAlertingRules.bicep
-          make lint
-
-      - name: Check for uncommitted changes
-        working-directory: './dev-infrastructure'
-        run: |
-          git diff --exit-code -- '***.bicep***' || (echo "::error::Uncommitted changes detected in bicep templates" && exit 1)
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        fetch-depth: 1
+    - name: 'az bicep format and lint'
+      working-directory: './dev-infrastructure'
+      run: |
+        az bicep version
+        make fmt
+        make modules/metrics/rules/generatedPrometheusAlertingRules.bicep
+        make lint
+    - name: Check for uncommitted changes
+      working-directory: './dev-infrastructure'
+      run: |
+        git diff --exit-code -- '***.bicep***' || (echo "::error::Uncommitted changes detected in bicep templates" && exit 1)

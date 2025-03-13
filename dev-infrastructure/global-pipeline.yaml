@@ -11,8 +11,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
 resourceGroups:
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   # creates global infra
   # * the parent DNS zones for the ARO HCP services
@@ -46,8 +46,8 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-- name: {{ .imageSync.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .imageSync.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   # - name: decrypt-and-ingest-secrets
   #   action: Shell

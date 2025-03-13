@@ -11,8 +11,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   # Query parameters from global deployment, e.g. DNS hzone and ACR resource IDs
   - name: global-output
@@ -21,8 +21,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   - name: region
     action: ARM
@@ -30,22 +30,22 @@ resourceGroups:
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-      - name: ocpAcrResourceId
-        input:
-          step: global-output
-          name: ocpAcrResourceId
-      - name: svcAcrResourceId
-        input:
-          step: global-output
-          name: svcAcrResourceId
-      - name: cxParentZoneResourceId
-        input:
-          step: global-output
-          name: cxParentZoneResourceId
-      - name: svcParentZoneResourceId
-        input:
-          step: global-output
-          name: svcParentZoneResourceId
+    - name: ocpAcrResourceId
+      input:
+        step: global-output
+        name: ocpAcrResourceId
+    - name: svcAcrResourceId
+      input:
+        step: global-output
+        name: svcAcrResourceId
+    - name: cxParentZoneResourceId
+      input:
+        step: global-output
+        name: cxParentZoneResourceId
+    - name: svcParentZoneResourceId
+      input:
+        step: global-output
+        name: svcParentZoneResourceId
     dependsOn:
     - global-output
   - name: metrics-infra
@@ -69,25 +69,25 @@ resourceGroups:
     dependsOn:
     - region
     - metrics-infra
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   - name: add-grafana-datasource
     action: Shell
     command: scripts/add-grafana-datasource.sh
     variables:
-      - name: GRAFANA_RESOURCE_ID
-        input:
-          step: global-output
-          name: grafanaResourceId
-      - name: PROM_QUERY_URL
-        input:
-          step: region-output
-          name: monitorPrometheusQueryEndpoint
-      - name: MONITOR_ID
-        input:
-          step: region-output
-          name: azureMonitoringWorkspaceId
+    - name: GRAFANA_RESOURCE_ID
+      input:
+        step: global-output
+        name: grafanaResourceId
+    - name: PROM_QUERY_URL
+      input:
+        step: region-output
+        name: monitorPrometheusQueryEndpoint
+    - name: MONITOR_ID
+      input:
+        step: region-output
+        name: azureMonitoringWorkspaceId
     dependsOn:
     - metrics-infra
     - region-output

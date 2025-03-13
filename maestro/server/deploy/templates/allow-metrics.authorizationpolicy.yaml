@@ -2,15 +2,15 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-metrics
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 spec:
   action: "ALLOW"
   rules:
-    - to:
-      - operation:
-          paths: ["/metrics"]
-          methods: ["GET"]
-          ports: ["8080"]
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8080"]
   selector:
     matchLabels:
       app: "maestro"

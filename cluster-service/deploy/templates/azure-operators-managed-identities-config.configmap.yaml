@@ -1,9 +1,8 @@
----
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: azure-operators-managed-identities-config
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
 data:
   azure-operators-managed-identities-config.yaml: |
     controlPlaneOperatorsIdentities:

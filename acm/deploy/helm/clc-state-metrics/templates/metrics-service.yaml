@@ -1,10 +1,9 @@
 # Copyright Contributors to the Open Cluster Management project
-
 apiVersion: v1
 kind: Service
 metadata:
   name: clusterlifecycle-state-metrics-v2
-  namespace: {{ .Values.global.namespace }}
+  namespace: '{{ .Values.global.namespace  }}'
   labels:
     clc-app: clusterlifecycle-state-metrics-v2
   annotations:

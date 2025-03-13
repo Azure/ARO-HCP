@@ -1,9 +1,8 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: clusters-service
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
   labels:
     app: clusters-service
 spec:
@@ -17,15 +16,15 @@ spec:
         app: clusters-service
         azure.workload.identity/use: "true"
       annotations:
-        checksum/db: {{ include (print $.Template.BasePath "/database.secret.yaml") . | sha256sum }}
-        checksum/operatorcfg: {{ include (print $.Template.BasePath "/azure-operators-managed-identities-config.configmap.yaml") . | sha256sum }}
-        checksum/cskv: {{ include (print $.Template.BasePath "/cs-keyvault.secret.yaml") . | sha256sum }}
-        checksum/provisionshard: {{ include (print $.Template.BasePath "/provisioning-shards.secret.yaml") . | sha256sum }}
-        checksum/cs: {{ include (print $.Template.BasePath "/clusters-service.secret.yaml") . | sha256sum }}
-        checksum/runtime: {{ include (print $.Template.BasePath "/azure-runtime-config.configmap.yaml") . | sha256sum }}
+        checksum/db: '{{ include (print $.Template.BasePath "/database.secret.yaml") . | sha256sum  }}'
+        checksum/operatorcfg: '{{ include (print $.Template.BasePath "/azure-operators-managed-identities-config.configmap.yaml") . | sha256sum  }}'
+        checksum/cskv: '{{ include (print $.Template.BasePath "/cs-keyvault.secret.yaml") . | sha256sum  }}'
+        checksum/provisionshard: '{{ include (print $.Template.BasePath "/provisioning-shards.secret.yaml") . | sha256sum  }}'
+        checksum/cs: '{{ include (print $.Template.BasePath "/clusters-service.secret.yaml") . | sha256sum  }}'
+        checksum/runtime: '{{ include (print $.Template.BasePath "/azure-runtime-config.configmap.yaml") . | sha256sum  }}'
     spec:
-      serviceAccount: {{ .Values.serviceAccountName }}
-      serviceAccountName: {{ .Values.serviceAccountName }}
+      serviceAccount: '{{ .Values.serviceAccountName  }}'
+      serviceAccountName: '{{ .Values.serviceAccountName  }}'
       volumes:
       - name: service
         secret:
@@ -209,8 +208,8 @@ spec:
           periodSeconds: 10
         resources:
           requests:
-            memory: {{ .Values.memoryRequest }}
-            cpu: {{ .Values.cpuRequest }}
+            memory: '{{ .Values.memoryRequest  }}'
+            cpu: '{{ .Values.cpuRequest  }}'
           limits:
-            memory: {{ .Values.memoryLimit }}
-            cpu: {{ .Values.cpuLimit }}
+            memory: '{{ .Values.memoryLimit  }}'
+            cpu: '{{ .Values.cpuLimit  }}'

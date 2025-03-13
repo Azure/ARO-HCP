@@ -120,15 +120,13 @@ spec:
                   properties:
                     kind:
                       default: Service
-                      description: The kind of target that the route is referring
-                        to. Currently, only 'Service' is allowed
+                      description: The kind of target that the route is referring to. Currently, only 'Service' is allowed
                       enum:
                       - Service
                       - ""
                       type: string
                     name:
-                      description: name of the service/target that is being referred
-                        to. e.g. name of the service
+                      description: name of the service/target that is being referred to. e.g. name of the service
                       minLength: 1
                       type: string
                     weight:
@@ -209,12 +207,10 @@ spec:
                           spec.httpHeaders.actions on the IngressController or route annotation.
                           Note: This field cannot be used if your route uses TLS passthrough.
                         items:
-                          description: RouteHTTPHeader specifies configuration for
-                            setting or deleting an HTTP header.
+                          description: RouteHTTPHeader specifies configuration for setting or deleting an HTTP header.
                           properties:
                             action:
-                              description: action specifies actions to perform on
-                                headers, such as setting or deleting headers.
+                              description: action specifies actions to perform on headers, such as setting or deleting headers.
                               properties:
                                 set:
                                   description: |-
@@ -251,10 +247,8 @@ spec:
                               - type
                               type: object
                               x-kubernetes-validations:
-                              - message: set is required when type is Set, and forbidden
-                                  otherwise
-                                rule: 'has(self.type) && self.type == ''Set'' ?  has(self.set)
-                                  : !has(self.set)'
+                              - message: set is required when type is Set, and forbidden otherwise
+                                rule: 'has(self.type) && self.type == ''Set'' ?  has(self.set) : !has(self.set)'
                             name:
                               description: |-
                                 name specifies the name of a header on which to perform an action. Its value must be a valid HTTP header
@@ -269,17 +263,13 @@ spec:
                               pattern: ^[-!#$%&'*+.0-9A-Z^_`a-z|~]+$
                               type: string
                               x-kubernetes-validations:
-                              - message: strict-transport-security header may not
-                                  be modified via header actions
+                              - message: strict-transport-security header may not be modified via header actions
                                 rule: self.lowerAscii() != 'strict-transport-security'
-                              - message: proxy header may not be modified via header
-                                  actions
+                              - message: proxy header may not be modified via header actions
                                 rule: self.lowerAscii() != 'proxy'
-                              - message: cookie header may not be modified via header
-                                  actions
+                              - message: cookie header may not be modified via header actions
                                 rule: self.lowerAscii() != 'cookie'
-                              - message: set-cookie header may not be modified via
-                                  header actions
+                              - message: set-cookie header may not be modified via header actions
                                 rule: self.lowerAscii() != 'set-cookie'
                           required:
                           - action
@@ -291,16 +281,8 @@ spec:
                         - name
                         x-kubernetes-list-type: map
                         x-kubernetes-validations:
-                        - message: Either the header value provided is not in correct
-                            format or the sample fetcher/converter specified is not
-                            allowed. The dynamic header value will be interpreted
-                            as an HAProxy format string as defined in http://cbonte.github.io/haproxy-dconv/2.6/configuration.html#8.2.6
-                            and may use HAProxy's %[] syntax and otherwise must be
-                            a valid HTTP header value as defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.
-                            Sample fetchers allowed are req.hdr, ssl_c_der. Converters
-                            allowed are lower, base64.
-                          rule: self.all(key, key.action.type == "Delete" || (has(key.action.set)
-                            && key.action.set.value.matches('^(?:%(?:%|(?:\\{[-+]?[QXE](?:,[-+]?[QXE])*\\})?\\[(?:req\\.hdr\\([0-9A-Za-z-]+\\)|ssl_c_der)(?:,(?:lower|base64))*\\])|[^%[:cntrl:]])+$')))
+                        - message: Either the header value provided is not in correct format or the sample fetcher/converter specified is not allowed. The dynamic header value will be interpreted as an HAProxy format string as defined in http://cbonte.github.io/haproxy-dconv/2.6/configuration.html#8.2.6 and may use HAProxy's %[] syntax and otherwise must be a valid HTTP header value as defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2. Sample fetchers allowed are req.hdr, ssl_c_der. Converters allowed are lower, base64.
+                          rule: self.all(key, key.action.type == "Delete" || (has(key.action.set) && key.action.set.value.matches('^(?:%(?:%|(?:\\{[-+]?[QXE](?:,[-+]?[QXE])*\\})?\\[(?:req\\.hdr\\([0-9A-Za-z-]+\\)|ssl_c_der)(?:,(?:lower|base64))*\\])|[^%[:cntrl:]])+$')))
                       response:
                         description: |-
                           response is a list of HTTP response headers to modify.
@@ -317,12 +299,10 @@ spec:
                           Example header values: "%[res.hdr(X-target),lower]", "%{+Q}[ssl_c_der,base64]".
                           Note: This field cannot be used if your route uses TLS passthrough.
                         items:
-                          description: RouteHTTPHeader specifies configuration for
-                            setting or deleting an HTTP header.
+                          description: RouteHTTPHeader specifies configuration for setting or deleting an HTTP header.
                           properties:
                             action:
-                              description: action specifies actions to perform on
-                                headers, such as setting or deleting headers.
+                              description: action specifies actions to perform on headers, such as setting or deleting headers.
                               properties:
                                 set:
                                   description: |-
@@ -359,10 +339,8 @@ spec:
                               - type
                               type: object
                               x-kubernetes-validations:
-                              - message: set is required when type is Set, and forbidden
-                                  otherwise
-                                rule: 'has(self.type) && self.type == ''Set'' ?  has(self.set)
-                                  : !has(self.set)'
+                              - message: set is required when type is Set, and forbidden otherwise
+                                rule: 'has(self.type) && self.type == ''Set'' ?  has(self.set) : !has(self.set)'
                             name:
                               description: |-
                                 name specifies the name of a header on which to perform an action. Its value must be a valid HTTP header
@@ -377,17 +355,13 @@ spec:
                               pattern: ^[-!#$%&'*+.0-9A-Z^_`a-z|~]+$
                               type: string
                               x-kubernetes-validations:
-                              - message: strict-transport-security header may not
-                                  be modified via header actions
+                              - message: strict-transport-security header may not be modified via header actions
                                 rule: self.lowerAscii() != 'strict-transport-security'
-                              - message: proxy header may not be modified via header
-                                  actions
+                              - message: proxy header may not be modified via header actions
                                 rule: self.lowerAscii() != 'proxy'
-                              - message: cookie header may not be modified via header
-                                  actions
+                              - message: cookie header may not be modified via header actions
                                 rule: self.lowerAscii() != 'cookie'
-                              - message: set-cookie header may not be modified via
-                                  header actions
+                              - message: set-cookie header may not be modified via header actions
                                 rule: self.lowerAscii() != 'set-cookie'
                           required:
                           - action
@@ -399,21 +373,12 @@ spec:
                         - name
                         x-kubernetes-list-type: map
                         x-kubernetes-validations:
-                        - message: Either the header value provided is not in correct
-                            format or the sample fetcher/converter specified is not
-                            allowed. The dynamic header value will be interpreted
-                            as an HAProxy format string as defined in http://cbonte.github.io/haproxy-dconv/2.6/configuration.html#8.2.6
-                            and may use HAProxy's %[] syntax and otherwise must be
-                            a valid HTTP header value as defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.
-                            Sample fetchers allowed are res.hdr, ssl_c_der. Converters
-                            allowed are lower, base64.
-                          rule: self.all(key, key.action.type == "Delete" || (has(key.action.set)
-                            && key.action.set.value.matches('^(?:%(?:%|(?:\\{[-+]?[QXE](?:,[-+]?[QXE])*\\})?\\[(?:res\\.hdr\\([0-9A-Za-z-]+\\)|ssl_c_der)(?:,(?:lower|base64))*\\])|[^%[:cntrl:]])+$')))
+                        - message: Either the header value provided is not in correct format or the sample fetcher/converter specified is not allowed. The dynamic header value will be interpreted as an HAProxy format string as defined in http://cbonte.github.io/haproxy-dconv/2.6/configuration.html#8.2.6 and may use HAProxy's %[] syntax and otherwise must be a valid HTTP header value as defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2. Sample fetchers allowed are res.hdr, ssl_c_der. Converters allowed are lower, base64.
+                          rule: self.all(key, key.action.type == "Delete" || (has(key.action.set) && key.action.set.value.matches('^(?:%(?:%|(?:\\{[-+]?[QXE](?:,[-+]?[QXE])*\\})?\\[(?:res\\.hdr\\([0-9A-Za-z-]+\\)|ssl_c_der)(?:,(?:lower|base64))*\\])|[^%[:cntrl:]])+$')))
                     type: object
                 type: object
               path:
-                description: path that the router watches for, to route traffic for
-                  to the service. Optional
+                description: path that the router watches for, to route traffic for to the service. Optional
                 pattern: ^/
                 type: string
               port:
@@ -431,9 +396,7 @@ spec:
                         enum:
                         - ""
                     anyOf: null
-                    description: The target port on pods selected by the service this
-                      route points to. If this is a string, it will be looked up as
-                      a named port in the target endpoints port list. Required
+                    description: The target port on pods selected by the service this route points to. If this is a string, it will be looked up as a named port in the target endpoints port list. Required
                     x-kubernetes-int-or-string: true
                 required:
                 - targetPort
@@ -481,12 +444,10 @@ spec:
                         termination:
                           enum:
                           - edge
-                description: The tls field provides the ability to configure certificates
-                  and termination for the route.
+                description: The tls field provides the ability to configure certificates and termination for the route.
                 properties:
                   caCertificate:
-                    description: caCertificate provides the cert authority certificate
-                      contents
+                    description: caCertificate provides the cert authority certificate contents
                     type: string
                   certificate:
                     description: |-
@@ -540,11 +501,8 @@ spec:
                 - termination
                 type: object
                 x-kubernetes-validations:
-                - message: 'cannot have both spec.tls.termination: passthrough and
-                    spec.tls.insecureEdgeTerminationPolicy: Allow'
-                  rule: 'has(self.termination) && has(self.insecureEdgeTerminationPolicy)
-                    ? !((self.termination==''passthrough'') && (self.insecureEdgeTerminationPolicy==''Allow''))
-                    : true'
+                - message: 'cannot have both spec.tls.termination: passthrough and spec.tls.insecureEdgeTerminationPolicy: Allow'
+                  rule: 'has(self.termination) && has(self.insecureEdgeTerminationPolicy) ? !((self.termination==''passthrough'') && (self.insecureEdgeTerminationPolicy==''Allow'')) : true'
               to:
                 description: |-
                   to is an object the route should use as the primary backend. Only the Service kind
@@ -553,15 +511,13 @@ spec:
                 properties:
                   kind:
                     default: Service
-                    description: The kind of target that the route is referring to.
-                      Currently, only 'Service' is allowed
+                    description: The kind of target that the route is referring to. Currently, only 'Service' is allowed
                     enum:
                     - Service
                     - ""
                     type: string
                   name:
-                    description: name of the service/target that is being referred
-                      to. e.g. name of the service
+                    description: name of the service/target that is being referred to. e.g. name of the service
                     minLength: 1
                     type: string
                   weight:
@@ -592,8 +548,7 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: header actions are not permitted when tls termination is passthrough.
-              rule: '!has(self.tls) || self.tls.termination != ''passthrough'' ||
-                !has(self.httpHeaders)'
+              rule: '!has(self.tls) || self.tls.termination != ''passthrough'' || !has(self.httpHeaders)'
           status:
             description: status is the current state of the route
             properties:
@@ -603,8 +558,7 @@ spec:
                   ingress points may contain duplicate Host or RouterName values. Routes
                   are considered live once they are `Ready`
                 items:
-                  description: RouteIngress holds information about the places where
-                    a route is exposed.
+                  description: RouteIngress holds information about the places where a route is exposed.
                   properties:
                     conditions:
                       description: Conditions is the state of the route, may be empty.
@@ -614,13 +568,11 @@ spec:
                           router.
                         properties:
                           lastTransitionTime:
-                            description: RFC 3339 date and time when this condition
-                              last transitioned
+                            description: RFC 3339 date and time when this condition last transitioned
                             format: date-time
                             type: string
                           message:
-                            description: Human readable message indicating details
-                              about last transition.
+                            description: Human readable message indicating details about last transition.
                             type: string
                           reason:
                             description: |-
@@ -646,8 +598,7 @@ spec:
                       - type
                       x-kubernetes-list-type: map
                     host:
-                      description: Host is the host string under which the route is
-                        exposed; this value is required
+                      description: Host is the host string under which the route is exposed; this value is required
                       type: string
                     routerCanonicalHostname:
                       description: |-
@@ -655,12 +606,10 @@ spec:
                         for the host requested for this route. This value is optional and may not be set in all cases.
                       type: string
                     routerName:
-                      description: Name is a name chosen by the router to identify
-                        itself; this value is required
+                      description: Name is a name chosen by the router to identify itself; this value is required
                       type: string
                     wildcardPolicy:
-                      description: Wildcard policy is the wildcard policy that was
-                        allowed where this route is exposed.
+                      description: Wildcard policy is the wildcard policy that was allowed where this route is exposed.
                       type: string
                   type: object
                 type: array

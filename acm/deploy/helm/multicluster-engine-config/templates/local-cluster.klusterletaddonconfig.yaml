@@ -5,10 +5,10 @@ metadata:
   namespace: local-cluster
 spec:
   applicationManager:
-    enabled: {{.Values.localCluster.addonConfig.applicationManagerEnabled}}
+    enabled: {{ .Values.localCluster.addonConfig.applicationManagerEnabled }}
   certPolicyController:
-    enabled: {{.Values.localCluster.addonConfig.certPolicyControllerEnabled}}
+    enabled: {{ .Values.localCluster.addonConfig.certPolicyControllerEnabled }}
   policyController:
-    enabled: {{.Values.localCluster.addonConfig.policyControllerEnabled}}
+    enabled: {{ .Values.localCluster.addonConfig.policyControllerEnabled }}
   searchCollector:
-    enabled: {{.Values.localCluster.addonConfig.searchCollectorEnabled}}
+    enabled: {{ .Values.localCluster.addonConfig.searchCollectorEnabled }}

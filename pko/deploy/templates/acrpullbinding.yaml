@@ -5,11 +5,11 @@ metadata:
 spec:
   acr:
     environment: PublicCloud
-    server: {{ .Values.pullBinding.registry }}
-    scope: {{ .Values.pullBinding.scope }}
+    server: '{{ .Values.pullBinding.registry  }}'
+    scope: '{{ .Values.pullBinding.scope  }}'
   auth:
     workloadIdentity:
       serviceAccountRef: package-operator
-      clientID: {{ .Values.pullBinding.workloadIdentityClientId }}
-      tenantID: {{ .Values.pullBinding.workloadIdentityTenantId }}
+      clientID: '{{ .Values.pullBinding.workloadIdentityClientId  }}'
+      tenantID: '{{ .Values.pullBinding.workloadIdentityTenantId  }}'
   serviceAccountName: package-operator

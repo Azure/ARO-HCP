@@ -10,4 +10,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: maestro
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'

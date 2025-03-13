@@ -6,10 +6,8 @@ global:
     config_policy_controller: "rhacm2/config-policy-controller-rhel9@sha256:bad96b2cd7efd604b3ef8092eb72c5a7d33b39732a1a8fe995aa197ead7a5d31"
     governance_policy_framework_addon: "rhacm2/acm-governance-policy-framework-addon-rhel9@sha256:a5373e3aed5c8e0ac1427599c3801eccd3b4ff4bdc3f9c0cd7083ff3e34433b3"
     klusterlet_addon_controller: "rhacm2/klusterlet-addon-controller-rhel9@sha256:f8188bc955dbc635031e765fb09015926eb350a7484e6c9f2e0af6020e02aa30"
-
   namespace: multicluster-engine
   pullSecret: open-cluster-management-image-pull-credentials
-
   cma:
     defaultConfig:
       name: addon-hosted-config

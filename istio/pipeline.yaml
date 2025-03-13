@@ -2,17 +2,17 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.RP.Istio
 rolloutName: RP Istio Rollout
 resourceGroups:
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
-  aksCluster: {{ .svc.aks.name }}
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .svc.aks.name  }}'
   steps:
   - name: deploy
     action: Shell
     command: make deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
-      - name: ISTIO_VERSIONS
-        configRef: svc.istio.versions
+    - name: ISTIO_VERSIONS
+      configRef: svc.istio.versions

@@ -1,4 +1,3 @@
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -8,6 +7,6 @@ roleRef:
   kind: ClusterRole
   name: metrics-proxy-access
 subjects:
-  - kind: ServiceAccount
-    name: metrics-proxy-sa
-    namespace: maestro
+- kind: ServiceAccount
+  name: metrics-proxy-sa
+  namespace: maestro

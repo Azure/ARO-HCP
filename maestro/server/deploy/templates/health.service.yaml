@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: maestro-healthcheck
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
   labels:
     app: maestro
     port: healthcheck

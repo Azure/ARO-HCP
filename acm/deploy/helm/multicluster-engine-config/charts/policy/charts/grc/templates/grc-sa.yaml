@@ -1,10 +1,9 @@
 # Copyright (c) 2020 Red Hat, Inc.
-
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: grc-sa
-  namespace: {{ .Values.global.namespace }}
+  namespace: '{{ .Values.global.namespace  }}'
   labels:
     app: grc
     component: "ocm-grc-sa"

@@ -2,7 +2,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: maestro
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
   labels:
     app: maestro
     port: api
@@ -10,6 +10,6 @@ spec:
   selector:
     app: maestro
   ports:
-    - port: {{ .Values.maestro.httpBindPort }}
-      targetPort: {{ .Values.maestro.httpBindPort }}
-      protocol: TCP
+  - port: {{ .Values.maestro.httpBindPort }}
+    targetPort: {{ .Values.maestro.httpBindPort }}
+    protocol: TCP

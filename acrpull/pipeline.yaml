@@ -2,39 +2,39 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.ACRPull
 rolloutName: ACRPull Controller Rollout
 resourceGroups:
-  - name: {{ .svc.rg }}
-    subscription: {{ .svc.subscription }}
-    aksCluster: {{ .svc.aks.name }}
-    steps:
-      - name: deploy
-        action: Shell
-        command: make deploy
-        dryRun:
-          variables:
-            - name: DRY_RUN
-              value: "true"
-        variables:
-          - name: ACRPULL_DIGEST
-            configRef: acrPull.image.digest
-          - name: ACRPULL_REPO
-            configRef: acrPull.image.repository
-          - name: ACRPULL_REGISTRY
-            configRef: acrPull.image.registry
-  - name: {{ .mgmt.rg }}
-    subscription: {{ .mgmt.subscription }}
-    aksCluster: {{ .mgmt.aks.name }}
-    steps:
-      - name: deploy-mgmt
-        action: Shell
-        command: make deploy
-        dryRun:
-          variables:
-            - name: DRY_RUN
-              value: "true"
-        variables:
-          - name: ACRPULL_DIGEST
-            configRef: acrPull.image.digest
-          - name: ACRPULL_REPO
-            configRef: acrPull.image.repository
-          - name: ACRPULL_REGISTRY
-            configRef: acrPull.image.registry
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .svc.aks.name  }}'
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ACRPULL_DIGEST
+      configRef: acrPull.image.digest
+    - name: ACRPULL_REPO
+      configRef: acrPull.image.repository
+    - name: ACRPULL_REGISTRY
+      configRef: acrPull.image.registry
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
+  aksCluster: '{{ .mgmt.aks.name  }}'
+  steps:
+  - name: deploy-mgmt
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ACRPULL_DIGEST
+      configRef: acrPull.image.digest
+    - name: ACRPULL_REPO
+      configRef: acrPull.image.repository
+    - name: ACRPULL_REGISTRY
+      configRef: acrPull.image.registry

@@ -2,9 +2,9 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.ClusterService
 rolloutName: Cluster Service Rollout
 resourceGroups:
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
-  aksCluster: {{ .svc.aks.name }}
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .svc.aks.name  }}'
   steps:
   - name: deploy
     action: Shell
@@ -84,8 +84,6 @@ resourceGroups:
       configRef: clusterService.k8s.serviceAccountName
     - name: ENVIRONMENT
       configRef: clusterService.environment
-
-
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME

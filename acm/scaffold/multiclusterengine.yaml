@@ -7,34 +7,34 @@ spec:
   imagePullSecret: open-cluster-management-image-pull-credentials
   overrides:
     components:
-      - enabled: true
-        name: local-cluster
-      - enabled: true
-        name: cluster-manager
-      - enabled: true
-        name: server-foundation
-      - enabled: true
-        name: hypershift-local-hosting
-      - enabled: true
-        name: hypershift
-      - enabled: false
-        name: cluster-lifecycle
-      - enabled: false
-        name: discovery
-      - enabled: false
-        name: console-mce
-      - enabled: false
-        name: hive
-      - enabled: false
-        name: assisted-service
-      - enabled: false
-        name: image-based-install-operator-preview
-      - enabled: false
-        name: cluster-proxy-addon
-      - enabled: false
-        name: managedserviceaccount
+    - enabled: true
+      name: local-cluster
+    - enabled: true
+      name: cluster-manager
+    - enabled: true
+      name: server-foundation
+    - enabled: true
+      name: hypershift-local-hosting
+    - enabled: true
+      name: hypershift
+    - enabled: false
+      name: cluster-lifecycle
+    - enabled: false
+      name: discovery
+    - enabled: false
+      name: console-mce
+    - enabled: false
+      name: hive
+    - enabled: false
+      name: assisted-service
+    - enabled: false
+      name: image-based-install-operator-preview
+    - enabled: false
+      name: cluster-proxy-addon
+    - enabled: false
+      name: managedserviceaccount
   targetNamespace: '{{ .Release.Namespace }}'
   tolerations:
-    - effect: NoSchedule
-      key: node-role.kubernetes.io/infra
-      operator: Exists
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/infra
+    operator: Exists

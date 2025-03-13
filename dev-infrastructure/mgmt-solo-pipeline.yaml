@@ -2,8 +2,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra.Solo
 rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   - name: global-output
     action: ARM
@@ -11,8 +11,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   - name: region-output
     action: ARM
@@ -20,8 +20,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .mgmt.rg }}
-  subscription: {{ .mgmt.subscription }}
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
   steps:
   - name: mgmt-infra
     action: ARM
@@ -59,9 +59,9 @@ resourceGroups:
     - mgmt-infra
     - region-output
     - global-output
-- name: {{ .mgmt.rg }}
-  subscription: {{ .mgmt.subscription }}
-  aksCluster: {{ .mgmt.aks.name }}
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
+  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   # Install ACRpull
   - name: acrpull
@@ -69,10 +69,10 @@ resourceGroups:
     command: make -C ../acrpull deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
-      - name: ACRPULL_DIGEST
-        configRef: acrPullImageDigest
+    - name: ACRPULL_DIGEST
+      configRef: acrPullImageDigest
     dependsOn:
     - mgmt-cluster

@@ -2,17 +2,17 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.RP.PKO
 rolloutName: RP PKO Rollout
 resourceGroups:
-- name: {{ .mgmt.rg }}
-  subscription: {{ .svc.subscription }}
-  aksCluster: {{ .mgmt.aks.name }}
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   - name: deploy
     action: Shell
     command: make deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name

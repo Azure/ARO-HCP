@@ -17,8 +17,8 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
-- name: {{ .global.rg }}
-  subscription: {{ .global.subscription }}
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
   steps:
   - name: global-output
     action: ARM
@@ -27,8 +27,8 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
-- name: {{ .regionRG }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   - name: region-output
     action: ARM
@@ -36,8 +36,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
   steps:
   # Create SVC KV
   - name: svc-infra
@@ -56,7 +56,7 @@ resourceGroups:
   - name: svc-oncert-private-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - svc-infra
+    - svc-infra
     vaultBaseUrl:
       input:
         name: svcKeyVaultUrl
@@ -66,7 +66,7 @@ resourceGroups:
   - name: svc-oncert-public-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
-      - svc-infra
+    - svc-infra
     vaultBaseUrl:
       input:
         name: svcKeyVaultUrl
@@ -102,9 +102,9 @@ resourceGroups:
     - global-output
     - region-output
 # Now that we have the SVC cluster, we can configure istio.
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
-  aksCluster: {{ .svc.aks.name }}
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .svc.aks.name  }}'
   steps:
   # configure istio
   - name: istio-config
@@ -112,11 +112,11 @@ resourceGroups:
     command: make -C ../istio deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
-      - name: ISTIO_VERSIONS
-        configRef: svc.istio.versions
+    - name: ISTIO_VERSIONS
+      configRef: svc.istio.versions
     dependsOn:
     - svc
   # - updates workload to use istio on version svc.istio.targetVersion
@@ -143,14 +143,14 @@ resourceGroups:
     command: make -C ../acrpull deploy
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
-      - name: ACRPULL_DIGEST
-        configRef: acrPull.image.digest
-      - name: ACRPULL_REPO
-        configRef: acrPull.image.repository
-      - name: ACRPULL_REGISTRY
-        configRef: acrPull.image.registry
+    - name: ACRPULL_DIGEST
+      configRef: acrPull.image.digest
+    - name: ACRPULL_REPO
+      configRef: acrPull.image.repository
+    - name: ACRPULL_REGISTRY
+      configRef: acrPull.image.registry
     dependsOn:
     - svc

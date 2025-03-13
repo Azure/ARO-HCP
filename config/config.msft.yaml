@@ -1,5 +1,4 @@
 $schema: config.schema.json
-
 #
 #   A B O U T   N A M I N G
 #
@@ -19,37 +18,31 @@ $schema: config.schema.json
 # - {{ .ctx.regionShort }} length: 2-4 / starts with a character, may end with a digit
 # - {{ .ctx.region }} very long, up to 20 characters / starts with a character, may end with a digit
 # - {{ .ctx.stamp }} used for for uniqueness for MGMT stamps within a region / digits only
-
 defaults:
   #
   # All defaults mentioned in this section need to be environment and region agnostic.
   #
 
   # The long Azure region name
-  region: {{ .ctx.region }}
-
+  region: '{{ .ctx.region  }}'
   regionRG: '{{ .ctx.region }}-shared-resources'
-
   global:
     rg: global-shared-resources
     subscription: hcp-global
     globalMSIName: "global-ev2-identity"
     safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
-
   # ACR
   acr:
     svc:
       zoneRedundantMode: Enabled
     ocp:
       zoneRedundantMode: Enabled
-
   # ACR Pull
   acrPull:
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
       digest: sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589 #v0.1.12
-
   # Logs
   logs:
     mdsd:
@@ -62,17 +55,14 @@ defaults:
         issuer: OneCertV2-PrivateCA
     loganalytics:
       enable: false
-
   # Hypershift
   hypershift:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
     image:
       repository: acm-d/rhtap-hypershift-operator
-
   # OIDC
   oidcZoneRedundantMode: Auto
-
   # SVC cluster specifics
   svc:
     subscription: hcp-{{ .ctx.region }}
@@ -101,7 +91,6 @@ defaults:
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
     logs:
       namespace: HCPServiceLogs
-
   # MGMT cluster specifics
   mgmt:
     subscription: hcp-{{ .ctx.region }}
@@ -124,7 +113,6 @@ defaults:
     applyKubeletFixes: true
     logs:
       namespace: HCPManagementLogs
-
   # RP Frontend
   frontend:
     image:
@@ -137,12 +125,10 @@ defaults:
       disableLocalAuth: true
       private: true
       zoneRedundantMode: Auto
-
   # RP Backend
   backend:
     image:
       repository: arohcpbackend
-
   # Mise
   mise:
     deploy: true
@@ -154,7 +140,6 @@ defaults:
     image:
       repository: mise
       digest: sha256:ad3f7efeeb6691c25bf31d46d7b879e06093ec2ff43c05ad32b5bc5315ab96a7
-
   # Maestro
   maestro:
     server:
@@ -187,7 +172,6 @@ defaults:
     restrictIstioIngress: true
     image:
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-
   # Cluster Service
   clusterService:
     image:
@@ -220,7 +204,6 @@ defaults:
     k8s:
       namespace: cluster-service
       serviceAccountName: clusters-service
-
   # Image Sync
   imageSync:
     rg: global-shared-resources
@@ -241,19 +224,16 @@ defaults:
     keyVault:
       private: false
       softDelete: true
-
   # MCE
   mce:
     clcStateMetrics:
       imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
-
   # SVC KV
   serviceKeyVault:
     rg: hcp-underlay-{{ .ctx.region }}-svc
-    region: {{ .ctx.region }}
+    region: '{{ .ctx.region  }}'
     softDelete: false
     private: false
-
   # Management Cluster KV
   cxKeyVault:
     softDelete: false
@@ -264,17 +244,14 @@ defaults:
   mgmtKeyVault:
     softDelete: false
     private: false
-
   # DNS
   dns:
     baseDnsZoneRG: global-shared-resources
     regionalSubdomain: '{{ .ctx.region }}'
-
   # Metrics
   monitoring:
     grafanaZoneRedundantMode: Disabled
     workspaceName: 'arohcp-{{ .ctx.regionShort }}'
-
   # Mock Managed Identities - not relevant for most MSFT envs
   miMockClientId: ""
   miMockPrincipalId: ""
@@ -282,7 +259,6 @@ defaults:
   armHelperClientId: ""
   armHelperFPAPrincipalId: ""
   armHelperCertName: ""
-
 clouds:
   public:
     defaults:
@@ -293,16 +269,13 @@ clouds:
         ocMirror:
           image:
             digest: sha256:574ebb57e70c46ba3bc34db4776fd64b63a52e04afc1dddba7b91e0c5f247952
-
     environments:
       int:
         # this is the MSFT INT environment
         defaults:
-
           # Region for global resources in INT is uksouth
           global:
             region: uksouth
-
           # Cluster Service
           clusterService:
             environment: "arohcpint"
@@ -310,23 +283,18 @@ clouds:
               name: arohcpint-cs-{{ .ctx.regionShort }} # [globally-unique]
             image:
               digest: sha256:c8de5ac6f2000ee185b42442c3b7f29e2b6b1068849f48620075cd811834202b
-
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActionsNonProd
-
           # OIDC
           oidcStorageAccountName: arohcpintoidc{{ .ctx.regionShort }} # [globally-unique]
-
           # Image Sync
           imageSync:
             keyVault:
               name: arohcpint-imagesync # [globally-unique]
-
           # SVC KV
           serviceKeyVault:
             name: arohcpint-svc-{{ .ctx.regionShort }} # [globally-unique]
-
           # Management Cluster KV
           cxKeyVault:
             name: arohcpint-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
@@ -334,7 +302,6 @@ clouds:
             name: arohcpint-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
           mgmtKeyVault:
             name: arohcpint-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
-
           # SVC cluster settings
           svc:
             aks:
@@ -353,7 +320,6 @@ clouds:
             logs:
               san: SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
               configVersion: "1.0"
-
           # MC cluster settings
           mgmt:
             aks:
@@ -371,20 +337,17 @@ clouds:
             logs:
               san: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
               configVersion: "1.0"
-
           # DNS
           dns:
             cxParentZoneName: aroapp-hcp.azure-test.net
             svcParentZoneName: aro-hcp.azure-test.net
             parentZoneName: azure-test.net
-
           # ACR
           acr:
             svc:
               name: arohcpsvcint # [globally-unique]
             ocp:
               name: arohcpocpint # [globally-unique]
-
           # RP Frontend
           frontend:
             cosmosDB:
@@ -392,17 +355,14 @@ clouds:
               private: false
             image:
               digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
-
           # RP Backend
           backend:
             image:
               digest: sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c
-
           # Hypershift
           hypershift:
             image:
               digest: sha256:305f45bf036f84255d41c20517c70a9cb18af3dcdfa71a82a5716dde77c9e2c3
-
           # Maestro
           maestro:
             eventGrid:
@@ -411,31 +371,25 @@ clouds:
               name: arohcpint-maestro-{{ .ctx.regionShort }} # [globally-unique]
             image:
               digest: sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5
-
           # 1P app - from RH Tenant
           firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
           firstPartyAppCertName: firstPartyCert2
-
           # Mock Managed Identities Service Princiapl - from RH Tenant
           miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
           miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
           miMockCertName: msiMockCert2
-
           # ARM Helper - from RH Tenant
           armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
           armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
           armHelperCertName: armHelperCert2
-
           # Grafana
           monitoring:
             grafanaName: 'arohcp-int'
             grafanaAdminGroupPrincipalId: '2fdb57d4-3fd3-415d-b604-1d0e37a188fe' # Azure Red Hat OpenShift MSFT Engineering
-
           # Global MSI
           aroDevopsMsiId: '/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
-          kvCertOfficerPrincipalId: '32af88de-a61c-4f71-b709-50538598c4f2'  # aro-ev2-admin-int-sp
-
+          kvCertOfficerPrincipalId: '32af88de-a61c-4f71-b709-50538598c4f2' # aro-ev2-admin-int-sp
           # Logs
           logs:
             mdsd:
@@ -444,11 +398,9 @@ clouds:
       stg:
         # this is the MSFT STAGE environment
         defaults:
-
           # Region for global resources in STAGE is uksouth
           global:
             region: uksouth
-
           # Cluster Service
           clusterService:
             environment: "arohcpstg"
@@ -456,23 +408,18 @@ clouds:
               name: arohcpstg-cs-{{ .ctx.regionShort }} # [globally-unique]
             image:
               digest: sha256:c8de5ac6f2000ee185b42442c3b7f29e2b6b1068849f48620075cd811834202b
-
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActions
-
           # OIDC
           oidcStorageAccountName: arohcpstgoidc{{ .ctx.regionShort }} # [globally-unique]
-
           # Image Sync
           imageSync:
             keyVault:
               name: arohcpstg-imagesync # [globally-unique]
-
           # SVC KV
           serviceKeyVault:
             name: arohcpstg-svc-{{ .ctx.regionShort }} # [globally-unique]
-
           # Management Cluster KV
           cxKeyVault:
             name: arohcpstg-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
@@ -480,7 +427,6 @@ clouds:
             name: arohcpstg-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
           mgmtKeyVault:
             name: arohcpstg-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }} # [globally-unique]
-
           # SVC cluster settings
           svc:
             aks:
@@ -496,7 +442,6 @@ clouds:
             logs:
               san: SVC.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM # TBD
               configVersion: "1.0"
-
           # MC cluster settings
           mgmt:
             aks:
@@ -513,20 +458,17 @@ clouds:
             logs:
               san: MGMT.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM # TBD
               configVersion: "1.0"
-
           # DNS
           dns:
             cxParentZoneName: aroapp-hcp.TBD.com
             svcParentZoneName: aro-hcp.TBD.com
             parentZoneName: TBD.com
-
           # ACR
           acr:
             svc:
               name: arohcpsvcstg # [globally-unique]
             ocp:
               name: arohcpocpstg # [globally-unique]
-
           # RP Frontend
           frontend:
             cosmosDB:
@@ -534,17 +476,14 @@ clouds:
               private: false
             image:
               digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
-
           # RP Backend
           backend:
             image:
               digest: sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c
-
           # Hypershift
           hypershift:
             image:
               digest: sha256:305f45bf036f84255d41c20517c70a9cb18af3dcdfa71a82a5716dde77c9e2c3
-
           # Maestro
           maestro:
             eventGrid:
@@ -553,21 +492,17 @@ clouds:
               name: arohcpstg-maestro-{{ .ctx.regionShort }} # [globally-unique]
             image:
               digest: sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5
-
           # 1P app - from RH Tenant
           firstPartyAppClientId: "TBD"
           firstPartyAppCertName: firstPartyCert
-
           # Grafana
           monitoring:
             grafanaName: 'arohcp-stg'
             grafanaAdminGroupPrincipalId: '' # TBD
-
           # Global MSI
           aroDevopsMsiId: 'chicken-egg-value-to-be-filled-later'
           # Cert Officer used for KV signer registration
-          kvCertOfficerPrincipalId: ''  # TBD
-
+          kvCertOfficerPrincipalId: '' # TBD
           # Logs
           logs:
             mdsd:

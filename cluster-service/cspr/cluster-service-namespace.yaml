@@ -1,126 +1,124 @@
----
 apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
   name: cluster-service-admin
 parameters:
-  - name: NAMESPACE
-    description: The namespace to create
-    required: true
-    value: cluster-service-admin
-  - name: CLIENT_ID
-    description: The Azure Client ID used for federation
-    required: true
-  - name: ORPHANED_NAMESPACE_CLEANER_NAMESPACE
-    description: The namespace to create to have a cronjob which will delete the orphaned namespace which are not deleted due to any issues with the jenkins job.
-    value: orphaned-namespace-cleaner
-  - name: KUBECTL_IMAGE
-    description: An image which have the `kubectl` binary in it.
-    value: quay.io/rhn_support_ansverma/ubi8-minimal-kubectl:latest
-
+- name: NAMESPACE
+  description: The namespace to create
+  required: true
+  value: cluster-service-admin
+- name: CLIENT_ID
+  description: The Azure Client ID used for federation
+  required: true
+- name: ORPHANED_NAMESPACE_CLEANER_NAMESPACE
+  description: The namespace to create to have a cronjob which will delete the orphaned namespace which are not deleted due to any issues with the jenkins job.
+  value: orphaned-namespace-cleaner
+- name: KUBECTL_IMAGE
+  description: An image which have the `kubectl` binary in it.
+  value: quay.io/rhn_support_ansverma/ubi8-minimal-kubectl:latest
 objects:
-  - apiVersion: v1
-    kind: Namespace
-    metadata:
-      name: cluster-service-admin
-  - apiVersion: v1
-    kind: ServiceAccount
-    metadata:
-      name: cluster-service-mgmt
-      namespace: ${NAMESPACE}
-  - apiVersion: rbac.authorization.k8s.io/v1
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: cluster-service-admin
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: cluster-service-mgmt
+    namespace: ${NAMESPACE}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: namespace-admin
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - namespaces
+    verbs:
+    - "*"
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: cluster-service-admin
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
-    metadata:
-      name: namespace-admin
-    rules:
-      - apiGroups:
-          - ""
-        resources:
-          - namespaces
-        verbs:
-          - "*"
-  - apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: cluster-service-admin
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: admin
-    subjects:
-      - kind: ServiceAccount
-        name: cluster-service-mgmt
-        namespace: cluster-service-admin
-  - apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: cluster-service-namespace-admin
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: namespace-admin
-    subjects:
-      - kind: ServiceAccount
-        name: cluster-service-mgmt
-        namespace: cluster-service-admin
-  - apiVersion: v1
-    kind: Secret
-    metadata:
-      name: cluster-service-mgmt-token
-      annotations:
-        kubernetes.io/service-account.name: cluster-service-mgmt
-      namespace: ${NAMESPACE}
-    type: kubernetes.io/service-account-token
-  - apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: cluster-service-config
-      namespace: ${NAMESPACE}
-    data:
-      cs-client-id: ${CLIENT_ID}
-  - apiVersion: v1
-    kind: Namespace
-    metadata:
-      name: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
-  - apiVersion: v1
-    kind: ServiceAccount
-    metadata:
-      name: orphaned-namespace-cleaner-cronjob
-      namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
-  - apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      name: orphaned-namespace-cleaner-cronjob
-    subjects:
-      - kind: ServiceAccount
-        name: orphaned-namespace-cleaner-cronjob
-        namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
-    roleRef:
-      kind: ClusterRole
-      name: namespace-admin
-      apiGroup: rbac.authorization.k8s.io
-  - apiVersion: batch/v1
-    kind: CronJob
-    metadata:
-      name: orphaned-namespace-cleaner
-      namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
-    spec:
-      schedule: "0 0 * * *"
-      successfulJobsHistoryLimit: 3
-      failedJobsHistoryLimit: 1
-      jobTemplate:
-        spec:
-          template:
-            spec:
-              serviceAccountName: orphaned-namespace-cleaner-cronjob
-              containers:
-                - name: kubectl-container
-                  image: ${KUBECTL_IMAGE}
-                  command: ["/bin/sh", "-c"]
-                  args:
-                    - |
-                      echo "Starting to clear orphaned namespaces"
-                      echo "deleting the orphaned namespaces"
-                      kubectl get namespaces -o json | jq -r '.items[] | select(.metadata.labels."sandbox-jenkins-type"=="aro-hcp") | select((now - (.metadata.creationTimestamp | fromdate)) / 60 > 60) | .metadata.name' | xargs kubectl delete namespace
-                      echo "Script execution completed."
-              restartPolicy: Never
+    name: admin
+  subjects:
+  - kind: ServiceAccount
+    name: cluster-service-mgmt
+    namespace: cluster-service-admin
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: cluster-service-namespace-admin
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: namespace-admin
+  subjects:
+  - kind: ServiceAccount
+    name: cluster-service-mgmt
+    namespace: cluster-service-admin
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: cluster-service-mgmt-token
+    annotations:
+      kubernetes.io/service-account.name: cluster-service-mgmt
+    namespace: ${NAMESPACE}
+  type: kubernetes.io/service-account-token
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: cluster-service-config
+    namespace: ${NAMESPACE}
+  data:
+    cs-client-id: ${CLIENT_ID}
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: orphaned-namespace-cleaner-cronjob
+    namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: orphaned-namespace-cleaner-cronjob
+  subjects:
+  - kind: ServiceAccount
+    name: orphaned-namespace-cleaner-cronjob
+    namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+  roleRef:
+    kind: ClusterRole
+    name: namespace-admin
+    apiGroup: rbac.authorization.k8s.io
+- apiVersion: batch/v1
+  kind: CronJob
+  metadata:
+    name: orphaned-namespace-cleaner
+    namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+  spec:
+    schedule: "0 0 * * *"
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 1
+    jobTemplate:
+      spec:
+        template:
+          spec:
+            serviceAccountName: orphaned-namespace-cleaner-cronjob
+            containers:
+            - name: kubectl-container
+              image: ${KUBECTL_IMAGE}
+              command: ["/bin/sh", "-c"]
+              args:
+              - |
+                echo "Starting to clear orphaned namespaces"
+                echo "deleting the orphaned namespaces"
+                kubectl get namespaces -o json | jq -r '.items[] | select(.metadata.labels."sandbox-jenkins-type"=="aro-hcp") | select((now - (.metadata.creationTimestamp | fromdate)) / 60 > 60) | .metadata.name' | xargs kubectl delete namespace
+                echo "Script execution completed."
+            restartPolicy: Never

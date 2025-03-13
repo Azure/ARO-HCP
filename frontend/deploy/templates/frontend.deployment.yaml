@@ -4,7 +4,7 @@ metadata:
   labels:
     app: aro-hcp-frontend
   name: aro-hcp-frontend
-  namespace: {{ .Release.namespace }}
+  namespace: '{{ .Release.namespace  }}'
 spec:
   progressDeadlineSeconds: 600
   replicas: 2
@@ -25,57 +25,57 @@ spec:
     spec:
       serviceAccountName: frontend
       containers:
-        - name: aro-hcp-frontend
-          image: '{{ .Values.deployment.imageName }}'
-          imagePullPolicy: Always
-          args: ["--clusters-service-url", "http://clusters-service.{{ .Values.clusterService.namespace }}.svc.cluster.local:8000"]
-          env:
-          - name: DB_NAME
-            valueFrom:
-              configMapKeyRef:
-                name: frontend-config
-                key: DB_NAME
-          - name: DB_URL
-            valueFrom:
-              configMapKeyRef:
-                name: frontend-config
-                key: DB_URL
-          - name: LOCATION
-            valueFrom:
-              configMapKeyRef:
-                name: frontend-config
-                key: LOCATION
-          ports:
-            - containerPort: 8443
-              protocol: TCP
-            - containerPort: 8081
-              protocol: TCP
-          resources:
-            limits:
-              memory: 1Gi
-            requests:
-              cpu: 100m
-              memory: 500Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8443
-            initialDelaySeconds: 15
-            periodSeconds: 20
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 8443
-            initialDelaySeconds: 5
-            periodSeconds: 10
+      - name: aro-hcp-frontend
+        image: '{{ .Values.deployment.imageName }}'
+        imagePullPolicy: Always
+        args: ["--clusters-service-url", "http://clusters-service.{{ .Values.clusterService.namespace }}.svc.cluster.local:8000"]
+        env:
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-config
+              key: DB_NAME
+        - name: DB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-config
+              key: DB_URL
+        - name: LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-config
+              key: LOCATION
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        - containerPort: 8081
+          protocol: TCP
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 500Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8443
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8443
+          initialDelaySeconds: 5
+          periodSeconds: 10
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mise
-  namespace: {{ .Values.namespace }}
+  namespace: '{{ .Values.namespace  }}'
 spec:
   replicas: 1
   selector:
@@ -28,11 +28,11 @@ spec:
             port: 8080
         env:
         - name: AzureAd__Instance
-          value: {{ .Values.azureAdInstance }}
+          value: '{{ .Values.azureAdInstance  }}'
         - name: AzureAd__ClientId
-          value: {{ .Values.azureAdClientId }}
+          value: '{{ .Values.azureAdClientId  }}'
         - name: AzureAd__TenantId
-          value: {{ .Values.tenantId }}
+          value: '{{ .Values.tenantId  }}'
         - name: AzureAd__InboundPolicies__0__Label
           value: "ARM Policy"
         - name: AzureAd__InboundPolicies__0__Authority
@@ -40,11 +40,11 @@ spec:
         - name: AzureAd__InboundPolicies__0__AuthenticationSchemes__0
           value: "Bearer"
         - name: AzureAd__InboundPolicies__0__ValidAudiences__0
-          value: {{ .Values.armInstance }}
+          value: '{{ .Values.armInstance  }}'
         - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
-          value: {{ .Values.validAppId0 }}
+          value: '{{ .Values.validAppId0  }}'
         - name: AzureAd__InboundPolicies__0__ValidApplicationIds__1
-          value: {{ .Values.validAppId1 }}
+          value: '{{ .Values.validAppId1  }}'
         - name: AllowedHosts
           value: "*"
         - name: Kestrel__Endpoints__Http__Url

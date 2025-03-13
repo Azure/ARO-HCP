@@ -2,7 +2,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: maestro-grpc
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace  }}'
   labels:
     app: maestro-grpc
     port: grpc
@@ -10,6 +10,6 @@ spec:
   selector:
     app: maestro
   ports:
-    - port: {{ .Values.maestro.grpcBindPort }}
-      targetPort: {{ .Values.maestro.grpcBindPort }}
-      protocol: TCP
+  - port: {{ .Values.maestro.grpcBindPort }}
+    targetPort: {{ .Values.maestro.grpcBindPort }}
+    protocol: TCP

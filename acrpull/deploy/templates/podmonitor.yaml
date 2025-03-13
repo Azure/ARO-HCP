@@ -5,10 +5,10 @@ metadata:
     app.kubernetes.io/name: acrpull
     app.kubernetes.io/managed-by: Helm
   name: acrpull-monitor
-  namespace: {{ .Values.namespace }}
+  namespace: '{{ .Values.namespace  }}'
 spec:
   podMetricsEndpoints:
-    - port: metrics
+  - port: metrics
   selector:
     matchLabels:
       app.kubernetes.io/name: acrpull
