@@ -36,6 +36,12 @@ resourceGroups:
   subscription: {{ .svc.subscription }}
   steps:
   # Create SVC KV
+  - name: networkFeature
+    action: approvefeatureregistration
+    resourceprovidernamespace:
+      value: Microsoft.Network
+    featurename:
+      value: AllowBringYourOwnPublicIpAddress
   - name: svc-infra
     action: ARM
     template: templates/svc-infra.bicep
