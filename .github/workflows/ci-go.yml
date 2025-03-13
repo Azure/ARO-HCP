@@ -45,7 +45,7 @@ jobs:
         fi
     - name: 'Regenerate mocks'
       run: |
-        make mocks
+        make mocks fmt
         if [[ ! -z "$(git status --short)" ]]
         then
           echo "there are some modified files, rerun 'make mocks' to update them and check the changes in"
