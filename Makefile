@@ -41,12 +41,21 @@ fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
+yamlfmt: $(YAMLFMT)
+	# first, wrap all templated values in quotes, so they are correct YAML
+	./yamlfmt.wrap.sh
+	# run the formatter
+	$(YAMLFMT) -dstar '**/*.{yaml,yml}'
+	# "fix" any non-string fields we cast to strings for the formatting
+	./yamlfmt.unwrap.sh
+.PHONY: yamlfmt
+
 tidy: $(MODULES:/...=.tidy)
 
 %.tidy:
 	cd $(basename $@) && go mod tidy
 
-all-tidy: tidy
+all-tidy: tidy fmt yamlfmt
 	go work sync
 
 #
