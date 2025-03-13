@@ -98,3 +98,20 @@ module assetManagement '../modules/automation-account/runbook.bicep' = {
     }
   }
 }
+
+module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
+  name: 'roleAssignmentsCleanup'
+  params: {
+    automationAccountName: automationAccountName
+    runbookDescription: 'Clean up orphaned role assignments'
+    runbookName: 'roleAssignmentsCleanup'
+    runbookType: 'PowerShell'
+    runbookVersion: '1.0.0'
+    location: location
+    rubookScript: {
+      ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
+      path: 'tooling/azure-automation/resources-cleanup/src/clean-orphaned-role-assignments.ps1'
+    }
+    scheduleName: 'nightly-schedule'
+  }
+}
