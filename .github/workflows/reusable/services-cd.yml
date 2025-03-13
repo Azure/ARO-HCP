@@ -1,12 +1,10 @@
 ---
-  name: ARO HCP Deploy Service Components
   env:
     DEPLOY_ENV: ${{ inputs.deploy_env }}
     SKIP_CONFIRM: true
     AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
     AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
     AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    #AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
     PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
   on:
     workflow_call:
@@ -32,7 +30,7 @@
           required: true
 
   concurrency:
-    group: ${{ github.workflow }}-service-cd-${{ inputs.deploy_env }}
+    group: service-cd-${{ inputs.deploy_env }}
     cancel-in-progress: false
 
   jobs:
