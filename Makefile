@@ -49,6 +49,14 @@ tidy: $(MODULES:/...=.tidy)
 all-tidy: tidy
 	go work sync
 
+mega-lint:
+	docker run --rm \
+		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
+		-e REPORT_OUTPUT_FOLDER=/tmp/report \
+		-v $${PWD}:/tmp/lint:Z \
+		oxsecurity/megalinter:v8 
+.PHONY: mega-lint
+
 #
 # Infra
 #
