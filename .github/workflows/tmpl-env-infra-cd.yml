@@ -1,4 +1,5 @@
 ---
+  name: Template - Environment Infrastructure CD
   env:
     DEPLOY_ENV: ${{ inputs.deploy_env }}
     SKIP_CONFIRM: true

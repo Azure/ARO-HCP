@@ -1,4 +1,5 @@
 ---
+  name: Template - Services Continous Integration
   env:
     DEPLOY_ENV: dev
     AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

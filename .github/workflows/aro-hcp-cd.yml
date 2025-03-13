@@ -72,7 +72,7 @@
         id-token: 'write'
         contents: 'read'
       secrets: inherit
-      uses: ./.github/workflows/.services-ci.yml
+      uses: ./.github/workflows/tmpl-services-ci.yml
       with:
         push: true
 
@@ -84,7 +84,7 @@
         id-token: 'write'
         contents: 'read'
       secrets: inherit
-      uses: ./.github/workflows/.env-infra-cd.yml
+      uses: ./.github/workflows/tmpl-env-infra-cd.yml
       with:
         deploy_env: dev
 
@@ -97,7 +97,7 @@
         id-token: 'write'
         contents: 'read'
       secrets: inherit
-      uses: ./.github/workflows/.services-cd.yml
+      uses: ./.github/workflows/tmpl-services-cd.yml
       with:
         deploy_env: dev
 
@@ -112,7 +112,7 @@
         id-token: 'write'
         contents: 'read'
       secrets: inherit
-      uses: ./.github/workflows/.env-infra-cd.yml
+      uses: ./.github/workflows/tmpl-env-infra-cd.yml
       with:
         deploy_env: cs-pr
         deploy_cs_pr_check_deps: true
@@ -126,7 +126,7 @@
         id-token: 'write'
         contents: 'read'
       secrets: inherit
-      uses: ./.github/workflows/.services-cd.yml
+      uses: ./.github/workflows/tmpl-services-cd.yml
       with:
         deploy_env: cs-pr
         deploy_cs_pr_check_deps: true

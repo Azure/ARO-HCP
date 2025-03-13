@@ -1,4 +1,5 @@
 ---
+  name: Template - Services Continous Deployment
   env:
     DEPLOY_ENV: ${{ inputs.deploy_env }}
     SKIP_CONFIRM: true

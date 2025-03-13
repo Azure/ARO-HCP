@@ -24,7 +24,7 @@
         id-token: 'write'
         contents: 'read'
       secrets: inherit
-      uses: ./.github/workflows/.env-infra-cd.yml
+      uses: ./.github/workflows/tmpl-env-infra-cd.yml
       with:
         deploy_env: ${{ inputs.deploy_env }}
         deploy_cs_pr_check_deps: ${{ inputs.deploy_env == 'cs-pr' }}

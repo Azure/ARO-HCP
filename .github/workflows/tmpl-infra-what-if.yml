@@ -1,4 +1,5 @@
 ---
+  name: Template - Infrastructure What-if
   env:
     DEPLOY_ENV: ${{ inputs.deploy_env }}
     DEPLOYMENT_NAME_SUFFIX: "-dev-${GITHUB_RUN_ID}"
@@ -7,25 +8,25 @@
     AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
   on:
-  workflow_call:
-    inputs:
-      deploy_env:
-      description: 'The deploy environment to use for service deployments'
-      required: true
-      type: string
-    secrets:
-      AZURE_CLIENT_ID:
-        description: 'Azure Client ID'
-        required: true
-      AZURE_TENANT_ID:
-        description: 'Azure Tenant ID'
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        description: 'Azure Subscription ID'
-        required: true
-      GHA_PRINCIPAL_ID:
-        description: 'GitHub Actions Azure Principal ID'
-        required: true
+    workflow_call:
+      inputs:
+        deploy_env:
+          description: 'The deploy environment to use for service deployments'
+          required: true
+          type: string
+      secrets:
+        AZURE_CLIENT_ID:
+          description: 'Azure Client ID'
+          required: true
+        AZURE_TENANT_ID:
+          description: 'Azure Tenant ID'
+          required: true
+        AZURE_SUBSCRIPTION_ID:
+          description: 'Azure Subscription ID'
+          required: true
+        GHA_PRINCIPAL_ID:
+          description: 'GitHub Actions Azure Principal ID'
+          required: true
 
   concurrency:
     group: infra-what-if-${{ inputs.deploy_env }}
