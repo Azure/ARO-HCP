@@ -27,14 +27,8 @@ fi
 
 dir_prefix=$(dirname $0)
 
-command=${dir_prefix}/decrypt.sh
-
-if [[ ${DRY_RUN} == "true" ]]; then
-    command="echo"
-fi
-
 ls -1 ${DATADIRPREFIX}/encryptedsecrets/${SECRETFOLDER} | while  read fileName
 do
     secretName=$(basename -s .enc ${fileName})
-    ${command} ${DATADIRPREFIX}/encryptedsecrets/${SECRETFOLDER}/${fileName} ${secretName} ${KEYVAULT} ${SECRETSYNCKEY}
+    ${dir_prefix}/decrypt.sh ${DATADIRPREFIX}/encryptedsecrets/${SECRETFOLDER}/${fileName} ${secretName} ${KEYVAULT} ${SECRETSYNCKEY}
 done
