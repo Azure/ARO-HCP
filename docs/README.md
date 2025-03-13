@@ -8,18 +8,26 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - System overview, scopes and key components
    - Major services and how they interact
 
-1. **[Environments](environments.md)**
-   - Overview of different deployment environments and Azure tenants
-   - Key differences and capabilities of each environment
-   - Access requirements and limitations
-   - Feature/Capability Matrix
+2. **Environments**
+   - [Overview](environments.md)
+     - Overview of different deployment environments and Azure tenants
+     - Key differences and capabilities of each environment
+     - Access requirements and limitations
+     - Feature/Capability Matrix
+   - Red Hat development tenant deployment environments
+     - [Personal ARO HCP environment](personal-dev.md)
+     - [Integrated DEV environment](integrated-dev.md)
+     - [CS PR environment](cspr.md)
+     - [Personal perfscale environment](perscale-deployment.md)
+   - MSFT deployment environments
+     - [MSIT INT](msit-int.md)
 
-1. **[Configuration Management](configuration.md)**
+3. **[Configuration Management](configuration.md)**
    - Overview and override structures
    - Configuration schema
    - Guidelines and limitations
 
-1. **Deployment Concept**
+4. **Deployment Concept**
    - [Pipelines concept](pipeline-concept.md)
    - [Service deployment concept](service-deployment-concept.md)
    - Deployment artifacts
@@ -27,15 +35,11 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
      - [Helm Charts](service-deployment-concept.md#helm-chart)
      - [Container images](images.md)
 
-1. **Deploying ARO HCP**
+5. **Deploying ARO HCP**
    - [Pipelines](pipelines.md)
       - documents existing pipelines
-   - Red Hat development tenant deployments
-     - [Personal ARO HCP environment](personal-dev.md)
-     - [Integrated DEV environment](integrated-dev.md)
-     - [CS PR environment](cspr.md)
-     - [Personal perfscale environment](perscale-deployment.md)
-   - MSFT deployments
-     - [MSIT INT](msit-int.md)
+   - [EV2 Deployment](ev2-deployment.md)
+      - Deployment process from pipeline.yaml to EV2 deployment
+      - Building and executing an ADO pipeline
 
-1. **[Terminology](terminology.md)**
+6. **[Terminology](terminology.md)**
