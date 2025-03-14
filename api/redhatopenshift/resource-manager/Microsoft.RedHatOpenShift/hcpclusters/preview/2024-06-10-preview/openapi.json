@@ -1667,15 +1667,15 @@
       "properties": {
         "key": {
           "$ref": "#/definitions/taintKey",
-          "description": "The key of the taint\nThe good example of the taint key is `node-role.kubernetes.io/master`"
+          "description": "The key of the taint"
         },
         "value": {
           "$ref": "#/definitions/taintValue",
-          "description": "The value of the taint\nThe good example of the taint value is `NoSchedule`"
+          "description": "The value of the taint"
         },
         "effect": {
           "$ref": "#/definitions/Effect",
-          "description": "The effect of the taint\nThe good example of the taint effect is `NoSchedule`"
+          "description": "The effect of the taint"
         }
       }
     },
@@ -1793,13 +1793,13 @@
     },
     "taintKey": {
       "type": "string",
-      "description": "taintKey is the k8s valid key of the taint type on the nodepool nodes\nThe good example of the taint key is `node-role.kubernetes.io/master`",
+      "description": "taintKey is the k8s valid key of the taint type on the nodepool nodes",
       "minLength": 1,
       "maxLength": 316
     },
     "taintValue": {
       "type": "string",
-      "description": "taintValue is the k8s valid value of the taint type on the nodepool nodes\nThe good example of the taint value is `NoSchedule`",
+      "description": "taintValue is the k8s valid value of the taint type on the nodepool nodes",
       "minLength": 1,
       "maxLength": 63
     }

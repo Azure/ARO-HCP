@@ -518,13 +518,13 @@ type SystemData struct {
 
 // Taint is controlling the node taint and its effects
 type Taint struct {
-	// The effect of the taint The good example of the taint effect is NoSchedule
+	// The effect of the taint
 	Effect *Effect
 
-	// The key of the taint The good example of the taint key is node-role.kubernetes.io/master
+	// The key of the taint
 	Key *string
 
-	// The value of the taint The good example of the taint value is NoSchedule
+	// The value of the taint
 	Value *string
 }
 
