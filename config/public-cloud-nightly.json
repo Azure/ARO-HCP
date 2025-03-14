@@ -1,7 +1,17 @@
 {
+  "acr": {
+    "ocp": {
+      "name": "arohcpocpdev",
+      "zoneRedundantMode": "Disabled"
+    },
+    "svc": {
+      "name": "arohcpsvcdev",
+      "zoneRedundantMode": "Disabled"
+    }
+  },
   "acrPull": {
     "image": {
-      "digest": "sha256:51dd1a7c217b554d7925e67008caf747c8bec17b641830160e08b6836a8aa589",
+      "digest": "sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0",
       "registry": "mcr.microsoft.com",
       "repository": "aks/msi-acrpull"
     }
@@ -59,12 +69,12 @@
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cs-usw3",
+      "name": "arohcp-cs-nightly",
       "private": false
     }
   },
   "cxKeyVault": {
-    "name": "arohcp-cx-usw3-1",
+    "name": "arohcp-cx-nightly-1",
     "private": false,
     "softDelete": false
   },
@@ -72,7 +82,7 @@
     "baseDnsZoneRG": "global",
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
-    "regionalSubdomain": "usw3",
+    "regionalSubdomain": "nightly",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
@@ -81,12 +91,12 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-usw3"
+      "name": "frontend-cert-nightly"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-usw3",
+      "name": "arohcp-rp-nightly",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -114,7 +124,6 @@
     "namespace": "hypershift"
   },
   "imageSync": {
-    "acrRG": "global",
     "componentSync": {
       "enabled": true,
       "image": {
@@ -123,7 +132,7 @@
       },
       "pullSecretName": "component-sync-pull-secret",
       "repositories": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager",
-      "secrets": "quay.io:bearer-secret"
+      "secrets": "quay.io:quay-io-bearer"
     },
     "environmentName": "aro-hcp-image-sync",
     "keyVault": {
@@ -139,7 +148,8 @@
       },
       "pullSecretName": "pull-secret"
     },
-    "rg": "hcp-underlay-westus3-imagesync-dev"
+    "rg": "hcp-underlay-westus3-imagesync-dev",
+    "secretsToSyncDir": "dev/arohcp-imagesync-dev"
   },
   "kvCertOfficerPrincipalId": "c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb",
   "logs": {
@@ -160,7 +170,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-usw3-mgmt-1",
+      "consumerName": "hcp-underlay-nightly-mgmt-1",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -174,7 +184,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-maestro-usw3",
+      "name": "arohcp-maestro-nightly",
       "private": false
     },
     "image": {
@@ -185,7 +195,7 @@
       "databaseName": "maestro",
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-maestro-usw3",
+      "name": "arohcp-maestro-nightly",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15"
@@ -198,7 +208,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-usw3"
+      "mqttClientName": "maestro-server-nightly"
     }
   },
   "mce": {
@@ -210,11 +220,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "arohcp-etcd-usw3-1",
+        "kvName": "arohcp-etcd-nightly-1",
         "kvSoftDelete": false
       },
-      "kubernetesVersion": "1.31.2",
-      "name": "usw3-mgmt-1",
+      "kubernetesVersion": "1.31.5",
+      "name": "nightly-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -233,11 +243,11 @@
       "vnetAddressPrefix": "10.128.0.0/14"
     },
     "applyKubeletFixes": false,
-    "rg": "hcp-underlay-usw3-mgmt-1",
+    "rg": "hcp-underlay-nightly-mgmt-1",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "arohcp-mgmt-usw3-1",
+    "name": "arohcp-mgmt-nightly-1",
     "private": false,
     "softDelete": false
   },
@@ -260,16 +270,14 @@
     "grafanaAdminGroupPrincipalId": "6b6d3adf-8476-4727-9812-20ffdef2b85c",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "workspaceName": "arohcp-usw3"
+    "workspaceName": "arohcp-nightly"
   },
   "msiKeyVault": {
-    "name": "arohcp-msi-usw3-1",
+    "name": "arohcp-msi-nightly-1",
     "private": false,
     "softDelete": false
   },
-  "ocpAcrName": "arohcpocpdev",
-  "ocpAcrZoneRedundantMode": "Disabled",
-  "oidcStorageAccountName": "arohcpoidcusw3",
+  "oidcStorageAccountName": "arohcpoidcnightly",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
@@ -277,7 +285,7 @@
     "imageTag": "v1.15.0"
   },
   "region": "westus3",
-  "regionRG": "hcp-underlay-usw3",
+  "regionRG": "hcp-underlay-nightly",
   "serviceKeyVault": {
     "name": "aro-hcp-dev-svc-kv",
     "private": false,
@@ -289,11 +297,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "arohcp-etcd-usw3",
+        "kvName": "arohcp-etcd-nightly",
         "kvSoftDelete": false
       },
-      "kubernetesVersion": "1.31.2",
-      "name": "usw3-svc",
+      "kubernetesVersion": "1.31.5",
+      "name": "nightly-svc",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -319,9 +327,7 @@
       "targetVersion": "asm-1-23",
       "versions": "asm-1-23"
     },
-    "rg": "hcp-underlay-usw3-svc",
+    "rg": "hcp-underlay-nightly-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
-  },
-  "svcAcrName": "arohcpsvcdev",
-  "svcAcrZoneRedundantMode": "Disabled"
+  }
 }
