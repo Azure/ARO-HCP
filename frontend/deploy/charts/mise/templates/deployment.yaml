@@ -4,7 +4,7 @@ metadata:
   name: mise
   namespace: '{{ .Values.namespace  }}'
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: mise
