@@ -313,6 +313,16 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-previ
           rotationPollInterval: '5m'
         }
       }
+      omsagent: (logAnalyticsWorkspaceId != '')
+        ? {
+            enabled: true
+            config: {
+              logAnalyticsWorkspaceResourceID: logAnalyticsWorkspaceId
+            }
+          }
+        : {
+            enabled: false
+          }
     }
     agentPoolProfiles: [
       {
@@ -527,6 +537,7 @@ resource aksClusterDcr 'Microsoft.Insights/dataCollectionRules@2023-03-11' = if 
           'Microsoft-ContainerLog'
           'Microsoft-ContainerLogV2'
           'Microsoft-KubeEvents'
+          'Microsoft-KubePodInventory'
         ]
       }
     ]
