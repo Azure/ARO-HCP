@@ -79,5 +79,39 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
       ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
       path: 'tooling/azure-automation/resources-cleanup/src/resources_cleanup.py'
     }
+    scheduleName: 'nightly-schedule'
+  }
+}
+
+module assetManagement '../modules/automation-account/runbook.bicep' = {
+  name: 'assetManagement'
+  params: {
+    automationAccountName: automationAccountName
+    runbookDescription: 'Simulate Automation Assets during offline development'
+    runbookName: 'assetManagement'
+    runbookType: 'Python3'
+    runbookVersion: '1.0.0'
+    location: location
+    rubookScript: {
+      ref: '9f17bb8a93c5c820ff3095d836eb706acbdf75e8'
+      path: 'tooling/azure-automation/resources-cleanup/src/automationassets.py'
+    }
+  }
+}
+
+module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
+  name: 'roleAssignmentsCleanup'
+  params: {
+    automationAccountName: automationAccountName
+    runbookDescription: 'Clean up orphaned role assignments'
+    runbookName: 'roleAssignmentsCleanup'
+    runbookType: 'PowerShell'
+    runbookVersion: '1.0.0'
+    location: location
+    rubookScript: {
+      ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
+      path: 'tooling/azure-automation/resources-cleanup/src/clean-orphaned-role-assignments.ps1'
+    }
+    scheduleName: 'nightly-schedule'
   }
 }

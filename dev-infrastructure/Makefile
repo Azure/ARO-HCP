@@ -343,7 +343,7 @@ operator-roles.what-if:
 # Common
 #
 
-what-if: global.what-if acr.what-if region.what-if svc.what-if mgmt.what-if operator-roles.what-if
+what-if: global.what-if acr.what-if region.what-if svc.what-if mgmt.what-if operator-roles.what-if automation-account.what-if
 .PHONY: what-if
 
 infra: region svc.init mgmt.init
@@ -379,3 +379,12 @@ automation-account:
 		--parameters \
 			configurations/dev-automation-account.bicepparam
 .PHONY: automation-account
+
+automation-account.what-if:
+	az deployment group what-if \
+		--name dev-automation-account \
+		--resource-group $(AUTOMATION_ACCOUNT_RG) \
+		--template-file templates/dev-automation-account.bicep \
+		--parameters \
+			configurations/dev-automation-account.bicepparam
+.PHONY: automation-account.what-if
