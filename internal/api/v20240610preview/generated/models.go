@@ -351,9 +351,6 @@ type NodePoolPlatformProfile struct {
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *string
 
-	// Is the disk ephemeral
-	EphemeralOsDisk *bool
-
 	// The resourceId for the subnet used by the workers
 	SubnetID *string
 }
