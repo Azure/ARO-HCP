@@ -35,7 +35,6 @@ type NodePoolPlatformProfile struct {
 	DiskSizeGiB            int32  `json:"diskSizeGiB,omitempty"            validate:"omitempty,gt=0"`
 	DiskStorageAccountType string `json:"diskStorageAccountType,omitempty"`
 	AvailabilityZone       string `json:"availabilityZone,omitempty"`
-	EphemeralOSDisk        bool   `json:"ephemeralOsDisk,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
