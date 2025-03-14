@@ -6,10 +6,9 @@ These keys are used for assymetric encryption. See [https://github.com/Azure/ARO
 
 Naming convention:
 
-`$environment_$region_$keyvault_$key.pem`
+`$environment_$keyvault_$key.pem`
 
 Explanation
 - Environment: Name of environment
-- Region: Region name, or global for global resources
 - Keyvault: logical keyvault name without pre/suffixes
 - Key: Name of the key within the keyvault

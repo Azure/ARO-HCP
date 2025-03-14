@@ -208,7 +208,7 @@ defaults:
   imageSync:
     rg: global-shared-resources
     environmentName: global-shared-resources
-    secretsToSync: ""
+    secretsToSyncDir: "none"
     componentSync:
       enabled: true
       image:

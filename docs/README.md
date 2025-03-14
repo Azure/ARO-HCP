@@ -41,5 +41,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - [EV2 Deployment](ev2-deployment.md)
       - Deployment process from pipeline.yaml to EV2 deployment
       - Building and executing an ADO pipeline
+   - [Secret Syncronization](secret-sync.md)
+      - documents tools/processes to sync secrets 
 
 6. **[Terminology](terminology.md)**
