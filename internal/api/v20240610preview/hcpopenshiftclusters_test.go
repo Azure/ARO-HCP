@@ -38,11 +38,23 @@ func minimumValidClusterIdentities() *api.HCPOpenShiftCluster {
 				Visibility: "public",
 			},
 			Platform: api.PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2"}},
+				SubnetID: "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: api.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
+						},
+						ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2",
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1": &arm.UserAssignedIdentity{}, "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1": &arm.UserAssignedIdentity{},
+				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 
@@ -64,11 +76,22 @@ func minimumValidClusterwithBrokenIdentities() *api.HCPOpenShiftCluster {
 				Visibility: "public",
 			},
 			Platform: api.PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2"}},
+				SubnetID: "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: api.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
+						},
+						ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2",
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 
@@ -90,11 +113,23 @@ func minimumValidClusterwithMultipleIdentities() *api.HCPOpenShiftCluster {
 				Visibility: "public",
 			},
 			Platform: api.PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: api.OperatorsAuthenticationProfile{UserAssignedIdentities: api.UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1", "operatorY": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}, ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1"}},
+				SubnetID: "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: api.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
+							"operatorY": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
+						},
+						ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 func TestClusterRequiredForPut(t *testing.T) {

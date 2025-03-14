@@ -52,11 +52,21 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 				Visibility: "public",
 			},
 			Platform: PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: OperatorsAuthenticationProfile{UserAssignedIdentities: UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity"}}},
+				SubnetID: "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: OperatorsAuthenticationProfile{
+					UserAssignedIdentities: UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity",
+						},
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 
@@ -77,11 +87,21 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 				Visibility: "public",
 			},
 			Platform: PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: OperatorsAuthenticationProfile{UserAssignedIdentities: UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "wrong/Pattern/Of/ResourceID"}}},
+				SubnetID: "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: OperatorsAuthenticationProfile{
+					UserAssignedIdentities: UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "wrong/Pattern/Of/ResourceID",
+						},
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 
@@ -245,7 +265,9 @@ func TestClusterValidateTags(t *testing.T) {
 		{
 			name: "Bad enum_managedserviceidentitytype",
 			tweaks: &HCPOpenShiftCluster{
-				Identity: arm.ManagedServiceIdentity{Type: "brokenServiceType"},
+				Identity: arm.ManagedServiceIdentity{
+					Type: "brokenServiceType",
+				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
