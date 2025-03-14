@@ -103,7 +103,6 @@ func CreateNodePool() error {
 				// in CS config files.
 				VMSize:                 "Standard_D8s_v3",
 				DiskStorageAccountType: "StandardSSD_LRS",
-				EphemeralOSDisk:        false,
 			},
 			Replicas: 2,
 		},

@@ -481,9 +481,6 @@ model NodePoolPlatformProfile {
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
   availabilityZone?: string;
-
-  /** Is the disk ephemeral */
-  ephemeralOsDisk?: boolean;
 }
 
 /** Node pool autoscaling */

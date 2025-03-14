@@ -1442,10 +1442,6 @@
         "availabilityZone": {
           "type": "string",
           "description": "The availability zone for the node pool.\nPlease read the documentation to see which regions support availability zones\n- https://learn.microsoft.com/en-us/azure/availability-zones/az-overview"
-        },
-        "ephemeralOsDisk": {
-          "type": "boolean",
-          "description": "Is the disk ephemeral"
         }
       },
       "required": [
