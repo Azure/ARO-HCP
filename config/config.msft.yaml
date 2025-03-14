@@ -30,7 +30,7 @@ defaults:
     rg: global-shared-resources
     subscription: hcp-global
     globalMSIName: "global-ev2-identity"
-    safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
+    safeDnsIntAppObjectId: "" # intentionally blank - only required in INT
   # ACR
   acr:
     svc:
@@ -276,6 +276,7 @@ clouds:
           # Region for global resources in INT is uksouth
           global:
             region: uksouth
+            safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
           # Cluster Service
           clusterService:
             environment: "arohcpint"
