@@ -52,6 +52,10 @@ type Taint struct {
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
-		Properties: HCPOpenShiftClusterNodePoolProperties{},
+		Properties: HCPOpenShiftClusterNodePoolProperties{
+			Version: VersionProfile{
+				ChannelGroup: "stable",
+			},
+		},
 	}
 }

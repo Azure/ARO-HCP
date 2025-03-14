@@ -1742,6 +1742,7 @@
         "channelGroup": {
           "type": "string",
           "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
+          "default": "stable",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1757,8 +1758,6 @@
         }
       },
       "required": [
-        "id",
-        "channelGroup",
         "availableUpgrades"
       ]
     },

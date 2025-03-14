@@ -147,11 +147,11 @@ union ProvisioningState {
 model VersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility("create", "read")
-  id: string;
+  id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
   @visibility("create", "read")
-  channelGroup: string;
+  channelGroup?: string = "stable";
 
   /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
   @visibility("read")
