@@ -482,12 +482,6 @@ model NodePoolPlatformProfile {
    */
   availabilityZone?: string;
 
-  /** Disk Encryption Set ID that will be used for encryption the Nodes disks
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
-   */
-  diskEncryptionSetId?: string;
-
   /** Is the disk ephemeral */
   ephemeralOsDisk?: boolean;
 }

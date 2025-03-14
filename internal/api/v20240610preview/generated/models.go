@@ -338,11 +338,6 @@ type NodePoolPlatformProfile struct {
 	// * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
 	AvailabilityZone *string
 
-	// Disk Encryption Set ID that will be used for encryption the Nodes disks
-	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
-	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
-	DiskEncryptionSetID *string
-
 	// The OS disk size in GiB
 	DiskSizeGiB *int32
 

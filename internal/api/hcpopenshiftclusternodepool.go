@@ -35,7 +35,6 @@ type NodePoolPlatformProfile struct {
 	DiskSizeGiB            int32  `json:"diskSizeGiB,omitempty"            validate:"omitempty,gt=0"`
 	DiskStorageAccountType string `json:"diskStorageAccountType,omitempty"`
 	AvailabilityZone       string `json:"availabilityZone,omitempty"`
-	DiskEncryptionSetID    string `json:"diskEncryptionSetId,omitempty"`
 	EphemeralOSDisk        bool   `json:"ephemeralOsDisk,omitempty"`
 }
 
