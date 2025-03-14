@@ -112,7 +112,7 @@
     "globalMSIName": "global-ev2-identity",
     "region": "uksouth",
     "rg": "global-shared-resources",
-    "safeDnsIntAppObjectId": "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc",
+    "safeDnsIntAppObjectId": "",
     "subscription": "hcp-global"
   },
   "hypershift": {
@@ -272,7 +272,7 @@
     "validAppId1": ""
   },
   "monitoring": {
-    "grafanaAdminGroupPrincipalId": "",
+    "grafanaAdminGroupPrincipalId": "18d30381-f780-4915-8e55-de67daf7fb04",
     "grafanaName": "arohcp-stg",
     "grafanaZoneRedundantMode": "Disabled",
     "workspaceName": "arohcp-usw3"
