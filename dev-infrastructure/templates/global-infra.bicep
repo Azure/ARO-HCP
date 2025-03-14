@@ -77,7 +77,7 @@ resource svcParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/networking#dns-zone-contributor
 var dnsZoneContributor = 'befefa01-2a29-4197-83a8-272ff33ce314'
 
-resource cxParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource cxParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(safeDnsIntAppObjectId)) {
   name: guid(cxParentZone.id, safeDnsIntAppObjectId, dnsZoneContributor)
   scope: cxParentZone
   properties: {
@@ -87,7 +87,7 @@ resource cxParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@202
   }
 }
 
-resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(safeDnsIntAppObjectId)) {
   name: guid(svcParentZone.id, safeDnsIntAppObjectId, dnsZoneContributor)
   scope: svcParentZone
   properties: {
