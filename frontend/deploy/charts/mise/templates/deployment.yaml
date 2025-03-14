@@ -30,9 +30,9 @@ spec:
         - name: AzureAd__Instance
           value: '{{ .Values.azureAdInstance  }}'
         - name: AzureAd__ClientId
-          value: {{ .Values.firstPartyAppId }}
+          value: '{{ .Values.firstPartyAppId  }}'
         - name: AzureAd__TenantId
-          value: {{ .Values.tenantId }}
+          value: '{{ .Values.tenantId  }}'
         - name: AzureAd__Audience
           value: "api://{{ .Values.azureAdClientId }}"
         - name: AzureAd__InboundPolicies__0__Label
@@ -44,7 +44,7 @@ spec:
         - name: AzureAd__InboundPolicies__0__ValidAudiences__0
           value: '{{ .Values.armInstance  }}'
         - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
-          value: {{ .Values.armAppId }}
+          value: '{{ .Values.armAppId  }}'
         - name: AzureAd__InboundPolicies__0__SignedHttpRequestValidationPolicy
           value: '{"ValidateTs" : true, "ValidateM" : true, "ValidateU" : true, "ValidateP" : true }'
         - name: AllowedHosts
