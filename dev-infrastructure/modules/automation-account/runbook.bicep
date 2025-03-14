@@ -27,8 +27,8 @@ param frequency string = 'Day'
 @description('Interval for the schedule execution')
 param interval int = 1
 
-@description('Start time for the scheduled execution (must be at least 5 min from deployment time)')
-param startTime string = dateTimeAdd(utcNow(), 'PT15M')
+@description('Start time for the scheduled execution (12:00 AM the next day)')
+param startTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
 
 resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' existing = {
   name: automationAccountName
