@@ -31,7 +31,8 @@ then
     az keyvault secret set --only-show-errors \
         --name "${outputSecret}" \
         --vault-name "${keyvault}" \
-        --value "${decryptedSecret}"
+        --value "${decryptedSecret}" 2>&1 > /dev/null
+    exit $?
 fi
 
 echo "Secret ${keyvault}/${outputSecret} up to date"
