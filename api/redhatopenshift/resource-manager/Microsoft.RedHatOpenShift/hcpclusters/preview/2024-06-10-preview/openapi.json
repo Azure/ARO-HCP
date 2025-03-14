@@ -1688,14 +1688,22 @@
           "description": "The set of Azure User-Assigned Managed Identities leveraged for the Control Plane\noperators of the cluster. The set of required managed identities is dependent on the\nCluster's OpenShift version.",
           "additionalProperties": {
             "$ref": "#/definitions/UserAssignedIdentityResourceId"
-          }
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "dataPlaneOperators": {
           "type": "object",
           "description": "The set of Azure User-Assigned Managed Identities leveraged for the Data Plane\noperators of the cluster. The set of required managed identities is dependent on the\nCluster's OpenShift version.",
           "additionalProperties": {
             "$ref": "#/definitions/UserAssignedIdentityResourceId"
-          }
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "serviceManagedIdentity": {
           "$ref": "#/definitions/UserAssignedIdentityResourceId",
