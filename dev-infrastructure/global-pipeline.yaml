@@ -61,6 +61,8 @@ resourceGroups:
       configRef: imageSync.keyVault.name
     - name: SECRETFOLDER
       configRef: imageSync.secretsToSyncDir
+    dependsOn:
+    - global-infra
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM
