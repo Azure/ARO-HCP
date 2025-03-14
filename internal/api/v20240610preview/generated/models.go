@@ -356,7 +356,7 @@ type NodePoolPlatformProfile struct {
 	// Is the disk ephemeral
 	EphemeralOsDisk *bool
 
-	// The resourceId for the subnet used by the workers
+	// The Azure resource ID of the worker subnet
 	SubnetID *string
 }
 
@@ -448,7 +448,7 @@ type PlatformProfile struct {
 	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfile
 
-	// REQUIRED; ResourceId for the subnet used by the control plane
+	// REQUIRED; The Azure resource ID of the worker subnet
 	SubnetID *string
 
 	// Resource group to put cluster resources

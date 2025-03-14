@@ -250,7 +250,7 @@ model PlatformProfile {
   /** Resource group to put cluster resources */
   managedResourceGroup?: string;
 
-  /** ResourceId for the subnet used by the control plane */
+  /** The Azure resource ID of the worker subnet */
   subnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
@@ -465,7 +465,7 @@ model Label {
 
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
-  /** The resourceId for the subnet used by the workers */
+  /** The Azure resource ID of the worker subnet */
   subnetId?: string;
 
   /** The VM size according to the documentation:
