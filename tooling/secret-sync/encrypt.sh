@@ -1,7 +1,6 @@
 #!/bin/bash
-set -x
 
-if [[ $# -ne 2 ]] || [[ $# -ne 1 ]];
+if [[ $# -gt 2 ]] || [[ $# -ne 1 ]];
 then
     echo "usage:"
     echo "To encrypt only a single secret with a single output, run:"
@@ -11,7 +10,7 @@ then
     echo "echo content | encrypt.sh outputFile"
     echo "Optional: \$DATADIRPREFIX, path to read/store data from/to defaults to: dev-infrastructure/data"
     echo ""
-    
+    exit 1
 fi
 
 if [[ $# -eq 2 ]];
@@ -39,7 +38,7 @@ then
 
 
         targetFolder=${DATADIRPREFIX}/encryptedsecrets/${deployEnv}/${keyVault}/
-        [ if ! -d ${targetFolder} ] || mkdir -p ${targetFolder}
+        [[ ! -d ${targetFolder} ]] && mkdir -p ${targetFolder}
         targetFile=${DATADIRPREFIX}/encryptedsecrets/${deployEnv}/${keyVault}/${outputFile}
 
         echo ${secret} | openssl pkeyutl -encrypt \
