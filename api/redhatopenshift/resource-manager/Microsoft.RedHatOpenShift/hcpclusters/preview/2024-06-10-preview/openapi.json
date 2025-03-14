@@ -1406,7 +1406,7 @@
       "properties": {
         "subnetId": {
           "type": "string",
-          "description": "The resourceId for the subnet used by the workers"
+          "description": "The Azure resource ID of the worker subnet"
         },
         "vmSize": {
           "type": "string",
@@ -1552,7 +1552,7 @@
         },
         "subnetId": {
           "$ref": "#/definitions/SubnetResourceId",
-          "description": "ResourceId for the subnet used by the control plane"
+          "description": "The Azure resource ID of the worker subnet"
         },
         "outboundType": {
           "type": "string",
