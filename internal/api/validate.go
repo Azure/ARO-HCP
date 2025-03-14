@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	validator "github.com/go-playground/validator/v10"
@@ -151,6 +152,21 @@ type validateContext struct {
 	Resource any
 }
 
+// approximateJSONName approximates the JSON name for a struct field name by
+// lowercasing the first letter. This is not always accurate in general but
+// works for the small set of cases where we need it.
+func approximateJSONName(s string) string {
+	r, size := utf8.DecodeRuneInString(s)
+	if r == utf8.RuneError && size <= 1 {
+		return s
+	}
+	lc := unicode.ToLower(r)
+	if r == lc {
+		return s
+	}
+	return string(lc) + s[size:]
+}
+
 func ValidateRequest(validate *validator.Validate, method string, resource any) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
@@ -197,19 +213,15 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					// not provide access to the parent reflect.Type from
 					// which we could look it up. So approximate the JSON
 					// name by lowercasing the first letter.
-					field2 := []byte(fieldErr.Param())
-					field2[0] = byte(unicode.ToLower(rune(field2[0])))
 					zero := reflect.Zero(fieldErr.Type()).Interface()
-					message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, field2)
+					message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, approximateJSONName(fieldErr.Param()))
 				case "gtefield":
 					// We want to print the JSON name for the field
 					// referenced in the parameter, but FieldError does
 					// not provide access to the parent reflect.Type from
 					// which we could look it up. So approximate the JSON
 					// name by lowercasing the first letter.
-					field2 := []byte(fieldErr.Param())
-					field2[0] = byte(unicode.ToLower(rune(field2[0])))
-					message += fmt.Sprintf(" (must be at least the value of '%s')", field2)
+					message += fmt.Sprintf(" (must be at least the value of '%s')", approximateJSONName(fieldErr.Param()))
 				case "ipv4":
 					message += " (must be an IPv4 address)"
 				case "max":
