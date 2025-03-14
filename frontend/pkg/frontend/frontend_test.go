@@ -370,7 +370,6 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": "2024-06-10-preview",
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "openshift-v4.0.0",
 						"channelGroup": "stable",
 					},
 					"network": map[string]any{
@@ -398,7 +397,6 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": "2024-06-10-preview",
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "openshift-v4.0.0",
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
@@ -417,7 +415,6 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": "2024-06-10-preview",
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "openshift-v4.0.0",
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{

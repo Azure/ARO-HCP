@@ -283,14 +283,10 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 				VMSize:                 np.AzureNodePool().VMSize(),
 				DiskStorageAccountType: np.AzureNodePool().OSDiskStorageAccountType(),
 				AvailabilityZone:       np.AvailabilityZone(),
-				EncryptionAtHost:       false, // TODO: Not implemented in OCM
 				DiskSizeGiB:            int32(np.AzureNodePool().OSDiskSizeGibibytes()),
-				DiskEncryptionSetID:    "", // TODO: Not implemented in OCM
-				EphemeralOSDisk:        np.AzureNodePool().EphemeralOSDiskEnabled(),
 			},
-			AutoRepair:    np.AutoRepair(),
-			Labels:        np.Labels(),
-			TuningConfigs: np.TuningConfigs(),
+			AutoRepair: np.AutoRepair(),
+			Labels:     np.Labels(),
 		},
 	}
 
@@ -322,10 +318,6 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*cmv1.NodePool, error) {
 	npBuilder := cmv1.NewNodePool()
 
-	// FIXME HCPOpenShiftClusterNodePool attributes not being passed:
-	//       PlatformProfile.EncryptionAtHost    (no CS equivalent?)
-	//       PlatformProfile.DiskEncryptionSetID (no CS equivalent?)
-
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
 		npBuilder = npBuilder.
@@ -339,15 +331,13 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 				ResourceName(nodePool.Name).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.DiskSizeGiB)).
-				OSDiskStorageAccountType(nodePool.Properties.Platform.DiskStorageAccountType).
-				EphemeralOSDiskEnabled(nodePool.Properties.Platform.EphemeralOSDisk)).
+				OSDiskStorageAccountType(nodePool.Properties.Platform.DiskStorageAccountType)).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
 
 	npBuilder = npBuilder.
-		Labels(nodePool.Properties.Labels).
-		TuningConfigs(nodePool.Properties.TuningConfigs...)
+		Labels(nodePool.Properties.Labels)
 
 	if nodePool.Properties.AutoScaling != nil {
 		npBuilder.Autoscaling(cmv1.NewNodePoolAutoscaling().

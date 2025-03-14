@@ -47,7 +47,6 @@ func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
 			Version: api.VersionProfile{
-				ID:           "openshift-v4.17.0",
 				ChannelGroup: "stable",
 			},
 			DNS: api.DNSProfile{},
@@ -91,7 +90,6 @@ func CreateNodePool() error {
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			ProvisioningState: arm.ProvisioningState(""),
 			Version: api.VersionProfile{
-				ID:           "openshift-v4.17.0",
 				ChannelGroup: "stable",
 			},
 			Platform: api.NodePoolPlatformProfile{
@@ -103,7 +101,6 @@ func CreateNodePool() error {
 				// in CS config files.
 				VMSize:                 "Standard_D8s_v3",
 				DiskStorageAccountType: "StandardSSD_LRS",
-				EphemeralOSDisk:        false,
 			},
 			Replicas: 2,
 		},

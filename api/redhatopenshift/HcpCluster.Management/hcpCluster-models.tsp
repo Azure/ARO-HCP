@@ -20,7 +20,7 @@ namespace Microsoft.RedHatOpenShift;
 model HcpOpenShiftClusterResource
   is TrackedResource<HcpOpenShiftClusterProperties> {
   /** Name of HCP cluster */
-  @pattern("^[a-zA-Z][a-zA-Z0-9-]$")
+  @pattern("^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$")
   @minLength(3)
   @maxLength(54)
   @key("hcpOpenShiftClusterName") // sets the alternative name for the name propery
@@ -41,7 +41,7 @@ model HcpOpenShiftClusterResource
 model HcpOpenShiftClusterNodePoolResource
   is TrackedResource<NodePoolProperties> {
   /** Name of HCP cluster * */
-  @pattern("^[a-zA-Z][a-zA-Z0-9-]$")
+  @pattern("^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$")
   @minLength(3)
   @maxLength(15)
   @key("nodePoolName")
@@ -147,11 +147,11 @@ union ProvisioningState {
 model VersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility("create", "read")
-  id: string;
+  id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
   @visibility("create", "read")
-  channelGroup: string;
+  channelGroup?: string = "stable";
 
   /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
   @visibility("read")
@@ -176,7 +176,7 @@ model DnsProfile {
   baseDomainPrefix?: string;
 }
 
-/** Network profile of the cluster */
+/** OpenShift networking configuration */
 model NetworkProfile {
   /** The main controller responsible for rendering the core networking components */
   @visibility("create", "read")
@@ -209,7 +209,7 @@ model NetworkProfile {
 union NetworkType {
   string,
 
-  /** THE OVN network plugin for the OpenShift cluster */
+  /** The OVN network plugin for the OpenShift cluster */
   OVNKubernetes: "OVNKubernetes",
 
   /** Other network plugins */
@@ -305,12 +305,14 @@ model UserAssignedIdentitiesProfile {
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
+  @visibility("create", "read")
   controlPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** The set of Azure User-Assigned Managed Identities leveraged for the Data Plane
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
+  @visibility("create", "read")
   dataPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** Represents the information associated to an Azure User-Assigned Managed Identity whose
@@ -377,22 +379,6 @@ model NodePoolProperties {
   @visibility("create", "update", "read")
   @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
   taints?: Taint[];
-
-  /*
-   * The Tuned API is defined here:
-   * - https://github.com/openshift/cluster-node-tuning-operator/blob/2c76314fb3cc8f12aef4a0dcd67ddc3677d5b54f/pkg/apis/tuned/v1/tuned_types.go
-   *
-   * The PerformanceProfile API is defined here:
-   * - https://github.com/openshift/cluster-node-tuning-operator/tree/b41042d42d4ba5bb2e99960248cf1d6ae4935018/pkg/apis/performanceprofile/v2
-   */
-  /** Tuning configs, TODO provide meaningful explanation
-   * TuningConfig is a list of references to ConfigMaps containing serialized
-   * Tuned resources to define the tuning configuration to be applied to
-   * nodes in the NodePool.
-   * Each ConfigMap must have a single key named "tuned" whose value is the
-   * JSON or YAML of a serialized Tuned or PerformanceProfile.
-   */
-  tuningConfigs?: string[];
 }
 
 /** Represents the patchable node pool properties */
@@ -440,14 +426,14 @@ model NodePoolPatchProperties {
 }
 
 /** taintKey is the k8s valid key of the taint type on the nodepool nodes
- * The good example of the taint key is `node-role.kubernetes.io/master`
+ * @example node-role.kubernetes.io/master
  */
 @minLength(1)
 @maxLength(316)
 scalar taintKey extends string;
 
 /** taintValue is the k8s valid value of the taint type on the nodepool nodes
- * The good example of the taint value is `NoSchedule`
+ * @example true
  */
 @minLength(1)
 @maxLength(63)
@@ -470,17 +456,17 @@ union Effect {
 /** Taint is controlling the node taint and its effects */
 model Taint {
   /** The key of the taint
-   * The good example of the taint key is `node-role.kubernetes.io/master`
+   * @example node-role.kubernetes.io/master
    */
   key?: taintKey;
 
   /** The value of the taint
-   * The good example of the taint value is `NoSchedule`
+   * @example true
    */
   value?: taintValue;
 
   /** The effect of the taint
-   * The good example of the taint effect is `NoSchedule`
+   * @example NoSchedule
    */
   effect?: Effect;
 }
@@ -517,18 +503,6 @@ model NodePoolPlatformProfile {
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
   availabilityZone?: string;
-
-  /** Whether the worker machines should be encrypted at host */
-  encryptionAtHost?: boolean;
-
-  /** Disk Encryption Set ID that will be used for encryption the Nodes disks
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
-   */
-  diskEncryptionSetId?: string;
-
-  /** Is the disk ephemeral */
-  ephemeralOsDisk?: boolean;
 }
 
 /** Node pool autoscaling */

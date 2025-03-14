@@ -40,7 +40,6 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
-				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
 			},
 			Network: NetworkProfile{
@@ -52,11 +51,21 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 				Visibility: "public",
 			},
 			Platform: PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: OperatorsAuthenticationProfile{UserAssignedIdentities: UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity"}}},
+				SubnetID: "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: OperatorsAuthenticationProfile{
+					UserAssignedIdentities: UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity",
+						},
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 
@@ -65,7 +74,6 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 	return &HCPOpenShiftCluster{
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
-				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
 			},
 			Network: NetworkProfile{
@@ -77,11 +85,21 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 				Visibility: "public",
 			},
 			Platform: PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: OperatorsAuthenticationProfile{UserAssignedIdentities: UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "wrong/Pattern/Of/ResourceID"}}},
+				SubnetID: "/something/something/virtualNetworks/subnets",
+				OperatorsAuthentication: OperatorsAuthenticationProfile{
+					UserAssignedIdentities: UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "wrong/Pattern/Of/ResourceID",
+						},
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 
@@ -105,14 +123,6 @@ func TestClusterRequiredForPut(t *testing.T) {
 			name:     "Default cluster",
 			resource: NewDefaultHCPOpenShiftCluster(),
 			expectErrors: []arm.CloudErrorBody{
-				{
-					Message: "Missing required field 'id'",
-					Target:  "properties.version.id",
-				},
-				{
-					Message: "Missing required field 'channelGroup'",
-					Target:  "properties.version.channelGroup",
-				},
 				{
 					Message: "Missing required field 'podCidr'",
 					Target:  "properties.network.podCidr",
@@ -245,12 +255,30 @@ func TestClusterValidateTags(t *testing.T) {
 		{
 			name: "Bad enum_managedserviceidentitytype",
 			tweaks: &HCPOpenShiftCluster{
-				Identity: arm.ManagedServiceIdentity{Type: "brokenServiceType"},
+				Identity: arm.ManagedServiceIdentity{
+					Type: "brokenServiceType",
+				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Invalid value 'brokenServiceType' for field 'type' (must be one of: None SystemAssigned SystemAssigned,UserAssigned UserAssigned)",
 					Target:  "identity.type",
+				},
+			},
+		},
+		{
+			name: "Bad required_unless",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Version: VersionProfile{
+						ChannelGroup: "fast",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'id' is required when 'channelGroup' is not 'stable'",
+					Target:  "properties.version.id",
 				},
 			},
 		},

@@ -96,11 +96,6 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 				out.Properties.Taints[i].Value = *h.Properties.Taints[i].Value
 			}
 		}
-
-		out.Properties.TuningConfigs = make([]string, len(h.Properties.TuningConfigs))
-		for i := range h.Properties.TuningConfigs {
-			out.Properties.TuningConfigs[i] = *h.Properties.TuningConfigs[i]
-		}
 	}
 }
 
@@ -111,20 +106,11 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 	if p.AvailabilityZone != nil {
 		out.AvailabilityZone = *p.AvailabilityZone
 	}
-	if p.DiskEncryptionSetID != nil {
-		out.DiskEncryptionSetID = *p.DiskEncryptionSetID
-	}
 	if p.DiskSizeGiB != nil {
 		out.DiskSizeGiB = *p.DiskSizeGiB
 	}
 	if p.DiskStorageAccountType != nil {
 		out.DiskStorageAccountType = *p.DiskStorageAccountType
-	}
-	if p.EncryptionAtHost != nil {
-		out.EncryptionAtHost = *p.EncryptionAtHost
-	}
-	if p.EphemeralOsDisk != nil {
-		out.EphemeralOSDisk = *p.EphemeralOsDisk
 	}
 	if p.SubnetID != nil {
 		out.SubnetID = *p.SubnetID
@@ -182,11 +168,8 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 	return &generated.NodePoolPlatformProfile{
 		VMSize:                 api.Ptr(from.VMSize),
 		AvailabilityZone:       api.Ptr(from.AvailabilityZone),
-		DiskEncryptionSetID:    api.Ptr(from.DiskEncryptionSetID),
 		DiskSizeGiB:            api.Ptr(from.DiskSizeGiB),
 		DiskStorageAccountType: api.Ptr(from.DiskStorageAccountType),
-		EncryptionAtHost:       api.Ptr(from.EncryptionAtHost),
-		EphemeralOsDisk:        api.Ptr(from.EphemeralOSDisk),
 		SubnetID:               api.Ptr(from.SubnetID),
 	}
 }
@@ -233,7 +216,6 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 				Labels:            []*generated.Label{},
 				Replicas:          api.Ptr(from.Properties.Replicas),
 				Taints:            make([]*generated.Taint, len(from.Properties.Taints)),
-				TuningConfigs:     make([]*string, len(from.Properties.TuningConfigs)),
 			},
 		},
 	}
@@ -258,9 +240,6 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 
 	for i := range from.Properties.Taints {
 		out.Properties.Taints[i] = newNodePoolTaint(from.Properties.Taints[i])
-	}
-	for i := range from.Properties.TuningConfigs {
-		out.Properties.TuningConfigs[i] = api.Ptr(from.Properties.TuningConfigs[i])
 	}
 
 	return out

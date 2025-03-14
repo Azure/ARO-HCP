@@ -25,7 +25,6 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty" visibility:"read create update"`
 	Labels            map[string]string       `json:"labels,omitempty" visibility:"read create update"`
 	Taints            []*Taint                `json:"taints,omitempty" visibility:"read create update"   validate:"dive"`
-	TuningConfigs     []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
@@ -36,9 +35,6 @@ type NodePoolPlatformProfile struct {
 	DiskSizeGiB            int32  `json:"diskSizeGiB,omitempty"`
 	DiskStorageAccountType string `json:"diskStorageAccountType,omitempty"`
 	AvailabilityZone       string `json:"availabilityZone,omitempty"`
-	EncryptionAtHost       bool   `json:"encryptionAtHost,omitempty"`
-	DiskEncryptionSetID    string `json:"diskEncryptionSetId,omitempty"`
-	EphemeralOSDisk        bool   `json:"ephemeralOsDisk,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
@@ -56,6 +52,10 @@ type Taint struct {
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
-		Properties: HCPOpenShiftClusterNodePoolProperties{},
+		Properties: HCPOpenShiftClusterNodePoolProperties{
+			Version: VersionProfile{
+				ChannelGroup: "stable",
+			},
+		},
 	}
 }
