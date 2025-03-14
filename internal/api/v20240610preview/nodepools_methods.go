@@ -115,9 +115,6 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 	if p.DiskStorageAccountType != nil {
 		out.DiskStorageAccountType = *p.DiskStorageAccountType
 	}
-	if p.EncryptionAtHost != nil {
-		out.EncryptionAtHost = *p.EncryptionAtHost
-	}
 	if p.EphemeralOsDisk != nil {
 		out.EphemeralOSDisk = *p.EphemeralOsDisk
 	}
@@ -180,7 +177,6 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 		DiskEncryptionSetID:    api.Ptr(from.DiskEncryptionSetID),
 		DiskSizeGiB:            api.Ptr(from.DiskSizeGiB),
 		DiskStorageAccountType: api.Ptr(from.DiskStorageAccountType),
-		EncryptionAtHost:       api.Ptr(from.EncryptionAtHost),
 		EphemeralOsDisk:        api.Ptr(from.EphemeralOSDisk),
 		SubnetID:               api.Ptr(from.SubnetID),
 	}

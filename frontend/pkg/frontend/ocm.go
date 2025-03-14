@@ -283,7 +283,6 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 				VMSize:                 np.AzureNodePool().VMSize(),
 				DiskStorageAccountType: np.AzureNodePool().OSDiskStorageAccountType(),
 				AvailabilityZone:       np.AvailabilityZone(),
-				EncryptionAtHost:       false, // TODO: Not implemented in OCM
 				DiskSizeGiB:            int32(np.AzureNodePool().OSDiskSizeGibibytes()),
 				DiskEncryptionSetID:    "", // TODO: Not implemented in OCM
 				EphemeralOSDisk:        np.AzureNodePool().EphemeralOSDiskEnabled(),
@@ -322,7 +321,6 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 	npBuilder := cmv1.NewNodePool()
 
 	// FIXME HCPOpenShiftClusterNodePool attributes not being passed:
-	//       PlatformProfile.EncryptionAtHost    (no CS equivalent?)
 	//       PlatformProfile.DiskEncryptionSetID (no CS equivalent?)
 
 	// These attributes cannot be updated after node pool creation.
