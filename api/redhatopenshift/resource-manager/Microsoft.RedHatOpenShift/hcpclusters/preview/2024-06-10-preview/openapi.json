@@ -1443,10 +1443,6 @@
           "type": "string",
           "description": "The availability zone for the node pool.\nPlease read the documentation to see which regions support availability zones\n- https://learn.microsoft.com/en-us/azure/availability-zones/az-overview"
         },
-        "diskEncryptionSetId": {
-          "type": "string",
-          "description": "Disk Encryption Set ID that will be used for encryption the Nodes disks\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption"
-        },
         "ephemeralOsDisk": {
           "type": "boolean",
           "description": "Is the disk ephemeral"
