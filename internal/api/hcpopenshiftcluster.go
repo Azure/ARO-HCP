@@ -28,8 +28,8 @@ type HCPOpenShiftClusterProperties struct {
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID                string   `json:"id,omitempty"                visibility:"read create" validate:"required_for_put"`
-	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create" validate:"required_for_put"`
+	ID                string   `json:"id,omitempty"                visibility:"read create" validate:"required_unless=ChannelGroup stable"`
+	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create"`
 	AvailableUpgrades []string `json:"availableUpgrades,omitempty" visibility:"read"`
 }
 
@@ -93,6 +93,9 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 			Type: arm.ManagedServiceIdentityTypeNone,
 		},
 		Properties: HCPOpenShiftClusterProperties{
+			Version: VersionProfile{
+				ChannelGroup: "stable",
+			},
 			Network: NetworkProfile{
 				NetworkType: NetworkTypeOVNKubernetes,
 				PodCIDR:     "10.128.0.0/14",

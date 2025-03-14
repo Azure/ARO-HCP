@@ -46,7 +46,6 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
-				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
 			},
 			Platform: PlatformProfile{
@@ -73,7 +72,6 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 	return &HCPOpenShiftCluster{
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
-				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
 			},
 			Platform: PlatformProfile{
@@ -115,14 +113,6 @@ func TestClusterRequiredForPut(t *testing.T) {
 			name:     "Default cluster",
 			resource: NewDefaultHCPOpenShiftCluster(),
 			expectErrors: []arm.CloudErrorBody{
-				{
-					Message: "Missing required field 'id'",
-					Target:  "properties.version.id",
-				},
-				{
-					Message: "Missing required field 'channelGroup'",
-					Target:  "properties.version.channelGroup",
-				},
 				{
 					Message: "Missing required field 'subnetId'",
 					Target:  "properties.platform.subnetId",
@@ -295,6 +285,22 @@ func TestClusterValidateTags(t *testing.T) {
 				{
 					Message: "Invalid value '27' for field 'hostPrefix' (must be at most 26)",
 					Target:  "properties.network.hostPrefix",
+				},
+			},
+		},
+		{
+			name: "Bad required_unless",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Version: VersionProfile{
+						ChannelGroup: "fast",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'id' is required when 'channelGroup' is not 'stable'",
+					Target:  "properties.version.id",
 				},
 			},
 		},
