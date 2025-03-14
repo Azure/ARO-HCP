@@ -283,7 +283,7 @@ type ManagedServiceIdentityUpdate struct {
 	UserAssignedIdentities map[string]*ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties
 }
 
-// NetworkProfile - Network profile of the cluster
+// NetworkProfile - OpenShift networking configuration
 type NetworkProfile struct {
 	// REQUIRED; from which to assign machine IP addresses, example: 10.0.0.0/16
 	MachineCidr *string

@@ -1243,7 +1243,7 @@
     },
     "NetworkProfile": {
       "type": "object",
-      "description": "Network profile of the cluster",
+      "description": "OpenShift networking configuration",
       "properties": {
         "networkType": {
           "type": "string",

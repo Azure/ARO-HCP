@@ -176,7 +176,7 @@ model DnsProfile {
   baseDomainPrefix?: string;
 }
 
-/** Network profile of the cluster */
+/** OpenShift networking configuration */
 model NetworkProfile {
   /** The main controller responsible for rendering the core networking components */
   @visibility("create", "read")
