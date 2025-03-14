@@ -132,7 +132,7 @@
       },
       "pullSecretName": "component-sync-pull-secret",
       "repositories": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager",
-      "secrets": "quay.io:bearer-secret"
+      "secrets": "quay.io:quay-io-bearer"
     },
     "environmentName": "aro-hcp-image-sync",
     "keyVault": {
