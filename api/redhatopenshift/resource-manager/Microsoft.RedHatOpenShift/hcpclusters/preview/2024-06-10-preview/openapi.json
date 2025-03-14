@@ -1260,7 +1260,7 @@
               {
                 "name": "OVNKubernetes",
                 "value": "OVNKubernetes",
-                "description": "THE OVN network plugin for the OpenShift cluster"
+                "description": "The OVN network plugin for the OpenShift cluster"
               },
               {
                 "name": "Other",

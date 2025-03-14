@@ -91,7 +91,7 @@ func PossibleManagedServiceIdentityTypeValues() []ManagedServiceIdentityType {
 type NetworkType string
 
 const (
-	// NetworkTypeOVNKubernetes - THE OVN network plugin for the OpenShift cluster
+	// NetworkTypeOVNKubernetes - The OVN network plugin for the OpenShift cluster
 	NetworkTypeOVNKubernetes NetworkType = "OVNKubernetes"
 	// NetworkTypeOther - Other network plugins
 	NetworkTypeOther NetworkType = "Other"

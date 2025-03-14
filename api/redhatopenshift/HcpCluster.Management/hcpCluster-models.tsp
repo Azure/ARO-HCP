@@ -209,7 +209,7 @@ model NetworkProfile {
 union NetworkType {
   string,
 
-  /** THE OVN network plugin for the OpenShift cluster */
+  /** The OVN network plugin for the OpenShift cluster */
   OVNKubernetes: "OVNKubernetes",
 
   /** Other network plugins */
