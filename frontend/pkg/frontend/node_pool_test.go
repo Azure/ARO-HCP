@@ -54,8 +54,16 @@ func TestCreateNodePool(t *testing.T) {
 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 
 	requestBody := generated.HcpOpenShiftClusterNodePoolResource{
-		Location:   &dummyLocation,
-		Properties: &generated.NodePoolProperties{Platform: &generated.NodePoolPlatformProfile{VMSize: &dummyVMSize}, Version: &generated.VersionProfile{ID: &dummyVersionID, ChannelGroup: &dummyChannelGroup}},
+		Location: &dummyLocation,
+		Properties: &generated.NodePoolProperties{
+			Version: &generated.VersionProfile{
+				ID:           &dummyVersionID,
+				ChannelGroup: &dummyChannelGroup,
+			},
+			Platform: &generated.NodePoolPlatformProfile{
+				VMSize: &dummyVMSize,
+			},
+		},
 	}
 	tests := []struct {
 		name               string
