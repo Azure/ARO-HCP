@@ -350,9 +350,6 @@ type NodePoolPlatformProfile struct {
 	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *string
 
-	// Whether the worker machines should be encrypted at host
-	EncryptionAtHost *bool
-
 	// Is the disk ephemeral
 	EphemeralOsDisk *bool
 

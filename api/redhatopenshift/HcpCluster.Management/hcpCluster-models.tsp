@@ -482,9 +482,6 @@ model NodePoolPlatformProfile {
    */
   availabilityZone?: string;
 
-  /** Whether the worker machines should be encrypted at host */
-  encryptionAtHost?: boolean;
-
   /** Disk Encryption Set ID that will be used for encryption the Nodes disks
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
