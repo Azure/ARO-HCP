@@ -20,7 +20,7 @@ namespace Microsoft.RedHatOpenShift;
 model HcpOpenShiftClusterResource
   is TrackedResource<HcpOpenShiftClusterProperties> {
   /** Name of HCP cluster */
-  @pattern("^[a-zA-Z][a-zA-Z0-9-]$")
+  @pattern("^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$")
   @minLength(3)
   @maxLength(54)
   @key("hcpOpenShiftClusterName") // sets the alternative name for the name propery
@@ -41,7 +41,7 @@ model HcpOpenShiftClusterResource
 model HcpOpenShiftClusterNodePoolResource
   is TrackedResource<NodePoolProperties> {
   /** Name of HCP cluster * */
-  @pattern("^[a-zA-Z][a-zA-Z0-9-]$")
+  @pattern("^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$")
   @minLength(3)
   @maxLength(15)
   @key("nodePoolName")
