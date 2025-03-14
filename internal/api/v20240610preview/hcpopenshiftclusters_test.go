@@ -25,10 +25,6 @@ func minimumValidClusterIdentities() *api.HCPOpenShiftCluster {
 	// Values are meaningless but need to pass validation.
 	return &api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
-			Version: api.VersionProfile{
-				ID:           "openshift-v4.16.0",
-				ChannelGroup: "stable",
-			},
 			Network: api.NetworkProfile{
 				PodCIDR:     "10.128.0.0/14",
 				ServiceCIDR: "172.30.0.0/16",
@@ -63,10 +59,6 @@ func minimumValidClusterwithBrokenIdentities() *api.HCPOpenShiftCluster {
 	// Values are meaningless but need to pass validation.
 	return &api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
-			Version: api.VersionProfile{
-				ID:           "openshift-v4.16.0",
-				ChannelGroup: "stable",
-			},
 			Network: api.NetworkProfile{
 				PodCIDR:     "10.128.0.0/14",
 				ServiceCIDR: "172.30.0.0/16",
@@ -100,10 +92,6 @@ func minimumValidClusterwithMultipleIdentities() *api.HCPOpenShiftCluster {
 	// Values are meaningless but need to pass validation.
 	return &api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
-			Version: api.VersionProfile{
-				ID:           "openshift-v4.16.0",
-				ChannelGroup: "stable",
-			},
 			Network: api.NetworkProfile{
 				PodCIDR:     "10.128.0.0/14",
 				ServiceCIDR: "172.30.0.0/16",

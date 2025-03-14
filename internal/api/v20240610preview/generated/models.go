@@ -566,10 +566,10 @@ type UserAssignedIdentity struct {
 
 // VersionProfile - Versions represents an OpenShift version.
 type VersionProfile struct {
-	// REQUIRED; ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	ChannelGroup *string
 
-	// REQUIRED; ID is the unique identifier of the version.
+	// ID is the unique identifier of the version.
 	ID *string
 
 	// READ-ONLY; AvailableUpgrades is a list of version names the current version can be upgraded to.

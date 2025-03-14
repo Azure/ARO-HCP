@@ -197,6 +197,18 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					message += " (must provide PEM encoded certificates)"
 				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
+				case "required_unless":
+					// The parameter format is pairs of "fieldName fieldValue".
+					// Multiple pairs are possible but we currently only use one.
+					fields := strings.Fields(fieldErr.Param())
+					if len(fields) > 1 {
+						// We want to print the JSON name for the field
+						// referenced in the parameter, but FieldError does
+						// not provide access to the parent reflect.Type from
+						// which we could look it up. So approximate the JSON
+						// name by lowercasing the first letter.
+						message = fmt.Sprintf("Field '%s' is required when '%s' is not '%s'", fieldErr.Field(), approximateJSONName(fields[0]), fields[1])
+					}
 				case "resource_id": // custom tag
 					if fieldErr.Param() != "" {
 						message += fmt.Sprintf(" (must be a valid '%s' resource ID)", fieldErr.Param())
