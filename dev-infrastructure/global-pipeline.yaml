@@ -54,8 +54,8 @@ resourceGroups:
     command: ../tooling/secret-sync/decrypt-all.sh
     dryRun:
       variables:
-        - name: DRY_RUN
-          value: "true"
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: KEYVAULT
       configRef: imageSync.keyVault.name
