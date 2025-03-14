@@ -42,6 +42,17 @@ type HcpOpenShiftClustersClientListBySubscriptionResponse struct {
 	HcpOpenShiftClusterResourceListResult
 }
 
+// HcpOpenShiftClustersClientRequestAdminCredentialResponse contains the response from method HcpOpenShiftClustersClient.BeginRequestAdminCredential.
+type HcpOpenShiftClustersClientRequestAdminCredentialResponse struct {
+	// HCP cluster admin credential
+	HcpOpenShiftClusterAdminCredential
+}
+
+// HcpOpenShiftClustersClientRevokeCredentialsResponse contains the response from method HcpOpenShiftClustersClient.BeginRevokeCredentials.
+type HcpOpenShiftClustersClientRevokeCredentialsResponse struct {
+	// placeholder for future response values
+}
+
 // HcpOpenShiftClustersClientUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginUpdate.
 type HcpOpenShiftClustersClientUpdateResponse struct {
 	// HCP cluster resource

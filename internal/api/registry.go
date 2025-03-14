@@ -43,6 +43,11 @@ type Version interface {
 	// Passing a nil pointer creates a resource with default values.
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
+
+	// Response Marshaling
+	MarshalHCPOpenShiftCluster(*HCPOpenShiftCluster) ([]byte, error)
+	MarshalHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) ([]byte, error)
+	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
 }
 
 // apiRegistry is the map of registered API versions
