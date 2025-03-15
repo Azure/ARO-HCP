@@ -1437,7 +1437,34 @@
         },
         "diskStorageAccountType": {
           "type": "string",
-          "description": "The type of the disk storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types"
+          "description": "The type of the disk storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types",
+          "default": "Premium_LRS",
+          "enum": [
+            "Premium_LRS",
+            "StandardSSD_LRS",
+            "Standard_LRS"
+          ],
+          "x-ms-enum": {
+            "name": "DiskStorageAccountType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Premium_LRS",
+                "value": "Premium_LRS",
+                "description": "Premium SSD with Locally Redundant Storage (LRS)"
+              },
+              {
+                "name": "StandardSSD_LRS",
+                "value": "StandardSSD_LRS",
+                "description": "Standard SSD with Locally Redundant Storage (LRS)"
+              },
+              {
+                "name": "Standard_LRS",
+                "value": "Standard_LRS",
+                "description": "Standard HDD with Locally Redundant Storage (LRS)"
+              }
+            ]
+          }
         },
         "availabilityZone": {
           "type": "string",

@@ -281,7 +281,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 			Platform: api.NodePoolPlatformProfile{
 				SubnetID:               np.Subnet(),
 				VMSize:                 np.AzureNodePool().VMSize(),
-				DiskStorageAccountType: np.AzureNodePool().OSDiskStorageAccountType(),
+				DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OSDiskStorageAccountType()),
 				AvailabilityZone:       np.AvailabilityZone(),
 				DiskSizeGiB:            int32(np.AzureNodePool().OSDiskSizeGibibytes()),
 			},
@@ -331,7 +331,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 				ResourceName(nodePool.Name).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.DiskSizeGiB)).
-				OSDiskStorageAccountType(nodePool.Properties.Platform.DiskStorageAccountType)).
+				OSDiskStorageAccountType(string(nodePool.Properties.Platform.DiskStorageAccountType))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}

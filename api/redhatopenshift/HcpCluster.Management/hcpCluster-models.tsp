@@ -489,13 +489,29 @@ model NodePoolPlatformProfile {
   /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
    */
-  diskStorageAccountType?: string;
+  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
   availabilityZone?: string;
+}
+
+/** Supported Azure storage account types
+ * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+ */
+union DiskStorageAccountType {
+  string,
+
+  /** Premium SSD with Locally Redundant Storage (LRS) */
+  Premium_LRS: "Premium_LRS",
+
+  /** Standard SSD with Locally Redundant Storage (LRS) */
+  StandardSSD_LRS: "StandardSSD_LRS",
+
+  /** Standard HDD with Locally Redundant Storage (LRS) */
+  Standard_LRS: "Standard_LRS",
 }
 
 /** Node pool autoscaling */

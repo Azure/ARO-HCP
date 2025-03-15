@@ -18,6 +18,10 @@ import (
 func newTestValidator() *validator.Validate {
 	validate := NewValidator()
 
+	validate.RegisterAlias("enum_diskstorageaccounttype", EnumValidateTag(
+		DiskStorageAccountTypePremium_LRS,
+		DiskStorageAccountTypeStandardSSD_LRS,
+		DiskStorageAccountTypeStandard_LRS))
 	validate.RegisterAlias("enum_networktype", EnumValidateTag(
 		NetworkTypeOVNKubernetes,
 		NetworkTypeOther))
