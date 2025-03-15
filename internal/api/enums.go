@@ -3,6 +3,15 @@ package api
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
 
+// DiskStorageAccountType represents supported Azure storage account types.
+type DiskStorageAccountType string
+
+const (
+	DiskStorageAccountTypePremium_LRS     DiskStorageAccountType = "Premium_LRS"
+	DiskStorageAccountTypeStandardSSD_LRS DiskStorageAccountType = "StandardSSD_LRS"
+	DiskStorageAccountTypeStandard_LRS    DiskStorageAccountType = "Standard_LRS"
+)
+
 // NetworkType represents an OpenShift cluster network plugin.
 type NetworkType string
 

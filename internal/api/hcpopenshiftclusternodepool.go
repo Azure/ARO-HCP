@@ -37,11 +37,11 @@ type NodePoolVersionProfile struct {
 // NodePoolPlatformProfile represents a worker node pool configuration.
 // Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
-	SubnetID               string `json:"subnetId,omitempty"               validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
-	VMSize                 string `json:"vmSize,omitempty"                 validate:"required_for_put"`
-	DiskSizeGiB            int32  `json:"diskSizeGiB,omitempty"            validate:"omitempty,gt=0"`
-	DiskStorageAccountType string `json:"diskStorageAccountType,omitempty"`
-	AvailabilityZone       string `json:"availabilityZone,omitempty"`
+	SubnetID               string                 `json:"subnetId,omitempty"               validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
+	VMSize                 string                 `json:"vmSize,omitempty"                 validate:"required_for_put"`
+	DiskSizeGiB            int32                  `json:"diskSizeGiB,omitempty"            validate:"omitempty,gt=0"`
+	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"omitempty,enum_diskstorageaccounttype"`
+	AvailabilityZone       string                 `json:"availabilityZone,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
@@ -62,6 +62,9 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",
+			},
+			Platform: NodePoolPlatformProfile{
+				DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
 			},
 		},
 	}

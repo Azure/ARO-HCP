@@ -46,6 +46,28 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
+// DiskStorageAccountType - The type of the disk storage account
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+type DiskStorageAccountType string
+
+const (
+	// DiskStorageAccountTypePremiumLRS - Premium SSD with Locally Redundant Storage (LRS)
+	DiskStorageAccountTypePremiumLRS DiskStorageAccountType = "Premium_LRS"
+	// DiskStorageAccountTypeStandardLRS - Standard HDD with Locally Redundant Storage (LRS)
+	DiskStorageAccountTypeStandardLRS DiskStorageAccountType = "Standard_LRS"
+	// DiskStorageAccountTypeStandardSSDLRS - Standard SSD with Locally Redundant Storage (LRS)
+	DiskStorageAccountTypeStandardSSDLRS DiskStorageAccountType = "StandardSSD_LRS"
+)
+
+// PossibleDiskStorageAccountTypeValues returns the possible values for the DiskStorageAccountType const type.
+func PossibleDiskStorageAccountTypeValues() []DiskStorageAccountType {
+	return []DiskStorageAccountType{
+		DiskStorageAccountTypePremiumLRS,
+		DiskStorageAccountTypeStandardLRS,
+		DiskStorageAccountTypeStandardSSDLRS,
+	}
+}
+
 // Effect - The taint effect the same as in K8s
 type Effect string
 

@@ -120,7 +120,7 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 		out.DiskSizeGiB = *p.DiskSizeGiB
 	}
 	if p.DiskStorageAccountType != nil {
-		out.DiskStorageAccountType = *p.DiskStorageAccountType
+		out.DiskStorageAccountType = api.DiskStorageAccountType(*p.DiskStorageAccountType)
 	}
 	if p.SubnetID != nil {
 		out.SubnetID = *p.SubnetID
@@ -191,7 +191,7 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 		VMSize:                 api.Ptr(from.VMSize),
 		AvailabilityZone:       api.Ptr(from.AvailabilityZone),
 		DiskSizeGiB:            api.Ptr(from.DiskSizeGiB),
-		DiskStorageAccountType: api.Ptr(from.DiskStorageAccountType),
+		DiskStorageAccountType: api.Ptr(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
 		SubnetID:               api.Ptr(from.SubnetID),
 	}
 }

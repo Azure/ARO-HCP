@@ -343,7 +343,7 @@ type NodePoolPlatformProfile struct {
 
 	// The type of the disk storage account
 	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
-	DiskStorageAccountType *string
+	DiskStorageAccountType *DiskStorageAccountType
 
 	// The Azure resource ID of the worker subnet
 	SubnetID *string
