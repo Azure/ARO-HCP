@@ -8,9 +8,9 @@ go.work* @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-sch
 /dev-infrastructure/modules/rp-cosmos.bicep @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
 /image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521
 /api/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25
-/frontend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
-/backend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
-/internal/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
+/frontend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
+/backend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
+/internal/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
 /tooling/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
 /config/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
 /metrics/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
