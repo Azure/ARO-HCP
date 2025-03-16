@@ -83,16 +83,10 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	var successStatusCode int
 
 	if updating {
-		// Note that because we found a database document for the cluster,
-		// we expect Cluster Service to return us a node pool object.
-		//
-		// No special treatment here for "not found" errors. A "not found"
-		// error indicates the database has gotten out of sync and so it's
-		// appropriate to fail.
 		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
@@ -176,7 +170,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePool)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 	} else {
@@ -191,7 +185,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePool)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 

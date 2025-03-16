@@ -317,7 +317,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	// Check for iteration error.
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
 		return
 	}
 
@@ -422,16 +422,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	var successStatusCode int
 
 	if updating {
-		// Note that because we found a database document for the cluster,
-		// we expect Cluster Service to return us a cluster object.
-		//
-		// No special treatment here for "not found" errors. A "not found"
-		// error indicates the database has gotten out of sync and so it's
-		// appropriate to fail.
 		csCluster, err := f.clusterServiceClient.GetCluster(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
@@ -515,7 +509,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 	} else {
@@ -523,7 +517,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
