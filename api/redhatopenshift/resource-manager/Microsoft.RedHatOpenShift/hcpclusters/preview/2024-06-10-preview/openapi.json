@@ -1276,7 +1276,8 @@
         },
         "podCidr": {
           "type": "string",
-          "description": "The CIDR of the pod IP addresses\nexample: 10.128.0.0/14",
+          "description": "The CIDR of the pod IP addresses",
+          "default": "10.128.0.0/14",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1284,7 +1285,8 @@
         },
         "serviceCidr": {
           "type": "string",
-          "description": "The CIDR block for assigned service IPs,\nexample: 172.30.0.0/16",
+          "description": "The CIDR block for assigned service IPs",
+          "default": "172.30.0.0/16",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1292,7 +1294,8 @@
         },
         "machineCidr": {
           "type": "string",
-          "description": "from which to assign machine IP addresses,\nexample: 10.0.0.0/16",
+          "description": "The CIDR block from which to assign machine IP addresses",
+          "default": "10.0.0.0/16",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1301,19 +1304,14 @@
         "hostPrefix": {
           "type": "integer",
           "format": "int32",
-          "description": "Network host prefix which is defaulted to 23 if not specified.",
+          "description": "Network host prefix",
           "default": 23,
           "x-ms-mutability": [
             "read",
             "create"
           ]
         }
-      },
-      "required": [
-        "podCidr",
-        "serviceCidr",
-        "machineCidr"
-      ]
+      }
     },
     "NetworkSecurityGroupResourceId": {
       "type": "string",

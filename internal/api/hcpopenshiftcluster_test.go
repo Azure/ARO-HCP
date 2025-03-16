@@ -49,11 +49,6 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
 			},
-			Network: NetworkProfile{
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-			},
 			API: APIProfile{
 				Visibility: "public",
 			},
@@ -83,11 +78,6 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 			Version: VersionProfile{
 				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
-			},
-			Network: NetworkProfile{
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
 			},
 			API: APIProfile{
 				Visibility: "public",
@@ -138,18 +128,6 @@ func TestClusterRequiredForPut(t *testing.T) {
 				{
 					Message: "Missing required field 'channelGroup'",
 					Target:  "properties.version.channelGroup",
-				},
-				{
-					Message: "Missing required field 'podCidr'",
-					Target:  "properties.network.podCidr",
-				},
-				{
-					Message: "Missing required field 'serviceCidr'",
-					Target:  "properties.network.serviceCidr",
-				},
-				{
-					Message: "Missing required field 'machineCidr'",
-					Target:  "properties.network.machineCidr",
 				},
 				{
 					Message: "Missing required field 'visibility'",

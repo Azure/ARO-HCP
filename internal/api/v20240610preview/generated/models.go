@@ -285,20 +285,20 @@ type ManagedServiceIdentityUpdate struct {
 
 // NetworkProfile - OpenShift networking configuration
 type NetworkProfile struct {
-	// REQUIRED; from which to assign machine IP addresses, example: 10.0.0.0/16
-	MachineCidr *string
-
-	// REQUIRED; The CIDR of the pod IP addresses example: 10.128.0.0/14
-	PodCidr *string
-
-	// REQUIRED; The CIDR block for assigned service IPs, example: 172.30.0.0/16
-	ServiceCidr *string
-
-	// Network host prefix which is defaulted to 23 if not specified.
+	// Network host prefix
 	HostPrefix *int32
+
+	// The CIDR block from which to assign machine IP addresses
+	MachineCidr *string
 
 	// The main controller responsible for rendering the core networking components
 	NetworkType *NetworkType
+
+	// The CIDR of the pod IP addresses
+	PodCidr *string
+
+	// The CIDR block for assigned service IPs
+	ServiceCidr *string
 }
 
 // NodePoolAutoScaling - Node pool autoscaling

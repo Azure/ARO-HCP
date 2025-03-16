@@ -182,25 +182,19 @@ model NetworkProfile {
   @visibility("create", "read")
   networkType?: NetworkType = NetworkType.OVNKubernetes;
 
-  /** The CIDR of the pod IP addresses
-   * example: 10.128.0.0/14
-   */
+  /** The CIDR of the pod IP addresses */
   @visibility("create", "read")
-  podCidr: string;
+  podCidr?: string = "10.128.0.0/14";
 
-  /** The CIDR block for assigned service IPs,
-   * example: 172.30.0.0/16
-   */
+  /** The CIDR block for assigned service IPs */
   @visibility("create", "read")
-  serviceCidr: string;
+  serviceCidr?: string = "172.30.0.0/16";
 
-  /** from which to assign machine IP addresses,
-   * example: 10.0.0.0/16
-   */
+  /** The CIDR block from which to assign machine IP addresses */
   @visibility("create", "read")
-  machineCidr: string;
+  machineCidr?: string = "10.0.0.0/16";
 
-  /** Network host prefix which is defaulted to 23 if not specified. */
+  /** Network host prefix */
   @visibility("create", "read")
   hostPrefix?: int32 = 23;
 }
