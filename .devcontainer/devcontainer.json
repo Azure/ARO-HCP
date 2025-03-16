@@ -15,7 +15,8 @@
                 "gopls": {
                     "ui.semanticTokens": true
                 },
-                "go.lintTool": "golangci-lint"
+                "go.lintTool": "golangci-lint",
+                "typespec.tsp-server.path": "${workspaceFolder}/ARO-HCP/api/node-modules/.bin"
             }
         }
     },
