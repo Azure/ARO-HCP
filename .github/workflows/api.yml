@@ -30,6 +30,8 @@ jobs:
     - name: make generate
       run: make generate
       working-directory: './api'
+    - name: make fmt
+      run: make fmt
     - name: Check for Uncommitted Changes
       run: |
         git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)
