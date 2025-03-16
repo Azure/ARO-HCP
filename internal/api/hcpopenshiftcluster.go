@@ -43,9 +43,9 @@ type DNSProfile struct {
 // Visibility for the entire struct is "read create".
 type NetworkProfile struct {
 	NetworkType NetworkType `json:"networkType,omitempty" validate:"omitempty,enum_networktype"`
-	PodCIDR     string      `json:"podCidr,omitempty"     validate:"required_for_put,cidrv4"`
-	ServiceCIDR string      `json:"serviceCidr,omitempty" validate:"required_for_put,cidrv4"`
-	MachineCIDR string      `json:"machineCidr,omitempty" validate:"required_for_put,cidrv4"`
+	PodCIDR     string      `json:"podCidr,omitempty"     validate:"omitempty,cidrv4"`
+	ServiceCIDR string      `json:"serviceCidr,omitempty" validate:"omitempty,cidrv4"`
+	MachineCIDR string      `json:"machineCidr,omitempty" validate:"omitempty,cidrv4"`
 	HostPrefix  int32       `json:"hostPrefix,omitempty"  validate:"omitempty,min=23,max=26"`
 }
 
@@ -95,6 +95,9 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 		Properties: HCPOpenShiftClusterProperties{
 			Network: NetworkProfile{
 				NetworkType: NetworkTypeOVNKubernetes,
+				PodCIDR:     "10.128.0.0/14",
+				ServiceCIDR: "172.30.0.0/16",
+				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
 			},
 			Platform: PlatformProfile{
