@@ -45,6 +45,12 @@ spec:
             configMapKeyRef:
               name: frontend-config
               key: LOCATION
+        {{- if ne .Values.Tracing.Address "" }}
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "{{ .Values.tracing.address }}"
+        - name: OTEL_TRACES_EXPORTER
+          value: "{{ .Values.tracing.exporter }}"
+        {{- end }}
         ports:
         - containerPort: 8443
           protocol: TCP

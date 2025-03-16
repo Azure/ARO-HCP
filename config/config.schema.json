@@ -15,6 +15,19 @@
         "roleName"
       ]
     },
+    "tracing": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "Defines exporter address"
+        },
+        "exporter": {
+          "type": "string",
+          "description": "Defines which exporter the SDK should use"
+        }
+      }
+    },
     "acr": {
       "type": "object",
       "properties": {
@@ -285,6 +298,9 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
+        "tracing": {
+          "$ref": "#/definitions/tracing"
+        },
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by CS to interact with Azure"
@@ -457,6 +473,9 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "tracing": {
+          "$ref": "#/definitions/tracing"
         },
         "cosmosDB": {
           "type": "object",

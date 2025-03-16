@@ -7,8 +7,12 @@ all: deploy patch-frontend patch-clusterservice
 	@echo "Then open 'http://localhost:16686' in your browser."
 
 deploy:
-	@kubectl apply -k deploy/
-	@kubectl wait --for=condition=Available deployment -n observability jaeger --timeout=60s
+	@if [ "$(DEPLOY)" = "true" ]; then \
+		kubectl apply -k deploy/; \
+		kubectl wait --for=condition=Available deployment -n observability jaeger --timeout=60s; \
+	else \
+		echo "Skipping deployment because DEPLOY is not set to true"; \
+	fi
 .PHONY: deploy
 
 patch-frontend:

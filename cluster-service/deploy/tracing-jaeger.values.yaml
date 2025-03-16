@@ -1,0 +1,3 @@
+tracing:
+  address: http://jaeger.observability:4318
+  exporter: otlp

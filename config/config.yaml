@@ -81,6 +81,9 @@ defaults:
       clusterOutboundIPAddressIPTags: ""
   # Frontend
   frontend:
+    tracing:
+      address: ""
+      exporter: ""
     cosmosDB:
       deploy: true
       disableLocalAuth: true
@@ -145,6 +148,9 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
+    tracing: # NOTE: Currently only enabled for personal-dev.
+      address: ""
+      exporter: ""
     environment: arohcpdev
     postgres:
       name: arohcp-cs-{{ .ctx.regionShort }}
@@ -446,10 +452,16 @@ clouds:
       personal-dev:
         # this is the personal DEV environment
         defaults:
+          # observability:
+          #   tracing:
+          #     deploy: true
           # Cluster Service
           clusterService:
             postgres:
               deploy: false
+            tracing:
+              address: "http://jaeger.observability"
+              exporter: "otlp"
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -464,6 +476,9 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+            tracing:
+              address: "http://jaeger.observability"
+              exporter: "otlp"
           # MC
           mgmt:
             applyKubeletFixes: false
