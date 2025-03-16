@@ -241,3 +241,7 @@ pullBinding:
   scope: ""
   workloadIdentityClientId: ""
   workloadIdentityTenantId: ""
+tracing:
+  enabled: false
+  address: ""
+  exporter: "otlp"

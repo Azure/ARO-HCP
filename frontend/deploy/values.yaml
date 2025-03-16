@@ -24,3 +24,7 @@ pullBinding:
 clusterService:
   namespace: cluster-service
   serviceAccount: clusters-service
+tracing:
+  enabled: false
+  address: ""
+  exporter: "otlp"
