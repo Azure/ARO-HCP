@@ -119,6 +119,8 @@ esac
 
 if [ "$DEPLOY_ENV" == "personal-dev" ]; then
     REGION_STAMP="${REGION_SHORT}${USER:0:4}"
+elif [ "$DEPLOY_ENV" == "nightly" ]; then
+    REGION_STAMP="nightly"
 elif [ "$DEPLOY_ENV" == "personal-perfscale" ]; then
     REGION_STAMP="${REGION_SHORT}p${USER:0:4}"
 elif [ "$DEPLOY_ENV" == "dev" ] || [ "$DEPLOY_ENV" == "cs-pr" ]; then
