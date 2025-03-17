@@ -6,6 +6,7 @@ on:
     - 'dev-infrastructure/modules/automation-account/**'
     - 'dev-infrastructure/Makefile'
     - 'dev-infrastructure/configurations/dev-automation-account.bicepparam'
+    - '.github/workflows/runbook-cicd.yml'
   push:
     branches:
     - main
@@ -90,4 +91,4 @@ jobs:
     - name: Deploy Automation Account
       run: |
         cd dev-infrastructure/
-        make automation-account --debug=${{ inputs.debug }}
+        make automation-account
