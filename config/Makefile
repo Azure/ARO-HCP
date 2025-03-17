@@ -3,6 +3,8 @@ materialize:
 	@../templatize.sh dev > public-cloud-dev.json
 	@echo "Materializing public cloud cs-pr env of config/config.yaml"
 	@../templatize.sh cs-pr > public-cloud-cs-pr.json
+	@echo "Materializing nightly env of config/config.yaml"
+	@../templatize.sh nightly > public-cloud-nightly.json
 	@echo "Materializing public cloud personal dev env of config/config.yaml"
 	@USER=tst ../templatize.sh personal-dev > public-cloud-personal-dev.json
 	@echo "Materializing public cloud int env of config/config.msft.yaml"
