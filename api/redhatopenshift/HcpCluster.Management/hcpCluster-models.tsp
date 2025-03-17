@@ -55,45 +55,45 @@ model HcpOpenShiftClusterNodePoolResource
 /** HCP cluster properties */
 model HcpOpenShiftClusterProperties {
   /** The status of the last operation. */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   provisioningState?: ProvisioningState;
 
   /** Version of the control plane components */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Create, Lifecycle.Read)
   version: VersionProfile;
 
   /** Cluster DNS configuration */
   dns?: DnsProfile;
 
   /** Cluster network configuration */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Create, Lifecycle.Read)
   network?: NetworkProfile;
 
   /** Shows the cluster web console information */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   console: ConsoleProfile;
 
   /** Shows the cluster API server profile */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   api: ApiProfile;
 
   /** Disable user workload monitoring */
-  @visibility("create", "update", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   disableUserWorkloadMonitoring?: boolean = false;
 
   /** Azure platform configuration */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   platform?: PlatformProfile;
 }
 
 /** HCP patchable cluster properties */
 model HcpOpenShiftClusterPatchProperties {
   /** The status of the last operation. */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   provisioningState?: ProvisioningState;
 
   /** Disable user workload monitoring */
-  @visibility("update", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Update)
   disableUserWorkloadMonitoring?: boolean;
 }
 
@@ -146,28 +146,28 @@ union ProvisioningState {
 /** Versions represents an OpenShift version. */
 model VersionProfile {
   /** ID is the unique identifier of the version. */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   channelGroup?: string = "stable";
 
   /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   availableUpgrades: string[];
 }
 
 /** DNS contains the DNS settings of the cluster */
 model DnsProfile {
   /** BaseDomain is the base DNS domain of the cluster. */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   baseDomain?: string;
 
   /**  BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.
    * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
    * */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(15)
   @pattern(
     "^[a-z]([-a-z0-9]*[a-z0-9])?$",
@@ -179,23 +179,23 @@ model DnsProfile {
 /** OpenShift networking configuration */
 model NetworkProfile {
   /** The main controller responsible for rendering the core networking components */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   networkType?: NetworkType = NetworkType.OVNKubernetes;
 
   /** The CIDR of the pod IP addresses */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   podCidr?: string = "10.128.0.0/14";
 
   /** The CIDR block for assigned service IPs */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   serviceCidr?: string = "172.30.0.0/16";
 
   /** The CIDR block from which to assign machine IP addresses */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   machineCidr?: string = "10.0.0.0/16";
 
   /** Network host prefix */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   hostPrefix?: int32 = 23;
 }
 
@@ -213,18 +213,18 @@ union NetworkType {
 /** Configuration of the cluster web console */
 model ConsoleProfile {
   /** The cluster web console URL endpoint */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   url: url;
 }
 
 /** Information about the API of a cluster. */
 model ApiProfile {
   /** URL endpoint for the API server */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   url: url;
 
   /** The internet visibility of the OpenShift API server */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   visibility?: Visibility = "public";
 }
 
@@ -259,7 +259,7 @@ model PlatformProfile {
   /** URL for the OIDC provider to be used for authentication
    * to authenticate against user Azure cloud account
    */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   issuerUrl: url;
 }
 
@@ -299,19 +299,19 @@ model UserAssignedIdentitiesProfile {
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   controlPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** The set of Azure User-Assigned Managed Identities leveraged for the Data Plane
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   dataPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** Represents the information associated to an Azure User-Assigned Managed Identity whose
    * purpose is to perform service level actions. */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   serviceManagedIdentity: UserAssignedIdentityResourceId;
 }
 
@@ -337,23 +337,23 @@ scalar UserAssignedIdentityResourceId
 /** Represents the node pool properties */
 model NodePoolProperties {
   /** Provisioning state */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   provisioningState?: ProvisioningState;
 
   /** OpenShift version for the nodepool */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   version: NodePoolVersionProfile;
 
   /** Azure node pool platform configuration */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: NodePoolPlatformProfile;
 
   /** The number of worker nodes, it cannot be used together with autoscaling */
-  @visibility("create", "update", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   replicas?: int32;
 
   /** Auto-repair */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   autoRepair?: boolean = false;
 
   /** Representation of a autoscaling in a node pool. */
@@ -365,24 +365,24 @@ model NodePoolProperties {
    * The good example of the label is `node-role.kubernetes.io/master: ""`
    */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" ""
-  @visibility("create", "update", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["key", "value"])
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
 
   /** Taints for the nodes */
-  @visibility("create", "update", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
   taints?: Taint[];
 }
 
 /** Represents the patchable node pool properties */
 model NodePoolPatchProperties {
   /** Provisioning state */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   provisioningState?: ResourceProvisioningState;
 
   /** The number of worker nodes, it cannot be used together with autoscaling */
-  @visibility("update", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Update)
   replicas?: int32;
 
   /** Representation of a autoscaling in a node pool. */
@@ -393,13 +393,13 @@ model NodePoolPatchProperties {
   /** K8s labels to propagate to the NodePool Nodes
    * The good example of the label is `node-role.kubernetes.io/master: ""`
    */
-  @visibility("update", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["key", "value"])
+  @visibility(Lifecycle.Read, Lifecycle.Update)
+  @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
 
   /** Taints for the nodes */
-  @visibility("update", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
+  @visibility(Lifecycle.Read, Lifecycle.Update)
+  @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
   taints?: Taint[];
 }
 
@@ -462,15 +462,15 @@ model Label {
 /** Versions represents an OpenShift version. */
 model NodePoolVersionProfile {
   /** ID is the unique identifier of the version. */
-  @visibility("create", "read", "update")
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   channelGroup?: string = "stable";
 
   /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   availableUpgrades: string[];
 }
 
