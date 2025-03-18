@@ -28,6 +28,9 @@ param grafanaZoneRedundantMode string
 param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
 var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 
+
+@description('Whether to deploy the Grafana admin role to the Grafana admin group')
+param deployAdminRole bool
 //
 //  G L O B A L   M S I
 //
@@ -126,5 +129,6 @@ module grafana '../modules/grafana/instance.bicep' = {
     grafanaManagerPrincipalId: globalMSI.properties.principalId
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
     azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
+    deployAdminRole: deployAdminRole
   }
 }

@@ -886,6 +886,9 @@
         },
         "workspaceName": {
           "type": "string"
+        },
+        "deployAdminRole": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,

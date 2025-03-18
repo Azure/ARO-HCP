@@ -15,6 +15,9 @@ param zoneRedundancy bool
 @description('The azure monitor workspace IDs to integrate with Grafana')
 param azureMonitorWorkspaceIds array
 
+@description('Whether to deploy the Grafana admin role to the Grafana admin group')
+param deployAdminRole bool = true
+
 // Azure Managed Grafana Workspace Contributor: Can manage Azure Managed Grafana resources, without providing access to the workspaces themselves.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#azure-managed-grafana-workspace-contributor
 var grafanaContributor = '5c2d7e57-b7c2-4d8a-be4f-82afa42c6e95'
@@ -64,7 +67,7 @@ resource grafanaManagerAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01
   }
 }
 
-resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployAdminRole){
   name: guid(grafana.id, grafanaAdminGroupPrincipalId, grafanaAdminRole)
   scope: grafana
   properties: {
