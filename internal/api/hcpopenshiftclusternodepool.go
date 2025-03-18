@@ -25,7 +25,6 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty" visibility:"read create update"`
 	Labels            map[string]string       `json:"labels,omitempty" visibility:"read create update"`
 	Taints            []*Taint                `json:"taints,omitempty" visibility:"read create update"   validate:"dive"`
-	TuningConfigs     []string                `json:"tuningConfigs,omitempty" visibility:"read create update"`
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.

@@ -1397,13 +1397,6 @@
             "read",
             "update"
           ]
-        },
-        "tuningConfigs": {
-          "type": "array",
-          "description": "Tuning configs, TODO provide meaningful explanation\nTuningConfig is a list of references to ConfigMaps containing serialized\nTuned resources to define the tuning configuration to be applied to\nnodes in the NodePool.\nEach ConfigMap must have a single key named \"tuned\" whose value is the\nJSON or YAML of a serialized Tuned or PerformanceProfile.",
-          "items": {
-            "type": "string"
-          }
         }
       }
     },
@@ -1529,13 +1522,6 @@
             "update",
             "create"
           ]
-        },
-        "tuningConfigs": {
-          "type": "array",
-          "description": "Tuning configs, TODO provide meaningful explanation\nTuningConfig is a list of references to ConfigMaps containing serialized\nTuned resources to define the tuning configuration to be applied to\nnodes in the NodePool.\nEach ConfigMap must have a single key named \"tuned\" whose value is the\nJSON or YAML of a serialized Tuned or PerformanceProfile.",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "required": [

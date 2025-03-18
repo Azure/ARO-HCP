@@ -39,9 +39,6 @@
               "value": "x",
               "effect": "NoSchedule"
             }
-          ],
-          "tuningConfigs": [
-            "dvoeaysltfusyb"
           ]
         }
       }
@@ -71,10 +68,7 @@
             "autoScaling": {
               "min": 6,
               "max": 29
-            },
-            "tuningConfigs": [
-              "m"
-            ]
+            }
           }
         },
         "tags": {
