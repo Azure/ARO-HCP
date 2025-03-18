@@ -80,6 +80,7 @@
   },
   "dns": {
     "baseDnsZoneRG": "global-shared-resources",
+    "cxParentZoneDelegation": true,
     "cxParentZoneName": "aroapp-hcp.azure-test.net",
     "parentZoneName": "azure-test.net",
     "regionalSubdomain": "westus3",

@@ -80,6 +80,7 @@
   },
   "dns": {
     "baseDnsZoneRG": "global-shared-resources",
+    "cxParentZoneDelegation": false,
     "cxParentZoneName": "aroapp-hcp.io",
     "parentZoneName": "azure.com",
     "regionalSubdomain": "westus3staging",
