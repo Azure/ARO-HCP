@@ -61,12 +61,14 @@ resourceGroups:
       configRef: imageSync.keyVault.name
     - name: SECRETFOLDER
       configRef: imageSync.secretsToSyncDir
-  # deploys the image mirror for the ACRs
-  - name: imagemirror
-    action: ARM
-    template: templates/global-image-sync.bicep
-    parameters: configurations/global-image-sync.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
     dependsOn:
-    - decrypt-and-ingest-secrets
-    - global-acrs
+    - global-infra
+  # deploys the image mirror for the ACRs
+  #- name: imagemirror
+  #  action: ARM
+  #  template: templates/global-image-sync.bicep
+  #  parameters: configurations/global-image-sync.tmpl.bicepparam
+  #  deploymentLevel: ResourceGroup
+  #  dependsOn:
+  #  - decrypt-and-ingest-secrets
+  #  - global-acrs

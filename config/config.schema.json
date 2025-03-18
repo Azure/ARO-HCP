@@ -525,7 +525,7 @@
         },
         "safeDnsIntAppObjectId": {
           "type": "string",
-          "description": "SafeDnsIntApplication object ID use to delegate child DNS"
+          "description": "SafeDnsIntApplication object ID use to delegate child DNS. This is only required for MSFT INT and can be left empty for other targets"
         }
       },
       "required": [
