@@ -64,7 +64,7 @@ resource grafanaManagerAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01
   }
 }
 
-resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource adminRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(grafanaAdminGroupPrincipalId)) {
   name: guid(grafana.id, grafanaAdminGroupPrincipalId, grafanaAdminRole)
   scope: grafana
   properties: {
