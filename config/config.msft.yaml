@@ -505,7 +505,7 @@ clouds:
             grafanaName: 'arohcp-stg'
             grafanaAdminGroupPrincipalId: '18d30381-f780-4915-8e55-de67daf7fb04' # object id for group 'RH-AROAPPR'
           # Global MSI
-          aroDevopsMsiId: 'chicken-egg-value-to-be-filled-later'
+          aroDevopsMsiId: '/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: ce4e50ef-1059-4b6f-a53a-53001d517513 # objectId for 'aro-ev2-admin-prod-sp'
           # Logs

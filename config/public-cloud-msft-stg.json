@@ -19,7 +19,7 @@
   "armHelperCertName": "",
   "armHelperClientId": "",
   "armHelperFPAPrincipalId": "",
-  "aroDevopsMsiId": "chicken-egg-value-to-be-filled-later",
+  "aroDevopsMsiId": "/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
     "image": {
       "digest": "sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c",
