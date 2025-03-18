@@ -7,7 +7,7 @@ defaults:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     region: westus3
     globalMSIName: "global-rollout-identity"
-    safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
+    safeDnsIntAppObjectId: "" # intentionally left empty
   # ACR Pull
   acrPull:
     image:

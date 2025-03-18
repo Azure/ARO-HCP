@@ -80,10 +80,10 @@
   },
   "dns": {
     "baseDnsZoneRG": "global-shared-resources",
-    "cxParentZoneName": "aroapp-hcp.TBD.com",
-    "parentZoneName": "TBD.com",
-    "regionalSubdomain": "westus3",
-    "svcParentZoneName": "aro-hcp.TBD.com"
+    "cxParentZoneName": "aroapp-hcp.io",
+    "parentZoneName": "azure.com",
+    "regionalSubdomain": "westus3staging",
+    "svcParentZoneName": "aro-hcp.azure.com"
   },
   "extraVars": {},
   "firstPartyAppCertName": "firstPartyCert",
@@ -112,7 +112,7 @@
     "globalMSIName": "global-ev2-identity",
     "region": "uksouth",
     "rg": "global-shared-resources",
-    "safeDnsIntAppObjectId": "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc",
+    "safeDnsIntAppObjectId": "",
     "subscription": "hcp-global"
   },
   "hypershift": {
@@ -151,7 +151,7 @@
     "rg": "global-shared-resources",
     "secretsToSyncDir": "none"
   },
-  "kvCertOfficerPrincipalId": "",
+  "kvCertOfficerPrincipalId": "ce4e50ef-1059-4b6f-a53a-53001d517513",
   "logs": {
     "loganalytics": {
       "enable": false
@@ -272,7 +272,7 @@
     "validAppId1": ""
   },
   "monitoring": {
-    "grafanaAdminGroupPrincipalId": "",
+    "grafanaAdminGroupPrincipalId": "18d30381-f780-4915-8e55-de67daf7fb04",
     "grafanaName": "arohcp-stg",
     "grafanaZoneRedundantMode": "Disabled",
     "workspaceName": "arohcp-usw3"
