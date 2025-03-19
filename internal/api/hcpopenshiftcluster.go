@@ -16,7 +16,7 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState             arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
+	ProvisioningState             arm.ProvisioningState `json:"provisioningState,omitempty"             visibility:"read"`
 	Version                       VersionProfile        `json:"version,omitempty"                       visibility:"read create"`
 	DNS                           DNSProfile            `json:"dns,omitempty"                           visibility:"read create update"`
 	Network                       NetworkProfile        `json:"network,omitempty"                       visibility:"read create"`
@@ -65,11 +65,11 @@ type APIProfile struct {
 // Visibility for the entire struct is "read create".
 type PlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	SubnetID                string                         `json:"subnetId,omitempty"             validate:"required_for_put"`
-	OutboundType            OutboundType                   `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
+	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required_for_put"`
+	OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"omitempty,enum_outboundtype"`
 	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
-	IssuerURL               string                         `json:"issuerUrl,omitempty"                     visibility:"read"`
+	IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for
