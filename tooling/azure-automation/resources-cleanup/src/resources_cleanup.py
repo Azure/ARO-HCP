@@ -96,15 +96,15 @@ def process_resource_groups_of_subscription(subscription_id: str, resource_clien
 
 def process_resource_group(resource_group: ResourceGroup, resource_client: ResourceManagementClient):
     resource_group_name = resource_group.name
-    resource_list = list(
-        resource_client.resources.list_by_resource_group(resource_group_name, expand = "createdTime,changedTime")
-    )
     
     print(f"Resource group '{resource_group_name}':")
     print(f"Tags: {resource_group.tags}\n")
-    print(f"This resource group has {len(resource_list)} resources \n")
-    
+
     if VERBOSE:
+        resource_list = list(
+            resource_client.resources.list_by_resource_group(resource_group_name, expand = "createdTime,changedTime")
+        )
+        print(f"This resource group has {len(resource_list)} resources \n")
         print_resources(resource_list)
     
     if resource_group_has_persist_tag_as_true(resource_group):
