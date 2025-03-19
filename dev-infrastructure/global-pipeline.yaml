@@ -33,14 +33,14 @@ resourceGroups:
     - global-infra
   # creates DNS delegation for the ARO HCP global CX zone
   {{- if .dns.cxParentZoneDelegation }}
-    - name: cxChildZone
-      action: DelegateChildZone
-      parentZone:
-        configRef: dns.parentZoneName
-      childZone:
-        configRef: dns.cxParentZoneName
-      dependsOn:
-      - global-infra
+  - name: cxChildZone
+    action: DelegateChildZone
+    parentZone:
+      configRef: dns.parentZoneName
+    childZone:
+      configRef: dns.cxParentZoneName
+    dependsOn:
+    - global-infra
   {{- end }}
   # create global ARO HCP ACRs for OCP and SVC images
   - name: global-acrs
