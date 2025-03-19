@@ -24,6 +24,11 @@ resourceGroups:
 - name: '{{ .regionRG  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
+  - name: rpRegistration
+    action: ResourceProviderRegistration
+    resourceProviderNamespaces:
+      value:
+      - Microsoft.Dashboard
   - name: region
     action: ARM
     template: templates/region.bicep
@@ -48,6 +53,7 @@ resourceGroups:
         name: svcParentZoneResourceId
     dependsOn:
     - global-output
+    - rpRegistration
   - name: metrics-infra
     action: ARM
     template: modules/metrics/metrics.bicep
