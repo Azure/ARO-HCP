@@ -834,8 +834,29 @@
           "readOnly": true
         },
         "visibility": {
-          "$ref": "#/definitions/Visibility",
-          "description": "should the API server be accessible from the internet",
+          "type": "string",
+          "description": "The internet visibility of the OpenShift API server",
+          "default": "public",
+          "enum": [
+            "public",
+            "private"
+          ],
+          "x-ms-enum": {
+            "name": "Visibility",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "public",
+                "value": "public",
+                "description": "The API server is visible from the internet."
+              },
+              {
+                "name": "private",
+                "value": "private",
+                "description": "The API server is not visible from the internet."
+              }
+            ]
+          },
           "x-ms-mutability": [
             "read",
             "create"
@@ -843,8 +864,7 @@
         }
       },
       "required": [
-        "url",
-        "visibility"
+        "url"
       ]
     },
     "Azure.ResourceManager.ResourceProvisioningState": {
@@ -1764,30 +1784,6 @@
         "channelGroup",
         "availableUpgrades"
       ]
-    },
-    "Visibility": {
-      "type": "string",
-      "description": "The visibility of the API server",
-      "enum": [
-        "public",
-        "private"
-      ],
-      "x-ms-enum": {
-        "name": "Visibility",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "public",
-            "value": "public",
-            "description": "The API server is visible from the internet."
-          },
-          {
-            "name": "private",
-            "value": "private",
-            "description": "The API server is not visible from the internet."
-          }
-        ]
-      }
     },
     "taintKey": {
       "type": "string",

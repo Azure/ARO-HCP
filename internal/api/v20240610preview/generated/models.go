@@ -11,7 +11,7 @@ import "time"
 
 // APIProfile - Information about the API of a cluster.
 type APIProfile struct {
-	// REQUIRED; should the API server be accessible from the internet
+	// The internet visibility of the OpenShift API server
 	Visibility *Visibility
 
 	// READ-ONLY; URL endpoint for the API server

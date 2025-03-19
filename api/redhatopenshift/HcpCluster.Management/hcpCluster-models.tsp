@@ -223,12 +223,12 @@ model ApiProfile {
   @visibility("read")
   url: url;
 
-  /** should the API server be accessible from the internet */
+  /** The internet visibility of the OpenShift API server */
   @visibility("create", "read")
-  visibility: Visibility;
+  visibility?: Visibility = "public";
 }
 
-/** The visibility of the API server */
+/** The internet visibility of the OpenShift API server */
 union Visibility {
   string,
 

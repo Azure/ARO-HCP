@@ -193,7 +193,7 @@ func PossibleResourceProvisioningStateValues() []ResourceProvisioningState {
 	}
 }
 
-// Visibility - The visibility of the API server
+// Visibility - The internet visibility of the OpenShift API server
 type Visibility string
 
 const (
