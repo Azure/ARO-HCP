@@ -29,7 +29,7 @@ def _get_asset_value(asset_file, asset_type, asset_name):
     local_assets = json.loads(json_string)
 
     return_value = None
-    for asset, asset_values in local_assets.iteritems():
+    for asset, asset_values in local_assets.items():
         if asset == asset_type:
             for value in asset_values:
                 if value[_KEY_NAME] == asset_name:
