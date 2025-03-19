@@ -77,6 +77,13 @@ def resource_group_has_persist_tag_as_true(resource_group: ResourceGroup):
     return resource_group.tags[persist_tag].lower() == "true"
 
 
+def resource_group_is_managed(resource_group: ResourceGroup):
+    if resource_group.managed_by is None:
+        return False
+    else:
+        return True
+
+
 def process_resource_groups_of_subscription(subscription_id: str, resource_client: ResourceManagementClient):
     resource_groups_list = list(resource_client.resource_groups.list())
     n_resource_groups = len(resource_groups_list)
@@ -98,6 +105,7 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
     resource_group_name = resource_group.name
     
     print(f"Resource group '{resource_group_name}':")
+    print(f"Managed by: {resource_group.managed_by}")
     print(f"Tags: {resource_group.tags}\n")
 
     if VERBOSE:
@@ -109,6 +117,10 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
     
     if resource_group_has_persist_tag_as_true(resource_group):
         print(f"Persist tag is true, this resource group should NOT be deleted, skipping.")
+        return
+
+    if resource_group_is_managed(resource_group):
+        print(f"Resource Group is managed, this resource group should NOT be deleted, skipping.")
         return
 
     now = datetime.datetime.now(datetime.timezone.utc)
