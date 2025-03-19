@@ -5,7 +5,7 @@ from typing import List
 import datetime
 
 from azure.identity import DefaultAzureCredential
-from azure.core.exceptions import HttpResponseError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource.resources.v2022_09_01.models._models_py3 import GenericResourceExpanded, ResourceGroup
 
@@ -83,7 +83,13 @@ def process_resource_groups_of_subscription(subscription_id: str, resource_clien
     print(f"subscription {subscription_id} has {n_resource_groups} resource groups:\n")
 
     for resource_group in resource_groups_list:
-        process_resource_group(resource_group, resource_client)
+        try:
+            process_resource_group(resource_group, resource_client)
+        except ResourceNotFoundError as err:
+            print(f"Encountered a missing resource (probably the rg itself).")
+            print(f"This is fine, it must've gotten deleted by something else; continuing.")
+            print(f"Code: {err.error.code}")
+            print(f"Message: {err.error.message}")
         print("_"*80)
         print()
 
