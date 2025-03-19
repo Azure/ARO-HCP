@@ -56,7 +56,7 @@ func TestCreateNodePool(t *testing.T) {
 	requestBody := generated.HcpOpenShiftClusterNodePoolResource{
 		Location: &dummyLocation,
 		Properties: &generated.NodePoolProperties{
-			Version: &generated.VersionProfile{
+			Version: &generated.NodePoolVersionProfile{
 				ID:           &dummyVersionID,
 				ChannelGroup: &dummyChannelGroup,
 			},

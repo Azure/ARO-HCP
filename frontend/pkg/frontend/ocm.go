@@ -273,7 +273,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 			},
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.VersionProfile{
+			Version: api.NodePoolVersionProfile{
 				ID:                np.Version().ID(),
 				ChannelGroup:      np.Version().ChannelGroup(),
 				AvailableUpgrades: np.Version().AvailableUpgrades(),

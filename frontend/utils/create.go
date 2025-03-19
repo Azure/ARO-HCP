@@ -89,7 +89,7 @@ func CreateNodePool() error {
 	nodePool := api.HCPOpenShiftClusterNodePool{
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			ProvisioningState: arm.ProvisioningState(""),
-			Version: api.VersionProfile{
+			Version: api.NodePoolVersionProfile{
 				ChannelGroup: "stable",
 			},
 			Platform: api.NodePoolPlatformProfile{
