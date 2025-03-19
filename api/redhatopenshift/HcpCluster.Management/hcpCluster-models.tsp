@@ -223,9 +223,9 @@ model ApiProfile {
   @visibility("read")
   url: url;
 
-  /** should the API server be accessible from the internet */
+  /** Should the API server be accessible from the internet */
   @visibility("create", "read")
-  visibility: Visibility;
+  visibility?: Visibility = "public";
 }
 
 /** The visibility of the API server */

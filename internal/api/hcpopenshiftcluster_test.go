@@ -49,9 +49,6 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
 			},
-			API: APIProfile{
-				Visibility: "public",
-			},
 			Platform: PlatformProfile{
 				SubnetID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
 				OperatorsAuthentication: OperatorsAuthenticationProfile{
@@ -78,9 +75,6 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 			Version: VersionProfile{
 				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
-			},
-			API: APIProfile{
-				Visibility: "public",
 			},
 			Platform: PlatformProfile{
 				SubnetID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
@@ -128,10 +122,6 @@ func TestClusterRequiredForPut(t *testing.T) {
 				{
 					Message: "Missing required field 'channelGroup'",
 					Target:  "properties.version.channelGroup",
-				},
-				{
-					Message: "Missing required field 'visibility'",
-					Target:  "properties.api.visibility",
 				},
 				{
 					Message: "Missing required field 'subnetId'",

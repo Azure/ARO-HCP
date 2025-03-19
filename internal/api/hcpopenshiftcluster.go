@@ -58,7 +58,7 @@ type ConsoleProfile struct {
 // APIProfile represents a cluster API server configuration.
 type APIProfile struct {
 	URL        string     `json:"url,omitempty"        visibility:"read"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"required_for_put,enum_visibility"`
+	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"omitempty,enum_visibility"`
 }
 
 // PlatformProfile represents the Azure platform configuration.
@@ -99,6 +99,9 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 				ServiceCIDR: "172.30.0.0/16",
 				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
+			},
+			API: APIProfile{
+				Visibility: VisibilityPublic,
 			},
 			Platform: PlatformProfile{
 				OutboundType: OutboundTypeLoadBalancer,

@@ -193,7 +193,7 @@ func PossibleResourceProvisioningStateValues() []ResourceProvisioningState {
 	}
 }
 
-// Visibility - The visibility of the API server
+// Visibility - Should the API server be accessible from the internet
 type Visibility string
 
 const (
