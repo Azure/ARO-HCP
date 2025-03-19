@@ -80,6 +80,7 @@
   },
   "dns": {
     "baseDnsZoneRG": "global",
+    "cxParentZoneDelegation": false,
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
     "regionalSubdomain": "nightly",

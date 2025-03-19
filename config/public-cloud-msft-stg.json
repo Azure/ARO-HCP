@@ -80,6 +80,7 @@
   },
   "dns": {
     "baseDnsZoneRG": "global-shared-resources",
+    "cxParentZoneDelegation": false,
     "cxParentZoneName": "aroapp-hcp.io",
     "parentZoneName": "azure.com",
     "regionalSubdomain": "westus3staging",
@@ -272,7 +273,7 @@
     "validAppId1": ""
   },
   "monitoring": {
-    "grafanaAdminGroupPrincipalId": "18d30381-f780-4915-8e55-de67daf7fb04",
+    "grafanaAdminGroupPrincipalId": "",
     "grafanaName": "arohcp-stg",
     "grafanaZoneRedundantMode": "Disabled",
     "workspaceName": "arohcp-usw3"

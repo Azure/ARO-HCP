@@ -199,6 +199,7 @@ clouds:
       dns:
         baseDnsZoneRG: global
         cxParentZoneName: hcp.osadev.cloud
+        cxParentZoneDelegation: false
         svcParentZoneName: hcpsvc.osadev.cloud
         parentZoneName: osadev.cloud
       # 1P app

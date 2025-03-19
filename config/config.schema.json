@@ -193,6 +193,10 @@
           "type": "string",
           "description": "The parent DNS zone name for regional HCP cluster DNS zones"
         },
+        "cxParentZoneDelegation": {
+          "type": "boolean",
+          "description": "Whether to manage the CX parent zone delegation on the parents parent."
+        },
         "svcParentZoneName": {
           "type": "string",
           "description": "The parent DNS zone name for regional ARO-HCP infrastructure, e.g. the RP"
