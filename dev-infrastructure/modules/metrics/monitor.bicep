@@ -17,7 +17,7 @@ module defaultRuleGroups 'rules/defaultRecordingRuleGroups.bicep' = {
   name: 'defaultRecordingRuleGroups'
   params: {
     azureMonitorWorkspaceLocation: resourceGroup().location
-    azureMonitorWorkspaceName: monitorName
+    azureMonitorWorkspaceName: monitor.name
     regionalResourceGroup: resourceGroup().name
   }
 }
