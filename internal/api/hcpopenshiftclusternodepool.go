@@ -18,13 +18,20 @@ type HCPOpenShiftClusterNodePool struct {
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
 	ProvisioningState arm.ProvisioningState   `json:"provisioningState,omitempty" visibility:"read"`
-	Version           VersionProfile          `json:"version,omitempty"           visibility:"read create"`
+	Version           NodePoolVersionProfile  `json:"version,omitempty"           visibility:"read create"`
 	Platform          NodePoolPlatformProfile `json:"platform,omitempty"          visibility:"read create"`
 	Replicas          int32                   `json:"replicas,omitempty"          visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
 	AutoRepair        bool                    `json:"autoRepair,omitempty"        visibility:"read create"`
 	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty"       visibility:"read create update"`
 	Labels            map[string]string       `json:"labels,omitempty"            visibility:"read create update"`
 	Taints            []*Taint                `json:"taints,omitempty"            visibility:"read create update" validate:"dive"`
+}
+
+// NodePoolVersionProfile represents the worker node pool version.
+type NodePoolVersionProfile struct {
+	ID                string   `json:"id,omitempty"                visibility:"read create update" validate:"required_unless=ChannelGroup stable"`
+	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create"`
+	AvailableUpgrades []string `json:"availableUpgrades,omitempty" visibility:"read"`
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
@@ -53,7 +60,7 @@ type Taint struct {
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
 		Properties: HCPOpenShiftClusterNodePoolProperties{
-			Version: VersionProfile{
+			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",
 			},
 		},

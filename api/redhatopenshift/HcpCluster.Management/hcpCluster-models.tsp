@@ -342,7 +342,7 @@ model NodePoolProperties {
 
   /** OpenShift version for the nodepool */
   @visibility("create", "read")
-  version: VersionProfile;
+  version: NodePoolVersionProfile;
 
   /** Azure node pool platform configuration */
   @visibility("create", "read")
@@ -457,6 +457,21 @@ model Label {
 
   /** The value of the label */
   value?: string;
+}
+
+/** Versions represents an OpenShift version. */
+model NodePoolVersionProfile {
+  /** ID is the unique identifier of the version. */
+  @visibility("create", "read", "update")
+  id?: string;
+
+  /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
+  @visibility("create", "read")
+  channelGroup?: string = "stable";
+
+  /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
+  @visibility("read")
+  availableUpgrades: string[];
 }
 
 /** Azure node pool platform configuration */

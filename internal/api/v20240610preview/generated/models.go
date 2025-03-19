@@ -355,7 +355,7 @@ type NodePoolProperties struct {
 	Platform *NodePoolPlatformProfile
 
 	// REQUIRED; OpenShift version for the nodepool
-	Version *VersionProfile
+	Version *NodePoolVersionProfile
 
 	// Auto-repair
 	AutoRepair *bool
@@ -374,6 +374,18 @@ type NodePoolProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
+}
+
+// NodePoolVersionProfile - Versions represents an OpenShift version.
+type NodePoolVersionProfile struct {
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	ChannelGroup *string
+
+	// ID is the unique identifier of the version.
+	ID *string
+
+	// READ-ONLY; AvailableUpgrades is a list of version names the current version can be upgraded to.
+	AvailableUpgrades []*string
 }
 
 // Operation - Details of a REST API operation, returned from the Resource Provider Operations API

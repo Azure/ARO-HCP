@@ -16,7 +16,7 @@ func minimumValidNodePool() *HCPOpenShiftClusterNodePool {
 	// Values are meaningless but need to pass validation.
 	return &HCPOpenShiftClusterNodePool{
 		Properties: HCPOpenShiftClusterNodePoolProperties{
-			Version: VersionProfile{
+			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",
 			},
 			Platform: NodePoolPlatformProfile{

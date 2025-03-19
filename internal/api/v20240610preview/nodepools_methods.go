@@ -59,7 +59,7 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 				out.Properties.AutoRepair = *h.Properties.AutoRepair
 			}
 			if h.Properties.Version != nil {
-				normalizeVersion(h.Properties.Version, &out.Properties.Version)
+				normalizeNodePoolVersion(h.Properties.Version, &out.Properties.Version)
 			}
 			if h.Properties.Replicas != nil {
 				out.Properties.Replicas = *h.Properties.Replicas
@@ -97,6 +97,16 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 			}
 		}
 	}
+}
+
+func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
+	if p.ID != nil {
+		out.ID = *p.ID
+	}
+	if p.ChannelGroup != nil {
+		out.ChannelGroup = *p.ChannelGroup
+	}
+	out.AvailableUpgrades = api.StringPtrSliceToStringSlice(p.AvailableUpgrades)
 }
 
 func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.NodePoolPlatformProfile) {
@@ -156,12 +166,24 @@ func (h *HcpOpenShiftClusterNodePoolResource) ValidateStatic(current api.Version
 	return cloudError
 }
 
+type NodePoolVersionProfile struct {
+	generated.NodePoolVersionProfile
+}
+
 type NodePoolPlatformProfile struct {
 	generated.NodePoolPlatformProfile
 }
 
 type NodePoolAutoScaling struct {
 	generated.NodePoolAutoScaling
+}
+
+func newNodePoolVersionProfile(from *api.NodePoolVersionProfile) *generated.NodePoolVersionProfile {
+	return &generated.NodePoolVersionProfile{
+		ID:                api.Ptr(from.ID),
+		ChannelGroup:      api.Ptr(from.ChannelGroup),
+		AvailableUpgrades: api.StringSliceToStringPtrSlice(from.AvailableUpgrades),
+	}
 }
 
 func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.NodePoolPlatformProfile {
@@ -210,7 +232,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 			Properties: &generated.NodePoolProperties{
 				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Platform:          newNodePoolPlatformProfile(&from.Properties.Platform),
-				Version:           newVersionProfile(&from.Properties.Version),
+				Version:           newNodePoolVersionProfile(&from.Properties.Version),
 				AutoRepair:        api.Ptr(from.Properties.AutoRepair),
 				AutoScaling:       newNodePoolAutoScaling(from.Properties.AutoScaling),
 				Labels:            []*generated.Label{},
