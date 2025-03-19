@@ -31,7 +31,11 @@ resourceGroups:
     variables:
     - name: clusterServiceMIResourceId
       # we don't need to grant KV permissions to CS as there is no CS in the MC solo deployment
-      value: ""
+      value: "-"
+    - name: logAnalyticsWorkspaceId
+      input:
+        step: region-output
+        name: logAnalyticsWorkspaceId
   # Build the MC
   - name: mgmt-cluster
     action: ARM
@@ -55,6 +59,10 @@ resourceGroups:
       input:
         step: region-output
         name: maestroEventGridNamespaceId
+    - name: logAnalyticsWorkspaceId
+      input:
+        step: region-output
+        name: logAnalyticsWorkspaceId
     dependsOn:
     - mgmt-infra
     - region-output
@@ -73,6 +81,23 @@ resourceGroups:
         value: "true"
     variables:
     - name: ACRPULL_DIGEST
-      configRef: acrPullImageDigest
+      configRef: acrPull.image.digest
+    - name: ACRPULL_REPO
+      configRef: acrPull.image.repository
+    - name: ACRPULL_REGISTRY
+      configRef: acrPull.image.registry
+    dependsOn:
+    - mgmt-cluster
+  # Install cluster patches
+  - name: mgmt-fixes
+    action: Shell
+    command: make -C ../mgmt-fixes deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: APPLY_KUBELET_FIXES
+      configRef: mgmt.applyKubeletFixes
     dependsOn:
     - mgmt-cluster

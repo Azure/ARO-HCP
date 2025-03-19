@@ -25,6 +25,10 @@ func msiRefFromId(msiResourceId string) msiRef => {
 }
 
 @export()
+func isMsiResourceId(resourceId string) bool =>
+  contains(resourceId, '/providers/Microsoft.ManagedIdentity/userAssignedIdentities/')
+
+@export()
 type acrRef = {
   resourceGroup: resourceGroupReference
   name: string

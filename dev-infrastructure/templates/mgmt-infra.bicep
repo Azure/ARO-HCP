@@ -155,7 +155,9 @@ output mgmtKeyVaultUrl string = mgmtKeyVault.outputs.kvUrl
 //   C L U S T E R   S E R V I C E   K V   A C C E S S
 //
 
-module csKeyVaultAccess '../modules/cluster-service-mc-kv-access.bicep' = if (clusterServiceMIResourceId != '') {
+import * as res from '../modules/resource.bicep'
+
+module csKeyVaultAccess '../modules/cluster-service-mc-kv-access.bicep' = if (res.isMsiResourceId(clusterServiceMIResourceId)) {
   name: 'cs-msi-kv-access'
   params: {
     clusterServiceMIResourceId: clusterServiceMIResourceId
