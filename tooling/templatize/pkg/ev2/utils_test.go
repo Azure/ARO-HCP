@@ -32,6 +32,7 @@ func TestScopeBindingVariables(t *testing.T) {
 		"__vaultBaseUrl__":                  "$config(vaultBaseUrl)",
 		"__clusterService.imageTag__":       "$config(clusterService.imageTag)",
 		"__clusterService.replicas__":       "$config(clusterService.replicas)",
+		"__enableOptionalStep__":            "$config(enableOptionalStep)",
 	}
 
 	if diff := cmp.Diff(expectedVars, vars); diff != "" {

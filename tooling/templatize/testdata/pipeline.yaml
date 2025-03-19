@@ -19,6 +19,11 @@ resourceGroups:
       variables:
       - name: DRY_RUN
         value: "A very dry one"
+  {{- if .enableOptionalStep }}
+  - name: optionalStep
+    action: Shell
+    command: make optional
+  {{- end }}
   - name: svc
     action: ARM
     template: templates/svc-cluster.bicep

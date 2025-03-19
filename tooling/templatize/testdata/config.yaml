@@ -16,6 +16,7 @@ defaults:
   childZone: child.example.com
   vaultBaseUrl: myvault.azure.com
   provider: Self
+  enableOptionalStep: false
 clouds:
   fairfax:
     defaults:
