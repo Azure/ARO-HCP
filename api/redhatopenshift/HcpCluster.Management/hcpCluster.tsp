@@ -17,7 +17,10 @@ namespace Microsoft.RedHatOpenShift;
 interface HcpOpenShiftClusters {
   get is ArmResourceRead<HcpOpenShiftCluster>;
   createOrUpdate is ArmResourceCreateOrReplaceAsync<HcpOpenShiftCluster>;
-  update is ArmCustomPatchAsync<HcpOpenShiftCluster, HcpOpenShiftClusterPatch>;
+  update is ArmResourcePatchAsync<
+    HcpOpenShiftCluster,
+    HcpOpenShiftClusterProperties
+  >;
   delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftCluster>;
   listByResourceGroup is ArmResourceListByParent<HcpOpenShiftCluster>;
   listBySubscription is ArmListBySubscription<HcpOpenShiftCluster>;
@@ -28,7 +31,7 @@ interface HcpOpenShiftClusters {
 interface NodePools {
   get is ArmResourceRead<NodePool>;
   createOrUpdate is ArmResourceCreateOrReplaceAsync<NodePool>;
-  update is ArmCustomPatchAsync<NodePool, HcpOpenShiftClusterNodePoolPatch>;
+  update is ArmResourcePatchAsync<NodePool, NodePoolProperties>;
   delete is ArmResourceDeleteWithoutOkAsync<NodePool>;
   listByParent is ArmResourceListByParent<NodePool>;
 }

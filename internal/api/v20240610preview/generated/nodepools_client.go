@@ -353,7 +353,7 @@ func (client *NodePoolsClient) listByParentHandleResponse(resp *http.Response) (
 //   - nodePoolName - The name of the NodePool
 //   - properties - The resource properties to be updated.
 //   - options - NodePoolsClientBeginUpdateOptions contains the optional parameters for the NodePoolsClient.BeginUpdate method.
-func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolPatch, options *NodePoolsClientBeginUpdateOptions) (*runtime.Poller[NodePoolsClientUpdateResponse], error) {
+func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties NodePoolUpdate, options *NodePoolsClientBeginUpdateOptions) (*runtime.Poller[NodePoolsClientUpdateResponse], error) {
 	if options == nil || options.ResumeToken == "" {
 		resp, err := client.update(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, properties, options)
 		if err != nil {
@@ -375,7 +375,7 @@ func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupNam
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
-func (client *NodePoolsClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolPatch, options *NodePoolsClientBeginUpdateOptions) (*http.Response, error) {
+func (client *NodePoolsClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties NodePoolUpdate, options *NodePoolsClientBeginUpdateOptions) (*http.Response, error) {
 	var err error
 	const operationName = "NodePoolsClient.BeginUpdate"
 	ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, operationName)
@@ -397,7 +397,7 @@ func (client *NodePoolsClient) update(ctx context.Context, resourceGroupName str
 }
 
 // updateCreateRequest creates the Update request.
-func (client *NodePoolsClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties HcpOpenShiftClusterNodePoolPatch, options *NodePoolsClientBeginUpdateOptions) (*policy.Request, error) {
+func (client *NodePoolsClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties NodePoolUpdate, options *NodePoolsClientBeginUpdateOptions) (*policy.Request, error) {
 	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")

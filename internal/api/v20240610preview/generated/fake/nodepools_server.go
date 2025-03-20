@@ -43,7 +43,7 @@ type NodePoolsServer struct {
 
 	// BeginUpdate is the fake for method NodePoolsClient.BeginUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusAccepted
-	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties generated.HcpOpenShiftClusterNodePoolPatch, options *generated.NodePoolsClientBeginUpdateOptions) (resp azfake.PollerResponder[generated.NodePoolsClientUpdateResponse], errResp azfake.ErrorResponder)
+	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties generated.NodePoolUpdate, options *generated.NodePoolsClientBeginUpdateOptions) (resp azfake.PollerResponder[generated.NodePoolsClientUpdateResponse], errResp azfake.ErrorResponder)
 }
 
 // NewNodePoolsServerTransport creates a new instance of NodePoolsServerTransport with the provided implementation.
@@ -292,7 +292,7 @@ func (n *NodePoolsServerTransport) dispatchBeginUpdate(req *http.Request) (*http
 		if matches == nil || len(matches) < 4 {
 			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
 		}
-		body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterNodePoolPatch](req)
+		body, err := server.UnmarshalRequestAsJSON[generated.NodePoolUpdate](req)
 		if err != nil {
 			return nil, err
 		}
