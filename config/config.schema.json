@@ -1138,6 +1138,22 @@
         "svc",
         "ocp"
       ]
+    },
+    "releaseApprover": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "id"
+      ]
     }
   },
   "additionalProperties": false,

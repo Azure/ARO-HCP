@@ -293,6 +293,10 @@
   "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
+  "releaseApprover": {
+    "id": "feca6a27-8f05-4abe-b9e4-e1185f5833ab",
+    "name": "TM-AzureRedHatOpenShift-HCP-Leads"
+  },
   "serviceKeyVault": {
     "name": "arohcpstg-svc-usw3",
     "private": false,
