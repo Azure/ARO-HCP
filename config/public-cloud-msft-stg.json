@@ -88,7 +88,11 @@
     "svcParentZoneName": "aro-hcp.azure.com"
   },
   "extraVars": {},
-  "firstPartyAppCertName": "firstPartyCert",
+  "firstPartyAppCertificate": {
+    "issuer": "OneCertV2-PrivateCA",
+    "manage": true,
+    "name": "tmp-rp-firstparty"
+  },
   "firstPartyAppClientId": "7f4a113a-c61d-412a-bea1-85dee5baf4a8",
   "frontend": {
     "cert": {

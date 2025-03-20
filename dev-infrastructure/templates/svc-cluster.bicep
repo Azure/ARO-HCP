@@ -178,6 +178,9 @@ param oidcZoneRedundantMode string
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
+@description('The parent SVC DNS zone name')
+param svcDNSZoneName string
+
 @description('The regional DNS zone to hold ARO HCP customer cluster DNS records')
 param regionalCXDNSZoneName string
 
@@ -189,6 +192,15 @@ param frontendIngressCertName string
 
 @description('Frontend Ingress Certificate Issuer')
 param frontendIngressCertIssuer string
+
+@description('The name of the FPA certificate in the SVC keyvault')
+param fpaCertificateName string
+
+@description('The issuer of the FPA certificate')
+param fpaCertificateIssuer string
+
+@description('Whether to create the FPA certificate in the SVC keyvault')
+param manageFpaCertificate bool
 
 @description('The service tag for Geneva Actions')
 param genevaActionsServiceTag string
@@ -546,5 +558,26 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
     recordName: frontendDnsName
     ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
     ttl: 300
+  }
+}
+
+//
+//   F P A   C E R T I F I C A T E
+//
+
+var fpaCertificateSNI = '${fpaCertificateName}.${svcDNSZoneName}'
+
+module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpaCertificate) {
+  name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=${fpaCertificateSNI}'
+    certName: fpaCertificateName
+    keyVaultManagedIdentityId: aroDevopsMsiId
+    dnsNames: [
+      fpaCertificateSNI
+    ]
+    issuerName: fpaCertificateIssuer
   }
 }
