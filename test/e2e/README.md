@@ -10,6 +10,8 @@ The client expects a subscription to be already registered. To assign the client
 
 Test cases expect resource group name, where cluster resources (vnet, managed identity, ...) are located, to be set in the environment variable **CUSTOMER_RG_NAME**.
 
+To distinguish E2E test suite from unit tests, initial ginkgo file *e2e_test.go* has a build tag **E2Etests**. The build tag has to be explicitly set when running (or building) the E2E test suite.
+
 ## Run E2E tests locally against development environment
 
 1. Login with AZ CLI
@@ -24,11 +26,11 @@ export CUSTOMER_RG_NAME=<resourceGroupName>
 
 4. Run test suite with command
 
-Run all test cases: `ginkgo ./e2e`
+Run all test cases: `ginkgo --tags E2Etests ./`
 
-Run specific test case: `ginkgo --focus "<regex>" ./e2e`
+Run specific test case: `ginkgo --tags E2Etests --focus "<regex>" ./`
 
-Run in debug mode: `ginkgo ./e2e --vv`
+Run in debug mode: `ginkgo --tags E2Etests --vv ./`
 
 ## Writing E2E test with ginkgo
 
@@ -44,10 +46,10 @@ Ginkgo consist of specs nodes structure which can look like:
 - Describe -> Context -> It
 - Describe -> Describe -> ...
 
-Every node consist of arguments: 
+Every node consist of arguments:
 - description
 - labels (optional, but very important)
-- function. 
+- function.
 
 Node *It* is the last node and contains the test itself. To describe useful test steps use function **By(message)**. Decorator **defer** is used to call functions after test finish (cleanup). To skip a test use function **Skip(message)** with appropriate message.
 
@@ -58,9 +60,9 @@ Create a label with function **Label(name)** in file *util/labels/labels.go*.
 
 To run tests with specified labels use ginkgo with option --label-filter. Example: `ginkgo --label-filter=QUERY`
 
-### Assertions 
+### Assertions
 
-The GOMEGA module is used for asserting values. The following example shows the recommended notation for making assertions. 
+The GOMEGA module is used for asserting values. The following example shows the recommended notation for making assertions.
 
 Example:
 **Expect(variable).To/ToNot(BeNil(), BeEmpty(), BeTrue(), BeNumerically, ContainString ...)**

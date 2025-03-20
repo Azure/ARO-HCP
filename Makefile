@@ -4,6 +4,7 @@ SHELL = /bin/bash
 # This build tag is currently leveraged by tooling/image-sync
 # https://github.com/containers/image?tab=readme-ov-file#building
 GOTAGS?='containers_image_openpgp'
+LINT_GOTAGS?='${GOTAGS},E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= personal-dev
 
@@ -34,7 +35,7 @@ install-tools: $(BINGO)
 # https://github.com/golang/go/issues/50745
 MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint: $(GOLANGCI_LINT)
-	$(GOLANGCI_LINT) run -v --build-tags=$(GOTAGS) $(MODULES)
+	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES)
 .PHONY: lint
 
 fmt: $(GOIMPORTS)
