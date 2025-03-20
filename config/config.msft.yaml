@@ -68,7 +68,7 @@ defaults:
     subscription: "hcp-{{ .ctx.region }}"
     rg: "hcp-underlay-{{ .ctx.region }}-svc"
     aks:
-      name: "{{ .ctx.regionShort }}-svc" # [env-unique]
+      name: "{{ .ctx.region }}-svc-1" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -96,7 +96,7 @@ defaults:
     subscription: "hcp-{{ .ctx.region }}"
     rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     aks:
-      name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
+      name: "{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
