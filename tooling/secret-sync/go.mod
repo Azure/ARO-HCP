@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/secret-sync
 
-go 1.23.5
+go 1.23.0
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
