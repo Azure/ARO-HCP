@@ -17,9 +17,10 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 // conservative
@@ -186,14 +187,14 @@ func main() {
 		}
 		os.Exit(0)
 	} else if mode == "decrypt" {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		chain, err := azauth.GetAzureTokenCredentials()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal(fmt.Errorf("Error getting credentials %v", err))
 		}
 
-		keyClient, err := azkeys.NewClient(fmt.Sprintf("https://%s.vault.azure.net", os.Getenv(vaultNameEnvKey)), cred, nil)
+		keyClient, err := azkeys.NewClient(fmt.Sprintf("https://%s.vault.azure.net", os.Getenv(vaultNameEnvKey)), chain, nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal(fmt.Errorf("Error getting azkeys client %v", err))
 		}
 		decryptedChunks := make([][]byte, 0)
 		encryptedChunks, err := readEncryptedChunks()
@@ -213,9 +214,9 @@ func main() {
 				decryptedChunks = append(decryptedChunks, decryptedChunk)
 			}
 		}
-		secretsClient, err := azsecrets.NewClient(fmt.Sprintf("https://%s.vault.azure.net", os.Getenv(vaultNameEnvKey)), cred, nil)
+		secretsClient, err := azsecrets.NewClient(fmt.Sprintf("https://%s.vault.azure.net", os.Getenv(vaultNameEnvKey)), chain, nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal(fmt.Errorf("Error getting azsecrets client %v", err))
 		}
 		joinedMessage := bytes.Join(decryptedChunks, []byte{})
 		fmt.Printf("Data decrypted, persisting to: %s\n", os.Getenv(secretToSetEnvKey))
