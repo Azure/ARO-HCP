@@ -67,4 +67,4 @@ jobs:
       with:
         # The repo's top-level Makefile parses the version of golangci-lint from here
         version: v2.0.2
-        args: '-v --build-tags=containers_image_openpgp $(go list -f ''{{.Dir}}/...'' -m | xargs)'
+        args: '-v --build-tags=containers_image_openpgp,E2Etests $(go list -f ''{{.Dir}}/...'' -m | xargs)'
