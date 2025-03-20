@@ -20,6 +20,7 @@ import (
 	"github.com/go-logr/logr"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -51,6 +52,7 @@ var (
 	argClustersServiceURL   string
 	argInsecure             bool
 	argMetricsListenAddress string
+	argPortListenAddress    string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -84,6 +86,7 @@ func init() {
 	rootCmd.Flags().StringVar(&argClustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway")
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
 	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
+	rootCmd.Flags().StringVar(&argPortListenAddress, "healthz-listen-address", ":8083", "Address on which Healthz endpoint will be supported")
 
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
@@ -163,7 +166,37 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	logger.Info(fmt.Sprintf("%s (%s) started", cmd.Short, cmd.Version))
 
+	// Create HealthzAdaptor for leader election
+	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
+
 	group, ctx := errgroup.WithContext(context.Background())
+
+	// Handle requests directly for /healthz endpoint
+	if argPortListenAddress != "" {
+		backendHealthGauge := promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{Name: "backend_health", Help: "backend_health is 1 when healthy"})
+
+		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+
+			if err := electionChecker.Check(r); err != nil {
+				http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
+				backendHealthGauge.Set(0.0)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			backendHealthGauge.Set(1.0)
+		})
+
+		healthzServer := &http.Server{Addr: argPortListenAddress}
+
+		group.Go(func() error {
+			logger.Info(fmt.Sprintf("Healthz server listening on %s", argPortListenAddress))
+			err := healthzServer.ListenAndServe()
+			if errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+			return err
+		})
+	}
 
 	var srv *http.Server
 	if argMetricsListenAddress != "" {
@@ -225,6 +258,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				},
 			},
 			ReleaseOnCancel: true,
+			WatchDog:        electionChecker,
 			Name:            leaderElectionLockName,
 		})
 		if err != nil {

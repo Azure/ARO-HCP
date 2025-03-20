@@ -51,6 +51,8 @@ spec:
         ports:
         - containerPort: 8081
           protocol: TCP
+        - containerPort: 8083
+          protocol: TCP
         resources:
           limits:
             memory: 1Gi
@@ -65,5 +67,11 @@ spec:
           runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8083
+          initialDelaySeconds: 5
+          periodSeconds: 10
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
