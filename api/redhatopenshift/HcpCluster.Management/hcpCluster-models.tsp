@@ -74,44 +74,6 @@ model HcpOpenShiftClusterProperties {
   platform?: PlatformProfile;
 }
 
-/** HCP patchable cluster properties */
-model HcpOpenShiftClusterPatchProperties {
-  /** The status of the last operation. */
-  @visibility(Lifecycle.Read)
-  provisioningState?: ProvisioningState;
-
-  /** Disable user workload monitoring */
-  @visibility(Lifecycle.Read, Lifecycle.Update)
-  disableUserWorkloadMonitoring?: boolean;
-}
-
-model ManagedServiceIdentityUpdate
-  is OptionalProperties<UpdateableProperties<Azure.ResourceManager.Foundations.ManagedServiceIdentity>>;
-
-model HcpOpenShiftClusterPatch
-  is OptionalProperties<UpdateableProperties<OmitProperties<
-    HcpOpenShiftCluster,
-    "name" | "properties" | "identity"
-  >>> {
-  /** HCP patchable cluster properties */
-  properties?: HcpOpenShiftClusterPatchProperties;
-
-  /** Managed service identity */
-  identity?: ManagedServiceIdentityUpdate;
-}
-
-model HcpOpenShiftClusterNodePoolPatch
-  is OptionalProperties<UpdateableProperties<OmitProperties<
-    NodePool,
-    "name" | "properties" | "identity"
-  >>> {
-  /** Represents the patchable node pool properties */
-  properties?: NodePoolPatchProperties;
-
-  /** Managed Service Identity */
-  identity?: ManagedServiceIdentityUpdate;
-}
-
 /** The resource provisioning state. */
 @lroStatus
 union ProvisioningState {
@@ -363,34 +325,6 @@ model NodePoolProperties {
   taints?: Taint[];
 }
 
-/** Represents the patchable node pool properties */
-model NodePoolPatchProperties {
-  /** Provisioning state */
-  @visibility(Lifecycle.Read)
-  provisioningState?: ResourceProvisioningState;
-
-  /** The number of worker nodes, it cannot be used together with autoscaling */
-  @visibility(Lifecycle.Read, Lifecycle.Update)
-  replicas?: int32;
-
-  /** Representation of a autoscaling in a node pool. */
-  autoScaling?: NodePoolAutoScaling;
-
-  // This warning means to ensure good customer experience, to not create
-  // poorly defined types. However here the type literarly is the map<string, value>
-  /** K8s labels to propagate to the NodePool Nodes
-   * The good example of the label is `node-role.kubernetes.io/master: ""`
-   */
-  @visibility(Lifecycle.Read, Lifecycle.Update)
-  @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
-  labels?: Label[];
-
-  /** Taints for the nodes */
-  @visibility(Lifecycle.Read, Lifecycle.Update)
-  @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
-  taints?: Taint[];
-}
-
 /** taintKey is the k8s valid key of the taint type on the nodepool nodes
  * @example node-role.kubernetes.io/master
  */
@@ -438,7 +372,6 @@ model Taint {
 }
 
 /** Label represents the k8s label */
-// Key and value are both optional, so there is no need to redefine them for PATCH
 model Label {
   /** The key of the label */
   key?: string;

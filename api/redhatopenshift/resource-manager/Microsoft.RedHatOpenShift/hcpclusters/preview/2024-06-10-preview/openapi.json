@@ -361,7 +361,7 @@
             "description": "The resource properties to be updated.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterPatch"
+              "$ref": "#/definitions/HcpOpenShiftClusterUpdate"
             }
           }
         ],
@@ -684,7 +684,7 @@
             "description": "The resource properties to be updated.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolPatch"
+              "$ref": "#/definitions/NodePoolUpdate"
             }
           }
         ],
@@ -841,6 +841,47 @@
         "url"
       ]
     },
+    "Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate": {
+      "type": "object",
+      "description": "Managed service identity (system assigned and/or user assigned identities)",
+      "properties": {
+        "type": {
+          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentityType",
+          "description": "The type of managed identity assigned to this resource."
+        },
+        "userAssignedIdentities": {
+          "type": "object",
+          "description": "The identities assigned to this resource by the user.",
+          "additionalProperties": {
+            "allOf": [
+              {
+                "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/UserAssignedIdentity"
+              }
+            ],
+            "type": "object",
+            "x-nullable": true
+          }
+        }
+      }
+    },
+    "Azure.ResourceManager.CommonTypes.TrackedResourceUpdate": {
+      "type": "object",
+      "description": "The resource model definition for an Azure Resource Manager tracked top level resource which has 'tags' and a 'location'",
+      "properties": {
+        "tags": {
+          "type": "object",
+          "description": "Resource tags.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/Resource"
+        }
+      ]
+    },
     "Azure.ResourceManager.ResourceProvisioningState": {
       "type": "string",
       "description": "The provisioning state of a resource type.",
@@ -978,67 +1019,6 @@
         "value"
       ]
     },
-    "HcpOpenShiftClusterNodePoolPatch": {
-      "type": "object",
-      "description": "The template for adding optional properties.",
-      "properties": {
-        "tags": {
-          "type": "object",
-          "description": "Resource tags.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "properties": {
-          "$ref": "#/definitions/NodePoolPatchProperties",
-          "description": "Represents the patchable node pool properties"
-        },
-        "identity": {
-          "$ref": "#/definitions/ManagedServiceIdentityUpdate",
-          "description": "Managed Service Identity"
-        }
-      }
-    },
-    "HcpOpenShiftClusterPatch": {
-      "type": "object",
-      "description": "The template for adding optional properties.",
-      "properties": {
-        "tags": {
-          "type": "object",
-          "description": "Resource tags.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "properties": {
-          "$ref": "#/definitions/HcpOpenShiftClusterPatchProperties",
-          "description": "HCP patchable cluster properties"
-        },
-        "identity": {
-          "$ref": "#/definitions/ManagedServiceIdentityUpdate",
-          "description": "Managed service identity"
-        }
-      }
-    },
-    "HcpOpenShiftClusterPatchProperties": {
-      "type": "object",
-      "description": "HCP patchable cluster properties",
-      "properties": {
-        "provisioningState": {
-          "$ref": "#/definitions/ProvisioningState",
-          "description": "The status of the last operation.",
-          "readOnly": true
-        },
-        "disableUserWorkloadMonitoring": {
-          "type": "boolean",
-          "description": "Disable user workload monitoring",
-          "x-ms-mutability": [
-            "read",
-            "update"
-          ]
-        }
-      }
-    },
     "HcpOpenShiftClusterProperties": {
       "type": "object",
       "description": "HCP cluster properties",
@@ -1101,6 +1081,45 @@
         "version",
         "console",
         "api"
+      ]
+    },
+    "HcpOpenShiftClusterPropertiesUpdate": {
+      "type": "object",
+      "description": "HCP cluster properties",
+      "properties": {
+        "dns": {
+          "$ref": "#/definitions/DnsProfile",
+          "description": "Cluster DNS configuration"
+        },
+        "disableUserWorkloadMonitoring": {
+          "type": "boolean",
+          "description": "Disable user workload monitoring",
+          "default": false,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "HcpOpenShiftClusterUpdate": {
+      "type": "object",
+      "description": "HCP cluster resource",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/HcpOpenShiftClusterPropertiesUpdate",
+          "description": "The resource-specific properties for this resource."
+        },
+        "identity": {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate",
+          "description": "The managed service identities assigned to this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
+        }
       ]
     },
     "HcpOpenShiftVersion": {
@@ -1169,29 +1188,6 @@
         "value": {
           "type": "string",
           "description": "The value of the label"
-        }
-      }
-    },
-    "ManagedServiceIdentityUpdate": {
-      "type": "object",
-      "description": "The template for adding optional properties.",
-      "properties": {
-        "type": {
-          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentityType",
-          "description": "The type of managed identity assigned to this resource."
-        },
-        "userAssignedIdentities": {
-          "type": "object",
-          "description": "The identities assigned to this resource by the user.",
-          "additionalProperties": {
-            "allOf": [
-              {
-                "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/UserAssignedIdentity"
-              }
-            ],
-            "type": "object",
-            "x-nullable": true
-          }
         }
       }
     },
@@ -1337,61 +1333,6 @@
         "value"
       ]
     },
-    "NodePoolPatchProperties": {
-      "type": "object",
-      "description": "Represents the patchable node pool properties",
-      "properties": {
-        "provisioningState": {
-          "$ref": "#/definitions/Azure.ResourceManager.ResourceProvisioningState",
-          "description": "Provisioning state",
-          "readOnly": true
-        },
-        "replicas": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The number of worker nodes, it cannot be used together with autoscaling",
-          "x-ms-mutability": [
-            "read",
-            "update"
-          ]
-        },
-        "autoScaling": {
-          "$ref": "#/definitions/NodePoolAutoScaling",
-          "description": "Representation of a autoscaling in a node pool."
-        },
-        "labels": {
-          "type": "array",
-          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
-          "items": {
-            "$ref": "#/definitions/Label"
-          },
-          "x-ms-identifiers": [
-            "key",
-            "value"
-          ],
-          "x-ms-mutability": [
-            "read",
-            "update"
-          ]
-        },
-        "taints": {
-          "type": "array",
-          "description": "Taints for the nodes",
-          "items": {
-            "$ref": "#/definitions/Taint"
-          },
-          "x-ms-identifiers": [
-            "key",
-            "value",
-            "effect"
-          ],
-          "x-ms-mutability": [
-            "read",
-            "update"
-          ]
-        }
-      }
-    },
     "NodePoolPlatformProfile": {
       "type": "object",
       "description": "Azure node pool platform configuration",
@@ -1534,6 +1475,78 @@
       "required": [
         "version",
         "platform"
+      ]
+    },
+    "NodePoolPropertiesUpdate": {
+      "type": "object",
+      "description": "Represents the node pool properties",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "autoScaling": {
+          "$ref": "#/definitions/NodePoolAutoScaling",
+          "description": "Representation of a autoscaling in a node pool."
+        },
+        "labels": {
+          "type": "array",
+          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "items": {
+            "$ref": "#/definitions/Label"
+          },
+          "x-ms-identifiers": [
+            "key",
+            "value"
+          ],
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "taints": {
+          "type": "array",
+          "description": "Taints for the nodes",
+          "items": {
+            "$ref": "#/definitions/Taint"
+          },
+          "x-ms-identifiers": [
+            "key",
+            "value",
+            "effect"
+          ],
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "NodePoolUpdate": {
+      "type": "object",
+      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/NodePoolPropertiesUpdate",
+          "description": "The resource-specific properties for this resource."
+        },
+        "identity": {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate",
+          "description": "The managed service identities assigned to this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
+        }
       ]
     },
     "NodePoolVersionProfile": {

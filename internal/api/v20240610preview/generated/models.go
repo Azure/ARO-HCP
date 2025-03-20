@@ -18,7 +18,36 @@ type APIProfile struct {
 	URL *string
 }
 
-type ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
+// AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
+// identities)
+type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
+	// The type of managed identity assigned to this resource.
+	Type *ManagedServiceIdentityType
+
+	// The identities assigned to this resource by the user.
+	UserAssignedIdentities map[string]*Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties
+}
+
+// AzureResourceManagerCommonTypesTrackedResourceUpdate - The resource model definition for an Azure Resource Manager tracked
+// top level resource which has 'tags' and a 'location'
+type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
+	// Resource tags.
+	Tags map[string]*string
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
+type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
 
@@ -112,39 +141,6 @@ type HcpOpenShiftClusterListResult struct {
 	NextLink *string
 }
 
-// HcpOpenShiftClusterNodePoolPatch - The template for adding optional properties.
-type HcpOpenShiftClusterNodePoolPatch struct {
-	// Managed Service Identity
-	Identity *ManagedServiceIdentityUpdate
-
-	// Represents the patchable node pool properties
-	Properties *NodePoolPatchProperties
-
-	// Resource tags.
-	Tags map[string]*string
-}
-
-// HcpOpenShiftClusterPatch - The template for adding optional properties.
-type HcpOpenShiftClusterPatch struct {
-	// Managed service identity
-	Identity *ManagedServiceIdentityUpdate
-
-	// HCP patchable cluster properties
-	Properties *HcpOpenShiftClusterPatchProperties
-
-	// Resource tags.
-	Tags map[string]*string
-}
-
-// HcpOpenShiftClusterPatchProperties - HCP patchable cluster properties
-type HcpOpenShiftClusterPatchProperties struct {
-	// Disable user workload monitoring
-	DisableUserWorkloadMonitoring *bool
-
-	// READ-ONLY; The status of the last operation.
-	ProvisioningState *ProvisioningState
-}
-
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Version of the control plane components
@@ -170,6 +166,39 @@ type HcpOpenShiftClusterProperties struct {
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
+}
+
+// HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
+type HcpOpenShiftClusterPropertiesUpdate struct {
+	// Cluster DNS configuration
+	DNS *DNSProfile
+
+	// Disable user workload monitoring
+	DisableUserWorkloadMonitoring *bool
+}
+
+// HcpOpenShiftClusterUpdate - HCP cluster resource
+type HcpOpenShiftClusterUpdate struct {
+	// The managed service identities assigned to this resource.
+	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
+
+	// The resource-specific properties for this resource.
+	Properties *HcpOpenShiftClusterPropertiesUpdate
+
+	// Resource tags.
+	Tags map[string]*string
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
 }
 
 // HcpOpenShiftVersions represents a location based available HCP cluster versions
@@ -237,15 +266,6 @@ type ManagedServiceIdentity struct {
 	TenantID *string
 }
 
-// ManagedServiceIdentityUpdate - The template for adding optional properties.
-type ManagedServiceIdentityUpdate struct {
-	// The type of managed identity assigned to this resource.
-	Type *ManagedServiceIdentityType
-
-	// The identities assigned to this resource by the user.
-	UserAssignedIdentities map[string]*ComponentsQjfoe3SchemasManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties
-}
-
 // NetworkProfile - OpenShift networking configuration
 type NetworkProfile struct {
 	// Network host prefix
@@ -309,24 +329,6 @@ type NodePoolListResult struct {
 	NextLink *string
 }
 
-// NodePoolPatchProperties - Represents the patchable node pool properties
-type NodePoolPatchProperties struct {
-	// Representation of a autoscaling in a node pool.
-	AutoScaling *NodePoolAutoScaling
-
-	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
-	Labels []*Label
-
-	// The number of worker nodes, it cannot be used together with autoscaling
-	Replicas *int32
-
-	// Taints for the nodes
-	Taints []*Taint
-
-	// READ-ONLY; Provisioning state
-	ProvisioningState *ResourceProvisioningState
-}
-
 // NodePoolPlatformProfile - Azure node pool platform configuration
 type NodePoolPlatformProfile struct {
 	// REQUIRED; The VM size according to the documentation:
@@ -373,6 +375,45 @@ type NodePoolProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
+}
+
+// NodePoolPropertiesUpdate - Represents the node pool properties
+type NodePoolPropertiesUpdate struct {
+	// Representation of a autoscaling in a node pool.
+	AutoScaling *NodePoolAutoScaling
+
+	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	Labels []*Label
+
+	// The number of worker nodes, it cannot be used together with autoscaling
+	Replicas *int32
+
+	// Taints for the nodes
+	Taints []*Taint
+}
+
+// NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
+type NodePoolUpdate struct {
+	// The managed service identities assigned to this resource.
+	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
+
+	// The resource-specific properties for this resource.
+	Properties *NodePoolPropertiesUpdate
+
+	// Resource tags.
+	Tags map[string]*string
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
 }
 
 // NodePoolVersionProfile - Versions represents an OpenShift version.

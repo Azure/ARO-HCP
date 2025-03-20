@@ -47,7 +47,7 @@ type HcpOpenShiftClustersServer struct {
 
 	// BeginUpdate is the fake for method HcpOpenShiftClustersClient.BeginUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusAccepted
-	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties generated.HcpOpenShiftClusterPatch, options *generated.HcpOpenShiftClustersClientBeginUpdateOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse], errResp azfake.ErrorResponder)
+	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties generated.HcpOpenShiftClusterUpdate, options *generated.HcpOpenShiftClustersClientBeginUpdateOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse], errResp azfake.ErrorResponder)
 }
 
 // NewHcpOpenShiftClustersServerTransport creates a new instance of HcpOpenShiftClustersServerTransport with the provided implementation.
@@ -317,7 +317,7 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginUpdate(req *http.Requ
 		if matches == nil || len(matches) < 3 {
 			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
 		}
-		body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterPatch](req)
+		body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterUpdate](req)
 		if err != nil {
 			return nil, err
 		}
