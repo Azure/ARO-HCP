@@ -70,7 +70,8 @@
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
       "name": "arohcp-cs-cspr",
-      "private": false
+      "private": false,
+      "zoneRedundantMode": "Auto"
     }
   },
   "cxKeyVault": {
@@ -199,7 +200,8 @@
       "name": "arohcp-maestro-cspr",
       "private": false,
       "serverStorageSizeGB": 32,
-      "serverVersion": "15"
+      "serverVersion": "15",
+      "zoneRedundantMode": "Auto"
     },
     "restrictIstioIngress": false,
     "server": {

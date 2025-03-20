@@ -1,4 +1,9 @@
-import { getLocationAvailabilityZonesCSV, determineZoneRedundancy, csvToArray } from '../modules/common.bicep'
+import {
+  csvToArray
+  determineZoneRedundancy
+  determineZoneRedundancyForRegion
+  getLocationAvailabilityZonesCSV
+} from '../modules/common.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -108,6 +113,9 @@ param maestroEventGridNamespacesName string
 @description('Deploy CS Postgres if true')
 param csPostgresDeploy bool
 
+@description('The zone redundant mode of the Maestro Postgres Database')
+param csPostgresZoneRedundantMode string
+
 @description('The name of the Postgres server for CS')
 @maxLength(60)
 param csPostgresServerName string
@@ -120,6 +128,9 @@ param clusterServicePostgresPrivate bool = true
 
 @description('Deploy ARO HCP Maestro Postgres if true')
 param deployMaestroPostgres bool = true
+
+@description('The zone redundant mode of the Maestro Postgres Database')
+param maestroPostgresZoneRedundantMode string
 
 @description('If true, make the Maestro Postgres instance private')
 param maestroPostgresPrivate bool = true
@@ -374,6 +385,9 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     postgresServerVersion: maestroPostgresServerVersion
     postgresServerMinTLSVersion: maestroPostgresServerMinTLSVersion
     postgresServerStorageSizeGB: maestroPostgresServerStorageSizeGB
+    postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, maestroPostgresZoneRedundantMode)
+      ? 'ZoneRedundant'
+      : 'SameZone'
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     maestroDatabaseName: maestroPostgresDatabaseName
@@ -432,6 +446,9 @@ module cs '../modules/cluster-service.bicep' = {
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     deployPostgres: csPostgresDeploy
+    postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, csPostgresZoneRedundantMode)
+      ? 'ZoneRedundant'
+      : 'SameZone'
     postgresServerPrivate: clusterServicePostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
     clusterServiceManagedIdentityName: csMIName
