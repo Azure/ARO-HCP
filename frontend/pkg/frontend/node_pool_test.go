@@ -53,7 +53,7 @@ func TestCreateNodePool(t *testing.T) {
 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 
-	requestBody := generated.HcpOpenShiftClusterNodePoolResource{
+	requestBody := generated.NodePool{
 		Location: &dummyLocation,
 		Properties: &generated.NodePoolProperties{
 			Version: &generated.NodePoolVersionProfile{
@@ -184,7 +184,7 @@ func TestCreateNodePool(t *testing.T) {
 // 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 
 // 	var dummyReplicas int32 = 2
-// 	requestBody := generated.HcpOpenShiftClusterNodePoolResource{
+// 	requestBody := generated.NodePool{
 // 		Location: &dummyLocation,
 // 		Properties: &generated.NodePoolProperties{
 // 			Spec: &generated.NodePoolSpec{

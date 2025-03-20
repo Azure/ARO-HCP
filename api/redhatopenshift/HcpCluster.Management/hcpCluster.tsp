@@ -13,28 +13,22 @@ using Azure.ResourceManager;
 namespace Microsoft.RedHatOpenShift;
 
 /** HCP cluster operations */
-@armResourceOperations(HcpOpenShiftClusterResource)
+@armResourceOperations(HcpOpenShiftCluster)
 interface HcpOpenShiftClusters {
-  get is ArmResourceRead<HcpOpenShiftClusterResource>;
-  createOrUpdate is ArmResourceCreateOrReplaceAsync<HcpOpenShiftClusterResource>;
-  update is ArmCustomPatchAsync<
-    HcpOpenShiftClusterResource,
-    HcpOpenShiftClusterPatch
-  >;
-  delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftClusterResource>;
-  listByResourceGroup is ArmResourceListByParent<HcpOpenShiftClusterResource>;
-  listBySubscription is ArmListBySubscription<HcpOpenShiftClusterResource>;
+  get is ArmResourceRead<HcpOpenShiftCluster>;
+  createOrUpdate is ArmResourceCreateOrReplaceAsync<HcpOpenShiftCluster>;
+  update is ArmCustomPatchAsync<HcpOpenShiftCluster, HcpOpenShiftClusterPatch>;
+  delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftCluster>;
+  listByResourceGroup is ArmResourceListByParent<HcpOpenShiftCluster>;
+  listBySubscription is ArmListBySubscription<HcpOpenShiftCluster>;
 }
 
 /** HCP cluster node pools */
-@armResourceOperations(HcpOpenShiftClusterNodePoolResource)
+@armResourceOperations(NodePool)
 interface NodePools {
-  get is ArmResourceRead<HcpOpenShiftClusterNodePoolResource>;
-  createOrUpdate is ArmResourceCreateOrReplaceAsync<HcpOpenShiftClusterNodePoolResource>;
-  update is ArmCustomPatchAsync<
-    HcpOpenShiftClusterNodePoolResource,
-    HcpOpenShiftClusterNodePoolPatch
-  >;
-  delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftClusterNodePoolResource>;
-  listByParent is ArmResourceListByParent<HcpOpenShiftClusterNodePoolResource>;
+  get is ArmResourceRead<NodePool>;
+  createOrUpdate is ArmResourceCreateOrReplaceAsync<NodePool>;
+  update is ArmCustomPatchAsync<NodePool, HcpOpenShiftClusterNodePoolPatch>;
+  delete is ArmResourceDeleteWithoutOkAsync<NodePool>;
+  listByParent is ArmResourceListByParent<NodePool>;
 }

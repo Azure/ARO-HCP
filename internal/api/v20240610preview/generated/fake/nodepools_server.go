@@ -27,7 +27,7 @@ import (
 type NodePoolsServer struct {
 	// BeginCreateOrUpdate is the fake for method NodePoolsClient.BeginCreateOrUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusCreated
-	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, resource generated.HcpOpenShiftClusterNodePoolResource, options *generated.NodePoolsClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[generated.NodePoolsClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
+	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, resource generated.NodePool, options *generated.NodePoolsClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[generated.NodePoolsClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
 
 	// BeginDelete is the fake for method NodePoolsClient.BeginDelete
 	// HTTP status codes to indicate success: http.StatusAccepted, http.StatusNoContent
@@ -114,7 +114,7 @@ func (n *NodePoolsServerTransport) dispatchBeginCreateOrUpdate(req *http.Request
 		if matches == nil || len(matches) < 4 {
 			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
 		}
-		body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterNodePoolResource](req)
+		body, err := server.UnmarshalRequestAsJSON[generated.NodePool](req)
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +232,7 @@ func (n *NodePoolsServerTransport) dispatchGet(req *http.Request) (*http.Respons
 	if !contains([]int{http.StatusOK}, respContent.HTTPStatus) {
 		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusOK", respContent.HTTPStatus)}
 	}
-	resp, err := server.MarshalResponseAsJSON(respContent, server.GetResponse(respr).HcpOpenShiftClusterNodePoolResource, req)
+	resp, err := server.MarshalResponseAsJSON(respContent, server.GetResponse(respr).NodePool, req)
 	if err != nil {
 		return nil, err
 	}

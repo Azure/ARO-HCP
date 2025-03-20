@@ -9,14 +9,14 @@ package generated
 
 // HcpClusterVersionsClientListResponse contains the response from method HcpClusterVersionsClient.NewListPager.
 type HcpClusterVersionsClientListResponse struct {
-	// The response of a HcpOpenShiftVersionResource list operation.
-	HcpOpenShiftVersionResourceListResult
+	// The response of a HcpOpenShiftVersion list operation.
+	HcpOpenShiftVersionListResult
 }
 
 // HcpOpenShiftClustersClientCreateOrUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginCreateOrUpdate.
 type HcpOpenShiftClustersClientCreateOrUpdateResponse struct {
 	// HCP cluster resource
-	HcpOpenShiftClusterResource
+	HcpOpenShiftCluster
 }
 
 // HcpOpenShiftClustersClientDeleteResponse contains the response from method HcpOpenShiftClustersClient.BeginDelete.
@@ -27,31 +27,31 @@ type HcpOpenShiftClustersClientDeleteResponse struct {
 // HcpOpenShiftClustersClientGetResponse contains the response from method HcpOpenShiftClustersClient.Get.
 type HcpOpenShiftClustersClientGetResponse struct {
 	// HCP cluster resource
-	HcpOpenShiftClusterResource
+	HcpOpenShiftCluster
 }
 
 // HcpOpenShiftClustersClientListByResourceGroupResponse contains the response from method HcpOpenShiftClustersClient.NewListByResourceGroupPager.
 type HcpOpenShiftClustersClientListByResourceGroupResponse struct {
-	// The response of a HcpOpenShiftClusterResource list operation.
-	HcpOpenShiftClusterResourceListResult
+	// The response of a HcpOpenShiftCluster list operation.
+	HcpOpenShiftClusterListResult
 }
 
 // HcpOpenShiftClustersClientListBySubscriptionResponse contains the response from method HcpOpenShiftClustersClient.NewListBySubscriptionPager.
 type HcpOpenShiftClustersClientListBySubscriptionResponse struct {
-	// The response of a HcpOpenShiftClusterResource list operation.
-	HcpOpenShiftClusterResourceListResult
+	// The response of a HcpOpenShiftCluster list operation.
+	HcpOpenShiftClusterListResult
 }
 
 // HcpOpenShiftClustersClientUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginUpdate.
 type HcpOpenShiftClustersClientUpdateResponse struct {
 	// HCP cluster resource
-	HcpOpenShiftClusterResource
+	HcpOpenShiftCluster
 }
 
 // NodePoolsClientCreateOrUpdateResponse contains the response from method NodePoolsClient.BeginCreateOrUpdate.
 type NodePoolsClientCreateOrUpdateResponse struct {
 	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
-	HcpOpenShiftClusterNodePoolResource
+	NodePool
 }
 
 // NodePoolsClientDeleteResponse contains the response from method NodePoolsClient.BeginDelete.
@@ -62,19 +62,19 @@ type NodePoolsClientDeleteResponse struct {
 // NodePoolsClientGetResponse contains the response from method NodePoolsClient.Get.
 type NodePoolsClientGetResponse struct {
 	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
-	HcpOpenShiftClusterNodePoolResource
+	NodePool
 }
 
 // NodePoolsClientListByParentResponse contains the response from method NodePoolsClient.NewListByParentPager.
 type NodePoolsClientListByParentResponse struct {
-	// The response of a HcpOpenShiftClusterNodePoolResource list operation.
-	HcpOpenShiftClusterNodePoolResourceListResult
+	// The response of a NodePool list operation.
+	NodePoolListResult
 }
 
 // NodePoolsClientUpdateResponse contains the response from method NodePoolsClient.BeginUpdate.
 type NodePoolsClientUpdateResponse struct {
 	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
-	HcpOpenShiftClusterNodePoolResource
+	NodePool
 }
 
 // OperationsClientListResponse contains the response from method OperationsClient.NewListPager.

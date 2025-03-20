@@ -12,8 +12,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
-type HcpOpenShiftClusterResource struct {
-	generated.HcpOpenShiftClusterResource
+type HcpOpenShiftCluster struct {
+	generated.HcpOpenShiftCluster
 }
 
 func newVersionProfile(from *api.VersionProfile) *generated.VersionProfile {
@@ -84,8 +84,8 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 		from = api.NewDefaultHCPOpenShiftCluster()
 	}
 
-	out := &HcpOpenShiftClusterResource{
-		generated.HcpOpenShiftClusterResource{
+	out := &HcpOpenShiftCluster{
+		generated.HcpOpenShiftCluster{
 			ID:       api.Ptr(from.Resource.ID),
 			Name:     api.Ptr(from.Resource.Name),
 			Type:     api.Ptr(from.Resource.Type),
@@ -125,7 +125,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	return out
 }
 
-func (c *HcpOpenShiftClusterResource) Normalize(out *api.HCPOpenShiftCluster) {
+func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	if c.ID != nil {
 		out.Resource.ID = *c.ID
 	}
@@ -279,7 +279,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 	return errorDetails
 }
 
-func (c *HcpOpenShiftClusterResource) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, method string) *arm.CloudError {
+func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, method string) *arm.CloudError {
 	var normalized api.HCPOpenShiftCluster
 	var errorDetails []arm.CloudErrorBody
 
@@ -289,11 +289,11 @@ func (c *HcpOpenShiftClusterResource) ValidateStatic(current api.VersionedHCPOpe
 		"Content validation failed on multiple fields")
 	cloudError.Details = make([]arm.CloudErrorBody, 0)
 
-	// Pass the embedded HcpOpenShiftClusterResource so the
+	// Pass the embedded HcpOpenShiftCluster so the
 	// struct field names match the clusterStructTagMap keys.
 	errorDetails = api.ValidateVisibility(
-		c.HcpOpenShiftClusterResource,
-		current.(*HcpOpenShiftClusterResource).HcpOpenShiftClusterResource,
+		c.HcpOpenShiftCluster,
+		current.(*HcpOpenShiftCluster).HcpOpenShiftCluster,
 		clusterStructTagMap, updating)
 	if errorDetails != nil {
 		cloudError.Details = append(cloudError.Details, errorDetails...)

@@ -27,7 +27,7 @@ import (
 type HcpOpenShiftClustersServer struct {
 	// BeginCreateOrUpdate is the fake for method HcpOpenShiftClustersClient.BeginCreateOrUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusCreated
-	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, resource generated.HcpOpenShiftClusterResource, options *generated.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
+	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, resource generated.HcpOpenShiftCluster, options *generated.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
 
 	// BeginDelete is the fake for method HcpOpenShiftClustersClient.BeginDelete
 	// HTTP status codes to indicate success: http.StatusAccepted, http.StatusNoContent
@@ -122,7 +122,7 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginCreateOrUpdate(req *h
 		if matches == nil || len(matches) < 3 {
 			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
 		}
-		body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterResource](req)
+		body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftCluster](req)
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +228,7 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchGet(req *http.Request) (*h
 	if !contains([]int{http.StatusOK}, respContent.HTTPStatus) {
 		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusOK", respContent.HTTPStatus)}
 	}
-	resp, err := server.MarshalResponseAsJSON(respContent, server.GetResponse(respr).HcpOpenShiftClusterResource, req)
+	resp, err := server.MarshalResponseAsJSON(respContent, server.GetResponse(respr).HcpOpenShiftCluster, req)
 	if err != nil {
 		return nil, err
 	}

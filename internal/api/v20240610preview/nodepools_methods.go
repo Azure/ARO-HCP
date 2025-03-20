@@ -8,11 +8,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
-type HcpOpenShiftClusterNodePoolResource struct {
-	generated.HcpOpenShiftClusterNodePoolResource
+type NodePool struct {
+	generated.NodePool
 }
 
-func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClusterNodePool) {
+func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 	if h.ID != nil {
 		out.ID = *h.ID
 	}
@@ -128,7 +128,7 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 }
 
-func (h *HcpOpenShiftClusterNodePoolResource) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError {
+func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError {
 	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
 
@@ -138,11 +138,11 @@ func (h *HcpOpenShiftClusterNodePoolResource) ValidateStatic(current api.Version
 		"Content validation filed on multiple fields")
 	cloudError.Details = make([]arm.CloudErrorBody, 0)
 
-	// Pass the embedded HcpOpenShiftClusterNodePoolResource so
+	// Pass the embedded NodePool so
 	// the struct field names match the nodePoolStructTagMap keys.
 	errorDetails = api.ValidateVisibility(
-		h.HcpOpenShiftClusterNodePoolResource,
-		current.(*HcpOpenShiftClusterNodePoolResource).HcpOpenShiftClusterNodePoolResource,
+		h.NodePool,
+		current.(*NodePool).NodePool,
 		nodePoolStructTagMap, updating)
 	if errorDetails != nil {
 		cloudError.Details = append(cloudError.Details, errorDetails...)
@@ -222,8 +222,8 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 		from = api.NewDefaultHCPOpenShiftClusterNodePool()
 	}
 
-	out := &HcpOpenShiftClusterNodePoolResource{
-		generated.HcpOpenShiftClusterNodePoolResource{
+	out := &NodePool{
+		generated.NodePool{
 			ID:       api.Ptr(from.Resource.ID),
 			Name:     api.Ptr(from.Resource.Name),
 			Type:     api.Ptr(from.Resource.Type),
