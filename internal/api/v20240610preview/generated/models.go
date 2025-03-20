@@ -201,42 +201,6 @@ type HcpOpenShiftClusterUpdate struct {
 	Type *string
 }
 
-// HcpOpenShiftVersions represents a location based available HCP cluster versions
-type HcpOpenShiftVersion struct {
-	// The resource-specific properties for this resource.
-	Properties *HcpOpenShiftVersionsProperties
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
-}
-
-// HcpOpenShiftVersionListResult - The response of a HcpOpenShiftVersion list operation.
-type HcpOpenShiftVersionListResult struct {
-	// REQUIRED; The HcpOpenShiftVersion items on this page
-	Value []*HcpOpenShiftVersion
-
-	// The link to the next page of items
-	NextLink *string
-}
-
-// HcpOpenShiftVersionsProperties is the installable cluster version
-type HcpOpenShiftVersionsProperties struct {
-	// READ-ONLY; The cluster version
-	ClusterVersion *string
-
-	// READ-ONLY; The provisioning state of the resource.
-	ProvisioningState *ResourceProvisioningState
-}
-
 // Label represents the k8s label
 type Label struct {
 	// The key of the label
@@ -503,22 +467,6 @@ type PlatformProfile struct {
 
 	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
 	IssuerURL *string
-}
-
-// ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
-// location
-type ProxyResource struct {
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // Resource - Common fields that are returned in the response for all Azure Resource Manager resources

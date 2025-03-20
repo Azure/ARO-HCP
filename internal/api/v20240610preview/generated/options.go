@@ -7,11 +7,6 @@
 
 package generated
 
-// HcpClusterVersionsClientListOptions contains the optional parameters for the HcpClusterVersionsClient.NewListPager method.
-type HcpClusterVersionsClientListOptions struct {
-	// placeholder for future optional parameters
-}
-
 // HcpOpenShiftClustersClientBeginCreateOrUpdateOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginCreateOrUpdate
 // method.
 type HcpOpenShiftClustersClientBeginCreateOrUpdateOptions struct {
