@@ -18,7 +18,7 @@ model HcpOpenShiftVersionResource
   @pattern("^[a-zA-Z0-9-]{3,24}$")
   @segment("hcpOpenShiftVersions")
   @key("hcpOpenShiftVersions")
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   @path
   name: string;
 }
@@ -28,7 +28,7 @@ model HcpOpenShiftVersionsProperties {
   ...DefaultProvisioningStateProperty;
 
   /** The cluster version */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   clusterVersion: string;
 }
 
