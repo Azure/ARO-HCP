@@ -227,7 +227,7 @@
         "kvSoftDelete": true
       },
       "kubernetesVersion": "1.31.5",
-      "name": "usw3-mgmt-1",
+      "name": "westus3-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -304,7 +304,7 @@
         "kvSoftDelete": true
       },
       "kubernetesVersion": "1.31.5",
-      "name": "usw3-svc",
+      "name": "westus3-svc-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
