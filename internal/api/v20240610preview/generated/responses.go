@@ -7,12 +7,6 @@
 
 package generated
 
-// HcpClusterVersionsClientListResponse contains the response from method HcpClusterVersionsClient.NewListPager.
-type HcpClusterVersionsClientListResponse struct {
-	// The response of a HcpOpenShiftVersion list operation.
-	HcpOpenShiftVersionListResult
-}
-
 // HcpOpenShiftClustersClientCreateOrUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginCreateOrUpdate.
 type HcpOpenShiftClustersClientCreateOrUpdateResponse struct {
 	// HCP cluster resource
