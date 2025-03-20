@@ -250,7 +250,7 @@
       "san": "MGMT.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM"
     },
     "rg": "hcp-underlay-westus3-mgmt-1",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-stg-mgmt-westus3-1"
   },
   "mgmtKeyVault": {
     "name": "arohcpstg-mgmt-usw3-1",
@@ -334,6 +334,6 @@
       "san": "SVC.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM"
     },
     "rg": "hcp-underlay-westus3-svc",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-stg-svc-westus3"
   }
 }

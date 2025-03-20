@@ -431,6 +431,7 @@ clouds:
             name: "arohcpstg-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
           # SVC cluster settings
           svc:
+            subscription: "hcp-stg-svc-{{ .ctx.region }}"
             aks:
               systemAgentPool:
                 minCount: 1
@@ -446,6 +447,7 @@ clouds:
               configVersion: "1.0"
           # MC cluster settings
           mgmt:
+            subscription: "hcp-stg-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
             aks:
               # MGMTM AKS nodepools
               systemAgentPool:
