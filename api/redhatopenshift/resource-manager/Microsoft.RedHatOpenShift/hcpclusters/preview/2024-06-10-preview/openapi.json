@@ -98,7 +98,7 @@
         "tags": [
           "HcpClusterVersions"
         ],
-        "description": "List HcpOpenShiftVersionResource resources by location",
+        "description": "List HcpOpenShiftVersion resources by location",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -114,7 +114,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftVersionResourceListResult"
+              "$ref": "#/definitions/HcpOpenShiftVersionListResult"
             }
           },
           "default": {
@@ -135,7 +135,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "List HcpOpenShiftClusterResource resources by subscription ID",
+        "description": "List HcpOpenShiftCluster resources by subscription ID",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -148,7 +148,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResourceListResult"
+              "$ref": "#/definitions/HcpOpenShiftClusterListResult"
             }
           },
           "default": {
@@ -174,7 +174,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "List HcpOpenShiftClusterResource resources by resource group",
+        "description": "List HcpOpenShiftCluster resources by resource group",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -190,7 +190,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResourceListResult"
+              "$ref": "#/definitions/HcpOpenShiftClusterListResult"
             }
           },
           "default": {
@@ -216,7 +216,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "Get a HcpOpenShiftClusterResource",
+        "description": "Get a HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -230,19 +230,17 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             }
           },
           "default": {
@@ -263,7 +261,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "Create a HcpOpenShiftClusterResource",
+        "description": "Create a HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -277,12 +275,10 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "resource",
@@ -290,21 +286,21 @@
             "description": "Resource create parameters.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Resource 'HcpOpenShiftClusterResource' update operation succeeded",
+            "description": "Resource 'HcpOpenShiftCluster' update operation succeeded",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             }
           },
           "201": {
-            "description": "Resource 'HcpOpenShiftClusterResource' create operation succeeded",
+            "description": "Resource 'HcpOpenShiftCluster' create operation succeeded",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             },
             "headers": {
               "Azure-AsyncOperation": {
@@ -340,7 +336,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "Update a HcpOpenShiftClusterResource",
+        "description": "Update a HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -354,12 +350,10 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "properties",
@@ -375,7 +369,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             }
           },
           "202": {
@@ -414,7 +408,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "Delete a HcpOpenShiftClusterResource",
+        "description": "Delete a HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -428,12 +422,10 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
@@ -478,7 +470,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "List HcpOpenShiftClusterNodePoolResource resources by HcpOpenShiftClusterResource",
+        "description": "List NodePool resources by HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -492,19 +484,17 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResourceListResult"
+              "$ref": "#/definitions/NodePoolListResult"
             }
           },
           "default": {
@@ -525,7 +515,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "Get a HcpOpenShiftClusterNodePoolResource",
+        "description": "Get a NodePool",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -539,29 +529,25 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster *",
+            "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 15,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             }
           },
           "default": {
@@ -582,7 +568,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "Create a HcpOpenShiftClusterNodePoolResource",
+        "description": "Create a NodePool",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -596,22 +582,18 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster *",
+            "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 15,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           },
           {
             "name": "resource",
@@ -619,21 +601,21 @@
             "description": "Resource create parameters.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Resource 'HcpOpenShiftClusterNodePoolResource' update operation succeeded",
+            "description": "Resource 'NodePool' update operation succeeded",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             }
           },
           "201": {
-            "description": "Resource 'HcpOpenShiftClusterNodePoolResource' create operation succeeded",
+            "description": "Resource 'NodePool' create operation succeeded",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             },
             "headers": {
               "Azure-AsyncOperation": {
@@ -669,7 +651,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "Update a HcpOpenShiftClusterNodePoolResource",
+        "description": "Update a NodePool",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -683,22 +665,18 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster *",
+            "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 15,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           },
           {
             "name": "properties",
@@ -714,7 +692,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             }
           },
           "202": {
@@ -753,7 +731,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "Delete a HcpOpenShiftClusterNodePoolResource",
+        "description": "Delete a NodePool",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -767,22 +745,18 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster *",
+            "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 15,
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
@@ -964,6 +938,46 @@
         ]
       }
     },
+    "HcpOpenShiftCluster": {
+      "type": "object",
+      "description": "HCP cluster resource",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/HcpOpenShiftClusterProperties",
+          "description": "The resource-specific properties for this resource."
+        },
+        "identity": {
+          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentity",
+          "description": "The managed service identities assigned to this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
+        }
+      ]
+    },
+    "HcpOpenShiftClusterListResult": {
+      "type": "object",
+      "description": "The response of a HcpOpenShiftCluster list operation.",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The HcpOpenShiftCluster items on this page",
+          "items": {
+            "$ref": "#/definitions/HcpOpenShiftCluster"
+          }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
     "HcpOpenShiftClusterNodePoolPatch": {
       "type": "object",
       "description": "The template for adding optional properties.",
@@ -984,46 +998,6 @@
           "description": "Managed Service Identity"
         }
       }
-    },
-    "HcpOpenShiftClusterNodePoolResource": {
-      "type": "object",
-      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
-      "properties": {
-        "properties": {
-          "$ref": "#/definitions/NodePoolProperties",
-          "description": "The resource-specific properties for this resource."
-        },
-        "identity": {
-          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentity",
-          "description": "The managed service identities assigned to this resource."
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
-        }
-      ]
-    },
-    "HcpOpenShiftClusterNodePoolResourceListResult": {
-      "type": "object",
-      "description": "The response of a HcpOpenShiftClusterNodePoolResource list operation.",
-      "properties": {
-        "value": {
-          "type": "array",
-          "description": "The HcpOpenShiftClusterNodePoolResource items on this page",
-          "items": {
-            "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
-          }
-        },
-        "nextLink": {
-          "type": "string",
-          "format": "uri",
-          "description": "The link to the next page of items"
-        }
-      },
-      "required": [
-        "value"
-      ]
     },
     "HcpOpenShiftClusterPatch": {
       "type": "object",
@@ -1129,47 +1103,7 @@
         "api"
       ]
     },
-    "HcpOpenShiftClusterResource": {
-      "type": "object",
-      "description": "HCP cluster resource",
-      "properties": {
-        "properties": {
-          "$ref": "#/definitions/HcpOpenShiftClusterProperties",
-          "description": "The resource-specific properties for this resource."
-        },
-        "identity": {
-          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentity",
-          "description": "The managed service identities assigned to this resource."
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
-        }
-      ]
-    },
-    "HcpOpenShiftClusterResourceListResult": {
-      "type": "object",
-      "description": "The response of a HcpOpenShiftClusterResource list operation.",
-      "properties": {
-        "value": {
-          "type": "array",
-          "description": "The HcpOpenShiftClusterResource items on this page",
-          "items": {
-            "$ref": "#/definitions/HcpOpenShiftClusterResource"
-          }
-        },
-        "nextLink": {
-          "type": "string",
-          "format": "uri",
-          "description": "The link to the next page of items"
-        }
-      },
-      "required": [
-        "value"
-      ]
-    },
-    "HcpOpenShiftVersionResource": {
+    "HcpOpenShiftVersion": {
       "type": "object",
       "description": "HcpOpenShiftVersions represents a location based available HCP cluster versions",
       "properties": {
@@ -1184,15 +1118,15 @@
         }
       ]
     },
-    "HcpOpenShiftVersionResourceListResult": {
+    "HcpOpenShiftVersionListResult": {
       "type": "object",
-      "description": "The response of a HcpOpenShiftVersionResource list operation.",
+      "description": "The response of a HcpOpenShiftVersion list operation.",
       "properties": {
         "value": {
           "type": "array",
-          "description": "The HcpOpenShiftVersionResource items on this page",
+          "description": "The HcpOpenShiftVersion items on this page",
           "items": {
-            "$ref": "#/definitions/HcpOpenShiftVersionResource"
+            "$ref": "#/definitions/HcpOpenShiftVersion"
           }
         },
         "nextLink": {
@@ -1345,6 +1279,25 @@
         ]
       }
     },
+    "NodePool": {
+      "type": "object",
+      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/NodePoolProperties",
+          "description": "The resource-specific properties for this resource."
+        },
+        "identity": {
+          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentity",
+          "description": "The managed service identities assigned to this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
+        }
+      ]
+    },
     "NodePoolAutoScaling": {
       "type": "object",
       "description": "Node pool autoscaling",
@@ -1362,6 +1315,27 @@
           "minimum": 0
         }
       }
+    },
+    "NodePoolListResult": {
+      "type": "object",
+      "description": "The response of a NodePool list operation.",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The NodePool items on this page",
+          "items": {
+            "$ref": "#/definitions/NodePool"
+          }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
     },
     "NodePoolPatchProperties": {
       "type": "object",

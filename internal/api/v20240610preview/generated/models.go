@@ -76,21 +76,8 @@ type ErrorResponse struct {
 	Error *ErrorDetail
 }
 
-// HcpOpenShiftClusterNodePoolPatch - The template for adding optional properties.
-type HcpOpenShiftClusterNodePoolPatch struct {
-	// Managed Service Identity
-	Identity *ManagedServiceIdentityUpdate
-
-	// Represents the patchable node pool properties
-	Properties *NodePoolPatchProperties
-
-	// Resource tags.
-	Tags map[string]*string
-}
-
-// HcpOpenShiftClusterNodePoolResource - Concrete tracked resource types can be created by aliasing this type using a specific
-// property type.
-type HcpOpenShiftClusterNodePoolResource struct {
+// HcpOpenShiftCluster - HCP cluster resource
+type HcpOpenShiftCluster struct {
 	// REQUIRED; The geo-location where the resource lives
 	Location *string
 
@@ -98,7 +85,7 @@ type HcpOpenShiftClusterNodePoolResource struct {
 	Identity *ManagedServiceIdentity
 
 	// The resource-specific properties for this resource.
-	Properties *NodePoolProperties
+	Properties *HcpOpenShiftClusterProperties
 
 	// Resource tags.
 	Tags map[string]*string
@@ -116,13 +103,25 @@ type HcpOpenShiftClusterNodePoolResource struct {
 	Type *string
 }
 
-// HcpOpenShiftClusterNodePoolResourceListResult - The response of a HcpOpenShiftClusterNodePoolResource list operation.
-type HcpOpenShiftClusterNodePoolResourceListResult struct {
-	// REQUIRED; The HcpOpenShiftClusterNodePoolResource items on this page
-	Value []*HcpOpenShiftClusterNodePoolResource
+// HcpOpenShiftClusterListResult - The response of a HcpOpenShiftCluster list operation.
+type HcpOpenShiftClusterListResult struct {
+	// REQUIRED; The HcpOpenShiftCluster items on this page
+	Value []*HcpOpenShiftCluster
 
 	// The link to the next page of items
 	NextLink *string
+}
+
+// HcpOpenShiftClusterNodePoolPatch - The template for adding optional properties.
+type HcpOpenShiftClusterNodePoolPatch struct {
+	// Managed Service Identity
+	Identity *ManagedServiceIdentityUpdate
+
+	// Represents the patchable node pool properties
+	Properties *NodePoolPatchProperties
+
+	// Resource tags.
+	Tags map[string]*string
 }
 
 // HcpOpenShiftClusterPatch - The template for adding optional properties.
@@ -173,44 +172,8 @@ type HcpOpenShiftClusterProperties struct {
 	ProvisioningState *ProvisioningState
 }
 
-// HcpOpenShiftClusterResource - HCP cluster resource
-type HcpOpenShiftClusterResource struct {
-	// REQUIRED; The geo-location where the resource lives
-	Location *string
-
-	// The managed service identities assigned to this resource.
-	Identity *ManagedServiceIdentity
-
-	// The resource-specific properties for this resource.
-	Properties *HcpOpenShiftClusterProperties
-
-	// Resource tags.
-	Tags map[string]*string
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
-}
-
-// HcpOpenShiftClusterResourceListResult - The response of a HcpOpenShiftClusterResource list operation.
-type HcpOpenShiftClusterResourceListResult struct {
-	// REQUIRED; The HcpOpenShiftClusterResource items on this page
-	Value []*HcpOpenShiftClusterResource
-
-	// The link to the next page of items
-	NextLink *string
-}
-
-// HcpOpenShiftVersionResource - HcpOpenShiftVersions represents a location based available HCP cluster versions
-type HcpOpenShiftVersionResource struct {
+// HcpOpenShiftVersions represents a location based available HCP cluster versions
+type HcpOpenShiftVersion struct {
 	// The resource-specific properties for this resource.
 	Properties *HcpOpenShiftVersionsProperties
 
@@ -227,10 +190,10 @@ type HcpOpenShiftVersionResource struct {
 	Type *string
 }
 
-// HcpOpenShiftVersionResourceListResult - The response of a HcpOpenShiftVersionResource list operation.
-type HcpOpenShiftVersionResourceListResult struct {
-	// REQUIRED; The HcpOpenShiftVersionResource items on this page
-	Value []*HcpOpenShiftVersionResource
+// HcpOpenShiftVersionListResult - The response of a HcpOpenShiftVersion list operation.
+type HcpOpenShiftVersionListResult struct {
+	// REQUIRED; The HcpOpenShiftVersion items on this page
+	Value []*HcpOpenShiftVersion
 
 	// The link to the next page of items
 	NextLink *string
@@ -301,6 +264,33 @@ type NetworkProfile struct {
 	ServiceCidr *string
 }
 
+// NodePool - Concrete tracked resource types can be created by aliasing this type using a specific property type.
+type NodePool struct {
+	// REQUIRED; The geo-location where the resource lives
+	Location *string
+
+	// The managed service identities assigned to this resource.
+	Identity *ManagedServiceIdentity
+
+	// The resource-specific properties for this resource.
+	Properties *NodePoolProperties
+
+	// Resource tags.
+	Tags map[string]*string
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
 // NodePoolAutoScaling - Node pool autoscaling
 type NodePoolAutoScaling struct {
 	// The maximum number of nodes in the node pool
@@ -308,6 +298,15 @@ type NodePoolAutoScaling struct {
 
 	// The minimum number of nodes in the node pool
 	Min *int32
+}
+
+// NodePoolListResult - The response of a NodePool list operation.
+type NodePoolListResult struct {
+	// REQUIRED; The NodePool items on this page
+	Value []*NodePool
+
+	// The link to the next page of items
+	NextLink *string
 }
 
 // NodePoolPatchProperties - Represents the patchable node pool properties

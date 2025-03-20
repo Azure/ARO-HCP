@@ -17,17 +17,11 @@ namespace Microsoft.RedHatOpenShift;
  */
 
 /** HCP cluster resource */
-model HcpOpenShiftClusterResource
-  is TrackedResource<HcpOpenShiftClusterProperties> {
-  /** Name of HCP cluster */
-  @pattern("^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$")
-  @minLength(3)
-  @maxLength(54)
-  @key("hcpOpenShiftClusterName") // sets the alternative name for the name propery
-  @path
-  @segment("hcpOpenShiftClusters")
-  name: string;
-
+model HcpOpenShiftCluster is TrackedResource<HcpOpenShiftClusterProperties> {
+  ...ResourceNameParameter<
+    HcpOpenShiftCluster,
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+  >;
   ...ManagedServiceIdentityProperty;
 }
 
@@ -37,18 +31,12 @@ model HcpOpenShiftClusterResource
 // - deleted when resource group is deleted
 // - allow cascade delete
 // more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
-@parentResource(HcpOpenShiftClusterResource)
-model HcpOpenShiftClusterNodePoolResource
-  is TrackedResource<NodePoolProperties> {
-  /** Name of HCP cluster * */
-  @pattern("^[a-zA-Z][-a-zA-Z0-9]+[a-zA-Z0-9]$")
-  @minLength(3)
-  @maxLength(15)
-  @key("nodePoolName")
-  @path
-  @segment("nodePools")
-  name: string;
-
+@parentResource(HcpOpenShiftCluster)
+model NodePool is TrackedResource<NodePoolProperties> {
+  ...ResourceNameParameter<
+    NodePool,
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+  >;
   ...ManagedServiceIdentityProperty;
 }
 
@@ -102,7 +90,7 @@ model ManagedServiceIdentityUpdate
 
 model HcpOpenShiftClusterPatch
   is OptionalProperties<UpdateableProperties<OmitProperties<
-    HcpOpenShiftClusterResource,
+    HcpOpenShiftCluster,
     "name" | "properties" | "identity"
   >>> {
   /** HCP patchable cluster properties */
@@ -114,7 +102,7 @@ model HcpOpenShiftClusterPatch
 
 model HcpOpenShiftClusterNodePoolPatch
   is OptionalProperties<UpdateableProperties<OmitProperties<
-    HcpOpenShiftClusterNodePoolResource,
+    NodePool,
     "name" | "properties" | "identity"
   >>> {
   /** Represents the patchable node pool properties */

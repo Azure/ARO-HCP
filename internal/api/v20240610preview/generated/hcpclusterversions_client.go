@@ -43,7 +43,7 @@ func NewHcpClusterVersionsClient(subscriptionID string, credential azcore.TokenC
 	return client, nil
 }
 
-// NewListPager - List HcpOpenShiftVersionResource resources by location
+// NewListPager - List HcpOpenShiftVersion resources by location
 //
 // Generated from API version 2024-06-10-preview
 //   - location - The name of the Azure region.
@@ -97,7 +97,7 @@ func (client *HcpClusterVersionsClient) listCreateRequest(ctx context.Context, l
 // listHandleResponse handles the List response.
 func (client *HcpClusterVersionsClient) listHandleResponse(resp *http.Response) (HcpClusterVersionsClientListResponse, error) {
 	result := HcpClusterVersionsClientListResponse{}
-	if err := runtime.UnmarshalAsJSON(resp, &result.HcpOpenShiftVersionResourceListResult); err != nil {
+	if err := runtime.UnmarshalAsJSON(resp, &result.HcpOpenShiftVersionListResult); err != nil {
 		return HcpClusterVersionsClientListResponse{}, err
 	}
 	return result, nil

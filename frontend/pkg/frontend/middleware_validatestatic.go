@@ -15,9 +15,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-// Referenced in https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
-var rxHCPOpenShiftClusterResourceName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{2,53}$`)
-var rxNodePoolResourceName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{2,14}$`)
+// Resource name patterns as per the ARO-HCP API specification (see hcpCluster-models.tsp).
+// The names, when lowercased, must be valid RFC 1035 labels for Cluster Service to accept.
+var rxHCPOpenShiftClusterResourceName = regexp.MustCompile(`^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$`)
+var rxNodePoolResourceName = regexp.MustCompile(`^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-z-A-Z0-9]$`)
 
 // MiddlewareValidateStatic ensures that the URL path parses to a valid resource ID.
 func MiddlewareValidateStatic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
