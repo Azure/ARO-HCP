@@ -379,8 +379,25 @@
     "firstPartyAppClientId": {
       "type": "string"
     },
-    "firstPartyAppCertName": {
-      "type": "string"
+    "firstPartyAppCertificate": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "issuer": {
+          "$ref": "#/definitions/certificateIssuer"
+        },
+        "manage": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "issuer",
+        "manage"
+      ]
     },
     "miMockClientId": {
       "type": "string"
@@ -1122,7 +1139,7 @@
     "clusterService",
     "cxKeyVault",
     "firstPartyAppClientId",
-    "firstPartyAppCertName",
+    "firstPartyAppCertificate",
     "frontend",
     "genevaActions",
     "global",
