@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -51,6 +52,7 @@ var (
 	argClustersServiceURL   string
 	argInsecure             bool
 	argMetricsListenAddress string
+	argPortAddress          string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -84,6 +86,8 @@ func init() {
 	rootCmd.Flags().StringVar(&argClustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway")
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
 	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
+
+	rootCmd.Flags().StringVar(&argPortAddress, "healthz-listen-address", ":8080", "Address on which Healthz endpoint will be supported")
 
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
@@ -188,6 +192,30 @@ func Run(cmd *cobra.Command, args []string) error {
 		})
 	}
 
+	if argPortAddress != "" {
+		var backendHealthGauge prometheus.Gauge
+		// Handle requests directly for /healthz endpoint
+		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			if backendCheckReady(ctx, dbClient, logger) {
+				w.WriteHeader(http.StatusOK)
+				backendHealthGauge.Set(1.0)
+			}
+			arm.WriteInternalServerError(w)
+			backendHealthGauge.Set(0.0)
+		})
+		srv = &http.Server{Addr: argPortAddress}
+
+		group.Go(func() error {
+			logger.Info(fmt.Sprintf("Healthz server listening on %s", argPortAddress))
+			err := srv.ListenAndServe()
+			if errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+
+			return err
+		})
+	}
+
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -250,4 +278,17 @@ func main() {
 		rootCmd.PrintErrln(rootCmd.ErrPrefix(), err.Error())
 		os.Exit(1)
 	}
+}
+
+func backendCheckReady(ctx context.Context, dbClient database.DBClient, logger *slog.Logger) bool {
+	var ready atomic.Bool
+	// Verify the DB is available and accessible
+	if err := dbClient.DBConnectionTest(ctx); err != nil {
+		logger.Error(fmt.Sprintf("Database test failed: %v", err))
+		ready.Store(false)
+		return false
+	}
+	ready.Store(true)
+
+	return ready.Load()
 }
