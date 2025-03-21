@@ -22,6 +22,20 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: grafana-dashboards
+    action: Shell
+    command: cd ../grafana && ./deploy.sh
+    dependsOn:
+    - global-infra
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+      - name: GRAFANA_NAME
+        configRef: monitoring.grafanaName
+      - name: GLOBAL_RESOURCEGROUP
+        configRef: global.rg
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
