@@ -5,7 +5,7 @@ from typing import List
 import datetime
 
 from azure.identity import DefaultAzureCredential
-from azure.core.exceptions import HttpResponseError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource.resources.v2022_09_01.models._models_py3 import GenericResourceExpanded, ResourceGroup
 
@@ -77,32 +77,50 @@ def resource_group_has_persist_tag_as_true(resource_group: ResourceGroup):
     return resource_group.tags[persist_tag].lower() == "true"
 
 
+def resource_group_is_managed(resource_group: ResourceGroup):
+    if resource_group.managed_by is None:
+        return False
+    else:
+        return True
+
+
 def process_resource_groups_of_subscription(subscription_id: str, resource_client: ResourceManagementClient):
     resource_groups_list = list(resource_client.resource_groups.list())
     n_resource_groups = len(resource_groups_list)
     print(f"subscription {subscription_id} has {n_resource_groups} resource groups:\n")
 
     for resource_group in resource_groups_list:
-        process_resource_group(resource_group, resource_client)
+        try:
+            process_resource_group(resource_group, resource_client)
+        except ResourceNotFoundError as err:
+            print(f"Encountered a missing resource (probably the rg itself).")
+            print(f"This is fine, it must've gotten deleted by something else; continuing.")
+            print(f"Code: {err.error.code}")
+            print(f"Message: {err.error.message}")
         print("_"*80)
         print()
 
 
 def process_resource_group(resource_group: ResourceGroup, resource_client: ResourceManagementClient):
     resource_group_name = resource_group.name
-    resource_list = list(
-        resource_client.resources.list_by_resource_group(resource_group_name, expand = "createdTime,changedTime")
-    )
     
     print(f"Resource group '{resource_group_name}':")
+    print(f"Managed by: {resource_group.managed_by}")
     print(f"Tags: {resource_group.tags}\n")
-    print(f"This resource group has {len(resource_list)} resources \n")
-    
+
     if VERBOSE:
+        resource_list = list(
+            resource_client.resources.list_by_resource_group(resource_group_name, expand = "createdTime,changedTime")
+        )
+        print(f"This resource group has {len(resource_list)} resources \n")
         print_resources(resource_list)
     
     if resource_group_has_persist_tag_as_true(resource_group):
         print(f"Persist tag is true, this resource group should NOT be deleted, skipping.")
+        return
+
+    if resource_group_is_managed(resource_group):
+        print(f"Resource Group is managed, this resource group should NOT be deleted, skipping.")
         return
 
     now = datetime.datetime.now(datetime.timezone.utc)

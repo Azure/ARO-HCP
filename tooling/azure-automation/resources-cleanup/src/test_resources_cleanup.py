@@ -1,5 +1,6 @@
 from resources_cleanup import (
-    resource_group_has_persist_tag_as_true, 
+    resource_group_has_persist_tag_as_true,
+    resource_group_is_managed, 
     time_delta_greater_than_two_days, 
     get_date_time_from_str
 )
@@ -24,6 +25,17 @@ from azure.mgmt.resource.resources.v2022_09_01.models._models_py3 import Resourc
 )
 def test_resource_group_has_persist_tag_as_true(input_resource_group, expected):
     assert resource_group_has_persist_tag_as_true(input_resource_group) == expected
+
+
+@pytest.mark.parametrize(
+    "input_resource_group,expected",
+    [
+        (ResourceGroup(location="test_location", name="simple_resource_group", managed_by=None), False),
+        (ResourceGroup(location="test_location", name="simple_resource_group", managed_by="somebody"), True),
+    ]
+)
+def test_resource_group_is_managed(input_resource_group, expected):
+    assert resource_group_is_managed(input_resource_group) == expected
 
 
 @pytest.mark.parametrize(
