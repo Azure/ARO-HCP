@@ -1,0 +1,78 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: orphaned-namespace-cleaner
+parameters:
+- name: ORPHANED_NAMESPACE_CLEANER_NAMESPACE
+  description: The namespace to create to have a cronjob which will delete the orphaned namespace which are not deleted due to any issues with the jenkins job.
+  value: orphaned-namespace-cleaner
+- name: ORPHANED_NAMESPACE_CLEANER_CLUSTERROLE_NAME
+  value: orphaned-namespace-cleaner
+- name: KUBECTL_IMAGE
+  description: An image which have the `kubectl` binary in it.
+  value: quay.io/rhn_support_ansverma/ubi8-minimal-kubectl:latest
+objects:
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: ${ORPHANED_NAMESPACE_CLEANER_CLUSTERROLE_NAME}
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - namespaces
+    verbs: ["get", "list", "delete", "watch"]
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: orphaned-namespace-cleaner-cronjob
+    namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: orphaned-namespace-cleaner-cronjob
+  subjects:
+  - kind: ServiceAccount
+    name: orphaned-namespace-cleaner-cronjob
+    namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+  roleRef:
+    kind: ClusterRole
+    name: ${ORPHANED_NAMESPACE_CLEANER_CLUSTERROLE_NAME}
+    apiGroup: rbac.authorization.k8s.io
+- apiVersion: batch/v1
+  kind: CronJob
+  metadata:
+    name: orphaned-namespace-cleaner
+    namespace: ${ORPHANED_NAMESPACE_CLEANER_NAMESPACE}
+  spec:
+    schedule: "0 0 * * *"
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 1
+    jobTemplate:
+      spec:
+        template:
+          spec:
+            serviceAccountName: orphaned-namespace-cleaner-cronjob
+            containers:
+            - name: kubectl-container
+              image: ${KUBECTL_IMAGE}
+              command: ["/bin/sh", "-c"]
+              args:
+              - |
+                echo "Starting to clear orphaned namespaces"
+                # `select((now - (.metadata.creationTimestamp | fromdate)) / 120 > 120)` selects the namespaces which are older than 120 minutes.
+                NAMESPACES=$(kubectl get namespaces -o json | jq -r '.items[] | select(.metadata.labels."sandbox-jenkins-type"=="aro-hcp") | select((now - (.metadata.creationTimestamp | fromdate)) / 120 > 120) | .metadata.name')
+                NUMBER_OF_NAMESPACES=$(printf "%s" "$NAMESPACES" | wc -l);
+                if [ $NUMBER_OF_NAMESPACES -lt 1 ]; then
+                  echo "no namespaces matching the criteria to delete, exiting"
+                  exit 0
+                fi
+                echo "following orphaned namespaces will be delete - \n$NAMESPACES"
+                echo "deleting the orphaned namespaces"
+                echo $NAMESPACES | xargs kubectl delete namespace
+                echo "Script execution completed."
+            restartPolicy: Never
