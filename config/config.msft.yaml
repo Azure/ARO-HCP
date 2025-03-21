@@ -89,14 +89,14 @@ defaults:
         osDiskSizeGB: 32
       etcd:
         kvSoftDelete: true
-      clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundsvc"
+      clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-svc"
     istio:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-23"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
-      ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
+      ingressGatewayIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-inbound-svc"
     logs:
       namespace: HCPServiceLogs
   # MGMT cluster specifics
@@ -117,7 +117,7 @@ defaults:
         osDiskSizeGB: 128
       etcd:
         kvSoftDelete: true
-      clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
+      clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-cx"
     applyKubeletFixes: true
     logs:
       namespace: HCPManagementLogs
