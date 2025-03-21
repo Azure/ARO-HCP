@@ -143,8 +143,6 @@ spec:
           subPath: azure-operators-managed-identities-config.yaml
         {{- if ne .Values.Tracing.Address "" }}
         env:
-        - name: "TBD"
-          value: true
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: {{ .Values.tracing.address }}
         - name: OTEL_TRACES_EXPORTER
