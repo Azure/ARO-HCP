@@ -24,11 +24,15 @@ const (
 )
 
 func GenerateClusterHREF(clusterName string) string {
-	return v1Pattern + "/clusters/" + clusterName
+	return path.Join(v1Pattern, "clusters", clusterName)
 }
 
 func GenerateNodePoolHREF(clusterPath string, nodePoolName string) string {
-	return clusterPath + "/node_pools/" + nodePoolName
+	return path.Join(clusterPath, "node_pools", nodePoolName)
+}
+
+func GenerateBreakGlassCredentialHREF(clusterPath string, credentialName string) string {
+	return path.Join(clusterPath, "break_glass_credentials", credentialName)
 }
 
 // InternalID represents a Cluster Service resource.

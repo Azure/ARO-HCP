@@ -529,6 +529,44 @@ func (c *MockDBClientGetSubscriptionDocCall) DoAndReturn(f func(context.Context,
 	return c
 }
 
+// ListActiveOperationDocs mocks base method.
+func (m *MockDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, options *database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[database.OperationDocument] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListActiveOperationDocs", pk, options)
+	ret0, _ := ret[0].(database.DBClientIterator[database.OperationDocument])
+	return ret0
+}
+
+// ListActiveOperationDocs indicates an expected call of ListActiveOperationDocs.
+func (mr *MockDBClientMockRecorder) ListActiveOperationDocs(pk, options any) *MockDBClientListActiveOperationDocsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActiveOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListActiveOperationDocs), pk, options)
+	return &MockDBClientListActiveOperationDocsCall{Call: call}
+}
+
+// MockDBClientListActiveOperationDocsCall wrap *gomock.Call
+type MockDBClientListActiveOperationDocsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientListActiveOperationDocsCall) Return(arg0 database.DBClientIterator[database.OperationDocument]) *MockDBClientListActiveOperationDocsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientListActiveOperationDocsCall) Do(f func(azcosmos.PartitionKey, *database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[database.OperationDocument]) *MockDBClientListActiveOperationDocsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientListActiveOperationDocsCall) DoAndReturn(f func(azcosmos.PartitionKey, *database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[database.OperationDocument]) *MockDBClientListActiveOperationDocsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListAllSubscriptionDocs mocks base method.
 func (m *MockDBClient) ListAllSubscriptionDocs() database.DBClientIterator[arm.Subscription] {
 	m.ctrl.T.Helper()
@@ -563,44 +601,6 @@ func (c *MockDBClientListAllSubscriptionDocsCall) Do(f func() database.DBClientI
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBClientListAllSubscriptionDocsCall) DoAndReturn(f func() database.DBClientIterator[arm.Subscription]) *MockDBClientListAllSubscriptionDocsCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// ListOperationDocs mocks base method.
-func (m *MockDBClient) ListOperationDocs(pk azcosmos.PartitionKey) database.DBClientIterator[database.OperationDocument] {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListOperationDocs", pk)
-	ret0, _ := ret[0].(database.DBClientIterator[database.OperationDocument])
-	return ret0
-}
-
-// ListOperationDocs indicates an expected call of ListOperationDocs.
-func (mr *MockDBClientMockRecorder) ListOperationDocs(pk any) *MockDBClientListOperationDocsCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationDocs", reflect.TypeOf((*MockDBClient)(nil).ListOperationDocs), pk)
-	return &MockDBClientListOperationDocsCall{Call: call}
-}
-
-// MockDBClientListOperationDocsCall wrap *gomock.Call
-type MockDBClientListOperationDocsCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientListOperationDocsCall) Return(arg0 database.DBClientIterator[database.OperationDocument]) *MockDBClientListOperationDocsCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientListOperationDocsCall) Do(f func(azcosmos.PartitionKey) database.DBClientIterator[database.OperationDocument]) *MockDBClientListOperationDocsCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientListOperationDocsCall) DoAndReturn(f func(azcosmos.PartitionKey) database.DBClientIterator[database.OperationDocument]) *MockDBClientListOperationDocsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

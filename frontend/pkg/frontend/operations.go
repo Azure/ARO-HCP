@@ -116,7 +116,7 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 
 		// Add callback header(s) based on the request method.
 		switch request.Method {
-		case http.MethodDelete, http.MethodPatch:
+		case http.MethodDelete, http.MethodPatch, http.MethodPost:
 			f.AddLocationHeader(writer, request, updateDoc)
 			fallthrough
 		case http.MethodPut:
@@ -135,23 +135,34 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 	return err
 }
 
-// CancelActiveOperation marks the status of any active operation on the resource as canceled.
-func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *database.ResourceDocument) error {
-	if resourceDoc.ActiveOperationID != "" {
-		pk := database.NewPartitionKey(resourceDoc.ResourceID.SubscriptionID)
-		updated, err := f.dbClient.UpdateOperationDoc(ctx, pk, resourceDoc.ActiveOperationID, func(updateDoc *database.OperationDocument) bool {
-			return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, nil)
-		})
-		// Disregard "not found" errors; a missing operation is effectively canceled.
-		if err != nil && !errors.Is(err, database.ErrNotFound) {
-			return err
+// CancelOperation marks the status of an operation as canceled.
+func (f *Frontend) CancelOperation(ctx context.Context, pk azcosmos.PartitionKey, operationID string) error {
+	updated, err := f.dbClient.UpdateOperationDoc(ctx, pk, operationID, func(updateDoc *database.OperationDocument) bool {
+		var cloudError = arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeCanceled,
+			Message: "This operation was superseded by another",
 		}
-		if updated {
-			logger := LoggerFromContext(ctx)
-			logger.Info(fmt.Sprintf("Canceled operation '%s'", resourceDoc.ActiveOperationID))
-		}
+		return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, &cloudError)
+	})
+	// Disregard "not found" errors; a missing operation is effectively canceled.
+	if err != nil && !errors.Is(err, database.ErrNotFound) {
+		return err
+	}
+	if updated {
+		logger := LoggerFromContext(ctx)
+		logger.Info(fmt.Sprintf("Canceled operation '%s'", operationID))
 	}
 	return nil
+}
+
+// CancelActiveOperation marks the status of any active operation on the resource as canceled.
+func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *database.ResourceDocument) error {
+	if resourceDoc.ActiveOperationID == "" {
+		return nil
+	}
+
+	pk := database.NewPartitionKey(resourceDoc.ResourceID.SubscriptionID)
+	return f.CancelOperation(ctx, pk, resourceDoc.ActiveOperationID)
 }
 
 // OperationIsVisible returns true if the request is being called from the same
