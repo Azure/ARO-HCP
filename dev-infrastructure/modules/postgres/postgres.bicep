@@ -35,6 +35,9 @@ type DatabaseProperties = {
 @description('The databases to create on the server.')
 param databases DatabaseProperties[] = []
 
+@description('The zone redundant mode of the Postgres Database')
+param postgresZoneRedundantMode string
+
 type MaintenanceWindow = {
   customWindow: string
   dayOfWeek: int
@@ -100,7 +103,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
       type: 'SystemManaged'
     }
     highAvailability: {
-      mode: 'ZoneRedundant'
+      mode: postgresZoneRedundantMode
     }
     maintenanceWindow: maintenanceWindow
     storage: {

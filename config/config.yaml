@@ -123,6 +123,7 @@ defaults:
       private: false
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
+      zoneRedundantMode: 'Auto'
     restrictIstioIngress: true
     image:
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
@@ -140,6 +141,7 @@ defaults:
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
+      zoneRedundantMode: 'Auto'
     managedIdentityName: clusters-service
     k8s:
       namespace: cluster-service

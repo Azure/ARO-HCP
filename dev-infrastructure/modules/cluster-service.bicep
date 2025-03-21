@@ -46,6 +46,8 @@ param ocpAcrResourceId string
 @description('The resource ID of the managed identity used to manage the Postgres server')
 param postgresAdministrationManagedIdentityId string
 
+param postgresZoneRedundantMode string
+
 //
 //   P O S T G R E S
 //
@@ -56,6 +58,7 @@ module postgres 'postgres/postgres.bicep' = if (deployPostgres) {
   name: '${deployment().name}-postgres'
   params: {
     name: postgresServerName
+    postgresZoneRedundantMode: postgresZoneRedundantMode
     databaseAdministrators: [
       {
         principalId: reference(postgresAdministrationManagedIdentityId, '2023-01-31').principalId
