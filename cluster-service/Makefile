@@ -87,6 +87,7 @@ deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
 	oc process --local -f cspr/cluster-service-namespace.yaml \
 		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
+	oc process --local -f cspr/orphaned-namespace-cleaner.yaml | oc apply -f -
 
 create-pr-env-sp:
 	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n ${AKS_NAME} --query id -o tsv) && \
