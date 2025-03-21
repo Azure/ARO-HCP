@@ -24,3 +24,6 @@ pullBinding:
 clusterService:
   namespace: cluster-service
   serviceAccount: clusters-service
+tracing:
+  address: ""
+  exporter: ""

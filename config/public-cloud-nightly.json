@@ -71,6 +71,10 @@
       "minTLSVersion": "TLSV1.2",
       "name": "arohcp-cs-nightly",
       "private": false
+    },
+    "tracing": {
+      "address": "",
+      "exporter": ""
     }
   },
   "cxKeyVault": {
@@ -104,6 +108,10 @@
     "image": {
       "digest": "",
       "repository": "arohcpfrontend"
+    },
+    "tracing": {
+      "address": "",
+      "exporter": ""
     }
   },
   "genevaActions": {
