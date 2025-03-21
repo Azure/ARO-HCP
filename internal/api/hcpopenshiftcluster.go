@@ -28,8 +28,8 @@ type HCPOpenShiftClusterProperties struct {
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID                string   `json:"id,omitempty"                visibility:"read create" validate:"required_unless=ChannelGroup stable"`
-	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create"`
+	ID                string   `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable"`
+	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create update"`
 	AvailableUpgrades []string `json:"availableUpgrades,omitempty" visibility:"read"`
 }
 

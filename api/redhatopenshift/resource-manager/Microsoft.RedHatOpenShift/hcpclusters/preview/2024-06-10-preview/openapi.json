@@ -1442,6 +1442,7 @@
           "default": "stable",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1679,6 +1680,7 @@
           "default": "stable",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },

@@ -100,7 +100,7 @@ model VersionProfile {
   id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string = "stable";
 
   /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
@@ -387,7 +387,7 @@ model NodePoolVersionProfile {
   id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string = "stable";
 
   /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
