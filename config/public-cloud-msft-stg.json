@@ -225,7 +225,7 @@
   },
   "mgmt": {
     "aks": {
-      "clusterOutboundIPAddressIPTags": "FirstPartyUsage:aro-hcp-prod-outbound-cx",
+      "clusterOutboundIPAddressIPTags": "",
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3-1",
         "kvSoftDelete": true
@@ -306,7 +306,7 @@
   },
   "svc": {
     "aks": {
-      "clusterOutboundIPAddressIPTags": "FirstPartyUsage:aro-hcp-prod-outbound-svc",
+      "clusterOutboundIPAddressIPTags": "",
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3",
         "kvSoftDelete": true
@@ -331,7 +331,7 @@
       "vnetAddressPrefix": "10.128.0.0/14"
     },
     "istio": {
-      "ingressGatewayIPAddressIPTags": "FirstPartyUsage:aro-hcp-prod-inbound-svc",
+      "ingressGatewayIPAddressIPTags": "",
       "ingressGatewayIPAddressName": "aro-hcp-istio-ingress",
       "istioctlVersion": "1.24.1",
       "tag": "prod-stable",
