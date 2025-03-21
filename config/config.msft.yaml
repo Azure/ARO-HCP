@@ -500,6 +500,8 @@ clouds:
               private: false
             image:
               digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
+            cert:
+              issuer: OneCertV2-PrivateCA # let's use private until we have approval for public
           # RP Backend
           backend:
             image:
