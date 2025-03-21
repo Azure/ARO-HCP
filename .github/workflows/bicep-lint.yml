@@ -18,6 +18,8 @@ jobs:
     - name: 'az bicep format and lint'
       working-directory: './dev-infrastructure'
       run: |
+        # Install specific version due to https://github.com/Azure/bicep/issues/16676
+        az bicep install -v v0.33.93
         az bicep version
         make fmt
         make modules/metrics/rules/generatedPrometheusAlertingRules.bicep
