@@ -35,7 +35,7 @@ resourceGroups:
     - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
       configRef: firstPartyAppClientId
     - name: FPA_CERT_NAME
-      configRef: firstPartyAppCertName
+      configRef: firstPartyAppCertificate.name
     - name: AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID
       configRef: miMockPrincipalId
     - name: AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID
