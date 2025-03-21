@@ -377,7 +377,8 @@ automation-account:
 		--template-file templates/dev-automation-account.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters \
-			configurations/dev-automation-account.bicepparam
+			configurations/dev-automation-account.bicepparam \
+		--mode Incremental
 .PHONY: automation-account
 
 automation-account.what-if:
@@ -386,5 +387,6 @@ automation-account.what-if:
 		--resource-group $(AUTOMATION_ACCOUNT_RG) \
 		--template-file templates/dev-automation-account.bicep \
 		--parameters \
-			configurations/dev-automation-account.bicepparam
-.PHONY: automation-account.what-if
+			configurations/dev-automation-account.bicepparam \
+		--mode Incremental
+.PHONY: automation-account.what-if 
