@@ -9,8 +9,8 @@ For this we'd have to do:
 
  * Create an RSA key in Key Vault (target key vault for secret)
  * Download the Public key and store in this repo
- * Use `encrypt.sh` to encrypt a secret using this key
- * In target environment use `decrypt.sh` to decrypt this secret and store it in the target key vault
+ * Use `./tooling/secret-sync` to encrypt a secret using this key
+ * In target environment use `./tooling/secret-sync` to decrypt this secret and store it in the target key vault
 
 ![overview](overview.png)
 
@@ -42,9 +42,9 @@ After running the secrets sync pipeline, the new secret should be available and 
 
 ## Encrypting a secret
 
-In order to encrypt a secret use the `encrypt.sh` script. Example usage:
+In order to encrypt a secret use the `encrypt-all.sh` script. Example usage:
 
-`echo "foo" | ./tooling/secret-sync/encrypt.sh testing`
+`echo "foo" | ./tooling/secret-sync/./encrypt-all.sh testing`
 
 This will encrypt the secret `foo` using all keys stored in `data/keys` and store it encrypted under `data/encryptedsecrets`. 
 

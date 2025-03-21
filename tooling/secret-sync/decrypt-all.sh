@@ -27,8 +27,14 @@ fi
 
 dir_prefix=$(dirname $0)
 
+cd ${dir_prefix}
+make secret-sync
+cd -
+
 ls -1 ${DATADIRPREFIX}/encryptedsecrets/${SECRETFOLDER} | while  read fileName
 do
-    secretName=$(basename -s .enc ${fileName})
-    ${dir_prefix}/decrypt.sh ${DATADIRPREFIX}/encryptedsecrets/${SECRETFOLDER}/${fileName} ${secretName} ${KEYVAULT} ${SECRETSYNCKEY}
+    SECRET_TO_SET=$(basename -s .enc ${fileName}) \
+    ENCRYPTION_KEY=${SECRETSYNCKEY} \
+    INPUT_FILE=${DATADIRPREFIX}/encryptedsecrets/${SECRETFOLDER}/${fileName} \
+    ${dir_prefix}/secret-sync decrypt
 done
