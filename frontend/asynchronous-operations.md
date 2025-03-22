@@ -198,7 +198,7 @@ The "payload" section of an asynchronous operation document includes all the inf
 
 The "Locks" container serves as a synchronization mechanism to control write access to the "[Resources](#resources)" container across participating pods. I say "participating" because the "Locks" container has no inherent power to enforce exclusive write access. It's merely a protocol that the ARO-HCP resource provider's frontend and backend pods abide by.
 
-The design is based on the [Cloud Distributed Lock pattern for Cosmos DB](https://github.com/briandunnington/CloudDistributedLock/) by Brian Dunnington.  (See also [this YouTube video](https://www.youtube.com/live/Hreew-l5rCQ?si=2-_yVhR6Zxicj4l1) of Brian demoing the pattern.) The pattern leverages two built-in features of Cosmos DB: 1. [Time to Live (TTL)](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live) to automatically expire data, and 2. [Optimistic Concurrency Control](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/database-transactions-optimistic-concurrency#optimistic-concurrency-control) to resolve competing requests.
+The design is based on the [Cloud Distributed Lock pattern for Cosmos DB](https://github.com/briandunnington/CloudDistributedLock/) by Brian Dunnington.  (See also [this YouTube video](https://www.youtube.com/live/Hreew-l5rCQ?si=2-_yVhR6Zxicj4l1) of Brian demoing the pattern.) The pattern leverages two built-in features of Cosmos DB: 1. [Time to Live (TTL)](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live) to automatically expire lock documents, and 2. [Optimistic Concurrency Control](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/database-transactions-optimistic-concurrency#optimistic-concurrency-control) to resolve competing requests.
 
 Here's how it works for the ARO-HCP resource provider pods:
 
@@ -206,7 +206,13 @@ Like the "Resources" container, the "Locks" container is partitioned by Azure su
 
 When a pod wants to write data to the "Resources" container, it attempts to create a document in the "Locks" container using the same partition key it will use to write to the "Resources" container. If the pod succeeds in creating the document, then it effectively holds a lock over the corresponding partition in the "Resources" container.
 
-Documents in the "Locks" container are very simple. In addition to the [system-defined fields](https://learn.microsoft.com/en-us/rest/api/cosmos-db/documents) in all Cosmos DB documents, there is also a "ttl" or [Time to Live](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live) field set to the default TTL of the "Locks" container (currently 10 seconds), and an "owner" field set to the name of the pod that created the document. (The "owner" field is not part of the lock protocol; it is informational only.)
+Documents in the "Locks" container are very simple. In addition to the [system-defined fields](https://learn.microsoft.com/en-us/rest/api/cosmos-db/documents) in all Cosmos DB documents, there is also a `ttl` or [Time to Live](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live) field set to the default TTL of the "Locks" container (currently 10 seconds), and an `owner` field set to the name of the pod that created the document. (The `owner` field is not part of the lock protocol; it is informational only.)
+
+Simply creating a lock document is not sufficient to hold the lock. If the critical section of code being protected by the lock takes longer to execute than the lock document's `ttl` value, the owner pod must renew the lock before the lock document expires. Renewing the lock involves upserting the same lock document with the lock's entity tag (`_etag`) system field as the `if-match` precondition. If successful, the Cosmos DB service will automatically update the lock document's timestamp (`_ts`) field and thereby extend the document's time-to-live. If the precondition fails, that means another pod has acquired the lock.
+
+When the pod that created the lock document completes its critical section, it releases the lock by deleting the lock document, again with the lock's entity tag (`_etag`) system field as the `if-match` precondition. The precondition ensures the lock document is only deleted if it is truly owned by the pod attempting the deletion.
+
+The short time-to-live of lock documents acts as a safety fallback. In the event the pod that created the lock document crashes or becomes blocked, the lock document will quickly expire and be deleted by the Cosmos DB service, thereby freeing up the logical partition for another pod to create a lock document.
 
 ## Asynchronous Operation Flow
 
