@@ -202,7 +202,9 @@ The design is based on the [Cloud Distributed Lock pattern for Cosmos DB](https:
 
 Here's how it works for the ARO-HCP resource provider pods:
 
-Like the "Resources" container, the "Locks" container is partitioned by Azure subscription ID. When a pod wants to write data to the "Resources" container, it attempts to create a document in the "Locks" container using the same partition key it will use to write to the "Resources" container. If the pod succeeds in creating the document, then it effectively holds a lock over the corresponding partition in the "Resources" container.
+Like the "Resources" container, the "Locks" container is partitioned by Azure subscription ID. Documents in the "Locks" container use identical IDs and partition keys, so there can only be one document (or "lock") per logical partition.
+
+When a pod wants to write data to the "Resources" container, it attempts to create a document in the "Locks" container using the same partition key it will use to write to the "Resources" container. If the pod succeeds in creating the document, then it effectively holds a lock over the corresponding partition in the "Resources" container.
 
 Documents in the "Locks" container are very simple. In addition to the [system-defined fields](https://learn.microsoft.com/en-us/rest/api/cosmos-db/documents) in all Cosmos DB documents, there is also a "ttl" or [Time to Live](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live) field set to the default TTL of the "Locks" container (currently 10 seconds), and an "owner" field set to the name of the pod that created the document. (The "owner" field is not part of the lock protocol; it is informational only.)
 
