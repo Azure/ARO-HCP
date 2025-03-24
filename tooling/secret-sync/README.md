@@ -2,28 +2,33 @@
 
 see [Secret Syncronization](../../docs/secret-sync.md) for higher level information
 
-## encrypt.sh
+## encryption/decryption
 
-Used to encrypt secrets with a single output:
 
-`echo content | encrypt.sh rsa-public.pem outputFile`
+This tool is meant to encrypt data using RSA and the provided RSA key in this repo. It is meant to decrypt data using the keyvault key decrypt api and store the decrypted data in the same keyvault.
 
-To encrypt a secret with all available keys, run:
-`echo content | encrypt.sh outputFile`
-This will encrypt the secret with all available keys. The `outputFile` should be a base name, it will store the secret using this name in each folder for all key vaults under `data/encryptedsecrets`
+This tool acts on a single key/secret use scripts to loop over more than one secret/key.
 
-Optional: set `$DATADIRPREFIX`, path to read/store data from/to defaults to: dev-infrastructure/data
+To encrypt a file using a specific key run:
+```
+echo "datasdmkiopjkoisdjfoisdjfiosdfa" | PUBLIC_KEY_FILE=publickey.pem \
+OUTPUT_FILE=test.enc \
+go run main.go encrypt
+```
 
-## decrypt.sh
+To decrypt a file run:
+```
+INPUT_FILE=test.enc \
+ENCRYPTION_KEY=testing \
+SECRET_TO_SET=jboll-testing \
+VAULT_NAME=testingjboll \
+go run main.go decrypt
+```
 
-Use this script to decrypt a secret using a key stored in Key Vault:
-`decrypt.sh file outputSecret key-vault privateKeySecret`
+## encrypt-all.sh
 
-- file: encrypted file
-- outputSecret: secret to write decrypted secret to
-- key-vault: keyvault containing the key and store decrypted secret to
-- privateKeySecret: keyname used to decrypt 
+Script that iterates over all keys in `data/keys` and encrypts the provided data.
 
 ## decrypt-all.sh
 
-Script that iterates over a folder in `data/encryptedsecrets` and used `decrypt.sh` to decrypt it.
+Script that iterates over a folder in `data/encryptedsecrets` and decrypts it.
