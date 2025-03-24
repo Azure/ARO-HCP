@@ -85,8 +85,18 @@ deploy:
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
+	AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID=$(shell az ad app list --display-name aro-dev-first-party2 --query '[*]'.appId -o tsv) && \
+	AZURE_ARM_HELPER_IDENTITY_CLIENT_ID=$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv) && \
+	AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID=$(shell az ad sp list --display-name aro-dev-first-party2 --query "[*].id" -o tsv) && \
+	AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID=$(shell az ad sp list --display-name aro-dev-msi-mock2 --query "[*].appId" -o tsv) && \
+	AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID=$(shell az ad sp list --display-name aro-dev-msi-mock2 --query "[*].id" -o tsv) && \
 	oc process --local -f cspr/cluster-service-namespace.yaml \
-		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} | oc apply -f -
+		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
+		-p FPA_CLIENT_ID=$${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
+		-p ARM_HELPER_CLIENT_ID=$${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
+		-p ARM_HELPER_MOCK_FPA_PRINCIPAL_ID=$${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
+		-p MSI_MOCK_CLIENT_ID=$${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
+		-p MSI_MOCK_PRINCIPAL_ID=$${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} | oc apply -f -
 
 create-pr-env-sp:
 	CLUSTER_ID=$(shell az aks show -g ${RESOURCEGROUP} -n ${AKS_NAME} --query id -o tsv) && \

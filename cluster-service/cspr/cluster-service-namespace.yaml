@@ -10,6 +10,21 @@ parameters:
 - name: CLIENT_ID
   description: The Azure Client ID used for federation
   required: true
+- name: FPA_CLIENT_ID
+  description: Client ID of First Party Application
+  required: true
+- name: ARM_HELPER_CLIENT_ID
+  description: Client ID of Arm Helper Identity
+  required: true
+- name: ARM_HELPER_MOCK_FPA_PRINCIPAL_ID
+  description: Principal ID of mock FPA Identity
+  required: true
+- name: MSI_MOCK_CLIENT_ID
+  description: Client ID of MSI Mock
+  required: true
+- name: MSI_MOCK_PRINCIPAL_ID
+  description: Principal ID of MSI Mock
+  required: true
 - name: ORPHANED_NAMESPACE_CLEANER_NAMESPACE
   description: The namespace to create to have a cronjob which will delete the orphaned namespace which are not deleted due to any issues with the jenkins job.
   value: orphaned-namespace-cleaner
@@ -75,6 +90,11 @@ objects:
     name: cluster-service-config
     namespace: ${NAMESPACE}
   data:
+    msi-mock-client-id: ${MSI_MOCK_CLIENT_ID}
+    msi-mock-principal-id: ${MSI_MOCK_PRINCIPAL_ID}
+    arm-helper-client-id: ${ARM_HELPER_CLIENT_ID}
+    arm-helper-mock-fpa-principal-id: ${ARM_HELPER_MOCK_FPA_PRINCIPAL_ID}
+    fpa-client-id: ${FPA_CLIENT_ID}
     cs-client-id: ${CLIENT_ID}
 - apiVersion: v1
   kind: Namespace
