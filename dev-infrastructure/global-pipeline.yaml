@@ -48,23 +48,23 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-- name: '{{ .imageSync.rg  }}'
-  subscription: '{{ .global.subscription  }}'
-  steps:
-  - name: decrypt-and-ingest-secrets
-    action: Shell
-    command: ../tooling/secret-sync/decrypt-all.sh
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: KEYVAULT
-      configRef: imageSync.keyVault.name
-    - name: SECRETFOLDER
-      configRef: imageSync.secretsToSyncDir
-    dependsOn:
-    - global-infra
+# - name: '{{ .imageSync.rg  }}'
+#   subscription: '{{ .global.subscription  }}'
+#   steps:
+#   - name: decrypt-and-ingest-secrets
+#     action: Shell
+#     command: ../tooling/secret-sync/decrypt-all.sh
+#     dryRun:
+#       variables:
+#       - name: DRY_RUN
+#         value: "true"
+#     variables:
+#     - name: KEYVAULT
+#       configRef: imageSync.keyVault.name
+#     - name: SECRETFOLDER
+#       configRef: imageSync.secretsToSyncDir
+#     dependsOn:
+#     - global-infra
   # deploys the image mirror for the ACRs
   #- name: imagemirror
   #  action: ARM
