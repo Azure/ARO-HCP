@@ -3,503 +3,727 @@
   "Geographies": [
     {
       "Name": "Asia Pacific",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "ap"
+      },
       "Regions": [
         {
           "Name": "apacsoutheast2",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "kul"
+          }
         },
         {
           "Name": "eastasia",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "hk"
+          }
         },
         {
           "Name": "southeastasia",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "sg"
+          }
         }
       ]
     },
     {
       "Name": "Australia",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "au"
+      },
       "Regions": [
         {
           "Name": "australiacentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "cbr"
+          }
         },
         {
           "Name": "australiacentral2",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "cbr2"
+          }
         },
         {
           "Name": "australiaeast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "sy"
+          }
         },
         {
           "Name": "australiasoutheast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ml"
+          }
         }
       ]
     },
     {
       "Name": "Austria",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "at"
+      },
       "Regions": [
         {
           "Name": "austriaeast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ate"
+          }
         }
       ]
     },
     {
       "Name": "Belgium",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "be"
+      },
       "Regions": [
         {
           "Name": "belgiumcentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "bec"
+          }
         }
       ]
     },
     {
       "Name": "Brazil",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "br"
+      },
       "Regions": [
         {
           "Name": "brazilnortheast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "brne"
+          }
         },
         {
           "Name": "brazilsouth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "cq"
+          }
         },
         {
           "Name": "brazilsoutheast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "brse"
+          }
         }
       ]
     },
     {
       "Name": "Canada",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "ca"
+      },
       "Regions": [
         {
           "Name": "canadacentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "yt"
+          }
         },
         {
           "Name": "canadaeast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "yq"
+          }
         }
       ]
     },
     {
       "Name": "Canary (US)",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "usc"
+      },
       "Regions": [
         {
           "Name": "centraluseuap",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "cdm"
+          }
         },
         {
           "Name": "eastus2euap",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "cbn"
+          }
         }
       ]
     },
     {
       "Name": "Chile",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "cl"
+      },
       "Regions": [
         {
           "Name": "chilecentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "clc"
+          }
         }
       ]
     },
     {
       "Name": "Denmark",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "dk"
+      },
       "Regions": [
         {
           "Name": "denmarkeast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "dke"
+          }
         }
       ]
     },
     {
       "Name": "Europe",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "eu"
+      },
       "Regions": [
         {
           "Name": "northeurope",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "db"
+          }
         },
         {
           "Name": "westeurope",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "am"
+          }
         }
       ]
     },
     {
       "Name": "France",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "fr"
+      },
       "Regions": [
         {
           "Name": "francecentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "par"
+          }
         },
         {
           "Name": "francesouth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "mrs"
+          }
         }
       ]
     },
     {
       "Name": "Germany",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "de"
+      },
       "Regions": [
         {
           "Name": "germanynorth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "den"
+          }
         },
         {
           "Name": "germanywestcentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "dewc"
+          }
         }
       ]
     },
     {
       "Name": "India",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "in"
+      },
       "Regions": [
         {
           "Name": "centralindia",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "pn"
+          }
         },
         {
           "Name": "jioindiacentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "jinc"
+          }
         },
         {
           "Name": "jioindiawest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "jinw"
+          }
         },
         {
           "Name": "southindia",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ma"
+          }
         },
         {
           "Name": "westindia",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "bm"
+          }
         }
       ]
     },
     {
       "Name": "Indonesia",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "id"
+      },
       "Regions": [
         {
           "Name": "indonesiacentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "idc"
+          }
         }
       ]
     },
     {
       "Name": "Israel",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "il"
+      },
       "Regions": [
         {
           "Name": "israelcentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ilc"
+          }
         },
         {
           "Name": "israelnorthwest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ilnw"
+          }
         }
       ]
     },
     {
       "Name": "Italy",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "it"
+      },
       "Regions": [
         {
           "Name": "italynorth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "itn"
+          }
         }
       ]
     },
     {
       "Name": "Japan",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "jp"
+      },
       "Regions": [
         {
           "Name": "japaneast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ty"
+          }
         },
         {
           "Name": "japanwest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "os"
+          }
         }
       ]
     },
     {
       "Name": "Korea",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "kr"
+      },
       "Regions": [
         {
           "Name": "koreacentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "se"
+          }
         },
         {
           "Name": "koreasouth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ps"
+          }
         },
         {
           "Name": "koreasouth2",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "krs2"
+          }
         }
       ]
     },
     {
       "Name": "Malaysia",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "my"
+      },
       "Regions": [
         {
           "Name": "malaysiasouth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "mys"
+          }
         },
         {
           "Name": "malaysiawest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "myw"
+          }
         }
       ]
     },
     {
       "Name": "Mexico",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "mx"
+      },
       "Regions": [
         {
           "Name": "mexicocentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "mxc"
+          }
         }
       ]
     },
     {
       "Name": "New Zealand",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "nz"
+      },
       "Regions": [
         {
           "Name": "newzealandnorth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "nzn"
+          }
         }
       ]
     },
     {
       "Name": "Norway",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "no"
+      },
       "Regions": [
         {
           "Name": "norwayeast",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "noe"
+          }
         },
         {
           "Name": "norwaywest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "now"
+          }
         }
       ]
     },
     {
       "Name": "Poland",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "pl"
+      },
       "Regions": [
         {
           "Name": "polandcentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "plc"
+          }
         }
       ]
     },
     {
       "Name": "Qatar",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "qa"
+      },
       "Regions": [
         {
           "Name": "qatarcentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "qac"
+          }
         }
       ]
     },
     {
       "Name": "South Africa",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "za"
+      },
       "Regions": [
         {
           "Name": "southafricanorth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "jnb"
+          }
         },
         {
           "Name": "southafricawest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "cpt"
+          }
         }
       ]
     },
     {
       "Name": "Spain",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "es"
+      },
       "Regions": [
         {
           "Name": "spaincentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "esc"
+          }
         }
       ]
     },
     {
       "Name": "Stage (US)",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "ust"
+      },
       "Regions": [
         {
           "Name": "eastusslv",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "use"
+          }
         },
         {
           "Name": "eastusstg",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "uste"
+          }
         },
         {
           "Name": "southcentralusstg",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ustsc"
+          }
         }
       ]
     },
     {
       "Name": "Sweden",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "se"
+      },
       "Regions": [
         {
           "Name": "swedencentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "sec"
+          }
         },
         {
           "Name": "swedensouth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ses"
+          }
         }
       ]
     },
     {
       "Name": "Switzerland",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "ch"
+      },
       "Regions": [
         {
           "Name": "switzerlandnorth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "chn"
+          }
         },
         {
           "Name": "switzerlandwest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "chw"
+          }
         }
       ]
     },
     {
       "Name": "Taiwan",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "tw"
+      },
       "Regions": [
         {
           "Name": "taiwannorth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "twn"
+          }
         },
         {
           "Name": "taiwannorthwest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "twnw"
+          }
         }
       ]
     },
     {
       "Name": "UAE",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "ae"
+      },
       "Regions": [
         {
           "Name": "uaecentral",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "auh"
+          }
         },
         {
           "Name": "uaenorth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "dxb"
+          }
         }
       ]
     },
     {
       "Name": "United Kingdom",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "uk"
+      },
       "Regions": [
         {
           "Name": "uksouth",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ln"
+          }
         },
         {
           "Name": "ukwest",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "cw"
+          }
         }
       ]
     },
     {
       "Name": "United States",
-      "Settings": {},
+      "Settings": {
+        "geoShortId": "us"
+      },
       "Regions": [
         {
           "Name": "centralus",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "dm"
+          }
         },
         {
           "Name": "eastus",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "bl"
+          }
         },
         {
           "Name": "eastus2",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "bn"
+          }
+        },
+        {
+          "Name": "eastus3",
+          "Settings": {
+            "regionShortName": "use3"
+          }
         },
         {
           "Name": "northcentralus",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ch"
+          }
         },
         {
           "Name": "southcentralus",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "sn"
+          }
         },
         {
           "Name": "southcentralus2",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ussc2"
+          }
         },
         {
           "Name": "southeastus",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "usse1"
+          }
         },
         {
           "Name": "southeastus3",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "usse3"
+          }
         },
         {
           "Name": "southeastus5",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "usse5"
+          }
         },
         {
           "Name": "southwestus",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "ussw1"
+          }
         },
         {
           "Name": "westcentralus",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "cy"
+          }
         },
         {
           "Name": "westus",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "by"
+          }
         },
         {
           "Name": "westus2",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "mwh"
+          }
         },
         {
           "Name": "westus3",
-          "Settings": {}
+          "Settings": {
+            "regionShortName": "usw3"
+          }
         }
       ]
     }
