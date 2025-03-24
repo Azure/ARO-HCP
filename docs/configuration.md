@@ -40,8 +40,6 @@ Below is an example representation:
 defaults:
   <configuration goes here>
 clouds:
-  fairfax:
-    ...
   public:
     defaults:
       <configuration goes here>
@@ -151,7 +149,7 @@ With multiple layers of overrides and templating in use, it can be difficult to 
 
 ## Using Configuration
 
-Configuration settings can be used in pipeline files and bicepparam files to customize service and infra deployments.
+Configuration settings can be used in [pipeline files](pipeline-concept.md) and [bicepparam files](bicep.md) to customize service and infra deployments.
 
 ### Pipelines
 
