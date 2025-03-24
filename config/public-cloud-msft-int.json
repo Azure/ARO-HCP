@@ -88,7 +88,11 @@
     "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "extraVars": {},
-  "firstPartyAppCertName": "firstPartyCert2",
+  "firstPartyAppCertificate": {
+    "issuer": "OneCertV2-PrivateCA",
+    "manage": false,
+    "name": "firstPartyCert2"
+  },
   "firstPartyAppClientId": "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
   "frontend": {
     "cert": {
@@ -229,7 +233,7 @@
         "kvSoftDelete": true
       },
       "kubernetesVersion": "1.31.5",
-      "name": "usw3-mgmt-1",
+      "name": "westus3-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -291,6 +295,10 @@
   "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
+  "releaseApprover": {
+    "id": "feca6a27-8f05-4abe-b9e4-e1185f5833ab",
+    "name": "TM-AzureRedHatOpenShift-HCP-Leads"
+  },
   "serviceKeyVault": {
     "name": "arohcpint-svc-usw3",
     "private": false,
@@ -306,7 +314,7 @@
         "kvSoftDelete": true
       },
       "kubernetesVersion": "1.31.5",
-      "name": "usw3-svc",
+      "name": "westus3-svc-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {

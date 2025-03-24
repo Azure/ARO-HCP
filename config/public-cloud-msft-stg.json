@@ -88,11 +88,15 @@
     "svcParentZoneName": "aro-hcp.azure.com"
   },
   "extraVars": {},
-  "firstPartyAppCertName": "firstPartyCert",
+  "firstPartyAppCertificate": {
+    "issuer": "OneCertV2-PrivateCA",
+    "manage": true,
+    "name": "tmp-rp-firstparty"
+  },
   "firstPartyAppClientId": "7f4a113a-c61d-412a-bea1-85dee5baf4a8",
   "frontend": {
     "cert": {
-      "issuer": "OneCertV2-PublicCA",
+      "issuer": "OneCertV2-PrivateCA",
       "name": "frontend-cert"
     },
     "cosmosDB": {
@@ -221,13 +225,13 @@
   },
   "mgmt": {
     "aks": {
-      "clusterOutboundIPAddressIPTags": "FirstPartyUsage:arohcpprodoutboundcx",
+      "clusterOutboundIPAddressIPTags": "",
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3-1",
         "kvSoftDelete": true
       },
       "kubernetesVersion": "1.31.5",
-      "name": "usw3-mgmt-1",
+      "name": "westus3-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -289,6 +293,10 @@
   "oidcZoneRedundantMode": "Auto",
   "region": "westus3",
   "regionRG": "westus3-shared-resources",
+  "releaseApprover": {
+    "id": "feca6a27-8f05-4abe-b9e4-e1185f5833ab",
+    "name": "TM-AzureRedHatOpenShift-HCP-Leads"
+  },
   "serviceKeyVault": {
     "name": "arohcpstg-svc-usw3",
     "private": false,
@@ -298,13 +306,13 @@
   },
   "svc": {
     "aks": {
-      "clusterOutboundIPAddressIPTags": "FirstPartyUsage:arohcpprodoutboundsvc",
+      "clusterOutboundIPAddressIPTags": "",
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3",
         "kvSoftDelete": true
       },
       "kubernetesVersion": "1.31.5",
-      "name": "usw3-svc",
+      "name": "westus3-svc-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -323,7 +331,7 @@
       "vnetAddressPrefix": "10.128.0.0/14"
     },
     "istio": {
-      "ingressGatewayIPAddressIPTags": "FirstPartyUsage:arohcpprodinboundsvc",
+      "ingressGatewayIPAddressIPTags": "",
       "ingressGatewayIPAddressName": "aro-hcp-istio-ingress",
       "istioctlVersion": "1.24.1",
       "tag": "prod-stable",

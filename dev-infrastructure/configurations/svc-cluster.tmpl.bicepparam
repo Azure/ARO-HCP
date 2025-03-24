@@ -67,6 +67,7 @@ param oidcZoneRedundantMode = '{{ .oidcZoneRedundantMode }}'
 
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
+param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
 param regionalCXDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.cxParentZoneName }}'
 param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
 
@@ -75,6 +76,10 @@ param regionalResourceGroup = '{{ .regionRG }}'
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
 param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
 param genevaActionsServiceTag = '{{ .genevaActions.serviceTag }}'
+
+param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
+param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'
+param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'

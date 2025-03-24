@@ -206,7 +206,10 @@ clouds:
         parentZoneName: osadev.cloud
       # 1P app
       firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
-      firstPartyAppCertName: firstPartyCert2
+      firstPartyAppCertificate:
+        name: firstPartyCert2
+        issuer: Self
+        manage: false
       # Mock Managed Identities Service Princiapl
       miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
       miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96

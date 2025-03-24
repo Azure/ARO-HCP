@@ -88,7 +88,11 @@
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
-  "firstPartyAppCertName": "firstPartyCert2",
+  "firstPartyAppCertificate": {
+    "issuer": "Self",
+    "manage": false,
+    "name": "firstPartyCert2"
+  },
   "firstPartyAppClientId": "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
   "frontend": {
     "cert": {

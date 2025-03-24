@@ -383,8 +383,25 @@
     "firstPartyAppClientId": {
       "type": "string"
     },
-    "firstPartyAppCertName": {
-      "type": "string"
+    "firstPartyAppCertificate": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "issuer": {
+          "$ref": "#/definitions/certificateIssuer"
+        },
+        "manage": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "issuer",
+        "manage"
+      ]
     },
     "miMockClientId": {
       "type": "string"
@@ -1121,6 +1138,22 @@
         "svc",
         "ocp"
       ]
+    },
+    "releaseApprover": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "id"
+      ]
     }
   },
   "additionalProperties": false,
@@ -1130,7 +1163,7 @@
     "clusterService",
     "cxKeyVault",
     "firstPartyAppClientId",
-    "firstPartyAppCertName",
+    "firstPartyAppCertificate",
     "frontend",
     "genevaActions",
     "global",

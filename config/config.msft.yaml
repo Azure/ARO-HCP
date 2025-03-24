@@ -22,7 +22,9 @@ defaults:
   #
   # All defaults mentioned in this section need to be environment and region agnostic.
   #
-
+  releaseApprover:
+    id: feca6a27-8f05-4abe-b9e4-e1185f5833ab
+    name: TM-AzureRedHatOpenShift-HCP-Leads
   # The long Azure region name
   region: "{{ .ctx.region  }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
@@ -63,12 +65,16 @@ defaults:
       repository: acm-d/rhtap-hypershift-operator
   # OIDC
   oidcZoneRedundantMode: Auto
+  # FPA certificate settings
+  firstPartyAppCertificate:
+    issuer: OneCertV2-PrivateCA
+    manage: true
   # SVC cluster specifics
   svc:
     subscription: "hcp-{{ .ctx.region }}"
     rg: "hcp-underlay-{{ .ctx.region }}-svc"
     aks:
-      name: "{{ .ctx.regionShort }}-svc" # [env-unique]
+      name: "{{ .ctx.region }}-svc-1" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -81,14 +87,16 @@ defaults:
         osDiskSizeGB: 32
       etcd:
         kvSoftDelete: true
-      clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundsvc"
+      #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-svc"
+      clusterOutboundIPAddressIPTags: ""
     istio:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-23"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
-      ingressGatewayIPAddressIPTags: "FirstPartyUsage:arohcpprodinboundsvc"
+      #ingressGatewayIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-inbound-svc"
+      ingressGatewayIPAddressIPTags: ""
     logs:
       namespace: HCPServiceLogs
   # MGMT cluster specifics
@@ -96,7 +104,7 @@ defaults:
     subscription: "hcp-{{ .ctx.region }}"
     rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     aks:
-      name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
+      name: "{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -109,7 +117,8 @@ defaults:
         osDiskSizeGB: 128
       etcd:
         kvSoftDelete: true
-      clusterOutboundIPAddressIPTags: "FirstPartyUsage:arohcpprodoutboundcx"
+      #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-cx"
+      clusterOutboundIPAddressIPTags: ""
     applyKubeletFixes: true
     logs:
       namespace: HCPManagementLogs
@@ -377,7 +386,9 @@ clouds:
               digest: sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5
           # 1P app - from RH Tenant
           firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
-          firstPartyAppCertName: firstPartyCert2
+          firstPartyAppCertificate:
+            name: firstPartyCert2
+            manage: false # we have the cert from RH for int
           # Mock Managed Identities Service Princiapl - from RH Tenant
           miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
           miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
@@ -487,6 +498,8 @@ clouds:
               private: false
             image:
               digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
+            cert:
+              issuer: OneCertV2-PrivateCA # let's use private until we have approval for public
           # RP Backend
           backend:
             image:
@@ -505,7 +518,8 @@ clouds:
               digest: sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5
           # 1P app - from RH Tenant
           firstPartyAppClientId: "7f4a113a-c61d-412a-bea1-85dee5baf4a8"
-          firstPartyAppCertName: firstPartyCert
+          firstPartyAppCertificate:
+            name: tmp-rp-firstparty
           # Grafana
           monitoring:
             grafanaName: 'arohcp-stg'
