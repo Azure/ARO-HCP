@@ -70,7 +70,8 @@
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
       "name": "arohcpstg-cs-usw3",
-      "private": false
+      "private": false,
+      "zoneRedundantMode": "Auto"
     }
   },
   "cxKeyVault": {
@@ -199,7 +200,8 @@
       "name": "arohcpstg-maestro-usw3",
       "private": false,
       "serverStorageSizeGB": 32,
-      "serverVersion": "15"
+      "serverVersion": "15",
+      "zoneRedundantMode": "Auto"
     },
     "restrictIstioIngress": true,
     "server": {

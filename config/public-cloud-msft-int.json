@@ -70,7 +70,8 @@
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
       "name": "arohcpint-cs-usw3",
-      "private": false
+      "private": false,
+      "zoneRedundantMode": "Auto"
     }
   },
   "cxKeyVault": {
@@ -201,7 +202,8 @@
       "name": "arohcpint-maestro-usw3",
       "private": false,
       "serverStorageSizeGB": 32,
-      "serverVersion": "15"
+      "serverVersion": "15",
+      "zoneRedundantMode": "Auto"
     },
     "restrictIstioIngress": true,
     "server": {

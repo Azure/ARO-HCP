@@ -287,13 +287,17 @@
                 "TLSV1.2",
                 "TLSV1.3"
               ]
+            },
+            "zoneRedundantMode": {
+              "$ref": "#/definitions/zoneRedundantMode"
             }
           },
           "required": [
             "deploy",
             "name",
             "private",
-            "minTLSVersion"
+            "minTLSVersion",
+            "zoneRedundantMode"
           ]
         },
         "azureOperatorsManagedIdentities": {
@@ -781,6 +785,9 @@
             },
             "databaseName": {
               "type": "string"
+            },
+            "zoneRedundantMode": {
+              "$ref": "#/definitions/zoneRedundantMode"
             }
           },
           "additionalProperties": false,
@@ -791,7 +798,8 @@
             "serverStorageSizeGB",
             "serverVersion",
             "minTLSVersion",
-            "databaseName"
+            "databaseName",
+            "zoneRedundantMode"
           ]
         },
         "restrictIstioIngress": {

@@ -64,6 +64,8 @@ param maestroServerManagedIdentityPrincipalId string
 @description('The resource ID of the managed identity used to manage the Postgres server')
 param postgresAdministrationManagedIdentityId string
 
+param postgresZoneRedundantMode string
+
 //
 //   P O S T G R E S
 //
@@ -74,6 +76,7 @@ module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
   name: '${deployment().name}-postgres'
   params: {
     name: postgresServerName
+    postgresZoneRedundantMode: postgresZoneRedundantMode
     minTLSVersion: postgresServerMinTLSVersion
     databaseAdministrators: [
       // add the dedicated admin managed identity as administrator
