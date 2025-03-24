@@ -86,36 +86,13 @@ while getopts "c:dr:x:e:i:o:p:P:s:" opt; do
     esac
 done
 
-# short names from EV2 prod ServiceConfig
-case ${REGION} in
-    eastus)
-        REGION_SHORT="use"
-        ;;
-    westus)
-        REGION_SHORT="usw"
-        ;;
-    centralus)
-        REGION_SHORT="usc"
-        ;;
-    northcentralus)
-        REGION_SHORT="usnc"
-        ;;
-    southcentralus)
-        REGION_SHORT="ussc"
-        ;;
-    westus2)
-        REGION_SHORT="usw2"
-        ;;
-    westus3)
-        REGION_SHORT="usw3"
-        ;;
-    uksouth)
-        REGION_SHORT="ln"
-        ;;
-    *)
-        echo "unsupported region: ${REGION}"
-        exit 1
-esac
+# Read region name from our sanitized serviceconfig.json and returns the region short name
+REGION_SHORT=$(
+    "${PROJECT_ROOT_DIR}/tooling/templatize/serviceconfig-get-region-short-name.sh" "${REGION}"
+)
+if [ -z "$REGION_SHORT" ]; then
+    echo "Failed to get region short name for region: $REGION" >&2
+fi
 
 if [ "$DEPLOY_ENV" == "personal-dev" ]; then
     REGION_STAMP="${REGION_SHORT}${USER:0:4}"
