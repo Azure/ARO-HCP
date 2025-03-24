@@ -2,4 +2,5 @@ local/tmp-provisioning-shard.yml
 local/provisioning-shards.yml
 local/local-provisioning-shards.yml
 local/azure-runtime-config.yaml
+local/azure-runtime-config.json
 azure-operators-managed-identities-config.yaml
