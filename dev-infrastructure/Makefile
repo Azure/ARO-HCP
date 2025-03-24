@@ -366,18 +366,39 @@ modules/metrics/rules/generatedPrometheusAlertingRules.bicep:
 	$(MAKE) -C ./../tooling/prometheus-rules/ prometheus-rules
 	./../tooling/prometheus-rules/prometheus-rules --input-rules ./../tooling/prometheus-rules/kubernetesControlPlane-prometheusRule.yaml --output-bicep $@
 
-#
+# Delete the existing schedule
+cleanup-jobSchedules:
+	@for SCHED in $$(az automation schedule list \
+		--automation-account-name hcp-dev-automation \
+		--resource-group $(AUTOMATION_ACCOUNT_RG) \
+		--query "[].name" -o tsv); do \
+		echo "Deleting schedule: $$SCHED"; \
+		az automation schedule delete \
+			--automation-account-name hcp-dev-automation \
+			--name $$SCHED \
+			--resource-group $(AUTOMATION_ACCOUNT_RG) \
+			--yes || true; \
+	done
+.PHONY: cleanup-jobSchedules
+
 # Automation Account creation
-#
-automation-account:
+automation-account: cleanup-jobSchedules
+	@if [ "$$(az group exists --name ${AUTOMATION_ACCOUNT_RG})" = "true" ]; then \
+		echo "Resource group ${AUTOMATION_ACCOUNT_RG} exists. Deleting automation account..."; \
+		az resource delete \
+			--resource-group ${AUTOMATION_ACCOUNT_RG}  \
+			--resource-type "Microsoft.Automation/automationAccounts" \
+			--name hcp-dev-automation; \
+			--name hcp-dev-automation || true; \
+	fi
 	az group create -g ${AUTOMATION_ACCOUNT_RG} -l eastus && \
 	az deployment group create \
 		--name dev-automation-account \
 		--resource-group $(AUTOMATION_ACCOUNT_RG) \
 		--template-file templates/dev-automation-account.bicep \
 		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/dev-automation-account.bicepparam
+		--parameters configurations/dev-automation-account.bicepparam \
+		--mode Incremental
 .PHONY: automation-account
 
 automation-account.what-if:
@@ -385,6 +406,6 @@ automation-account.what-if:
 		--name dev-automation-account \
 		--resource-group $(AUTOMATION_ACCOUNT_RG) \
 		--template-file templates/dev-automation-account.bicep \
-		--parameters \
-			configurations/dev-automation-account.bicepparam
+		--parameters configurations/dev-automation-account.bicepparam \
+		--mode Incremental
 .PHONY: automation-account.what-if
