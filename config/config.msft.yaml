@@ -22,11 +22,9 @@ defaults:
   #
   # All defaults mentioned in this section need to be environment and region agnostic.
   #
-
   releaseApprover:
     id: feca6a27-8f05-4abe-b9e4-e1185f5833ab
     name: TM-AzureRedHatOpenShift-HCP-Leads
-
   # The long Azure region name
   region: "{{ .ctx.region  }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
