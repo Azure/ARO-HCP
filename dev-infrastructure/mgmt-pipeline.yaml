@@ -40,6 +40,11 @@ resourceGroups:
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
   steps:
+  - name: rpRegistration
+    action: ResourceProviderRegistration
+    resourceProviderNamespaces:
+      value:
+      - Microsoft.Storage # for deployment scripts
   - name: mgmt-infra
     action: ARM
     template: templates/mgmt-infra.bicep
@@ -57,6 +62,7 @@ resourceGroups:
     dependsOn:
     - region-output
     - svc-output
+    - rpRegistration
   # Configure certificate issuers for the MC KVs
   - name: cx-oncert-public-kv-issuer
     action: SetCertificateIssuer
