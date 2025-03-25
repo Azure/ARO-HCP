@@ -44,7 +44,7 @@ After running the secrets sync pipeline, the new secret should be available and 
 
 In order to encrypt a secret use the `encrypt-all.sh` script. Example usage:
 
-`echo "foo" | ./tooling/secret-sync/./encrypt-all.sh testing`
+`echo "foo" | ./tooling/secret-sync/encrypt-all.sh testing`
 
 This will encrypt the secret `foo` using all keys stored in `data/keys` and store it encrypted under `data/encryptedsecrets`. 
 
