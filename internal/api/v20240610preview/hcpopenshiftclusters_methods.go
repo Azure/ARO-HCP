@@ -234,10 +234,7 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	}
 }
 
-// validateStaticComplex performs more complex, multi-field validations than
-// are possible with struct tag validation. The returned CloudErrorBody slice
-// contains structured but user-friendly details for all discovered errors.
-func (c *HcpOpenShiftCluster) validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+func (c *HcpOpenShiftCluster) validateUserAssignedIdentities(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
 	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is
@@ -307,8 +304,19 @@ func (c *HcpOpenShiftCluster) validateStaticComplex(normalized *api.HCPOpenShift
 				}
 			}
 		}
-
 	}
+
+	return errorDetails
+}
+
+// validateStaticComplex performs more complex, multi-field validations than
+// are possible with struct tag validation. The returned CloudErrorBody slice
+// contains structured but user-friendly details for all discovered errors.
+func (c *HcpOpenShiftCluster) validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	errorDetails = append(errorDetails, c.validateUserAssignedIdentities(normalized)...)
+
 	return errorDetails
 }
 
