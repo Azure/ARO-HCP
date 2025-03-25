@@ -59,17 +59,17 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - global-acrs
-  # - name: decrypt-and-ingest-secrets
-  #   action: Shell
-  #   command: ../tooling/secret-sync/decrypt-all.sh
-  #   dryRun:
-  #     variables:
-  #     - name: DRY_RUN
-  #       value: "true"
-  #   variables:
-  #   - name: KEYVAULT
-  #     configRef: imageSync.keyVault.name
-  #   - name: SECRETFOLDER
-  #     configRef: imageSync.secretsToSyncDir
-  #   dependsOn:
-  #   - imagemirror
+  - name: decrypt-and-ingest-secrets
+    action: Shell
+    command: ../tooling/secret-sync/decrypt-all.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: KEYVAULT
+      configRef: imageSync.keyVault.name
+    - name: SECRETFOLDER
+      configRef: imageSync.secretsToSyncDir
+    dependsOn:
+    - imagemirror
