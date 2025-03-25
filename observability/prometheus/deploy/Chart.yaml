@@ -1,0 +1,10 @@
+apiVersion: v2
+name: aro-hcp-prometheus 
+description: A Helm chart for ARO-HCP Prometheus Stack
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+- name: kube-prometheus-stack 
+  version: 70.1.1 
+  repository: "file://charts/kube-prometheus-stack"
