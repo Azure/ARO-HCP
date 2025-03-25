@@ -138,7 +138,7 @@ kubectl get ns | grep "ocm.*${CS_CLUSTER_ID}"
 ### Get the kubeconfig for an HCP
 
 ```bash
-kubectl get secret -n ocm-aro-hcp-dev-${CS_CLUSTER_ID} ${CLUSTER_NAME}-admin-kubeconfig -o json | jq .data.kubeconfig -r | base64 -d > my.kubeconfig
+kubectl get secret -n ocm-arohcpdev-${CS_CLUSTER_ID} ${CLUSTER_NAME}-admin-kubeconfig -o json | jq .data.kubeconfig -r | base64 -d > my.kubeconfig
 ```
 
 ### Check nodepool on RP
