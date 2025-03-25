@@ -77,6 +77,22 @@ func TestNodePoolValidateTags(t *testing.T) {
 		expectErrors []arm.CloudErrorBody
 	}{
 		{
+			name: "Bad openshift_version",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Version: NodePoolVersionProfile{
+						ID: "bad.version",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid OpenShift version 'bad.version'",
+					Target:  "properties.version.id",
+				},
+			},
+		},
+		{
 			name: "Min=0 not satisfied",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{

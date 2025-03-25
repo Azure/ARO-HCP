@@ -47,6 +47,22 @@ func TestClusterValidateStaticComplex(t *testing.T) {
 			tweaks: &api.HCPOpenShiftCluster{},
 		},
 		{
+			name: "Cluster with invalid channel group",
+			tweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					Version: api.VersionProfile{
+						ChannelGroup: "freshmeat",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Channel group must be 'stable'",
+					Target:  "properties.version.channelGroup",
+				},
+			},
+		},
+		{
 			name: "Cluster with identities",
 			tweaks: &api.HCPOpenShiftCluster{
 				Properties: api.HCPOpenShiftClusterProperties{

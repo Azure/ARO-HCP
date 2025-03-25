@@ -31,6 +31,22 @@ func TestNodePoolValidateStaticComplex(t *testing.T) {
 			name:   "Minimum valid node pool",
 			tweaks: &api.HCPOpenShiftClusterNodePool{},
 		},
+		{
+			name: "Node pool with inconsistent channel group",
+			tweaks: &api.HCPOpenShiftClusterNodePool{
+				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+					Version: api.NodePoolVersionProfile{
+						ChannelGroup: "freshmeat",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Node pool channel group 'freshmeat' must be the same as control plane channel group 'stable'",
+					Target:  "properties.version.channelGroup",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

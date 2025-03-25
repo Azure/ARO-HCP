@@ -10,6 +10,7 @@ require (
 	github.com/go-playground/validator/v10 v10.25.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
+	github.com/hashicorp/go-version v1.7.0
 	github.com/openshift-online/ocm-sdk-go v0.1.464
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/otel v1.35.0

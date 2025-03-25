@@ -179,6 +179,22 @@ func TestClusterValidateTags(t *testing.T) {
 			},
 		},
 		{
+			name: "Bad openshift_version",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Version: VersionProfile{
+						ID: "bad.version",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid OpenShift version 'bad.version'",
+					Target:  "properties.version.id",
+				},
+			},
+		},
+		{
 			name: "Bad enum_outboundtype",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{

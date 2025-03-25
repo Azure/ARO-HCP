@@ -234,6 +234,23 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	}
 }
 
+func (c *HcpOpenShiftCluster) validateVersion(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	// XXX For now, "stable" is the only accepted value. In the future, we may
+	//     allow unlocking other channel groups through Azure Feature Exposure
+	//     Control (AFEC) flags or some other mechanism.
+	if normalized.Properties.Version.ChannelGroup != "stable" {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInvalidRequestContent,
+			Message: "Channel group must be 'stable'",
+			Target:  "properties.version.channelGroup",
+		})
+	}
+
+	return errorDetails
+}
+
 func (c *HcpOpenShiftCluster) validateUserAssignedIdentities(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
@@ -315,6 +332,7 @@ func (c *HcpOpenShiftCluster) validateUserAssignedIdentities(normalized *api.HCP
 func (c *HcpOpenShiftCluster) validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
+	errorDetails = append(errorDetails, c.validateVersion(normalized)...)
 	errorDetails = append(errorDetails, c.validateUserAssignedIdentities(normalized)...)
 
 	return errorDetails

@@ -93,6 +93,19 @@ func NewValidator() *validator.Validate {
 		panic(err)
 	}
 
+	// Use this for version ID fields that might begin with "openshift-v".
+	err = validate.RegisterValidation("openshift_version", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			panic("String type required for openshift_version")
+		}
+		_, err := NewOpenShiftVersion(field.String())
+		return err == nil
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	// Use this for string fields providing PEM encoded certificates.
 	err = validate.RegisterValidation("pem_certificates", func(fl validator.FieldLevel) bool {
 		field := fl.Field()
@@ -204,6 +217,8 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 				switch tag {
 				case "api_version": // custom tag
 					message = fmt.Sprintf("Unrecognized API version '%s'", fieldErr.Value())
+				case "openshift_version": // custom tag
+					message = fmt.Sprintf("Invalid OpenShift version '%s'", fieldErr.Value())
 				case "pem_certificates": // custom tag
 					message += " (must provide PEM encoded certificates)"
 				case "required", "required_for_put": // custom tag

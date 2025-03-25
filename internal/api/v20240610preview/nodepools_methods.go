@@ -15,6 +15,7 @@
 package v20240610preview
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -142,11 +143,32 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 }
 
+func (c *NodePool) validateVersion(normalized *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	if normalized.Properties.Version.ChannelGroup != cluster.Properties.Version.ChannelGroup {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code: arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf(
+				"Node pool channel group '%s' must be the same as control plane channel group '%s'",
+				normalized.Properties.Version.ChannelGroup,
+				cluster.Properties.Version.ChannelGroup),
+			Target: "properties.version.channelGroup",
+		})
+	}
+
+	return errorDetails
+}
+
 // validateStaticComplex performs more complex, multi-field validations than
 // are possible with struct tag validation. The returned CloudErrorBody slice
 // contains structured but user-friendly details for all discovered errors.
 func (h *NodePool) validateStaticComplex(normalized *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
+
+	if cluster != nil {
+		errorDetails = append(errorDetails, h.validateVersion(normalized, cluster)...)
+	}
 
 	return errorDetails
 }
