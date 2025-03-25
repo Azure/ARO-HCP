@@ -225,6 +225,45 @@
         "Disabled",
         "Auto"
       ]
+    },
+    "prometheus":{
+      "type": "object",
+      "properties":{
+        "namespace":{
+          "type": "string"
+        },
+        "namespaceLabel": {
+          "type" :"string"
+        },
+        "prometheusOperator":{
+          "type:": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "version": {
+              "type": "string"
+            }
+          }
+        },
+        "prometheusSpec":{
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            },
+            "version": {
+              "type": "string"
+            },
+            "replicas":{
+              "type": "number"
+            },
+            "shards":{
+              "type": "number"
+            }
+          }
+        }
+      }
     }
   },
   "properties": {
@@ -909,6 +948,10 @@
         "logs": {
           "description": "MDSD / Genevabits log aggregation and shipping configuration",
           "$ref": "#/definitions/aksLogConfig"
+        },
+        "prometheus":{
+          "description": "Prometheus deployment configuration",
+          "$ref": "#/definitions/prometheus"
         }
       },
       "additionalProperties": false,
@@ -916,7 +959,8 @@
         "aks",
         "applyKubeletFixes",
         "rg",
-        "subscription"
+        "subscription",
+        "prometheus"
       ]
     },
     "mgmtKeyVault": {
@@ -1120,6 +1164,10 @@
         "logs": {
           "description": "MDSD / Genevabits log aggregation and shipping configuration",
           "$ref": "#/definitions/aksLogConfig"
+        },
+        "prometheus": {
+          "description": "Prometheus deployment configuration",
+          "$ref": "#/definitions/prometheus"
         }
       },
       "additionalProperties": false,
