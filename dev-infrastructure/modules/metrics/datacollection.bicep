@@ -1,6 +1,7 @@
 param azureMonitoringWorkspaceId string
 param azureMonitorWorkspaceLocation string
 param aksClusterName string
+param prometheusPrincipalId string
 
 var dceName = take('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
 var dcrName = take('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
@@ -51,4 +52,30 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
   }
 }
 
-output dcrId string = dcr.id
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-03-01' existing = {
+  name: aksClusterName
+}
+
+resource aksClusterDcra 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = {
+  name: '${aksClusterName}-dcra'
+  scope: aksCluster
+  properties: {
+    description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'
+    dataCollectionRuleId: dcr.id
+  }
+}
+
+resource monitoringMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aksClusterName)
+  scope: dcr
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '3913510d-42f4-4e42-8a64-420c390055eb'
+    )
+    principalId: prometheusPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+output dcePromUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
