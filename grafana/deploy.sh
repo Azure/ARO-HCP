@@ -20,7 +20,7 @@ cd dashboards
 
 existing_folders=$(az grafana folder list -g ${RESOURCEGROUP}  -n ${GRAFANA_NAME})
 
-IFS=$'\n'; for d in $(ls -1)
+for d in $(find . -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
 do
     if [[ $(echo $existing_folders | jq --arg TITLE "$d"  -c '.[] | select( .title == $TITLE )' |wc -l )  -gt 0 ]];
     then
