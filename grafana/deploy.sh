@@ -6,7 +6,7 @@
 #  - check if stale folder needs to be deleted
 #  - check if stale dashboard needs to be deleted 
 
-set -eu
+set -euo pipefail
 
 export RESOURCEGROUP=${GLOBAL_RESOURCEGROUP:-global}
 
