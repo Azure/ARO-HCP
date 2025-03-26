@@ -8,7 +8,8 @@
 
 set -euo pipefail
 
-export RESOURCEGROUP=${GLOBAL_RESOURCEGROUP:-global}
+RESOURCEGROUP=${GLOBAL_RESOURCEGROUP:-global}
+DRY_RUN=${DRY_RUN:-false}
 
 if [[ -z ${GRAFANA_NAME} ]];
 then
@@ -33,7 +34,7 @@ do
             folderUid=$(az grafana folder create --only-show-errors  -g ${RESOURCEGROUP}  -n ${GRAFANA_NAME} --title ${d} |jq -r '.uid')
         fi
     fi
-    cd ${d}
+    pushd ${d}
     IFS=$'\n'; for dashboard in $(ls -1)
     do
         dashboard_name=$(cat ${dashboard} | jq '.dashboard.title' )
@@ -41,10 +42,14 @@ do
         then
             echo "would create/update dashboard '${dashboard_name}' on managed grafana ${GRAFANA_NAME} in rg ${RESOURCEGROUP}"
         else
-            grep -q XYZTOBESETBYPIPELINEZYX ${dashboard} || echo "Magic string XYZTOBESETBYPIPELINEZYX not found in dashboard file ${dashboard} >&2
-            sed -i "s/XYZTOBESETBYPIPELINEZYX/${folderUid}/" ${dashboard}
-            az grafana dashboard update --overwrite true -g ${RESOURCEGROUP}  -n ${GRAFANA_NAME} --definition ${dashboard}
+            if [[ $(grep -c XYZTOBESETBYPIPELINEZYX ${dashboard}) -ne 1 ]];
+            then
+                echo "Magic string XYZTOBESETBYPIPELINEZYX not found in dashboard file ${dashboard}" >&2
+            else
+                sed -i "s/XYZTOBESETBYPIPELINEZYX/${folderUid}/" ${dashboard}
+                az grafana dashboard update --overwrite true -g ${RESOURCEGROUP}  -n ${GRAFANA_NAME} --definition ${dashboard}
+            fi
         fi
     done
-    cd - >/dev/null
+    popd
 done
