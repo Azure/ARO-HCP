@@ -1,0 +1,19 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.ImageSync.BuildPush
+rolloutName: ImageSync buld and push
+resourceGroups:
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
+  steps:
+  - name: deploy
+    action: Shell
+    command: make build-push
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    - name: IMAGE_REPO
+      configRef: imageSync.componentSync.image.repository

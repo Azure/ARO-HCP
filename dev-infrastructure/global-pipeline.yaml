@@ -48,6 +48,16 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: build-and-push-image-sync
+    action: Shell
+    command: make -C ../tooling/image-sync build-push
+    variables:
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    - name: IMAGE_REPO
+      configRef: imageSync.componentSync.image.repository
+    dependsOn:
+    - global-acrs
 - name: '{{ .imageSync.rg  }}'
   subscription: '{{ .global.subscription  }}'
   steps:
@@ -58,7 +68,7 @@ resourceGroups:
     parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - global-acrs
+    - build-and-push-image-sync
   - name: decrypt-and-ingest-secrets
     action: Shell
     command: ../tooling/secret-sync/decrypt-all.sh
