@@ -81,7 +81,7 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
     }
     scheduleName: 'nightly-schedule'
   }
-  dependsOn:[
+  dependsOn: [
     automationAccount
   ]
 }
@@ -100,7 +100,7 @@ module assetManagement '../modules/automation-account/runbook.bicep' = {
       path: 'tooling/azure-automation/resources-cleanup/src/automationassets.py'
     }
   }
-  dependsOn:[
+  dependsOn: [
     automationAccount
   ]
 }
