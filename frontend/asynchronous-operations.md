@@ -218,7 +218,7 @@ The short time-to-live of lock documents acts as a fail-safe. In the event the p
 
 The best way to illustrate how asynchronous operations are handled by the ARO-HCP resource provider is to walk through a few examples. First, however, it's important to understand the roles of the ARO-HCP frontend and backend pods with respect to asynchronous operations.
 
-The frontend pods collectively serve as a load-balanced endpoint for communication with the Azure Resource Manager (ARM). When a request from ARM arrives that requires asynchronous handling, the frontend pod will initiate an asynchronous operation by creating an [asynchronous operation](#asynchronous-operations) document in Cosmos DB. As ARM then begins polling for status updates on the operation, the frontend pods will read back the asynchronous operation document from Cosmos DB and convert it to the response format ARM expects.
+The frontend pods collectively serve as a load-balanced endpoint for communication with the Azure Resource Manager (ARM). When a request from ARM arrives that requires asynchronous handling, the frontend pod will initiate an asynchronous operation by creating an [asynchronous operation document](#asynchronous-operations) in Cosmos DB. As ARM then begins polling for status updates on the operation, the frontend pods will read back the asynchronous operation document from Cosmos DB and convert it to the response format ARM expects.
 
 That's the extent of what the frontend pods do with asynchronous operation documents. The rest is handled by the _lead_ backend pod.  (The lead backend pod is determined by the leader election protocol using [Kubernetes lease objects](https://kubernetes.io/docs/concepts/architecture/leases/).)
 
