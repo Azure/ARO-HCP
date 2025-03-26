@@ -8,7 +8,7 @@ SOURCES = $(shell find . -name '*.go' -o -name '*.json')
 
 # Build the binary
 $(BINARY): $(SOURCES) $(MAKEFILE_LIST)
-	go build -o $(BINARY) .
+	go build -ldflags="-s -w" -o $(BINARY) .
 
 # Clean the build artifacts
 clean:

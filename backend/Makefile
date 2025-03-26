@@ -49,7 +49,7 @@ deploy:
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE}:$${DIGEST} \
+		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE}@$${DIGEST} \
 		--set configMap.location=${LOCATION} \
 		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE}@$${DIGEST} \
 		--namespace aro-hcp

@@ -22,7 +22,8 @@
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
     "image": {
-      "digest": "sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c",
+      "digest": "sha256:7eab98c23616c1211c987107588387c18487191278812e6f15fcd888ecee1256",
+      "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpbackend"
     }
   },
@@ -59,6 +60,7 @@
     "environment": "arohcpint",
     "image": {
       "digest": "sha256:89a09675100b106a6e7e0b21d6841338ee229fa637abea67d32b53d8052696cd",
+      "registry": "quay.io",
       "repository": "app-sre/uhc-clusters-service"
     },
     "k8s": {
@@ -107,7 +109,8 @@
       "zoneRedundantMode": "Auto"
     },
     "image": {
-      "digest": "sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b",
+      "digest": "sha256:0e6b1e3e5279788552f79780f5a193dcd554ec6728364b505cb7f90a92a6a43e",
+      "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpfrontend"
     }
   },
@@ -124,33 +127,36 @@
     "region": "uksouth",
     "rg": "global-shared-resources",
     "safeDnsIntAppObjectId": "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc",
-    "secretsToSyncDir": "none",
+    "secretsToSyncDir": "msft-int/arohcpint-global",
     "subscription": "hcp-global"
   },
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
     "image": {
       "digest": "sha256:305f45bf036f84255d41c20517c70a9cb18af3dcdfa71a82a5716dde77c9e2c3",
+      "registry": "quay.io",
       "repository": "acm-d/rhtap-hypershift-operator"
     },
     "namespace": "hypershift"
   },
   "imageSync": {
     "componentSync": {
-      "enabled": true,
+      "enabled": false,
       "image": {
         "digest": "sha256:6a212720d25f270073318b1b480f326fcda08fbf6a1e435b7651e0336c72caee",
+        "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/component-sync"
       },
       "pullSecretName": "component-sync-pull-secret",
-      "repositories": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,arohcpsvcdev.azurecr.io/image-sync/component-sync,arohcpsvcdev.azurecr.io/arohcpfrontend,arohcpsvcdev.azurecr.io/arohcpbackend,quay.io/acm-d/rhtap-hypershift-operator,arohcpsvcdev.azurecr.io/image-sync/oc-mirror,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package",
-      "secrets": "quay.io:quay-io-bearer,arohcpsvcdev.azurecr.io:arohcpsvcdev-bearer"
+      "repositories": "",
+      "secrets": ""
     },
     "environmentName": "global-shared-resources",
     "ocMirror": {
       "enabled": true,
       "image": {
         "digest": "sha256:9e2c19a88985aca7fef8061506a61c6519ad19c1a4dab9a46ac707dcf6bb05ac",
+        "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/oc-mirror"
       },
       "pullSecretName": "ocmirror-pull-secret"
@@ -196,6 +202,7 @@
     },
     "image": {
       "digest": "sha256:223f332a11d336b49243d886217a76809142b30f9ab8ef27bec80a4458b3c3a5",
+      "registry": "quay.io",
       "repository": "redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro"
     },
     "postgres": {

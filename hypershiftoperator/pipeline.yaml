@@ -2,6 +2,29 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
 rolloutName: RP HypershiftOperator Rollout
 resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription }}'
+  steps:
+  - name: mirror-image
+    action: Shell
+    command: ../image-sync/on-demand/sync.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: TARGET_ACR
+      configRef: 'acr.svc.name'
+    - name: SOURCE_REGISTRY
+      configRef: hypershift.image.registry
+    - name: REPOSITORY
+      configRef: hypershift.image.repository
+    - name: DIGEST
+      configRef: hypershift.image.digest
+    - name: PULL_SECRET_KV
+      configRef: global.keyVault.name
+    - name: PULL_SECRET
+      configRef: imageSync.componentSync.pullSecretName
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   aksCluster: '{{ .mgmt.aks.name  }}'
@@ -13,6 +36,8 @@ resourceGroups:
       variables:
       - name: DRY_RUN
         value: "true"
+    dependsOn:
+    - mirror-image
     variables:
     - name: ARO_HCP_SVC_ACR
       configRef: acr.svc.name
