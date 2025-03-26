@@ -16,6 +16,7 @@ on:
     - 'dev-infrastructure/data'
     - 'dev-infrastructure/**/*.bicepparam'
     - 'dev-infrastructure/Makefile'
+    - 'grafana'
     - '.github/workflows/aro-hcp-dev-what-if.yml'
 jobs:
   what-if:
