@@ -220,7 +220,7 @@ The best way to illustrate how asynchronous operations are handled by the ARO-HC
 
 The frontend pods collectively serve as a load-balanced endpoint for communication with the Azure Resource Manager (ARM). When a request from ARM arrives that requires asynchronous handling, the frontend pod will initiate an asynchronous operation by creating an [asynchronous operation document](#asynchronous-operations) in Cosmos DB. As ARM then begins polling for status updates on the operation, the frontend pods will read back the asynchronous operation document from Cosmos DB and convert it to the response format ARM expects.
 
-That's the extent of what the frontend pods do with asynchronous operation documents. The rest is handled by the _lead_ backend pod.  (The lead backend pod is determined by the leader election protocol using [Kubernetes lease objects](https://kubernetes.io/docs/concepts/architecture/leases/).)
+That's the extent of what the frontend pods do with asynchronous operation documents. The rest is handled by the lead backend pod.  (The lead backend pod is determined by the leader election protocol using [Kubernetes lease objects](https://kubernetes.io/docs/concepts/architecture/leases/).)
 
 The lead backend pod periodically iterates over all registered Azure subscriptions and looks for any asynchronous operation documents in Cosmos DB with a non-terminal status.  It then queries Cluster Service for the current status of the resource the operation is acting on.  If the backend receives an updated status for the resource, it updates the asynchronous operation document.
 
