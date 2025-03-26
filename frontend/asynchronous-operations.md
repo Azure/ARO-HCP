@@ -434,3 +434,7 @@ The above interaction sequence details a single iteration of the lead backend po
 This effectively ends the asynchronous cluster creation operation. The [asynchronous operation document](#asynchronous-operations) will remain accessible to the frontend pods to use in responding to operation status requests from ARM until its [Time to Live](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live) expires, after which the document will be automatically deleted by the Cosmos DB service.
 
 ### Delete an HCP OpenShift Cluster and Node Pool
+
+For the next scenario, let's suppose the ARO-HCP resource provider receives a request from ARM to delete the cluster we just created. The cluster itself has no asynchronous operation in progress — it's provisioning state is `"Succeeded"` — but it does have a child node pool resource which is still being created.
+
+An Azure resource can only have one asynchronous operation acting upon the resource at a time. Normally when an asynchronous operation is already in progress, further requests to update the resource are rejected until the in-progress operation reaches a terminal state. But deletions are special. Deletion requests are always accepted. Any in-progress operation gets cancelled. In this example the node pool's creation operation will be cancelled.
