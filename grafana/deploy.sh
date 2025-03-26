@@ -41,6 +41,7 @@ do
         then
             echo "would create/update dashboard '${dashboard_name}' on managed grafana ${GRAFANA_NAME} in rg ${RESOURCEGROUP}"
         else
+            grep -q XYZTOBESETBYPIPELINEZYX ${dashboard} || echo "Magic string XYZTOBESETBYPIPELINEZYX not found in dashboard file ${dashboard} >&2
             sed -i "s/XYZTOBESETBYPIPELINEZYX/${folderUid}/" ${dashboard}
             az grafana dashboard update --overwrite true -g ${RESOURCEGROUP}  -n ${GRAFANA_NAME} --definition ${dashboard}
         fi
