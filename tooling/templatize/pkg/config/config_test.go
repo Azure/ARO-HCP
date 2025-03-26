@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -156,6 +158,21 @@ func TestMergeVariable(t *testing.T) {
 		})
 	}
 
+}
+
+func TestLoadSchemaURL(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "{\"type\": \"object\"}")
+	}))
+	defer testServer.Close()
+
+	configProvider := configProviderImpl{}
+	configProvider.schema = testServer.URL
+
+	schema, err := configProvider.loadSchema()
+	assert.Nil(t, err)
+	assert.NotNil(t, schema)
+	assert.Equal(t, map[string]any{"type": "object"}, schema)
 }
 
 func TestLoadSchema(t *testing.T) {
