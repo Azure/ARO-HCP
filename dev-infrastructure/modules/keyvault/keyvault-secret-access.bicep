@@ -10,6 +10,7 @@ param secretName string = ''
   'Key Vault Secrets User'
   'Key Vault Certificate User'
   'Key Vault Certificates Officer'
+  'Key Vault Crypto Officer'
 ])
 param roleName string
 
@@ -27,15 +28,20 @@ var roleResourceIds = {
     'Microsoft.Authorization/roleDefinitions/',
     'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
   )
-  // Read entire certificate contents including secret and key portion. 
+  // Read entire certificate contents including secret and key portion.
   'Key Vault Certificate User': subscriptionResourceId(
     'Microsoft.Authorization/roleDefinitions/',
     'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba'
   )
-  // Perform any action on the certificates of a key vault, excluding reading the secret and key portions, and managing permissions. 
+  // Perform any action on the certificates of a key vault, excluding reading the secret and key portions, and managing permissions.
   'Key Vault Certificates Officer': subscriptionResourceId(
     'Microsoft.Authorization/roleDefinitions/',
     'a4417e6f-fecd-4de8-b567-7b0420556985'
+  )
+  // Perform any action on the keys of a key vault, except manage permissions. Only works for key vaults that use the 'Azure role-based access control' permission model.
+  'Key Vault Crypto Officer': subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions/',
+    '14b46e9e-c2b7-41b4-b07b-48a6ebf60603'
   )
 }
 

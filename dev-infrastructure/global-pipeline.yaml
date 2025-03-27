@@ -16,6 +16,7 @@ resourceGroups:
   steps:
   # creates global infra
   # * the parent DNS zones for the ARO HCP services
+  # * the global KV
   # * the global Grafana instance
   - name: global-infra
     action: ARM
@@ -62,17 +63,7 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-- name: '{{ .imageSync.rg  }}'
-  subscription: '{{ .global.subscription  }}'
-  steps:
-  # deploys the image mirror for the ACRs
-  - name: imagemirror
-    action: ARM
-    template: templates/global-image-sync.bicep
-    parameters: configurations/global-image-sync.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    dependsOn:
-    - global-acrs
+  # ingests secrets into the global KV
   - name: decrypt-and-ingest-secrets
     action: Shell
     command: ../tooling/secret-sync/decrypt-all.sh
@@ -82,8 +73,16 @@ resourceGroups:
         value: "true"
     variables:
     - name: KEYVAULT
-      configRef: imageSync.keyVault.name
+      configRef: global.keyVault.name
     - name: SECRETFOLDER
-      configRef: imageSync.secretsToSyncDir
+      configRef: global.secretsToSyncDir
     dependsOn:
-    - imagemirror
+    - global-infra
+  # deploys the image mirror for the ACRs
+  - name: imagemirror
+    action: ARM
+    template: templates/global-image-sync.bicep
+    parameters: configurations/global-image-sync.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - global-acrs

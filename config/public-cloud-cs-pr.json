@@ -116,9 +116,15 @@
   },
   "global": {
     "globalMSIName": "global-rollout-identity",
+    "keyVault": {
+      "name": "arohcpdev-global",
+      "private": false,
+      "softDelete": true
+    },
     "region": "westus3",
     "rg": "global",
     "safeDnsIntAppObjectId": "",
+    "secretsToSyncDir": "dev/arohcpdev-global",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "hypershift": {
@@ -141,21 +147,14 @@
       "secrets": "quay.io:quay-io-bearer"
     },
     "environmentName": "aro-hcp-image-sync",
-    "keyVault": {
-      "name": "arohcp-imagesync-dev",
-      "private": false,
-      "softDelete": false
-    },
     "ocMirror": {
       "enabled": true,
       "image": {
         "digest": "sha256:4affed9ff6397a5c44e9d1451fd58667f56e826b122819ccb6e1e8e045803c18",
         "repository": "image-sync/oc-mirror"
       },
-      "pullSecretName": "pull-secret"
-    },
-    "rg": "hcp-underlay-westus3-imagesync-dev",
-    "secretsToSyncDir": "dev/arohcp-imagesync-dev"
+      "pullSecretName": "ocmirror-pull-secret"
+    }
   },
   "kvCertOfficerPrincipalId": "c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb",
   "logs": {
