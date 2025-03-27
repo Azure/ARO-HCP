@@ -33,6 +33,10 @@ defaults:
     subscription: hcp-global
     globalMSIName: "global-ev2-identity"
     safeDnsIntAppObjectId: "" # intentionally blank - only required in INT
+    keyVault:
+      private: false
+      softDelete: true
+    secretsToSyncDir: "none"
   # ACR
   acr:
     svc:
@@ -217,9 +221,7 @@ defaults:
       serviceAccountName: clusters-service
   # Image Sync
   imageSync:
-    rg: global-shared-resources
     environmentName: global-shared-resources
-    secretsToSyncDir: "none"
     componentSync:
       enabled: true
       image:
@@ -231,10 +233,7 @@ defaults:
       enabled: true
       image:
         repository: image-sync/oc-mirror
-      pullSecretName: ocp-pull-secret
-    keyVault:
-      private: false
-      softDelete: true
+      pullSecretName: ocmirror-pull-secret
   # MCE
   mce:
     clcStateMetrics:
@@ -288,6 +287,8 @@ clouds:
           global:
             region: uksouth
             safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
+            keyVault:
+              name: arohcpint-global # [globally-unique]
           # Cluster Service
           clusterService:
             environment: "arohcpint"
@@ -300,10 +301,6 @@ clouds:
             serviceTag: GenevaActionsNonProd
           # OIDC
           oidcStorageAccountName: "arohcpintoidc{{ .ctx.regionShort }}" # [globally-unique]
-          # Image Sync
-          imageSync:
-            keyVault:
-              name: arohcpint-imagesync # [globally-unique]
           # SVC KV
           serviceKeyVault:
             name: "arohcpint-svc-{{ .ctx.regionShort }}" # [globally-unique]
@@ -416,6 +413,8 @@ clouds:
           # Region for global resources in STAGE is uksouth
           global:
             region: uksouth
+            keyVault:
+              name: arohcpstg-global # [globally-unique]
           # Cluster Service
           clusterService:
             environment: "arohcpstg"
@@ -428,10 +427,6 @@ clouds:
             serviceTag: GenevaActions
           # OIDC
           oidcStorageAccountName: "arohcpstgoidc{{ .ctx.regionShort }}" # [globally-unique]
-          # Image Sync
-          imageSync:
-            keyVault:
-              name: arohcpstg-imagesync # [globally-unique]
           # SVC KV
           serviceKeyVault:
             name: "arohcpstg-svc-{{ .ctx.regionShort }}" # [globally-unique]

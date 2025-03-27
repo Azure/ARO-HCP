@@ -31,6 +31,26 @@
         "zoneRedundantMode"
       ]
     },
+    "keyVault": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "softDelete": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "private",
+        "softDelete"
+      ]
+    },
     "aksAgentPool": {
       "type": "object",
       "properties": {
@@ -356,24 +376,7 @@
       ]
     },
     "cxKeyVault": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "private": {
-          "type": "boolean"
-        },
-        "softDelete": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "name",
-        "private",
-        "softDelete"
-      ]
+      "$ref": "#/definitions/keyVault"
     },
     "extraVars": {
       "type": "object",
@@ -551,12 +554,20 @@
         "safeDnsIntAppObjectId": {
           "type": "string",
           "description": "SafeDnsIntApplication object ID use to delegate child DNS. This is only required for MSFT INT and can be left empty for other targets"
+        },
+        "secretsToSyncDir": {
+          "type": "string"
+        },
+        "keyVault": {
+          "$ref": "#/definitions/keyVault"
         }
       },
       "required": [
         "rg",
         "subscription",
-        "region"
+        "region",
+        "keyVault",
+        "secretsToSyncDir"
       ]
     },
     "hypershift": {
@@ -582,9 +593,6 @@
       "type": "object",
       "properties": {
         "environmentName": {
-          "type": "string"
-        },
-        "secretsToSyncDir": {
           "type": "string"
         },
         "componentSync": {
@@ -634,38 +642,13 @@
             "image",
             "pullSecretName"
           ]
-        },
-        "keyVault": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "private": {
-              "type": "boolean"
-            },
-            "softDelete": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "name",
-            "private",
-            "softDelete"
-          ]
-        },
-        "rg": {
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "environmentName",
         "componentSync",
-        "ocMirror",
-        "keyVault",
-        "rg"
+        "ocMirror"
       ]
     },
     "acrPull": {
@@ -882,24 +865,7 @@
       ]
     },
     "mgmtKeyVault": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "private": {
-          "type": "boolean"
-        },
-        "softDelete": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "name",
-        "private",
-        "softDelete"
-      ]
+      "$ref": "#/definitions/keyVault"
     },
     "monitoring": {
       "type": "object",
@@ -1000,24 +966,7 @@
       ]
     },
     "msiKeyVault": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "private": {
-          "type": "boolean"
-        },
-        "softDelete": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "name",
-        "private",
-        "softDelete"
-      ]
+      "$ref": "#/definitions/keyVault"
     },
     "ocpAcrName": {
       "type": "string"

@@ -116,9 +116,15 @@
   },
   "global": {
     "globalMSIName": "global-ev2-identity",
+    "keyVault": {
+      "name": "arohcpstg-global",
+      "private": false,
+      "softDelete": true
+    },
     "region": "uksouth",
     "rg": "global-shared-resources",
     "safeDnsIntAppObjectId": "",
+    "secretsToSyncDir": "none",
     "subscription": "hcp-global"
   },
   "hypershift": {
@@ -141,21 +147,14 @@
       "secrets": "quay.io:quay-io-bearer,arohcpsvcdev.azurecr.io:arohcpsvcdev-bearer"
     },
     "environmentName": "global-shared-resources",
-    "keyVault": {
-      "name": "arohcpstg-imagesync",
-      "private": false,
-      "softDelete": true
-    },
     "ocMirror": {
       "enabled": true,
       "image": {
         "digest": "sha256:574ebb57e70c46ba3bc34db4776fd64b63a52e04afc1dddba7b91e0c5f247952",
         "repository": "image-sync/oc-mirror"
       },
-      "pullSecretName": "ocp-pull-secret"
-    },
-    "rg": "global-shared-resources",
-    "secretsToSyncDir": "none"
+      "pullSecretName": "ocmirror-pull-secret"
+    }
   },
   "kvCertOfficerPrincipalId": "ce4e50ef-1059-4b6f-a53a-53001d517513",
   "logs": {

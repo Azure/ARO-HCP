@@ -6,6 +6,15 @@ param location string
 @description('The global msi name')
 param globalMSIName string
 
+@description('Name of the keyvault where the pull secret is stored')
+param keyVaultName string
+
+@description('Resource group of the keyvault')
+param keyVaultPrivate bool
+
+@description('Defines if the keyvault should have soft delete enabled')
+param keyVaultSoftDelete bool
+
 @description('The cxParentZone Domain')
 param cxParentZoneName string
 
@@ -35,6 +44,45 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: globalMSIName
   location: location
+}
+
+//   G L O B A L    K V
+
+module globalKV '../modules/keyvault/keyvault.bicep' = {
+  name: 'global-kv'
+  params: {
+    location: location
+    keyVaultName: keyVaultName
+    private: keyVaultPrivate
+    enableSoftDelete: keyVaultSoftDelete
+    purpose: 'imagesync'
+  }
+}
+
+module globalMSIKVSecretUser '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(globalMSI.id, globalKV.name, 'secret-officer')
+  params: {
+    keyVaultName: keyVaultName
+    roleName: 'Key Vault Secrets Officer'
+    managedIdentityPrincipalId: globalMSI.properties.principalId
+  }
+}
+
+module globalMSIKVCryptoUser '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(globalMSI.id, globalKV.name, 'crypto-officer')
+  params: {
+    keyVaultName: keyVaultName
+    roleName: 'Key Vault Crypto Officer'
+    managedIdentityPrincipalId: globalMSI.properties.principalId
+  }
+}
+
+module encryptionKey '../modules/keyvault/key-vault-key.bicep' = {
+  name: 'imagesync-secretSyncKey'
+  params: {
+    keyVaultName: globalKV.outputs.kvName
+    keyName: 'secretSyncKey'
+  }
 }
 
 //

@@ -22,12 +22,6 @@ param ocpAcrName string
 @description('Name of the keyvault where the pull secret is stored')
 param keyVaultName string
 
-@description('Resource group of the keyvault')
-param keyVaultPrivate bool
-
-@description('Defines if the keyvault should have soft delete enabled')
-param keyVaultSoftDelete bool
-
 @description('The name of the pull secret for the component sync job')
 param componentSyncPullSecretName string
 
@@ -78,28 +72,13 @@ var secretVar = {
   secrets: secretWithFolderPrefix
 }
 
+resource kv 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+  name: keyVaultName
+}
+
 //
 // Container App Infra
 //
-
-module kv '../modules/keyvault/keyvault.bicep' = {
-  name: 'imagesync-kv'
-  params: {
-    location: location
-    keyVaultName: keyVaultName
-    private: keyVaultPrivate
-    enableSoftDelete: keyVaultSoftDelete
-    purpose: 'imagesync'
-  }
-}
-
-module encryptionKey '../modules/keyvault/key-vault-key.bicep' = {
-  name: 'imagesync-secretSyncKey'
-  params: {
-    keyVaultName: kv.outputs.kvName
-    keyName: 'secretSyncKey'
-  }
-}
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
   name: containerAppLogAnalyticsName
