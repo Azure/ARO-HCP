@@ -7,15 +7,15 @@ spec:
   imagePullSecret: open-cluster-management-image-pull-credentials
   overrides:
     components:
-    - enabled: true
+    - enabled: false
       name: local-cluster
     - enabled: true
       name: cluster-manager
     - enabled: true
       name: server-foundation
-    - enabled: true
+    - enabled: false
       name: hypershift-local-hosting
-    - enabled: true
+    - enabled: false
       name: hypershift
     - enabled: false
       name: cluster-lifecycle
@@ -25,7 +25,7 @@ spec:
       name: console-mce
     - enabled: false
       name: hive
-    - enabled: false
+    - enabled: true
       name: assisted-service
     - enabled: false
       name: image-based-install-operator-preview
