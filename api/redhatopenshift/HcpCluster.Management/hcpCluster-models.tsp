@@ -201,7 +201,7 @@ model PlatformProfile {
   outboundType?: OutboundType = OutboundType.loadBalancer;
 
   /** ResourceId for the network security group attached to the cluster subnet */
-  networkSecurityGroupId?: NetworkSecurityGroupResourceId;
+  networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
   /** The configuration that the operators of the cluster have to authenticate to Azure */
   operatorsAuthentication: OperatorsAuthenticationProfile;

@@ -53,7 +53,8 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 				ChannelGroup: "stable",
 			},
 			Platform: PlatformProfile{
-				SubnetID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
+				SubnetID:               "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
+				NetworkSecurityGroupID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/networkSecurityGroups/MyNSG",
 				OperatorsAuthentication: OperatorsAuthenticationProfile{
 					UserAssignedIdentities: UserAssignedIdentitiesProfile{
 						ControlPlaneOperators: map[string]string{
@@ -79,7 +80,8 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 				ChannelGroup: "stable",
 			},
 			Platform: PlatformProfile{
-				SubnetID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
+				SubnetID:               "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
+				NetworkSecurityGroupID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/networkSecurityGroups/MyNSG",
 				OperatorsAuthentication: OperatorsAuthenticationProfile{
 					UserAssignedIdentities: UserAssignedIdentitiesProfile{
 						ControlPlaneOperators: map[string]string{
@@ -120,6 +122,10 @@ func TestClusterRequiredForPut(t *testing.T) {
 				{
 					Message: "Missing required field 'subnetId'",
 					Target:  "properties.platform.subnetId",
+				},
+				{
+					Message: "Missing required field 'networkSecurityGroupId'",
+					Target:  "properties.platform.networkSecurityGroupId",
 				},
 			},
 		},
