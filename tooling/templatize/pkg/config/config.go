@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -106,14 +108,34 @@ func convertToInterface(variables Variables) map[string]any {
 	return m
 }
 
+func isUrl(str string) bool {
+	u, err := url.Parse(str)
+	return err == nil && u.Scheme != "" && u.Host != ""
+}
+
 func (cp *configProviderImpl) loadSchema() (any, error) {
 	schemaPath := cp.schema
-	if !filepath.IsAbs(schemaPath) {
-		schemaPath = filepath.Join(filepath.Dir(cp.config), schemaPath)
-	}
-	reader, err := os.Open(schemaPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open schema file: %v", err)
+
+	var reader io.Reader
+	var err error
+
+	if isUrl(schemaPath) {
+		resp, err := http.Get(schemaPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get schema file: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("faild to get schema file, statuscode %v", resp.StatusCode)
+		}
+		reader = resp.Body
+	} else {
+		if !filepath.IsAbs(schemaPath) {
+			schemaPath = filepath.Join(filepath.Dir(cp.config), schemaPath)
+		}
+		reader, err = os.Open(schemaPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open schema file: %v", err)
+		}
 	}
 
 	schema, err := jsonschema.UnmarshalJSON(reader)
