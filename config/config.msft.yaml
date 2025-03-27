@@ -1,4 +1,4 @@
-$schema: https://raw.githubusercontent.com/Azure/ARO-HCP/7994231852d047bc099e52d8366c2b004c2d31e1/config/config.schema.json
+$schema: config.schema.json
 #
 #   A B O U T   N A M I N G
 #
