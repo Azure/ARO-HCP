@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
     "title": "Common types",
-    "version": "3.0"
+    "version": "6.0"
   },
   "paths": {},
   "definitions": {
@@ -133,33 +133,6 @@
         }
       }
     },
-    "Identity": {
-      "type": "object",
-      "description": "Identity for the resource.",
-      "properties": {
-        "principalId": {
-          "type": "string",
-          "description": "The principal ID of resource identity.",
-          "readOnly": true
-        },
-        "tenantId": {
-          "type": "string",
-          "description": "The tenant ID of resource.",
-          "readOnly": true
-        },
-        "type": {
-          "type": "string",
-          "description": "The identity type.",
-          "enum": [
-            "SystemAssigned"
-          ],
-          "x-ms-enum": {
-            "name": "ResourceIdentityType",
-            "modelAsString": false
-          }
-        }
-      }
-    },
     "KeyVaultProperties": {
       "type": "object",
       "properties": {
@@ -259,6 +232,7 @@
         },
         "nextLink": {
           "type": "string",
+          "format": "uri",
           "description": "URL to get the next set of operation list results (if there are any).",
           "readOnly": true
         }
@@ -270,7 +244,14 @@
       "properties": {
         "id": {
           "type": "string",
+          "format": "arm-id",
           "description": "Fully qualified ID for the async operation."
+        },
+        "resourceId": {
+          "type": "string",
+          "format": "arm-id",
+          "description": "Fully qualified ID of the resource against which the original async operation was started.",
+          "readOnly": true
         },
         "name": {
           "type": "string",
@@ -360,7 +341,8 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Fully qualified resource ID for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}",
+          "format": "arm-id",
+          "description": "Fully qualified resource ID for the resource. E.g. \"/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}\"",
           "readOnly": true
         },
         "name": {
@@ -375,7 +357,6 @@
         },
         "systemData": {
           "$ref": "#/definitions/systemData",
-          "type": "object",
           "description": "Azure Resource Manager metadata containing createdBy and modifiedBy information.",
           "readOnly": true
         }
@@ -397,7 +378,7 @@
         },
         "kind": {
           "type": "string",
-          "description": "Metadata used by portal/tooling/etc to render different UX experiences for resources of the same type; e.g. ApiApps are a kind of Microsoft.Web/sites type.  If supported, the resource provider must validate and persist this value.",
+          "description": "Metadata used by portal/tooling/etc to render different UX experiences for resources of the same type. E.g. ApiApps are a kind of Microsoft.Web/sites type.  If supported, the resource provider must validate and persist this value.",
           "pattern": "^[-\\w\\._,\\(\\)]+$",
           "x-ms-mutability": [
             "read",
@@ -410,25 +391,13 @@
           "readOnly": true
         },
         "identity": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/Identity"
-            }
-          ]
+          "$ref": "./managedidentity.json#/definitions/ManagedServiceIdentity"
         },
         "sku": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/Sku"
-            }
-          ]
+          "$ref": "#/definitions/Sku"
         },
         "plan": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/Plan"
-            }
-          ]
+          "$ref": "#/definitions/Plan"
         }
       },
       "allOf": [
@@ -444,7 +413,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "The name of the SKU. Ex - P3. It is typically a letter+number code"
+          "description": "The name of the SKU. E.g. P3. It is typically a letter+number code"
         },
         "tier": {
           "$ref": "#/definitions/SkuTier"
@@ -627,13 +596,39 @@
       "type": "string",
       "minLength": 1
     },
+    "If-Match": {
+      "name": "ifMatch",
+      "in": "header",
+      "description": "The If-Match header that makes a request conditional.",
+      "required": true,
+      "type": "string",
+      "x-ms-parameter-location": "method"
+    },
+    "If-None-Match": {
+      "name": "ifNoneMatch",
+      "in": "header",
+      "description": "The If-None-Match header that makes a request conditional.",
+      "required": true,
+      "type": "string",
+      "x-ms-parameter-location": "method"
+    },
     "LocationParameter": {
       "name": "location",
       "in": "path",
-      "description": "The name of Azure region.",
+      "description": "The name of the Azure region.",
       "required": true,
       "type": "string",
       "minLength": 1,
+      "x-ms-parameter-location": "method"
+    },
+    "ManagementGroupNameParameter": {
+      "name": "managementGroupName",
+      "in": "path",
+      "description": "The name of the management group. The name is case insensitive.",
+      "required": true,
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 90,
       "x-ms-parameter-location": "method"
     },
     "OperationIdParameter": {
@@ -655,13 +650,32 @@
       "maxLength": 90,
       "x-ms-parameter-location": "method"
     },
+    "ScopeParameter": {
+      "name": "scope",
+      "in": "path",
+      "description": "The scope at which the operation is performed.",
+      "required": true,
+      "type": "string",
+      "minLength": 1,
+      "x-ms-parameter-location": "method",
+      "x-ms-skip-url-encoding": true
+    },
     "SubscriptionIdParameter": {
       "name": "subscriptionId",
       "in": "path",
-      "description": "The ID of the target subscription.",
+      "description": "The ID of the target subscription. The value must be an UUID.",
       "required": true,
       "type": "string",
-      "minLength": 1
+      "format": "uuid"
+    },
+    "TenantIdParameter": {
+      "name": "tenantId",
+      "in": "path",
+      "description": "The Azure tenant ID. This is a GUID-formatted string (e.g. 00000000-0000-0000-0000-000000000000)",
+      "required": true,
+      "type": "string",
+      "format": "uuid",
+      "x-ms-parameter-location": "method"
     }
   }
 }
