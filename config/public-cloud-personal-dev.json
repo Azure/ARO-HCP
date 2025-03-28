@@ -130,7 +130,7 @@
   "hypershift": {
     "additionalInstallArg": "--tech-preview-no-upgrade",
     "image": {
-      "digest": "sha256:305f45bf036f84255d41c20517c70a9cb18af3dcdfa71a82a5716dde77c9e2c3",
+      "digest": "sha256:6d221a6996d683c52e5c6d9413dad6f7216c7a904f70d1a653a38a4c33cf80ce",
       "repository": "acm-d/rhtap-hypershift-operator"
     },
     "namespace": "hypershift"
