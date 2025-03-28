@@ -19,13 +19,13 @@ for VAR in "${REQUIRED_VARS[@]}"; do
 done
 
 # create temporary FS structure
-TMP_DIR=$(mktemp -d)
+TMP_DIR="$(mktemp -d)"
 CONTAINERS_DIR="${TMP_DIR}/containers"
 AUTH_JSON="${CONTAINERS_DIR}/auth.json"
 ORAS_CACHE="${TMP_DIR}/oras-cache"
-mkdir -p ${CONTAINERS_DIR}
-mkdir -p ${ORAS_CACHE}
-trap "rm -rf ${TMP_DIR}" EXIT
+mkdir -p "${CONTAINERS_DIR}"
+mkdir -p "${ORAS_CACHE}"
+trap 'rm -rf ${TMP_DIR}' EXIT
 
 # get pull secret for source registry
 echo "Fetch pull secret for source registry ${SOURCE_REGISTRY} from ${PULL_SECRET_KV} KV."
@@ -33,9 +33,17 @@ az keyvault secret download --vault-name "${PULL_SECRET_KV}" --name "${PULL_SECR
 
 # ACR login to target registry
 echo "Logging into target ACR ${TARGET_ACR}."
-RESPONSE=$(az acr login --name "${TARGET_ACR}" --expose-token 2>/dev/null)
-TARGET_ACR_LOGIN_SERVER=$(echo $RESPONSE | jq -r .loginServer)
-echo $RESPONSE | jq -r .accessToken | oras login --registry-config "${AUTH_JSON}" -u 00000000-0000-0000-0000-000000000000 --password-stdin "${TARGET_ACR_LOGIN_SERVER}"
+if output="$( az acr login --name "${TARGET_ACR}" --expose-token --only-show-errors 2>&1 )"; then
+  RESPONSE="${output}"
+else
+  echo "Failed to log in to ACR ${TARGET_ACR}: ${output}"
+  exit 1
+fi
+TARGET_ACR_LOGIN_SERVER="$(jq --raw-output .loginServer <<<"${RESPONSE}" )"
+oras login --registry-config "${AUTH_JSON}" \
+           --username 00000000-0000-0000-0000-000000000000 \
+           --password "$( jq --raw-output .accessToken <<<"${RESPONSE}" )" \
+           "${TARGET_ACR_LOGIN_SERVER}"
 
 # at this point we have an auth config that can read from the source registry and
 # write to the target registry.
