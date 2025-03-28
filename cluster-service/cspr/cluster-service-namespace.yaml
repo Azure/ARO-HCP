@@ -10,14 +10,26 @@ parameters:
 - name: CLIENT_ID
   description: The Azure Client ID used for federation
   required: true
+- name: KEY_VAULT_NAME
+  description: Key vault name where certificates are stored
+  required: true
+- name: FIRST_PARTY_APP_CERTIFICATE_NAME
+  description: Name of first party app certificate
+  required: true
 - name: FPA_CLIENT_ID
   description: Client ID of First Party Application
+  required: true
+- name: ARM_HELPER_CERTIFICATE_NAME
+  description: Name of ARM helper certificate
   required: true
 - name: ARM_HELPER_CLIENT_ID
   description: Client ID of Arm Helper Identity
   required: true
 - name: ARM_HELPER_MOCK_FPA_PRINCIPAL_ID
   description: Principal ID of mock FPA Identity
+  required: true
+- name: MSI_MOCK_CERTIFICATE_NAME
+  description: Name of MSI mock certificate
   required: true
 - name: MSI_MOCK_CLIENT_ID
   description: Client ID of MSI Mock
@@ -84,9 +96,13 @@ objects:
     name: cluster-service-config
     namespace: ${NAMESPACE}
   data:
-    msi-mock-client-id: ${MSI_MOCK_CLIENT_ID}
-    msi-mock-principal-id: ${MSI_MOCK_PRINCIPAL_ID}
+    cs-client-id: ${CLIENT_ID}
+    key-vault-name: ${KEY_VAULT_NAME}
+    fpa-cert-name: ${FIRST_PARTY_APP_CERTIFICATE_NAME}
+    fpa-client-id: ${FPA_CLIENT_ID}
+    arm-helper-cert-name: ${ARM_HELPER_CERTIFICATE_NAME}
     arm-helper-client-id: ${ARM_HELPER_CLIENT_ID}
     arm-helper-mock-fpa-principal-id: ${ARM_HELPER_MOCK_FPA_PRINCIPAL_ID}
-    fpa-client-id: ${FPA_CLIENT_ID}
-    cs-client-id: ${CLIENT_ID}
+    msi-mock-cert-name: ${MSI_MOCK_CERTIFICATE_NAME}
+    msi-mock-client-id: ${MSI_MOCK_CLIENT_ID}
+    msi-mock-principal-id: ${MSI_MOCK_PRINCIPAL_ID}

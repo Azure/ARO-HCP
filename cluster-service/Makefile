@@ -87,9 +87,13 @@ deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
 	oc process --local -f cspr/cluster-service-namespace.yaml \
 		-p CLIENT_ID=$${AZURE_CS_MI_CLIENT_ID} \
+		-p KEY_VAULT_NAME=${SERVICE_KV}
+		-p FIRST_PARTY_APP_CERTIFICATE_NAME=${FPA_CERT_NAME}
 		-p FPA_CLIENT_ID=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
+		-p ARM_HELPER_CERTIFICATE_NAME=${FPA_CERT_NAME}
 		-p ARM_HELPER_CLIENT_ID=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
 		-p ARM_HELPER_MOCK_FPA_PRINCIPAL_ID=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
+		-p MSI_MOCK_CERTIFICATE_NAME=${MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME}
 		-p MSI_MOCK_CLIENT_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
 		-p MSI_MOCK_PRINCIPAL_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} | oc apply -f -
 	oc process --local -f cspr/orphaned-namespace-cleaner.yaml | oc apply -f -
