@@ -57,7 +57,7 @@ resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-0
 }
 
 // Create the Schedule
-resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022-08-08' = {
+resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022-08-08' = if (!empty(scheduleName)) {
   name: '${automationAccountName}_${scheduleName}'
   parent: automationAccount
   properties: {
@@ -69,8 +69,8 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
 }
 
 // Link Schedule to Runbook
-resource jobSchedule 'Microsoft.Automation/automationAccounts/jobSchedules@2022-08-08' = {
-  name: guid(automationAccountName, runbookName, scheduleName)
+resource jobSchedule 'Microsoft.Automation/automationAccounts/jobSchedules@2022-08-08' = if (!empty(scheduleName)) {
+  name: guid(resourceGroup().name, runbookSchedule.name)
   parent: automationAccount
   properties: {
     schedule: {

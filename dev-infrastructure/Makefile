@@ -387,4 +387,4 @@ automation-account.what-if:
 		--template-file templates/dev-automation-account.bicep \
 		--parameters \
 			configurations/dev-automation-account.bicepparam
-.PHONY: automation-account.what-if
+.PHONY: automation-account.what-if 
