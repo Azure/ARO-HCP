@@ -50,8 +50,10 @@ param ocpPullSecretName string
 #disable-next-line secure-secrets-in-params // Doesn't contain a secret
 param componentSyncSecrets string
 
+import { csvToArray } from '../modules/common.bicep'
+
 var csSecrets = [
-  for secret in split(componentSyncSecrets, ','): {
+  for secret in csvToArray(componentSyncSecrets): {
     registry: split(secret, ':')[0]
     secret: split(secret, ':')[1]
   }

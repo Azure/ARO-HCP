@@ -42,8 +42,8 @@ fi
 TARGET_ACR_LOGIN_SERVER="$(jq --raw-output .loginServer <<<"${RESPONSE}" )"
 oras login --registry-config "${AUTH_JSON}" \
            --username 00000000-0000-0000-0000-000000000000 \
-           --password "$( jq --raw-output .accessToken <<<"${RESPONSE}" )" \
-           "${TARGET_ACR_LOGIN_SERVER}"
+           --password-stdin \
+           "${TARGET_ACR_LOGIN_SERVER}" <<<"$( jq --raw-output .accessToken <<<"${RESPONSE}" )"
 
 # at this point we have an auth config that can read from the source registry and
 # write to the target registry.

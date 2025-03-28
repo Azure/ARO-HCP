@@ -63,6 +63,8 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - global-infra
   # ingests secrets into the global KV
   - name: decrypt-and-ingest-secrets
     action: Shell
