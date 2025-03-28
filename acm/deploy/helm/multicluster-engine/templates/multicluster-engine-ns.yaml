@@ -1,4 +1,4 @@
-{{- $namespaces := append .Values.namespaces $.Release.Namespace }}
+{{- $namespaces := .Values.namespaces }}
 {{- range $namespaces }}
 apiVersion: v1
 kind: Namespace

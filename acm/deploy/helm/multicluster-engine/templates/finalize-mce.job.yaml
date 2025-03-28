@@ -26,11 +26,6 @@ spec:
           kubectl patch clustermanagementaddon work-manager --type merge -p '{"spec":{"supportedConfigs":[{"defaultConfig":{"name":"addon-hosted-config","namespace":"multicluster-engine"},"group":"addon.open-cluster-management.io","resource":"addondeploymentconfigs"}]}}'
           echo "Patch applied successfully."
 
-          echo "Waiting for namespace 'local-cluster' to exist..."
-          until kubectl get namespace local-cluster; do
-            sleep 5
-          done
-          echo "Namespace 'local-cluster' found."
         image: mcr.microsoft.com/aks/command/runtime:master.240118.1
         name: finalize
       restartPolicy: Never
