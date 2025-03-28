@@ -278,7 +278,7 @@ clouds:
             digest: sha256:6a212720d25f270073318b1b480f326fcda08fbf6a1e435b7651e0336c72caee
         ocMirror:
           image:
-            digest: sha256:574ebb57e70c46ba3bc34db4776fd64b63a52e04afc1dddba7b91e0c5f247952
+            digest: sha256:9e2c19a88985aca7fef8061506a61c6519ad19c1a4dab9a46ac707dcf6bb05ac
     environments:
       int:
         # this is the MSFT INT environment

@@ -150,7 +150,7 @@
     "ocMirror": {
       "enabled": true,
       "image": {
-        "digest": "sha256:4affed9ff6397a5c44e9d1451fd58667f56e826b122819ccb6e1e8e045803c18",
+        "digest": "sha256:9e2c19a88985aca7fef8061506a61c6519ad19c1a4dab9a46ac707dcf6bb05ac",
         "repository": "image-sync/oc-mirror"
       },
       "pullSecretName": "ocmirror-pull-secret"

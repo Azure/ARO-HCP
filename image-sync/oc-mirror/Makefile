@@ -32,6 +32,7 @@ acm-dry-run: image
 		-e IMAGE_SET_CONFIG=$(shell cat ${PWD}/test/acm-image-set-config.yml | base64) \
 		-e REGISTRY=${ARO_HCP_IMAGE_ACR} \
 		-e REGISTRY_URL=${ARO_HCP_IMAGE_ACR_URL} \
+		-e OC_MIRROR_COMPATIBILITY="NOCATALOG" \
 		${OC_MIRROR_IMAGE_TAGGED} --dry-run
 .PHONY: acm-dry-run
 
@@ -43,5 +44,6 @@ ocp-dry-run: image
 		-e IMAGE_SET_CONFIG=$(shell cat ${PWD}/test/ocp-image-set-config.yml | base64) \
 		-e REGISTRY=${ARO_HCP_OCP_IMAGE_ACR} \
 		-e REGISTRY_URL=${ARO_HCP_OCP_IMAGE_ACR_URL} \
+		-e OC_MIRROR_COMPATIBILITY="LATEST" \
 		${OC_MIRROR_IMAGE_TAGGED} --dry-run
 .PHONY: ocp-dry-run

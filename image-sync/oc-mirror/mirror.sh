@@ -12,4 +12,11 @@ else
     ADDITIONAL_FLAGS="--continue-on-error"
 fi
 
-/usr/local/bin/oc-mirror --config ${IMAGE_SET_CONFIG_FILE} ${ADDITIONAL_FLAGS} docker://${REGISTRY_URL} @$
+if [ "$OC_MIRROR_COMPATIBILITY" = "NOCATALOG" ]; then
+    export OC_MIRROR_VERSION="4.16"
+else
+    export OC_MIRROR_VERSION="4.18"
+fi
+echo "Using oc-mirror version: ${OC_MIRROR_VERSION}"
+
+/usr/local/bin/oc-mirror-${OC_MIRROR_VERSION} --config ${IMAGE_SET_CONFIG_FILE} ${ADDITIONAL_FLAGS} docker://${REGISTRY_URL} @$

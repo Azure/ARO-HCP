@@ -314,6 +314,8 @@ var ocpMirrorConfig = {
   }
 }
 
+// this is v2alpha1 syntax for oc-mirror 4.16, which we use until 4.18+ offers
+// a way to not rebuild the catalogs, which fails in ACA
 var acmMirrorConfig = {
   kind: 'ImageSetConfiguration'
   apiVersion: 'mirror.openshift.io/v2alpha1'
@@ -324,21 +326,17 @@ var acmMirrorConfig = {
         packages: [
           {
             name: 'multicluster-engine'
-            channels: [
+            bundles: [
               {
-                name: 'stable-2.7'
-                minVersion: '2.7.0'
-                maxVersion: '2.7.0'
+                name: 'multicluster-engine.v2.7.0'
               }
             ]
           }
           {
             name: 'advanced-cluster-management'
-            channels: [
+            bundles: [
               {
-                name: 'release-2.12'
-                minVersion: '2.12.0'
-                maxVersion: '2.12.0'
+                name: 'advanced-cluster-management.v2.12.0'
               }
             ]
           }
@@ -356,6 +354,7 @@ var ocMirrorJobConfiguration = ocMirrorEnabled
         timeout: 4 * 60 * 60
         targetRegistry: ocpAcrName
         imageSetConfig: ocpMirrorConfig
+        compatibility: 'LATEST'
       }
       {
         name: 'acm-mirror'
@@ -363,6 +362,7 @@ var ocMirrorJobConfiguration = ocMirrorEnabled
         timeout: 4 * 60 * 60
         targetRegistry: svcAcrName
         imageSetConfig: acmMirrorConfig
+        compatibility: 'NOCATALOG'
       }
     ]
   : []
@@ -425,6 +425,7 @@ resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
                 name: 'APPSETTING_WEBSITE_SITE_NAME'
                 value: 'workaround - https://github.com/microsoft/azure-container-apps/issues/502'
               }
+              { name: 'OC_MIRROR_COMPATIBILITY', value: ocMirrorJobConfiguration[i].compatibility }
             ]
             resources: {
               cpu: 2
