@@ -9,11 +9,14 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strings"
 	"testing"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/google/uuid"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
@@ -25,11 +28,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
-const subscriptionID = "00000000-0000-0000-0000-000000000000"
+const (
+	apiVersion     = "2024-06-10-preview"
+	subscriptionID = "00000000-0000-0000-0000-000000000000"
+)
 
 func getMockDBDoc[T any](t *T) (*T, error) {
 	if t != nil {
@@ -39,10 +46,35 @@ func getMockDBDoc[T any](t *T) (*T, error) {
 	}
 }
 
+func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
+	resourceID, err := azcorearm.ParseResourceID(path.Join(
+		"/",
+		"subscriptions", subscriptionID,
+		"resourceGroups", "myResourceGroup",
+		"providers", api.ProviderNamespace,
+		api.ClusterResourceTypeName, "myCluster"))
+	require.NoError(t, err)
+	return resourceID
+}
+
 func equalResourceID(expectResourceID *azcorearm.ResourceID) gomock.Matcher {
 	return gomock.Cond(func(actualResourceID *azcorearm.ResourceID) bool {
 		return strings.EqualFold(actualResourceID.String(), expectResourceID.String())
 	})
+}
+
+func equalListActiveOperationDocsOptions(expectRequest database.OperationRequest, expectExternalID *azcorearm.ResourceID) gomock.Matcher {
+	return gomock.Cond(func(actualOptions *database.DBClientListActiveOperationDocsOptions) bool {
+		return actualOptions != nil &&
+			actualOptions.Request != nil && *actualOptions.Request == expectRequest &&
+			strings.EqualFold(actualOptions.ExternalID.String(), expectExternalID.String())
+	})
+}
+
+func newClusterInternalID(t *testing.T) ocm.InternalID {
+	internalID, err := ocm.NewInternalID(ocm.GenerateClusterHREF("myCluster"))
+	require.NoError(t, err)
+	return internalID
 }
 
 func TestReadiness(t *testing.T) {
@@ -507,6 +539,303 @@ func TestDeploymentPreflight(t *testing.T) {
 				if assert.NotNil(t, preflightResp.Error) {
 					assert.Equal(t, test.expectErrors, len(preflightResp.Error.Details))
 				}
+			}
+		})
+	}
+}
+
+func TestRequestAdminCredential(t *testing.T) {
+	type testCase struct {
+		name                     string
+		clusterProvisioningState arm.ProvisioningState
+		revokeCredentialsStatus  arm.ProvisioningState
+		statusCode               int
+	}
+
+	tests := []testCase{
+		{
+			name:                     "Request conflict: credentials revoking",
+			clusterProvisioningState: arm.ProvisioningStateSucceeded,
+			revokeCredentialsStatus:  arm.ProvisioningStateDeleting,
+			statusCode:               http.StatusConflict,
+		},
+	}
+
+	for clusterProvisioningState := range arm.ListProvisioningStates() {
+		test := testCase{
+			// Previously completed revocation does not interfere.
+			clusterProvisioningState: clusterProvisioningState,
+			revokeCredentialsStatus:  arm.ProvisioningStateSucceeded,
+		}
+		if clusterProvisioningState.IsTerminal() {
+			test.name = "Request accepted: cluster state=" + string(clusterProvisioningState)
+			test.statusCode = http.StatusAccepted
+		} else {
+			test.name = "Request conflict: cluster state=" + string(clusterProvisioningState)
+			test.statusCode = http.StatusConflict
+		}
+		tests = append(tests, test)
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clusterResourceID := newClusterResourceID(t)
+			clusterInternalID := newClusterInternalID(t)
+			pk := database.NewPartitionKey(subscriptionID)
+
+			requestPath := path.Join(clusterResourceID.String(), "requestAdminCredential")
+
+			ctrl := gomock.NewController(t)
+			reg := prometheus.NewRegistry()
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
+
+			f := NewFrontend(
+				testLogger,
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				mockCSClient,
+			)
+
+			// MiddlewareValidateSubscriptionState and MetricsMiddleware
+			mockDBClient.EXPECT().
+				GetSubscriptionDoc(gomock.Any(), subscriptionID).
+				Return(&arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				}, nil).
+				MaxTimes(2)
+			// MiddlewareLockSubscription
+			mockDBClient.EXPECT().
+				GetLockClient().
+				Return(nil)
+			// ArmResourceActionRequestAdminCredential
+			mockDBClient.EXPECT().
+				GetResourceDoc(gomock.Any(), equalResourceID(clusterResourceID)).
+				Return(getMockDBDoc(&database.ResourceDocument{
+					ResourceID:        clusterResourceID,
+					InternalID:        clusterInternalID,
+					ProvisioningState: test.clusterProvisioningState,
+				}))
+			if test.clusterProvisioningState.IsTerminal() {
+				revokeOperations := make(map[string]*database.OperationDocument)
+				if !test.revokeCredentialsStatus.IsTerminal() {
+					revokeOperations[uuid.New().String()] = &database.OperationDocument{
+						Request:    database.OperationRequestRevokeCredentials,
+						ExternalID: clusterResourceID,
+						InternalID: clusterInternalID,
+						Status:     test.revokeCredentialsStatus,
+					}
+				}
+				mockOperationIter := mocks.NewMockDBClientIterator[database.OperationDocument](ctrl)
+				mockOperationIter.EXPECT().
+					Items(gomock.Any()).
+					Return(database.DBClientIteratorItem[database.OperationDocument](maps.All(revokeOperations)))
+
+				// ArmResourceActionRequestAdminCredential
+				mockDBClient.EXPECT().
+					ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRevokeCredentials, clusterResourceID)).
+					Return(mockOperationIter)
+				if test.revokeCredentialsStatus.IsTerminal() {
+					mockOperationIter.EXPECT().
+						GetError().
+						Return(nil)
+					// ArmResourceActionRequestAdminCredential
+					mockCSClient.EXPECT().
+						PostBreakGlassCredential(gomock.Any(), clusterInternalID).
+						Return(cmv1.NewBreakGlassCredential().
+							HREF(ocm.GenerateBreakGlassCredentialHREF(clusterInternalID.String(), "0")).Build())
+					// ArmResourceActionRequestAdminCredential
+					operationID := uuid.New().String()
+					mockDBClient.EXPECT().
+						CreateOperationDoc(gomock.Any(), gomock.Any()).
+						Return(operationID, nil)
+					// ArmResourceActionRequestAdminCredential
+					mockDBClient.EXPECT().
+						UpdateOperationDoc(gomock.Any(), pk, operationID, gomock.Any()).
+						Return(true, nil)
+				}
+			}
+
+			subs := map[string]*arm.Subscription{
+				subscriptionID: &arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				},
+			}
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+
+			url := ts.URL + requestPath + "?api-version=" + apiVersion
+			resp, err := ts.Client().Post(url, "", nil)
+			require.NoError(t, err)
+
+			if !assert.Equal(t, test.statusCode, resp.StatusCode) {
+				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				fmt.Println(string(body))
+			}
+		})
+	}
+}
+
+func TestRevokeCredentials(t *testing.T) {
+	type testCase struct {
+		name                     string
+		clusterProvisioningState arm.ProvisioningState
+		revokeCredentialsStatus  arm.ProvisioningState
+		statusCode               int
+	}
+
+	tests := []testCase{
+		{
+			name:                     "Request conflict: credentials revoking",
+			clusterProvisioningState: arm.ProvisioningStateSucceeded,
+			revokeCredentialsStatus:  arm.ProvisioningStateDeleting,
+			statusCode:               http.StatusConflict,
+		},
+	}
+
+	for clusterProvisioningState := range arm.ListProvisioningStates() {
+		test := testCase{
+			// Previously completed revocation does not interfere.
+			clusterProvisioningState: clusterProvisioningState,
+			revokeCredentialsStatus:  arm.ProvisioningStateSucceeded,
+		}
+		if clusterProvisioningState.IsTerminal() {
+			test.name = "Request accepted: cluster state=" + string(clusterProvisioningState)
+			test.statusCode = http.StatusAccepted
+		} else {
+			test.name = "Request conflict: cluster state=" + string(clusterProvisioningState)
+			test.statusCode = http.StatusConflict
+		}
+		tests = append(tests, test)
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clusterResourceID := newClusterResourceID(t)
+			clusterInternalID := newClusterInternalID(t)
+			pk := database.NewPartitionKey(subscriptionID)
+
+			requestPath := path.Join(clusterResourceID.String(), "revokeCredentials")
+
+			ctrl := gomock.NewController(t)
+			reg := prometheus.NewRegistry()
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
+
+			f := NewFrontend(
+				testLogger,
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				mockCSClient,
+			)
+
+			// MiddlewareValidateSubscriptionState and MetricsMiddleware
+			mockDBClient.EXPECT().
+				GetSubscriptionDoc(gomock.Any(), subscriptionID).
+				Return(&arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				}, nil).
+				MaxTimes(2)
+			// MiddlewareLockSubscription
+			mockDBClient.EXPECT().
+				GetLockClient().
+				Return(nil)
+			// ArmResourceActionRequestAdminCredential
+			mockDBClient.EXPECT().
+				GetResourceDoc(gomock.Any(), equalResourceID(clusterResourceID)).
+				Return(getMockDBDoc(&database.ResourceDocument{
+					ResourceID:        clusterResourceID,
+					InternalID:        clusterInternalID,
+					ProvisioningState: test.clusterProvisioningState,
+				}))
+			if test.clusterProvisioningState.IsTerminal() {
+				revokeOperations := make(map[string]*database.OperationDocument)
+				if !test.revokeCredentialsStatus.IsTerminal() {
+					revokeOperations[uuid.New().String()] = &database.OperationDocument{
+						Request:    database.OperationRequestRevokeCredentials,
+						ExternalID: clusterResourceID,
+						InternalID: clusterInternalID,
+						Status:     test.revokeCredentialsStatus,
+					}
+				}
+				mockOperationIter := mocks.NewMockDBClientIterator[database.OperationDocument](ctrl)
+				mockOperationIter.EXPECT().
+					Items(gomock.Any()).
+					Return(database.DBClientIteratorItem[database.OperationDocument](maps.All(revokeOperations)))
+
+				// ArmResourceActionRequestAdminCredential
+				mockDBClient.EXPECT().
+					ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRevokeCredentials, clusterResourceID)).
+					Return(mockOperationIter)
+				if test.revokeCredentialsStatus.IsTerminal() {
+					mockOperationIter.EXPECT().
+						GetError().
+						Return(nil)
+					// ArmResourceActionRequestAdminCredential
+					mockCSClient.EXPECT().
+						DeleteBreakGlassCredentials(gomock.Any(), clusterInternalID).
+						Return(nil)
+
+					requestOperations := map[string]*database.OperationDocument{
+						string(arm.ProvisioningStateProvisioning): &database.OperationDocument{
+							Request:    database.OperationRequestRequestCredential,
+							ExternalID: clusterResourceID,
+							InternalID: clusterInternalID,
+							Status:     arm.ProvisioningStateProvisioning,
+						},
+					}
+					mockOperationIter = mocks.NewMockDBClientIterator[database.OperationDocument](ctrl)
+					mockOperationIter.EXPECT().
+						Items(gomock.Any()).
+						Return(database.DBClientIteratorItem[database.OperationDocument](maps.All(requestOperations)))
+					mockOperationIter.EXPECT().
+						GetError().
+						Return(nil)
+
+					// ArmResourceActionRequestAdminCredential
+					mockDBClient.EXPECT().
+						ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRequestCredential, clusterResourceID)).
+						Return(mockOperationIter)
+					// CancelOperation
+					mockDBClient.EXPECT().
+						UpdateOperationDoc(gomock.Any(), pk, string(arm.ProvisioningStateProvisioning), gomock.Any()).
+						Return(true, nil)
+
+					// ArmResourceActionRequestAdminCredential
+					operationID := uuid.New().String()
+					mockDBClient.EXPECT().
+						CreateOperationDoc(gomock.Any(), gomock.Any()).
+						Return(operationID, nil)
+					// ArmResourceActionRequestAdminCredential
+					mockDBClient.EXPECT().
+						UpdateOperationDoc(gomock.Any(), pk, operationID, gomock.Any()).
+						Return(true, nil)
+				}
+			}
+
+			subs := map[string]*arm.Subscription{
+				subscriptionID: &arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				},
+			}
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+
+			url := ts.URL + requestPath + "?api-version=" + apiVersion
+			resp, err := ts.Client().Post(url, "", nil)
+			require.NoError(t, err)
+
+			if !assert.Equal(t, test.statusCode, resp.StatusCode) {
+				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				fmt.Println(string(body))
 			}
 		})
 	}

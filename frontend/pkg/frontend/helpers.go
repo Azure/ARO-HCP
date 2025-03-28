@@ -30,19 +30,35 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 		// Resource must already exist for there to be a conflict.
 	case database.OperationRequestDelete:
 		if doc.ProvisioningState == arm.ProvisioningStateDeleting {
-			return arm.NewCloudError(
-				http.StatusConflict,
-				arm.CloudErrorCodeConflict,
-				doc.ResourceID.String(),
+			return arm.NewConflictError(
+				doc.ResourceID,
 				"Resource is already deleting")
 		}
 	case database.OperationRequestUpdate:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
 		if !doc.ProvisioningState.IsTerminal() {
-			return arm.NewCloudError(
-				http.StatusConflict,
-				arm.CloudErrorCodeConflict,
-				doc.ResourceID.String(),
+			return arm.NewConflictError(
+				doc.ResourceID,
 				"Cannot update resource while resource is %s",
+				strings.ToLower(string(doc.ProvisioningState)))
+		}
+	case database.OperationRequestRequestCredential:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
+		if !doc.ProvisioningState.IsTerminal() {
+			return arm.NewConflictError(
+				doc.ResourceID,
+				"Cannot request credential while resource is %s",
+				strings.ToLower(string(doc.ProvisioningState)))
+		}
+	case database.OperationRequestRevokeCredentials:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
+		if !doc.ProvisioningState.IsTerminal() {
+			return arm.NewConflictError(
+				doc.ResourceID,
+				"Cannot revoke credentials while resource is %s",
 				strings.ToLower(string(doc.ProvisioningState)))
 		}
 	}
@@ -58,10 +74,8 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 		}
 
 		if parentDoc.ProvisioningState == arm.ProvisioningStateDeleting {
-			return arm.NewCloudError(
-				http.StatusConflict,
-				arm.CloudErrorCodeConflict,
-				doc.ResourceID.String(),
+			return arm.NewConflictError(
+				doc.ResourceID,
 				"Cannot %s resource while parent resource is deleting",
 				strings.ToLower(string(operationRequest)))
 		}

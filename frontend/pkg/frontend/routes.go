@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	WildcardActionName        = "{" + PathSegmentActionName + "}"
 	WildcardDeploymentName    = "{" + PathSegmentDeploymentName + "}"
 	WildcardLocation          = "{" + PathSegmentLocation + "}"
 	WildcardNodePoolName      = "{" + PathSegmentNodePoolName + "}"
@@ -31,6 +30,9 @@ const (
 	PatternResourceGroups   = "resourcegroups/" + WildcardResourceGroupName
 	PatternOperationResults = api.OperationResultResourceTypeName + "/" + WildcardOperationID
 	PatternOperationsStatus = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
+
+	ActionRequestAdminCredential = "requestadmincredential"
+	ActionRevokeCredentials      = "revokecredentials"
 )
 
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
@@ -100,8 +102,11 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, WildcardActionName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceAction))
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, ActionRequestAdminCredential),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceActionRequestAdminCredential))
+	mux.Handle(
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, ActionRevokeCredentials),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceActionRevokeCredentials))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))

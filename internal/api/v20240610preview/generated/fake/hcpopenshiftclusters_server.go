@@ -45,6 +45,14 @@ type HcpOpenShiftClustersServer struct {
 	// HTTP status codes to indicate success: http.StatusOK
 	NewListBySubscriptionPager func(options *generated.HcpOpenShiftClustersClientListBySubscriptionOptions) (resp azfake.PagerResponder[generated.HcpOpenShiftClustersClientListBySubscriptionResponse])
 
+	// BeginRequestAdminCredential is the fake for method HcpOpenShiftClustersClient.BeginRequestAdminCredential
+	// HTTP status codes to indicate success: http.StatusOK, http.StatusAccepted
+	BeginRequestAdminCredential func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *generated.HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientRequestAdminCredentialResponse], errResp azfake.ErrorResponder)
+
+	// BeginRevokeCredentials is the fake for method HcpOpenShiftClustersClient.BeginRevokeCredentials
+	// HTTP status codes to indicate success: http.StatusAccepted
+	BeginRevokeCredentials func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *generated.HcpOpenShiftClustersClientBeginRevokeCredentialsOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientRevokeCredentialsResponse], errResp azfake.ErrorResponder)
+
 	// BeginUpdate is the fake for method HcpOpenShiftClustersClient.BeginUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusAccepted
 	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties generated.HcpOpenShiftClusterUpdate, options *generated.HcpOpenShiftClustersClientBeginUpdateOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse], errResp azfake.ErrorResponder)
@@ -60,6 +68,8 @@ func NewHcpOpenShiftClustersServerTransport(srv *HcpOpenShiftClustersServer) *Hc
 		beginDelete:                 newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientDeleteResponse]](),
 		newListByResourceGroupPager: newTracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListByResourceGroupResponse]](),
 		newListBySubscriptionPager:  newTracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListBySubscriptionResponse]](),
+		beginRequestAdminCredential: newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRequestAdminCredentialResponse]](),
+		beginRevokeCredentials:      newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRevokeCredentialsResponse]](),
 		beginUpdate:                 newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse]](),
 	}
 }
@@ -72,6 +82,8 @@ type HcpOpenShiftClustersServerTransport struct {
 	beginDelete                 *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientDeleteResponse]]
 	newListByResourceGroupPager *tracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListByResourceGroupResponse]]
 	newListBySubscriptionPager  *tracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListBySubscriptionResponse]]
+	beginRequestAdminCredential *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRequestAdminCredentialResponse]]
+	beginRevokeCredentials      *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRevokeCredentialsResponse]]
 	beginUpdate                 *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse]]
 }
 
@@ -97,6 +109,10 @@ func (h *HcpOpenShiftClustersServerTransport) Do(req *http.Request) (*http.Respo
 		resp, err = h.dispatchNewListByResourceGroupPager(req)
 	case "HcpOpenShiftClustersClient.NewListBySubscriptionPager":
 		resp, err = h.dispatchNewListBySubscriptionPager(req)
+	case "HcpOpenShiftClustersClient.BeginRequestAdminCredential":
+		resp, err = h.dispatchBeginRequestAdminCredential(req)
+	case "HcpOpenShiftClustersClient.BeginRevokeCredentials":
+		resp, err = h.dispatchBeginRevokeCredentials(req)
 	case "HcpOpenShiftClustersClient.BeginUpdate":
 		resp, err = h.dispatchBeginUpdate(req)
 	default:
@@ -302,6 +318,94 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchNewListBySubscriptionPager
 	if !server.PagerResponderMore(newListBySubscriptionPager) {
 		h.newListBySubscriptionPager.remove(req)
 	}
+	return resp, nil
+}
+
+func (h *HcpOpenShiftClustersServerTransport) dispatchBeginRequestAdminCredential(req *http.Request) (*http.Response, error) {
+	if h.srv.BeginRequestAdminCredential == nil {
+		return nil, &nonRetriableError{errors.New("fake for method BeginRequestAdminCredential not implemented")}
+	}
+	beginRequestAdminCredential := h.beginRequestAdminCredential.get(req)
+	if beginRequestAdminCredential == nil {
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/requestAdminCredential`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 3 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := h.srv.BeginRequestAdminCredential(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
+		beginRequestAdminCredential = &respr
+		h.beginRequestAdminCredential.add(req, beginRequestAdminCredential)
+	}
+
+	resp, err := server.PollerResponderNext(beginRequestAdminCredential, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !contains([]int{http.StatusOK, http.StatusAccepted}, resp.StatusCode) {
+		h.beginRequestAdminCredential.remove(req)
+		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusOK, http.StatusAccepted", resp.StatusCode)}
+	}
+	if !server.PollerResponderMore(beginRequestAdminCredential) {
+		h.beginRequestAdminCredential.remove(req)
+	}
+
+	return resp, nil
+}
+
+func (h *HcpOpenShiftClustersServerTransport) dispatchBeginRevokeCredentials(req *http.Request) (*http.Response, error) {
+	if h.srv.BeginRevokeCredentials == nil {
+		return nil, &nonRetriableError{errors.New("fake for method BeginRevokeCredentials not implemented")}
+	}
+	beginRevokeCredentials := h.beginRevokeCredentials.get(req)
+	if beginRevokeCredentials == nil {
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/revokeCredentials`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 3 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := h.srv.BeginRevokeCredentials(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
+		beginRevokeCredentials = &respr
+		h.beginRevokeCredentials.add(req, beginRevokeCredentials)
+	}
+
+	resp, err := server.PollerResponderNext(beginRevokeCredentials, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if !contains([]int{http.StatusAccepted}, resp.StatusCode) {
+		h.beginRevokeCredentials.remove(req)
+		return nil, &nonRetriableError{fmt.Errorf("unexpected status code %d. acceptable values are http.StatusAccepted", resp.StatusCode)}
+	}
+	if !server.PollerResponderMore(beginRevokeCredentials) {
+		h.beginRevokeCredentials.remove(req)
+	}
+
 	return resp, nil
 }
 

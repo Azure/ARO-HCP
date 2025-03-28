@@ -14,7 +14,7 @@ const (
 	indent string = "    " // 4 spaces
 )
 
-// Marshal returns the JSON encoding of v.
+// MarshalJSON returns the JSON encoding of v.
 //
 // Call this function instead of the marshal functions in "encoding/json" for
 // HTTP responses to ensure the formatting is consistent.
@@ -22,7 +22,7 @@ const (
 // Note, there is nothing ARM-specific about this function other than all ARM
 // response bodies are JSON-formatted. But the "arm" package is currently the
 // lowest layer insofar as it has no dependencies on other ARO-HCP packages.
-func Marshal(v any) ([]byte, error) {
+func MarshalJSON(v any) ([]byte, error) {
 	return json.MarshalIndent(v, prefix, indent)
 }
 
@@ -45,7 +45,7 @@ func WriteJSONResponse(writer http.ResponseWriter, statusCode int, body any) (in
 		data = v // write a byte slice verbatim
 	default:
 		var err error
-		data, err = Marshal(body)
+		data, err = MarshalJSON(body)
 		if err != nil {
 			return 0, err
 		}
