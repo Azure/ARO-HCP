@@ -11,11 +11,13 @@ import (
 	"net/http"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 
 func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) {
@@ -84,6 +86,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			arm.WriteInternalServerError(writer)
 			return
 		}
+		tracing.SetNodePoolAttributes(trace.SpanFromContext(ctx), csNodePool)
 
 		hcpNodePool := ConvertCStoNodePool(resourceID, csNodePool)
 
@@ -183,6 +186,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			arm.WriteInternalServerError(writer)
 			return
 		}
+		tracing.SetNodePoolAttributes(trace.SpanFromContext(ctx), csNodePool)
 
 		doc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
 		if err != nil {
