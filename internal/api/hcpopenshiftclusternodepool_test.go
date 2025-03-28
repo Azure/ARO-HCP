@@ -16,8 +16,7 @@ func minimumValidNodePool() *HCPOpenShiftClusterNodePool {
 	// Values are meaningless but need to pass validation.
 	return &HCPOpenShiftClusterNodePool{
 		Properties: HCPOpenShiftClusterNodePoolProperties{
-			Version: VersionProfile{
-				ID:           "openshift-v4.16.0",
+			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",
 			},
 			Platform: NodePoolPlatformProfile{
@@ -44,24 +43,9 @@ func TestNodePoolRequiredForPut(t *testing.T) {
 			},
 		},
 		{
-			name: "Default node pool",
-			// NewDefaultHCPOpenShiftClusterNodePool does not currently have
-			// any non-zero defaults. We need a non-zero value somewhere to
-			// trigger required fields beyond just "properties".
-			resource: &HCPOpenShiftClusterNodePool{
-				Properties: HCPOpenShiftClusterNodePoolProperties{
-					Replicas: int32(1),
-				},
-			},
+			name:     "Default node pool",
+			resource: NewDefaultHCPOpenShiftClusterNodePool(),
 			expectErrors: []arm.CloudErrorBody{
-				{
-					Message: "Missing required field 'id'",
-					Target:  "properties.version.id",
-				},
-				{
-					Message: "Missing required field 'channelGroup'",
-					Target:  "properties.version.channelGroup",
-				},
 				{
 					Message: "Missing required field 'vmSize'",
 					Target:  "properties.platform.vmSize",

@@ -346,16 +346,12 @@ func TestDeploymentPreflight(t *testing.T) {
 						"id":           "4.0.0",
 						"channelGroup": "stable",
 					},
-					"network": map[string]any{
-						"podCidr":     "10.128.0.0/14",
-						"serviceCidr": "172.30.0.0/16",
-						"machineCidr": "10.0.0.0/16",
-					},
 					"api": map[string]any{
 						"visibility": "public",
 					},
 					"platform": map[string]any{
-						"subnetId": "/something/something/virtualNetworks/subnets",
+						"subnetId":               "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
+						"networkSecurityGroupId": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/networkSecurityGroups/MyNSG",
 					},
 				},
 			},
@@ -370,11 +366,10 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": "2024-06-10-preview",
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "openshift-v4.0.0",
 						"channelGroup": "stable",
 					},
 					"network": map[string]any{
-						// 1 invalid + 2 missing required fields
+						// 1 invalid fields
 						"podCidr": "invalidCidr",
 					},
 					"api": map[string]any{
@@ -382,12 +377,12 @@ func TestDeploymentPreflight(t *testing.T) {
 						"visibility": "invisible",
 					},
 					"platform": map[string]any{
-						// 1 missing required field
+						// 2 missing required fields
 					},
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
-			expectErrors: 5,
+			expectErrors: 4,
 		},
 		{
 			name: "Well-formed node pool resource returns no error",
@@ -398,7 +393,6 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": "2024-06-10-preview",
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "openshift-v4.0.0",
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
@@ -417,7 +411,6 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": "2024-06-10-preview",
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "openshift-v4.0.0",
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{

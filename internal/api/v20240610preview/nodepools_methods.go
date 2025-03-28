@@ -8,11 +8,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
-type HcpOpenShiftClusterNodePoolResource struct {
-	generated.HcpOpenShiftClusterNodePoolResource
+type NodePool struct {
+	generated.NodePool
 }
 
-func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClusterNodePool) {
+func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 	if h.ID != nil {
 		out.ID = *h.ID
 	}
@@ -59,7 +59,7 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 				out.Properties.AutoRepair = *h.Properties.AutoRepair
 			}
 			if h.Properties.Version != nil {
-				normalizeVersion(h.Properties.Version, &out.Properties.Version)
+				normalizeNodePoolVersion(h.Properties.Version, &out.Properties.Version)
 			}
 			if h.Properties.Replicas != nil {
 				out.Properties.Replicas = *h.Properties.Replicas
@@ -99,6 +99,16 @@ func (h *HcpOpenShiftClusterNodePoolResource) Normalize(out *api.HCPOpenShiftClu
 	}
 }
 
+func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
+	if p.ID != nil {
+		out.ID = *p.ID
+	}
+	if p.ChannelGroup != nil {
+		out.ChannelGroup = *p.ChannelGroup
+	}
+	out.AvailableUpgrades = api.StringPtrSliceToStringSlice(p.AvailableUpgrades)
+}
+
 func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.NodePoolPlatformProfile) {
 	if p.VMSize != nil {
 		out.VMSize = *p.VMSize
@@ -106,20 +116,11 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 	if p.AvailabilityZone != nil {
 		out.AvailabilityZone = *p.AvailabilityZone
 	}
-	if p.DiskEncryptionSetID != nil {
-		out.DiskEncryptionSetID = *p.DiskEncryptionSetID
-	}
 	if p.DiskSizeGiB != nil {
 		out.DiskSizeGiB = *p.DiskSizeGiB
 	}
 	if p.DiskStorageAccountType != nil {
-		out.DiskStorageAccountType = *p.DiskStorageAccountType
-	}
-	if p.EncryptionAtHost != nil {
-		out.EncryptionAtHost = *p.EncryptionAtHost
-	}
-	if p.EphemeralOsDisk != nil {
-		out.EphemeralOSDisk = *p.EphemeralOsDisk
+		out.DiskStorageAccountType = api.DiskStorageAccountType(*p.DiskStorageAccountType)
 	}
 	if p.SubnetID != nil {
 		out.SubnetID = *p.SubnetID
@@ -127,7 +128,7 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 }
 
-func (h *HcpOpenShiftClusterNodePoolResource) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError {
+func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError {
 	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
 
@@ -137,11 +138,11 @@ func (h *HcpOpenShiftClusterNodePoolResource) ValidateStatic(current api.Version
 		"Content validation filed on multiple fields")
 	cloudError.Details = make([]arm.CloudErrorBody, 0)
 
-	// Pass the embedded HcpOpenShiftClusterNodePoolResource so
+	// Pass the embedded NodePool so
 	// the struct field names match the nodePoolStructTagMap keys.
 	errorDetails = api.ValidateVisibility(
-		h.HcpOpenShiftClusterNodePoolResource,
-		current.(*HcpOpenShiftClusterNodePoolResource).HcpOpenShiftClusterNodePoolResource,
+		h.NodePool,
+		current.(*NodePool).NodePool,
 		nodePoolStructTagMap, updating)
 	if errorDetails != nil {
 		cloudError.Details = append(cloudError.Details, errorDetails...)
@@ -165,6 +166,10 @@ func (h *HcpOpenShiftClusterNodePoolResource) ValidateStatic(current api.Version
 	return cloudError
 }
 
+type NodePoolVersionProfile struct {
+	generated.NodePoolVersionProfile
+}
+
 type NodePoolPlatformProfile struct {
 	generated.NodePoolPlatformProfile
 }
@@ -173,15 +178,20 @@ type NodePoolAutoScaling struct {
 	generated.NodePoolAutoScaling
 }
 
+func newNodePoolVersionProfile(from *api.NodePoolVersionProfile) *generated.NodePoolVersionProfile {
+	return &generated.NodePoolVersionProfile{
+		ID:                api.Ptr(from.ID),
+		ChannelGroup:      api.Ptr(from.ChannelGroup),
+		AvailableUpgrades: api.StringSliceToStringPtrSlice(from.AvailableUpgrades),
+	}
+}
+
 func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.NodePoolPlatformProfile {
 	return &generated.NodePoolPlatformProfile{
 		VMSize:                 api.Ptr(from.VMSize),
 		AvailabilityZone:       api.Ptr(from.AvailabilityZone),
-		DiskEncryptionSetID:    api.Ptr(from.DiskEncryptionSetID),
 		DiskSizeGiB:            api.Ptr(from.DiskSizeGiB),
-		DiskStorageAccountType: api.Ptr(from.DiskStorageAccountType),
-		EncryptionAtHost:       api.Ptr(from.EncryptionAtHost),
-		EphemeralOsDisk:        api.Ptr(from.EphemeralOSDisk),
+		DiskStorageAccountType: api.Ptr(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
 		SubnetID:               api.Ptr(from.SubnetID),
 	}
 }
@@ -212,8 +222,8 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 		from = api.NewDefaultHCPOpenShiftClusterNodePool()
 	}
 
-	out := &HcpOpenShiftClusterNodePoolResource{
-		generated.HcpOpenShiftClusterNodePoolResource{
+	out := &NodePool{
+		generated.NodePool{
 			ID:       api.Ptr(from.Resource.ID),
 			Name:     api.Ptr(from.Resource.Name),
 			Type:     api.Ptr(from.Resource.Type),
@@ -222,7 +232,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 			Properties: &generated.NodePoolProperties{
 				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Platform:          newNodePoolPlatformProfile(&from.Properties.Platform),
-				Version:           newVersionProfile(&from.Properties.Version),
+				Version:           newNodePoolVersionProfile(&from.Properties.Version),
 				AutoRepair:        api.Ptr(from.Properties.AutoRepair),
 				AutoScaling:       newNodePoolAutoScaling(from.Properties.AutoScaling),
 				Labels:            []*generated.Label{},

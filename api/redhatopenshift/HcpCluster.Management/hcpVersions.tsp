@@ -11,28 +11,21 @@ using Azure.ResourceManager;
 namespace Microsoft.RedHatOpenShift;
 
 /** HcpOpenShiftVersions represents a location based available HCP cluster versions */
-@locationResource
-model HcpOpenShiftVersionResource
-  is ProxyResource<HcpOpenShiftVersionsProperties> {
-  /** The name of the resource */
-  @pattern("^[a-zA-Z0-9-]{3,24}$")
-  @segment("hcpOpenShiftVersions")
-  @key("hcpOpenShiftVersions")
-  @visibility("read")
-  @path
-  name: string;
-}
+//@locationResource
+//model HcpOpenShiftVersion is ProxyResource<HcpOpenShiftVersionsProperties> {
+//  ...ResourceNameParameter<HcpOpenShiftVersion>;
+//}
 
 /** HcpOpenShiftVersionsProperties is the installable cluster version */
-model HcpOpenShiftVersionsProperties {
-  ...DefaultProvisioningStateProperty;
+//model HcpOpenShiftVersionsProperties {
+//  ...DefaultProvisioningStateProperty;
+//
+//  /** The cluster version */
+//  @visibility(Lifecycle.Read)
+//  clusterVersion: string;
+//}
 
-  /** The cluster version */
-  @visibility("read")
-  clusterVersion: string;
-}
-
-@armResourceOperations(HcpOpenShiftVersionResource)
-interface HcpClusterVersions {
-  list is ArmResourceListByParent<HcpOpenShiftVersionResource>;
-}
+//@armResourceOperations(HcpOpenShiftVersion)
+//interface HcpClusterVersions {
+//  list is ArmResourceListByParent<HcpOpenShiftVersion>;
+//}

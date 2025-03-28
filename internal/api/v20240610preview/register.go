@@ -38,12 +38,12 @@ func init() {
 	// Register enum type validations
 	validate.RegisterAlias("enum_actiontype", api.EnumValidateTag(generated.PossibleActionTypeValues()...))
 	validate.RegisterAlias("enum_createdbytype", api.EnumValidateTag(generated.PossibleCreatedByTypeValues()...))
+	validate.RegisterAlias("enum_diskstorageaccounttype", api.EnumValidateTag(generated.PossibleDiskStorageAccountTypeValues()...))
+	validate.RegisterAlias("enum_effect", api.EnumValidateTag(generated.PossibleEffectValues()...))
 	validate.RegisterAlias("enum_managedserviceidentitytype", api.EnumValidateTag(generated.PossibleManagedServiceIdentityTypeValues()...))
 	validate.RegisterAlias("enum_networktype", api.EnumValidateTag(generated.PossibleNetworkTypeValues()...))
 	validate.RegisterAlias("enum_origin", api.EnumValidateTag(generated.PossibleOriginValues()...))
 	validate.RegisterAlias("enum_outboundtype", api.EnumValidateTag(generated.PossibleOutboundTypeValues()...))
 	validate.RegisterAlias("enum_provisioningstate", api.EnumValidateTag(generated.PossibleProvisioningStateValues()...))
-	validate.RegisterAlias("enum_resourceprovisioningstate", api.EnumValidateTag(generated.PossibleResourceProvisioningStateValues()...))
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
-	validate.RegisterAlias("enum_effect", api.EnumValidateTag(generated.PossibleEffectValues()...))
 }

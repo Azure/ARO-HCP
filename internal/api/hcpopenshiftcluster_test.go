@@ -18,8 +18,18 @@ import (
 func newTestValidator() *validator.Validate {
 	validate := NewValidator()
 
-	validate.RegisterAlias("enum_outboundtype", EnumValidateTag("loadBalancer"))
-	validate.RegisterAlias("enum_visibility", EnumValidateTag("private", "public"))
+	validate.RegisterAlias("enum_diskstorageaccounttype", EnumValidateTag(
+		DiskStorageAccountTypePremium_LRS,
+		DiskStorageAccountTypeStandardSSD_LRS,
+		DiskStorageAccountTypeStandard_LRS))
+	validate.RegisterAlias("enum_networktype", EnumValidateTag(
+		NetworkTypeOVNKubernetes,
+		NetworkTypeOther))
+	validate.RegisterAlias("enum_outboundtype", EnumValidateTag(
+		OutboundTypeLoadBalancer))
+	validate.RegisterAlias("enum_visibility", EnumValidateTag(
+		VisibilityPublic,
+		VisibilityPrivate))
 	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(
 		arm.ManagedServiceIdentityTypeNone,
 		arm.ManagedServiceIdentityTypeSystemAssigned,
@@ -40,23 +50,25 @@ func minimumValidCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
-				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
 			},
-			Network: NetworkProfile{
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-			},
-			API: APIProfile{
-				Visibility: "public",
-			},
 			Platform: PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: OperatorsAuthenticationProfile{UserAssignedIdentities: UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity"}}},
+				SubnetID:               "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
+				NetworkSecurityGroupID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/networkSecurityGroups/MyNSG",
+				OperatorsAuthentication: OperatorsAuthenticationProfile{
+					UserAssignedIdentities: UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity",
+						},
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 
@@ -65,23 +77,25 @@ func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenS
 	return &HCPOpenShiftCluster{
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
-				ID:           "openshift-v4.16.0",
 				ChannelGroup: "stable",
 			},
-			Network: NetworkProfile{
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-			},
-			API: APIProfile{
-				Visibility: "public",
-			},
 			Platform: PlatformProfile{
-				SubnetID:                "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: OperatorsAuthenticationProfile{UserAssignedIdentities: UserAssignedIdentitiesProfile{ControlPlaneOperators: map[string]string{"operatorX": "wrong/Pattern/Of/ResourceID"}}},
+				SubnetID:               "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
+				NetworkSecurityGroupID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/networkSecurityGroups/MyNSG",
+				OperatorsAuthentication: OperatorsAuthenticationProfile{
+					UserAssignedIdentities: UserAssignedIdentitiesProfile{
+						ControlPlaneOperators: map[string]string{
+							"operatorX": "wrong/Pattern/Of/ResourceID",
+						},
+					},
+				},
 			},
 		},
-		Identity: arm.ManagedServiceIdentity{UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{}}},
+		Identity: arm.ManagedServiceIdentity{
+			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{},
+			},
+		},
 	}
 }
 
@@ -106,32 +120,12 @@ func TestClusterRequiredForPut(t *testing.T) {
 			resource: NewDefaultHCPOpenShiftCluster(),
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Missing required field 'id'",
-					Target:  "properties.version.id",
-				},
-				{
-					Message: "Missing required field 'channelGroup'",
-					Target:  "properties.version.channelGroup",
-				},
-				{
-					Message: "Missing required field 'podCidr'",
-					Target:  "properties.network.podCidr",
-				},
-				{
-					Message: "Missing required field 'serviceCidr'",
-					Target:  "properties.network.serviceCidr",
-				},
-				{
-					Message: "Missing required field 'machineCidr'",
-					Target:  "properties.network.machineCidr",
-				},
-				{
-					Message: "Missing required field 'visibility'",
-					Target:  "properties.api.visibility",
-				},
-				{
 					Message: "Missing required field 'subnetId'",
 					Target:  "properties.platform.subnetId",
+				},
+				{
+					Message: "Missing required field 'networkSecurityGroupId'",
+					Target:  "properties.platform.networkSecurityGroupId",
 				},
 			},
 		},
@@ -237,7 +231,7 @@ func TestClusterValidateTags(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid value 'it's a secret to everybody' for field 'visibility' (must be one of: private public)",
+					Message: "Invalid value 'it's a secret to everybody' for field 'visibility' (must be one of: public private)",
 					Target:  "properties.api.visibility",
 				},
 			},
@@ -245,12 +239,78 @@ func TestClusterValidateTags(t *testing.T) {
 		{
 			name: "Bad enum_managedserviceidentitytype",
 			tweaks: &HCPOpenShiftCluster{
-				Identity: arm.ManagedServiceIdentity{Type: "brokenServiceType"},
+				Identity: arm.ManagedServiceIdentity{
+					Type: "brokenServiceType",
+				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Invalid value 'brokenServiceType' for field 'type' (must be one of: None SystemAssigned SystemAssigned,UserAssigned UserAssigned)",
 					Target:  "identity.type",
+				},
+			},
+		},
+		{
+			name: "Base domain prefix is too long",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					DNS: DNSProfile{
+						BaseDomainPrefix: "this-domain-is-too-long",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'this-domain-is-too-long' for field 'baseDomainPrefix' (maximum length is 15)",
+					Target:  "properties.dns.baseDomainPrefix",
+				},
+			},
+		},
+		{
+			name: "Host prefix is too small",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Network: NetworkProfile{
+						HostPrefix: 22,
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value '22' for field 'hostPrefix' (must be at least 23)",
+					Target:  "properties.network.hostPrefix",
+				},
+			},
+		},
+		{
+			name: "Host prefix is too large",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Network: NetworkProfile{
+						HostPrefix: 27,
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value '27' for field 'hostPrefix' (must be at most 26)",
+					Target:  "properties.network.hostPrefix",
+				},
+			},
+		},
+		{
+			name: "Bad required_unless",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Version: VersionProfile{
+						ChannelGroup: "fast",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'id' is required when 'channelGroup' is not 'stable'",
+					Target:  "properties.version.id",
 				},
 			},
 		},

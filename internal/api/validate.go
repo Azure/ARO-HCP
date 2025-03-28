@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	validator "github.com/go-playground/validator/v10"
@@ -151,6 +152,21 @@ type validateContext struct {
 	Resource any
 }
 
+// approximateJSONName approximates the JSON name for a struct field name by
+// lowercasing the first letter. This is not always accurate in general but
+// works for the small set of cases where we need it.
+func approximateJSONName(s string) string {
+	r, size := utf8.DecodeRuneInString(s)
+	if r == utf8.RuneError && size <= 1 {
+		return s
+	}
+	lc := unicode.ToLower(r)
+	if r == lc {
+		return s
+	}
+	return string(lc) + s[size:]
+}
+
 func ValidateRequest(validate *validator.Validate, method string, resource any) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
@@ -181,6 +197,18 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					message += " (must provide PEM encoded certificates)"
 				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
+				case "required_unless":
+					// The parameter format is pairs of "fieldName fieldValue".
+					// Multiple pairs are possible but we currently only use one.
+					fields := strings.Fields(fieldErr.Param())
+					if len(fields) > 1 {
+						// We want to print the JSON name for the field
+						// referenced in the parameter, but FieldError does
+						// not provide access to the parent reflect.Type from
+						// which we could look it up. So approximate the JSON
+						// name by lowercasing the first letter.
+						message = fmt.Sprintf("Field '%s' is required when '%s' is not '%s'", fieldErr.Field(), approximateJSONName(fields[0]), fields[1])
+					}
 				case "resource_id": // custom tag
 					if fieldErr.Param() != "" {
 						message += fmt.Sprintf(" (must be a valid '%s' resource ID)", fieldErr.Param())
@@ -197,26 +225,38 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 					// not provide access to the parent reflect.Type from
 					// which we could look it up. So approximate the JSON
 					// name by lowercasing the first letter.
-					field2 := []byte(fieldErr.Param())
-					field2[0] = byte(unicode.ToLower(rune(field2[0])))
 					zero := reflect.Zero(fieldErr.Type()).Interface()
-					message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, field2)
+					message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, approximateJSONName(fieldErr.Param()))
 				case "gtefield":
 					// We want to print the JSON name for the field
 					// referenced in the parameter, but FieldError does
 					// not provide access to the parent reflect.Type from
 					// which we could look it up. So approximate the JSON
 					// name by lowercasing the first letter.
-					field2 := []byte(fieldErr.Param())
-					field2[0] = byte(unicode.ToLower(rune(field2[0])))
-					message += fmt.Sprintf(" (must be at least the value of '%s')", field2)
+					message += fmt.Sprintf(" (must be at least the value of '%s')", approximateJSONName(fieldErr.Param()))
 				case "ipv4":
 					message += " (must be an IPv4 address)"
+				case "max":
+					switch fieldErr.Kind() {
+					case reflect.String:
+						message += fmt.Sprintf(" (maximum length is %s)", fieldErr.Param())
+					default:
+						if fieldErr.Param() == "0" {
+							message += " (must be non-positive)"
+						} else {
+							message += fmt.Sprintf(" (must be at most %s)", fieldErr.Param())
+						}
+					}
 				case "min":
-					if fieldErr.Param() == "0" {
-						message += " (must be non-negative)"
-					} else {
-						message += fmt.Sprintf(" (must be at least %s)", fieldErr.Param())
+					switch fieldErr.Kind() {
+					case reflect.String:
+						message += fmt.Sprintf(" (minimum length is %s)", fieldErr.Param())
+					default:
+						if fieldErr.Param() == "0" {
+							message += " (must be non-negative)"
+						} else {
+							message += fmt.Sprintf(" (must be at least %s)", fieldErr.Param())
+						}
 					}
 				case "startswith":
 					message += fmt.Sprintf(" (must start with '%s')", fieldErr.Param())

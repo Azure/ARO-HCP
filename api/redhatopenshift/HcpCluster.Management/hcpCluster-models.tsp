@@ -17,17 +17,11 @@ namespace Microsoft.RedHatOpenShift;
  */
 
 /** HCP cluster resource */
-model HcpOpenShiftClusterResource
-  is TrackedResource<HcpOpenShiftClusterProperties> {
-  /** Name of HCP cluster */
-  @pattern("^[a-zA-Z][a-zA-Z0-9-]$")
-  @minLength(3)
-  @maxLength(54)
-  @key("hcpOpenShiftClusterName") // sets the alternative name for the name propery
-  @path
-  @segment("hcpOpenShiftClusters")
-  name: string;
-
+model HcpOpenShiftCluster is TrackedResource<HcpOpenShiftClusterProperties> {
+  ...ResourceNameParameter<
+    HcpOpenShiftCluster,
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+  >;
   ...ManagedServiceIdentityProperty;
 }
 
@@ -37,91 +31,47 @@ model HcpOpenShiftClusterResource
 // - deleted when resource group is deleted
 // - allow cascade delete
 // more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
-@parentResource(HcpOpenShiftClusterResource)
-model HcpOpenShiftClusterNodePoolResource
-  is TrackedResource<NodePoolProperties> {
-  /** Name of HCP cluster * */
-  @pattern("^[a-zA-Z][a-zA-Z0-9-]$")
-  @minLength(3)
-  @maxLength(15)
-  @key("nodePoolName")
-  @path
-  @segment("nodePools")
-  name: string;
-
+@parentResource(HcpOpenShiftCluster)
+model NodePool is TrackedResource<NodePoolProperties> {
+  ...ResourceNameParameter<
+    NodePool,
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+  >;
   ...ManagedServiceIdentityProperty;
 }
 
 /** HCP cluster properties */
 model HcpOpenShiftClusterProperties {
   /** The status of the last operation. */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   provisioningState?: ProvisioningState;
 
   /** Version of the control plane components */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Create, Lifecycle.Read)
   version: VersionProfile;
 
   /** Cluster DNS configuration */
   dns?: DnsProfile;
 
   /** Cluster network configuration */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Create, Lifecycle.Read)
   network?: NetworkProfile;
 
   /** Shows the cluster web console information */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   console: ConsoleProfile;
 
   /** Shows the cluster API server profile */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   api: ApiProfile;
 
   /** Disable user workload monitoring */
-  @visibility("create", "update", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   disableUserWorkloadMonitoring?: boolean = false;
 
   /** Azure platform configuration */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   platform?: PlatformProfile;
-}
-
-/** HCP patchable cluster properties */
-model HcpOpenShiftClusterPatchProperties {
-  /** The status of the last operation. */
-  @visibility("read")
-  provisioningState?: ProvisioningState;
-
-  /** Disable user workload monitoring */
-  @visibility("update", "read")
-  disableUserWorkloadMonitoring?: boolean;
-}
-
-model ManagedServiceIdentityUpdate
-  is OptionalProperties<UpdateableProperties<Azure.ResourceManager.Foundations.ManagedServiceIdentity>>;
-
-model HcpOpenShiftClusterPatch
-  is OptionalProperties<UpdateableProperties<OmitProperties<
-    HcpOpenShiftClusterResource,
-    "name" | "properties" | "identity"
-  >>> {
-  /** HCP patchable cluster properties */
-  properties?: HcpOpenShiftClusterPatchProperties;
-
-  /** Managed service identity */
-  identity?: ManagedServiceIdentityUpdate;
-}
-
-model HcpOpenShiftClusterNodePoolPatch
-  is OptionalProperties<UpdateableProperties<OmitProperties<
-    HcpOpenShiftClusterNodePoolResource,
-    "name" | "properties" | "identity"
-  >>> {
-  /** Represents the patchable node pool properties */
-  properties?: NodePoolPatchProperties;
-
-  /** Managed Service Identity */
-  identity?: ManagedServiceIdentityUpdate;
 }
 
 /** The resource provisioning state. */
@@ -146,28 +96,28 @@ union ProvisioningState {
 /** Versions represents an OpenShift version. */
 model VersionProfile {
   /** ID is the unique identifier of the version. */
-  @visibility("create", "read")
-  id: string;
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
-  @visibility("create", "read")
-  channelGroup: string;
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  channelGroup?: string = "stable";
 
   /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   availableUpgrades: string[];
 }
 
 /** DNS contains the DNS settings of the cluster */
 model DnsProfile {
   /** BaseDomain is the base DNS domain of the cluster. */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   baseDomain?: string;
 
   /**  BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name.
    * BaseDomainPrefix is the name that will appear in the cluster's DNS, provisioned cloud providers resources
    * */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(15)
   @pattern(
     "^[a-z]([-a-z0-9]*[a-z0-9])?$",
@@ -176,32 +126,26 @@ model DnsProfile {
   baseDomainPrefix?: string;
 }
 
-/** Network profile of the cluster */
+/** OpenShift networking configuration */
 model NetworkProfile {
   /** The main controller responsible for rendering the core networking components */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   networkType?: NetworkType = NetworkType.OVNKubernetes;
 
-  /** The CIDR of the pod IP addresses
-   * example: 10.128.0.0/14
-   */
-  @visibility("create", "read")
-  podCidr: string;
+  /** The CIDR of the pod IP addresses */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  podCidr?: string = "10.128.0.0/14";
 
-  /** The CIDR block for assigned service IPs,
-   * example: 172.30.0.0/16
-   */
-  @visibility("create", "read")
-  serviceCidr: string;
+  /** The CIDR block for assigned service IPs */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  serviceCidr?: string = "172.30.0.0/16";
 
-  /** from which to assign machine IP addresses,
-   * example: 10.0.0.0/16
-   */
-  @visibility("create", "read")
-  machineCidr: string;
+  /** The CIDR block from which to assign machine IP addresses */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  machineCidr?: string = "10.0.0.0/16";
 
-  /** Network host prefix which is defaulted to 23 if not specified. */
-  @visibility("create", "read")
+  /** Network host prefix */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   hostPrefix?: int32 = 23;
 }
 
@@ -209,7 +153,7 @@ model NetworkProfile {
 union NetworkType {
   string,
 
-  /** THE OVN network plugin for the OpenShift cluster */
+  /** The OVN network plugin for the OpenShift cluster */
   OVNKubernetes: "OVNKubernetes",
 
   /** Other network plugins */
@@ -219,22 +163,22 @@ union NetworkType {
 /** Configuration of the cluster web console */
 model ConsoleProfile {
   /** The cluster web console URL endpoint */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   url: url;
 }
 
 /** Information about the API of a cluster. */
 model ApiProfile {
   /** URL endpoint for the API server */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   url: url;
 
-  /** should the API server be accessible from the internet */
-  @visibility("create", "read")
-  visibility: Visibility;
+  /** The internet visibility of the OpenShift API server */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  visibility?: Visibility = "public";
 }
 
-/** The visibility of the API server */
+/** The internet visibility of the OpenShift API server */
 union Visibility {
   string,
 
@@ -250,14 +194,14 @@ model PlatformProfile {
   /** Resource group to put cluster resources */
   managedResourceGroup?: string;
 
-  /** ResourceId for the subnet used by the control plane */
+  /** The Azure resource ID of the worker subnet */
   subnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
   outboundType?: OutboundType = OutboundType.loadBalancer;
 
   /** ResourceId for the network security group attached to the cluster subnet */
-  networkSecurityGroupId?: NetworkSecurityGroupResourceId;
+  networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
   /** The configuration that the operators of the cluster have to authenticate to Azure */
   operatorsAuthentication: OperatorsAuthenticationProfile;
@@ -265,7 +209,7 @@ model PlatformProfile {
   /** URL for the OIDC provider to be used for authentication
    * to authenticate against user Azure cloud account
    */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   issuerUrl: url;
 }
 
@@ -305,17 +249,19 @@ model UserAssignedIdentitiesProfile {
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   controlPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** The set of Azure User-Assigned Managed Identities leveraged for the Data Plane
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   dataPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** Represents the information associated to an Azure User-Assigned Managed Identity whose
    * purpose is to perform service level actions. */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   serviceManagedIdentity: UserAssignedIdentityResourceId;
 }
 
@@ -341,23 +287,23 @@ scalar UserAssignedIdentityResourceId
 /** Represents the node pool properties */
 model NodePoolProperties {
   /** Provisioning state */
-  @visibility("read")
+  @visibility(Lifecycle.Read)
   provisioningState?: ProvisioningState;
 
   /** OpenShift version for the nodepool */
-  @visibility("create", "read")
-  version: VersionProfile;
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  version: NodePoolVersionProfile;
 
   /** Azure node pool platform configuration */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: NodePoolPlatformProfile;
 
   /** The number of worker nodes, it cannot be used together with autoscaling */
-  @visibility("create", "update", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   replicas?: int32;
 
   /** Auto-repair */
-  @visibility("create", "read")
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   autoRepair?: boolean = false;
 
   /** Representation of a autoscaling in a node pool. */
@@ -369,53 +315,25 @@ model NodePoolProperties {
    * The good example of the label is `node-role.kubernetes.io/master: ""`
    */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" ""
-  @visibility("create", "update", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["key", "value"])
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
 
   /** Taints for the nodes */
-  @visibility("create", "update", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
-  taints?: Taint[];
-}
-
-/** Represents the patchable node pool properties */
-model NodePoolPatchProperties {
-  /** Provisioning state */
-  @visibility("read")
-  provisioningState?: ResourceProvisioningState;
-
-  /** The number of worker nodes, it cannot be used together with autoscaling */
-  @visibility("update", "read")
-  replicas?: int32;
-
-  /** Representation of a autoscaling in a node pool. */
-  autoScaling?: NodePoolAutoScaling;
-
-  // This warning means to ensure good customer experience, to not create
-  // poorly defined types. However here the type literarly is the map<string, value>
-  /** K8s labels to propagate to the NodePool Nodes
-   * The good example of the label is `node-role.kubernetes.io/master: ""`
-   */
-  @visibility("update", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["key", "value"])
-  labels?: Label[];
-
-  /** Taints for the nodes */
-  @visibility("update", "read")
-  @OpenAPI.extension("x-ms-identifiers", ["key", "value", "effect"])
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
   taints?: Taint[];
 }
 
 /** taintKey is the k8s valid key of the taint type on the nodepool nodes
- * The good example of the taint key is `node-role.kubernetes.io/master`
+ * @example node-role.kubernetes.io/master
  */
 @minLength(1)
 @maxLength(316)
 scalar taintKey extends string;
 
 /** taintValue is the k8s valid value of the taint type on the nodepool nodes
- * The good example of the taint value is `NoSchedule`
+ * @example true
  */
 @minLength(1)
 @maxLength(63)
@@ -438,23 +356,22 @@ union Effect {
 /** Taint is controlling the node taint and its effects */
 model Taint {
   /** The key of the taint
-   * The good example of the taint key is `node-role.kubernetes.io/master`
+   * @example node-role.kubernetes.io/master
    */
   key?: taintKey;
 
   /** The value of the taint
-   * The good example of the taint value is `NoSchedule`
+   * @example true
    */
   value?: taintValue;
 
   /** The effect of the taint
-   * The good example of the taint effect is `NoSchedule`
+   * @example NoSchedule
    */
   effect?: Effect;
 }
 
 /** Label represents the k8s label */
-// Key and value are both optional, so there is no need to redefine them for PATCH
 model Label {
   /** The key of the label */
   key?: string;
@@ -463,9 +380,24 @@ model Label {
   value?: string;
 }
 
+/** Versions represents an OpenShift version. */
+model NodePoolVersionProfile {
+  /** ID is the unique identifier of the version. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  id?: string;
+
+  /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  channelGroup?: string = "stable";
+
+  /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
+  @visibility(Lifecycle.Read)
+  availableUpgrades: string[];
+}
+
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
-  /** The resourceId for the subnet used by the workers */
+  /** The Azure resource ID of the worker subnet */
   subnetId?: string;
 
   /** The VM size according to the documentation:
@@ -478,25 +410,29 @@ model NodePoolPlatformProfile {
   /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
    */
-  diskStorageAccountType?: string;
+  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
   availabilityZone?: string;
+}
 
-  /** Whether the worker machines should be encrypted at host */
-  encryptionAtHost?: boolean;
+/** Supported Azure storage account types
+ * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+ */
+union DiskStorageAccountType {
+  string,
 
-  /** Disk Encryption Set ID that will be used for encryption the Nodes disks
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption
-   */
-  diskEncryptionSetId?: string;
+  /** Premium SSD with Locally Redundant Storage (LRS) */
+  Premium_LRS: "Premium_LRS",
 
-  /** Is the disk ephemeral */
-  ephemeralOsDisk?: boolean;
+  /** Standard SSD with Locally Redundant Storage (LRS) */
+  StandardSSD_LRS: "StandardSSD_LRS",
+
+  /** Standard HDD with Locally Redundant Storage (LRS) */
+  Standard_LRS: "Standard_LRS",
 }
 
 /** Node pool autoscaling */

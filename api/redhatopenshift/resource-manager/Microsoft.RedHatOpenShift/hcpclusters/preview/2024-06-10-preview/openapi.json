@@ -47,9 +47,6 @@
     },
     {
       "name": "NodePools"
-    },
-    {
-      "name": "HcpClusterVersions"
     }
   ],
   "paths": {
@@ -92,50 +89,13 @@
         }
       }
     },
-    "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftVersions": {
-      "get": {
-        "operationId": "HcpClusterVersions_List",
-        "tags": [
-          "HcpClusterVersions"
-        ],
-        "description": "List HcpOpenShiftVersionResource resources by location",
-        "parameters": [
-          {
-            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
-          },
-          {
-            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/SubscriptionIdParameter"
-          },
-          {
-            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/LocationParameter"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Azure operation completed successfully.",
-            "schema": {
-              "$ref": "#/definitions/HcpOpenShiftVersionResourceListResult"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/ErrorResponse"
-            }
-          }
-        },
-        "x-ms-pageable": {
-          "nextLinkName": "nextLink"
-        }
-      }
-    },
     "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters": {
       "get": {
         "operationId": "HcpOpenShiftClusters_ListBySubscription",
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "List HcpOpenShiftClusterResource resources by subscription ID",
+        "description": "List HcpOpenShiftCluster resources by subscription ID",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -148,7 +108,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResourceListResult"
+              "$ref": "#/definitions/HcpOpenShiftClusterListResult"
             }
           },
           "default": {
@@ -174,7 +134,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "List HcpOpenShiftClusterResource resources by resource group",
+        "description": "List HcpOpenShiftCluster resources by resource group",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -190,7 +150,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResourceListResult"
+              "$ref": "#/definitions/HcpOpenShiftClusterListResult"
             }
           },
           "default": {
@@ -216,7 +176,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "Get a HcpOpenShiftClusterResource",
+        "description": "Get a HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -230,19 +190,17 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             }
           },
           "default": {
@@ -263,7 +221,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "Create a HcpOpenShiftClusterResource",
+        "description": "Create a HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -277,12 +235,10 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "resource",
@@ -290,21 +246,21 @@
             "description": "Resource create parameters.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Resource 'HcpOpenShiftClusterResource' update operation succeeded",
+            "description": "Resource 'HcpOpenShiftCluster' update operation succeeded",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             }
           },
           "201": {
-            "description": "Resource 'HcpOpenShiftClusterResource' create operation succeeded",
+            "description": "Resource 'HcpOpenShiftCluster' create operation succeeded",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             },
             "headers": {
               "Azure-AsyncOperation": {
@@ -340,7 +296,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "Update a HcpOpenShiftClusterResource",
+        "description": "Update a HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -354,12 +310,10 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "properties",
@@ -367,7 +321,7 @@
             "description": "The resource properties to be updated.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterPatch"
+              "$ref": "#/definitions/HcpOpenShiftClusterUpdate"
             }
           }
         ],
@@ -375,7 +329,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterResource"
+              "$ref": "#/definitions/HcpOpenShiftCluster"
             }
           },
           "202": {
@@ -414,7 +368,7 @@
         "tags": [
           "HcpOpenShiftClusters"
         ],
-        "description": "Delete a HcpOpenShiftClusterResource",
+        "description": "Delete a HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -428,12 +382,10 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
@@ -478,7 +430,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "List HcpOpenShiftClusterNodePoolResource resources by HcpOpenShiftClusterResource",
+        "description": "List NodePool resources by HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -492,19 +444,17 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResourceListResult"
+              "$ref": "#/definitions/NodePoolListResult"
             }
           },
           "default": {
@@ -525,7 +475,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "Get a HcpOpenShiftClusterNodePoolResource",
+        "description": "Get a NodePool",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -539,29 +489,25 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster *",
+            "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 15,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             }
           },
           "default": {
@@ -582,7 +528,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "Create a HcpOpenShiftClusterNodePoolResource",
+        "description": "Create a NodePool",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -596,22 +542,18 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster *",
+            "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 15,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           },
           {
             "name": "resource",
@@ -619,21 +561,21 @@
             "description": "Resource create parameters.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Resource 'HcpOpenShiftClusterNodePoolResource' update operation succeeded",
+            "description": "Resource 'NodePool' update operation succeeded",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             }
           },
           "201": {
-            "description": "Resource 'HcpOpenShiftClusterNodePoolResource' create operation succeeded",
+            "description": "Resource 'NodePool' create operation succeeded",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             },
             "headers": {
               "Azure-AsyncOperation": {
@@ -669,7 +611,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "Update a HcpOpenShiftClusterNodePoolResource",
+        "description": "Update a NodePool",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -683,22 +625,18 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster *",
+            "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 15,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           },
           {
             "name": "properties",
@@ -706,7 +644,7 @@
             "description": "The resource properties to be updated.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolPatch"
+              "$ref": "#/definitions/NodePoolUpdate"
             }
           }
         ],
@@ -714,7 +652,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+              "$ref": "#/definitions/NodePool"
             }
           },
           "202": {
@@ -753,7 +691,7 @@
         "tags": [
           "NodePools"
         ],
-        "description": "Delete a HcpOpenShiftClusterNodePoolResource",
+        "description": "Delete a NodePool",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/ApiVersionParameter"
@@ -767,22 +705,18 @@
           {
             "name": "hcpOpenShiftClusterName",
             "in": "path",
-            "description": "Name of HCP cluster",
+            "description": "The name of the HcpOpenShiftCluster",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 54,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
             "name": "nodePoolName",
             "in": "path",
-            "description": "Name of HCP cluster *",
+            "description": "The name of the NodePool",
             "required": true,
             "type": "string",
-            "minLength": 3,
-            "maxLength": 15,
-            "pattern": "^[a-zA-Z][a-zA-Z0-9-]$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
@@ -834,8 +768,29 @@
           "readOnly": true
         },
         "visibility": {
-          "$ref": "#/definitions/Visibility",
-          "description": "should the API server be accessible from the internet",
+          "type": "string",
+          "description": "The internet visibility of the OpenShift API server",
+          "default": "public",
+          "enum": [
+            "public",
+            "private"
+          ],
+          "x-ms-enum": {
+            "name": "Visibility",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "public",
+                "value": "public",
+                "description": "The API server is visible from the internet."
+              },
+              {
+                "name": "private",
+                "value": "private",
+                "description": "The API server is not visible from the internet."
+              }
+            ]
+          },
           "x-ms-mutability": [
             "read",
             "create"
@@ -843,40 +798,49 @@
         }
       },
       "required": [
-        "url",
-        "visibility"
+        "url"
       ]
     },
-    "Azure.ResourceManager.ResourceProvisioningState": {
-      "type": "string",
-      "description": "The provisioning state of a resource type.",
-      "enum": [
-        "Succeeded",
-        "Failed",
-        "Canceled"
-      ],
-      "x-ms-enum": {
-        "name": "ResourceProvisioningState",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "Succeeded",
-            "value": "Succeeded",
-            "description": "Resource has been created."
-          },
-          {
-            "name": "Failed",
-            "value": "Failed",
-            "description": "Resource creation failed."
-          },
-          {
-            "name": "Canceled",
-            "value": "Canceled",
-            "description": "Resource creation was canceled."
+    "Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate": {
+      "type": "object",
+      "description": "Managed service identity (system assigned and/or user assigned identities)",
+      "properties": {
+        "type": {
+          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentityType",
+          "description": "The type of managed identity assigned to this resource."
+        },
+        "userAssignedIdentities": {
+          "type": "object",
+          "description": "The identities assigned to this resource by the user.",
+          "additionalProperties": {
+            "allOf": [
+              {
+                "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/UserAssignedIdentity"
+              }
+            ],
+            "type": "object",
+            "x-nullable": true
           }
-        ]
+        }
+      }
+    },
+    "Azure.ResourceManager.CommonTypes.TrackedResourceUpdate": {
+      "type": "object",
+      "description": "The resource model definition for an Azure Resource Manager tracked top level resource which has 'tags' and a 'location'",
+      "properties": {
+        "tags": {
+          "type": "object",
+          "description": "Resource tags.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       },
-      "readOnly": true
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/Resource"
+        }
+      ]
     },
     "ConsoleProfile": {
       "type": "object",
@@ -944,33 +908,12 @@
         ]
       }
     },
-    "HcpOpenShiftClusterNodePoolPatch": {
+    "HcpOpenShiftCluster": {
       "type": "object",
-      "description": "The template for adding optional properties.",
-      "properties": {
-        "tags": {
-          "type": "object",
-          "description": "Resource tags.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "properties": {
-          "$ref": "#/definitions/NodePoolPatchProperties",
-          "description": "Represents the patchable node pool properties"
-        },
-        "identity": {
-          "$ref": "#/definitions/ManagedServiceIdentityUpdate",
-          "description": "Managed Service Identity"
-        }
-      }
-    },
-    "HcpOpenShiftClusterNodePoolResource": {
-      "type": "object",
-      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
+      "description": "HCP cluster resource",
       "properties": {
         "properties": {
-          "$ref": "#/definitions/NodePoolProperties",
+          "$ref": "#/definitions/HcpOpenShiftClusterProperties",
           "description": "The resource-specific properties for this resource."
         },
         "identity": {
@@ -984,15 +927,15 @@
         }
       ]
     },
-    "HcpOpenShiftClusterNodePoolResourceListResult": {
+    "HcpOpenShiftClusterListResult": {
       "type": "object",
-      "description": "The response of a HcpOpenShiftClusterNodePoolResource list operation.",
+      "description": "The response of a HcpOpenShiftCluster list operation.",
       "properties": {
         "value": {
           "type": "array",
-          "description": "The HcpOpenShiftClusterNodePoolResource items on this page",
+          "description": "The HcpOpenShiftCluster items on this page",
           "items": {
-            "$ref": "#/definitions/HcpOpenShiftClusterNodePoolResource"
+            "$ref": "#/definitions/HcpOpenShiftCluster"
           }
         },
         "nextLink": {
@@ -1004,46 +947,6 @@
       "required": [
         "value"
       ]
-    },
-    "HcpOpenShiftClusterPatch": {
-      "type": "object",
-      "description": "The template for adding optional properties.",
-      "properties": {
-        "tags": {
-          "type": "object",
-          "description": "Resource tags.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "properties": {
-          "$ref": "#/definitions/HcpOpenShiftClusterPatchProperties",
-          "description": "HCP patchable cluster properties"
-        },
-        "identity": {
-          "$ref": "#/definitions/ManagedServiceIdentityUpdate",
-          "description": "Managed service identity"
-        }
-      }
-    },
-    "HcpOpenShiftClusterPatchProperties": {
-      "type": "object",
-      "description": "HCP patchable cluster properties",
-      "properties": {
-        "provisioningState": {
-          "$ref": "#/definitions/ProvisioningState",
-          "description": "The status of the last operation.",
-          "readOnly": true
-        },
-        "disableUserWorkloadMonitoring": {
-          "type": "boolean",
-          "description": "Disable user workload monitoring",
-          "x-ms-mutability": [
-            "read",
-            "update"
-          ]
-        }
-      }
     },
     "HcpOpenShiftClusterProperties": {
       "type": "object",
@@ -1109,99 +1012,43 @@
         "api"
       ]
     },
-    "HcpOpenShiftClusterResource": {
+    "HcpOpenShiftClusterPropertiesUpdate": {
+      "type": "object",
+      "description": "HCP cluster properties",
+      "properties": {
+        "dns": {
+          "$ref": "#/definitions/DnsProfile",
+          "description": "Cluster DNS configuration"
+        },
+        "disableUserWorkloadMonitoring": {
+          "type": "boolean",
+          "description": "Disable user workload monitoring",
+          "default": false,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "HcpOpenShiftClusterUpdate": {
       "type": "object",
       "description": "HCP cluster resource",
       "properties": {
         "properties": {
-          "$ref": "#/definitions/HcpOpenShiftClusterProperties",
+          "$ref": "#/definitions/HcpOpenShiftClusterPropertiesUpdate",
           "description": "The resource-specific properties for this resource."
         },
         "identity": {
-          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentity",
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate",
           "description": "The managed service identities assigned to this resource."
         }
       },
       "allOf": [
         {
-          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
         }
-      ]
-    },
-    "HcpOpenShiftClusterResourceListResult": {
-      "type": "object",
-      "description": "The response of a HcpOpenShiftClusterResource list operation.",
-      "properties": {
-        "value": {
-          "type": "array",
-          "description": "The HcpOpenShiftClusterResource items on this page",
-          "items": {
-            "$ref": "#/definitions/HcpOpenShiftClusterResource"
-          }
-        },
-        "nextLink": {
-          "type": "string",
-          "format": "uri",
-          "description": "The link to the next page of items"
-        }
-      },
-      "required": [
-        "value"
-      ]
-    },
-    "HcpOpenShiftVersionResource": {
-      "type": "object",
-      "description": "HcpOpenShiftVersions represents a location based available HCP cluster versions",
-      "properties": {
-        "properties": {
-          "$ref": "#/definitions/HcpOpenShiftVersionsProperties",
-          "description": "The resource-specific properties for this resource."
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/ProxyResource"
-        }
-      ]
-    },
-    "HcpOpenShiftVersionResourceListResult": {
-      "type": "object",
-      "description": "The response of a HcpOpenShiftVersionResource list operation.",
-      "properties": {
-        "value": {
-          "type": "array",
-          "description": "The HcpOpenShiftVersionResource items on this page",
-          "items": {
-            "$ref": "#/definitions/HcpOpenShiftVersionResource"
-          }
-        },
-        "nextLink": {
-          "type": "string",
-          "format": "uri",
-          "description": "The link to the next page of items"
-        }
-      },
-      "required": [
-        "value"
-      ]
-    },
-    "HcpOpenShiftVersionsProperties": {
-      "type": "object",
-      "description": "HcpOpenShiftVersionsProperties is the installable cluster version",
-      "properties": {
-        "provisioningState": {
-          "$ref": "#/definitions/Azure.ResourceManager.ResourceProvisioningState",
-          "description": "The provisioning state of the resource.",
-          "readOnly": true
-        },
-        "clusterVersion": {
-          "type": "string",
-          "description": "The cluster version",
-          "readOnly": true
-        }
-      },
-      "required": [
-        "clusterVersion"
       ]
     },
     "Label": {
@@ -1218,32 +1065,9 @@
         }
       }
     },
-    "ManagedServiceIdentityUpdate": {
-      "type": "object",
-      "description": "The template for adding optional properties.",
-      "properties": {
-        "type": {
-          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentityType",
-          "description": "The type of managed identity assigned to this resource."
-        },
-        "userAssignedIdentities": {
-          "type": "object",
-          "description": "The identities assigned to this resource by the user.",
-          "additionalProperties": {
-            "allOf": [
-              {
-                "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/UserAssignedIdentity"
-              }
-            ],
-            "type": "object",
-            "x-nullable": true
-          }
-        }
-      }
-    },
     "NetworkProfile": {
       "type": "object",
-      "description": "Network profile of the cluster",
+      "description": "OpenShift networking configuration",
       "properties": {
         "networkType": {
           "type": "string",
@@ -1260,7 +1084,7 @@
               {
                 "name": "OVNKubernetes",
                 "value": "OVNKubernetes",
-                "description": "THE OVN network plugin for the OpenShift cluster"
+                "description": "The OVN network plugin for the OpenShift cluster"
               },
               {
                 "name": "Other",
@@ -1276,7 +1100,8 @@
         },
         "podCidr": {
           "type": "string",
-          "description": "The CIDR of the pod IP addresses\nexample: 10.128.0.0/14",
+          "description": "The CIDR of the pod IP addresses",
+          "default": "10.128.0.0/14",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1284,7 +1109,8 @@
         },
         "serviceCidr": {
           "type": "string",
-          "description": "The CIDR block for assigned service IPs,\nexample: 172.30.0.0/16",
+          "description": "The CIDR block for assigned service IPs",
+          "default": "172.30.0.0/16",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1292,7 +1118,8 @@
         },
         "machineCidr": {
           "type": "string",
-          "description": "from which to assign machine IP addresses,\nexample: 10.0.0.0/16",
+          "description": "The CIDR block from which to assign machine IP addresses",
+          "default": "10.0.0.0/16",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1301,19 +1128,14 @@
         "hostPrefix": {
           "type": "integer",
           "format": "int32",
-          "description": "Network host prefix which is defaulted to 23 if not specified.",
+          "description": "Network host prefix",
           "default": 23,
           "x-ms-mutability": [
             "read",
             "create"
           ]
         }
-      },
-      "required": [
-        "podCidr",
-        "serviceCidr",
-        "machineCidr"
-      ]
+      }
     },
     "NetworkSecurityGroupResourceId": {
       "type": "string",
@@ -1326,6 +1148,25 @@
           }
         ]
       }
+    },
+    "NodePool": {
+      "type": "object",
+      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/NodePoolProperties",
+          "description": "The resource-specific properties for this resource."
+        },
+        "identity": {
+          "$ref": "../../../../../../common-types/resource-management/v5/managedidentity.json#/definitions/ManagedServiceIdentity",
+          "description": "The managed service identities assigned to this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v5/types.json#/definitions/TrackedResource"
+        }
+      ]
     },
     "NodePoolAutoScaling": {
       "type": "object",
@@ -1345,60 +1186,26 @@
         }
       }
     },
-    "NodePoolPatchProperties": {
+    "NodePoolListResult": {
       "type": "object",
-      "description": "Represents the patchable node pool properties",
+      "description": "The response of a NodePool list operation.",
       "properties": {
-        "provisioningState": {
-          "$ref": "#/definitions/Azure.ResourceManager.ResourceProvisioningState",
-          "description": "Provisioning state",
-          "readOnly": true
-        },
-        "replicas": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The number of worker nodes, it cannot be used together with autoscaling",
-          "x-ms-mutability": [
-            "read",
-            "update"
-          ]
-        },
-        "autoScaling": {
-          "$ref": "#/definitions/NodePoolAutoScaling",
-          "description": "Representation of a autoscaling in a node pool."
-        },
-        "labels": {
+        "value": {
           "type": "array",
-          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "description": "The NodePool items on this page",
           "items": {
-            "$ref": "#/definitions/Label"
-          },
-          "x-ms-identifiers": [
-            "key",
-            "value"
-          ],
-          "x-ms-mutability": [
-            "read",
-            "update"
-          ]
+            "$ref": "#/definitions/NodePool"
+          }
         },
-        "taints": {
-          "type": "array",
-          "description": "Taints for the nodes",
-          "items": {
-            "$ref": "#/definitions/Taint"
-          },
-          "x-ms-identifiers": [
-            "key",
-            "value",
-            "effect"
-          ],
-          "x-ms-mutability": [
-            "read",
-            "update"
-          ]
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
         }
-      }
+      },
+      "required": [
+        "value"
+      ]
     },
     "NodePoolPlatformProfile": {
       "type": "object",
@@ -1406,7 +1213,7 @@
       "properties": {
         "subnetId": {
           "type": "string",
-          "description": "The resourceId for the subnet used by the workers"
+          "description": "The Azure resource ID of the worker subnet"
         },
         "vmSize": {
           "type": "string",
@@ -1419,23 +1226,38 @@
         },
         "diskStorageAccountType": {
           "type": "string",
-          "description": "The type of the disk storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types"
+          "description": "The type of the disk storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types",
+          "default": "Premium_LRS",
+          "enum": [
+            "Premium_LRS",
+            "StandardSSD_LRS",
+            "Standard_LRS"
+          ],
+          "x-ms-enum": {
+            "name": "DiskStorageAccountType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Premium_LRS",
+                "value": "Premium_LRS",
+                "description": "Premium SSD with Locally Redundant Storage (LRS)"
+              },
+              {
+                "name": "StandardSSD_LRS",
+                "value": "StandardSSD_LRS",
+                "description": "Standard SSD with Locally Redundant Storage (LRS)"
+              },
+              {
+                "name": "Standard_LRS",
+                "value": "Standard_LRS",
+                "description": "Standard HDD with Locally Redundant Storage (LRS)"
+              }
+            ]
+          }
         },
         "availabilityZone": {
           "type": "string",
           "description": "The availability zone for the node pool.\nPlease read the documentation to see which regions support availability zones\n- https://learn.microsoft.com/en-us/azure/availability-zones/az-overview"
-        },
-        "encryptionAtHost": {
-          "type": "boolean",
-          "description": "Whether the worker machines should be encrypted at host"
-        },
-        "diskEncryptionSetId": {
-          "type": "string",
-          "description": "Disk Encryption Set ID that will be used for encryption the Nodes disks\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption"
-        },
-        "ephemeralOsDisk": {
-          "type": "boolean",
-          "description": "Is the disk ephemeral"
         }
       },
       "required": [
@@ -1452,7 +1274,7 @@
           "readOnly": true
         },
         "version": {
-          "$ref": "#/definitions/VersionProfile",
+          "$ref": "#/definitions/NodePoolVersionProfile",
           "description": "OpenShift version for the nodepool",
           "x-ms-mutability": [
             "read",
@@ -1529,6 +1351,114 @@
         "platform"
       ]
     },
+    "NodePoolPropertiesUpdate": {
+      "type": "object",
+      "description": "Represents the node pool properties",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "autoScaling": {
+          "$ref": "#/definitions/NodePoolAutoScaling",
+          "description": "Representation of a autoscaling in a node pool."
+        },
+        "labels": {
+          "type": "array",
+          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "items": {
+            "$ref": "#/definitions/Label"
+          },
+          "x-ms-identifiers": [
+            "key",
+            "value"
+          ],
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "taints": {
+          "type": "array",
+          "description": "Taints for the nodes",
+          "items": {
+            "$ref": "#/definitions/Taint"
+          },
+          "x-ms-identifiers": [
+            "key",
+            "value",
+            "effect"
+          ],
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "NodePoolUpdate": {
+      "type": "object",
+      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/NodePoolPropertiesUpdate",
+          "description": "The resource-specific properties for this resource."
+        },
+        "identity": {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate",
+          "description": "The managed service identities assigned to this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
+        }
+      ]
+    },
+    "NodePoolVersionProfile": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the unique identifier of the version.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
+          "default": "stable",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "availableUpgrades": {
+          "type": "array",
+          "description": "AvailableUpgrades is a list of version names the current version can be upgraded to.",
+          "items": {
+            "type": "string"
+          },
+          "readOnly": true
+        }
+      },
+      "required": [
+        "availableUpgrades"
+      ]
+    },
     "OperatorsAuthenticationProfile": {
       "type": "object",
       "description": "The configuration that the operators of the cluster have to authenticate to Azure.",
@@ -1552,7 +1482,7 @@
         },
         "subnetId": {
           "$ref": "#/definitions/SubnetResourceId",
-          "description": "ResourceId for the subnet used by the control plane"
+          "description": "The Azure resource ID of the worker subnet"
         },
         "outboundType": {
           "type": "string",
@@ -1590,6 +1520,7 @@
       },
       "required": [
         "subnetId",
+        "networkSecurityGroupId",
         "operatorsAuthentication",
         "issuerUrl"
       ]
@@ -1667,15 +1598,15 @@
       "properties": {
         "key": {
           "$ref": "#/definitions/taintKey",
-          "description": "The key of the taint\nThe good example of the taint key is `node-role.kubernetes.io/master`"
+          "description": "The key of the taint"
         },
         "value": {
           "$ref": "#/definitions/taintValue",
-          "description": "The value of the taint\nThe good example of the taint value is `NoSchedule`"
+          "description": "The value of the taint"
         },
         "effect": {
           "$ref": "#/definitions/Effect",
-          "description": "The effect of the taint\nThe good example of the taint effect is `NoSchedule`"
+          "description": "The effect of the taint"
         }
       }
     },
@@ -1688,14 +1619,22 @@
           "description": "The set of Azure User-Assigned Managed Identities leveraged for the Control Plane\noperators of the cluster. The set of required managed identities is dependent on the\nCluster's OpenShift version.",
           "additionalProperties": {
             "$ref": "#/definitions/UserAssignedIdentityResourceId"
-          }
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "dataPlaneOperators": {
           "type": "object",
           "description": "The set of Azure User-Assigned Managed Identities leveraged for the Data Plane\noperators of the cluster. The set of required managed identities is dependent on the\nCluster's OpenShift version.",
           "additionalProperties": {
             "$ref": "#/definitions/UserAssignedIdentityResourceId"
-          }
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "serviceManagedIdentity": {
           "$ref": "#/definitions/UserAssignedIdentityResourceId",
@@ -1739,8 +1678,10 @@
         "channelGroup": {
           "type": "string",
           "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
+          "default": "stable",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1754,44 +1695,18 @@
         }
       },
       "required": [
-        "id",
-        "channelGroup",
         "availableUpgrades"
       ]
     },
-    "Visibility": {
-      "type": "string",
-      "description": "The visibility of the API server",
-      "enum": [
-        "public",
-        "private"
-      ],
-      "x-ms-enum": {
-        "name": "Visibility",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "public",
-            "value": "public",
-            "description": "The API server is visible from the internet."
-          },
-          {
-            "name": "private",
-            "value": "private",
-            "description": "The API server is not visible from the internet."
-          }
-        ]
-      }
-    },
     "taintKey": {
       "type": "string",
-      "description": "taintKey is the k8s valid key of the taint type on the nodepool nodes\nThe good example of the taint key is `node-role.kubernetes.io/master`",
+      "description": "taintKey is the k8s valid key of the taint type on the nodepool nodes",
       "minLength": 1,
       "maxLength": 316
     },
     "taintValue": {
       "type": "string",
-      "description": "taintValue is the k8s valid value of the taint type on the nodepool nodes\nThe good example of the taint value is `NoSchedule`",
+      "description": "taintValue is the k8s valid value of the taint type on the nodepool nodes",
       "minLength": 1,
       "maxLength": 63
     }

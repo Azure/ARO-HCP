@@ -16,7 +16,7 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState             arm.ProvisioningState `json:"provisioningState,omitempty" visibility:"read"`
+	ProvisioningState             arm.ProvisioningState `json:"provisioningState,omitempty"             visibility:"read"`
 	Version                       VersionProfile        `json:"version,omitempty"                       visibility:"read create"`
 	DNS                           DNSProfile            `json:"dns,omitempty"                           visibility:"read create update"`
 	Network                       NetworkProfile        `json:"network,omitempty"                       visibility:"read create"`
@@ -28,25 +28,25 @@ type HCPOpenShiftClusterProperties struct {
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID                string   `json:"id,omitempty"                visibility:"read create" validate:"required_for_put"`
-	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create" validate:"required_for_put"`
+	ID                string   `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable"`
+	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create update"`
 	AvailableUpgrades []string `json:"availableUpgrades,omitempty" visibility:"read"`
 }
 
 // DNSProfile represents the DNS configuration of the cluster.
 type DNSProfile struct {
 	BaseDomain       string `json:"baseDomain,omitempty"       visibility:"read"`
-	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create" validate:"omitempty,dns_rfc1035_label"`
+	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create" validate:"omitempty,dns_rfc1035_label,max=15"`
 }
 
 // NetworkProfile represents a cluster network configuration.
 // Visibility for the entire struct is "read create".
 type NetworkProfile struct {
-	NetworkType NetworkType `json:"networkType,omitempty"`
-	PodCIDR     string      `json:"podCidr,omitempty"     validate:"required_for_put,cidrv4"`
-	ServiceCIDR string      `json:"serviceCidr,omitempty" validate:"required_for_put,cidrv4"`
-	MachineCIDR string      `json:"machineCidr,omitempty" validate:"required_for_put,cidrv4"`
-	HostPrefix  int32       `json:"hostPrefix,omitempty"`
+	NetworkType NetworkType `json:"networkType,omitempty" validate:"omitempty,enum_networktype"`
+	PodCIDR     string      `json:"podCidr,omitempty"     validate:"omitempty,cidrv4"`
+	ServiceCIDR string      `json:"serviceCidr,omitempty" validate:"omitempty,cidrv4"`
+	MachineCIDR string      `json:"machineCidr,omitempty" validate:"omitempty,cidrv4"`
+	HostPrefix  int32       `json:"hostPrefix,omitempty"  validate:"omitempty,min=23,max=26"`
 }
 
 // ConsoleProfile represents a cluster web console configuration.
@@ -58,18 +58,18 @@ type ConsoleProfile struct {
 // APIProfile represents a cluster API server configuration.
 type APIProfile struct {
 	URL        string     `json:"url,omitempty"        visibility:"read"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"required_for_put,enum_visibility"`
+	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"omitempty,enum_visibility"`
 }
 
 // PlatformProfile represents the Azure platform configuration.
 // Visibility for the entire struct is "read create".
 type PlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	SubnetID                string                         `json:"subnetId,omitempty"             validate:"required_for_put"`
-	OutboundType            OutboundType                   `json:"outboundType,omitempty"         validate:"omitempty,enum_outboundtype"`
-	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
+	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required_for_put,resource_id=Microsoft.Network/virtualNetworks/subnets"`
+	OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"omitempty,enum_outboundtype"`
+	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"required_for_put,resource_id=Microsoft.Network/networkSecurityGroups"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
-	IssuerURL               string                         `json:"issuerUrl,omitempty"                     visibility:"read"`
+	IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for
@@ -93,9 +93,18 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 			Type: arm.ManagedServiceIdentityTypeNone,
 		},
 		Properties: HCPOpenShiftClusterProperties{
+			Version: VersionProfile{
+				ChannelGroup: "stable",
+			},
 			Network: NetworkProfile{
 				NetworkType: NetworkTypeOVNKubernetes,
+				PodCIDR:     "10.128.0.0/14",
+				ServiceCIDR: "172.30.0.0/16",
+				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
+			},
+			API: APIProfile{
+				Visibility: VisibilityPublic,
 			},
 			Platform: PlatformProfile{
 				OutboundType: OutboundTypeLoadBalancer,
