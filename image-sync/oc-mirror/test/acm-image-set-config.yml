@@ -5,12 +5,8 @@ mirror:
   - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.16
     packages:
     - name: multicluster-engine
-      channels:
-      - name: stable-2.7
-        minVersion: "2.7.0"
-        maxVersion: "2.7.0"
+      bundles:
+      - name: multicluster-engine.v2.7.0
     - name: advanced-cluster-management
-      channels:
-      - name: release-2.12
-        minVersion: "2.12.0"
-        maxVersion: "2.12.0"
+      bundles:
+      - name: advanced-cluster-management.v2.12.0

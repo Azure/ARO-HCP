@@ -6,6 +6,8 @@ RUN set -eux; \
     tdnf -y install unzip wget tar ca-certificates; \
     tdnf clean all
 
+ENV OC_MIRROR_4_16_VERSION=4.16.3
+ENV OC_MIRROR_4_18_VERSION=4.18.7
 ENV OC_VERSION=4.18.0-rc.9
 ENV YQ_VERSION=v4.2.0
 
@@ -13,10 +15,15 @@ RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VER
     tar -zvxf oc.tar.gz && \
     mv oc kubectl /usr/local/bin
 
-RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/oc-mirror.tar.gz \
+RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_MIRROR_4_16_VERSION}/oc-mirror.tar.gz \
     -o oc-mirror.tar.gz && \
     tar -zvxf oc-mirror.tar.gz && \
-    mv oc-mirror /usr/local/bin
+    mv oc-mirror /usr/local/bin/oc-mirror-4.16
+
+RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_MIRROR_4_18_VERSION}/oc-mirror.tar.gz \
+    -o oc-mirror.tar.gz && \
+    tar -zvxf oc-mirror.tar.gz && \
+    mv oc-mirror /usr/local/bin/oc-mirror-4.18
 
 RUN curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64.tar.gz \
     -o yq.tar.gz && \
@@ -37,7 +44,8 @@ ADD mirror.sh /usr/local/bin/mirror.sh
 ADD docker-login.sh /usr/local/bin/docker-login.sh
 
 COPY --chown=0:0 --chmod=755 --from=downloader \
-    /usr/local/bin/oc-mirror \
+    /usr/local/bin/oc-mirror-4.16 \
+    /usr/local/bin/oc-mirror-4.18 \
     /usr/local/bin/oc \
     /usr/local/bin/kubectl \
     /usr/local/bin/yq \
