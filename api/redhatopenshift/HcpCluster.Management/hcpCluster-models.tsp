@@ -333,7 +333,7 @@ model NodePoolProperties {
   autoScaling?: NodePoolAutoScaling;
 
   // This warning means to ensure good customer experience, to not create
-  // poorly defined types. However here the type literarly is the map<string, value>
+  // poorly defined types. However here the type literally is the map<string, value>
   /** K8s labels to propagate to the NodePool Nodes
    * The good example of the label is `node-role.kubernetes.io/master: ""`
    */
