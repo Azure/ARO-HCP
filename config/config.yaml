@@ -90,10 +90,9 @@ defaults:
   mise:
     deploy: false
     azureAdInstance: ""
-    azureAdClientId: ""
+    firstPartyAppId: ""
     armInstance: ""
-    validAppId0: ""
-    validAppId1: ""
+    armAppId: ""
     image:
       repository: ""
       digest: ""

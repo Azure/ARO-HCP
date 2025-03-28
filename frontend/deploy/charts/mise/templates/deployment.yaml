@@ -4,7 +4,7 @@ metadata:
   name: mise
   namespace: '{{ .Values.namespace  }}'
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: mise
@@ -30,21 +30,23 @@ spec:
         - name: AzureAd__Instance
           value: '{{ .Values.azureAdInstance  }}'
         - name: AzureAd__ClientId
-          value: '{{ .Values.azureAdClientId  }}'
+          value: '{{ .Values.firstPartyAppId  }}'
         - name: AzureAd__TenantId
           value: '{{ .Values.tenantId  }}'
+        - name: AzureAd__Audience
+          value: "api://{{ .Values.azureAdClientId }}"
         - name: AzureAd__InboundPolicies__0__Label
           value: "ARM Policy"
         - name: AzureAd__InboundPolicies__0__Authority
           value: "{{ .Values.azureAdInstance }}{{ .Values.tenantId }}"
         - name: AzureAd__InboundPolicies__0__AuthenticationSchemes__0
-          value: "Bearer"
+          value: "PoP"
         - name: AzureAd__InboundPolicies__0__ValidAudiences__0
           value: '{{ .Values.armInstance  }}'
         - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
-          value: '{{ .Values.validAppId0  }}'
-        - name: AzureAd__InboundPolicies__0__ValidApplicationIds__1
-          value: '{{ .Values.validAppId1  }}'
+          value: '{{ .Values.armAppId  }}'
+        - name: AzureAd__InboundPolicies__0__SignedHttpRequestValidationPolicy
+          value: '{"ValidateTs" : true, "ValidateM" : true, "ValidateU" : true, "ValidateP" : true }'
         - name: AllowedHosts
           value: "*"
         - name: Kestrel__Endpoints__Http__Url

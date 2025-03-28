@@ -93,10 +93,9 @@ deploy:
 		--set mise.imageDigest=${MISE_IMAGE_DIGEST} \
 		--set mise.tenantId=$${TENANT_ID} \
 		--set mise.azureAdInstance=${MISE_AZURE_AD_INSTANCE} \
-		--set mise.azureAdClientId=${MISE_AZURE_AD_CLIENT_ID} \
+		--set mise.firstPartyAppId=${MISE_FIRST_PARTY_APP_ID} \
 		--set mise.armInstance=${MISE_ARM_INSTANCE} \
-		--set mise.validAppId0=${MISE_VALID_APP_ID_0} \
-		--set mise.validAppId1=${MISE_VALID_APP_ID_1} \
+		--set mise.armAppId=${MISE_ARM_APP_ID} \
 		--namespace aro-hcp
 .PHONY: deploy
 

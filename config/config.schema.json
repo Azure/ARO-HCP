@@ -513,14 +513,12 @@
         "azureAdInstance":{
           "type":"string"
         },
-        "azureAdClientId":{
+        "firstPartyAppId":{
           "type":"string"
         },
-        "validAppId0":{
-          "type":"string"
-        },
-        "validAppId1":{
-          "type":"string"
+        "armAppId":{
+          "type":"string",
+          "description": "The valid app ID for mise, which is the ARM Application Id, this is common across all clouds (MSIT/AME/FF)"
         },
         "image":{
           "$ref": "#/definitions/containerImage"
@@ -530,9 +528,8 @@
         "deploy",
         "image",
         "azureAdInstance",
-        "azureAdClientId",
-        "validAppId0",
-        "validAppId1"
+        "firstPartyAppId",
+        "armAppId"
       ]
     },
     "global": {
