@@ -332,6 +332,9 @@ var acmMirrorConfig = {
               {
                 name: 'multicluster-engine.v2.7.0'
               }
+              {
+                name: 'multicluster-engine.v2.8.0'
+              }
             ]
           }
           {
@@ -339,6 +342,9 @@ var acmMirrorConfig = {
             bundles: [
               {
                 name: 'advanced-cluster-management.v2.12.0'
+              }
+              {
+                name: 'advanced-cluster-management.v2.13.0'
               }
             ]
           }
@@ -360,7 +366,7 @@ var ocMirrorJobConfiguration = ocMirrorEnabled
       }
       {
         name: 'acm-mirror'
-        cron: '0 10 * * *'
+        cron: '0 * * * *'
         timeout: 4 * 60 * 60
         targetRegistry: svcAcrName
         imageSetConfig: acmMirrorConfig
