@@ -1,5 +1,5 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.RP.PKO
+serviceGroup: Microsoft.Azure.ARO.HCP.PKO
 rolloutName: RP PKO Rollout
 resourceGroups:
 - name: '{{ .mgmt.rg  }}'

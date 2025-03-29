@@ -63,6 +63,8 @@ resourceGroups:
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - global-infra
   # ingests secrets into the global KV
   - name: decrypt-and-ingest-secrets
     action: Shell
@@ -78,6 +80,30 @@ resourceGroups:
       configRef: global.secretsToSyncDir
     dependsOn:
     - global-infra
+  # mirror oc-mirror image
+  - name: mirror-oc-mirror-image
+    action: Shell
+    command: ../image-sync/on-demand/sync.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: TARGET_ACR
+      configRef: 'acr.svc.name'
+    - name: SOURCE_REGISTRY
+      configRef: imageSync.ocMirror.image.registry
+    - name: REPOSITORY
+      configRef: imageSync.ocMirror.image.repository
+    - name: DIGEST
+      configRef: imageSync.ocMirror.image.digest
+    - name: PULL_SECRET_KV
+      configRef: global.keyVault.name
+    - name: PULL_SECRET
+      configRef: imageSync.componentSync.pullSecretName
+    dependsOn:
+    - global-acrs
+    - decrypt-and-ingest-secrets
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM
@@ -85,4 +111,4 @@ resourceGroups:
     parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - global-acrs
+    - mirror-oc-mirror-image

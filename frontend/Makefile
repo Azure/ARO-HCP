@@ -79,7 +79,7 @@ deploy:
 		--set serviceAccount.workloadIdentityTenantId="$${FRONTEND_MI_TENANT_ID}" \
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE}:$${DIGEST} \
+		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE}@$${DIGEST} \
 		--set configMap.location=${LOCATION}  \
 		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE}@$${DIGEST} \
 		--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \

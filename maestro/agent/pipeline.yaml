@@ -2,6 +2,29 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
 rolloutName: Maestro Agent Rollout
 resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription }}'
+  steps:
+  - name: mirror-image
+    action: Shell
+    command: ../../image-sync/on-demand/sync.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: TARGET_ACR
+      configRef: 'acr.svc.name'
+    - name: SOURCE_REGISTRY
+      configRef: maestro.image.registry
+    - name: REPOSITORY
+      configRef: maestro.image.repository
+    - name: DIGEST
+      configRef: maestro.image.digest
+    - name: PULL_SECRET_KV
+      configRef: global.keyVault.name
+    - name: PULL_SECRET
+      configRef: imageSync.componentSync.pullSecretName
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
   aksCluster: '{{ .mgmt.aks.name  }}'
@@ -38,6 +61,8 @@ resourceGroups:
       configRef: maestro.agent.sidecar.image.digest
     - name: ACR_NAME
       configRef: acr.svc.name
+  dependsOn:
+  - mirror-image
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   aksCluster: '{{ .svc.aks.name  }}'

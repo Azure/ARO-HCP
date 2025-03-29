@@ -50,8 +50,10 @@ param ocpPullSecretName string
 #disable-next-line secure-secrets-in-params // Doesn't contain a secret
 param componentSyncSecrets string
 
+import { csvToArray } from '../modules/common.bicep'
+
 var csSecrets = [
-  for secret in split(componentSyncSecrets, ','): {
+  for secret in csvToArray(componentSyncSecrets): {
     registry: split(secret, ':')[0]
     secret: split(secret, ':')[1]
   }
@@ -330,6 +332,9 @@ var acmMirrorConfig = {
               {
                 name: 'multicluster-engine.v2.7.0'
               }
+              {
+                name: 'multicluster-engine.v2.8.0'
+              }
             ]
           }
           {
@@ -337,6 +342,9 @@ var acmMirrorConfig = {
             bundles: [
               {
                 name: 'advanced-cluster-management.v2.12.0'
+              }
+              {
+                name: 'advanced-cluster-management.v2.13.0'
               }
             ]
           }
@@ -358,7 +366,7 @@ var ocMirrorJobConfiguration = ocMirrorEnabled
       }
       {
         name: 'acm-mirror'
-        cron: '0 10 * * *'
+        cron: '0 * * * *'
         timeout: 4 * 60 * 60
         targetRegistry: svcAcrName
         imageSetConfig: acmMirrorConfig
