@@ -127,3 +127,31 @@ func TestMergeStringPtrMap(t *testing.T) {
 		})
 	}
 }
+
+func TestNonNilSliceValues(t *testing.T) {
+	a, b, c := Ptr("A"), Ptr("B"), Ptr("C")
+	testCases := []struct {
+		name string
+		s    []*string
+		want []*string
+	}{
+		{name: "nil slice", s: nil, want: nil},
+		{name: "empty slice", s: []*string{}, want: nil},
+		{name: "no nil", s: []*string{a, b, c}, want: []*string{a, b, c}},
+		{name: "nil start", s: []*string{nil, a, b, c}, want: []*string{a, b, c}},
+		{name: "nil end", s: []*string{a, b, c, nil}, want: []*string{a, b, c}},
+		{name: "nil mid", s: []*string{a, b, nil, c}, want: []*string{a, b, c}},
+		{name: "all nil", s: []*string{nil, nil, nil, nil}, want: nil},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []*string
+			for _, x := range NonNilSliceValues(tc.s) {
+				got = append(got, x)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("NonNilSliceValues() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
