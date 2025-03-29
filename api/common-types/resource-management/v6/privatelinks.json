@@ -2,24 +2,24 @@
   "swagger": "2.0",
   "info": {
     "title": "Common types",
-    "version": "3.0"
+    "version": "6.0"
   },
   "paths": {},
   "definitions": {
     "PrivateEndpoint": {
       "type": "object",
-      "description": "The Private Endpoint resource.",
+      "description": "The private endpoint resource.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "The ARM identifier for Private Endpoint",
+          "description": "The ARM identifier for private endpoint.",
           "readOnly": true
         }
       }
     },
     "PrivateEndpointConnection": {
       "type": "object",
-      "description": "The Private Endpoint Connection resource.",
+      "description": "The private endpoint connection resource.",
       "properties": {
         "properties": {
           "$ref": "#/definitions/PrivateEndpointConnectionProperties",
@@ -29,30 +29,44 @@
       },
       "allOf": [
         {
-          "$ref": "./types.json#/definitions/Resource"
+          "$ref": "../v5/types.json#/definitions/Resource"
         }
       ]
     },
     "PrivateEndpointConnectionListResult": {
       "type": "object",
-      "description": "List of private endpoint connection associated with the specified storage account",
+      "description": "List of private endpoint connections associated with the specified resource.",
       "properties": {
         "value": {
           "type": "array",
-          "description": "Array of private endpoint connections",
+          "description": "Array of private endpoint connections.",
           "items": {
             "$ref": "#/definitions/PrivateEndpointConnection"
           }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to get the next set of operation list results (if there are any).",
+          "readOnly": true
         }
       }
     },
     "PrivateEndpointConnectionProperties": {
       "type": "object",
-      "description": "Properties of the PrivateEndpointConnectProperties.",
+      "description": "Properties of the private endpoint connection.",
       "properties": {
+        "groupIds": {
+          "type": "array",
+          "description": "The group ids for the private endpoint resource.",
+          "items": {
+            "type": "string"
+          },
+          "readOnly": true
+        },
         "privateEndpoint": {
           "$ref": "#/definitions/PrivateEndpoint",
-          "description": "The resource of private end point."
+          "description": "The private endpoint resource."
         },
         "privateLinkServiceConnectionState": {
           "$ref": "#/definitions/PrivateLinkServiceConnectionState",
@@ -97,7 +111,7 @@
     },
     "PrivateLinkResource": {
       "type": "object",
-      "description": "A private link resource",
+      "description": "A private link resource.",
       "properties": {
         "properties": {
           "$ref": "#/definitions/PrivateLinkResourceProperties",
@@ -107,13 +121,13 @@
       },
       "allOf": [
         {
-          "$ref": "./types.json#/definitions/Resource"
+          "$ref": "../v5/types.json#/definitions/Resource"
         }
       ]
     },
     "PrivateLinkResourceListResult": {
       "type": "object",
-      "description": "A list of private link resources",
+      "description": "A list of private link resources.",
       "properties": {
         "value": {
           "type": "array",
@@ -121,6 +135,12 @@
           "items": {
             "$ref": "#/definitions/PrivateLinkResource"
           }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to get the next set of operation list results (if there are any).",
+          "readOnly": true
         }
       }
     },
@@ -143,7 +163,7 @@
         },
         "requiredZoneNames": {
           "type": "array",
-          "description": "The private link resource Private link DNS zone name.",
+          "description": "The private link resource private link DNS zone name.",
           "items": {
             "type": "string"
           }
@@ -173,7 +193,7 @@
     "PrivateEndpointConnectionName": {
       "name": "privateEndpointConnectionName",
       "in": "path",
-      "description": "The name of the private endpoint connection associated with the Azure resource",
+      "description": "The name of the private endpoint connection associated with the Azure resource.",
       "required": true,
       "type": "string",
       "x-ms-parameter-location": "method"
