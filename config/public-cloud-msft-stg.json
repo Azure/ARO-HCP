@@ -151,7 +151,7 @@
       "repositories": "",
       "secrets": ""
     },
-    "environmentName": "global-shared-resources",
+    "environmentName": "aro-hcp-image-sync",
     "ocMirror": {
       "enabled": true,
       "image": {
