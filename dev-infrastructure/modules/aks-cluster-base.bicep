@@ -1,3 +1,8 @@
+import {
+  csvToArray
+  parseIPServiceTag
+} from '../modules/common.bicep'
+
 // Constants
 param aksClusterName string
 param aksNodeResourceGroupName string
@@ -45,19 +50,13 @@ param istioIngressGatewayIPAddressName string = ''
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
 var aksClusterOutboundIPAddressIPTagsArray = [
-  for tag in (aksClusterOutboundIPAddressIPTags == '') ? [] : split(aksClusterOutboundIPAddressIPTags, ','): {
-    ipTagType: split(tag, ':')[0]
-    tag: split(tag, ':')[1]
-  }
+  for tag in csvToArray(aksClusterOutboundIPAddressIPTags): parseIPServiceTag(tag)
 ]
 
 @description('IPTags to be set on the Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
 param istioIngressGatewayIPAddressIPTags string = ''
 var istioIngressGatewayIPAddressIPTagsArray = [
-  for tag in (istioIngressGatewayIPAddressIPTags == '') ? [] : split(istioIngressGatewayIPAddressIPTags, ','): {
-    ipTagType: split(tag, ':')[0]
-    tag: split(tag, ':')[1]
-  }
+  for tag in csvToArray(istioIngressGatewayIPAddressIPTags): parseIPServiceTag(tag)
 ]
 
 @maxLength(24)

@@ -595,6 +595,9 @@
         "environmentName": {
           "type": "string"
         },
+        "outboundServiceTags": {
+          "$ref": "#/definitions/keyColonValueCSV"
+        },
         "componentSync": {
           "type": "object",
           "properties": {
@@ -647,6 +650,7 @@
       "additionalProperties": false,
       "required": [
         "environmentName",
+        "outboundServiceTags",
         "componentSync",
         "ocMirror"
       ]

@@ -156,6 +156,7 @@ defaults:
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync
+    outboundServiceTags: ""
     componentSync:
       enabled: true
       image:

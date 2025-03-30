@@ -41,3 +41,4 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = i
 }
 
 output ipAddress string = publicIPAddress.properties.ipAddress
+output resourceId string = publicIPAddress.id
