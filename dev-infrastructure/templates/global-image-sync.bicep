@@ -1,5 +1,5 @@
 @description('Azure Region Location')
-param location string = resourceGroup().location
+param location string
 
 @description('Specifies the name of the container app environment.')
 param containerAppEnvName string
