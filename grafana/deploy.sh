@@ -42,7 +42,7 @@ do
         then
             echo "would create/update dashboard '${dashboard_name}' on managed grafana ${GRAFANA_NAME} in rg ${RESOURCEGROUP}"
         else
-            yq -i ".folderUid = \"${folderUid}\"" "${dashboard}"
+            jq --arg folderUid "${folderUid}" '.folderUid = $folderUid' "${dashboard}" > "${dashboard}.tmp" && mv "${dashboard}.tmp" "${dashboard}"
             az grafana dashboard update --overwrite true -g "${RESOURCEGROUP}"  -n "${GRAFANA_NAME}" --definition "${dashboard}"
         fi
     done
