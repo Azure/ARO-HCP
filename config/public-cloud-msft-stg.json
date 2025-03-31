@@ -160,7 +160,8 @@
         "repository": "image-sync/oc-mirror"
       },
       "pullSecretName": "ocmirror-pull-secret"
-    }
+    },
+    "outboundServiceTags": "FirstPartyUsage:/Unprivileged"
   },
   "kvCertOfficerPrincipalId": "ce4e50ef-1059-4b6f-a53a-53001d517513",
   "logs": {

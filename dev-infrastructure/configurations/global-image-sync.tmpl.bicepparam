@@ -1,6 +1,7 @@
 using '../templates/global-image-sync.bicep'
 
 param containerAppEnvName = '{{ .imageSync.environmentName }}'
+param containerAppOutboundServiceTags = '{{ .imageSync.outboundServiceTags }}'
 param location = '{{ .global.region }}'
 
 param acrResourceGroup = '{{ .global.rg }}'

@@ -227,6 +227,7 @@ defaults:
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync
+    outboundServiceTags: "FirstPartyUsage:/Unprivileged"
     componentSync:
       enabled: false # we rely on on-demand sync within the respective pipelines
       image:

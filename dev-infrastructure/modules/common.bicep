@@ -429,3 +429,15 @@ func determineZoneRedundancyForRegion(region string, mode string) bool =>
 @export()
 func determineZoneRedundancy(availabilityZones array, mode string) bool =>
   mode == 'Auto' ? length(availabilityZones) > 0 : mode == 'Enabled' && length(availabilityZones) > 0
+
+@export()
+type IPServiceTag = {
+  ipTagType: string
+  tag: string
+}
+
+@export()
+func parseIPServiceTag(tag string) IPServiceTag => {
+  ipTagType: split(tag, ':')[0]
+  tag: split(tag, ':')[1]
+}

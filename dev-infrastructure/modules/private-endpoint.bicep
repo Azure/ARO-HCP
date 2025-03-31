@@ -6,6 +6,7 @@ param location string
   'keyvault'
   'cosmosdb'
   'postgres'
+  'acr'
 ])
 param serviceType string
 
@@ -15,6 +16,7 @@ param serviceType string
   'vault'
   'Sql'
   'postgresqlServer'
+  'registry'
 ])
 param groupId string
 
@@ -39,6 +41,9 @@ var endpointConfig = {
   }
   postgres: {
     postgresqlServer: 'privatelink.postgres.database.azure.com'
+  }
+  acr: {
+    registry: 'privatelink.azurecr.io'
   }
 }
 
