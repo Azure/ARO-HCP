@@ -83,7 +83,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.5
+      kubernetesVersion: 1.31.6
       systemAgentPool:
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
@@ -113,7 +113,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.5
+      kubernetesVersion: 1.31.6
       systemAgentPool:
         vmSize: 'Standard_E8s_v3'
         osDiskSizeGB: 128
