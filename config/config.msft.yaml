@@ -66,6 +66,7 @@ defaults:
     namespace: hypershift
     additionalInstallArg: '--tech-preview-no-upgrade'
     image:
+      registry: quay.io
       repository: acm-d/rhtap-hypershift-operator
   # OIDC
   oidcZoneRedundantMode: Auto
@@ -129,6 +130,7 @@ defaults:
   # RP Frontend
   frontend:
     image:
+      registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
     cert:
       name: frontend-cert
@@ -141,6 +143,7 @@ defaults:
   # RP Backend
   backend:
     image:
+      registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
   # Mise
   mise:
@@ -185,10 +188,12 @@ defaults:
       zoneRedundantMode: 'Auto'
     restrictIstioIngress: true
     image:
+      registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   # Cluster Service
   clusterService:
     image:
+      registry: quay.io
       repository: app-sre/uhc-clusters-service
     azureOperatorsManagedIdentities:
       cloudControllerManager:
@@ -221,17 +226,19 @@ defaults:
       serviceAccountName: clusters-service
   # Image Sync
   imageSync:
-    environmentName: global-shared-resources
+    environmentName: aro-hcp-image-sync
     componentSync:
-      enabled: true
+      enabled: false # we rely on on-demand sync within the respective pipelines
       image:
+        registry: arohcpsvcdev.azurecr.io
         repository: image-sync/component-sync
-      repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,arohcpsvcdev.azurecr.io/image-sync/component-sync,arohcpsvcdev.azurecr.io/arohcpfrontend,arohcpsvcdev.azurecr.io/arohcpbackend,quay.io/acm-d/rhtap-hypershift-operator,arohcpsvcdev.azurecr.io/image-sync/oc-mirror,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package
-      secrets: 'quay.io:quay-io-bearer,arohcpsvcdev.azurecr.io:arohcpsvcdev-bearer'
+      repositories: ""
+      secrets: ""
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
       image:
+        registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
       pullSecretName: ocmirror-pull-secret
   # MCE
@@ -278,7 +285,7 @@ clouds:
             digest: sha256:6a212720d25f270073318b1b480f326fcda08fbf6a1e435b7651e0336c72caee
         ocMirror:
           image:
-            digest: sha256:9e2c19a88985aca7fef8061506a61c6519ad19c1a4dab9a46ac707dcf6bb05ac
+            digest: sha256:82b42792660e6024b0721f80b920421ac62a451c3b3677175dad289d1400f032
     environments:
       int:
         # this is the MSFT INT environment
@@ -289,6 +296,7 @@ clouds:
             safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
             keyVault:
               name: arohcpint-global # [globally-unique]
+            secretsToSyncDir: "msft-int/arohcpint-global"
           # Cluster Service
           clusterService:
             environment: "arohcpint"
@@ -364,11 +372,11 @@ clouds:
               name: "arohcpint-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
-              digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
+              digest: sha256:0e6b1e3e5279788552f79780f5a193dcd554ec6728364b505cb7f90a92a6a43e
           # RP Backend
           backend:
             image:
-              digest: sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c
+              digest: sha256:7eab98c23616c1211c987107588387c18487191278812e6f15fcd888ecee1256
           # Hypershift
           hypershift:
             image:
@@ -415,6 +423,7 @@ clouds:
             region: uksouth
             keyVault:
               name: arohcpstg-global # [globally-unique]
+            secretsToSyncDir: "msft-stg/arohcpstg-global"
           # Cluster Service
           clusterService:
             environment: "arohcpstg"
