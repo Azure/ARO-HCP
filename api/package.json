@@ -16,7 +16,7 @@
     "generate": "tsp compile redhatopenshift/HcpCluster.Management --warn-as-error && autorest --verbose autorest-config.yaml"
   },
   "devDependencies": {
-    "@typespec/compiler": "^0.67.1",
+    "@typespec/compiler": "^0.67.2",
     "autorest": "^3.7.1"
   }
 }
