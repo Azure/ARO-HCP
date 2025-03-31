@@ -48,7 +48,7 @@ model HcpOpenShiftClusterProperties {
 
   /** Version of the control plane components */
   @visibility(Lifecycle.Create, Lifecycle.Read)
-  version: VersionProfile;
+  version?: VersionProfile;
 
   /** Cluster DNS configuration */
   dns?: DnsProfile;
@@ -59,11 +59,11 @@ model HcpOpenShiftClusterProperties {
 
   /** Shows the cluster web console information */
   @visibility(Lifecycle.Read)
-  console: ConsoleProfile;
+  console?: ConsoleProfile;
 
   /** Shows the cluster API server profile */
   @visibility(Lifecycle.Read)
-  api: ApiProfile;
+  api?: ApiProfile;
 
   /** Disable user workload monitoring */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
@@ -71,7 +71,7 @@ model HcpOpenShiftClusterProperties {
 
   /** Azure platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  platform?: PlatformProfile;
+  platform: PlatformProfile;
 
   /** Configure cluter capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
@@ -315,7 +315,7 @@ model NodePoolProperties {
 
   /** OpenShift version for the nodepool */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  version: NodePoolVersionProfile;
+  version?: NodePoolVersionProfile;
 
   /** Azure node pool platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)

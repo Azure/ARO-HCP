@@ -1032,9 +1032,7 @@
         }
       },
       "required": [
-        "version",
-        "console",
-        "api"
+        "platform"
       ]
     },
     "HcpOpenShiftClusterPropertiesUpdate": {
@@ -1372,7 +1370,6 @@
         }
       },
       "required": [
-        "version",
         "platform"
       ]
     },
