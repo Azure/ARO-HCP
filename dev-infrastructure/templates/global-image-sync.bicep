@@ -366,7 +366,7 @@ var ocMirrorJobConfiguration = ocMirrorEnabled
       }
       {
         name: 'acm-mirror'
-        cron: '0 * * * *'
+        cron: '0 10 * * *'
         timeout: 4 * 60 * 60
         targetRegistry: svcAcrName
         imageSetConfig: acmMirrorConfig
