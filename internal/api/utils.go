@@ -1,6 +1,7 @@
 package api
 
 import (
+	"iter"
 	"slices"
 )
 
@@ -15,6 +16,26 @@ func Ptr[T any](p T) *T {
 // DeleteNilsFromPtrSlice returns a slice with nil pointers removed.
 func DeleteNilsFromPtrSlice[S ~[]*E, E any](s S) S {
 	return slices.DeleteFunc(s, func(e *E) bool { return e == nil })
+}
+
+// NonNilSliceValues returns an iterator over index-value pairs in a slice
+// of pointers in the usual order, but skipping over nils.
+func NonNilSliceValues[E any](a []*E) iter.Seq2[int, *E] {
+	return NonNilValues(slices.All(a))
+}
+
+// NonNilValues returns an iterator over a sequence of pairs of values that skips
+// pairs where the second value in the pair is nil.
+func NonNilValues[K any, V any](seq iter.Seq2[K, *V]) iter.Seq2[K, *V] {
+	return func(yield func(K, *V) bool) {
+		for k, v := range seq {
+			if v != nil {
+				if !yield(k, v) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // StringSliceToStringPtrSlice converts a slice of strings to a slice of string pointers.

@@ -107,6 +107,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				API:                           newAPIProfile(&from.Properties.API),
 				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.DisableUserWorkloadMonitoring),
 				Platform:                      newPlatformProfile(&from.Properties.Platform),
+				Capabilities:                  newClusterCapabilitiesProfile(&from.Properties.Capabilities),
 			},
 		},
 	}
@@ -120,6 +121,18 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			LastModifiedByType: api.Ptr(generated.CreatedByType(from.Resource.SystemData.LastModifiedByType)),
 			LastModifiedAt:     from.Resource.SystemData.LastModifiedAt,
 		}
+	}
+
+	return out
+}
+
+func newClusterCapabilitiesProfile(from *api.ClusterCapabilitiesProfile) *generated.ClusterCapabilitiesProfile {
+	out := &generated.ClusterCapabilitiesProfile{
+		Disabled: make([]*generated.OptionalClusterCapability, len(from.Disabled)),
+	}
+
+	for index, item := range from.Disabled {
+		out.Disabled[index] = api.Ptr(generated.OptionalClusterCapability(item))
 	}
 
 	return out
@@ -202,6 +215,9 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.Platform != nil {
 				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
+			}
+			if c.Properties.Capabilities != nil {
+				normalizeCapabilities(c.Properties.Capabilities, &out.Properties.Capabilities)
 			}
 		}
 	}
@@ -428,6 +444,18 @@ func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssigne
 		}
 	}
 }
+
+func normalizeCapabilities(c *generated.ClusterCapabilitiesProfile, out *api.ClusterCapabilitiesProfile) {
+	if out == nil {
+		out = &api.ClusterCapabilitiesProfile{}
+	}
+	if c.Disabled != nil {
+		for _, v := range api.NonNilSliceValues(c.Disabled) {
+			out.Disabled = append(out.Disabled, api.OptionalClusterCapability(*v))
+		}
+	}
+}
+
 func convertUserAssignedIdentities(from map[string]*arm.UserAssignedIdentity) map[string]*generated.UserAssignedIdentity {
 	converted := make(map[string]*generated.UserAssignedIdentity)
 	for key, value := range from {
