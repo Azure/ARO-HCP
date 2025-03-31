@@ -30,6 +30,9 @@ param interval int = 1
 @description('Start time for the scheduled execution (12:00 AM the next day)')
 param startTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
 
+@description('Name of the deployment with timestamp for unique suffix')
+param deploymentName string = 'deploy-${utcNow()}'
+
 resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' existing = {
   name: automationAccountName
 }
@@ -70,7 +73,7 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
 
 // Link Schedule to Runbook
 resource jobSchedule 'Microsoft.Automation/automationAccounts/jobSchedules@2022-08-08' = if (!empty(scheduleName)) {
-  name: guid(resourceGroup().name, runbookSchedule.name)
+  name: guid(resourceGroup().name, runbookSchedule.name, deploymentName)
   parent: automationAccount
   properties: {
     schedule: {
