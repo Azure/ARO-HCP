@@ -46,7 +46,7 @@ do
             then
                 echo "Magic string XYZTOBESETBYPIPELINEZYX not found in dashboard file ${dashboard}" >&2
             else
-                sed -i "" "s/XYZTOBESETBYPIPELINEZYX/${folderUid}/" ${dashboard}
+                yq -i ".folderUid = \"${folderUid}\"" ${dashboard}
                 az grafana dashboard update --overwrite true -g ${RESOURCEGROUP}  -n ${GRAFANA_NAME} --definition ${dashboard}
             fi
         fi
