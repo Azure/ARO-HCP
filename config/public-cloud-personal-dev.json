@@ -237,7 +237,7 @@
         "kvName": "arohcp-etcd-usw3tst-1",
         "kvSoftDelete": false
       },
-      "kubernetesVersion": "1.31.5",
+      "kubernetesVersion": "1.31.6",
       "name": "usw3tst-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
@@ -314,7 +314,7 @@
         "kvName": "arohcp-etcd-usw3tst",
         "kvSoftDelete": false
       },
-      "kubernetesVersion": "1.31.5",
+      "kubernetesVersion": "1.31.6",
       "name": "usw3tst-svc",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
