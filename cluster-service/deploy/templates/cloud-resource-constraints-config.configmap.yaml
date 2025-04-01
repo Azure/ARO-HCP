@@ -1,20 +1,280 @@
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cloud-resource-constraints-config
-  namespace: '{{ .Release.Namespace  }}'
 data:
-  instance-type-constraints.yaml: |
-    instance_types:
-      - id: Standard_D8s_v3
-        ccs_only: true
-        enabled: true
-      - id: Standard_D8ps_v6
-        ccs_only: true
-        enabled: true
   cloud-region-constraints.yaml: |
     cloud_regions:
       - id: '{{ .Values.region  }}'
         enabled: true
         govcloud: false
         ccs_only: false
+  instance-type-constraints.yaml: |
+    instance_types:
+    # hand-crafted list to the ones mentioned in https://issues.redhat.com/browse/XCMSTRAT-1002
+    # those are the instance types that are also enabled in ARO Classic
+    - id: Standard_D8s_v3
+      ccs_only: true
+      enabled: true
+    - id: Standard_D8ps_v6
+      ccs_only: true
+      enabled: true
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC4as_T4_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC8as_T4_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC16as_T4_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC64as_T4_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_E4s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E8s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E16s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E20s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E32s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E48s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E64s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E80is_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E80ids_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D4s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D8s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D16s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D32s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D64s_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D4s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_D16s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_D32s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_E4s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_E8s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_E16s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_E32s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_F4s_v2
+    - ccs_only: true
+      enabled: true
+      id: Standard_F8s_v2
+    - ccs_only: true
+      enabled: true
+      id: Standard_F16s_v2
+    - ccs_only: true
+      enabled: true
+      id: Standard_F32s_v2
+    - ccs_only: true
+      enabled: true
+      id: Standard_F72s_v2
+    - ccs_only: true
+      enabled: true
+      id: Standard_D4s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D8s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D16s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D32s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D64s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D96s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E96ds_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E104ids_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E4s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E8s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E16s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E20s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E32s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E48s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E64s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E96s_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E104is_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D4as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D8as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D16as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D32as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D64as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D96as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E4as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E8as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E16as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E20as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E32as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E48as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E64as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_E96as_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_D4as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D8as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D16as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D32as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D64as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_D96as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E8as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E16as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E20as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E32as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E48as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E64as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_E96as_v5
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC24ads_A100_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC48ads_A100_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC96ads_A100_v4
+    - ccs_only: true
+      enabled: true
+      id: Standard_L8s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_L16s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_L32s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_L48s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_L64s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC6s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC12s_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC24rs_v3
+    - ccs_only: true
+      enabled: true
+      id: Standard_NC24s_v3
+kind: ConfigMap
+metadata:
+  name: cloud-resource-constraints-config
+  namespace: '{{ .Release.Namespace  }}'
