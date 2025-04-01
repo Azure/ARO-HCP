@@ -464,6 +464,11 @@
             }
           }
         },
+        "x-ms-examples": {
+          "NodePools_ListByParent": {
+            "$ref": "./examples/NodePools_ListByParent_MaximumSet_Gen.json"
+          }
+        },
         "x-ms-pageable": {
           "nextLinkName": "nextLink"
         }
