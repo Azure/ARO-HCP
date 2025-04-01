@@ -9,7 +9,7 @@ RUN set -eux; \
 ENV OC_MIRROR_4_16_VERSION=4.16.3
 ENV OC_MIRROR_4_18_VERSION=4.18.7
 ENV OC_VERSION=4.18.0-rc.9
-ENV YQ_VERSION=v4.2.0
+ENV YQ_VERSION=v4.45.1
 
 RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux.tar.gz -o oc.tar.gz  && \
     tar -zvxf oc.tar.gz && \
@@ -30,12 +30,13 @@ RUN curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq
     tar -zvxf yq.tar.gz && \
     mv yq_linux_amd64 /usr/local/bin/yq
 
-FROM --platform=linux/amd64 mcr.microsoft.com/azure-cli:cbl-mariner2.0
+# azurelinux3.0 from Apr 1st 2025
+FROM --platform=linux/amd64 mcr.microsoft.com/azure-cli@sha256:18ec5cf02ba6b46e9858ddff1125baaa1f14ba919f77ebc67c918c891f8df4a2
 
 RUN mkdir --mode=777 /workspace; \
     mkdir --mode=777 /config; \
     tdnf update -y; \
-    tdnf -y install ca-certificates yq; \
+    tdnf -y install ca-certificates bind-utils; \
     tdnf clean all
 
 WORKDIR /workspace
