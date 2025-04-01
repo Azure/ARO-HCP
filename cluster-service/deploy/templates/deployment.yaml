@@ -141,7 +141,7 @@ spec:
         - name: azure-operators-managed-identities-config
           mountPath: /configs/azure-operators-managed-identities-config.yaml
           subPath: azure-operators-managed-identities-config.yaml
-        {{- if ne .Values.Tracing.Address "" }}
+        {{- if and .Values.tracing (ne .Values.tracing.Address "") }}
         env:
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: {{ .Values.tracing.address }}
