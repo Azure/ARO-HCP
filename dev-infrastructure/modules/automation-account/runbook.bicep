@@ -67,17 +67,3 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
     timeZone: 'UTC'
   }
 }
-
-// Link Schedule to Runbook
-resource jobSchedule 'Microsoft.Automation/automationAccounts/jobSchedules@2022-08-08' = if (!empty(scheduleName)) {
-  name: guid(resourceGroup().name, runbookSchedule.name)
-  parent: automationAccount
-  properties: {
-    schedule: {
-      name: runbookSchedule.name
-    }
-    runbook: {
-      name: accountRunbook.name
-    }
-  }
-}

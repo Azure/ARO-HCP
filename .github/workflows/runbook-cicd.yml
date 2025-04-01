@@ -24,6 +24,11 @@ on:
 permissions:
   id-token: write
   contents: read
+env:
+  AUTOMATION_ACCOUNT_RG: hcp-dev-automation-account
+  AUTOMATION_ACCOUNT_NAME: hcp-dev-automation
+  RUNBOOK_NAME: hcp-dev-automation_roleAssignmentsCleanup
+  SCHEDULE_NAME: hcp-dev-automation_nightly-schedule
 jobs:
   ci:
     name: Lint & Test Runbook
@@ -72,6 +77,55 @@ jobs:
       run: |
         cd dev-infrastructure/
         make automation-account.what-if
+    - name: Register Scheduled Runbook via PowerShell
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+
+        if (-not (Get-Module -ListAvailable -Name Az)) {
+          Install-Module -Name Az -Scope CurrentUser -Force -AllowClobber
+        }
+        Import-Module Az
+
+        if (-not (Get-Module -ListAvailable -Name Az.Automation)) {
+          Install-Module -Name Az.Automation -Scope CurrentUser -Force -AllowClobber
+        }
+        Import-Module Az.Automation
+
+        $params = @{
+            ResourceGroupName     = $env:AUTOMATION_ACCOUNT_RG
+            AutomationAccountName = $env:AUTOMATION_ACCOUNT_NAME
+            RunbookName           = $env:RUNBOOK_NAME
+            ScheduleName          = $env:SCHEDULE_NAME
+        }
+
+        $runbook = Get-AzAutomationRunbook -AutomationAccountName $params.AutomationAccountName `
+                    -ResourceGroupName $params.ResourceGroupName `
+                    -Name $params.RunbookName -ErrorAction SilentlyContinue
+        if (-not $runbook) {
+            throw "Runbook $($params.RunbookName) not found"
+        }
+        if ($runbook.Properties.State -ne "Published") {
+            throw "Runbook $($params.RunbookName) is not published"
+        }
+
+        $schedule = Get-AzAutomationSchedule -AutomationAccountName $params.AutomationAccountName `
+                      -ResourceGroupName $params.ResourceGroupName `
+                      -Name $params.ScheduleName -ErrorAction SilentlyContinue
+        if (-not $schedule) {
+            throw "Schedule $($params.ScheduleName) not found"
+        }
+
+        $existingJob = Get-AzAutomationScheduledRunbook -AutomationAccountName $params.AutomationAccountName `
+                        -ResourceGroupName $params.ResourceGroupName `
+                        -Name $params.RunbookName -ErrorAction SilentlyContinue
+        if ($existingJob) {
+            Write-Host "Removing existing schedule association..."
+            $existingJob | Remove-AzAutomationScheduledRunbook -Force
+        }
+
+        Register-AzAutomationScheduledRunbook @params
+
   cd:
     name: Deploy Runbook to Azure Automation
     runs-on: ubuntu-latest
