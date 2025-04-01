@@ -373,11 +373,11 @@ clouds:
               name: "arohcpint-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
-              digest: sha256:0e6b1e3e5279788552f79780f5a193dcd554ec6728364b505cb7f90a92a6a43e
+              digest: sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364
           # RP Backend
           backend:
             image:
-              digest: sha256:7eab98c23616c1211c987107588387c18487191278812e6f15fcd888ecee1256
+              digest: sha256:a2953aef23ac3dc376485fafefdbb2d949aebb11f6f9029bcae836bab929d5c3
           # Hypershift
           hypershift:
             image:
@@ -502,13 +502,13 @@ clouds:
               name: "arohcpstg-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
-              digest: sha256:343bb768e38a829f13c4893e381c83fa602944809509b64e841f317ec2bf539b
+              digest: sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364
             cert:
               issuer: OneCertV2-PrivateCA # let's use private until we have approval for public
           # RP Backend
           backend:
             image:
-              digest: sha256:d7365c2638febc9d008e5246c8829fb51e866a54519d84fb4f077c8e7f4eb79c
+              digest: sha256:a2953aef23ac3dc376485fafefdbb2d949aebb11f6f9029bcae836bab929d5c3
           # Hypershift
           hypershift:
             image:
