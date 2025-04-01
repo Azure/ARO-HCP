@@ -155,7 +155,7 @@
     "ocMirror": {
       "enabled": true,
       "image": {
-        "digest": "sha256:82b42792660e6024b0721f80b920421ac62a451c3b3677175dad289d1400f032",
+        "digest": "sha256:6016058b113d0dd61fce42747cc4cf6b0d47bbe260892a9825d24d19b6834ef4",
         "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/oc-mirror"
       },
