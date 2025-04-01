@@ -481,7 +481,7 @@ var acmMirrorConfig = {
 var ocMirrorJobConfiguration = ocMirrorEnabled
   ? [
       {
-        name: 'oc-mirror-tmp'
+        name: 'oc-mirror'
         cron: '0 * * * *'
         timeout: 4 * 60 * 60
         targetRegistry: ocpAcrName
@@ -489,7 +489,7 @@ var ocMirrorJobConfiguration = ocMirrorEnabled
         compatibility: 'LATEST'
       }
       {
-        name: 'acm-mirror-tmp'
+        name: 'acm-mirror'
         cron: '0 10 * * *'
         timeout: 4 * 60 * 60
         targetRegistry: svcAcrName
