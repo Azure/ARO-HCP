@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"text/template"
 
@@ -20,8 +21,7 @@ type options struct {
 	inputRules  string
 	outputBicep string
 
-	rules  monitoringv1.PrometheusRule
-	output *os.File
+	rules monitoringv1.PrometheusRule
 }
 
 func newOptions() *options {
@@ -44,10 +44,6 @@ func (o *options) complete(args []string) error {
 	}
 	if err := yaml.Unmarshal(rawRules, &o.rules); err != nil {
 		return fmt.Errorf("failed to parse input rules: %v", err)
-	}
-	o.output, err = os.Create(o.outputBicep)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %v", err)
 	}
 	return nil
 }
@@ -72,9 +68,60 @@ func main() {
 	if err := o.complete(flag.Args()); err != nil {
 		logrus.WithError(err).Fatal("could not complete options")
 	}
-	if err := generate(o.rules, o.output); err != nil {
+	b, _ := os.ReadFile("testing-prometheusRule_test.yaml")
+	if err := runTests(o.inputRules, o.rules, b); err != nil {
+		logrus.WithError(err).Fatal("testing rules failed")
+	}
+	output, err := os.Create(o.outputBicep)
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to create output file")
+	}
+	if err := generate(o.rules, output); err != nil {
 		logrus.WithError(err).Fatal("failed to generate bicep")
 	}
+}
+
+func runTests(inputRulesFile string, input monitoringv1.PrometheusRule, testFileContent []byte) error {
+	dir, err := os.MkdirTemp("/tmp", "prom-rule-test")
+	if err != nil {
+		return fmt.Errorf("Error creating tempdir %v", err)
+	}
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	logrus.Infof("Created tempdir %s", dir)
+
+	ruleGroups, err := yaml.Marshal(input.Spec)
+	if err != nil {
+		return fmt.Errorf("error Marshalling rule groups %v", err)
+	}
+
+	tmpFile := fmt.Sprintf("%s%s%s", dir, string(os.PathSeparator), inputRulesFile)
+
+	err = os.WriteFile(tmpFile, ruleGroups, 0644)
+	if err != nil {
+		return fmt.Errorf("error writing rule groups file %v", err)
+	}
+
+	fileNameParts := strings.Split(inputRulesFile, ".")
+	if len(fileNameParts) != 2 {
+		return fmt.Errorf("missing filename extension or using '.' in filename")
+	}
+
+	testFile := fmt.Sprintf("%s%s%s_test.%s", dir, string(os.PathSeparator), fileNameParts[0], fileNameParts[1])
+	err = os.WriteFile(testFile, testFileContent, 0644)
+	if err != nil {
+		return fmt.Errorf("error writing rule groups test file %v", err)
+	}
+
+	cmd := exec.Command("promtool", "test", "rules", testFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logrus.Error(string(output))
+		return fmt.Errorf("error running promtool %v", err)
+	}
+	return nil
 }
 
 func generate(input monitoringv1.PrometheusRule, output io.WriteCloser) error {
