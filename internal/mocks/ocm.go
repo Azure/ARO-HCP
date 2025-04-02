@@ -352,6 +352,45 @@ func (c *MockClusterServiceClientSpecGetNodePoolCall) DoAndReturn(f func(context
 	return c
 }
 
+// GetNodePoolStatus mocks base method.
+func (m *MockClusterServiceClientSpec) GetNodePoolStatus(ctx context.Context, internalID ocm.InternalID) (*v1alpha1.NodePoolStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNodePoolStatus", ctx, internalID)
+	ret0, _ := ret[0].(*v1alpha1.NodePoolStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNodePoolStatus indicates an expected call of GetNodePoolStatus.
+func (mr *MockClusterServiceClientSpecMockRecorder) GetNodePoolStatus(ctx, internalID any) *MockClusterServiceClientSpecGetNodePoolStatusCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodePoolStatus", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetNodePoolStatus), ctx, internalID)
+	return &MockClusterServiceClientSpecGetNodePoolStatusCall{Call: call}
+}
+
+// MockClusterServiceClientSpecGetNodePoolStatusCall wrap *gomock.Call
+type MockClusterServiceClientSpecGetNodePoolStatusCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecGetNodePoolStatusCall) Return(arg0 *v1alpha1.NodePoolStatus, arg1 error) *MockClusterServiceClientSpecGetNodePoolStatusCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecGetNodePoolStatusCall) Do(f func(context.Context, ocm.InternalID) (*v1alpha1.NodePoolStatus, error)) *MockClusterServiceClientSpecGetNodePoolStatusCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecGetNodePoolStatusCall) DoAndReturn(f func(context.Context, ocm.InternalID) (*v1alpha1.NodePoolStatus, error)) *MockClusterServiceClientSpecGetNodePoolStatusCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListBreakGlassCredentials mocks base method.
 func (m *MockClusterServiceClientSpec) ListBreakGlassCredentials(clusterInternalID ocm.InternalID, searchExpression string) ocm.BreakGlassCredentialListIterator {
 	m.ctrl.T.Helper()

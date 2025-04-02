@@ -39,6 +39,9 @@ type ClusterServiceClientSpec interface {
 	// GetNodePool sends a GET request to fetch a node pool from Cluster Service.
 	GetNodePool(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePool, error)
 
+	// GetNodePoolStatus sends a GET request to fetch a node pool's status from Cluster Service.
+	GetNodePoolStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePoolStatus, error)
+
 	// PostNodePool sends a POST request to create a node pool in Cluster Service.
 	PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error)
 
@@ -190,6 +193,22 @@ func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 		return nil, fmt.Errorf("empty response body")
 	}
 	return nodePool, nil
+}
+
+func (csc *ClusterServiceClient) GetNodePoolStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePoolStatus, error) {
+	client, ok := internalID.GetNodePoolClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
+	}
+	nodePoolStatusGetResponse, err := client.Status().Get().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	status, ok := nodePoolStatusGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return status, nil
 }
 
 func (csc *ClusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
