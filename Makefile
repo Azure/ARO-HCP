@@ -122,9 +122,9 @@ infra.clean:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make clean
 .PHONY: infra.clean
 
-infra.observability:
-	cd observability && KUBECONFIG="$$(cd ../dev-infrastructure && make -s svc.aks.kubeconfigfile)" make
-.PHONY: infra.observability
+infra.tracing:
+	cd observability/tracing && KUBECONFIG="$$(cd ../../dev-infrastructure && make -s svc.aks.kubeconfigfile)" make
+.PHONY: infra.tracing
 
 #
 # Services

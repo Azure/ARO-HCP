@@ -25,7 +25,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
   - name: grafana-dashboards
     action: Shell
-    command: cd ../grafana && ./deploy.sh
+    command: cd ../observability/grafana && ./deploy.sh
     dependsOn:
     - global-infra
     dryRun:

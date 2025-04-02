@@ -118,17 +118,17 @@ To access the Maestro Azure Postgres DB run
   eval $(make -C dev-infrastructure maestro-miwi-pg-connect)
   psql -d maestro
   ```
-## Observability
+## Tracing
 
 By default, metrics from infra/management services are ingested into Azure Managed Prometheus (AMP).
 
 To enable tracing and collect traces into a Jaeger all-in-one instance, run:
 
   ```bash
-  make infra.observability
+  make infra.tracing
   ```
 
-Refer to the [observability docs](../observability/README.md) for more details.
+Refer to the [Tracing docs](../observability/tracing/README.md) for more details.
 
 ## Cleanup
 

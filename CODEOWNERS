@@ -13,5 +13,6 @@ go.work* @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @
 /config/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
 /metrics/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
 /cluster-service/ @machi1990 @zgalor @miguelsorianod @JameelB
-/observability/ @frzifus @simonpasquier @dinhxuanvu @mbarnes
+/observability/tracing/ @frzifus @simonpasquier @dinhxuanvu @mbarnes
+/observability/ @geoberle @janboll @tony-schndr @jfchevrette @mmazur @weinong @whober0521 @jonathan34c @stevekuznetsov
 /docs/ @geoberle @janboll @tony-schndr @jfchevrette @mmazur @weinong @whober0521 @jonathan34c @stevekuznetsov
