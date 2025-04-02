@@ -20,6 +20,7 @@ param aksUserOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
 param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .mgmt.aks.networkDataplane }}'
+param aksEnableSwift = {{ .mgmt.aks.enableSwiftV2 }}
 
 // Maestro
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
