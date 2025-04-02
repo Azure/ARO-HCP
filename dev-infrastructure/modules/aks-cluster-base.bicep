@@ -388,11 +388,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
     dnsPrefix: dnsPrefix
     enableRBAC: true
     kubernetesVersion: kubernetesVersion
-    metricsProfile: {
-      costAnalysis: {
-        enabled: false
-      }
-    }
     networkProfile: {
       ipFamilies: ['IPv4']
       loadBalancerSku: 'standard'

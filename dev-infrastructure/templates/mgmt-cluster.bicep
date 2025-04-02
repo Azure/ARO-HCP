@@ -179,6 +179,11 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
         namespace: 'package-operator-system'
         serviceAccountName: 'package-operator'
       }
+      prom_wi: {
+        uamiName: 'prometheus'
+        namespace: 'prometheus'
+        serviceAccountName: 'prometheus'
+      }
     })
     aksKeyVaultName: aksKeyVaultName
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
@@ -204,7 +209,7 @@ output aksClusterName string = mgmtCluster.outputs.aksClusterName
 //
 
 module dataCollection '../modules/metrics/datacollection.bicep' = {
-  name: '${resourceGroup().name}-aksClusterName'
+  name: 'metrics-infra'
   params: {
     azureMonitorWorkspaceLocation: location
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId

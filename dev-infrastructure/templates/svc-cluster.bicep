@@ -307,6 +307,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         namespace: logsNamespace
         serviceAccountName: logsServiceAccount
       }
+      prom_wi: {
+        uamiName: 'prometheus'
+        namespace: 'prometheus'
+        serviceAccountName: 'prometheus'
+      }
     })
     aksKeyVaultName: aksKeyVaultName
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
@@ -323,7 +328,7 @@ output aksClusterName string = svcCluster.outputs.aksClusterName
 //
 
 module dataCollection '../modules/metrics/datacollection.bicep' = {
-  name: '${resourceGroup().name}-${aksClusterName}'
+  name: 'metrics-infra'
   params: {
     azureMonitorWorkspaceLocation: location
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId

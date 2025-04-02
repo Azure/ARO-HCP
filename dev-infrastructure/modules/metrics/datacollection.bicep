@@ -52,3 +52,4 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
 }
 
 output dcrId string = dcr.id
+output dcePromUrl string = dce.properties.metricsIngestion.endpoint
