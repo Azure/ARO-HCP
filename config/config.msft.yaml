@@ -94,6 +94,7 @@ defaults:
         kvSoftDelete: true
       #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-svc"
       clusterOutboundIPAddressIPTags: ""
+      enableSwiftV2: false
     istio:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
@@ -124,6 +125,7 @@ defaults:
         kvSoftDelete: true
       #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-cx"
       clusterOutboundIPAddressIPTags: ""
+      enableSwiftV2: true
     applyKubeletFixes: true
     logs:
       namespace: HCPCustomerLogs

@@ -233,6 +233,7 @@
   "mgmt": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
+      "enableSwiftV2": true,
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3-1",
         "kvSoftDelete": true
@@ -313,6 +314,7 @@
   "svc": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
+      "enableSwiftV2": false,
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3",
         "kvSoftDelete": true

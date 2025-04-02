@@ -18,6 +18,7 @@ param userAgentVMSize = '{{ .mgmt.aks.userAgentPool.vmSize }}'
 param userAgentPoolAZCount = {{ .mgmt.aks.userAgentPool.azCount }}
 param aksUserOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
+param aksEnableSwift = {{ .mgmt.aks.enableSwiftV2 }}
 
 // Maestro
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
