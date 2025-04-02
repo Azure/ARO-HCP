@@ -43,6 +43,7 @@ param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
 param nodeSubnetNSGId string
+param enableSwiftV2 bool
 
 @description('Istio Ingress Gateway Public IP Address resource name')
 param istioIngressGatewayIPAddressName string = ''
@@ -78,7 +79,7 @@ param userOsDiskSizeGB int
 param pullAcrResourceIds array = []
 
 @description('MSI that will take actions on the AKS cluster during service deployment time')
-param aroDevopsMsiId string
+param deploymentMsiId string
 
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
@@ -105,6 +106,13 @@ var aksClusterAdminRBACRoleId = subscriptionResourceId(
 var networkContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
+)
+
+// Tag Contributor Role
+// https://www.azadvertizer.net/azrolesadvertizer/4a9ae827-6dc8-4573-8ac7-8239d42aa03f.html
+var tagContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions/',
+  '4a9ae827-6dc8-4573-8ac7-8239d42aa03f'
 )
 
 import * as res from '../modules/resource.bicep'
@@ -238,6 +246,26 @@ resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssign
   }
 }
 
+resource deploymentMsiNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: vnet
+  name: guid(deploymentMsiId, networkContributorRoleId)
+  properties: {
+    roleDefinitionId: networkContributorRoleId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource deploymentMsiTagContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: vnet
+  name: guid(deploymentMsiId, tagContributorRoleId)
+  properties: {
+    roleDefinitionId: tagContributorRoleId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: aksCluster
   name: guid(aksClusterUserDefinedManagedIdentity.id, aksClusterAdminRoleId, aksCluster.id)
@@ -246,6 +274,20 @@ resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@
     principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
+}
+
+module swiftV2VnetTagging '../modules/network/vnettag.bicep' = if (enableSwiftV2) {
+  name: 'swift-vnet-tagging'
+  params: {
+    vnetName: vnet.name
+    tagName: 'stampcreatorserviceinfo'
+    tagValue: 'true'
+    deploymentMsiId: deploymentMsiId
+  }
+  dependsOn: [
+    deploymentMsiNetworkContributorRoleAssignment
+    deploymentMsiTagContributorRoleAssignment
+  ]
 }
 
 module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (deployIstio) {
@@ -576,6 +618,11 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
         enableSecureBoot: false
         enableVTPM: false
       }
+      tags: enableSwiftV2
+        ? {
+            'aks-nic-enable-multi-tenancy': 'true'
+          }
+        : null
     }
   }
 ]
@@ -664,10 +711,10 @@ resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federa
 // grant aroDevopsMsi the aksClusterAdmin role on the aksCluster so it can
 // deploy services to the cluster
 resource aroDevopsMSIClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aksCluster.id, aroDevopsMsiId, aksClusterAdminRBACRoleId)
+  name: guid(aksCluster.id, deploymentMsiId, aksClusterAdminRBACRoleId)
   scope: aksCluster
   properties: {
-    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: aksClusterAdminRBACRoleId
   }

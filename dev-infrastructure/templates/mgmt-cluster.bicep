@@ -192,8 +192,9 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemAgentVMSize: systemAgentVMSize
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     userOsDiskSizeGB: aksUserOsDiskSizeGB
-    aroDevopsMsiId: aroDevopsMsiId
+    deploymentMsiId: aroDevopsMsiId
     dcrId: dataCollection.outputs.dcrId
+    enableSwiftV2: true
   }
 }
 
