@@ -91,7 +91,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetreplicasmismatch'
           summary: 'StatefulSet has not matched the expected number of replicas.'
         }
-        expression: '(   kube_statefulset_status_replicas_ready{job="kube-state-metrics"}     !=   kube_statefulset_status_replicas{job="kube-state-metrics"} ) and (   changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[10m])     ==   0 )'
+        expression: '(   kube_statefulset_status_replicas_ready{job="kube-state-metrics"}     !=   kube_statefulset_replicas{job="kube-state-metrics"} ) and (   changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[10m])     ==   0 )'
         for: 'PT15M'
         severity: 3
       }
@@ -372,7 +372,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/cputhrottlinghigh'
           summary: 'Processes experience elevated CPU throttling.'
         }
-        expression: 'sum(increase(container_cpu_cfs_throttled_periods_total{container!="", job="kubelet", metrics_path="/metrics/cadvisor", }[5m])) without (id, metrics_path, name, image, endpoint, job, node)   / sum(increase(container_cpu_cfs_periods_total{job="kubelet", metrics_path="/metrics/cadvisor", }[5m])) without (id, metrics_path, name, image, endpoint, job, node)   > ( 25 / 100 )'
+        expression: 'sum(increase(container_cpu_cfs_throttled_periods_total{container!="", job="kubelet", metrics_path="/metrics/cadvisor", }[5m])) without (id, metrics_path, name, image, endpoint, job, node)   / on (cluster, namespace, pod, container, instance) group_left sum(increase(container_cpu_cfs_periods_total{job="kubelet", metrics_path="/metrics/cadvisor", }[5m])) without (id, metrics_path, name, image, endpoint, job, node)   > ( 25 / 100 )'
         for: 'PT15M'
         severity: 4
       }
@@ -715,6 +715,21 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
+        alert: 'KubeNodePressure'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          description: '{{ $labels.node }} on cluster {{ $labels.cluster }} has active Condition {{ $labels.condition }}. This is caused by resource usage exceeding eviction thresholds.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodepressure'
+          summary: 'Node has as active Condition.'
+        }
+        expression: 'kube_node_status_condition{job="kube-state-metrics",condition=~"(MemoryPressure|DiskPressure|PIDPressure)",status="true"} == 1 and on (cluster, node) kube_node_spec_unschedulable{job="kube-state-metrics"} == 0'
+        for: 'PT10M'
+        severity: 4
+      }
+      {
         alert: 'KubeNodeUnreachable'
         enabled: true
         labels: {
@@ -758,6 +773,21 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         expression: 'sum(changes(kube_node_status_condition{job="kube-state-metrics",status="true",condition="Ready"}[15m])) by (cluster, node) > 2 and on (cluster, node) kube_node_spec_unschedulable{job="kube-state-metrics"} == 0'
         for: 'PT15M'
         severity: 3
+      }
+      {
+        alert: 'KubeNodeEviction'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          description: 'Node {{ $labels.node }} on {{ $labels.cluster }} is evicting Pods due to {{ $labels.eviction_signal }}.  Eviction occurs when eviction thresholds are crossed, typically caused by Pods exceeding RAM/ephemeral-storage limits.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodeeviction'
+          summary: 'Node is evicting pods.'
+        }
+        expression: 'sum(rate(kubelet_evictions{job="kubelet", metrics_path="/metrics"}[15m])) by(cluster, eviction_signal, instance) * on (cluster, instance) group_left(node) max by (cluster, instance, node) (   kubelet_node_name{job="kubelet", metrics_path="/metrics"} ) > 0'
+        for: 'PT0S'
+        severity: 4
       }
       {
         alert: 'KubeletPlegDurationHigh'
@@ -942,6 +972,31 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'absent(up{job="kube-controller-manager"} == 1)'
         for: 'PT15M'
+        severity: 2
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'InstancesDownV1'
+  location: resourceGroup().location
+  properties: {
+    rules: [
+      {
+        alert: 'InstancesDownV1'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          description: 'All instances of the App are down'
+          summary: 'All instances of the App are down'
+        }
+        expression: 'sum(up{job="app"}) == 0'
         severity: 2
       }
     ]
