@@ -126,7 +126,7 @@ defaults:
       clusterOutboundIPAddressIPTags: ""
     applyKubeletFixes: true
     logs:
-      namespace: HCPManagementLogs
+      namespace: HCPCustomerLogs
   # RP Frontend
   frontend:
     image:
