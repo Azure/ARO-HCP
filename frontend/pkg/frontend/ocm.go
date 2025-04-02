@@ -311,7 +311,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 }
 
 // ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
-func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *api.HCPOpenShiftClusterNodePool {
+func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -363,19 +363,19 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *cmv1.NodePool) *a
 }
 
 // BuildCSNodePool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object
-func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*cmv1.NodePool, error) {
-	npBuilder := cmv1.NewNodePool()
+func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePool, error) {
+	npBuilder := arohcpv1alpha1.NewNodePool()
 
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
 		npBuilder = npBuilder.
 			ID(nodePool.Name).
-			Version(cmv1.NewVersion().
+			Version(arohcpv1alpha1.NewVersion().
 				ID(nodePool.Properties.Version.ID).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup).
 				AvailableUpgrades(nodePool.Properties.Version.AvailableUpgrades...)).
 			Subnet(nodePool.Properties.Platform.SubnetID).
-			AzureNodePool(cmv1.NewAzureNodePool().
+			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
 				ResourceName(nodePool.Name).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.DiskSizeGiB)).
@@ -388,7 +388,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		Labels(nodePool.Properties.Labels)
 
 	if nodePool.Properties.AutoScaling != nil {
-		npBuilder.Autoscaling(cmv1.NewNodePoolAutoscaling().
+		npBuilder.Autoscaling(arohcpv1alpha1.NewNodePoolAutoscaling().
 			MinReplica(int(nodePool.Properties.AutoScaling.Min)).
 			MaxReplica(int(nodePool.Properties.AutoScaling.Max)))
 	} else {
@@ -396,7 +396,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 	}
 
 	for _, t := range nodePool.Properties.Taints {
-		npBuilder = npBuilder.Taints(cmv1.NewTaint().
+		npBuilder = npBuilder.Taints(arohcpv1alpha1.NewTaint().
 			Effect(string(t.Effect)).
 			Key(t.Key).
 			Value(t.Value))

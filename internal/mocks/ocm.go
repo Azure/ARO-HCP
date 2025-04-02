@@ -314,10 +314,10 @@ func (c *MockClusterServiceClientSpecGetClusterStatusCall) DoAndReturn(f func(co
 }
 
 // GetNodePool mocks base method.
-func (m *MockClusterServiceClientSpec) GetNodePool(ctx context.Context, internalID ocm.InternalID) (*v1.NodePool, error) {
+func (m *MockClusterServiceClientSpec) GetNodePool(ctx context.Context, internalID ocm.InternalID) (*v1alpha1.NodePool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetNodePool", ctx, internalID)
-	ret0, _ := ret[0].(*v1.NodePool)
+	ret0, _ := ret[0].(*v1alpha1.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -335,19 +335,58 @@ type MockClusterServiceClientSpecGetNodePoolCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecGetNodePoolCall) Return(arg0 *v1.NodePool, arg1 error) *MockClusterServiceClientSpecGetNodePoolCall {
+func (c *MockClusterServiceClientSpecGetNodePoolCall) Return(arg0 *v1alpha1.NodePool, arg1 error) *MockClusterServiceClientSpecGetNodePoolCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecGetNodePoolCall) Do(f func(context.Context, ocm.InternalID) (*v1.NodePool, error)) *MockClusterServiceClientSpecGetNodePoolCall {
+func (c *MockClusterServiceClientSpecGetNodePoolCall) Do(f func(context.Context, ocm.InternalID) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecGetNodePoolCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecGetNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID) (*v1.NodePool, error)) *MockClusterServiceClientSpecGetNodePoolCall {
+func (c *MockClusterServiceClientSpecGetNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecGetNodePoolCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetNodePoolStatus mocks base method.
+func (m *MockClusterServiceClientSpec) GetNodePoolStatus(ctx context.Context, internalID ocm.InternalID) (*v1alpha1.NodePoolStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNodePoolStatus", ctx, internalID)
+	ret0, _ := ret[0].(*v1alpha1.NodePoolStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNodePoolStatus indicates an expected call of GetNodePoolStatus.
+func (mr *MockClusterServiceClientSpecMockRecorder) GetNodePoolStatus(ctx, internalID any) *MockClusterServiceClientSpecGetNodePoolStatusCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodePoolStatus", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetNodePoolStatus), ctx, internalID)
+	return &MockClusterServiceClientSpecGetNodePoolStatusCall{Call: call}
+}
+
+// MockClusterServiceClientSpecGetNodePoolStatusCall wrap *gomock.Call
+type MockClusterServiceClientSpecGetNodePoolStatusCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecGetNodePoolStatusCall) Return(arg0 *v1alpha1.NodePoolStatus, arg1 error) *MockClusterServiceClientSpecGetNodePoolStatusCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecGetNodePoolStatusCall) Do(f func(context.Context, ocm.InternalID) (*v1alpha1.NodePoolStatus, error)) *MockClusterServiceClientSpecGetNodePoolStatusCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecGetNodePoolStatusCall) DoAndReturn(f func(context.Context, ocm.InternalID) (*v1alpha1.NodePoolStatus, error)) *MockClusterServiceClientSpecGetNodePoolStatusCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -545,10 +584,10 @@ func (c *MockClusterServiceClientSpecPostClusterCall) DoAndReturn(f func(context
 }
 
 // PostNodePool mocks base method.
-func (m *MockClusterServiceClientSpec) PostNodePool(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *v1.NodePool) (*v1.NodePool, error) {
+func (m *MockClusterServiceClientSpec) PostNodePool(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *v1alpha1.NodePool) (*v1alpha1.NodePool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PostNodePool", ctx, clusterInternalID, nodePool)
-	ret0, _ := ret[0].(*v1.NodePool)
+	ret0, _ := ret[0].(*v1alpha1.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -566,19 +605,19 @@ type MockClusterServiceClientSpecPostNodePoolCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecPostNodePoolCall) Return(arg0 *v1.NodePool, arg1 error) *MockClusterServiceClientSpecPostNodePoolCall {
+func (c *MockClusterServiceClientSpecPostNodePoolCall) Return(arg0 *v1alpha1.NodePool, arg1 error) *MockClusterServiceClientSpecPostNodePoolCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecPostNodePoolCall) Do(f func(context.Context, ocm.InternalID, *v1.NodePool) (*v1.NodePool, error)) *MockClusterServiceClientSpecPostNodePoolCall {
+func (c *MockClusterServiceClientSpecPostNodePoolCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.NodePool) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecPostNodePoolCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecPostNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1.NodePool) (*v1.NodePool, error)) *MockClusterServiceClientSpecPostNodePoolCall {
+func (c *MockClusterServiceClientSpecPostNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.NodePool) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecPostNodePoolCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -623,10 +662,10 @@ func (c *MockClusterServiceClientSpecUpdateClusterCall) DoAndReturn(f func(conte
 }
 
 // UpdateNodePool mocks base method.
-func (m *MockClusterServiceClientSpec) UpdateNodePool(ctx context.Context, internalID ocm.InternalID, nodePool *v1.NodePool) (*v1.NodePool, error) {
+func (m *MockClusterServiceClientSpec) UpdateNodePool(ctx context.Context, internalID ocm.InternalID, nodePool *v1alpha1.NodePool) (*v1alpha1.NodePool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateNodePool", ctx, internalID, nodePool)
-	ret0, _ := ret[0].(*v1.NodePool)
+	ret0, _ := ret[0].(*v1alpha1.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -644,19 +683,19 @@ type MockClusterServiceClientSpecUpdateNodePoolCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecUpdateNodePoolCall) Return(arg0 *v1.NodePool, arg1 error) *MockClusterServiceClientSpecUpdateNodePoolCall {
+func (c *MockClusterServiceClientSpecUpdateNodePoolCall) Return(arg0 *v1alpha1.NodePool, arg1 error) *MockClusterServiceClientSpecUpdateNodePoolCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecUpdateNodePoolCall) Do(f func(context.Context, ocm.InternalID, *v1.NodePool) (*v1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
+func (c *MockClusterServiceClientSpecUpdateNodePoolCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.NodePool) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecUpdateNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1.NodePool) (*v1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
+func (c *MockClusterServiceClientSpecUpdateNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.NodePool) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

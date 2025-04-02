@@ -41,6 +41,23 @@ const (
 	pollNodePoolOperationLabel = "poll_node_pool"
 )
 
+// Copied from uhc-clusters-service, because the
+// OCM SDK does not define this for some reason.
+type NodePoolStateValue string
+
+const (
+	NodePoolStateValidating       NodePoolStateValue = "validating"
+	NodePoolStatePending          NodePoolStateValue = "pending"
+	NodePoolStateInstalling       NodePoolStateValue = "installing"
+	NodePoolStateReady            NodePoolStateValue = "ready"
+	NodePoolStateUpdating         NodePoolStateValue = "updating"
+	NodePoolStateValidatingUpdate NodePoolStateValue = "validating_update"
+	NodePoolStatePendingUpdate    NodePoolStateValue = "pending_update"
+	NodePoolStateUninstalling     NodePoolStateValue = "uninstalling"
+	NodePoolStateRecoverableError NodePoolStateValue = "recoverable_error"
+	NodePoolStateError            NodePoolStateValue = "error"
+)
+
 type operation struct {
 	id     string
 	pk     azcosmos.PartitionKey
@@ -377,7 +394,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operation) {
 	defer s.updateOperationMetrics(pollNodePoolOperationLabel)()
 
-	_, err := s.clusterService.GetNodePool(ctx, op.doc.InternalID)
+	nodePoolStatus, err := s.clusterService.GetNodePoolStatus(ctx, op.doc.InternalID)
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
@@ -388,7 +405,22 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 		} else {
 			op.logger.Error(fmt.Sprintf("Failed to get node pool status: %v", err))
 		}
+
+		s.operationsFailedCount.WithLabelValues(pollNodePoolOperationLabel).Inc()
 		return
+	}
+
+	opStatus, opError, err := convertNodePoolStatus(nodePoolStatus, op.doc.Status)
+	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollNodePoolOperationLabel).Inc()
+		op.logger.Warn(err.Error())
+		return
+	}
+
+	err = s.updateOperationStatus(ctx, op, opStatus, opError)
+	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollNodePoolOperationLabel).Inc()
+		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 }
 
@@ -633,10 +665,6 @@ func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current a
 	var opError *arm.CloudErrorBody
 	var err error
 
-	// FIXME This logic is all tenative until the new "/api/aro_hcp/v1" OCM
-	//       API is available. What's here now is a best guess at converting
-	//       ClusterStatus from the "/api/clusters_mgmt/v1" API.
-
 	switch state := clusterStatus.State(); state {
 	case arohcpv1alpha1.ClusterStateError:
 		opStatus = arm.ProvisioningStateFailed
@@ -667,6 +695,43 @@ func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current a
 		}
 	default:
 		err = fmt.Errorf("Unhandled ClusterState '%s'", state)
+	}
+
+	return opStatus, opError, err
+}
+
+// convertNodePoolStatus attempts to translate a NodePoolStatus object
+// from Cluster Service into an ARM provisioning state and, if necessary,
+// a structured OData error.
+func convertNodePoolStatus(nodePoolStatus *arohcpv1alpha1.NodePoolStatus, current arm.ProvisioningState) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var opStatus arm.ProvisioningState = current
+	var opError *arm.CloudErrorBody
+	var err error
+
+	switch state := NodePoolStateValue(nodePoolStatus.State().NodePoolStateValue()); state {
+	case NodePoolStateValidating, NodePoolStatePending, NodePoolStateValidatingUpdate, NodePoolStatePendingUpdate:
+		// These are valid node pool states for ARO-HCP but there are
+		// no unique ProvisioningState values for them. They should
+		// only occur when ProvisioningState is Accepted.
+		if current != arm.ProvisioningStateAccepted {
+			err = fmt.Errorf("Got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, current, arm.ProvisioningStateAccepted)
+		}
+	case NodePoolStateInstalling:
+		opStatus = arm.ProvisioningStateProvisioning
+	case NodePoolStateReady:
+		opStatus = arm.ProvisioningStateSucceeded
+	case NodePoolStateUpdating:
+		opStatus = arm.ProvisioningStateUpdating
+	case NodePoolStateUninstalling:
+		opStatus = arm.ProvisioningStateDeleting
+	case NodePoolStateRecoverableError, NodePoolStateError:
+		// XXX OCM SDK offers no error code or message for failed node pool
+		//     operations so "Internal Server Error" is all we can do for now.
+		//     https://issues.redhat.com/browse/ARO-14969
+		opStatus = arm.ProvisioningStateFailed
+		opError = arm.NewInternalServerError().CloudErrorBody
+	default:
+		err = fmt.Errorf("Unhandled NodePoolState '%s'", state)
 	}
 
 	return opStatus, opError, err

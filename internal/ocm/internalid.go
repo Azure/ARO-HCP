@@ -19,8 +19,9 @@ const (
 	v1NodePoolPattern             = v1ClusterPattern + "/node_pools/*"
 	v1BreakGlassCredentialPattern = v1ClusterPattern + "/break_glass_credentials/*"
 
-	aroHcpV1Alpha1Pattern        = "/api/aro_hcp/v1alpha1"
-	aroHcpV1Alpha1ClusterPattern = aroHcpV1Alpha1Pattern + "/clusters/*"
+	aroHcpV1Alpha1Pattern         = "/api/aro_hcp/v1alpha1"
+	aroHcpV1Alpha1ClusterPattern  = aroHcpV1Alpha1Pattern + "/clusters/*"
+	aroHcpV1Alpha1NodePoolPattern = aroHcpV1Alpha1ClusterPattern + "/node_pools/*"
 )
 
 func GenerateClusterHREF(clusterName string) string {
@@ -68,6 +69,12 @@ func (id *InternalID) validate() error {
 	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
 		// Temporarily use cmv1 constant for backward-compatibility.
 		id.kind = cmv1.ClusterKind
+		return nil
+	}
+
+	if match, _ = path.Match(aroHcpV1Alpha1NodePoolPattern, id.path); match {
+		// Temporarily use cmv1 constant for backward-compatibility.
+		id.kind = cmv1.NodePoolKind
 		return nil
 	}
 
@@ -165,13 +172,13 @@ func matchClusterPath(clusterPath string) string {
 	return ""
 }
 
-// GetNodePoolClient returns a v1 NodePoolClient from the InternalID.
+// GetNodePoolClient returns a arohcpv1alpha1 NodePoolClient from the InternalID.
 // The transport is most likely to be a Connection object from the SDK.
-func (id *InternalID) GetNodePoolClient(transport http.RoundTripper) (*cmv1.NodePoolClient, bool) {
-	if id.Kind() != cmv1.NodePoolKind {
+func (id *InternalID) GetNodePoolClient(transport http.RoundTripper) (*arohcpv1alpha1.NodePoolClient, bool) {
+	if id.Kind() != arohcpv1alpha1.NodePoolKind {
 		return nil, false
 	}
-	return cmv1.NewNodePoolClient(transport, id.path), true
+	return arohcpv1alpha1.NewNodePoolClient(transport, id.path), true
 }
 
 // GetBreakGlassCredentialClient returns a v1 BreakGlassCredentialClient
