@@ -67,14 +67,14 @@ func (iter ClusterListIterator) GetError() error {
 }
 
 type NodePoolListIterator struct {
-	request *cmv1.NodePoolsListRequest
+	request *arohcpv1alpha1.NodePoolsListRequest
 	err     error
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter NodePoolListIterator) Items(ctx context.Context) iter.Seq[*cmv1.NodePool] {
-	return func(yield func(*cmv1.NodePool) bool) {
+func (iter NodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePool] {
+	return func(yield func(*arohcpv1alpha1.NodePool) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
 			var page int = 0

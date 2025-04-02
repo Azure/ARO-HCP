@@ -11,7 +11,7 @@ import (
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -118,8 +118,8 @@ func TestCreateNodePool(t *testing.T) {
 			mockCSClient.EXPECT().
 				PostNodePool(gomock.Any(), clusterDoc.InternalID, gomock.Any()).
 				DoAndReturn(
-					func(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
-						builder := cmv1.NewNodePool().
+					func(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
+						builder := arohcpv1alpha1.NewNodePool().
 							Copy(nodePool).
 							HREF(dummyNodePoolHREF)
 						return builder.Build()

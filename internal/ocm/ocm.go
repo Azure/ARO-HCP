@@ -37,13 +37,13 @@ type ClusterServiceClientSpec interface {
 	ListClusters(searchExpression string) ClusterListIterator
 
 	// GetNodePool sends a GET request to fetch a node pool from Cluster Service.
-	GetNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error)
+	GetNodePool(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePool, error)
 
 	// PostNodePool sends a POST request to create a node pool in Cluster Service.
-	PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
+	PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error)
 
 	// UpdateNodePool sends a PATCH request to update a node pool in Cluster Service.
-	UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error)
+	UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error)
 
 	// DeleteNodePool sends a DELETE request to delete a node pool from Cluster Service.
 	DeleteNodePool(ctx context.Context, internalID InternalID) error
@@ -176,7 +176,7 @@ func (csc *ClusterServiceClient) ListClusters(searchExpression string) ClusterLi
 	return ClusterListIterator{request: clustersListRequest}
 }
 
-func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID InternalID) (*cmv1.NodePool, error) {
+func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
@@ -192,8 +192,8 @@ func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 	return nodePool, nil
 }
 
-func (csc *ClusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
-	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+func (csc *ClusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
+	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
 	}
@@ -208,7 +208,7 @@ func (csc *ClusterServiceClient) PostNodePool(ctx context.Context, clusterIntern
 	return nodePool, nil
 }
 
-func (csc *ClusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *cmv1.NodePool) (*cmv1.NodePool, error) {
+func (csc *ClusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.Conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
@@ -234,7 +234,7 @@ func (csc *ClusterServiceClient) DeleteNodePool(ctx context.Context, internalID 
 }
 
 func (csc *ClusterServiceClient) ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
-	client, ok := clusterInternalID.GetClusterClient(csc.Conn)
+	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.Conn)
 	if !ok {
 		return NodePoolListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
 	}
