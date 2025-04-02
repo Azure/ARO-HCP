@@ -118,7 +118,8 @@ To access the Maestro Azure Postgres DB run
   eval $(make -C dev-infrastructure maestro-miwi-pg-connect)
   psql -d maestro
   ```
-## Tracing
+
+## Observability
 
 By default, metrics from infra/management services are ingested into Azure Managed Prometheus (AMP).
 
