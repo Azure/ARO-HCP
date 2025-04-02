@@ -261,7 +261,7 @@
     "applyKubeletFixes": true,
     "logs": {
       "configVersion": "1.0",
-      "namespace": "HCPManagementLogs",
+      "namespace": "HCPCustomerLogs",
       "san": "MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
     },
     "rg": "hcp-underlay-westus3-mgmt-1",
