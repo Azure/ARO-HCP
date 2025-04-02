@@ -64,7 +64,7 @@ defaults:
   # Hypershift
   hypershift:
     namespace: hypershift
-    additionalInstallArg: '--tech-preview-no-upgrade'
+    additionalInstallArg: ''
     image:
       registry: quay.io
       repository: acm-d/rhtap-hypershift-operator
@@ -381,7 +381,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:305f45bf036f84255d41c20517c70a9cb18af3dcdfa71a82a5716dde77c9e2c3
+              digest: sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef
           # Maestro
           maestro:
             eventGrid:
@@ -512,7 +512,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:305f45bf036f84255d41c20517c70a9cb18af3dcdfa71a82a5716dde77c9e2c3
+              digest: sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef
           # Maestro
           maestro:
             eventGrid:
