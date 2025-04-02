@@ -45,7 +45,7 @@ yamlfmt: $(YAMLFMT)
 	# first, wrap all templated values in quotes, so they are correct YAML
 	./yamlfmt.wrap.sh
 	# run the formatter
-	$(YAMLFMT) -dstar '**/*.{yaml,yml}'
+	$(YAMLFMT) -dstar -exclude './api/**' '**/*.{yaml,yml}'
 	# "fix" any non-string fields we cast to strings for the formatting
 	./yamlfmt.unwrap.sh
 .PHONY: yamlfmt

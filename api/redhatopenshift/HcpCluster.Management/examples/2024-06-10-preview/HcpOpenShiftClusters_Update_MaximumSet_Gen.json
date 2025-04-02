@@ -8,21 +8,16 @@
     "hcpOpenShiftClusterName": "hcpCluster-name",
     "properties": {
       "identity": {
-        "type": "None",
+        "type": "UserAssigned",
         "userAssignedIdentities": {
-          "key4794": {}
+          "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI": {}
         }
       },
       "tags": {
         "key4965": "gadonynrfuc"
       },
       "properties": {
-        "spec": {
-          "version": {
-            "id": "nsj"
-          },
-          "disableUserWorkloadMonitoring": true
-        }
+        "disableUserWorkloadMonitoring": true
       }
     }
   },
@@ -31,91 +26,51 @@
       "body": {
         "properties": {
           "provisioningState": "Succeeded",
-          "spec": {
-            "version": {
-              "channelGroup": "stable",
-              "availableUpgrades": [
-                "fpjxf"
-              ]
+          "version": {
+            "channelGroup": "stable",
+            "availableUpgrades": [
+              "fpjxf"
+            ]
+          },
+          "dns": {
+            "baseDomain": "yubrqcgqdhgqfkobjqm"
+          },
+          "network": {
+            "networkType": "OVNKubernetes",
+            "podCidr": "10.128.0.0/14",
+            "serviceCidr": "172.30.0.0/16",
+            "machineCidr": "10.0.0.0/16"
+          },
+          "console": {
+            "url": "https://console.test.shrd.usw3test.hcp.osadev.cloud"
+          },
+          "api": {
+            "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443",
+            "visibility": "public"
+          },
+          "platform": {
+            "managedResourceGroup": "nhyhywrxupo",
+            "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
+            "outboundType": "loadBalancer",
+            "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
+            "operatorsAuthentication": {
+              "userAssignedIdentities": {
+                "controlPlaneOperators": {},
+                "dataPlaneOperators": {},
+                "serviceManagedIdentity": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI"
+              }
             },
-            "dns": {
-              "baseDomain": "yubrqcgqdhgqfkobjqm"
-            },
-            "network": {
-              "networkType": "OVNKubernetes",
-              "podCidr": "10.128.0.0/14",
-              "serviceCidr": "172.30.0.0/16",
-              "machineCidr": "10.0.0.0/16"
-            },
-            "console": {
-              "url": "ejgtgwbbvjtmzfqvldg"
-            },
-            "api": {
-              "url": "dkjmzzhkvyoqx",
-              "visibility": "public"
-            },
-            "platform": {
-              "managedResourceGroup": "nhyhywrxupo",
-              "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
-              "outboundType": "loadBalancer",
-              "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example"
-            },
-            "issuerUrl": "pqfgpubcuaaovvpeqal",
-            "externalAuth": {
-              "externalAuths": [
-                {
-                  "issuer": {
-                    "url": "nk",
-                    "audiences": [
-                      "immp"
-                    ],
-                    "ca": "gzxrofthcontqdtcgswmwdczi"
-                  },
-                  "clients": [
-                    {
-                      "component": {
-                        "name": "cevgylsawjnfo",
-                        "authClientNamespace": "kyidcudqzzlmaxrlbfcmrlztqac"
-                      },
-                      "id": "rmrhpgkasiwypmms",
-                      "extraScopes": [
-                        "fjybfdutrjskatixr"
-                      ]
-                    }
-                  ],
-                  "claim": {
-                    "mappings": {
-                      "username": {
-                        "claim": "wgzo",
-                        "prefix": "ibfqhkqusvix",
-                        "prefixPolicy": "yx"
-                      },
-                      "groups": {
-                        "claim": "wgzo",
-                        "prefix": "ibfqhkqusvix",
-                        "prefixPolicy": "yx"
-                      }
-                    },
-                    "validationRules": [
-                      {
-                        "claim": "ulzzzszw",
-                        "requiredValue": "pjfwtae"
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
+            "issuerUrl": "https://oidc.contoso.com"
           }
         },
         "identity": {
-          "principalId": "00000000-0000-0000-0000-000000000000",
-          "tenantId": "00000000-0000-0000-0000-000000000000",
-          "type": "None",
+          "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
+          "tenantId": "2a58de3b-8a38-44cd-8f33-4bd5b91479c1",
+          "type": "UserAssigned",
           "userAssignedIdentities": {
-            "key4794": {
-              "principalId": "00000000-0000-0000-0000-000000000000",
-              "clientId": "00000000-0000-0000-0000-000000000000"
+            "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI": {
+              "principalId": "15a1e2d8-41ae-4068-8ea9-a80f2cdd94c3",
+              "clientId": "a60f3156-367f-4303-bb21-7a41b3c41cb9"
             }
           }
         },

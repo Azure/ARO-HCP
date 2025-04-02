@@ -38,7 +38,7 @@ These settings apply only when `--tag=package-2024-06-10-preview` is specified o
 
 ``` yaml $(tag) == 'package-2024-06-10-preview'
 input-file:
-  - preview/2024-06-10-preview/openapi.json
+  - 2024-06-10-preview/openapi.json
 ```
 
 # Code Generation
@@ -59,12 +59,22 @@ swagger-to-sdk:
 <!-- ## Suppression -->
 
 <!-- ### AutoRest v3 Suppressions -->
-<!-- ``` yaml
+``` yaml
 suppressions:
-    - code: PatchBodyParametersSchema
-      reasons: false positives
-      # https://github.com/Azure/azure-sdk-tools/issues/7802
-``` -->
+    - code: AvoidAnonymousTypes
+      from: openapi.json
+      where: $.definitions["Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate"].properties.userAssignedIdentities.additionalProperties
+      reasons: This is an incorrect failure due to a bug in the tool
+      # https://github.com/Azure/typespec-azure/issues/1163
+    - code: AvoidAdditionalProperties
+      from: openapi.json
+      where: $.definitions.UserAssignedIdentitiesProfile.properties.controlPlaneOperators
+      reasons: This is a Record<UserAssignedIdentityResourceId> where the string keys are control plane operator names. The intention is to pair a control plane operator with a user-assigned managed identity resource ID. The set of valid control plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
+    - code: AvoidAdditionalProperties
+      from: openapi.json
+      where: $.definitions.UserAssignedIdentitiesProfile.properties.dataPlaneOperators
+      reasons: This is a Record<UserAssignedIdentityResourceId> where the string keys are data plane operator names. The intention is to pair a data plane operator with a user-assigned managed identity resource ID. The set of valid data plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
+```
 
 
 ## Go

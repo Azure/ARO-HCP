@@ -13,26 +13,22 @@
       "body": {
         "properties": {
           "provisioningState": "Succeeded",
-          "spec": {
-            "version": {
-              "channelGroup": "stable",
-              "availableUpgrades": [
-                "jlufyoivqzyxnqzwijozipxmgux"
-              ]
-            },
-            "platform": {
-              "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
-              "vmSize": "hfdapwwtchingr",
-              "diskSizeGiB": 12,
-              "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
-              "availabilityZone": "mssxcjzxagdxoeuqydthwc",
-              "encryptionAtHost": true,
-              "ephemeralOsDisk": true
-            },
-            "autoScaling": {
-              "min": 6,
-              "max": 29
-            }
+          "version": {
+            "channelGroup": "stable",
+            "availableUpgrades": [
+              "jlufyoivqzyxnqzwijozipxmgux"
+            ]
+          },
+          "platform": {
+            "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
+            "vmSize": "hfdapwwtchingr",
+            "diskSizeGiB": 12,
+            "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
+            "availabilityZone": "mssxcjzxagdxoeuqydthwc"
+          },
+          "autoScaling": {
+            "min": 6,
+            "max": 29
           }
         },
         "tags": {

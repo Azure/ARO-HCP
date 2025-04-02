@@ -159,17 +159,14 @@ type HcpOpenShiftClusterListResult struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
-	// REQUIRED; Version of the control plane components
-	Version *VersionProfile
-
-	// Cluster DNS configuration
-	DNS *DNSProfile
-
-	// READ-ONLY; Shows the cluster web console information
-	Console *ConsoleProfile
+	// REQUIRED; Azure platform configuration
+	Platform *PlatformProfile
 
 	// Configure cluter capabilities.
 	Capabilities *ClusterCapabilitiesProfile
+
+	// Cluster DNS configuration
+	DNS *DNSProfile
 
 	// Disable user workload monitoring
 	DisableUserWorkloadMonitoring *bool
@@ -177,11 +174,14 @@ type HcpOpenShiftClusterProperties struct {
 	// Cluster network configuration
 	Network *NetworkProfile
 
-	// Azure platform configuration
-	Platform *PlatformProfile
+	// Version of the control plane components
+	Version *VersionProfile
 
 	// READ-ONLY; Shows the cluster API server profile
 	API *APIProfile
+
+	// READ-ONLY; Shows the cluster web console information
+	Console *ConsoleProfile
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
@@ -338,9 +338,6 @@ type NodePoolProperties struct {
 	// REQUIRED; Azure node pool platform configuration
 	Platform *NodePoolPlatformProfile
 
-	// REQUIRED; OpenShift version for the nodepool
-	Version *NodePoolVersionProfile
-
 	// Auto-repair
 	AutoRepair *bool
 
@@ -355,6 +352,9 @@ type NodePoolProperties struct {
 
 	// Taints for the nodes
 	Taints []*Taint
+
+	// OpenShift version for the nodepool
+	Version *NodePoolVersionProfile
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
