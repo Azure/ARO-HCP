@@ -93,7 +93,10 @@ deploy:
 		--set mise.azureAdInstance=${MISE_AZURE_AD_INSTANCE} \
 		--set mise.firstPartyAppId=${MISE_FIRST_PARTY_APP_ID} \
 		--set mise.armInstance=${MISE_ARM_INSTANCE} \
-		--set mise.armAppId=${MISE_ARM_APP_ID}
+		--set mise.armAppId=${MISE_ARM_APP_ID} \
+		--set tracing.address=${TRACING_ADDRESS} \
+		--set tracing.exporter=${TRACING_EXPORTER} \
+		--namespace aro-hcp
 .PHONY: deploy
 
 undeploy:
