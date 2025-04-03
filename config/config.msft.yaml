@@ -301,7 +301,7 @@ clouds:
             postgres:
               name: "arohcpint-cs-{{ .ctx.regionShort }}" # [globally-unique]
             image:
-              digest: sha256:89a09675100b106a6e7e0b21d6841338ee229fa637abea67d32b53d8052696cd
+              digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActionsNonProd
