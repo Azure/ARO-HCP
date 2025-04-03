@@ -1,3 +1,0 @@
-tracing:
-  address: http://TODO:4318
-  exporter: otlp
