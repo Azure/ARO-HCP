@@ -60,7 +60,6 @@ defaults:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: ""
-      enableSwiftV2: false
   # MGMT cluster specifics
   mgmt:
     subscription: ARO Hosted Control Planes (EA Subscription 1)

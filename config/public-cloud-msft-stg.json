@@ -314,7 +314,6 @@
   "svc": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
-      "enableSwiftV2": false,
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3",
         "kvSoftDelete": true

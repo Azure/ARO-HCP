@@ -22,8 +22,6 @@ param userAgentVMSize = '{{ .svc.aks.userAgentPool.vmSize }}'
 param userAgentPoolAZCount = {{ .svc.aks.userAgentPool.azCount }}
 param aksUserOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
-param aksEnableSwift = {{ .svc.aks.enableSwiftV2 }}
-
 
 param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
 param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}

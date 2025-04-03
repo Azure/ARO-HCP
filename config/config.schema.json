@@ -157,8 +157,7 @@
         "etcd",
         "userAgentPool",
         "systemAgentPool",
-        "clusterOutboundIPAddressIPTags",
-        "enableSwiftV2"
+        "clusterOutboundIPAddressIPTags"
       ]
     },
     "containerImage": {

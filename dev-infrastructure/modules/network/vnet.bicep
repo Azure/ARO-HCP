@@ -95,5 +95,4 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
   }
 }
 
-
 output vnetName string = vnetName
