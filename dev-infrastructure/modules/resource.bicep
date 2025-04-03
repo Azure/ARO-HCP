@@ -87,3 +87,15 @@ func grafanaRefFromId(grafanaResourceId string) grafanaRef => {
   resourceGroup: resourceGroupFromResourceId(grafanaResourceId)
   name: last(split(grafanaResourceId, '/'))
 }
+
+@export()
+type frontdoorProfileRef = {
+  resourceGroup: resourceGroupReference
+  name: string
+}
+
+@export()
+func frontdoorProfileRefFromId(frontdoorProfileResourceId string) frontdoorProfileRef => {
+  resourceGroup: resourceGroupFromResourceId(frontdoorProfileResourceId)
+  name: last(split(frontdoorProfileResourceId, '/'))
+}

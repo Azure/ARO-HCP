@@ -61,10 +61,6 @@ param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'
 
-// OIDC
-param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
-param oidcZoneRedundantMode = '{{ .oidcZoneRedundantMode }}'
-
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
 param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
@@ -92,3 +88,11 @@ param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
+
+// OIDC
+param oidcStorageAccountName = '{{ .oidc.storageAccount.name }}'
+param oidcZoneRedundantMode = '{{ .oidc.storageAccount.zoneRedundantMode }}'
+param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'
+param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns.cxParentZoneName }}'
+param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'
+param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'

@@ -4,6 +4,7 @@ import {
   determineZoneRedundancyForRegion
   getLocationAvailabilityZonesCSV
 } from '../modules/common.bicep'
+import * as res from '../modules/resource.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -174,6 +175,18 @@ param oidcStorageAccountName string
 
 @description('The zone redundant mode of the OIDC storage account')
 param oidcZoneRedundantMode string
+
+@description('The name of the global Azure Front Door profile fronting the OIDC storage account')
+param azureFrontDoorResourceId string
+
+@description('The name of the global Azure Front Door parent DNS zone')
+param azureFrontDoorParentDnsZoneName string
+
+@description('The regional subdomain for the Azure Front Door')
+param azureFrontDoorRegionalSubdomain string
+
+@description('The name of the Azure Front Door global Key Vault')
+param azureFrontDoorKeyVaultName string
 
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
@@ -476,23 +489,31 @@ module cs '../modules/cluster-service.bicep' = {
   ]
 }
 
-// O I D C
-
-module oidc '../modules/oidc/main.bicep' = {
-  name: '${deployment().name}-oidc'
+//   O I D C
+var frontDoorRef = res.frontdoorProfileRefFromId(azureFrontDoorResourceId)
+module oidc '../modules/oidc/region/main.bicep' = {
+  name: 'oidc-storage'
   params: {
+    gblRgName: frontDoorRef.resourceGroup.name
+    gblSubscription: frontDoorRef.resourceGroup.subscriptionId
     location: location
+    zoneName: azureFrontDoorParentDnsZoneName
+    frontDoorProfileName: frontDoorRef.name
     storageAccountName: oidcStorageAccountName
-    rpMsiName: csMIName
+    customDomainName: azureFrontDoorRegionalSubdomain
+    routeName: azureFrontDoorRegionalSubdomain
+    originGroupName: azureFrontDoorRegionalSubdomain
+    originName: azureFrontDoorRegionalSubdomain
+    privateLinkLocation: location
+    storageAccountAccessPrincipalId: csManagedIdentityPrincipalId
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
       ? 'Standard_ZRS'
       : 'Standard_LRS'
-    msiId: aroDevopsMsiId
+    keyVaultName: azureFrontDoorKeyVaultName
+    aroDevopsMsiId: aroDevopsMsiId
     deploymentScriptLocation: location
+    storageAccountBlobPublicAccess: true
   }
-  dependsOn: [
-    svcCluster
-  ]
 }
 
 //
