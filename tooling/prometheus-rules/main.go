@@ -5,8 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -17,11 +19,20 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-type options struct {
-	inputRules  string
-	outputBicep string
+type alertingRuleFile struct {
+	folderName       string
+	fileBaseName     string
+	testFileBaseName string
+	rules            monitoringv1.PrometheusRule
+	testFileContent  []byte
+}
 
-	rules monitoringv1.PrometheusRule
+type options struct {
+	inputRulesDir string
+	inputRules    string
+	outputBicep   string
+
+	ruleFiles []alertingRuleFile
 }
 
 func newOptions() *options {
@@ -30,27 +41,91 @@ func newOptions() *options {
 }
 
 func (o *options) addFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.inputRulesDir, "input-rules-dir", "", "path to a directory containing input rules and tests")
 	fs.StringVar(&o.inputRules, "input-rules", "", "path to a file containing input rules")
 	fs.StringVar(&o.outputBicep, "output-bicep", "", "path to a file where bicep will be written")
 }
 
-func (o *options) complete(args []string) error {
-	if len(args) != 0 {
-		return errors.New("no arguments are supported")
-	}
-	rawRules, err := os.ReadFile(o.inputRules)
+func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
+	rawRules, err := os.ReadFile(filename)
 	if err != nil {
-		return fmt.Errorf("failed to read input rules: %v", err)
+		return nil, fmt.Errorf("failed to read input rules: %v", err)
 	}
-	if err := yaml.Unmarshal(rawRules, &o.rules); err != nil {
-		return fmt.Errorf("failed to parse input rules: %v", err)
+	var rules monitoringv1.PrometheusRule
+	if err := yaml.Unmarshal(rawRules, &rules); err != nil {
+		return nil, fmt.Errorf("failed to parse input rules: %v", err)
 	}
+	return &rules, nil
+}
+
+func (o *options) complete() error {
+	o.ruleFiles = make([]alertingRuleFile, 0)
+
+	if len(o.inputRules) > 0 {
+		rules, err := readRulesFile(o.inputRules)
+		if err != nil {
+			return fmt.Errorf("error reading rules file %v", err)
+		}
+		o.ruleFiles = append(o.ruleFiles, alertingRuleFile{
+			fileBaseName: o.inputRules,
+			rules:        *rules,
+		})
+	} else {
+		err := filepath.WalkDir(o.inputRulesDir, func(path string, d fs.DirEntry, err error) error {
+			if d.Type().IsRegular() {
+				if strings.Contains(path, "_test") {
+					return nil
+				}
+
+				folderName := filepath.Dir(path)
+				fileBaseName := filepath.Base(path)
+
+				rules, err := readRulesFile(path)
+				if err != nil {
+					return fmt.Errorf("error reading rules file %v", err)
+				}
+
+				fileNameParts := strings.Split(fileBaseName, ".")
+				if len(fileNameParts) != 2 {
+					return fmt.Errorf("missing filename extension or using '.' in filename")
+				}
+
+				testFile := filepath.Join(folderName, fmt.Sprintf("%s_test.%s", fileNameParts[0], fileNameParts[1]))
+				_, err = os.Stat(testFile)
+				if err != nil {
+					return fmt.Errorf("missing testfile %s for rule file %s", testFile, path)
+				}
+				testFileContent, err := os.ReadFile(testFile)
+				if err != nil {
+					return fmt.Errorf("error reading testfile %s: %v", testFile, err)
+				}
+				o.ruleFiles = append(o.ruleFiles, alertingRuleFile{
+					folderName:       folderName,
+					fileBaseName:     fileBaseName,
+					testFileBaseName: filepath.Base(testFile),
+					testFileContent:  testFileContent,
+					rules:            *rules,
+				})
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("error reading rules dir %v", err)
+		}
+	}
+
 	return nil
 }
 
-func (o *options) validate() error {
-	if o.inputRules == "" {
-		return errors.New("--input-rules is required")
+func (o *options) validate(args []string) error {
+	if len(args) != 0 {
+		return errors.New("no arguments are supported")
+	}
+	if len(o.inputRules) > 0 && len(o.inputRulesDir) > 0 {
+		return errors.New("use either input-rules or input-rules-dir not both")
+	}
+	if o.inputRules == "" && o.inputRulesDir == "" {
+		return errors.New("--input-rules or input-rules-dir is required")
 	}
 	if o.outputBicep == "" {
 		return errors.New("--output-bicep is required")
@@ -59,29 +134,29 @@ func (o *options) validate() error {
 }
 
 func main() {
+	logrus.SetLevel(logrus.DebugLevel)
 	o := newOptions()
 	o.addFlags(flag.CommandLine)
 	flag.Parse()
-	if err := o.validate(); err != nil {
+	if err := o.validate(flag.Args()); err != nil {
 		logrus.WithError(err).Fatal("invalid options")
 	}
-	if err := o.complete(flag.Args()); err != nil {
+	if err := o.complete(); err != nil {
 		logrus.WithError(err).Fatal("could not complete options")
 	}
-	b, _ := os.ReadFile("testing-prometheusRule_test.yaml")
-	if err := runTests(o.inputRules, o.rules, b); err != nil {
+	if err := runTests(o.ruleFiles); err != nil {
 		logrus.WithError(err).Fatal("testing rules failed")
 	}
 	output, err := os.Create(o.outputBicep)
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to create output file")
 	}
-	if err := generate(o.rules, output); err != nil {
+	if err := generate(o.ruleFiles, output); err != nil {
 		logrus.WithError(err).Fatal("failed to generate bicep")
 	}
 }
 
-func runTests(inputRulesFile string, input monitoringv1.PrometheusRule, testFileContent []byte) error {
+func runTests(inputRules []alertingRuleFile) error {
 	dir, err := os.MkdirTemp("/tmp", "prom-rule-test")
 	if err != nil {
 		return fmt.Errorf("Error creating tempdir %v", err)
@@ -90,41 +165,48 @@ func runTests(inputRulesFile string, input monitoringv1.PrometheusRule, testFile
 		os.RemoveAll(dir)
 	}()
 
-	logrus.Infof("Created tempdir %s", dir)
+	logrus.Debugf("Created tempdir %s", dir)
 
-	ruleGroups, err := yaml.Marshal(input.Spec)
-	if err != nil {
-		return fmt.Errorf("error Marshalling rule groups %v", err)
+	for _, irf := range inputRules {
+		if irf.testFileBaseName == "" {
+			continue
+		}
+		ruleGroups, err := yaml.Marshal(irf.rules.Spec)
+		if err != nil {
+			return fmt.Errorf("error Marshalling rule groups %v", err)
+		}
+
+		tmpFile := fmt.Sprintf("%s%s%s", dir, string(os.PathSeparator), irf.fileBaseName)
+
+		err = os.WriteFile(tmpFile, ruleGroups, 0644)
+		if err != nil {
+			return fmt.Errorf("error writing rule groups file %v", err)
+		}
+
+		fileNameParts := strings.Split(irf.fileBaseName, ".")
+		if len(fileNameParts) != 2 {
+			return fmt.Errorf("missing filename extension or using '.' in filename")
+		}
+
+		testFile := filepath.Join(dir, irf.testFileBaseName)
+		err = os.WriteFile(testFile, irf.testFileContent, 0644)
+		if err != nil {
+			return fmt.Errorf("error writing rule groups test file %v", err)
+		}
+		logrus.Debugf("running test %s", irf.testFileBaseName)
+		cmd := exec.Command("promtool", "test", "rules", testFile)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			logrus.Error(string(output))
+			return fmt.Errorf("error running promtool %v", err)
+		}
+
 	}
 
-	tmpFile := fmt.Sprintf("%s%s%s", dir, string(os.PathSeparator), inputRulesFile)
-
-	err = os.WriteFile(tmpFile, ruleGroups, 0644)
-	if err != nil {
-		return fmt.Errorf("error writing rule groups file %v", err)
-	}
-
-	fileNameParts := strings.Split(inputRulesFile, ".")
-	if len(fileNameParts) != 2 {
-		return fmt.Errorf("missing filename extension or using '.' in filename")
-	}
-
-	testFile := fmt.Sprintf("%s%s%s_test.%s", dir, string(os.PathSeparator), fileNameParts[0], fileNameParts[1])
-	err = os.WriteFile(testFile, testFileContent, 0644)
-	if err != nil {
-		return fmt.Errorf("error writing rule groups test file %v", err)
-	}
-
-	cmd := exec.Command("promtool", "test", "rules", testFile)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logrus.Error(string(output))
-		return fmt.Errorf("error running promtool %v", err)
-	}
 	return nil
 }
 
-func generate(input monitoringv1.PrometheusRule, output io.WriteCloser) error {
+func generate(inputRules []alertingRuleFile, output io.WriteCloser) error {
 	defer func() {
 		if err := output.Close(); err != nil {
 			logrus.WithError(err).Error("failed to close output file")
@@ -136,59 +218,62 @@ func generate(input monitoringv1.PrometheusRule, output io.WriteCloser) error {
 		return err
 	}
 
-	for _, group := range input.Spec.Groups {
-		logger := logrus.WithFields(logrus.Fields{
-			"group": group.Name,
-		})
-		if group.QueryOffset != nil {
-			logger.Warn("query offset is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
-		}
-		if group.Limit != nil {
-			logger.Warn("alert limit is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
-		}
-		armGroup := armalertsmanagement.PrometheusRuleGroupResource{
-			Name: ptr.To(group.Name),
-			Properties: &armalertsmanagement.PrometheusRuleGroupProperties{
-				Interval: formatDuration(group.Interval),
-				Enabled:  ptr.To(true),
-			},
-		}
-
-		for _, rule := range group.Rules {
-			labels := map[string]*string{}
-			for k, v := range group.Labels {
-				labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
+	for _, irf := range inputRules {
+		for _, group := range irf.rules.Spec.Groups {
+			logger := logrus.WithFields(logrus.Fields{
+				"group": group.Name,
+			})
+			if group.QueryOffset != nil {
+				logger.Warn("query offset is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
 			}
-			for k, v := range rule.Labels {
-				labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
+			if group.Limit != nil {
+				logger.Warn("alert limit is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
+			}
+			armGroup := armalertsmanagement.PrometheusRuleGroupResource{
+				Name: ptr.To(group.Name),
+				Properties: &armalertsmanagement.PrometheusRuleGroupProperties{
+					Interval: formatDuration(group.Interval),
+					Enabled:  ptr.To(true),
+				},
 			}
 
-			annotations := map[string]*string{}
-			for k, v := range rule.Annotations {
-				annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
-			}
-			if rule.Alert != "" {
-				armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
-					Alert:       ptr.To(rule.Alert),
-					Enabled:     ptr.To(true),
-					Labels:      labels,
-					Annotations: annotations,
-					For:         formatDuration(rule.For),
-					Expression: ptr.To(
-						strings.TrimSpace(
-							strings.ReplaceAll(rule.Expr.String(), "\n", " "),
+			for _, rule := range group.Rules {
+				labels := map[string]*string{}
+				for k, v := range group.Labels {
+					labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
+				}
+				for k, v := range rule.Labels {
+					labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
+				}
+
+				annotations := map[string]*string{}
+				for k, v := range rule.Annotations {
+					annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
+				}
+				if rule.Alert != "" {
+					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
+						Alert:       ptr.To(rule.Alert),
+						Enabled:     ptr.To(true),
+						Labels:      labels,
+						Annotations: annotations,
+						For:         formatDuration(rule.For),
+						Expression: ptr.To(
+							strings.TrimSpace(
+								strings.ReplaceAll(rule.Expr.String(), "\n", " "),
+							),
 						),
-					),
-					Severity: severityFor(labels),
-				})
+						Severity: severityFor(labels),
+					})
+				}
+			}
+
+			if len(armGroup.Properties.Rules) > 0 {
+				if err := writeGroups(armGroup, output); err != nil {
+					return err
+				}
 			}
 		}
 
-		if len(armGroup.Properties.Rules) > 0 {
-			if err := writeGroups(armGroup, output); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }
