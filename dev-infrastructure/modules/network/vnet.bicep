@@ -17,7 +17,7 @@ param deploymentMsiId string
 //  D E P L O Y   V N E T   W IT H O U T   S W I F T
 //
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
+resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = if (!enableSwift) {
   location: location
   name: vnetName
   properties: {
