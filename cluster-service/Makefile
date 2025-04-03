@@ -14,7 +14,6 @@ deploy:
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
 	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
-	TRACING_OVERRIDES=$$(if [ -z "${USE_TRACING}" ]; then echo ""; elif [ "${USE_TRACING}" = "jaeger" ]; then echo "tracing-jaeger.values.yaml"; elif [ "${USE_TRACING}" = "azure" ]; then echo "tracing-azure.values.yaml"; else echo ""; fi) && \
 	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name "${OP_CLUSTER_API_AZURE_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name "${OP_CONTROL_PLANE_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" --query "[].name" -o tsv) && \
@@ -29,7 +28,6 @@ deploy:
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
 	../hack/helm.sh cluster-service deploy ${NAMESPACE} \
 	  -f deploy/$${OVERRIDES} \
-	  $$(if [ -n "${TRACING_OVERRIDES}" ]; then echo "-f deploy/${TRACING_OVERRIDES}"; fi) \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
