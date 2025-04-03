@@ -117,6 +117,10 @@ var tagContributorRoleId = subscriptionResourceId(
 
 import * as res from '../modules/resource.bicep'
 
+//
+//   E T C D   K E Y V A U L T
+//
+
 module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
   name: aksKeyVaultName
   params: {
@@ -168,16 +172,52 @@ resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
-  location: location
-  name: 'aks-net'
+//
+//   N E T W O R K
+//
+
+resource deploymentMsiNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: resourceGroup()
+  name: guid(deploymentMsiId, networkContributorRoleId, resourceGroup().id)
   properties: {
-    addressSpace: {
-      addressPrefixes: [
-        vnetAddressPrefix
-      ]
-    }
+    roleDefinitionId: networkContributorRoleId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
   }
+}
+
+resource deploymentMsiTagContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: resourceGroup()
+  name: guid(deploymentMsiId, tagContributorRoleId, resourceGroup().id)
+  properties: {
+    roleDefinitionId: tagContributorRoleId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+var vnetName = 'aks-vnet'
+
+module vnetCreation '../modules/network/vnet.bicep' = {
+  name: 'vnet-${vnetName}-creation'
+  params: {
+    location: location
+    vnetName: vnetName
+    vnetAddressPrefix: vnetAddressPrefix
+    enableSwift: enableSwiftV2
+    deploymentMsiId: deploymentMsiId
+  }
+  dependsOn: [
+    deploymentMsiNetworkContributorRoleAssignment
+    deploymentMsiTagContributorRoleAssignment
+  ]
+}
+
+resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' existing = {
+  name: vnetName
+  dependsOn: [
+    vnetCreation
+  ]
 }
 
 resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
@@ -231,6 +271,10 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
   ]
 }
 
+//
+//   E G R E S S   A N D   I N G R E S S
+//
+
 resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${aksClusterName}-msi'
   location: location
@@ -246,26 +290,6 @@ resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssign
   }
 }
 
-resource deploymentMsiNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: vnet
-  name: guid(deploymentMsiId, networkContributorRoleId)
-  properties: {
-    roleDefinitionId: networkContributorRoleId
-    principalId: reference(deploymentMsiId, '2023-01-31').principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource deploymentMsiTagContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: vnet
-  name: guid(deploymentMsiId, tagContributorRoleId)
-  properties: {
-    roleDefinitionId: tagContributorRoleId
-    principalId: reference(deploymentMsiId, '2023-01-31').principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
 resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: aksCluster
   name: guid(aksClusterUserDefinedManagedIdentity.id, aksClusterAdminRoleId, aksCluster.id)
@@ -274,20 +298,6 @@ resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@
     principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
-}
-
-module swiftV2VnetTagging '../modules/network/vnettag.bicep' = if (enableSwiftV2) {
-  name: 'swift-vnet-tagging'
-  params: {
-    vnetName: vnet.name
-    tagName: 'stampcreatorserviceinfo'
-    tagValue: 'true'
-    deploymentMsiId: deploymentMsiId
-  }
-  dependsOn: [
-    deploymentMsiNetworkContributorRoleAssignment
-    deploymentMsiTagContributorRoleAssignment
-  ]
 }
 
 module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (deployIstio) {
@@ -322,6 +332,10 @@ module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = 
     }
   }
 }
+
+//
+//   A K S   C L U S T E R
+//
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   location: location
@@ -509,6 +523,10 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
     aksClusterOutboundIPAddress
   ]
 }
+
+//
+//   O B S E R V A B I L I T Y
+//
 
 resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2017-05-01-preview' = if (logAnalyticsWorkspaceId != '') {
   scope: aksCluster
