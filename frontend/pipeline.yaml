@@ -14,7 +14,7 @@ resourceGroups:
         value: "true"
     variables:
     - name: TARGET_ACR
-      configRef: 'acr.svc.name'
+      configRef: acr.svc.name
     - name: SOURCE_REGISTRY
       configRef: frontend.image.registry
     - name: REPOSITORY

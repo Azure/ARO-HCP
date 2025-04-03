@@ -282,7 +282,7 @@
     "deploy": true,
     "firstPartyAppId": "5bc505bc-50ef-4be9-9a82-2ed7973f1c37",
     "image": {
-      "digest": "sha256:ad3f7efeeb6691c25bf31d46d7b879e06093ec2ff43c05ad32b5bc5315ab96a7",
+      "digest": "sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b",
       "repository": "mise"
     }
   },
