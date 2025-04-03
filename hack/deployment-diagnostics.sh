@@ -62,12 +62,7 @@ for DEPLOY in $DEPLOYMENTS; do
     kubectl describe deployment "$DEPLOY" -n "$NAMESPACE"
 done
 
-# TODO - replace this with ready-to-click kusto links once kusto is ready
-PODS=$(kubectl get pods -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
-for POD in $PODS; do
-    echo -e "\n>>> Logs from pod: $POD"
-    kubectl logs "$POD" -n "$NAMESPACE" --previous --all-containers --tail=50
-done
+# TODO - add ready-to-click kusto links once kusto is ready
 
 echo -e "\n--- ServiceAccounts in $NAMESPACE ---"
 SERVICE_ACCOUNTS=$(kubectl get serviceaccounts -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
