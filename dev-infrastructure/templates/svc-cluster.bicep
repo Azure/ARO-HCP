@@ -317,7 +317,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     aroDevopsMsiId: aroDevopsMsiId
-    dcrId: dataCollection.outputs.dcrId
   }
 }
 
@@ -333,8 +332,13 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
     azureMonitorWorkspaceLocation: location
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     aksClusterName: aksClusterName
+    prometheusPrincipalId: filter(
+      svcCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'prometheus'
+    )[0].uamiPrincipalID
   }
 }
+
 
 var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]
 var backendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'backend')[0]

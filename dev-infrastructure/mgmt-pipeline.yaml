@@ -183,5 +183,7 @@ resourceGroups:
       configRef: mgmt.prometheus.prometheusSpec.version
     - name: PROMETHEUS_NAMESPACE_LABEL
       configRef: mgmt.prometheus.namespaceLabel
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
     dependsOn:
     - mgmt-cluster

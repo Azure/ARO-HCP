@@ -1,6 +1,7 @@
 param azureMonitoringWorkspaceId string
 param azureMonitorWorkspaceLocation string
 param aksClusterName string
+param prometheusPrincipalId string
 
 var dceName = take('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
 var dcrName = take('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
@@ -51,5 +52,18 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
   }
 }
 
-output dcrId string = dcr.id
-output dcePromUrl string = dce.properties.metricsIngestion.endpoint
+resource monitoringMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aksClusterName)
+  scope: dcr 
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '3913510d-42f4-4e42-8a64-420c390055eb'
+    )
+    principalId: prometheusPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+output dcePromUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2021-11-01-preview'
+ 

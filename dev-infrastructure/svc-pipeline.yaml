@@ -163,25 +163,27 @@ resourceGroups:
         value: "true"
     variables:
     - name: PROMETHEUS_OPERATOR_REGISTRY 
-      configRef: mgmt.prometheus.prometheusOperator.image.registry
+      configRef: svc.prometheus.prometheusOperator.image.registry
     - name: PROMETHEUS_OPERATOR_REPOSITORY 
-      configRef: mgmt.prometheus.prometheusOperator.image.repository
+      configRef: svc.prometheus.prometheusOperator.image.repository
     - name: PROMETHEUS_OPERATOR_DIGEST 
-      configRef: mgmt.prometheus.prometheusOperator.image.digest
+      configRef: svc.prometheus.prometheusOperator.image.digest
     - name: PROMETHEUS_SPEC_REGISTRY
-      configRef: mgmt.prometheus.prometheusSpec.image.registry
+      configRef: svc.prometheus.prometheusSpec.image.registry
     - name: PROMETHEUS_SPEC_REPOSITORY
-      configRef: mgmt.prometheus.prometheusSpec.image.repository
+      configRef: svc.prometheus.prometheusSpec.image.repository
     - name: PROMETHEUS_SPEC_DIGEST
-      configRef: mgmt.prometheus.prometheusSpec.image.digest
+      configRef: svc.prometheus.prometheusSpec.image.digest
     - name: PROMETHEUS_SPEC_REPLICAS
-      configRef: mgmt.prometheus.prometheusSpec.replicas
+      configRef: svc.prometheus.prometheusSpec.replicas
     - name: PROMETHEUS_SPEC_SHARDS
-      configRef: mgmt.prometheus.prometheusSpec.shards
+      configRef: svc.prometheus.prometheusSpec.shards
     - name: PROMETHEUS_SPEC_VERSION
-      configRef: mgmt.prometheus.prometheusSpec.version
+      configRef: svc.prometheus.prometheusSpec.version
     - name: PROMETHEUS_NAMESPACE_LABEL
-      configRef: mgmt.prometheus.namespaceLabel
+      configRef: svc.prometheus.namespaceLabel
+    - name: RESOURCE_GROUP
+      configRef: svc.rg
     dependsOn:
     - svc
 

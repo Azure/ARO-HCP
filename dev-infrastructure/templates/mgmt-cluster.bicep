@@ -111,6 +111,7 @@ param logsServiceAccount string
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
+
 resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'mgmt-cluster-node-nsg'
@@ -198,7 +199,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     userOsDiskSizeGB: aksUserOsDiskSizeGB
     aroDevopsMsiId: aroDevopsMsiId
-    dcrId: dataCollection.outputs.dcrId
   }
 }
 
@@ -214,6 +214,10 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
     azureMonitorWorkspaceLocation: location
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     aksClusterName: aksClusterName
+    prometheusPrincipalId: filter(
+      mgmtCluster.outputs.userAssignedIdentities,
+      id => id.uamiName == 'prometheus'
+    )[0].uamiPrincipalID
   }
 }
 
@@ -305,3 +309,4 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
     groupId: 'topicspace'
   }
 }
+
