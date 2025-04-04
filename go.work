@@ -6,6 +6,7 @@ use (
 	./backend
 	./frontend
 	./internal
+	./test
 	./tooling/image-sync
 	./tooling/mcerepkg
 	./tooling/secret-sync
