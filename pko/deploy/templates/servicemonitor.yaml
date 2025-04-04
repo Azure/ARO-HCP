@@ -1,7 +1,7 @@
-apiVersion: azmonitoring.coreos.com/v1
+apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: package-operator-monitor
+  name: package-operator
   namespace: '{{ .Release.Namespace  }}'
 spec:
   endpoints:
