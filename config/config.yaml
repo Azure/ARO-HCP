@@ -75,6 +75,7 @@ defaults:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: ""
+      enableSwiftV2: false
   # Frontend
   frontend:
     cosmosDB:
