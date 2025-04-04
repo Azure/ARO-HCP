@@ -12,6 +12,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/openshift-online/ocm-sdk-go v0.1.464
 	go.opentelemetry.io/otel v1.34.0
+	go.opentelemetry.io/otel/trace v1.34.0
 	go.uber.org/mock v0.5.0
 )
 

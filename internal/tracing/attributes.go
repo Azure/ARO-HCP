@@ -1,6 +1,10 @@
 package tracing
 
-import "go.opentelemetry.io/otel/attribute"
+import (
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+)
 
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
@@ -36,4 +40,33 @@ const (
 
 	// APIVersionKey is the span's attribute Key reporting the API version.
 	APIVersionKey = attribute.Key("aro.api_version")
+
+	// ClusterIDKey is the span's attribute Key reporting the internal cluster identifier.
+	// The key needs to be kept in sync with the key used by the Clusters Service.
+	ClusterIDKey = attribute.Key("cs.cluster.id")
+
+	// ClusterNameKey is the span's attribute Key reporting the internal cluster name.
+	// The key needs to be kept in sync with the key used by the Clusters Service.
+	ClusterNameKey = attribute.Key("cs.cluster.name")
+
+	// ClusterStateKey is the span's attribute Key reporting the internal cluster state.
+	// The key needs to be kept in sync with the key used by the Clusters Service.
+	ClusterStateKey = attribute.Key("cs.cluster.state")
 )
+
+// SetClusterAttributes sets attributes on the span to identify the cluster.
+func SetClusterAttributes(span trace.Span, cluster *arohcpv1alpha1.Cluster) {
+	addAttributeIfPresent(span, ClusterIDKey, cluster.GetID)
+	addAttributeIfPresent(span, ClusterNameKey, cluster.GetName)
+	addAttributeIfPresent(span, ClusterStateKey, func() (string, bool) {
+		v, present := cluster.GetState()
+		return string(v), present
+	})
+}
+
+func addAttributeIfPresent(span trace.Span, key attribute.Key, getter func() (string, bool)) {
+	v, present := getter()
+	if present {
+		span.SetAttributes(key.String(v))
+	}
+}
