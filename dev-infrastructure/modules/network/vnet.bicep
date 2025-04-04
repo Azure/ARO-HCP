@@ -23,7 +23,7 @@ param deploymentMsiId string
 //
 
 // for non-swift deployments, we create the VNET regularly... so much faster
-resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = if (!enableSwift) {
+resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = if (!enableSwift) {
   location: location
   name: vnetName
   properties: {

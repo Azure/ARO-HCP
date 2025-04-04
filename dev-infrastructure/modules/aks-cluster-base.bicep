@@ -196,7 +196,7 @@ resource deploymentMsiTagContributorRoleAssignment 'Microsoft.Authorization/role
   }
 }
 
-var vnetName = 'aks-vnet'
+var vnetName = 'aks-net'
 
 module vnetCreation '../modules/network/vnet.bicep' = {
   name: 'vnet-${vnetName}-creation'
@@ -213,7 +213,7 @@ module vnetCreation '../modules/network/vnet.bicep' = {
   ]
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' existing = {
+resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
   name: vnetName
   dependsOn: [
     vnetCreation
