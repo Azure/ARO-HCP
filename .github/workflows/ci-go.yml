@@ -63,8 +63,8 @@ jobs:
         go-version-file: 'go.work'
         check-latest: true
     - name: 'Lint'
-      uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.1
+      uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
       with:
         # The repo's top-level Makefile parses the version of golangci-lint from here
-        version: v1.61.0
+        version: v2.0.2
         args: '-v --build-tags=containers_image_openpgp $(go list -f ''{{.Dir}}/...'' -m | xargs)'
