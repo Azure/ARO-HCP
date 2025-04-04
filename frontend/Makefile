@@ -66,8 +66,7 @@ deploy:
 	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	kubectl create namespace mise --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace mise "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
-	${HELM_CMD} aro-hcp-frontend-dev \
-		deploy/ \
+	../hack/helm.sh aro-hcp-frontend-dev deploy aro-hcp \
 		--set azure.clientId=$${SECRET_STORE_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
 		--set configMap.databaseName=${DB_NAME} \
@@ -95,8 +94,7 @@ deploy:
 		--set mise.azureAdInstance=${MISE_AZURE_AD_INSTANCE} \
 		--set mise.firstPartyAppId=${MISE_FIRST_PARTY_APP_ID} \
 		--set mise.armInstance=${MISE_ARM_INSTANCE} \
-		--set mise.armAppId=${MISE_ARM_APP_ID} \
-		--namespace aro-hcp
+		--set mise.armAppId=${MISE_ARM_APP_ID}
 .PHONY: deploy
 
 undeploy:
