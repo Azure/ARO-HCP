@@ -13,7 +13,7 @@ linters:
     - path: internal/api/v20240610preview
       text: QF1008
     - path: backend/main.go
-      text : QF1011
+      text: QF1011
     - path: backend/main.go
       text: ST1005
     - path: backend/operations_scanner.go
