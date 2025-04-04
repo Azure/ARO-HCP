@@ -119,6 +119,20 @@
         "kubernetesVersion": {
           "type": "string"
         },
+        "networkDataplane": {
+          "type": "string",
+          "enum": [
+            "azure",
+            "cilium"
+          ]
+        },
+        "networkPolicy": {
+          "type": "string",
+          "enum": [
+            "azure",
+            "cilium"
+          ]
+        },
         "etcd": {
           "type": "object",
           "properties": {
@@ -152,6 +166,8 @@
         "podSubnetPrefix",
         "kubernetesVersion",
         "etcd",
+        "networkDataplane",
+        "networkPolicy",
         "userAgentPool",
         "systemAgentPool"
       ]
