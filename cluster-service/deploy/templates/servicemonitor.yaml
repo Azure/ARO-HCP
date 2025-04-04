@@ -1,7 +1,7 @@
-apiVersion: azmonitoring.coreos.com/v1
+apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: clusters-service-service-monitor
+  name: clusters-service
   namespace: '{{ .Release.Namespace  }}'
 spec:
   endpoints:
