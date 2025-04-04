@@ -1,10 +1,10 @@
 # ARO-HCP Prometheus
-aroHcp:
-  prometheusSpec:
-    image:
-      registry: ""
-      repository: ""
-      digest: ""
+# aroHcp:
+#   prometheusSpec:
+#     image:
+#       registry: ""
+#       repository: ""
+#       digest: ""
 
 # Overrides for the subchart kube-prometheus-stack
 kube-prometheus-stack:
@@ -3128,8 +3128,9 @@ kube-prometheus-stack:
     ##
     serviceAccount:
       create: true
-      name: ""
-      annotations: {}
+      name: "prometheus"
+      annotations:
+        azure.workload.identity/client-id: ""
       automountServiceAccountToken: true
 
     # Service for thanos service discovery on sidecar
@@ -3949,7 +3950,7 @@ kube-prometheus-stack:
 
       ## Log level for Prometheus be configured in
       ##
-      logLevel: debug 
+      logLevel: info 
 
       ## Log format for Prometheus be configured in
       ##
@@ -3963,8 +3964,9 @@ kube-prometheus-stack:
       ## Standard object's metadata. More info: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#metadata
       ## Metadata Labels and Annotations gets propagated to the prometheus pods.
       ##
-      podMetadata: {}
-      # labels:
+      podMetadata:
+        labels:
+          azure.workload.identity/use: "true"
       #   app: prometheus
       #   k8s-app: prometheus
 
@@ -4002,7 +4004,27 @@ kube-prometheus-stack:
 
       ## The remote_write spec configuration for Prometheus.
       ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api-reference/api.md#remotewritespec
-      remoteWrite: []
+      remoteWrite:
+      - url: "http://localhost:8081/api/v1/write"
+        # azureAd:
+        #   cloud: 'AzurePublic'
+        #   managedIdentity:
+        #     clientId: {{ .Values.aroHcp.prometheusSpec.remoteWrite.managedIdentityClientId }} # 👈 User assigned identity is assigned to the VMs in the aks managed resource group
+        queueConfig:
+          capacity: 2500
+          maxShards: 500
+          minShards: 1
+          maxSamplesPerSend: 2000
+          batchSendDeadline: 60s
+          minBackoff: 30ms
+          maxBackoff: 256s
+        metadataConfig:
+          send: false
+        writeRelabelConfigs: # 👈 Might need some work to relabel/drop metrics
+        - sourceLabels: [__name__, source]
+          action: keep
+          separator: ;
+          regex: ".*" 
       # - url: http://remote1/push
       ## additionalRemoteWrite is appended to remoteWrite
       additionalRemoteWrite: []
@@ -4203,23 +4225,20 @@ kube-prometheus-stack:
 
       ## Containers allows injecting additional containers. This is meant to allow adding an authentication proxy to a Prometheus pod.
       ## if using proxy extraContainer update targetPort with proxy container port
-      containers: []
-      # containers:
-      # - name: oauth-proxy
-      #   image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1
-      #   args:
-      #   - --upstream=http://127.0.0.1:9090
-      #   - --http-address=0.0.0.0:8081
-      #   - --metrics-address=0.0.0.0:8082
-      #   - ...
-      #   ports:
-      #   - containerPort: 8081
-      #     name: oauth-proxy
-      #     protocol: TCP
-      #   - containerPort: 8082
-      #     name: oauth-metrics
-      #     protocol: TCP
-      #   resources: {}
+      containers:
+      - name: prom-remotewrite
+        image: mcr.microsoft.com/azuremonitor/containerinsights/ciprod/prometheus-remote-write/images:prom-remotewrite-20250214.1 
+        imagePullPolicy: Always
+        ports:
+          - name: rw-port
+            containerPort: 8081
+        env:
+        - name: INGESTION_URL
+          value: ""
+        - name: LISTENING_PORT
+          value: '8081'
+        - name: IDENTITY_TYPE
+          value: workloadIdentity
 
       ## InitContainers allows injecting additional initContainers. This is meant to allow doing some changes
       ## (permissions, dir tree) on mounted volumes before starting prometheus

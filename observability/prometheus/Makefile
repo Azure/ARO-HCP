@@ -19,17 +19,24 @@ deploy:
 		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.registry=mcr.microsoft.com/oss/v2 \
 		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.repository=prometheus/prometheus-config-reloader \
 		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.sha="b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1" \
-		--set aroHcp.prometheusSpec.image.registry=${PROMETHEUS_SPEC_REGISTRY} \
-		--set aroHcp.prometheusSpec.image.repository=${PROMETHEUS_SPEC_REPOSITORY} \
-		--set aroHcp.prometheusSpec.image.digest=${PROMETHEUS_SPEC_DIGEST} \
-		--set aroHcp.prometheusSpec.version=${PROMETHEUS_SPEC_VERSION} \
-		--set aroHcp.prometheusSpec.shards=${PROMETHEUS_SPEC_SHARDS} \
-		--set aroHcp.prometheusSpec.replicas=${PROMETHEUS_SPEC_REPLICAS} \
-		--set aroHcp.prometheusSpec.remoteWrite.url=$${PROMETHEUS_RW_ENDPOINT} \
-		--set aroHcp.prometheusSpec.remoteWrite.managedIdentityClientId=$${PROMETHEUS_WI_IDENTITY_CLIENT_ID} \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.image.registry=${PROMETHEUS_SPEC_REGISTRY} \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.image.repository=${PROMETHEUS_SPEC_REPOSITORY} \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.image.sha=${PROMETHEUS_SPEC_DIGEST} \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.version=${PROMETHEUS_SPEC_VERSION} \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.shards=${PROMETHEUS_SPEC_SHARDS} \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.replicas=${PROMETHEUS_SPEC_REPLICAS} \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.containers[0].env[0].name=INGESTION_URL \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.containers[0].env[0].value="$${PROMETHEUS_RW_ENDPOINT}/dataCollectionRules/dcr-990febd148834b4bb42caeb05c667250/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2021-11-01-preview" \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.containers[0].env[1].name=LISTENING_PORT \
+		--set-string kube-prometheus-stack.prometheus.prometheusSpec.containers[0].env[1].value=8081 \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.containers[0].env[2].name=IDENTITY_TYPE \
+		--set kube-prometheus-stack.prometheus.serviceAccount.annotations."azure\.workload\.identity/client-id"=$${PROMETHEUS_WI_IDENTITY_CLIENT_ID} \
+		--set kube-prometheus-stack.prometheus.prometheusSpec.containers[0].env[2].value='workloadIdentity' \
 		--values=deploy/values.yaml
 .PHONY: deploy
 
+
+# --set kube-prometheus-stack.prometheus.prometheusSpec.remoteWrite[0].url="$${PROMETHEUS_RW_ENDPOINT}/dataCollectionRules/dcr-990febd148834b4bb42caeb05c667250/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2021-11-01-preview" \
 
 pull-chart:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts;
