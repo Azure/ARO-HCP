@@ -57,7 +57,7 @@ defaults:
       clusterOutboundIPAddressIPTags: ""
     prometheus:
       namespace: prometheus
-      namepsaceLabel: ""
+      namespaceLabel: ""
       prometheusOperator:
         image:
           registry: mcr.microsoft.com/oss/v2

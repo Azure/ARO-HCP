@@ -82,7 +82,7 @@
     "baseDnsZoneRG": "global",
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
-    "regionalSubdomain": "eastus",
+    "regionalSubdomain": "westus3",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
@@ -244,25 +244,25 @@
     },
     "applyKubeletFixes": true,
     "prometheus": {
-      "namepsaceLabel": "",
       "namespace": "prometheus",
+      "namespaceLabel": "network.openshift.io/policy-group=monitoring",
       "prometheusOperator": {
         "image": {
-          "digest": "",
-          "registry": "",
-          "repository": ""
+          "digest": "a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82",
+          "registry": "mcr.microsoft.com/oss/v2",
+          "repository": "prometheus/prometheus-operator"
         },
         "version": ""
       },
       "prometheusSpec": {
         "image": {
-          "digest": "",
-          "registry": "",
-          "repository": ""
+          "digest": "2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c",
+          "registry": "mcr.microsoft.com/oss/v2",
+          "repository": "prometheus/prometheus"
         },
         "replicas": 2,
         "shards": 1,
-        "version": ""
+        "version": "v2.55.1-3"
       }
     },
     "rg": "hcp-underlay-dev-mgmt-1",
@@ -306,7 +306,7 @@
     "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
     "imageTag": "v1.15.0"
   },
-  "region": "eastus",
+  "region": "westus3",
   "regionRG": "hcp-underlay-dev",
   "serviceKeyVault": {
     "name": "aro-hcp-dev-svc-kv",
@@ -350,21 +350,21 @@
       "versions": "asm-1-23"
     },
     "prometheus": {
-      "namepsaceLabel": "",
       "namespace": "prometheus",
+      "namespaceLabel": "",
       "prometheusOperator": {
         "image": {
-          "digest": "",
-          "registry": "",
-          "repository": ""
+          "digest": "a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82",
+          "registry": "mcr.microsoft.com/oss/v2",
+          "repository": "prometheus/prometheus-operator"
         },
         "version": ""
       },
       "prometheusSpec": {
         "image": {
-          "digest": "",
-          "registry": "",
-          "repository": ""
+          "digest": "2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c",
+          "registry": "mcr.microsoft.com/oss/v2",
+          "repository": "prometheus/prometheus"
         },
         "replicas": 2,
         "shards": 1,

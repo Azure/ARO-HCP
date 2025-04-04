@@ -69,12 +69,12 @@
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cs-usetst",
+      "name": "arohcp-cs-usw3tst",
       "private": false
     }
   },
   "cxKeyVault": {
-    "name": "arohcp-cx-usetst-1",
+    "name": "arohcp-cx-usw3tst-1",
     "private": false,
     "softDelete": false
   },
@@ -82,7 +82,7 @@
     "baseDnsZoneRG": "global",
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
-    "regionalSubdomain": "usetst",
+    "regionalSubdomain": "usw3tst",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
@@ -91,12 +91,12 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-usetst"
+      "name": "frontend-cert-usw3tst"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-usetst",
+      "name": "arohcp-rp-usw3tst",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -170,7 +170,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-usetst-mgmt-1",
+      "consumerName": "hcp-underlay-usw3tst-mgmt-1",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -184,7 +184,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-maestro-usetst",
+      "name": "arohcp-maestro-usw3tst",
       "private": false
     },
     "image": {
@@ -195,7 +195,7 @@
       "databaseName": "maestro",
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-maestro-usetst",
+      "name": "arohcp-maestro-usw3tst",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15"
@@ -208,7 +208,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-usetst"
+      "mqttClientName": "maestro-server-usw3tst"
     }
   },
   "mce": {
@@ -220,11 +220,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "arohcp-etcd-usetst-1",
+        "kvName": "arohcp-etcd-usw3tst-1",
         "kvSoftDelete": false
       },
       "kubernetesVersion": "1.31.5",
-      "name": "usetst-mgmt-1",
+      "name": "usw3tst-mgmt-1",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -244,32 +244,32 @@
     },
     "applyKubeletFixes": false,
     "prometheus": {
-      "namepsaceLabel": "",
       "namespace": "prometheus",
+      "namespaceLabel": "network.openshift.io/policy-group=monitoring",
       "prometheusOperator": {
         "image": {
-          "digest": "",
-          "registry": "",
-          "repository": ""
+          "digest": "a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82",
+          "registry": "mcr.microsoft.com/oss/v2",
+          "repository": "prometheus/prometheus-operator"
         },
         "version": ""
       },
       "prometheusSpec": {
         "image": {
-          "digest": "",
-          "registry": "",
-          "repository": ""
+          "digest": "2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c",
+          "registry": "mcr.microsoft.com/oss/v2",
+          "repository": "prometheus/prometheus"
         },
         "replicas": 2,
         "shards": 1,
-        "version": ""
+        "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-usetst-mgmt-1",
+    "rg": "hcp-underlay-usw3tst-mgmt-1",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "arohcp-mgmt-usetst-1",
+    "name": "arohcp-mgmt-usw3tst-1",
     "private": false,
     "softDelete": false
   },
@@ -292,22 +292,22 @@
     "grafanaAdminGroupPrincipalId": "6b6d3adf-8476-4727-9812-20ffdef2b85c",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "workspaceName": "arohcp-usetst"
+    "workspaceName": "arohcp-usw3tst"
   },
   "msiKeyVault": {
-    "name": "arohcp-msi-usetst-1",
+    "name": "arohcp-msi-usw3tst-1",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpoidcusetst",
+  "oidcStorageAccountName": "arohcpoidcusw3tst",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
     "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
     "imageTag": "v1.15.0"
   },
-  "region": "eastus",
-  "regionRG": "hcp-underlay-usetst",
+  "region": "westus3",
+  "regionRG": "hcp-underlay-usw3tst",
   "serviceKeyVault": {
     "name": "aro-hcp-dev-svc-kv",
     "private": false,
@@ -319,11 +319,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "arohcp-etcd-usetst",
+        "kvName": "arohcp-etcd-usw3tst",
         "kvSoftDelete": false
       },
       "kubernetesVersion": "1.31.5",
-      "name": "usetst-svc",
+      "name": "usw3tst-svc",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -350,28 +350,28 @@
       "versions": "asm-1-23"
     },
     "prometheus": {
-      "namepsaceLabel": "",
       "namespace": "prometheus",
+      "namespaceLabel": "",
       "prometheusOperator": {
         "image": {
-          "digest": "",
-          "registry": "",
-          "repository": ""
+          "digest": "a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82",
+          "registry": "mcr.microsoft.com/oss/v2",
+          "repository": "prometheus/prometheus-operator"
         },
         "version": ""
       },
       "prometheusSpec": {
         "image": {
-          "digest": "",
-          "registry": "",
-          "repository": ""
+          "digest": "2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c",
+          "registry": "mcr.microsoft.com/oss/v2",
+          "repository": "prometheus/prometheus"
         },
         "replicas": 2,
         "shards": 1,
         "version": ""
       }
     },
-    "rg": "hcp-underlay-usetst-svc",
+    "rg": "hcp-underlay-usw3tst-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   }
 }
