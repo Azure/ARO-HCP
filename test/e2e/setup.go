@@ -27,9 +27,13 @@ import (
 )
 
 var (
-	clients        *api.ClientFactory
-	subscriptionID string
-	customerRGName string
+	clients              *api.ClientFactory
+	subscriptionID       string
+	customerRGName       string
+	clusterName          string
+	managedResourceGroup string
+	location             string
+	identityFile         string
 )
 
 func prepareDevelopmentConf() azcore.ClientOptions {
@@ -62,6 +66,10 @@ func setup(ctx context.Context) error {
 	}
 
 	customerRGName = os.Getenv("CUSTOMER_RG_NAME")
+	clusterName = os.Getenv("CLUSTER_NAME")
+	managedResourceGroup = os.Getenv("MANAGED_RESOURCE_GROUP")
+	location = os.Getenv("LOCATION")
+	identityFile = "identity.json"
 
 	opts := prepareDevelopmentConf()
 
