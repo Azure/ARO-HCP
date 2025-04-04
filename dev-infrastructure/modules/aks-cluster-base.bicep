@@ -43,6 +43,8 @@ param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
 param nodeSubnetNSGId string
+param networkDataplane string
+param networkPolicy string
 
 @description('Istio Ingress Gateway Public IP Address resource name')
 param istioIngressGatewayIPAddressName string = ''
@@ -404,8 +406,8 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
           ]
         }
       }
-      networkDataplane: 'cilium'
-      networkPolicy: 'cilium'
+      networkDataplane: networkDataplane
+      networkPolicy: networkPolicy
       networkPlugin: 'azure'
       serviceCidr: serviceCidr
       serviceCidrs: [serviceCidr]

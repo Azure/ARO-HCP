@@ -49,6 +49,12 @@ param systemAgentMaxCount int = 3
 @description('VM instance type for the system nodes')
 param systemAgentVMSize string = 'Standard_D2s_v3'
 
+@description('Network dataplane plugin for the AKS cluster')
+param aksNetworkDataplane string
+
+@description('Network policy plugin for the AKS cluster')
+param aksNetworkPolicy string
+
 @description('Subnet address prefix')
 param subnetPrefix string
 
@@ -191,6 +197,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
+    networkDataplane: aksNetworkDataplane
+    networkPolicy: aksNetworkPolicy
     userOsDiskSizeGB: aksUserOsDiskSizeGB
     aroDevopsMsiId: aroDevopsMsiId
     dcrId: dataCollection.outputs.dcrId
