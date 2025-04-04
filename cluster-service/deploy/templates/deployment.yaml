@@ -182,12 +182,16 @@ spec:
         - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
         - --azure-runtime-config-path=/configs/azure-runtime-config/config.json
         - --azure-operators-managed-identities-config-path=/configs/azure-operators-managed-identities-config.yaml
+        {{- if and .Values.azureMiMockServicePrincipalCertName .Values.azureMiMockServicePrincipalClientId .Values.azureMiMockServicePrincipalPrincipalId }}
         - --azure-mi-mock-service-principal-certificate-bundle-path=/secrets/keyvault/mockMiServicePrincipalCertificateBundle
         - --azure-mi-mock-service-principal-client-id={{ .Values.azureMiMockServicePrincipalClientId }}
         - --azure-mi-mock-service-principal-principal-id={{ .Values.azureMiMockServicePrincipalPrincipalId }}
+        {{- end }}
+        {{- if and .Values.azureArmHelperIdentityCertName .Values.azureArmHelperIdentityClientId .Values.azureArmHelperMockFpaPrincipalId }}
         - --azure-arm-helper-identity-certificate-bundle-path=/secrets/keyvault/armHelperIndentityCertificateBundle
         - --azure-arm-helper-identity-client-id={{ .Values.azureArmHelperIdentityClientId }}
         - --azure-arm-helper-mock-fpa-principal-id={{ .Values.azureArmHelperMockFpaPrincipalId }}
+        {{- end }}
         # Baggage items are populated by the RP frontend and defined in internal/tracing/attributes.go.
         - --log-fields-from-baggage=aro.correlation_id=correlation_id,aro.client.request_id=client_request_id
         livenessProbe:

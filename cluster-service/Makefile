@@ -1,5 +1,4 @@
 -include ../setup-env.mk
--include ../helm-cmd.mk
 
 ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 
@@ -29,8 +28,7 @@ deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
 	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
-	${HELM_CMD} cluster-service deploy \
-	  --namespace ${NAMESPACE} \
+	../hack/helm.sh cluster-service deploy ${NAMESPACE} \
 	  -f deploy/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
