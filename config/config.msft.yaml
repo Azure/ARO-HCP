@@ -140,6 +140,11 @@ defaults:
       disableLocalAuth: true
       private: true
       zoneRedundantMode: Auto
+  # Mise
+  mise:
+    deploy: true
+    image:
+      repository: mise
   # RP Backend
   backend:
     image:
@@ -276,6 +281,9 @@ clouds:
         ocMirror:
           image:
             digest: sha256:6016058b113d0dd61fce42747cc4cf6b0d47bbe260892a9825d24d19b6834ef4
+      mise:
+        azureAdInstance: https://login.microsoftonline.com/
+        armInstance: https://management.azure.com
     environments:
       int:
         # this is the MSFT INT environment
@@ -365,14 +373,10 @@ clouds:
               digest: sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364
           # Mise
           mise:
-            deploy: true
-            azureAdInstance: https://login.microsoftonline.com/
             firstPartyAppId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37 # This is the aro-hcp-fp-int app in the MSIT Tenant.
-            armInstance: https://management.azure.com
             armAppId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
             image:
-              repository: mise
-              digest: sha256:ad3f7efeeb6691c25bf31d46d7b879e06093ec2ff43c05ad32b5bc5315ab96a7
+              digest: sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b
           # RP Backend
           backend:
             image:
@@ -506,14 +510,10 @@ clouds:
               issuer: OneCertV2-PrivateCA # let's use private until we have approval for public
           # Mise
           mise:
-            deploy: true
-            azureAdInstance: https://login.microsoftonline.com/
             firstPartyAppId: 7f4a113a-c61d-412a-bea1-85dee5baf4a8
-            armInstance: https://management.azure.com
             armAppId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
             image:
-              repository: mise
-              digest: sha256:ad3f7efeeb6691c25bf31d46d7b879e06093ec2ff43c05ad32b5bc5315ab96a7
+              digest: sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b
           # RP Backend
           backend:
             image:
