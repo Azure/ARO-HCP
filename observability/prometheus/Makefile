@@ -3,10 +3,11 @@
 
 NAMESPACE ?= "prometheus"
 CHART_VERSION ?= 70.4.1
+LABEL_NAMESPACE_CMD := $(if $(PROMETHEUS_NAMESPACE_LABEL),kubectl label namespace ${NAMESPACE} ${PROMETHEUS_NAMESPACE_LABEL},)
 
 deploy:
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
-	@kubectl label namespace ${NAMESPACE} ${PROMETHEUS_NAMESPACE_LABEL}
+	@${LABEL_NAMESPACE_CMD}
 	PROMETHEUS_RW_ENDPOINT=$(shell az deployment group show -n metrics-infra -g ${RESOURCE_GROUP} --query properties.outputs.dcePromUrl.value -o tsv) && \
 	PROMETHEUS_WI_IDENTITY_CLIENT_ID=$(shell az deployment group show -n cluster -g ${RESOURCE_GROUP} --query properties.outputs.userAssignedIdentities.value -o json | jq -r '.[] | select(.uamiName=="prometheus") | .uamiClientID') && \
 	${HELM_CMD} prometheus deploy/ \
