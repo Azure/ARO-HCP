@@ -14,6 +14,8 @@ The number of **Prometheus replicas and shards** is configurable via the svc/mgm
 
 Prometheus uses **remote write** to persist metrics to Azure Monitor Workspaces. The Prometheus server runs an authentication proxy sidecar configured for [Microsoft Entra Workload Identity](https://learn.microsoft.com/en-us/azure/azure-monitor/containers/prometheus-remote-write-azure-workload-identity#set-up-remote-write-with-microsoft-entra-workload-id). The `prometheus` identity is assigned the "Monitoring Metrics Publisher" role on the Data Collection Rule (DCR) associated with each AKS cluster.
 
+The prometheus stack is deployed to service and management clusters apart of the `dev-infrastructure/mgmt-pipeline.yaml` and `dev-infrastructure/svc-pipeline.yaml`.  There is a default `pipeline.yaml` at `observability/prometheus/pipeline.yaml` that is currently intended for testing purposes, it will only deploy to the management cluster.
+
 ## Application Metrics Collection
 
 Each service deployed to the AKS clusters includes either a `ServiceMonitor` or a `PodMonitor` resource in its Helm chart.  The one exception to this is the hypershift operator, the hypershift operator lays down its own service monitor.  These resources define how Prometheus should scrape metrics from the service or pods.  The Prometheus stack is configured to discover `ServiceMonitor` and `PodMonitor` resources across **all namespaces**.
