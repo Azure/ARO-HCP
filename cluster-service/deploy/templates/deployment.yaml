@@ -22,6 +22,8 @@ spec:
         checksum/provisionshard: '{{ include (print $.Template.BasePath "/provisioning-shards.secret.yaml") . | sha256sum  }}'
         checksum/cs: '{{ include (print $.Template.BasePath "/clusters-service.secret.yaml") . | sha256sum  }}'
         checksum/runtime: '{{ include (print $.Template.BasePath "/azure-runtime-config.configmap.yaml") . | sha256sum  }}'
+        checksum/cloudres: '{{ include (print $.Template.BasePath "/cloud-resources-config.configmap.yaml") . | sha256sum  }}'
+        checksum/sa: '{{ include (print $.Template.BasePath "/serviceaccount.yaml") . | sha256sum  }}'
     spec:
       serviceAccount: '{{ .Values.serviceAccountName  }}'
       serviceAccountName: '{{ .Values.serviceAccountName  }}'
