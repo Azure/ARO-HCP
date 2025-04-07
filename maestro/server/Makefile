@@ -1,5 +1,4 @@
 -include ../../setup-env.mk
--include ../../helm-cmd.mk
 
 deploy:
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
@@ -10,8 +9,7 @@ deploy:
 	DATABASE_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${SVC_RG} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "maestro-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
 	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${SVC_RG} -n image-puller --query clientId -o tsv) && \
-	${HELM_CMD} maestro-server ./deploy \
-		--namespace ${NAMESPACE} \
+	../../hack/helm.sh maestro-server deploy ${NAMESPACE} \
 		-f deploy/$${OVERRIDES} \
 		--set maestro.serviceAccount=${SERVICE_ACCOUNT_NAME} \
 		--set maestro.glog_v=${MAESTRO_LOG_LEVEL} \
