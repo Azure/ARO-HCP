@@ -8,6 +8,8 @@ ignore:
 - 'frontend/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/allow-ingress.authorizationpolicy.yaml'
 - 'istio/deploy/templates/istio-shared-configmap.yml'
+- 'cluster-service/deploy/templates/cs-keyvault.secret.yaml'
+- 'cluster-service/deploy/templates/deployment.yaml'
 rules:
   brackets: enable
   colons: enable
