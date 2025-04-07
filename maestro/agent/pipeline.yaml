@@ -74,9 +74,9 @@ resourceGroups:
       input:
         step: region-output
         name: maestroEventGridNamespacesHostname
-  dependsOn:
-  - mirror-image
-  - region-output
+    dependsOn:
+    - mirror-image
+    - region-output
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   aksCluster: '{{ .svc.aks.name  }}'
