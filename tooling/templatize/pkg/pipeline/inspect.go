@@ -62,7 +62,7 @@ func inspectVars(s Step, options *InspectOptions, writer io.Writer) error {
 	var err error
 	switch step := s.(type) {
 	case *ShellStep:
-		envVars, err = step.mapStepVariables(options.Vars, map[string]output{})
+		envVars, err = step.mapStepVariables(options.Vars, map[string]output{}, true)
 	default:
 		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
 	}
