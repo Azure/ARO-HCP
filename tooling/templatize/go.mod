@@ -1,6 +1,8 @@
 module github.com/Azure/ARO-HCP/tooling/templatize
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.1
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
@@ -30,6 +32,7 @@ require (
 )
 
 require (
+	github.com/Azure/ARO-Tools v0.0.0-20250403175643-82a99e6b4c99 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.1 // indirect
 	github.com/cjlapao/common-go v0.0.39 // indirect
@@ -77,7 +80,7 @@ require (
 	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
-	google.golang.org/protobuf v1.36.3 // indirect
+	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/api v0.32.2 // indirect

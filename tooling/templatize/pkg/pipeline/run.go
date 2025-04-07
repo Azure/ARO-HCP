@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 var DefaultDeploymentTimeoutSeconds = 30 * 60

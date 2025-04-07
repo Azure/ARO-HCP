@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"

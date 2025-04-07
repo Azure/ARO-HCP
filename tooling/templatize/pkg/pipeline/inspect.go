@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 type StepInspectScope func(Step, *InspectOptions, io.Writer) error

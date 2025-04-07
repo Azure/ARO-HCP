@@ -11,8 +11,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
+	"github.com/Azure/ARO-Tools/pkg/config"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"

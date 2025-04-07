@@ -11,7 +11,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemplateFile string, vars config.Variables, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {

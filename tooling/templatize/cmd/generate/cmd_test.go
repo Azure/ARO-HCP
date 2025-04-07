@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 func TestExecuteTemplate(t *testing.T) {

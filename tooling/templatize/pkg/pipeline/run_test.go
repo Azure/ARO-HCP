@@ -6,7 +6,7 @@ import (
 
 	"gotest.tools/v3/assert"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 func TestStepRun(t *testing.T) {
