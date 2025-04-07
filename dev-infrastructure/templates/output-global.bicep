@@ -26,7 +26,9 @@ resource svcAcr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' exis
 }
 
 output ocpAcrResourceId string = ocpAcr.id
+output ocpAcrLoginServer string = ocpAcr.properties.loginServer
 output svcAcrResourceId string = svcAcr.id
+output svcAcrLoginServer string = svcAcr.properties.loginServer
 
 //
 //   D N S

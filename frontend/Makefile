@@ -1,5 +1,4 @@
 -include ../setup-env.mk
--include ../helm-cmd.mk
 
 CURRENT_COMMIT := $(shell git rev-parse --short=7 HEAD)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io

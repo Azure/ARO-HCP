@@ -1,5 +1,4 @@
 -include ../setup-env.mk
--include ../helm-cmd.mk
 
 ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 
@@ -13,8 +12,6 @@ deploy:
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
-	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
-	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
 	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
 	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name "${OP_CLUSTER_API_AZURE_ROLE_NAME}" --query "[].name" -o tsv) && \
@@ -27,10 +24,9 @@ deploy:
 	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_KMS_ROLE_ID=$(shell az role definition list --name "${OP_KMS_ROLE_NAME}" --query "[].name" -o tsv) && \
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
-	CX_SECRETS_KV_URL=$(shell az keyvault show -n ${CX_SECRETS_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
-	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
-	${HELM_CMD} cluster-service deploy \
-	  --namespace ${NAMESPACE} \
+	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
+	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
+	../hack/helm.sh cluster-service deploy ${NAMESPACE} \
 	  -f deploy/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
@@ -45,8 +41,8 @@ deploy:
 	  --set imageDigest=${IMAGE_DIGEST} \
 	  --set azureFirstPartyApplicationClientId=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
 	  --set fpaCertName=${FPA_CERT_NAME} \
-	  --set ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID} \
-	  --set ocpAcrUrl=$${OCP_ACR_URL} \
+	  --set ocpAcrResourceId=${OCP_ACR_RESOURCE_ID} \
+	  --set ocpAcrUrl=${OCP_ACR_URL} \
 	  --set shard.consumerName="${CONSUMER_NAME}" \
 	  --set shard.zoneResourceId="$${ZONE_RESOURCE_ID}" \
 	  --set shard.cxSecretsKeyVaultUrl="$${CX_SECRETS_KV_URL}" \

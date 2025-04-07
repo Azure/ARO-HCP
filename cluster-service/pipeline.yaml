@@ -25,6 +25,12 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
+  - name: global-output
+    action: ARM
+    template: ../dev-infrastructure/templates/output-global.bicep
+    parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   aksCluster: '{{ .svc.aks.name  }}'
@@ -38,6 +44,7 @@ resourceGroups:
         value: "true"
     dependsOn:
     - mirror-image
+    - global-output
     variables:
     - name: REGION
       configRef: region
@@ -109,6 +116,14 @@ resourceGroups:
       configRef: clusterService.k8s.serviceAccountName
     - name: ENVIRONMENT
       configRef: clusterService.environment
+    - name: OCP_ACR_RESOURCE_ID
+      input:
+        step: global-output
+        name: ocpAcrResourceId
+    - name: OCP_ACR_URL
+      input:
+        step: global-output
+        name: ocpAcrLoginServer
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME

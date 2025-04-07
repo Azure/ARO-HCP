@@ -177,7 +177,7 @@ services_mgmt_pipelines = hypershiftoperator maestro.agent acm
 
 %.dry_run:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -s deploy -P run -c public -d
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c public -d
 
 svc.deployall: $(addsuffix .deploy_pipeline, $(services_svc_pipelines)) $(addsuffix .deploy, $(services_svc))
 mgmt.deployall: $(addsuffix .deploy, $(services_mgmt)) $(addsuffix .deploy_pipeline, $(services_mgmt_pipelines))
