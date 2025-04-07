@@ -30,6 +30,12 @@ param aksSystemOsDiskSizeGB int
 @description('Disk size for the AKS user nodes')
 param aksUserOsDiskSizeGB int
 
+@description('Network dataplane plugin for the AKS cluster')
+param aksNetworkDataplane string
+
+@description('Network policy plugin for the AKS cluster')
+param aksNetworkPolicy string
+
 @description('Min replicas for the worker nodes')
 param userAgentMinCount int
 
@@ -299,6 +305,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
+    networkDataplane: aksNetworkDataplane
+    networkPolicy: aksNetworkPolicy
     workloadIdentities: items({
       frontend_wi: {
         uamiName: 'frontend'

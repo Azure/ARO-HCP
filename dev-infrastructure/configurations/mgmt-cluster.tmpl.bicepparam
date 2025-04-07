@@ -18,6 +18,8 @@ param userAgentVMSize = '{{ .mgmt.aks.userAgentPool.vmSize }}'
 param userAgentPoolAZCount = {{ .mgmt.aks.userAgentPool.azCount }}
 param aksUserOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
+param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
+param aksNetworkPolicy = '{{ .mgmt.aks.networkDataplane }}'
 
 // Maestro
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'

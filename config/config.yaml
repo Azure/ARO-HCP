@@ -56,6 +56,8 @@ defaults:
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
       kubernetesVersion: 1.31.6
+      networkDataplane: "cilium"
+      networkPolicy: "cilium"
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}
         kvSoftDelete: true
@@ -71,6 +73,8 @@ defaults:
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
       kubernetesVersion: 1.31.6
+      networkDataplane: "azure"
+      networkPolicy: "azure"
       etcd:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
@@ -357,6 +361,9 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+              # CNI
+              networkDataplane: "cilium" # should be switch to azure during next rebuild
+              networkPolicy: "cilium" # should be switch to azure during next rebuild
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
@@ -396,6 +403,9 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+              # CNI
+              networkDataplane: "cilium" # should be switch to azure during next rebuild
+              networkPolicy: "cilium" # should be switch to azure during next rebuild
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'

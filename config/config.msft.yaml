@@ -84,6 +84,8 @@ defaults:
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
       kubernetesVersion: 1.31.6
+      networkDataplane: "cilium"
+      networkPolicy: "cilium"
       systemAgentPool:
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
@@ -114,6 +116,9 @@ defaults:
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
       kubernetesVersion: 1.31.6
+      # CNI
+      networkDataplane: "cilium" # should be switch to azure during next rebuild
+      networkPolicy: "cilium" # should be switch to azure during next rebuild
       systemAgentPool:
         vmSize: 'Standard_E8s_v3'
         osDiskSizeGB: 128

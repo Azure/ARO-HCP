@@ -239,6 +239,8 @@
       },
       "kubernetesVersion": "1.31.6",
       "name": "cspr-mgmt-1",
+      "networkDataplane": "cilium",
+      "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -315,6 +317,8 @@
       },
       "kubernetesVersion": "1.31.6",
       "name": "cspr-svc",
+      "networkDataplane": "cilium",
+      "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
