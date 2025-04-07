@@ -361,6 +361,9 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+              # CNI
+              networkDataplane: "cilium" # should be switch to azure during next rebuild
+              networkPolicy: "cilium"    # should be switch to azure during next rebuild
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
@@ -400,6 +403,9 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+              # CNI
+              networkDataplane: "cilium" # should be switch to azure during next rebuild
+              networkPolicy: "cilium"    # should be switch to azure during next rebuild
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'

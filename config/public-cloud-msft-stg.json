@@ -239,8 +239,8 @@
       },
       "kubernetesVersion": "1.31.6",
       "name": "westus3-mgmt-1",
-      "networkDataplane": "azure",
-      "networkPolicy": "azure",
+      "networkDataplane": "cilium",
+      "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
