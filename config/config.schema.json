@@ -143,6 +143,9 @@
         },
         "clusterOutboundIPAddressIPTags": {
           "$ref": "#/definitions/keyColonValueCSV"
+        },
+        "enableSwiftV2": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -153,7 +156,8 @@
         "kubernetesVersion",
         "etcd",
         "userAgentPool",
-        "systemAgentPool"
+        "systemAgentPool",
+        "clusterOutboundIPAddressIPTags"
       ]
     },
     "containerImage": {
