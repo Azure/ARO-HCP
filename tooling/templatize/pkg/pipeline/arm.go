@@ -173,7 +173,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	inputValues, err := getInputValues(step.Variables, vars, input)
+	inputValues, err := getInputValues(step.Variables, vars, input, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
@@ -247,7 +247,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutp
 func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	inputValues, err := getInputValues(step.Variables, vars, input)
+	inputValues, err := getInputValues(step.Variables, vars, input, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}

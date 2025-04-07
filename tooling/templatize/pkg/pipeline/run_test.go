@@ -228,7 +228,7 @@ func TestAddInputVars(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := getInputValues(tc.stepVariables, tc.cfg, tc.input)
+			result, err := getInputValues(tc.stepVariables, tc.cfg, tc.input, false)
 			t.Log(result)
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)

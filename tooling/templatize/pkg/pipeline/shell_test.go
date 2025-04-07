@@ -84,12 +84,13 @@ func TestCreateCommand(t *testing.T) {
 
 func TestMapStepVariables(t *testing.T) {
 	testCases := []struct {
-		name     string
-		vars     config.Variables
-		input    map[string]output
-		step     *ShellStep
-		expected map[string]string
-		err      string
+		name                        string
+		vars                        config.Variables
+		input                       map[string]output
+		step                        *ShellStep
+		ignoreMissingOutputChaining bool
+		expected                    map[string]string
+		err                         string
 	}{
 		{
 			name: "basic",
@@ -218,10 +219,27 @@ func TestMapStepVariables(t *testing.T) {
 			},
 			err: "failed to get value for input step1.output1: key \"output1\" not found",
 		},
+		{
+			name:                        "output chaining ignore step missing",
+			vars:                        config.Variables{},
+			ignoreMissingOutputChaining: true,
+			step: &ShellStep{
+				Variables: []Variable{
+					{
+						Name: "BAZ",
+						Input: &Input{
+							Name: "output1",
+							Step: "step1",
+						},
+					},
+				},
+			},
+			expected: map[string]string{},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			envVars, err := tc.step.mapStepVariables(tc.vars, tc.input)
+			envVars, err := tc.step.mapStepVariables(tc.vars, tc.input, tc.ignoreMissingOutputChaining)
 			t.Log(envVars)
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)
