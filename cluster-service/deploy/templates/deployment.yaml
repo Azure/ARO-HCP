@@ -86,6 +86,8 @@ spec:
           mountPath: /secrets/rds
         - name: service
           mountPath: /secrets/service
+        - name: azure-runtime-config
+          mountPath: /configs/azure-runtime-config
         command:
         - /usr/local/bin/clusters-service
         - init
@@ -99,6 +101,7 @@ spec:
         - --force-migration={{ .Values.forceMigration }}
         - --batch-processes-dry-run={{ .Values.batchProcessesDryRun }}
         - --batch-processes={{ .Values.batchProcesses }}
+        - --azure-runtime-config-path=/configs/azure-runtime-config/config.json
       containers:
       - name: service
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
