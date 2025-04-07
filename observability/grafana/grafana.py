@@ -116,7 +116,7 @@ def main():
         if folder_exists(folder_service_name, existing_folders):
             folder_uid = get_folder_uid(folder_service_name, existing_folders)
         else:
-            folder_uid = g.create_folder(folder_service_name)["uid"]
+            folder_uid = g.create_folder(folder_service_name).get("uid", "")
 
         for dashboard in fs_get_dashboards(os.path.join(SEARCH_ROOT, local_folder)):
             temp_file = tempfile.NamedTemporaryFile()
@@ -142,8 +142,10 @@ def main():
                 del existing_dashboard["dashboard"]["uid"]
                 del existing_dashboard["dashboard"]["id"]
                 del existing_dashboard["dashboard"]["version"]
-                del dashboard["dashboard"]["id"]
-                del dashboard["dashboard"]["version"]
+                if dashboard["dashboard"].get("id", None):
+                    del dashboard["dashboard"]["id"]
+                if dashboard["dashboard"].get("version", None):
+                    del dashboard["dashboard"]["version"]
 
                 if existing_dashboard["dashboard"] == dashboard["dashboard"]:
                     print("Dashboard matches, no update needed")
