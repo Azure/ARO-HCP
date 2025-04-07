@@ -118,7 +118,7 @@ defaults:
       kubernetesVersion: 1.31.6
       # CNI
       networkDataplane: "cilium" # should be switch to azure during next rebuild
-      networkPolicy: "cilium"    # should be switch to azure during next rebuild
+      networkPolicy: "cilium" # should be switch to azure during next rebuild
       systemAgentPool:
         vmSize: 'Standard_E8s_v3'
         osDiskSizeGB: 128
