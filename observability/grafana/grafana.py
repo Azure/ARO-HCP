@@ -59,7 +59,7 @@ def folder_exists(name: str, grafana_folders: list[dict[str, any]]) -> bool:
     return len([n for n in grafana_folders if n["title"] == name]) > 0
 
 
-def get_folder_uid(name: str, grafana_folders: dict[str, any]) -> str:
+def get_folder_uid(name: str, grafana_folders: list[dict[str, any]]) -> str:
     found = [n for n in grafana_folders if n["title"] == name]
     assert len(found) == 1
     return found[0]["uid"]
