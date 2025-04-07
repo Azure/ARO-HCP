@@ -42,6 +42,13 @@ class GrafanaRunner:
             return {}
         return json.loads(run_command(command_to_run))
 
+    def delete_dashboard(self, uid: str):
+        command_to_run = f'az grafana dashboard delete -g "{self.rg}" -n "{self.grafana}" --dashboard "{uid}"'
+        if self.dry_run:
+            print(f"DRY_RUN: {command_to_run}")
+        else:
+            command_to_run
+
     def list_existing_dashboards(self) -> dict[str, any]:
         return json.loads(
             run_command(f'az grafana dashboard list -g "{self.rg}" -n "{self.grafana}"')
@@ -95,6 +102,8 @@ def main():
     existing_folders = g.list_existing_folders()
     existing_dashboards = g.list_existing_dashboards()
 
+    dashboards_visited = set()
+
     for local_folder in fs_get_dashboard_folders(SEARCH_ROOT):
         parts = local_folder.split("/")
         if len(parts) != 2:
@@ -121,27 +130,40 @@ def main():
                 if e["title"] == dashboard["dashboard"]["title"]
                 if e["folderUid"] == folder_uid
             ]
+            create_or_update = True
             if dashboard_found:
                 assert len(dashboard_found) == 1
                 existing_dashboard = g.show_existing_dashboard(
                     dashboard_found[0]["uid"]
                 )
 
-            # Deleting info that might change
-            # This script uses override and will always create new versions/ids
-            del existing_dashboard["dashboard"]["uid"]
-            del existing_dashboard["dashboard"]["id"]
-            del existing_dashboard["dashboard"]["version"]
-            del dashboard["dashboard"]["id"]
-            del dashboard["dashboard"]["version"]
+                # Deleting info that might change
+                # This script uses override and will always create new versions/ids
+                del existing_dashboard["dashboard"]["uid"]
+                del existing_dashboard["dashboard"]["id"]
+                del existing_dashboard["dashboard"]["version"]
+                del dashboard["dashboard"]["id"]
+                del dashboard["dashboard"]["version"]
 
-            if existing_dashboard["dashboard"] == dashboard["dashboard"]:
-                print("Dashboard matches, no update needed")
-            else:
-                print("Dashboard differs, update needed")
+                if existing_dashboard["dashboard"] == dashboard["dashboard"]:
+                    print("Dashboard matches, no update needed")
+                    create_or_update = False
+
+            if create_or_update:
+                print("Dashboard differs or does not exist update needed")
                 g.create_dashboard(temp_file.name)
 
+            dashboards_visited.add(f"{folder_uid}_{dashboard["dashboard"]["title"]}")
             os.remove(temp_file.name)
+
+    for d in existing_dashboards:
+        k = f"{d["folderUid"]}_{d["title"]}"
+        if k not in dashboards_visited:
+            if get_folder_uid("Azure Monitor", existing_folders) in k:
+                continue
+            if get_folder_uid("Microsoft Defender for Cloud", existing_folders) in k:
+                continue
+            g.delete_dashboard(k.split("_")[1])
 
 
 if __name__ == "__main__":
