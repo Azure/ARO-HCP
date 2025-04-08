@@ -71,11 +71,7 @@ func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, opti
 		return fmt.Errorf("failed to execute shell command: %s %w", string(output), err)
 	}
 
-	if options.StdoutQuiet {
-		logger.V(5).Info("command output", "output", string(output), "command", s.Command)
-	} else {
-		s.outputFunc(string(output))
-	}
+	s.outputFunc(string(output))
 
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
-type StepInspectScope func(context.Context, *Pipeline, Step, *InspectOptions, io.Writer) error
+type StepInspectScope func(context.Context, *Pipeline, Step, *InspectOptions) error
 
 func NewStepInspectScopes() map[string]StepInspectScope {
 	return map[string]StepInspectScope{
@@ -24,10 +24,11 @@ type InspectOptions struct {
 	Region         string
 	Vars           config.Variables
 	ScopeFunctions map[string]StepInspectScope
+	OutputFile     io.Writer
 }
 
 // NewInspectOptions creates a new PipelineInspectOptions struct
-func NewInspectOptions(vars config.Variables, region, step, scope, format string) *InspectOptions {
+func NewInspectOptions(vars config.Variables, region, step, scope, format string, outputFile io.Writer) *InspectOptions {
 	return &InspectOptions{
 		Scope:          scope,
 		Format:         format,
@@ -35,15 +36,16 @@ func NewInspectOptions(vars config.Variables, region, step, scope, format string
 		Region:         region,
 		Vars:           vars,
 		ScopeFunctions: NewStepInspectScopes(),
+		OutputFile:     outputFile,
 	}
 }
 
-func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer io.Writer) error {
+func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions) error {
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.StepName() == options.Step {
 				if inspectFunc, ok := options.ScopeFunctions[options.Scope]; ok {
-					err := inspectFunc(ctx, p, step, options, writer)
+					err := inspectFunc(ctx, p, step, options)
 					if err != nil {
 						return err
 					}
@@ -57,7 +59,7 @@ func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer 
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *InspectOptions, writer io.Writer) error {
+func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *InspectOptions) error {
 	var envVars map[string]string
 	switch step := s.(type) {
 	case *ShellStep:
@@ -85,9 +87,9 @@ func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *Inspe
 
 	switch options.Format {
 	case "makefile":
-		printMakefileVars(envVars, writer)
+		printMakefileVars(envVars, options.OutputFile)
 	case "shell":
-		printShellVars(envVars, writer)
+		printShellVars(envVars, options.OutputFile)
 	default:
 		return fmt.Errorf("unknown output format %q", options.Format)
 	}
@@ -105,7 +107,6 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *P
 			SubsciptionLookupFunc:    LookupSubscriptionID,
 			NoPersist:                true,
 			DeploymentTimeoutSeconds: 60,
-			StdoutQuiet:              true,
 		}
 		outputs, err := RunPipeline(pipeline, ctx, runOptions)
 		if err != nil {

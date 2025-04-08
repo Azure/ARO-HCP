@@ -140,6 +140,7 @@ elif [ $PIPELINE_MODE == "inspect" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_ST
         --stamp=${CXSTAMP} \
         --pipeline-file=${PIPELINE} \
         --step=${PIPELINE_STEP} \
+        --output=${OUTPUT} \
         --scope vars \
         ${LOG_VERBOSITY_OPTION} \
         --format makefile

@@ -3,6 +3,7 @@ package inspect
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -27,6 +28,12 @@ func BindOptions(opts *RawInspectOptions, cmd *cobra.Command) error {
 	}
 	cmd.Flags().StringVar(&opts.Scope, "scope", opts.Scope, "scope of the pipeline to inspect")
 	cmd.Flags().StringVar(&opts.Format, "format", opts.Format, "output format")
+	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "output file")
+
+	if err := cmd.MarkFlagFilename("output"); err != nil {
+		return fmt.Errorf("failed to mark flag %q as a file: %w", "output", err)
+	}
+
 	return nil
 }
 
@@ -34,6 +41,7 @@ type RawInspectOptions struct {
 	PipelineOptions *options.RawPipelineOptions
 	Scope           string
 	Format          string
+	Output          string
 }
 
 // validatedInspectOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -52,6 +60,7 @@ type completedInspectOptions struct {
 	PipelineOptions *options.PipelineOptions
 	Scope           string
 	Format          string
+	OutputFile      io.Writer
 }
 
 type InspectOptions struct {
@@ -89,11 +98,17 @@ func (o *ValidatedInspectOptions) Complete() (*InspectOptions, error) {
 		return nil, err
 	}
 
+	outputFile, err := os.Create(o.Output)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create output file %s: %w", o.Output, err)
+	}
+
 	return &InspectOptions{
 		completedInspectOptions: &completedInspectOptions{
 			PipelineOptions: completed,
 			Scope:           o.Scope,
 			Format:          o.Format,
+			OutputFile:      outputFile,
 		},
 	}, nil
 }
@@ -113,6 +128,6 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	inspectOptions := pipeline.NewInspectOptions(variables, rolloutOptions.Region, o.PipelineOptions.Step, o.Scope, o.Format)
-	return o.PipelineOptions.Pipeline.Inspect(ctx, inspectOptions, os.Stdout)
+	inspectOptions := pipeline.NewInspectOptions(variables, rolloutOptions.Region, o.PipelineOptions.Step, o.Scope, o.Format, o.OutputFile)
+	return o.PipelineOptions.Pipeline.Inspect(ctx, inspectOptions)
 }

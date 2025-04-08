@@ -15,10 +15,11 @@ ENV_VARS_FILE ?= /tmp/deploy.${HASH}.cfg
 # Target to generate the environment variables file
 $(ENV_VARS_FILE): ${PROJECT_ROOT_DIR}/config/config.yaml ${PIPELINE} ${PROJECT_ROOT_DIR}/templatize.sh ${MAKEFILE_LIST}
 	@echo "generate env vars file ${ENV_VARS_FILE}"
-	@echo "this might take a while the first time. on error run with LOG_LEVEL=7 and check the ${ENV_VARS_FILE} file"
+	@echo "this might take a while the first time."
 	@LOG_LEVEL=${LOG_LEVEL} ${PROJECT_ROOT_DIR}/templatize.sh ${DEPLOY_ENV} \
 		-p ${PIPELINE} \
-		-s ${PIPELINE_STEP} > $(ENV_VARS_FILE)
+		-s ${PIPELINE_STEP} \
+		-o $(ENV_VARS_FILE)
 
 # Include the environment variables file if it exists
 -include ${ENV_VARS_FILE}

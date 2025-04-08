@@ -48,7 +48,6 @@ type PipelineRunOptions struct {
 	SubsciptionLookupFunc    subsciptionLookup
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
-	StdoutQuiet              bool
 }
 
 type armOutput map[string]any
@@ -169,14 +168,12 @@ func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget
 		// skip steps that don't match the specified step name
 		return nil, nil
 	}
-	if !options.StdoutQuiet {
-		fmt.Println("\n---------------------")
-		if options.DryRun {
-			fmt.Println("This is a dry run!")
-		}
-		fmt.Println(s.Description())
-		fmt.Print("\n")
+	fmt.Println("\n---------------------")
+	if options.DryRun {
+		fmt.Println("This is a dry run!")
 	}
+	fmt.Println(s.Description())
+	fmt.Print("\n")
 
 	switch step := s.(type) {
 	case *ShellStep:
