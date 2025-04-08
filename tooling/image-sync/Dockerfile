@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.23-fips-cbl-mariner2.0@sha256:e6951a34cc0cbdc62b5110c4301dfe9c8daf8ee89c1b8616082a6e0b89cd820f as builder
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.24.1-fips-cbl-mariner2.0@sha256:95edccac127e5f5da836e6fa6a122e73ec7caaf69324ff42f438f78f0a280724 as builder
 
 WORKDIR /app
 ADD . .
