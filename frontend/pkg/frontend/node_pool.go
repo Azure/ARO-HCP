@@ -225,8 +225,8 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// so we leave any existing tags alone. If the Tags map is non-nil, even if
 		// empty, that means it was specified in the request body and should fully
 		// replace any existing tags.
-		if hcpNodePool.TrackedResource.Tags != nil {
-			doc.Tags = hcpNodePool.TrackedResource.Tags
+		if hcpNodePool.Tags != nil {
+			doc.Tags = hcpNodePool.Tags
 		}
 
 		return true
@@ -276,8 +276,8 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 // the necessary conversions for the API version of the request.
 func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
 	hcpNodePool := ConvertCStoNodePool(doc.ResourceID, csNodePool)
-	hcpNodePool.TrackedResource.Resource.SystemData = doc.SystemData
-	hcpNodePool.TrackedResource.Tags = maps.Clone(doc.Tags)
+	hcpNodePool.SystemData = doc.SystemData
+	hcpNodePool.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
 
 	return versionedInterface.MarshalHCPOpenShiftClusterNodePool(hcpNodePool)

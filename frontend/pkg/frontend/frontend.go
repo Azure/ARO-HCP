@@ -566,8 +566,8 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// so we leave any existing tags alone. If the Tags map is non-nil, even if
 		// empty, that means it was specified in the request body and should fully
 		// replace any existing tags.
-		if hcpCluster.TrackedResource.Tags != nil {
-			doc.Tags = hcpCluster.TrackedResource.Tags
+		if hcpCluster.Tags != nil {
+			doc.Tags = hcpCluster.Tags
 		}
 
 		return true
@@ -982,8 +982,8 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 }
 
 func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *http.Request) {
-	var subscriptionID string = request.PathValue(PathSegmentSubscriptionID)
-	var resourceGroup string = request.PathValue(PathSegmentResourceGroupName)
+	var subscriptionID = request.PathValue(PathSegmentSubscriptionID)
+	var resourceGroup = request.PathValue(PathSegmentResourceGroupName)
 
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
@@ -1107,8 +1107,8 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			//   ]
 			// }
 			//
-			if len(cloudError.CloudErrorBody.Details) > 0 {
-				details = cloudError.CloudErrorBody.Details
+			if len(cloudError.Details) > 0 {
+				details = cloudError.Details
 			} else {
 				details = []arm.CloudErrorBody{*cloudError.CloudErrorBody}
 			}
@@ -1167,8 +1167,8 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
 	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
-	hcpCluster.TrackedResource.Resource.SystemData = doc.SystemData
-	hcpCluster.TrackedResource.Tags = maps.Clone(doc.Tags)
+	hcpCluster.SystemData = doc.SystemData
+	hcpCluster.Tags = maps.Clone(doc.Tags)
 	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
 
 	if doc.Identity != nil {

@@ -61,7 +61,7 @@ func NewLockClient(ctx context.Context, containerClient *azcosmos.ContainerClien
 	if response.ContainerProperties != nil && response.ContainerProperties.DefaultTimeToLive != nil {
 		c.defaultTimeToLive = *response.ContainerProperties.DefaultTimeToLive
 	} else {
-		return nil, fmt.Errorf("Container '%s' does not have a default TTL", containerClient.ID())
+		return nil, fmt.Errorf("container '%s' does not have a default TTL", containerClient.ID())
 	}
 
 	return c, nil
@@ -168,7 +168,7 @@ func (c *LockClient) HoldLock(ctx context.Context, item *azcosmos.ItemResponse) 
 
 			err := json.Unmarshal(item.Value, &doc)
 			if err != nil {
-				cancelCause(fmt.Errorf("Failed to unmarshal lock: %w", err))
+				cancelCause(fmt.Errorf("failed to unmarshal lock: %w", err))
 				return
 			}
 
@@ -182,7 +182,7 @@ func (c *LockClient) HoldLock(ctx context.Context, item *azcosmos.ItemResponse) 
 			case <-time.After(time.Until(timeToRenew)):
 				item, err = c.RenewLock(cancelCtx, item)
 				if err != nil {
-					cancelCause(fmt.Errorf("Failed to renew lock: %w", err))
+					cancelCause(fmt.Errorf("failed to renew lock: %w", err))
 					return
 				}
 				if item == nil {
@@ -212,7 +212,7 @@ func (c *LockClient) RenewLock(ctx context.Context, item *azcosmos.ItemResponse)
 	pk := azcosmos.NewPartitionKeyString(doc.ID)
 	options := &azcosmos.ItemOptions{
 		EnableContentResponseOnWrite: true,
-		IfMatchEtag:                  &item.Response.ETag,
+		IfMatchEtag:                  &item.ETag,
 	}
 	response, err := c.containerClient.UpsertItem(ctx, pk, item.Value, options)
 	if isResponseError(err, http.StatusPreconditionFailed) {
@@ -237,7 +237,7 @@ func (c *LockClient) ReleaseLock(ctx context.Context, item *azcosmos.ItemRespons
 
 	pk := azcosmos.NewPartitionKeyString(doc.ID)
 	options := &azcosmos.ItemOptions{
-		IfMatchEtag: &item.Response.ETag,
+		IfMatchEtag: &item.ETag,
 	}
 	_, err = c.containerClient.DeleteItem(ctx, pk, doc.ID, options)
 	if isResponseError(err, http.StatusPreconditionFailed) {

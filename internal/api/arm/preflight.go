@@ -51,7 +51,7 @@ type DeploymentPreflightResource struct {
 // and then unmarshals the raw JSON to the given value, which should
 // be an extension of the TrackedResource type.
 func (r *DeploymentPreflightResource) Convert(v any) error {
-	var clone DeploymentPreflightResource = *r
+	var clone = *r
 
 	// Omit APIVersion from the clone.
 	clone.APIVersion = ""

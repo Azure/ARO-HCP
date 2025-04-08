@@ -110,7 +110,7 @@ func TestMiddlewareBody(t *testing.T) {
 					return
 				}
 
-				var cloudErr *arm.CloudError
+				var cloudErr arm.CloudError
 				err = json.Unmarshal(b, &cloudErr)
 				assert.NoError(t, err)
 

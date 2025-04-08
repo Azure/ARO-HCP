@@ -121,7 +121,7 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	kubeconfig, err := newKubeconfig(argKubeconfig)
 	if err != nil {
-		return fmt.Errorf("Failed to create Kubernetes configuration: %w", err)
+		return fmt.Errorf("failed to create Kubernetes configuration: %w", err)
 	}
 
 	leaderElectionLock, err := resourcelock.NewFromKubeconfig(
@@ -134,7 +134,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		kubeconfig,
 		leaderElectionRenewDeadline)
 	if err != nil {
-		return fmt.Errorf("Failed to create leader election lock: %w", err)
+		return fmt.Errorf("failed to create leader election lock: %w", err)
 	}
 
 	// Create the database client.
@@ -161,7 +161,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		Insecure(argInsecure).
 		Build()
 	if err != nil {
-		return fmt.Errorf("Failed to create OCM connection: %w", err)
+		return fmt.Errorf("failed to create OCM connection: %w", err)
 	}
 
 	logger.Info(fmt.Sprintf("%s (%s) started", cmd.Short, cmd.Version))

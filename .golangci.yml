@@ -10,48 +10,6 @@ issues:
 linters:
   exclusions:
     rules:
-    - path: internal/api/v20240610preview
-      text: QF1008
-    - path: backend/main.go
-      text: QF1011
-    - path: backend/main.go
-      text: ST1005
-    - path: backend/operations_scanner.go
-      text: QF1011
-    - path: backend/operations_scanner.go
-      text: ST1005
-    - path: frontend/pkg/frontend/frontend.go
-      text: QF1008
-    - path: frontend/pkg/frontend/frontend.go
-      text: ST1023
-    - path: frontend/pkg/frontend/frontend.go
-      text: QF1011
-    - path: frontend/pkg/frontend/middleware_body.go
-      text: QF1001
-    - path: frontend/pkg/frontend/node_pool.go
-      text: QF1008
-    - path: frontend/pkg/frontend/ocm.go
-      text: ST1005
-    - path: frontend/pkg/frontend/otel_sdk.go
-      text: ST1019
-    - path: frontend/pkg/frontend/otel_sdk.go
-      text: ST1019(related information)
-    - path: internal/api/arm/error.go
-      text: QF1008
-    - path: internal/api/arm/preflight.go
-      text: ST1023
-    - path: internal/api/arm/preflight.go
-      text: QF1011
-    - path: internal/database/lock.go
-      text: QF1008
-    - path: internal/database/lock.go
-      text: ST1005
-    - path: internal/ocm/internalid.go
-      text: ST1005
-    - path: internal/ocm/iterators.go
-      text: QF1011
-    - path: internal/ocm/iterators.go
-      text: ST1023
     - path: tooling/secret-sync/main.go
       text: QF1003
     - path: tooling/secret-sync/main.go
