@@ -274,7 +274,7 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		if err != nil {
 			return nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
-		logger.Info("Deployment started", "deployment", step.Name)
+		logger.V(1).Info("Deployment started", "deployment", step.Name)
 
 		return pollAndGetOutput(ctx, poller)
 	} else {
@@ -282,7 +282,7 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		if err != nil {
 			return nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
-		logger.Info("Deployment started", "deployment", step.Name)
+		logger.V(1).Info("Deployment started", "deployment", step.Name)
 
 		return pollAndGetOutput(ctx, poller)
 	}

@@ -71,6 +71,7 @@ func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *Inspe
 			SubsciptionLookupFunc:    LookupSubscriptionID,
 			NoPersist:                true,
 			DeploymentTimeoutSeconds: 60,
+			StdoutQuiet:              true,
 		}
 		outputs, err := RunPipeline(pipeline, ctx, runOptions)
 		if err != nil {
