@@ -7,11 +7,6 @@ ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_IMAGE_REPOSITORY ?= backplane-api
 ARO_HCP_BACKPLANE_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ARO_HCP_IMAGE_REPOSITORY)
 
-.DEFAULT_GOAL := backplane-api
-
-backplane-api:
-	go build -o backplane-api .
-
 info:
 	@echo "ARO_HCP_BACKPLANE_IMAGE: ${ARO_HCP_BACKPLANE_IMAGE}"
 	@echo "COMMIT: ${CURRENT_COMMIT}"
