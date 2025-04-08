@@ -8,8 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-Tools/pkg/config"
+
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/options"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 

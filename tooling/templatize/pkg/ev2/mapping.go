@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 type PlaceholderGenerator func(key []string, valueType reflect.Type) (flattenedKey string, replaceVar string)

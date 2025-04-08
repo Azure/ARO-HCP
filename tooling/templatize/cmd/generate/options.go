@@ -9,8 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-Tools/pkg/config"
+
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
 func DefaultGenerationOptions() *RawGenerationOptions {

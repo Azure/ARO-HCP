@@ -9,8 +9,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/Azure/ARO-Tools/pkg/config"
+
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
 )
 
 func TestExecuteTemplate(t *testing.T) {

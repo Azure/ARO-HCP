@@ -9,7 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 func TestDeepCopy(t *testing.T) {
