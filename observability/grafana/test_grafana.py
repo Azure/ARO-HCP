@@ -1,29 +1,89 @@
 import unittest
+from unittest.mock import MagicMock
 import json
 import os
+import tempfile
 from grafana import (
+    create_dashboard,
+    delete_stale_dashboard,
     fs_get_dashboards,
     fs_get_dashboard_folders,
-    folder_exists,
     get_folder_uid,
+    get_or_create_folder,
+    GrafanaRunner,
 )
 from tempfile import mkdtemp
 
 
 class TestFolder(unittest.TestCase):
     folders = [{"title": "bar", "uid": "a"}, {"title": "foo", "uid": "b"}]
-    folders_duplicate = [{"title": "foo", "uid": "a"}, {"title": "foo", "uid": "b"}]
-
-    def test_folder_exists(self):
-        self.assertTrue(folder_exists("foo", self.folders))
-        self.assertFalse(folder_exists("x", self.folders))
 
     def test_get_folder_uid(self):
+        self.assertEqual(get_folder_uid("a", self.folders), "")
         self.assertEqual(get_folder_uid("bar", self.folders), "a")
 
-    def test_get_folder_uid_assert(self):
-        with self.assertRaises(AssertionError):
-            get_folder_uid("foo", self.folders_duplicate)
+    def test_get_or_create_folder(self):
+        g = GrafanaRunner("", "", "")
+        g.create_folder = MagicMock(return_value={"uid": "foo"})
+        self.assertEqual(get_or_create_folder("test/grafana-dashboards", g, []), "foo")
+
+        self.assertEqual(
+            get_or_create_folder(
+                "test/grafana-dashboards", g, [{"title": "test", "uid": "bar"}]
+            ),
+            "bar",
+        )
+        g.create_folder.assert_called_once_with("test")
+
+
+class TestDashboard(unittest.TestCase):
+    def test_create_dashboard(self):
+        g = GrafanaRunner("", "", "")
+        g.create_dashboard = MagicMock(return_value={})
+
+        temp_file = tempfile.NamedTemporaryFile()
+
+        create_dashboard(temp_file.name, {}, "a", [], g)
+        g.create_dashboard.assert_called_once_with(temp_file.name)
+
+    def test_create_dashboard_exists(self):
+        g = GrafanaRunner("", "", "")
+
+        d = {"dashboard": {"title": "test"}}
+        g.create_dashboard = MagicMock(return_value=d)
+        g.show_existing_dashboard = MagicMock(return_value=d)
+
+        temp_file = tempfile.NamedTemporaryFile()
+
+        create_dashboard(
+            temp_file.name,
+            d,
+            "a",
+            [{"folderUid": "a", "title": "test", "uid": "bar"}],
+            g,
+        )
+        g.create_dashboard.assert_not_called
+        g.show_existing_dashboard.assert_called_once_with("bar")
+
+    def test_delete_stale_dashboard_keep(self):
+        g = GrafanaRunner("", "", "")
+
+        g.delete_dashboard = MagicMock(return_value=None)
+        delete_stale_dashboard(
+            {"folderUid": "a", "title": "n"}, {"a_n"}, [{"uid": "n"}], g
+        )
+
+        g.delete_dashboard.assert_not_called
+
+    def test_delete_stale_dashboard(self):
+        g = GrafanaRunner("", "", "")
+
+        g.delete_dashboard = MagicMock(return_value=None)
+        delete_stale_dashboard(
+            {"folderUid": "b", "title": "n"}, {"a_n"}, [{"title": "n", "uid": "n"}], g
+        )
+
+        g.delete_dashboard.assert_called_once_with("n")
 
 
 class TestFSOperations(unittest.TestCase):
@@ -45,7 +105,7 @@ class TestFSOperations(unittest.TestCase):
         return super().setUp()
 
     def test_fs_get_dashboards(self):
-        self.assertListEqual(fs_get_dashboards(self.dashboarddir), [{}])
+        self.assertListEqual(fs_get_dashboards(self.dashboarddir), [{"dashboard": {}}])
 
     def test_fs_get_dashboards_failure(self):
         errorfile = os.path.join(self.dashboarddir, "bar.json")

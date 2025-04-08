@@ -6,7 +6,6 @@ on:
     paths:
     - '.github/workflows/ci-python.yml'
     - 'observability/grafana/**'
-    - 'tooling/azure-automation/resources-cleanup/**'
     types:
     - opened
     - synchronize
@@ -34,16 +33,3 @@ jobs:
           git status
           exit 1
         fi
-  test-automation:
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      with:
-        fetch-depth: 1
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.8'
-    - run: |
-        cd tooling/azure-automation/resources-cleanup &&
-        pip install -r requirements.txt &&
-        pytest
