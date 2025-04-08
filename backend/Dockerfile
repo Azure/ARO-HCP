@@ -8,7 +8,7 @@ RUN cd backend && make backend
 
 
 # Deployment image copies aro-hcp-backend from builder image
-FROM --platform=linux/amd64 mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot@sha256:ce44fc29db88c9aba8041a50c1abcd19a54f997c2b99a8c513e8ec113261374a
+FROM --platform=linux/amd64 mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot@sha256:c83be1ce06e4f27f664db7b23551a7a6fef5d0bc49d6781a0f5a61815e682239
 WORKDIR /
 COPY --from=builder /app/backend/aro-hcp-backend .
 ENTRYPOINT ["/aro-hcp-backend"]
