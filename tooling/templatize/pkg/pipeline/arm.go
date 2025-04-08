@@ -290,16 +290,15 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 
 func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string, rgNoPersist bool) error {
 	// Check if the resource group exists
-	// todo fill tags properly
-	tags := map[string]*string{}
-
-	if !rgNoPersist {
-		// if no-persist is set, don't set the persist tag, needs double negotiate, cause default should be true
-		tags["persist"] = to.Ptr("true")
-	}
-	_, err := a.resourceGroupClient.Get(ctx, rgName, nil)
+	// Once the persist tag is set to true, it should not be removed by automation... tooo dangerous
+	rg, err := a.resourceGroupClient.Get(ctx, rgName, nil)
 	if err != nil {
 		// Create the resource group
+		tags := map[string]*string{}
+		if !rgNoPersist {
+			// if no-persist is set, don't set the persist tag, needs double negotiate, cause default should be true
+			tags["persist"] = to.Ptr("true")
+		}
 		resourceGroup := armresources.ResourceGroup{
 			Location: to.Ptr(a.Region),
 			Tags:     tags,
@@ -309,6 +308,14 @@ func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
 	} else {
+		tags := rg.Tags
+		if tags == nil {
+			tags = map[string]*string{}
+		}
+		if !rgNoPersist {
+			// if no-persist is set, don't set the persist tag, needs double negotiate, cause default should be true
+			tags["persist"] = to.Ptr("true")
+		}
 		patchResourceGroup := armresources.ResourceGroupPatchable{
 			Tags: tags,
 		}

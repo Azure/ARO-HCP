@@ -45,7 +45,7 @@ func TestInspectVars(t *testing.T) {
 				},
 				Format: "makefile",
 			},
-			expected: "FOO ?= bar\n",
+			expected: "FOO ?= \"bar\"\n",
 		},
 		{
 			name:     "failed action",
@@ -63,7 +63,7 @@ func TestInspectVars(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
-			err := inspectVars(tc.caseStep, tc.options, buf)
+			err := inspectVars(context.Background(), &Pipeline{}, tc.caseStep, tc.options, buf)
 			if tc.err == "" {
 				assert.NilError(t, err)
 				assert.Equal(t, buf.String(), tc.expected)
@@ -86,7 +86,7 @@ func TestInspect(t *testing.T) {
 	opts := NewInspectOptions(config.Variables{}, "", "step1", "scope", "format")
 
 	opts.ScopeFunctions = map[string]StepInspectScope{
-		"scope": func(s Step, o *InspectOptions, w io.Writer) error {
+		"scope": func(ctx context.Context, p *Pipeline, s Step, o *InspectOptions, w io.Writer) error {
 			assert.Equal(t, s.StepName(), "step1")
 			return nil
 		},

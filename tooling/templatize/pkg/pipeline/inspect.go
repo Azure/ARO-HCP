@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
-type StepInspectScope func(Step, *InspectOptions, io.Writer) error
+type StepInspectScope func(context.Context, *Pipeline, Step, *InspectOptions, io.Writer) error
 
 func NewStepInspectScopes() map[string]StepInspectScope {
 	return map[string]StepInspectScope{
@@ -43,7 +43,7 @@ func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer 
 		for _, step := range rg.Steps {
 			if step.StepName() == options.Step {
 				if inspectFunc, ok := options.ScopeFunctions[options.Scope]; ok {
-					err := inspectFunc(step, options, writer)
+					err := inspectFunc(ctx, p, step, options, writer)
 					if err != nil {
 						return err
 					}
@@ -57,12 +57,34 @@ func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer 
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(s Step, options *InspectOptions, writer io.Writer) error {
-	var envVars map[string]string
+func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *InspectOptions, writer io.Writer) error {
 	var err error
+
+	// dry-run the step dependencies to get their outputs for output chaining
+	inputs := make(map[string]output)
+	for _, depStep := range s.Dependencies() {
+		runOptions := &PipelineRunOptions{
+			DryRun:                   true,
+			Vars:                     options.Vars,
+			Region:                   options.Region,
+			Step:                     depStep,
+			SubsciptionLookupFunc:    LookupSubscriptionID,
+			NoPersist:                true,
+			DeploymentTimeoutSeconds: 60,
+		}
+		outputs, err := RunPipeline(pipeline, ctx, runOptions)
+		if err != nil {
+			return err
+		}
+		for key, value := range outputs {
+			inputs[key] = value
+		}
+	}
+
+	var envVars map[string]string
 	switch step := s.(type) {
 	case *ShellStep:
-		envVars, err = step.mapStepVariables(options.Vars, map[string]output{}, true)
+		envVars, err = step.mapStepVariables(options.Vars, inputs, false)
 	default:
 		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
 	}
@@ -83,7 +105,7 @@ func inspectVars(s Step, options *InspectOptions, writer io.Writer) error {
 
 func printMakefileVars(vars map[string]string, writer io.Writer) {
 	for k, v := range vars {
-		fmt.Fprintf(writer, "%s ?= %s\n", k, v)
+		fmt.Fprintf(writer, "%s ?= \"%s\"\n", k, v)
 	}
 }
 

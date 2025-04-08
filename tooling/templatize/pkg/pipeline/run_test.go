@@ -89,7 +89,7 @@ func TestPipelineRun(t *testing.T) {
 		},
 	}
 
-	err := RunPipeline(pipeline, context.Background(), &PipelineRunOptions{
+	_, err := RunPipeline(pipeline, context.Background(), &PipelineRunOptions{
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},

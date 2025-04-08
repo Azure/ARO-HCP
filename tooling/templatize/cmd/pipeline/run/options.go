@@ -105,7 +105,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
+	_, err = pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
 		DryRun:                   o.DryRun,
 		Vars:                     variables,
 		Region:                   rolloutOptions.Region,
@@ -114,4 +114,5 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		NoPersist:                o.NoPersist,
 		DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 	})
+	return err
 }
