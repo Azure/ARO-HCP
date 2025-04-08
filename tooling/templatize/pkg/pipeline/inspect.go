@@ -58,11 +58,45 @@ func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer 
 }
 
 func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *InspectOptions, writer io.Writer) error {
-	var err error
+	var envVars map[string]string
+	switch step := s.(type) {
+	case *ShellStep:
+		outputChainingDependencies := make(map[string]bool)
+		for _, stepVar := range step.Variables {
+			if stepVar.Input != nil && stepVar.Input.Step != "" {
+				outputChainingDependencies[stepVar.Input.Step] = true
+			}
+		}
+		outputChainingDependenciesList := make([]string, 0, len(outputChainingDependencies))
+		for depStep := range outputChainingDependencies {
+			outputChainingDependenciesList = append(outputChainingDependenciesList, depStep)
+		}
+		inputs, err := aquireOutputChainingInputs(ctx, outputChainingDependenciesList, pipeline, options)
+		if err != nil {
+			return err
+		}
+		envVars, err = step.mapStepVariables(options.Vars, inputs)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
+	}
 
-	// dry-run the step dependencies to get their outputs for output chaining
+	switch options.Format {
+	case "makefile":
+		printMakefileVars(envVars, writer)
+	case "shell":
+		printShellVars(envVars, writer)
+	default:
+		return fmt.Errorf("unknown output format %q", options.Format)
+	}
+	return nil
+}
+
+func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *Pipeline, options *InspectOptions) (map[string]output, error) {
 	inputs := make(map[string]output)
-	for _, depStep := range s.Dependencies() {
+	for _, depStep := range steps {
 		runOptions := &PipelineRunOptions{
 			DryRun:                   true,
 			Vars:                     options.Vars,
@@ -75,33 +109,13 @@ func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *Inspe
 		}
 		outputs, err := RunPipeline(pipeline, ctx, runOptions)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for key, value := range outputs {
 			inputs[key] = value
 		}
 	}
-
-	var envVars map[string]string
-	switch step := s.(type) {
-	case *ShellStep:
-		envVars, err = step.mapStepVariables(options.Vars, inputs)
-	default:
-		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
-	}
-	if err != nil {
-		return err
-	}
-
-	switch options.Format {
-	case "makefile":
-		printMakefileVars(envVars, writer)
-	case "shell":
-		printShellVars(envVars, writer)
-	default:
-		return fmt.Errorf("unknown output format %q", options.Format)
-	}
-	return nil
+	return inputs, nil
 }
 
 func printMakefileVars(vars map[string]string, writer io.Writer) {
