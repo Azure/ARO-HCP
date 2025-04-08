@@ -84,7 +84,7 @@ func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *Inspe
 	var envVars map[string]string
 	switch step := s.(type) {
 	case *ShellStep:
-		envVars, err = step.mapStepVariables(options.Vars, inputs, false)
+		envVars, err = step.mapStepVariables(options.Vars, inputs)
 	default:
 		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
 	}
