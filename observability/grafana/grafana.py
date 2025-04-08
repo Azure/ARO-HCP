@@ -154,19 +154,18 @@ def create_dashboard(
         g.create_dashboard(temp_file)
 
 
-def delete_stale_dashboards(
+def delete_stale_dashboard(
     d: str,
     dashboards_visited: set[str],
     existing_folders: list[dict[str, any]],
     g: GrafanaRunner,
 ) -> None:
-    k = f"{d['folderUid']}_{d['title']}"
-    if k not in dashboards_visited:
+    if f"{d['folderUid']}_{d['title']}" not in dashboards_visited:
         for amf in AZURE_MANAGED_FOLDERS:
             uid = get_folder_uid(amf, existing_folders)
-            if uid and uid in k:
+            if uid and uid == d["folderUid"]:
                 return
-        g.delete_dashboard(k.split("_")[1])
+        g.delete_dashboard(d["title"])
 
 
 def main():
@@ -196,7 +195,7 @@ def main():
             os.remove(temp_file.name)
 
     for d in existing_dashboards:
-        delete_stale_dashboards(d, dashboards_visited, existing_dashboards, g)
+        delete_stale_dashboard(d, dashboards_visited, existing_dashboards, g)
 
 
 if __name__ == "__main__":

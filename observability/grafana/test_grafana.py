@@ -5,7 +5,7 @@ import os
 import tempfile
 from grafana import (
     create_dashboard,
-    delete_stale_dashboards,
+    delete_stale_dashboard,
     fs_get_dashboards,
     fs_get_dashboard_folders,
     get_folder_uid,
@@ -65,21 +65,21 @@ class TestDashboard(unittest.TestCase):
         g.create_dashboard.assert_not_called
         g.show_existing_dashboard.assert_called_once_with("bar")
 
-    def test_delete_stale_dashboards_keep(self):
+    def test_delete_stale_dashboard_keep(self):
         g = GrafanaRunner("", "", "")
 
         g.delete_dashboard = MagicMock(return_value=None)
-        delete_stale_dashboards(
+        delete_stale_dashboard(
             {"folderUid": "a", "title": "n"}, {"a_n"}, [{"uid": "n"}], g
         )
 
         g.delete_dashboard.assert_not_called
 
-    def test_delete_stale_dashboards(self):
+    def test_delete_stale_dashboard(self):
         g = GrafanaRunner("", "", "")
 
         g.delete_dashboard = MagicMock(return_value=None)
-        delete_stale_dashboards(
+        delete_stale_dashboard(
             {"folderUid": "b", "title": "n"}, {"a_n"}, [{"title": "n", "uid": "n"}], g
         )
 
