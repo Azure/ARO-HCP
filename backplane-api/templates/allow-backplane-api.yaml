@@ -1,0 +1,18 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-backplane-api
+  namespace: aro-hcp
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/aro-hcp/sa/frontend"
+        - "cluster.local/ns/aro-hcp/sa/backplane-api"
+        - "cluster.local/ns/aro-hcp/sa/backplane-verify-serviceaccount"
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        paths: ["/backplane/*"]
