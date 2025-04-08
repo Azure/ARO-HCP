@@ -452,9 +452,6 @@ clouds:
       personal-dev:
         # this is the personal DEV environment
         defaults:
-          # observability:
-          #   tracing:
-          #     deploy: true
           # Cluster Service
           clusterService:
             postgres:
