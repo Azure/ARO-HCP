@@ -11,9 +11,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-Tools/pkg/config"
+
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
-	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 var defaultRgName = "hcp-templatize"

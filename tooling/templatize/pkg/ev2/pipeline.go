@@ -7,8 +7,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 	"github.com/Azure/ARO-Tools/pkg/config"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 const precompiledPrefix = "ev2-precompiled-"

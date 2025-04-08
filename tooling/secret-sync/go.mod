@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/secret-sync
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20250319172337-88ab2108447b

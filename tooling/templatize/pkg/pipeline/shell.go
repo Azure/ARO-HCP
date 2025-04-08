@@ -8,8 +8,9 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 	"github.com/Azure/ARO-Tools/pkg/config"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
 func (s *ShellStep) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
