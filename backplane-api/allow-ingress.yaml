@@ -1,0 +1,16 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-istio-ingress
+  namespace: aro-hcp
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        namespaces: ["aks-istio-ingress"]
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        ports:
+        - "8443"
