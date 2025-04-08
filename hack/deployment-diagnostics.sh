@@ -62,6 +62,12 @@ for DEPLOY in $DEPLOYMENTS; do
     kubectl describe deployment "$DEPLOY" -n "$NAMESPACE"
 done
 
+JOBS=$(kubectl get jobs -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+for JOB in $JOBS; do
+    echo -e "\n--- Describe Job: $JOB ---"
+    kubectl describe job "$JOB" -n "$NAMESPACE"
+done
+
 # TODO - add ready-to-click kusto links once kusto is ready
 
 echo -e "\n--- ServiceAccounts in $NAMESPACE ---"
