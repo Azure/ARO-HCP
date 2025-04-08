@@ -155,11 +155,11 @@ def main():
                 print("Dashboard differs or does not exist update needed")
                 g.create_dashboard(temp_file.name)
 
-            dashboards_visited.add(f"{folder_uid}_{dashboard["dashboard"]["title"]}")
+            dashboards_visited.add(f"{folder_uid}_{dashboard['dashboard']['title']}")
             os.remove(temp_file.name)
 
     for d in existing_dashboards:
-        k = f"{d["folderUid"]}_{d["title"]}"
+        k = f"{d['folderUid']}_{d['title']}"
         if k not in dashboards_visited:
             if get_folder_uid("Azure Monitor", existing_folders) in k:
                 continue
