@@ -22,8 +22,7 @@ test-compile:
 .PHONY: test-compile
 
 mocks:
-	go get -tool go.uber.org/mock/mockgen && \
-	MOCKGEN="$$(go tool -n go.uber.org/mock/mockgen)" go generate ./internal/mocks
+	go generate ./internal/mocks
 .PHONY: mocks
 
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
