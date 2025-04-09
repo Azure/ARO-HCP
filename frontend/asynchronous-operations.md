@@ -184,6 +184,8 @@ The "payload" section of an asynchronous operation document includes all the inf
 
 5. The `internalID` field is the same as the [`internalID` field](#resource-document-internalid-field) in hosted control plane cluster and node pool documents.
 
+<a name="operation-document-operationid-field"></a>
+
 6. The `operationID` field is the status endpoint returned to ARM in the `Azure-AsyncOperation` response header.
 
    The field is only set for explicitly requested asynchronous operations. See "[Explicit vs Implicit Operations](#explicit-vs-implicit-operations)" below.
@@ -453,8 +455,10 @@ Deletion is where the difference between explicit and implicit operations is mos
 
 As the ARO-HCP backend iterates over [asynchronous operation documents](#asynchronous-operations), it queries Cluster Service for the status of each resource. If the [request field](#operation-document-request-field) of the operation document is "Delete" (indicating a resource deletion operation) and Cluster Service responds to the request with a "404 Not Found" status, that indicates the resource was successfully deleted. The backend pod will update the [status field](#operation-document-status-field) of the operation document to "Successful" and _delete_ the associated [resource document](#hosted-control-plane-clusters-and-node-pools).
 
-The scenario we're considering entails _two_ resource deletion operations: one for the cluster and one for its child node pool. The cluster deletion was _explicitly_ requested by ARM, but deleting a parent resource _implicitly_ deletes any child resources at the same time.
+The scenario we're considering entails _two_ resource deletion operations: one for the cluster and one for its child node pool. The frontend pod received an _explicit_ request from ARM to delete the cluster, but deleting a parent resource also _implicitly_ deletes any child resources.
 
 For proper bookkeeping in Cosmos DB we ultimately want the backend pod to delete both the cluster's resource document and the child node pool's resource document. In order to induce this outcome the frontend pod processing the ARM deletion request will create a separate [asynchronous operation document](#asynchronous-operations) for each resource to be deleted.
 
-All [asynchronous operation documents](#asynchronous-operations) are initially created as **implicit operations**. This just means ARM clients cannot poll these operations for status updates because 1) their existence has not been revealed through a `Location` and/or `Azure-AsyncOperation` response header and regardless, 2) the document's [tenantId](#operation-document-tenantid-field) and [clientId](#operation-document-clientid-field) fields have not yet been set, so the frontend pods would reject ARM client requests on status endpoints for these operations anyway.
+All [asynchronous operation documents](#asynchronous-operations) are initially created as _implicit_ operations. This just means ARM clients cannot poll these operations for status updates because 1) their existence has not been revealed through a `Location` and/or `Azure-AsyncOperation` response header and regardless, 2) the document's [tenantId](#operation-document-tenantid-field) and [clientId](#operation-document-clientid-field) fields have not yet been set, so the frontend pods would an reject ARM client request on the status endpoints for these operations anyway.
+
+The frontend pods only "expose" operations that were _explicitly_ requested. This just means fulfilling the criteria above: 1) revealing the operation ID as part of an operation result and/or status endpoint through a `Location` and/or `Azure-AsyncOperation` response header, respectively, and 2) patching the operation document to add values for the [tenantId](#operation-document-tenantid-field), [clientId](#operation-document-clientid-field), and [operationId](#operation-document-operationid-field) fields.
