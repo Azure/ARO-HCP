@@ -22,25 +22,25 @@ test-compile:
 .PHONY: test-compile
 
 mocks:
-	MOCKGEN="go run go.uber.org/mock/mockgen" go generate ./internal/mocks
+	MOCKGEN="$$(go tool -n go.uber.org/mock/mockgen)" go generate ./internal/mocks
 .PHONY: mocks
 
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint run -v --build-tags=$(GOTAGS) $(MODULES)
+	go tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint run -v --build-tags=$(GOTAGS) $(MODULES)
 .PHONY: lint
 
 fmt:
-	go run golang.org/x/tools/cmd/goimports -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
+	go tool golang.org/x/tools/cmd/goimports -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
 yamlfmt:
 	# first, wrap all templated values in quotes, so they are correct YAML
 	./yamlfmt.wrap.sh
 	# run the formatter
-	go run github.com/google/yamlfmt/cmd/yamlfmt -dstar -exclude './api/**' '**/*.{yaml,yml}'
+	go tool github.com/google/yamlfmt/cmd/yamlfmt -dstar -exclude './api/**' '**/*.{yaml,yml}'
 	# "fix" any non-string fields we cast to strings for the formatting
 	./yamlfmt.unwrap.sh
 .PHONY: yamlfmt
