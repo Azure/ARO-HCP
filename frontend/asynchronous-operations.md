@@ -164,13 +164,19 @@ The "payload" section of an asynchronous operation document includes all the inf
 }
 ```
 
+<a name="operation-document-tenantid-field"></a>
+
 1. The `tenantId` field records the tenant ID of the subscription from which the operation was initiated. The value is copied from the `x-ms-home-tenant-id` request header and is used to validate access to the operation's status endpoint.
 
-   The field is only set for explicitly requested asynchronous operations. See "Explicit vs Implicit Operations" below.
+   The field is only set for explicitly requested asynchronous operations. See "[Explicit vs Implicit Operations](#explicit-vs-implicit-operations)" below.
+
+<a name="operation-document-clientid-field"></a>
 
 2. The `clientId` field records the object ID of the client Java Web Token (JWT) that initiated the operation. The value is copied from the `x-ms-client-object-id` request header and is used to validate access to the operation's status endpoint.
 
-   The field is only set for explicitly requested asynchronous operations. See "Explicit vs Implicit Operations" below.
+   The field is only set for explicitly requested asynchronous operations. See "[Explicit vs Implicit Operations](#explicit-vs-implicit-operations)" below.
+
+<a name="operation-document-request-field"></a>
 
 3. The `request` field captures the nature of the operation. Valid values are "Create", "Update", and "Delete".
 
@@ -180,7 +186,7 @@ The "payload" section of an asynchronous operation document includes all the inf
 
 6. The `operationID` field is the status endpoint returned to ARM in the `Azure-AsyncOperation` response header.
 
-   The field is only set for explicitly requested asynchronous operations. See "Explicit vs Implicit Operations" below.
+   The field is only set for explicitly requested asynchronous operations. See "[Explicit vs Implicit Operations](#explicit-vs-implicit-operations)" below.
 
 7. The `notificationUri` field is for ARM's [Async Operation Callbacks](https://eng.ms/docs/products/arm/api_contracts/asyncoperationcallback) protocol. This is an opt-in ARM feature that ARO-HCP has not yet onboarded to as of this writing, but the API contract has been implemented nonetheless. The value is copied from the `Azure-AsyncNotificationUri` request header, if present.
 
@@ -312,7 +318,9 @@ sequenceDiagram
    * The `partitionKey` is the same in both documents and is equal to the subscription ID of the Azure resource ID. This means both documents exist in the same logical partition in Cosmos DB; a partition allocated exclusively for that Azure subscription.
    * The [resource document](#hosted-control-plane-clusters-and-node-pools)'s `activeOperationId` references the `id` of the [asynchronous operation document](#asynchronous-operations).
    * The `provisioningState` and `status` fields are both `"Accepted"`. All asynchronous operations resulting from PUT, PATCH, or POST requests from ARM begin in this state. It indicates that Cluster Service has, at least initially, accepted the frontend pod's request.
-  
+
+<a name="create-cluster-frontend-step-6"></a>
+
 6. This is a bit of an implementation detail, but in addition to responding to ARM with a "202 Accepted" status and an `Azure-AsyncOperation` header, the frontend pod updates the [asynchronous operation document](#asynchronous-operations) it just created with additional details: the tenant ID and client ID of the identity that made the request, and the status endpoint returned in the `Azure-AsyncOperation` header. We call this "exposing" the operation; it now has a REST endpoint that ARM can poll.
 
    The document update looks as follows (shown in [JSON Patch](https://jsonpatch.com/) format):
@@ -438,3 +446,15 @@ This effectively ends the asynchronous cluster creation operation. The [asynchro
 For the next scenario, let's suppose the ARO-HCP resource provider receives a request from ARM to delete the cluster we just created. The cluster itself has no asynchronous operation in progress — it's provisioning state is `"Succeeded"` — but it does have a child node pool resource which is still being created.
 
 An Azure resource can only have one asynchronous operation acting upon the resource at a time. Normally when an asynchronous operation is already in progress, further requests to update the resource are rejected until the in-progress operation reaches a terminal state. But deletions are special. Deletion requests are always accepted. Any in-progress operation gets cancelled. In this example the node pool's creation operation will be cancelled.
+
+#### Explicit vs Implicit Operations
+
+Deletion is where the difference between explicit and implicit operations is most prominent. [This was hinted at in the previous example](create-cluster-frontend-step-6), but here we will explain the distinction more clearly.
+
+As the ARO-HCP backend iterates over [asynchronous operation documents](#asynchronous-operations), it queries Cluster Service for the status of each resource. If the [request field](operation-document-request-field) of the operation document is "Delete" (indicating a resource deletion operation) and Cluster Service responds to the request with a "404 Not Found" status, that indicates the resource was successfully deleted. The backend pod will update the [status field](operation-document-status-field) of the operation document to "Successful" and _delete_ the associated [resource document](#hosted-control-plane-clusters-and-node-pools).
+
+The scenario we're considering entails _two_ resource deletion operations: one for the cluster and one for its child node pool. The cluster deletion was _explicitly_ requested by ARM, but deleting a parent resource _implicitly_ deletes any child resources at the same time.
+
+For proper bookkeeping in Cosmos DB we ultimately want the backend pod to delete both the cluster's resource document and the child node pool's resource document. In order to induce this outcome the frontend pod processing the ARM deletion request will create a separate [asynchronous operation document](#asynchronous-operations) for each resource to be deleted.
+
+All [asynchronous operation documents](#asynchronous-operations) are initially created as **implicit operations**. This just means ARM clients can't poll these operations for status updates because 1) their existence has not been revealed through `Location` or `Azure-AsyncOperation` response headers and regardless, 2) the document's [tenantId](#operation-document-tenantid-field) and [clientId](operation-document-clientid-field) fields have not yet been set, so the frontend pods would reject ARM client requests on these operation IDs anyway.
