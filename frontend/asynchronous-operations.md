@@ -5,7 +5,7 @@ This document aims to capture the design decisions that went into the asychronou
 It assumes the reader has a basic understanding of ARM's asynchronous operations contract. The [Azure Resource Manager Resource Provider Contract](https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/async-api-reference.md)<sup>(RPC)</sup> is the best reference for this.
 
 > [!NOTE]
-> Links to the Resource Provider Contract have a <sup>(RPC)</sup> superscript and require a Microsoft Enterprise Managed User (EMU) GitHub account – aka `b-yourname@microsoft.com`
+> Links to the Resource Provider Contract have a <sup>(RPC)</sup> superscript and require a Microsoft Enterprise Managed User (EMU) GitHub account – aka `b-yourname@microsoft.com`. Visit https://aka.ms/copilot/vendors to request membership in the GitHub Copilot for Vendors entitlement.
 
 The first thing to say is the design (especially the backend's design) is less than optimal due to several constraints:
 
@@ -241,7 +241,7 @@ sequenceDiagram
     ARM->>FE: PUT .../hcpOpenShiftCluster/myCluster
     FE->>DB: Create Lock (subscription ID)
     DB-->>FE: 201 Created + ETag
-    Note left of FE: Lock is renewed as needed<br/>while processing request.
+    Note left of FE: Lock is renewed as needed<br/>while processing ARM request.
     FE->>DB: Get ResourceDoc (myCluster)
     DB--xFE: 404 Not Found
     FE->>CS: POST Cluster (myCluster)
@@ -310,7 +310,7 @@ sequenceDiagram
 
    There's a few correlations between the two documents to notice:
    * The `partitionKey` is the same in both documents and is equal to the subscription ID of the Azure resource ID. This means both documents exist in the same logical partition in Cosmos DB; a partition allocated exclusively for that Azure subscription.
-   * The [resource document](#hosted-control-plane-clusters-and-node-pools)'s `activeOperationId` references the `id` of the [asynchronous operation document](#asynchronous-operations). The frontend can infer from this that an operation is in progress on this cluster resource.
+   * The [resource document](#hosted-control-plane-clusters-and-node-pools)'s `activeOperationId` references the `id` of the [asynchronous operation document](#asynchronous-operations).
    * The `provisioningState` and `status` fields are both `"Accepted"`. All asynchronous operations resulting from PUT, PATCH, or POST requests from ARM begin in this state. It indicates that Cluster Service has, at least initially, accepted the frontend pod's request.
   
 6. This is a bit of an implementation detail, but in addition to responding to ARM with a "202 Accepted" status and an `Azure-AsyncOperation` header, the frontend pod updates the [asynchronous operation document](#asynchronous-operations) it just created with additional details: the tenant ID and client ID of the identity that made the request, and the status endpoint returned in the `Azure-AsyncOperation` header. We call this "exposing" the operation; it now has a REST endpoint that ARM can poll.
