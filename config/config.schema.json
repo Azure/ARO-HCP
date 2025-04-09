@@ -440,6 +440,16 @@
     "armHelperCertName": {
       "type": "string"
     },
+    "backplaneAPI": {
+      "type": "object",
+      "properties": {
+      "image": {
+      "$ref": "#/definitions/containerImage"
+       }
+     },
+      "additionalProperties": false,
+      "required": ["image"]
+    },
     "backend": {
       "type": "object",
       "properties": {
@@ -1134,6 +1144,7 @@
     "genevaActions",
     "global",
     "hypershift",
+    "backplaneAPI",
     "imageSync",
     "acrPull",
     "maestro",
