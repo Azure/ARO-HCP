@@ -72,7 +72,7 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
 }
 
 // Link Schedule to Runbook
-resource registerScheduledRunbook 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+resource registerScheduledRunbook 'Microsoft.Resources/deploymentScripts@2023-08-01' = if (!empty(scheduleName)) {
   name: 'registerScheduledRunbook_${uniqueString(runbookName, scheduleName)}'
   location: resourceGroup().location
   kind: 'AzurePowerShell'

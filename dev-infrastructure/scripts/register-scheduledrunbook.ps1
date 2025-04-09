@@ -2,11 +2,11 @@
 .SYNOPSIS
     Registers a scheduled runbook in an Azure Automation Account.
 .DESCRIPTION
-    This script verifies that the specified runbook exists and is published, that the given schedule exists,
-    and then registers the scheduled runbook by linking the runbook to the schedule.
-    If a job schedule for the runbook already exists, it is removed before the new one is created.
+    This script verifies that the specified runbook exists (and is published) and that the given schedule exists.
+    It then registers the runbook to the schedule. If an existing job schedule for the runbook is found,
+    it is removed before creating a new one.
 .PARAMETER ResourceGroupName
-    The name of the resource group that contains the Automation Account.
+    The resource group containing the Automation Account.
 .PARAMETER AutomationAccountName
     The name of the Azure Automation Account.
 .PARAMETER RunbookName
@@ -14,7 +14,10 @@
 .PARAMETER ScheduleName
     The name of the schedule to link to the runbook.
 .EXAMPLE
-    .\register-scheduledrunbook.ps1 -ResourceGroupName ${resourceGroupName} -AutomationAccountName ${automationAccountName} -RunbookName ${runbookName} -ScheduleName ${scheduleName}
+    .\register-scheduledrunbook.ps1 -ResourceGroupName "myRG" `
+        -AutomationAccountName "myAA" `
+        -RunbookName "myRunbook" `
+        -ScheduleName "dailySchedule"
 #>
 
 param(
@@ -37,71 +40,64 @@ $output = @{
     success = $false
     message = ''
 }
-Write-Output "##[PS Version] $($PSVersionTable.PSVersion)"
-Write-Output "##[Az Modules] $(Get-Module Az* | Select Name,Version | Out-String)"
 
 try {
-    # Ensure required Az modules are installed and imported
-    if (-not (Get-Module -ListAvailable -Name Az)) {
-        Install-Module -Name Az -Scope CurrentUser -Force -AllowClobber
-    }
-    Import-Module Az
+    Write-Verbose "PowerShell Version: $($PSVersionTable.PSVersion)"
+    Write-Verbose "Loaded Az Modules: $(Get-Module Az.* | Select-Object Name, Version | Out-String)"
 
-    if (-not (Get-Module -ListAvailable -Name Az.Automation)) {
-        Install-Module -Name Az.Automation -Scope CurrentUser -Force -AllowClobber
-    }
-    Import-Module Az.Automation
+    Write-Verbose @"
+Parameters:
+    Automation Account: $AutomationAccountName
+    Runbook:           $RunbookName
+    Schedule:          $ScheduleName
+    Resource Group:    $ResourceGroupName
+"@
 
-    Write-Host "Automation Account: $AutomationAccountName"
-    Write-Host "Runbook: $RunbookName"
-    Write-Host "Schedule: $ScheduleName"
-    Write-Host "Resource Group: $ResourceGroupName"
-
-    # Validate that the runbook exists and is published
-    $runbook = Get-AzAutomationRunbook -AutomationAccountName $AutomationAccountName `
-                -ResourceGroupName $ResourceGroupName `
-                -Name $RunbookName -ErrorAction SilentlyContinue
-    if (-not $runbook) {
-        throw "Runbook '$RunbookName' not found in Automation Account '$AutomationAccountName' within resource group '$ResourceGroupName'."
-    }
+    # Validate that the runbook exists and is published.
+    $runbook = Get-AzAutomationRunbook -ResourceGroupName $ResourceGroupName `
+                 -AutomationAccountName $AutomationAccountName `
+                 -Name $RunbookName -ErrorAction Stop
     if ($runbook.State -ne "Published") {
-        throw "Runbook '$RunbookName' is not published. Please publish the runbook before registering a schedule."
+        $warningMessage = "Runbook '$RunbookName' is not published - schedule registration skipped."
+        $output.warnings += $warningMessage
+        $output.skipped  = $true
+        Write-Output $warningMessage
+        exit 0
     }
 
-    # Validate that the schedule exists
-    $schedule = Get-AzAutomationSchedule -AutomationAccountName $AutomationAccountName `
-                  -ResourceGroupName $ResourceGroupName `
+    # Validate that the schedule exists.
+    $schedule = Get-AzAutomationSchedule -ResourceGroupName $ResourceGroupName `
+                  -AutomationAccountName $AutomationAccountName `
                   -Name $ScheduleName -ErrorAction SilentlyContinue
     if (-not $schedule) {
         throw "Schedule '$ScheduleName' not found in Automation Account '$AutomationAccountName' within resource group '$ResourceGroupName'."
     }
 
-    # Remove an existing job schedule (if any) for the runbook to avoid conflicts
-    $existingJob = Get-AzAutomationScheduledRunbook -AutomationAccountName $AutomationAccountName `
-                    -ResourceGroupName $ResourceGroupName `
-                    -Name $RunbookName -ErrorAction SilentlyContinue
+    # Check for an existing job schedule for the runbook.
+    $existingJob = Get-AzAutomationScheduledRunbook -ResourceGroupName $ResourceGroupName `
+                   -AutomationAccountName $AutomationAccountName `
+                   -Name $RunbookName -ErrorAction SilentlyContinue
     if ($existingJob) {
-        Write-Host "Existing scheduled runbook found for '$RunbookName'. Removing..."
-        $existingJob | Unregister-AzAutomationScheduledRunbook -Force
+        Write-Verbose "Removing existing scheduled runbook for '$RunbookName'..."
+        $existingJob | Unregister-AzAutomationScheduledRunbook -Force -ErrorAction Stop
     }
 
-    # Register new schedule
+    # Register the new schedule.
+    Write-Verbose "Registering new schedule '$ScheduleName' for runbook '$RunbookName'..."
     $jobSchedule = Register-AzAutomationScheduledRunbook -ResourceGroupName $ResourceGroupName `
-                        -AutomationAccountName $AutomationAccountName `
-                        -RunbookName $RunbookName `
-                        -ScheduleName $ScheduleName
+                   -AutomationAccountName $AutomationAccountName `
+                   -RunbookName $RunbookName `
+                   -ScheduleName $ScheduleName -ErrorAction Stop
 
     $output.success = $true
-    $output.message = "Successfully registered Runbook '$RunbookName' to Schedule '$ScheduleName'"
+    $output.message = "Successfully registered '$RunbookName' to schedule '$ScheduleName' (JobScheduleId: $($jobSchedule.JobScheduleId))"
     $output.jobScheduleId = $jobSchedule.JobScheduleId
 }
 catch {
-    $output.message = "ERROR: $_"
-    $output.errorDetails = $_.Exception.Message
-}
-
-if (-not $output.success) {
-    throw $output.message
+    $output.message = "FAILED: $($_.Exception.Message)"
+    $output.errorDetails = $_.ScriptStackTrace
+    Write-Error $output.message
+    exit 1
 }
 
 Write-Output $output.message
