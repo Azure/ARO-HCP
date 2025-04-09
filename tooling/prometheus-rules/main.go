@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -28,11 +29,19 @@ type alertingRuleFile struct {
 }
 
 type options struct {
-	inputRulesDir string
-	inputRules    string
-	outputBicep   string
+	configFile  string
+	outputBicep string
+	ruleFiles   []alertingRuleFile
+}
 
-	ruleFiles []alertingRuleFile
+type prometheusRulesConfig struct {
+	RulesFolders  []string
+	UntestedRules []string
+	OutputBicep   string
+}
+
+type cliConfig struct {
+	PrometheusRules prometheusRulesConfig
 }
 
 func newOptions() *options {
@@ -41,9 +50,7 @@ func newOptions() *options {
 }
 
 func (o *options) addFlags(fs *flag.FlagSet) {
-	fs.StringVar(&o.inputRulesDir, "input-rules-dir", "", "path to a directory containing input rules and tests")
-	fs.StringVar(&o.inputRules, "input-rules", "", "path to a file containing input rules")
-	fs.StringVar(&o.outputBicep, "output-bicep", "", "path to a file where bicep will be written")
+	fs.StringVar(&o.configFile, "config-file", "", "Path to configuration ")
 }
 
 func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
@@ -61,17 +68,38 @@ func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
 func (o *options) complete() error {
 	o.ruleFiles = make([]alertingRuleFile, 0)
 
-	if len(o.inputRules) > 0 {
-		rules, err := readRulesFile(o.inputRules)
+	cfgRaw, err := os.ReadFile(o.configFile)
+	if err != nil {
+		return fmt.Errorf("error reading configuration file %v", err)
+	}
+
+	baseDirectory := path.Dir(o.configFile)
+
+	config := &cliConfig{}
+	err = yaml.Unmarshal(cfgRaw, config)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling configFile %s file %v", o.configFile, err)
+	}
+
+	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
+
+	for _, untestedRules := range config.PrometheusRules.UntestedRules {
+		rules, err := readRulesFile(untestedRules)
 		if err != nil {
 			return fmt.Errorf("error reading rules file %v", err)
 		}
 		o.ruleFiles = append(o.ruleFiles, alertingRuleFile{
-			fileBaseName: o.inputRules,
+			fileBaseName: untestedRules,
 			rules:        *rules,
 		})
-	} else {
-		err := filepath.WalkDir(o.inputRulesDir, func(path string, d fs.DirEntry, err error) error {
+	}
+
+	for _, rulesDir := range config.PrometheusRules.RulesFolders {
+		err = filepath.WalkDir(path.Join(baseDirectory, rulesDir), func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return fmt.Errorf("error reading rules directory %s, %v", path, err)
+			}
+
 			if d.Type().IsRegular() {
 				if strings.Contains(path, "_test") {
 					return nil
@@ -121,20 +149,16 @@ func (o *options) validate(args []string) error {
 	if len(args) != 0 {
 		return errors.New("no arguments are supported")
 	}
-	if len(o.inputRules) > 0 && len(o.inputRulesDir) > 0 {
-		return errors.New("use either input-rules or input-rules-dir not both")
-	}
-	if o.inputRules == "" && o.inputRulesDir == "" {
-		return errors.New("--input-rules or input-rules-dir is required")
-	}
-	if o.outputBicep == "" {
-		return errors.New("--output-bicep is required")
+	if o.configFile == "" {
+		return errors.New("--config-file is required")
 	}
 	return nil
 }
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
+	if os.Getenv("DEBUG") == "true" {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 	o := newOptions()
 	o.addFlags(flag.CommandLine)
 	flag.Parse()
@@ -159,7 +183,7 @@ func main() {
 func runTests(inputRules []alertingRuleFile) error {
 	dir, err := os.MkdirTemp("/tmp", "prom-rule-test")
 	if err != nil {
-		return fmt.Errorf("Error creating tempdir %v", err)
+		return fmt.Errorf("error creating tempdir %v", err)
 	}
 	defer func() {
 		os.RemoveAll(dir)
