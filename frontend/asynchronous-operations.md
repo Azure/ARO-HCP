@@ -449,7 +449,7 @@ An Azure resource can only have one asynchronous operation acting upon the resou
 
 #### Explicit vs Implicit Operations
 
-Deletion is where the difference between explicit and implicit operations is most prominent. [This was hinted at in the previous example](create-cluster-frontend-step-6), but here we will explain the distinction more clearly.
+Deletion is where the difference between explicit and implicit operations is most prominent. [This was hinted at in the previous example](#create-cluster-frontend-step-6), but here we will explain the distinction more clearly.
 
 As the ARO-HCP backend iterates over [asynchronous operation documents](#asynchronous-operations), it queries Cluster Service for the status of each resource. If the [request field](operation-document-request-field) of the operation document is "Delete" (indicating a resource deletion operation) and Cluster Service responds to the request with a "404 Not Found" status, that indicates the resource was successfully deleted. The backend pod will update the [status field](operation-document-status-field) of the operation document to "Successful" and _delete_ the associated [resource document](#hosted-control-plane-clusters-and-node-pools).
 
