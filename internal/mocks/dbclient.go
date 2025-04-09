@@ -13,11 +13,12 @@ import (
 	context "context"
 	reflect "reflect"
 
-	arm "github.com/Azure/ARO-HCP/internal/api/arm"
-	database "github.com/Azure/ARO-HCP/internal/database"
 	arm0 "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	azcosmos "github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	gomock "go.uber.org/mock/gomock"
+
+	arm "github.com/Azure/ARO-HCP/internal/api/arm"
+	database "github.com/Azure/ARO-HCP/internal/database"
 )
 
 // MockDBClientIterator is a mock of DBClientIterator interface.
