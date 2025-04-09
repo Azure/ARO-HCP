@@ -6,8 +6,6 @@ param disableLocalAuth bool = true
 // Passed Params and Overrides
 param location string
 param zoneRedundant bool
-param aksNodeSubnetId string
-param vnetId string
 param userAssignedMIs array
 param private bool
 
@@ -78,18 +76,6 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
   }
 }
 
-module serviceCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = {
-  name: '${deployment().name}-svcs-kv-pe'
-  params: {
-    location: location
-    subnetIds: [aksNodeSubnetId]
-    vnetId: vnetId
-    privateLinkServiceId: cosmosDbAccount.id
-    serviceType: 'cosmosdb'
-    groupId: 'Sql'
-  }
-}
-
 resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-11-15' = {
   name: name
   parent: cosmosDbAccount
@@ -154,4 +140,4 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
 ]
 
 output cosmosDBName string = name
-output cosmosDbAccountId string = cosmosDbAccount.id
+output cosmosDBAccountId string = cosmosDbAccount.id
