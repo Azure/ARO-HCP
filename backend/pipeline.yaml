@@ -43,6 +43,8 @@ resourceGroups:
       configRef: acr.svc.name
     - name: LOCATION
       configRef: region
+    - name: REGION_RG
+      configRef: regionRG
     - name: RESOURCEGROUP
       configRef: svc.rg
     - name: AKS_NAME

@@ -12,7 +12,7 @@ backend:
 .PHONY: backend
 
 run:
-	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
+	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	./aro-hcp-backend --location ${LOCATION} \
 		--clusters-service-url http://localhost:8000 \
 		--cosmos-name ${DB_NAME} \
@@ -40,7 +40,7 @@ deploy:
 			-g ${RESOURCEGROUP} \
 			-n backend \
 			--query clientId -o tsv) && \
-	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
+	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	${HELM_CMD} aro-hcp-backend-dev \
