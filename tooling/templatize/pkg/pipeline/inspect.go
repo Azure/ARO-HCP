@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
-type StepInspectScope func(Step, *InspectOptions, io.Writer) error
+type StepInspectScope func(context.Context, *Pipeline, Step, *InspectOptions) error
 
 func NewStepInspectScopes() map[string]StepInspectScope {
 	return map[string]StepInspectScope{
@@ -24,10 +24,11 @@ type InspectOptions struct {
 	Region         string
 	Vars           config.Variables
 	ScopeFunctions map[string]StepInspectScope
+	OutputFile     io.Writer
 }
 
 // NewInspectOptions creates a new PipelineInspectOptions struct
-func NewInspectOptions(vars config.Variables, region, step, scope, format string) *InspectOptions {
+func NewInspectOptions(vars config.Variables, region, step, scope, format string, outputFile io.Writer) *InspectOptions {
 	return &InspectOptions{
 		Scope:          scope,
 		Format:         format,
@@ -35,15 +36,16 @@ func NewInspectOptions(vars config.Variables, region, step, scope, format string
 		Region:         region,
 		Vars:           vars,
 		ScopeFunctions: NewStepInspectScopes(),
+		OutputFile:     outputFile,
 	}
 }
 
-func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer io.Writer) error {
+func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions) error {
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.StepName() == options.Step {
 				if inspectFunc, ok := options.ScopeFunctions[options.Scope]; ok {
-					err := inspectFunc(step, options, writer)
+					err := inspectFunc(ctx, p, step, options)
 					if err != nil {
 						return err
 					}
@@ -57,33 +59,69 @@ func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions, writer 
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(s Step, options *InspectOptions, writer io.Writer) error {
+func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *InspectOptions) error {
 	var envVars map[string]string
-	var err error
 	switch step := s.(type) {
 	case *ShellStep:
-		envVars, err = step.mapStepVariables(options.Vars, map[string]output{}, true)
+		outputChainingDependencies := make(map[string]bool)
+		for _, stepVar := range step.Variables {
+			if stepVar.Input != nil && stepVar.Input.Step != "" {
+				outputChainingDependencies[stepVar.Input.Step] = true
+			}
+		}
+		outputChainingDependenciesList := make([]string, 0, len(outputChainingDependencies))
+		for depStep := range outputChainingDependencies {
+			outputChainingDependenciesList = append(outputChainingDependenciesList, depStep)
+		}
+		inputs, err := aquireOutputChainingInputs(ctx, outputChainingDependenciesList, pipeline, options)
+		if err != nil {
+			return err
+		}
+		envVars, err = step.mapStepVariables(options.Vars, inputs)
+		if err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
-	}
-	if err != nil {
-		return err
 	}
 
 	switch options.Format {
 	case "makefile":
-		printMakefileVars(envVars, writer)
+		printMakefileVars(envVars, options.OutputFile)
 	case "shell":
-		printShellVars(envVars, writer)
+		printShellVars(envVars, options.OutputFile)
 	default:
 		return fmt.Errorf("unknown output format %q", options.Format)
 	}
 	return nil
 }
 
+func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *Pipeline, options *InspectOptions) (map[string]output, error) {
+	inputs := make(map[string]output)
+	for _, depStep := range steps {
+		runOptions := &PipelineRunOptions{
+			DryRun:                   true,
+			Vars:                     options.Vars,
+			Region:                   options.Region,
+			Step:                     depStep,
+			SubsciptionLookupFunc:    LookupSubscriptionID,
+			NoPersist:                true,
+			DeploymentTimeoutSeconds: 60,
+		}
+		outputs, err := RunPipeline(pipeline, ctx, runOptions)
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range outputs {
+			inputs[key] = value
+		}
+	}
+	return inputs, nil
+}
+
 func printMakefileVars(vars map[string]string, writer io.Writer) {
 	for k, v := range vars {
-		fmt.Fprintf(writer, "%s ?= %s\n", k, v)
+		fmt.Fprintf(writer, "%s ?= \"%s\"\n", k, v)
 	}
 }
 

@@ -9,6 +9,8 @@ CXSTAMP="${CXSTAMP:-1}"
 EXTRA_ARGS=""
 PIPELINE_MODE="inspect"
 DRY_RUN=""
+LOG_LEVEL="${LOG_LEVEL:-5}"
+LOG_VERBOSITY_OPTION="-v ${LOG_LEVEL}"
 
 # Function to display usage
 usage() {
@@ -126,6 +128,7 @@ if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
         --stamp=${CXSTAMP} \
         --input=${INPUT} \
         --output=${OUTPUT} \
+        ${LOG_VERBOSITY_OPTION} \
         ${EXTRA_ARGS}
 elif [ $PIPELINE_MODE == "inspect" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
     $TEMPLATIZE pipeline inspect \
@@ -137,7 +140,9 @@ elif [ $PIPELINE_MODE == "inspect" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_ST
         --stamp=${CXSTAMP} \
         --pipeline-file=${PIPELINE} \
         --step=${PIPELINE_STEP} \
+        --output=${OUTPUT} \
         --scope vars \
+        ${LOG_VERBOSITY_OPTION} \
         --format makefile
 elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
     $TEMPLATIZE pipeline run \
@@ -150,6 +155,7 @@ elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" 
         --pipeline-file=${PIPELINE} \
         --step=${PIPELINE_STEP} \
         ${PERSIST_FLAG} \
+        ${LOG_VERBOSITY_OPTION} \
         ${DRY_RUN}
 elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ]; then
     $TEMPLATIZE pipeline run \
@@ -161,6 +167,7 @@ elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ]; then
         --stamp=${CXSTAMP} \
         --pipeline-file=${PIPELINE} \
         ${PERSIST_FLAG} \
+        ${LOG_VERBOSITY_OPTION} \
         ${DRY_RUN}
 else
     $TEMPLATIZE inspect \
@@ -170,5 +177,6 @@ else
         --region=${REGION} \
         --region-short=${REGION_STAMP} \
         --stamp=${CXSTAMP} \
+        ${LOG_VERBOSITY_OPTION} \
         ${EXTRA_ARGS}
 fi

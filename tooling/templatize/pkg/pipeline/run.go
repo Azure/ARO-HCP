@@ -74,7 +74,7 @@ func (o armOutput) GetValue(key string) (*outPutValue, error) {
 	return nil, fmt.Errorf("key %q not found", key)
 }
 
-func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOptions) error {
+func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOptions) (map[string]output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	outPuts := make(map[string]output)
@@ -84,13 +84,13 @@ func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOp
 	// within the pipeline file are resolved relative to the pipeline file
 	originalDir, err := os.Getwd()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	dir := filepath.Dir(pipeline.pipelineFilePath)
 	logger.V(7).Info("switch current dir to pipeline file directory", "path", dir)
 	err = os.Chdir(dir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() {
 		logger.V(7).Info("switch back dir", "path", originalDir)
@@ -104,7 +104,7 @@ func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOp
 		// prepare execution context
 		subscriptionID, err := options.SubsciptionLookupFunc(ctx, rg.Subscription)
 		if err != nil {
-			return fmt.Errorf("failed to lookup subscription ID for %q: %w", rg.Subscription, err)
+			return nil, fmt.Errorf("failed to lookup subscription ID for %q: %w", rg.Subscription, err)
 		}
 		executionTarget := executionTargetImpl{
 			subscriptionName: rg.Subscription,
@@ -115,10 +115,10 @@ func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOp
 		}
 		err = RunResourceGroup(rg, ctx, options, &executionTarget, outPuts)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return outPuts, nil
 }
 
 func RunResourceGroup(rg *ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]output) error {
@@ -194,7 +194,7 @@ func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget
 	}
 }
 
-func getInputValues(configuredVariables []Variable, cfg config.Variables, inputs map[string]output, ignoreMissingOutputChaining bool) (map[string]any, error) {
+func getInputValues(configuredVariables []Variable, cfg config.Variables, inputs map[string]output) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {
@@ -204,7 +204,7 @@ func getInputValues(configuredVariables []Variable, cfg config.Variables, inputs
 					return nil, fmt.Errorf("failed to get value for input %s.%s: %w", i.Input.Step, i.Input.Name, err)
 				}
 				values[i.Name] = value.Value
-			} else if !ignoreMissingOutputChaining {
+			} else {
 				return nil, fmt.Errorf("step %s not found in provided outputs", i.Input.Step)
 			}
 		} else if i.ConfigRef != "" {
