@@ -166,7 +166,7 @@ defaults:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/component-sync
         digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
-      repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager
+      repositories: quay.io/app-sre/backplane-api,quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager
       secrets: 'quay.io:quay-io-bearer'
       pullSecretName: component-sync-pull-secret
     ocMirror:
