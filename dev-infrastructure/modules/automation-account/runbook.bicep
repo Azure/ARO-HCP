@@ -30,6 +30,9 @@ param interval int = 1
 @description('Start time for the scheduled execution (12:00 AM the next day)')
 param startTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
 
+@description('Name of the managed identity')
+param identityName string = 'hcp-dev-automation'
+
 resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' existing = {
   name: automationAccountName
 }
@@ -69,15 +72,22 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
 }
 
 // Link Schedule to Runbook
-resource jobSchedule 'Microsoft.Automation/automationAccounts/jobSchedules@2022-08-08' = if (!empty(scheduleName)) {
-  name: guid(resourceGroup().name, runbookSchedule.name)
-  parent: automationAccount
+resource registerScheduledRunbook 'Microsoft.Resources/deploymentScripts@2023-08-01' = if (!empty(scheduleName)) {
+  name: 'registerScheduledRunbook_${uniqueString(runbookName, scheduleName)}'
+  location: resourceGroup().location
+  kind: 'AzurePowerShell'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${identityName}': {}
+    }
+  }
   properties: {
-    schedule: {
-      name: runbookSchedule.name
-    }
-    runbook: {
-      name: accountRunbook.name
-    }
+    azPowerShellVersion: '12.0.0'
+    scriptContent: loadTextContent('../../scripts/register-scheduledrunbook.ps1')
+    arguments: '-ResourceGroupName ${resourceGroup().name} -AutomationAccountName ${automationAccountName} -RunbookName ${accountRunbook.name} -ScheduleName ${runbookSchedule.name}'
+    retentionInterval: 'P1D'
+    cleanupPreference: 'OnSuccess'
+    timeout: 'PT30M'
   }
 }
