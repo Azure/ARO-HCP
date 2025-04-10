@@ -18,6 +18,8 @@ jobs:
     - name: 'az bicep format and lint'
       working-directory: './dev-infrastructure'
       run: |
+        # https://github.com/actions/runner-images/issues/11987
+        az config set bicep.use_binary_from_path=false
         # Install specific version due to https://github.com/Azure/bicep/issues/16676
         az bicep install -v v0.33.93
         az bicep version
