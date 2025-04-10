@@ -46,5 +46,8 @@ jobs:
         kubelogin-version: 'v0.1.3'
     - name: 'Deployment What If'
       run: |
+        # https://github.com/actions/runner-images/issues/11987
+        az config set bicep.use_binary_from_path=false
+        az bicep install
         cd dev-infrastructure/
         make what-if
