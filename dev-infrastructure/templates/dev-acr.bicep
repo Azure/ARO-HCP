@@ -95,7 +95,7 @@ version: v1.1.0
 steps:
   - cmd: acr purge --filter "{0}" --keep {1} --ago {2}
     disableWorkingDirectoryOverride: true
-    timeout: 3600
+    timeout: 36000
 ''',
           purgeJob.purgeFilter,
           purgeJob.imagesToKeep,
