@@ -9,25 +9,6 @@ issues:
   max-same-issues: 0
 linters:
   exclusions:
-    rules:
-    - path: tooling/secret-sync/main.go
-      text: QF1003
-    - path: tooling/secret-sync/main.go
-      text: ST1005
-    - path: tooling/mcerepkg/internal/olm/extract.go
-      text: ST1005
-    - path: tooling/image-sync/internal/repository.go
-      text: QF1008
-    - path: tooling/templatize/cmd/generate/options.go
-      text: QF1008
-    - path: tooling/templatize/cmd/pipeline/run/cmd.go
-      text: ST1005
-    - path: tooling/templatize/pkg/pipeline/arm_test.go
-      text: QF1008
-    - path: tooling/templatize/pkg/pipeline/shell.go
-      text: ST1023
-    - path: tooling/templatize/pkg/pipeline/shell.go
-      text: QF1011
     presets:
     - std-error-handling
   default: none

@@ -61,7 +61,7 @@ func ExtractOLMBundleImage(_ context.Context, image containerregistrypkgv1.Image
 	}
 
 	if len(rawFS) == 0 {
-		return nil, reg, fmt.Errorf("Package image contains no files. Might be corrupted.")
+		return nil, reg, fmt.Errorf("package image contains no files. Might be corrupted")
 	}
 
 	convertedFS, reg, err := convert.RegistryV1ToPlain(rawFS, "", nil)

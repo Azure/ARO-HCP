@@ -72,7 +72,7 @@ func TestWaitForExistingDeployment(t *testing.T) {
 						DeploymentExtended: armresources.DeploymentExtended{},
 					}
 					if !c.missing {
-						returnObj.DeploymentExtended.Properties = &armresources.DeploymentPropertiesExtended{
+						returnObj.Properties = &armresources.DeploymentPropertiesExtended{
 							ProvisioningState: &c.deploymentState[callCnt],
 						}
 					}

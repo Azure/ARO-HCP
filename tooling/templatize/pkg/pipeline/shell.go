@@ -14,7 +14,7 @@ import (
 )
 
 func (s *ShellStep) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
-	var scriptCommand string = s.Command
+	var scriptCommand = s.Command
 	if dryRun {
 		if s.DryRun.Command == "" && s.DryRun.Variables == nil {
 			return nil, true

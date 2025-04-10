@@ -117,5 +117,5 @@ func (opts *GenerationOptions) ExecuteTemplate() error {
 	if err != nil {
 		return err
 	}
-	return config.PreprocessContentIntoWriter(content, opts.RolloutOptions.Config, opts.OutputFile)
+	return config.PreprocessContentIntoWriter(content, opts.Config, opts.OutputFile)
 }
