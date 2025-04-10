@@ -96,6 +96,7 @@ param roles = [
       'Microsoft.Network/networkInterfaces/write'
       'Microsoft.Network/virtualNetworks/read'
       'Microsoft.Network/virtualNetworks/subnets/join/action'
+      'Microsoft.Network/loadBalancers/backendAddressPools/read'
       'Microsoft.Network/loadBalancers/backendAddressPools/join/action'
       'Microsoft.Compute/virtualMachines/read'
     ]
