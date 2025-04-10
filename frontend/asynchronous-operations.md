@@ -465,4 +465,41 @@ The scenario we're considering entails _two_ resource deletion operations: one f
 
 For proper bookkeeping in Cosmos DB we ultimately want the backend pod to delete both the cluster's resource document and the child node pool's resource document. In order to induce this outcome the frontend pod processing the ARM deletion request will create a separate [asynchronous operation document](#asynchronous-operations) for each resource to be deleted. But only the cluster's operation document will be exposed; the node pool's operation document will remain implicit.
 
-As an aside, subscription deletion works similarly. It is the resource provider's responsibility to delete all tracked resources within the deleted subscription, so whichever frontend pod receives the subscription deletion request will create a set of [asynchronous operation documents](#asynchronous-operations) — one for each and every cluster and node pool resource in the subscription — all having their [request field](#operation-document-request-field) set to "Delete". The lead backend pod will process all of these resource deletion operations and eventually delete their associated [resource documents](#hosted-control-plane-clusters-and-node-pools). But because the resource deletions were implicitly triggered by the subscription deletion, the operations will remain implicit.
+> [!NOTE]
+> As an aside, subscription deletion works similarly. It is the resource provider's responsibility to delete all tracked resources within the deleted subscription, so whichever frontend pod receives the subscription deletion request will create a set of [asynchronous operation documents](#asynchronous-operations) — one for each and every cluster and node pool resource in the subscription — all having their [request field](#operation-document-request-field) set to "Delete". The lead backend pod will process all of these resource deletion operations and eventually delete their associated [resource documents](#hosted-control-plane-clusters-and-node-pools). But because the resource deletions were implicitly triggered by the subscription deletion, all of the resulting operations will remain implicit.
+
+#### RP Frontend Pod
+
+Let's get back to the example scenario. Below is a sequence diagram of the initial DELETE request from ARM to delete an HCP OpenShift cluster and its child node pool. As before, it shows Cosmos DB documents being created but omits some of the document fields for brevity.
+
+```mermaid
+sequenceDiagram
+    participant ARM
+    participant FE as RP Frontend
+    participant DB as Cosmos DB
+    participant CS as Cluster Service
+    ARM->>FE: DELETE .../hcpOpenShiftCluster/myCluster
+    FE->>DB: Create Lock (subscription ID)
+    DB-->>FE: 201 Created + ETag
+    Note left of FE: Lock is renewed as needed<br/>while processing ARM request.
+    FE->>DB: Get cluster ResourceDoc (myCluster)
+    DB--xFE: 200 OK + cluster ResourceDoc
+    FE->>CS: DELETE Cluster (myCluster)
+    CS-->>FE: 204 No Content
+    FE->>DB: Create cluster OperationDoc (cluster operation ID, "deleting")
+    DB-->>FE: 201 Created
+    FE->>DB: Query children of cluster ResourceDocs
+    DB-->>FE: 200 OK + node pool ResourceDoc
+    Note left of FE: node pool ResourceDoc<br/>has activeOperationID
+    FE->>DB: Update OperationDoc (activeOperationID, "canceled")
+    DB-->>FE: 200 OK
+    FE->>DB: Create node pool OperationDoc (node pool operation ID, "deleting")
+    DB-->>FE: 201 Created
+    FE->>DB: Update node pool ResourceDoc (node pool operation ID, "deleting")
+    DB-->>FE: 200 OK
+    FE->>DB: Update cluster OperationDoc (cluster operation ID)
+    DB-->>FE: 200 OK
+    FE->>DB: Delete Lock (subscription ID)
+    DB-->>FE: 204 No Content
+    FE-->>ARM: 202 Accepted + operation ID
+```
