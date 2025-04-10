@@ -1,0 +1,14 @@
+prometheusRules:
+  rulesFolders:
+  - ../cluster-service/alerts
+  untestedRules:
+  - ../observability/alerts/kubernetesControlPlane-prometheusRule.yaml
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
+grafana-dashboards:
+  azureManagedFolders:
+  - Azure Managed Prometheus
+  - Azure Monitor
+  - Microsoft Defender for Cloud
+  dashboardFolders:
+  - name: istio
+    path: ../istio/grafana-dashboards

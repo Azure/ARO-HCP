@@ -7,7 +7,6 @@ from grafana import (
     create_dashboard,
     delete_stale_dashboard,
     fs_get_dashboards,
-    fs_get_dashboard_folders,
     get_folder_uid,
     get_or_create_folder,
     GrafanaRunner,
@@ -25,12 +24,10 @@ class TestFolder(unittest.TestCase):
     def test_get_or_create_folder(self):
         g = GrafanaRunner("", "", "")
         g.create_folder = MagicMock(return_value={"uid": "foo"})
-        self.assertEqual(get_or_create_folder("test/grafana-dashboards", g, []), "foo")
+        self.assertEqual(get_or_create_folder("test", g, []), "foo")
 
         self.assertEqual(
-            get_or_create_folder(
-                "test/grafana-dashboards", g, [{"title": "test", "uid": "bar"}]
-            ),
+            get_or_create_folder("test", g, [{"title": "test", "uid": "bar"}]),
             "bar",
         )
         g.create_folder.assert_called_once_with("test")
@@ -70,7 +67,7 @@ class TestDashboard(unittest.TestCase):
 
         g.delete_dashboard = MagicMock(return_value=None)
         delete_stale_dashboard(
-            {"folderUid": "a", "title": "n"}, {"a_n"}, [{"uid": "n"}], g
+            {"folderUid": "a", "title": "n"}, {"a_n"}, [{"uid": "n"}], g, []
         )
 
         g.delete_dashboard.assert_not_called
@@ -80,10 +77,28 @@ class TestDashboard(unittest.TestCase):
 
         g.delete_dashboard = MagicMock(return_value=None)
         delete_stale_dashboard(
-            {"folderUid": "b", "title": "n"}, {"a_n"}, [{"title": "n", "uid": "n"}], g
+            {"folderUid": "b", "title": "n"},
+            {"a_n"},
+            [{"title": "n", "uid": "n"}],
+            g,
+            [],
         )
 
         g.delete_dashboard.assert_called_once_with("n")
+
+    def test_delete_stale_dashboard_azure_folder(self):
+        g = GrafanaRunner("", "", "")
+
+        g.delete_dashboard = MagicMock(return_value=None)
+        delete_stale_dashboard(
+            {"folderUid": "b", "title": "n"},
+            {"a_n"},
+            [{"title": "n", "uid": "n"}],
+            g,
+            ["n"],
+        )
+
+        g.delete_dashboard.assert_not_called
 
 
 class TestFSOperations(unittest.TestCase):
@@ -114,8 +129,3 @@ class TestFSOperations(unittest.TestCase):
 
         with self.assertRaises(json.decoder.JSONDecodeError):
             fs_get_dashboards(self.dashboarddir)
-
-    def test_fs_get_dashboard_folders(self):
-        self.assertListEqual(
-            fs_get_dashboard_folders(self.tmpdir), ["test-service/grafana-dashboards"]
-        )

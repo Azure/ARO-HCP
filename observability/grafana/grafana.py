@@ -6,12 +6,19 @@ import os
 import subprocess
 import tempfile
 
-AZURE_MANAGED_FOLDERS = ["Azure Monitor", "Microsoft Defender for Cloud"]
-
 
 def run_command(command):
     if os.getenv("PRINT_COMMANDS"):
         print(f"calling '{command}'")
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Command failed: {command}\nError: {result.stderr}")
+        exit(result.returncode)
+    return result.stdout.strip()
+
+
+def yq_to_json(yaml_file: str) -> str:
+    command = f"yq -o=json '.' {yaml_file}"
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"Command failed: {command}\nError: {result.stderr}")
@@ -83,31 +90,11 @@ def fs_get_dashboards(folder: str) -> list[dict[str, any]]:
     return return_array
 
 
-def fs_get_dashboard_folders(search_root: str) -> list[str]:
-    return [
-        f[0].removeprefix(search_root).removeprefix("/")
-        for f in os.walk(search_root)
-        if "/grafana-dashboards" in f[0]
-    ]
-
-
 def get_or_create_folder(
-    local_folder: str, g: GrafanaRunner, existing_folders: list[dict[str, any]]
+    name: str, g: GrafanaRunner, existing_folders: list[dict[str, any]]
 ) -> str:
-    parts = local_folder.split("/")
-    if len(parts) != 2:
-        raise RuntimeError(
-            f"A 'grafana-dashboards' should be in the first subdirectory only. Error in {local_folder}"
-        )
-
-    folder_service_name = parts[0]
-
-    existing_uid = get_folder_uid(folder_service_name, existing_folders)
-    return (
-        existing_uid
-        if existing_uid != ""
-        else g.create_folder(folder_service_name).get("uid", "")
-    )
+    existing_uid = get_folder_uid(name, existing_folders)
+    return existing_uid if existing_uid != "" else g.create_folder(name).get("uid", "")
 
 
 def create_dashboard(
@@ -159,9 +146,10 @@ def delete_stale_dashboard(
     dashboards_visited: set[str],
     existing_folders: list[dict[str, any]],
     g: GrafanaRunner,
+    azure_managed_folders: list[str],
 ) -> None:
     if f"{d['folderUid']}_{d['title']}" not in dashboards_visited:
-        for amf in AZURE_MANAGED_FOLDERS:
+        for amf in azure_managed_folders:
             uid = get_folder_uid(amf, existing_folders)
             if uid and uid == d["folderUid"]:
                 return
@@ -172,8 +160,11 @@ def main():
     RESOURCEGROUP = os.getenv("GLOBAL_RESOURCEGROUP", "global")
     DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
     GRAFANA_NAME = os.getenv("GRAFANA_NAME")
+    OBSERVABILITY_CONFIG = os.getenv("OBSERVABILITY_CONFIG", "observability.yaml")
 
-    SEARCH_ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
+    WORK_DIR = os.path.join(os.path.dirname(__file__), "..")
+
+    config = json.loads(yq_to_json(os.path.join(WORK_DIR, OBSERVABILITY_CONFIG)))
 
     g = GrafanaRunner(RESOURCEGROUP, GRAFANA_NAME, DRY_RUN)
 
@@ -182,10 +173,12 @@ def main():
 
     dashboards_visited = set()
 
-    for local_folder in fs_get_dashboard_folders(SEARCH_ROOT):
-        folder_uid = get_or_create_folder(local_folder, g, existing_folders)
+    for local_folder in config["grafana-dashboards"]["dashboardFolders"]:
+        folder_uid = get_or_create_folder(local_folder["path"], g, existing_folders)
 
-        for dashboard in fs_get_dashboards(os.path.join(SEARCH_ROOT, local_folder)):
+        for dashboard in fs_get_dashboards(
+            os.path.join(WORK_DIR, local_folder["path"])
+        ):
             temp_file = tempfile.NamedTemporaryFile()
             create_dashboard(
                 temp_file.name, dashboard, folder_uid, existing_dashboards, g
@@ -195,7 +188,13 @@ def main():
             os.remove(temp_file.name)
 
     for d in existing_dashboards:
-        delete_stale_dashboard(d, dashboards_visited, existing_dashboards, g)
+        delete_stale_dashboard(
+            d,
+            dashboards_visited,
+            existing_dashboards,
+            g,
+            config["grafana-dashboards"]["azureManagedFolders"],
+        )
 
 
 if __name__ == "__main__":
