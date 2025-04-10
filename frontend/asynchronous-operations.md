@@ -488,6 +488,8 @@ sequenceDiagram
     CS-->>FE: 204 No Content
     FE->>DB: Create cluster OperationDoc (cluster operation ID, "deleting")
     DB-->>FE: 201 Created
+    FE->>DB: Update cluster ResourceDoc (cluster operation ID, "deleting")
+    DB-->>FE: 200 OK
     FE->>DB: Query children of cluster ResourceDocs
     DB-->>FE: 200 OK + node pool ResourceDoc
     Note left of FE: node pool ResourceDoc<br/>has activeOperationID
@@ -503,3 +505,50 @@ sequenceDiagram
     DB-->>FE: 204 No Content
     FE-->>ARM: 202 Accepted + operation ID
 ```
+
+1. As in the [previous example](#create-cluster-frontend-step-1), the first step is to create a document in the [Locks](#locks) container to gain exclusive write access to the logical partition of the [Resources](#resources) container corresponding to the Azure subscription ID from the request.
+
+2. The frontend pod then fetches the [resource document](#hosted-control-plane-clusters-and-node-pools) from Cosmos DB whose `resourceId` field matches (case-insensitively) the URL path from the DELETE request. Now, a non-existent resource is as good as a deleted resource. So if Cosmos DB were to respond here with a "404 Not Found" status, then the frontend pod would respond to the ARM request with a "204 No Content" status, delete the lock document, and be done. But let's assume Cosmos DB returns the resource document.
+
+3. The frontend pod then issues a DELETE request to Cluster Service using the [internalID](#resource-document-internalid-field) field from the resource document. This single request will delete the actual hosted control plane cluster along with any node pools associated with the cluster. Cluster Service responds immediately with a "204 No Content" status, but the actual resource deletions happen asynchronously.
+
+   It's not that simple for the ARO-HCP resource provider. Because each node pool is its own individually tracked Azure resource, we must track the deletion progress of the cluster itself and each of its node pools as separate asynchronous operations.
+
+4. We stated previously the cluster itself has no asynchronous operation in progress prior to deletion, so the frontend pod can proceed directly to creating the [asynchronous operation document](#asynchronous-operations). The document will look something like:
+
+   ```
+   {
+     "id": "e2f8f733-dd90-49b0-8b2b-f390b42aa339",
+     "partitionKey": "1d3378d3-5a3f-4712-85a1-2485495dfc4b",
+     "resourceType": "microsoft.redhatopenshift/hcpoperationsstatus",
+     "properties": {
+       "request": "Delete",
+       "externalId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/.../hcpOpenShiftClusters/myCluster",
+       "internalId": "/api/aro_hcp/v1alpha1/clusters/{cluster_id}",
+       "startTime": "2025-03-14T04:00:00Z",
+       "lastTransitionTime": "2025-03-14T04:00:00Z",
+       "status": "Deleting"
+     },
+     "ttl": 604800,
+     ... other system-generated fields ...
+   }
+   ```
+
+   The frontend pod will also update the cluster's resource document as follows (shown in [JSON Patch](https://jsonpatch.com/) format):
+
+   ```
+   [
+     {
+       "op": "replace",
+       "path": "/properties/provisioningState",
+       "value": "Deleting"
+     },
+     {
+       "op": "replace",
+       "path": "/properties/activeOperationId",
+       "value": "e2f8f733-dd90-49b0-8b2b-f390b42aa339"
+     }
+   ]
+   ```
+
+   Notice the `activeOperationId` field is now set to the `id` field of the new operation document.
