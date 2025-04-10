@@ -36,7 +36,7 @@ fmt: $(templates:.bicep=.bicep.fmt) $(modules:.bicep=.bicep.fmt) $(parameters:.b
 lint: $(templates:.bicep=.bicep.lint) $(modules:.bicep=.bicep.lint) $(parameters:.bicepparam=.biceparam.lint)
 
 %.bicep.fmt %.bicepparam.fmt:
-	az bicep format --file $(basename $@)
+	az bicep install && az bicep format --file $(basename $@)
 
 %.bicep.lint %.bicepparam.lint:
 	az bicep lint --file $(basename $@)
