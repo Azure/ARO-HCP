@@ -1,17 +1,17 @@
 package labels
 
 import (
-	. "github.com/onsi/ginkgo/v2"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 var (
-	Negative = Label("Negative")
+	Negative = ginkgo.Label("Negative")
 )
 
 // Test cases importance
 var (
-	Low      = Label("Low")
-	Medium   = Label("Medium")
-	High     = Label("High")
-	Critical = Label("Critical")
+	Low      = ginkgo.Label("Low")
+	Medium   = ginkgo.Label("Medium")
+	High     = ginkgo.Label("High")
+	Critical = ginkgo.Label("Critical")
 )
