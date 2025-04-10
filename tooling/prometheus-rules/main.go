@@ -84,12 +84,13 @@ func (o *options) complete() error {
 	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
 
 	for _, untestedRules := range config.PrometheusRules.UntestedRules {
-		rules, err := readRulesFile(untestedRules)
+		filePath := path.Join(baseDirectory, untestedRules)
+		rules, err := readRulesFile(filePath)
 		if err != nil {
 			return fmt.Errorf("error reading rules file %v", err)
 		}
 		o.ruleFiles = append(o.ruleFiles, alertingRuleFile{
-			fileBaseName: untestedRules,
+			fileBaseName: filePath,
 			rules:        *rules,
 		})
 	}
