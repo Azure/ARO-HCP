@@ -17,31 +17,31 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 		out.ID = *h.ID
 	}
 	if h.Name != nil {
-		out.Resource.Name = *h.Name
+		out.Name = *h.Name
 	}
 	if h.Type != nil {
-		out.Resource.Type = *h.Type
+		out.Type = *h.Type
 	}
 	if h.SystemData != nil {
-		out.Resource.SystemData = &arm.SystemData{
+		out.SystemData = &arm.SystemData{
 			CreatedAt:      h.SystemData.CreatedAt,
 			LastModifiedAt: h.SystemData.LastModifiedAt,
 		}
 		if h.SystemData.CreatedBy != nil {
-			out.Resource.SystemData.CreatedBy = *h.SystemData.CreatedBy
+			out.SystemData.CreatedBy = *h.SystemData.CreatedBy
 		}
 		if h.SystemData.CreatedByType != nil {
-			out.Resource.SystemData.CreatedByType = arm.CreatedByType(*h.SystemData.CreatedByType)
+			out.SystemData.CreatedByType = arm.CreatedByType(*h.SystemData.CreatedByType)
 		}
 		if h.SystemData.LastModifiedBy != nil {
-			out.Resource.SystemData.LastModifiedBy = *h.SystemData.LastModifiedBy
+			out.SystemData.LastModifiedBy = *h.SystemData.LastModifiedBy
 		}
 		if h.SystemData.LastModifiedByType != nil {
-			out.Resource.SystemData.LastModifiedByType = arm.CreatedByType(*h.SystemData.LastModifiedByType)
+			out.SystemData.LastModifiedByType = arm.CreatedByType(*h.SystemData.LastModifiedByType)
 		}
 	}
 	if h.Location != nil {
-		out.TrackedResource.Location = *h.Location
+		out.Location = *h.Location
 	}
 	// Per RPC-Patch-V1-04, the Tags field does NOT follow
 	// JSON merge-patch (RFC 7396) semantics:
@@ -224,11 +224,11 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 
 	out := &NodePool{
 		generated.NodePool{
-			ID:       api.Ptr(from.Resource.ID),
-			Name:     api.Ptr(from.Resource.Name),
-			Type:     api.Ptr(from.Resource.Type),
-			Location: api.Ptr(from.TrackedResource.Location),
-			Tags:     api.StringMapToStringPtrMap(from.TrackedResource.Tags),
+			ID:       api.Ptr(from.ID),
+			Name:     api.Ptr(from.Name),
+			Type:     api.Ptr(from.Type),
+			Location: api.Ptr(from.Location),
+			Tags:     api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.NodePoolProperties{
 				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Platform:          newNodePoolPlatformProfile(&from.Properties.Platform),
@@ -242,14 +242,14 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 		},
 	}
 
-	if from.Resource.SystemData != nil {
+	if from.SystemData != nil {
 		out.SystemData = &generated.SystemData{
-			CreatedBy:          api.Ptr(from.Resource.SystemData.CreatedBy),
-			CreatedByType:      api.Ptr(generated.CreatedByType(from.Resource.SystemData.CreatedByType)),
-			CreatedAt:          from.Resource.SystemData.CreatedAt,
-			LastModifiedBy:     api.Ptr(from.Resource.SystemData.LastModifiedBy),
-			LastModifiedByType: api.Ptr(generated.CreatedByType(from.Resource.SystemData.LastModifiedByType)),
-			LastModifiedAt:     from.Resource.SystemData.LastModifiedAt,
+			CreatedBy:          api.Ptr(from.SystemData.CreatedBy),
+			CreatedByType:      api.Ptr(generated.CreatedByType(from.SystemData.CreatedByType)),
+			CreatedAt:          from.SystemData.CreatedAt,
+			LastModifiedBy:     api.Ptr(from.SystemData.LastModifiedBy),
+			LastModifiedByType: api.Ptr(generated.CreatedByType(from.SystemData.LastModifiedByType)),
+			LastModifiedAt:     from.SystemData.LastModifiedAt,
 		}
 	}
 

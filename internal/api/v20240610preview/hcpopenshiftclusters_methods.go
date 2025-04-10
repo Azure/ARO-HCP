@@ -98,11 +98,11 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 
 	out := &HcpOpenShiftCluster{
 		generated.HcpOpenShiftCluster{
-			ID:       api.Ptr(from.Resource.ID),
-			Name:     api.Ptr(from.Resource.Name),
-			Type:     api.Ptr(from.Resource.Type),
-			Location: api.Ptr(from.TrackedResource.Location),
-			Tags:     api.StringMapToStringPtrMap(from.TrackedResource.Tags),
+			ID:       api.Ptr(from.ID),
+			Name:     api.Ptr(from.Name),
+			Type:     api.Ptr(from.Type),
+			Location: api.Ptr(from.Location),
+			Tags:     api.StringMapToStringPtrMap(from.Tags),
 			Identity: &generated.ManagedServiceIdentity{
 				Type:        api.Ptr(generated.ManagedServiceIdentityType(from.Identity.Type)),
 				PrincipalID: api.Ptr(from.Identity.PrincipalID),
@@ -124,14 +124,14 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 		},
 	}
 
-	if from.Resource.SystemData != nil {
+	if from.SystemData != nil {
 		out.SystemData = &generated.SystemData{
-			CreatedBy:          api.Ptr(from.Resource.SystemData.CreatedBy),
-			CreatedByType:      api.Ptr(generated.CreatedByType(from.Resource.SystemData.CreatedByType)),
-			CreatedAt:          from.Resource.SystemData.CreatedAt,
-			LastModifiedBy:     api.Ptr(from.Resource.SystemData.LastModifiedBy),
-			LastModifiedByType: api.Ptr(generated.CreatedByType(from.Resource.SystemData.LastModifiedByType)),
-			LastModifiedAt:     from.Resource.SystemData.LastModifiedAt,
+			CreatedBy:          api.Ptr(from.SystemData.CreatedBy),
+			CreatedByType:      api.Ptr(generated.CreatedByType(from.SystemData.CreatedByType)),
+			CreatedAt:          from.SystemData.CreatedAt,
+			LastModifiedBy:     api.Ptr(from.SystemData.LastModifiedBy),
+			LastModifiedByType: api.Ptr(generated.CreatedByType(from.SystemData.LastModifiedByType)),
+			LastModifiedAt:     from.SystemData.LastModifiedAt,
 		}
 	}
 
@@ -144,34 +144,34 @@ func (v version) MarshalHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) ([]by
 
 func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	if c.ID != nil {
-		out.Resource.ID = *c.ID
+		out.ID = *c.ID
 	}
 	if c.Name != nil {
-		out.Resource.Name = *c.Name
+		out.Name = *c.Name
 	}
 	if c.Type != nil {
-		out.Resource.Type = *c.Type
+		out.Type = *c.Type
 	}
 	if c.SystemData != nil {
-		out.Resource.SystemData = &arm.SystemData{
+		out.SystemData = &arm.SystemData{
 			CreatedAt:      c.SystemData.CreatedAt,
 			LastModifiedAt: c.SystemData.LastModifiedAt,
 		}
 		if c.SystemData.CreatedBy != nil {
-			out.Resource.SystemData.CreatedBy = *c.SystemData.CreatedBy
+			out.SystemData.CreatedBy = *c.SystemData.CreatedBy
 		}
 		if c.SystemData.CreatedByType != nil {
-			out.Resource.SystemData.CreatedByType = arm.CreatedByType(*c.SystemData.CreatedByType)
+			out.SystemData.CreatedByType = arm.CreatedByType(*c.SystemData.CreatedByType)
 		}
 		if c.SystemData.LastModifiedBy != nil {
-			out.Resource.SystemData.LastModifiedBy = *c.SystemData.LastModifiedBy
+			out.SystemData.LastModifiedBy = *c.SystemData.LastModifiedBy
 		}
 		if c.SystemData.LastModifiedByType != nil {
-			out.Resource.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
+			out.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
 		}
 	}
 	if c.Location != nil {
-		out.TrackedResource.Location = *c.Location
+		out.Location = *c.Location
 	}
 	if c.Identity != nil {
 		if c.Identity.PrincipalID != nil {

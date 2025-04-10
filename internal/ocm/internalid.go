@@ -78,7 +78,7 @@ func (id *InternalID) validate() error {
 		return nil
 	}
 
-	return fmt.Errorf("Invalid InternalID: %s", id.path)
+	return fmt.Errorf("invalid InternalID: %s", id.path)
 }
 
 // NewInternalID attempts to create a new InternalID from a Cluster Service

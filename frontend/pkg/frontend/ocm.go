@@ -202,7 +202,7 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	// Ensure required headers are present.
 	tenantID := requestHeader.Get(arm.HeaderNameHomeTenantID)
 	if tenantID == "" {
-		return nil, fmt.Errorf("Missing " + arm.HeaderNameHomeTenantID + " header")
+		return nil, fmt.Errorf("missing " + arm.HeaderNameHomeTenantID + " header")
 	}
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()

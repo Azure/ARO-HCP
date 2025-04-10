@@ -432,7 +432,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		return
 	}
 
-	var opStatus arm.ProvisioningState = op.doc.Status
+	var opStatus = op.doc.Status
 	var opError *arm.CloudErrorBody
 
 	switch status := breakGlassCredential.Status(); status {
@@ -467,7 +467,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 
 // pollBreakGlassCredentialRevoke updates the status of a credential revocation operation.
 func (s *OperationsScanner) pollBreakGlassCredentialRevoke(ctx context.Context, op operation) {
-	var opStatus arm.ProvisioningState = arm.ProvisioningStateSucceeded
+	var opStatus = arm.ProvisioningStateSucceeded
 	var opError *arm.CloudErrorBody
 
 	// XXX Error handling here is tricky. Since the operation applies to multiple
@@ -661,7 +661,7 @@ func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operat
 // Cluster Service into an ARM provisioning state and, if necessary, a
 // structured OData error.
 func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current arm.ProvisioningState) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
-	var opStatus arm.ProvisioningState = current
+	var opStatus = current
 	var opError *arm.CloudErrorBody
 	var err error
 
@@ -691,10 +691,10 @@ func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current a
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
 		if current != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("Got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, current, arm.ProvisioningStateAccepted)
+			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, current, arm.ProvisioningStateAccepted)
 		}
 	default:
-		err = fmt.Errorf("Unhandled ClusterState '%s'", state)
+		err = fmt.Errorf("unhandled ClusterState '%s'", state)
 	}
 
 	return opStatus, opError, err
@@ -704,7 +704,7 @@ func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current a
 // from Cluster Service into an ARM provisioning state and, if necessary,
 // a structured OData error.
 func convertNodePoolStatus(nodePoolStatus *arohcpv1alpha1.NodePoolStatus, current arm.ProvisioningState) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
-	var opStatus arm.ProvisioningState = current
+	var opStatus = current
 	var opError *arm.CloudErrorBody
 	var err error
 
@@ -714,7 +714,7 @@ func convertNodePoolStatus(nodePoolStatus *arohcpv1alpha1.NodePoolStatus, curren
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
 		if current != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("Got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, current, arm.ProvisioningStateAccepted)
+			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, current, arm.ProvisioningStateAccepted)
 		}
 	case NodePoolStateInstalling:
 		opStatus = arm.ProvisioningStateProvisioning
@@ -731,7 +731,7 @@ func convertNodePoolStatus(nodePoolStatus *arohcpv1alpha1.NodePoolStatus, curren
 		opStatus = arm.ProvisioningStateFailed
 		opError = arm.NewInternalServerError().CloudErrorBody
 	default:
-		err = fmt.Errorf("Unhandled NodePoolState '%s'", state)
+		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
 	}
 
 	return opStatus, opError, err

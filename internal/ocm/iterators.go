@@ -23,9 +23,9 @@ func (iter ClusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alp
 	return func(yield func(*arohcpv1alpha1.Cluster) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
-			var page int = 0
-			var count int = 0
-			var total int = math.MaxInt
+			var page = 0
+			var count = 0
+			var total = math.MaxInt
 
 			for count < total {
 				page++
@@ -77,9 +77,9 @@ func (iter NodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1al
 	return func(yield func(*arohcpv1alpha1.NodePool) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
-			var page int = 0
-			var count int = 0
-			var total int = math.MaxInt
+			var page = 0
+			var count = 0
+			var total = math.MaxInt
 
 			for count < total {
 				page++
@@ -131,9 +131,9 @@ func (iter BreakGlassCredentialListIterator) Items(ctx context.Context) iter.Seq
 	return func(yield func(*cmv1.BreakGlassCredential) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
-			var page int = 0
-			var count int = 0
-			var total int = math.MaxInt
+			var page = 0
+			var count = 0
+			var total = math.MaxInt
 
 			for count < total {
 				page++

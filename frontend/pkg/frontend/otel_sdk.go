@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/trace"
-	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
@@ -69,9 +68,9 @@ func ConfigureOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, reso
 		return nil, fmt.Errorf("failed to initialise trace resources: %w", err)
 	}
 
-	tp := tracesdk.NewTracerProvider(
-		tracesdk.WithBatcher(exp),
-		tracesdk.WithResource(resources),
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(exp),
+		trace.WithResource(resources),
 	)
 	otel.SetTracerProvider(tp)
 

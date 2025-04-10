@@ -30,7 +30,7 @@ func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 
 		contentType := strings.SplitN(r.Header.Get("Content-Type"), ";", 2)[0]
 
-		if !strings.EqualFold(contentType, "application/json") && !(len(body) == 0 && contentType == "") {
+		if !strings.EqualFold(contentType, "application/json") && (len(body) > 0 || contentType != "") {
 			arm.WriteError(
 				w, http.StatusUnsupportedMediaType,
 				arm.CloudErrorCodeUnsupportedMediaType, "",
