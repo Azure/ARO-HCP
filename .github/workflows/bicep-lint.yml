@@ -19,7 +19,7 @@ jobs:
       working-directory: './dev-infrastructure'
       run: |
         # Install specific version due to https://github.com/Azure/bicep/issues/16676
-        az bicep uninstall
+        az config set bicep.use_binary_from_path=false
         az bicep install -v v0.33.93
         az bicep version
         make fmt
