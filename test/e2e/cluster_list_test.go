@@ -11,7 +11,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
-var _ = Describe("List operations", func() {
+var _ = Describe("List HCPOpenShiftCluster", func() {
 	defer GinkgoRecover()
 
 	var (
@@ -19,16 +19,16 @@ var _ = Describe("List operations", func() {
 	)
 
 	BeforeEach(func() {
-		By("Prepare HCP clusters client")
+		By("Preparing HCP clusters client")
 		clustersClient = clients.NewHcpOpenShiftClustersClient()
 	})
 
-	Context("List clusters", func() {
-		It("List clusters by subscription", labels.Medium, func(ctx context.Context) {
-			By("Prepare pager to list clusters")
+	Context("Positive", func() {
+		It("Successfully lists clusters filtered by subscription ID", labels.Medium, func(ctx context.Context) {
+			By("Preparing pager to list clusters")
 			listOptions := &api.HcpOpenShiftClustersClientListBySubscriptionOptions{}
 			pager := clustersClient.NewListBySubscriptionPager(listOptions)
-			By("Access IDs of all fetched clusters")
+			By("Accessing IDs of all fetched clusters")
 			for pager.More() {
 				clusterList, err := pager.NextPage(ctx)
 				Expect(err).To(BeNil())
@@ -40,10 +40,10 @@ var _ = Describe("List operations", func() {
 			}
 		})
 
-		It("List clusters by resource group", labels.Medium, func(ctx context.Context) {
-			By("Prepare pager to list clusters")
+		It("Successfully lists clusters filtered by resource group name", labels.Medium, func(ctx context.Context) {
+			By("Preparing pager to list clusters")
 			pager := clustersClient.NewListByResourceGroupPager(customerRGName, nil)
-			By("Access IDs of all fetched clusters")
+			By("Accessing IDs of all fetched clusters")
 			for pager.More() {
 				clusterList, err := pager.NextPage(ctx)
 				Expect(err).To(BeNil())
