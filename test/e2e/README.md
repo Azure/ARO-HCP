@@ -3,7 +3,7 @@
 The E2E test suite will work in every environment of the ARO-HCP project. Its main purpose is to ensure specific functionality based on the environment and its usage. You can find more details about the test suite design in [ARO-12804](https://issues.redhat.com/browse/ARO-12804).
 
 - The test suite client connects to the RP frontend in the development environment using port forwarding to localhost.
-- In the integration environment, the client will connect to the RP frontend using a public IP (when available) but only within the MSFT corporate network.
+- In the integration environment, the client will connect to the ARM using a public IP but only within the MSFT corporate network.
 - For stage and production environments, the client will connect through ARM once they are set up.
 
 The client expects a subscription to be already registered. To assign the client to a specific subscription, set its ID in the environment variable **CUSTOMER_SUBSCRIPTION**. If not set, the default all-zero subscription will be used.
