@@ -345,20 +345,6 @@ model NodePoolProperties {
   taints?: Taint[];
 }
 
-/** taintKey is the k8s valid key of the taint type on the nodepool nodes
- * @example node-role.kubernetes.io/master
- */
-@minLength(1)
-@maxLength(316)
-scalar taintKey extends string;
-
-/** taintValue is the k8s valid value of the taint type on the nodepool nodes
- * @example true
- */
-@minLength(1)
-@maxLength(63)
-scalar taintValue extends string;
-
 /** The taint effect the same as in K8s */
 union Effect {
   string,
@@ -378,12 +364,16 @@ model Taint {
   /** The key of the taint
    * @example node-role.kubernetes.io/master
    */
-  key?: taintKey;
+  @minLength(1)
+  @maxLength(316)
+  key?: string;
 
   /** The value of the taint
    * @example true
    */
-  value?: taintValue;
+  @minLength(1)
+  @maxLength(63)
+  value?: string;
 
   /** The effect of the taint
    * @example NoSchedule
