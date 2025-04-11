@@ -52,16 +52,16 @@ func ensureDependencies(ctx context.Context) error {
 		cmd := exec.CommandContext(ctx, "/bin/bash", "-c", c.Cmd)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("Error checking version %s, error: %v", c.Name, err)
+			return fmt.Errorf("error checking version %s, error: %v", c.Name, err)
 		}
 		semverConstraint, err := semver.NewConstraint(c.Constraint)
 		if err != nil {
-			return fmt.Errorf("Error creation version constraint '%s', %v", c.Name, err)
+			return fmt.Errorf("error creation version constraint '%s', %v", c.Name, err)
 		}
 		trimmedOutput := strings.TrimSuffix(string(output), "\n")
 		v, err := semver.NewVersion(trimmedOutput)
 		if err != nil {
-			return fmt.Errorf("Error parsing version of '%s', '%s' %v", c.Name, trimmedOutput, err)
+			return fmt.Errorf("error parsing version of '%s', '%s' %v", c.Name, trimmedOutput, err)
 		}
 
 		if !semverConstraint.Check(v) {

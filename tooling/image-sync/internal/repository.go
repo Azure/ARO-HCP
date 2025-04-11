@@ -256,7 +256,7 @@ func (a *AzureContainerRegistry) RepositoryExists(ctx context.Context, repositor
 		if err != nil {
 			return false, fmt.Errorf("failed to advance page: %v", err)
 		}
-		for _, v := range page.Repositories.Names {
+		for _, v := range page.Names {
 			if *v == repository {
 				return true, nil
 			}
