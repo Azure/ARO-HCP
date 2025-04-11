@@ -332,12 +332,9 @@ model NodePoolProperties {
   /** Representation of a autoscaling in a node pool. */
   autoScaling?: NodePoolAutoScaling;
 
-  // This warning means to ensure good customer experience, to not create
-  // poorly defined types. However here the type literally is the map<string, value>
   /** K8s labels to propagate to the NodePool Nodes
    * The good example of the label is `node-role.kubernetes.io/master: ""`
    */
-  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" ""
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
