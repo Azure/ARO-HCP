@@ -136,3 +136,7 @@ resourceGroups:
       configRef: cxKeyVault.name
     - name: CX_MI_KV_NAME
       configRef: msiKeyVault.name
+    - name: TRACING_ADDRESS
+      configRef: clusterService.tracing.address
+    - name: TRACING_EXPORTER
+      configRef: clusterService.tracing.exporter

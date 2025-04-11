@@ -76,8 +76,10 @@ deploy:
 	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
+	  --set tracing.address=${TRACING_ADDRESS} \
+	  --set tracing.exporter=${TRACING_EXPORTER} \
 	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
-      --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}"
+	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}"
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
