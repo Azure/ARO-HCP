@@ -90,5 +90,8 @@ jobs:
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     - name: Deploy Automation Account
       run: |
+        # https://github.com/actions/runner-images/issues/11987
+        az config set bicep.use_binary_from_path=false
+        az bicep install
         cd dev-infrastructure/
         make automation-account
