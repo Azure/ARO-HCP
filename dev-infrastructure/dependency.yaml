@@ -1,0 +1,11 @@
+- Name: Region
+  Child:
+    - Name: Service.Infra
+      Child:
+        - Name: Management.Infra
+          Child:
+            - Name: MaestroAgent
+            - Name: MaestroServer
+            - Name: Test
+- Name: Global
+- Name: Global.ACR
