@@ -59,17 +59,17 @@ spec:
         - name: OPERAND_IMAGE_ADDON_MANAGER
           value: '{{ .Values.imageRegistry }}/multicluster-engine/addon-manager-rhel9@sha256:25cdce9461a24748fc6631fa4394b813deabdb27d0c95956508d2a38c504a6a9'
         - name: OPERAND_IMAGE_ASSISTED_IMAGE_SERVICE
-          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-image-service-rhel9@sha256:e1623f5819b3c3a1c79584846eb09c92583a3e88b47fd421d6b72ceccee857d0'
+          value: 'quay.io/edge-infrastructure/assisted-image-service@sha256:007f0b23d6e3f52837f44d3b4f02565e0121967e8b64e75dc38ba1b1d48e58c2'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER
-          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-rhel9@sha256:b030580e10ae9daa3832e1755e80b0638e5de1673b5bca2e34c742e507a900cd'
+          value: 'quay.io/edge-infrastructure/assisted-installer@sha256:7c4e456c16d9f1171a8328485e89d63622a5d1bc24c6e553031119b8027f3384'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER_AGENT
-          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-agent-rhel9@sha256:2e71067d7e28e0b9e8463653be16b9bad711f3f05b0007dabd5282b88f32df05'
+          value: 'quay.io/edge-infrastructure/assisted-installer-agent@sha256:b9cf4a9246eb3eb2d71dc17f6034c875be9c7d63120fa5a683b975dd878e6b20'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER_CONTROLLER
-          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-installer-controller-rhel9@sha256:07eb099581b1c8b65a05e80f876b58ac4fa9e3435634db52de5a22010cb7aeff'
+          value: 'quay.io/edge-infrastructure/assisted-installer-controller@sha256:6fd6d481b66b78853214fbce28acbd45fd9345480c70b8775078ce44ba3d2ab8'
         - name: OPERAND_IMAGE_ASSISTED_SERVICE_8
-          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-service-8-rhel8@sha256:e8260d0a6187638cc1a2219d553b8a681a026c80621335c6984675cef308aa57'
+          value: 'quay.io/edge-infrastructure/assisted-service-el8@sha256:bb487fc7121a26be374792ccb6eeed7ac8a521fa78876eec87807a5da7da5121'
         - name: OPERAND_IMAGE_ASSISTED_SERVICE_9
-          value: '{{ .Values.imageRegistry }}/multicluster-engine/assisted-service-9-rhel9@sha256:0e34d52ac6173678a7a7ebdc0ea9554c47876f2dcb4526a815a541d3762a5a5f'
+          value: 'quay.io/edge-infrastructure/assisted-service@sha256:b0748fb8c0fcfacea90fac2ad7d69e32291714bde5bfbada30b9fe6e206db212'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: '{{ .Values.imageRegistry }}/multicluster-engine/must-gather-rhel9@sha256:8d7dd9a280551430eb9cb57709c8e0f6dc135bab306ed34b57b13d07d05e9719'
         - name: OPERAND_IMAGE_CLUSTER_API
@@ -125,12 +125,12 @@ spec:
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
           value: '{{ .Values.imageRegistry }}/multicluster-engine/backplane-rhel9-operator@sha256:8c2f526398df56f92bfc62af8e42c3e373c236ab67e58e877cf9690fc480d46a'
         - name: OPERAND_IMAGE_POSTGRESQL_12
-          value: '{{ .Values.imageRegistry }}/rhel8/postgresql-12@sha256:82d171ab0ce78a0157408662155b53d4f637947a303bfecb684f6132f5f468be'
+          value: 'quay.io/sclorg/postgresql-12-c8s@sha256:663089471e999a4175341ac4d97dcff9cd15ec5f2e96b2309dc8de806106198b'
         - name: OPERATOR_VERSION
           value: 2.7.0
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: '{{ .Values.imageRegistry }}/multicluster-engine/backplane-rhel9-operator@sha256:8c2f526398df56f92bfc62af8e42c3e373c236ab67e58e877cf9690fc480d46a'
+        image: quay.io/jianzzha/backplane-operator@sha256:b097c9b2921e557d20ddc9ac51b16d96225bfcd5a1d6a7ed13ec8e9114ddbe5b
         livenessProbe:
           httpGet:
             path: /healthz
