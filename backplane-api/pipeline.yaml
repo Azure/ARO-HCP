@@ -26,8 +26,6 @@ resourceGroups:
       configRef: backplaneAPI.image.digest
     - name: SERVICE_KEY_VAULT
       configRef: serviceKeyVault.name
-    - name: CERTIFICATE_NAME
-      configRef: backplane.cert.name
     - name: ISTO_TAG
       configRef: svc.istio.tag
     - name: OCM_URL
