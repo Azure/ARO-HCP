@@ -24,6 +24,7 @@ jobs:
         az bicep install -v v0.33.93
         az bicep version
         make fmt
+        make modules/metrics/rules/generatedPrometheusAlertingRules.bicep
         make lint
     - name: Check for uncommitted changes
       working-directory: './dev-infrastructure'
