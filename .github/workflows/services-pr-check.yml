@@ -115,6 +115,9 @@ jobs:
     - name: 'Dry Run Maestro Agent'
       run: |
         make maestro.agent.dry_run
+    - name: 'Dry Run Backplane API'
+      run: |
+        make backplane-api.dry_run
     - name: 'Dry Run PKO'
       run: |
         make pko.dry_run
