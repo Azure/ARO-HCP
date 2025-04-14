@@ -263,7 +263,7 @@ clouds:
         image:
           registry: quay.io
           repository: app-sre/backplane-api
-          digest: sha256:45d126412f957c7196ae5601ca1844f4bc955bfda59a451fd41875220cd113d5
+          digest: '' # if empty uses commit sha of repo
       # Frontend
       frontend:
         image:

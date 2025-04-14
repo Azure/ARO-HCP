@@ -27,6 +27,12 @@
       "repository": "arohcpbackend"
     }
   },
+  "backplaneAPI": {
+    "image": {
+      "registry": "quay.io",
+      "repository": "app-sre/backplane-api"
+    }
+  },
   "clusterService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
