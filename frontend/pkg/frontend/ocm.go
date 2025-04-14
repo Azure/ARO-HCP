@@ -135,7 +135,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				URL:        cluster.API().URL(),
 				Visibility: convertListeningToVisibility(cluster.API().Listening()),
 			},
-			DisableUserWorkloadMonitoring: cluster.DisableUserWorkloadMonitoring(),
 			Platform: api.PlatformProfile{
 				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
 				SubnetID:               cluster.Azure().SubnetResourceID(),
@@ -221,9 +220,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 			requestHeader.Get(arm.HeaderNameIdentityURL),
 		)
 	}
-
-	clusterBuilder = clusterBuilder.
-		DisableUserWorkloadMonitoring(hcpCluster.Properties.DisableUserWorkloadMonitoring)
 
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 

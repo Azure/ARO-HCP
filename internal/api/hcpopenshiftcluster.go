@@ -16,15 +16,14 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState             arm.ProvisioningState      `json:"provisioningState,omitempty"             visibility:"read"`
-	Version                       VersionProfile             `json:"version,omitempty"                       visibility:"read create"`
-	DNS                           DNSProfile                 `json:"dns,omitempty"                           visibility:"read create update"`
-	Network                       NetworkProfile             `json:"network,omitempty"                       visibility:"read create"`
-	Console                       ConsoleProfile             `json:"console,omitempty"                       visibility:"read"`
-	API                           APIProfile                 `json:"api,omitempty"                           visibility:"read create"`
-	DisableUserWorkloadMonitoring bool                       `json:"disableUserWorkloadMonitoring,omitempty" visibility:"read create update"`
-	Platform                      PlatformProfile            `json:"platform,omitempty"                      visibility:"read create"`
-	Capabilities                  ClusterCapabilitiesProfile `json:"capabilities,omitempty"                  visibility:"read create"`
+	ProvisioningState arm.ProvisioningState      `json:"provisioningState,omitempty"             visibility:"read"`
+	Version           VersionProfile             `json:"version,omitempty"                       visibility:"read create"`
+	DNS               DNSProfile                 `json:"dns,omitempty"                           visibility:"read create update"`
+	Network           NetworkProfile             `json:"network,omitempty"                       visibility:"read create"`
+	Console           ConsoleProfile             `json:"console,omitempty"                       visibility:"read"`
+	API               APIProfile                 `json:"api,omitempty"                           visibility:"read create"`
+	Platform          PlatformProfile            `json:"platform,omitempty"                      visibility:"read create"`
+	Capabilities      ClusterCapabilitiesProfile `json:"capabilities,omitempty"                  visibility:"read create"`
 }
 
 // VersionProfile represents the cluster control plane version.

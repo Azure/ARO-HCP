@@ -487,7 +487,6 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "capabilities", h.Capabilities)
 	populate(objectMap, "console", h.Console)
 	populate(objectMap, "dns", h.DNS)
-	populate(objectMap, "disableUserWorkloadMonitoring", h.DisableUserWorkloadMonitoring)
 	populate(objectMap, "network", h.Network)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
@@ -516,9 +515,6 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		case "dns":
 			err = unpopulate(val, "DNS", &h.DNS)
 			delete(rawMsg, key)
-		case "disableUserWorkloadMonitoring":
-			err = unpopulate(val, "DisableUserWorkloadMonitoring", &h.DisableUserWorkloadMonitoring)
-			delete(rawMsg, key)
 		case "network":
 			err = unpopulate(val, "Network", &h.Network)
 			delete(rawMsg, key)
@@ -545,7 +541,6 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 func (h HcpOpenShiftClusterPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "dns", h.DNS)
-	populate(objectMap, "disableUserWorkloadMonitoring", h.DisableUserWorkloadMonitoring)
 	return json.Marshal(objectMap)
 }
 
@@ -560,9 +555,6 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "dns":
 			err = unpopulate(val, "DNS", &h.DNS)
-			delete(rawMsg, key)
-		case "disableUserWorkloadMonitoring":
-			err = unpopulate(val, "DisableUserWorkloadMonitoring", &h.DisableUserWorkloadMonitoring)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)

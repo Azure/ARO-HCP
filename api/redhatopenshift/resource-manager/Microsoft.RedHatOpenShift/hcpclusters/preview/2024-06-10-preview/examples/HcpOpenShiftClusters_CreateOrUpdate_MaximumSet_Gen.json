@@ -24,7 +24,6 @@
         "api": {
           "visibility": "public"
         },
-        "disableUserWorkloadMonitoring": true,
         "platform": {
           "managedResourceGroup": "nhyhywrxupo",
           "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",

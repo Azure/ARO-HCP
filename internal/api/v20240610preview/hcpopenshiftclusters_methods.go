@@ -111,15 +111,14 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				UserAssignedIdentities: convertUserAssignedIdentities(from.Identity.UserAssignedIdentities),
 			},
 			Properties: &generated.HcpOpenShiftClusterProperties{
-				ProvisioningState:             api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Version:                       newVersionProfile(&from.Properties.Version),
-				DNS:                           newDNSProfile(&from.Properties.DNS),
-				Network:                       newNetworkProfile(&from.Properties.Network),
-				Console:                       newConsoleProfile(&from.Properties.Console),
-				API:                           newAPIProfile(&from.Properties.API),
-				DisableUserWorkloadMonitoring: api.Ptr(from.Properties.DisableUserWorkloadMonitoring),
-				Platform:                      newPlatformProfile(&from.Properties.Platform),
-				Capabilities:                  newClusterCapabilitiesProfile(&from.Properties.Capabilities),
+				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				Version:           newVersionProfile(&from.Properties.Version),
+				DNS:               newDNSProfile(&from.Properties.DNS),
+				Network:           newNetworkProfile(&from.Properties.Network),
+				Console:           newConsoleProfile(&from.Properties.Console),
+				API:               newAPIProfile(&from.Properties.API),
+				Platform:          newPlatformProfile(&from.Properties.Platform),
+				Capabilities:      newClusterCapabilitiesProfile(&from.Properties.Capabilities),
 			},
 		},
 	}
@@ -213,9 +212,6 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.API != nil {
 				normalizeAPI(c.Properties.API, &out.Properties.API)
-			}
-			if c.Properties.DisableUserWorkloadMonitoring != nil {
-				out.Properties.DisableUserWorkloadMonitoring = *c.Properties.DisableUserWorkloadMonitoring
 			}
 			if c.Properties.Platform != nil {
 				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
