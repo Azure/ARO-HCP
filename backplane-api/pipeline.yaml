@@ -28,7 +28,7 @@ resourceGroups:
           - name: AKS_NAME
             configRef: svc.aks.name
           - name: COMMIT
-            configRef: backplane.imageTag.digest
+            configRef: backplaneAPI.imageTag.digest
           - name: SERVICE_KEY_VAULT
             configRef: serviceKeyVault.name
           - name: CERTIFICATE_NAME
