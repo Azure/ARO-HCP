@@ -360,6 +360,13 @@ local-cs-permissions: svc.dev.permissions mgmt.dev.permissions
 .PHONY: local-cs-permissions
 
 #
+# Generated Prometheus Rules
+#
+modules/metrics/rules/generatedPrometheusAlertingRules.bicep:
+	$(MAKE) -C ./../tooling/prometheus-rules/ prometheus-rules
+	./../tooling/prometheus-rules/prometheus-rules --input-rules ./../tooling/prometheus-rules/kubernetesControlPlane-prometheusRule.yaml --output-bicep $@
+
+#
 # Automation Account creation
 #
 automation-account:
