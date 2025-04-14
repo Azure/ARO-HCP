@@ -65,10 +65,6 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read)
   api?: ApiProfile;
 
-  /** Disable user workload monitoring */
-  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  disableUserWorkloadMonitoring?: boolean = false;
-
   /** Azure platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: PlatformProfile;

@@ -1146,16 +1146,6 @@
           "description": "Shows the cluster API server profile",
           "readOnly": true
         },
-        "disableUserWorkloadMonitoring": {
-          "type": "boolean",
-          "description": "Disable user workload monitoring",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
-        },
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
           "description": "Azure platform configuration",
@@ -1184,16 +1174,6 @@
         "dns": {
           "$ref": "#/definitions/DnsProfile",
           "description": "Cluster DNS configuration"
-        },
-        "disableUserWorkloadMonitoring": {
-          "type": "boolean",
-          "description": "Disable user workload monitoring",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
         }
       }
     },

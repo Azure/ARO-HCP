@@ -168,9 +168,6 @@ type HcpOpenShiftClusterProperties struct {
 	// Cluster DNS configuration
 	DNS *DNSProfile
 
-	// Disable user workload monitoring
-	DisableUserWorkloadMonitoring *bool
-
 	// Cluster network configuration
 	Network *NetworkProfile
 
@@ -191,9 +188,6 @@ type HcpOpenShiftClusterProperties struct {
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Cluster DNS configuration
 	DNS *DNSProfile
-
-	// Disable user workload monitoring
-	DisableUserWorkloadMonitoring *bool
 }
 
 // HcpOpenShiftClusterUpdate - HCP cluster resource
