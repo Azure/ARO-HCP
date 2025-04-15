@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
@@ -377,8 +378,24 @@ func formatDuration(d *monitoringv1.Duration) *string {
 	if d == nil {
 		return nil
 	}
+
+	parsedDuration, err := model.ParseDuration(string(*d))
+	if err != nil {
+		logrus.Fatalf("Invalid duration %s", string(*d))
+	}
+
+	minduration, err := model.ParseDuration("1m")
+	if err != nil {
+		logrus.Fatalf("Invalid duration %s", string(*d))
+	}
+
+	if parsedDuration < minduration {
+		logrus.Warningf("Duration '%s' is too short, setting default of 1M", parsedDuration.String())
+		return ptr.To("PT1M")
+	}
+
 	// TODO: this is likely not precisely correct, but /shrug
-	return ptr.To("PT" + strings.ToUpper(string(*d)))
+	return ptr.To("PT" + strings.ToUpper(parsedDuration.String()))
 }
 
 func severityFor(labels map[string]*string) *int32 {

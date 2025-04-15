@@ -263,7 +263,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'warning'
         }
         annotations: {
-          description: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource requests for Pods by {{ $value }} CPU shares and cannot tolerate node failure.'
+          description: 'Cluster {{ $labels.cluster }} has overcommitted CPU resource requests for Pods by {{ printf "%.2f" $value }} CPU shares and cannot tolerate node failure.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecpuovercommit'
           summary: 'Cluster has overcommitted CPU resource requests.'
         }
@@ -308,7 +308,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'warning'
         }
         annotations: {
-          description: 'Cluster {{ $labels.cluster }}  has overcommitted memory resource requests for Namespaces.'
+          description: 'Cluster {{ $labels.cluster }} has overcommitted memory resource requests for Namespaces.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubememoryquotaovercommit'
           summary: 'Cluster has overcommitted memory resource requests.'
         }
@@ -786,7 +786,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Node is evicting pods.'
         }
         expression: 'sum(rate(kubelet_evictions{job="kubelet", metrics_path="/metrics"}[15m])) by(cluster, eviction_signal, instance) * on (cluster, instance) group_left(node) max by (cluster, instance, node) (   kubelet_node_name{job="kubelet", metrics_path="/metrics"} ) > 0'
-        for: 'PT0S'
+        for: 'PT1M'
         severity: 4
       }
       {
