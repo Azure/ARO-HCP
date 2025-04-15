@@ -27,6 +27,13 @@
       "repository": "arohcpbackend"
     }
   },
+  "backplaneAPI": {
+    "image": {
+      "digest": "sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6",
+      "registry": "arohcpsvcdev.azurecr.io",
+      "repository": "app-sre/backplane-api"
+    }
+  },
   "clusterService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
@@ -148,7 +155,7 @@
         "repository": "image-sync/component-sync"
       },
       "pullSecretName": "component-sync-pull-secret",
-      "repositories": "quay.io/app-sre/backplane-api,quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager",
+      "repositories": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/app-sre/backplane-api",
       "secrets": "quay.io:quay-io-bearer"
     },
     "environmentName": "aro-hcp-image-sync",

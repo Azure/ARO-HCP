@@ -49,6 +49,10 @@ defaults:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
       digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+  backplaneAPI:
+    image:
+      registry: quay.io
+      repository: app-sre/backplane-api
   # Logs
   logs:
     mdsd:

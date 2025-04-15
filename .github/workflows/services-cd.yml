@@ -82,6 +82,9 @@ jobs:
     - name: 'Deploy Maestro'
       run: |
         make maestro.server.deploy_pipeline
+      # - name: 'Deploy Backplane API'
+      #  run: |
+      #     make backplane-api.deploy_pipeline
     - name: 'Deploy CS PR check environment dressup'
       if: inputs.deploy_cs_pr_check_deps
       run: |

@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: '{{ .Release.Name  }}'
+spec:
+  serviceName: '{{ .Release.Name  }}'
+  replicas: {{ .Values.statefulset.replicaCount }}
+  podManagementPolicy: '{{ .Values.statefulset.podManagementPolicy  }}'
+  revisionHistoryLimit: '{{ .Values.statefulset.revisionHistoryLimit  }}'
+  updateStrategy:
+    type: '{{ .Values.statefulset.updateStrategy  }}'
+  selector:
+    matchLabels:
+      app: '{{ .Release.Name  }}'
+  template:
+    metadata:
+      labels:
+        app: backplane-api
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: '{{ .Values.serviceAccount.name  }}'
+      containers:
+      - name: backplane-api
+        image: "{{ .Values.statefulset.imageName }}"

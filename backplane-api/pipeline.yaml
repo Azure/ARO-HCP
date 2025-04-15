@@ -1,0 +1,40 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.RP.Backplane
+rolloutName: RP Backplane API Rollout
+resourceGroups:
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .svc.aks.name  }}'
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ARO_HCP_IMAGE_ACR
+      configRef: acr.svc.name
+    - name: LOCATION
+      configRef: region
+    - name: RESOURCEGROUP
+      configRef: svc.rg
+    - name: AKS_NAME
+      configRef: svc.aks.name
+    - name: COMMIT
+      configRef: backplaneAPI.image.digest
+    - name: SERVICE_KEY_VAULT
+      configRef: serviceKeyVault.name
+    - name: ISTO_TAG
+      configRef: svc.istio.tag
+    - name: OCM_URL
+      value: "https://api.stage.openshift.com"
+    - name: BACKPLANE_SECRET_NAME
+      value: "ocm"
+    - name: BACKPLANE_TLS_SECRET
+      value: "backplane-api-tls"
+    - name: CS_NAMESPACE
+      configRef: clusterService.k8s.namespace
+    - name: CS_SERVICE_ACCOUNT_NAME
+      configRef: clusterService.k8s.serviceAccountName

@@ -1,0 +1,35 @@
+replicaCount: 2
+image:
+  repository: ""
+  tag: ""
+istio:
+  enabled: true
+  ingressNamespace: "aks-istio-ingress"
+  ingressPort: "8443"
+credsKeyVault:
+  name: ""
+  secret: ""
+statefulset:
+  imageName: ""
+  replicaCount: 2
+  podManagementPolicy: "Parallel"
+  revisionHistoryLimit: 10
+  updateStrategy: "RollingUpdate"
+  persistentVolume:
+    size: "1Gi"
+    storageClassName: "default"
+service:
+  name: backplane-api
+  type: ClusterIP
+  port: 443
+  targetPort: 8001
+  tlsSecretName: backplane-api-tls
+serviceAccount:
+  name: "backplane-api"
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""
+pullBinding:
+  registry: ""
+  scope: ""
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: backplane-api
+description: A Helm chart for deploying the Backplane API Proxy Service
+type: application
+version: 1.0.0
+appVersion: 1.0.0

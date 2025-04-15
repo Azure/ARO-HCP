@@ -166,7 +166,7 @@ defaults:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/component-sync
         digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
-      repositories: quay.io/app-sre/backplane-api,quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager
+      repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/app-sre/backplane-api
       secrets: 'quay.io:quay-io-bearer'
       pullSecretName: component-sync-pull-secret
     ocMirror:
@@ -258,6 +258,12 @@ clouds:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
           digest: sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef
+      # Backplane API
+      backplaneAPI:
+        image:
+          registry: arohcpsvcdev.azurecr.io
+          repository: app-sre/backplane-api
+          digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
       # Frontend
       frontend:
         image:
