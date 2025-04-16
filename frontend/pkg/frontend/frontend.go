@@ -310,6 +310,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
+	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
 	if err != nil {
 		logger.Error(err.Error())

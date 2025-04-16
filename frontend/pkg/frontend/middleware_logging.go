@@ -62,6 +62,7 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 		"request_path", r.URL.Path,
 		"request_proto", r.Proto,
 		"request_query", r.URL.RawQuery,
+		"request_referer", r.Referer(),
 		"request_remote_addr", r.RemoteAddr,
 		"request_user_agent", r.UserAgent())
 

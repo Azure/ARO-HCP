@@ -48,6 +48,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 
 	mux := NewMiddlewareMux(
 		MiddlewarePanic,
+		MiddlewareReferer,
 		metricsMiddleware.Metrics(),
 		MiddlewareCorrelationData,
 		MiddlewareTracing,

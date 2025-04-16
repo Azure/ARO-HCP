@@ -25,15 +25,8 @@ import (
 func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, doc *database.OperationDocument) {
 	logger := LoggerFromContext(request.Context())
 
-	// ARM will always add a Referer header, but
-	// requests from test environments might not.
-	referer := request.Referer()
-	if referer == "" {
-		logger.Info("Omitting " + arm.HeaderNameAsyncOperation + " header: no referer")
-		return
-	}
-
-	u, err := url.ParseRequestURI(referer)
+	// MiddlewareReferer ensures Referer is present.
+	u, err := url.ParseRequestURI(request.Referer())
 	if err != nil {
 		logger.Error(err.Error())
 		return
@@ -56,15 +49,8 @@ func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *
 func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.Request, doc *database.OperationDocument) {
 	logger := LoggerFromContext(request.Context())
 
-	// ARM will always add a Referer header, but
-	// requests from test environments might not.
-	referer := request.Referer()
-	if referer == "" {
-		logger.Info("Omitting Location header: no referer")
-		return
-	}
-
-	u, err := url.ParseRequestURI(referer)
+	// MiddlewareReferer ensures Referer is present.
+	u, err := url.ParseRequestURI(request.Referer())
 	if err != nil {
 		logger.Error(err.Error())
 		return
