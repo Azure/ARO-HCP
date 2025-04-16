@@ -14,8 +14,8 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
-func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemplateFile string, vars config.Variables, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
-	template, params, err := transformParameters(ctx, vars, inputs, bicepParameterTemplateFile)
+func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemplateFile string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
+	template, params, err := transformParameters(ctx, cfg, inputs, bicepParameterTemplateFile)
 	if err != nil {
 		return nil, err
 	}
@@ -26,8 +26,8 @@ func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemp
 	}, nil
 }
 
-func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFile string, vars config.Variables, inputs map[string]any) (*armresources.DeploymentProperties, error) {
-	template, params, err := transformParameters(ctx, vars, inputs, bicepParameterTemplateFile)
+func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFile string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentProperties, error) {
+	template, params, err := transformParameters(ctx, cfg, inputs, bicepParameterTemplateFile)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +38,8 @@ func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFi
 	}, nil
 }
 
-func transformParameters(ctx context.Context, vars config.Variables, inputs map[string]any, bicepParameterTemplateFile string) (map[string]interface{}, map[string]interface{}, error) {
-	bicepParamContent, err := config.PreprocessFile(bicepParameterTemplateFile, vars)
+func transformParameters(ctx context.Context, cfg config.Configuration, inputs map[string]any, bicepParameterTemplateFile string) (map[string]interface{}, map[string]interface{}, error) {
+	bicepParamContent, err := config.PreprocessFile(bicepParameterTemplateFile, cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to preprocess file: %w", err)
 	}

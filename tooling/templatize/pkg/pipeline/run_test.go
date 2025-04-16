@@ -116,7 +116,7 @@ func TestArmGetValue(t *testing.T) {
 func TestAddInputVars(t *testing.T) {
 	testCases := []struct {
 		name          string
-		cfg           config.Variables
+		cfg           config.Configuration
 		input         map[string]output
 		stepVariables []Variable
 		expected      map[string]any
@@ -197,8 +197,8 @@ func TestAddInputVars(t *testing.T) {
 		},
 		{
 			name: "configref",
-			cfg: config.Variables{
-				"some": config.Variables{
+			cfg: config.Configuration{
+				"some": config.Configuration{
 					"config": "bar",
 				},
 			},
@@ -212,8 +212,8 @@ func TestAddInputVars(t *testing.T) {
 		},
 		{
 			name: "configref missing",
-			cfg: config.Variables{
-				"some": config.Variables{
+			cfg: config.Configuration{
+				"some": config.Configuration{
 					"config": "bar",
 				},
 			},

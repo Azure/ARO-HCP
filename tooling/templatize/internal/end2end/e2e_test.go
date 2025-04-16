@@ -46,7 +46,7 @@ func TestE2EMake(t *testing.T) {
 		0,
 	)
 
-	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"test_env": "test_env"}})
+	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"test_env": "test_env"}})
 
 	e2eImpl.makefile = `
 test:
@@ -70,7 +70,7 @@ func TestE2EKubernetes(t *testing.T) {
 	e2eImpl.AddStep(pipeline.NewShellStep("test", "kubectl get namespaces"), 0)
 	e2eImpl.SetAKSName("dev-svc")
 
-	e2eImpl.SetConfig(config.Variables{"defaults": config.Variables{"rg": "hcp-underlay-dev-svc"}})
+	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"rg": "hcp-underlay-dev-svc"}})
 
 	persistAndRun(t, &e2eImpl)
 }

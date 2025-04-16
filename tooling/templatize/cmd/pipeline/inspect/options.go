@@ -115,7 +115,7 @@ func (o *ValidatedInspectOptions) Complete() (*InspectOptions, error) {
 
 func (o *InspectOptions) RunInspect(ctx context.Context) error {
 	rolloutOptions := o.PipelineOptions.RolloutOptions
-	variables, err := rolloutOptions.Options.ConfigProvider.GetVariables(
+	variables, err := rolloutOptions.Options.ConfigProvider.GetDeployEnvRegionConfiguration(
 		rolloutOptions.Cloud,
 		rolloutOptions.DeployEnv,
 		rolloutOptions.Region,

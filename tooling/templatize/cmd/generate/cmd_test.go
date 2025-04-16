@@ -17,7 +17,7 @@ import (
 func TestExecuteTemplate(t *testing.T) {
 	for _, testCase := range []struct {
 		name  string
-		vars  config.Variables
+		vars  config.Configuration
 		input string
 
 		expected      string
@@ -25,7 +25,7 @@ func TestExecuteTemplate(t *testing.T) {
 	}{
 		{
 			name: "happy case generates a file",
-			vars: config.Variables{
+			vars: config.Configuration{
 				"region_maestro_keyvault":    "kv",
 				"region_eventgrid_namespace": "ns",
 			},
@@ -38,7 +38,7 @@ param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 		},
 		{
 			name: "referencing unset variable errors",
-			vars: config.Variables{
+			vars: config.Configuration{
 				"region_maestro_keyvault": "kv",
 			},
 			input: `param maestroKeyVaultName = '{{ .region_maestro_keyvault }}'

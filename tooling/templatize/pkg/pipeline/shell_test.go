@@ -85,7 +85,7 @@ func TestCreateCommand(t *testing.T) {
 func TestMapStepVariables(t *testing.T) {
 	testCases := []struct {
 		name     string
-		vars     config.Variables
+		cfg      config.Configuration
 		input    map[string]output
 		step     *ShellStep
 		expected map[string]string
@@ -93,7 +93,7 @@ func TestMapStepVariables(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			vars: config.Variables{
+			cfg: config.Configuration{
 				"FOO": "bar",
 			},
 			step: &ShellStep{
@@ -110,7 +110,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "missing",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Variables: []Variable{
 					{
@@ -122,7 +122,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "type conversion",
-			vars: config.Variables{
+			cfg: config.Configuration{
 				"FOO": 42,
 			},
 			step: &ShellStep{
@@ -139,7 +139,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "value",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Variables: []Variable{
 					{
@@ -154,7 +154,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "output chaining",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Variables: []Variable{
 					{
@@ -180,7 +180,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "output chaining step missing",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Variables: []Variable{
 					{
@@ -196,7 +196,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "output chaining output missing",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Variables: []Variable{
 					{
@@ -221,7 +221,7 @@ func TestMapStepVariables(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			envVars, err := tc.step.mapStepVariables(tc.vars, tc.input)
+			envVars, err := tc.step.mapStepVariables(tc.cfg, tc.input)
 			t.Log(envVars)
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)
@@ -236,20 +236,20 @@ func TestMapStepVariables(t *testing.T) {
 func TestRunShellStep(t *testing.T) {
 	testCases := []struct {
 		name string
-		vars config.Variables
+		cfg  config.Configuration
 		step *ShellStep
 		err  string
 	}{
 		{
 			name: "basic",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Command: "echo hello",
 			},
 		},
 		{
 			name: "test nounset",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Command: "echo $DOES_NOT_EXIST",
 			},
@@ -257,7 +257,7 @@ func TestRunShellStep(t *testing.T) {
 		},
 		{
 			name: "test errexit",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Command: "false ; echo hello",
 			},
@@ -265,7 +265,7 @@ func TestRunShellStep(t *testing.T) {
 		},
 		{
 			name: "test pipefail",
-			vars: config.Variables{},
+			cfg:  config.Configuration{},
 			step: &ShellStep{
 				Command: "false | echo",
 			},

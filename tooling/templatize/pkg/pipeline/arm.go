@@ -89,10 +89,10 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.deploymentClient, rgName, step, options.Vars, input)
+		return doWaitForDeployment(ctx, a.deploymentClient, rgName, step, options.Configuration, input)
 	}
 
-	return doDryRun(ctx, a.deploymentClient, rgName, step, options.Vars, input)
+	return doDryRun(ctx, a.deploymentClient, rgName, step, options.Configuration, input)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
@@ -171,15 +171,15 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, cfg config.Configuration, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	inputValues, err := getInputValues(step.Variables, vars, input)
+	inputValues, err := getInputValues(step.Variables, cfg, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, step.Parameters, vars, inputValues)
+	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, step.Parameters, cfg, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
@@ -245,15 +245,15 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, vars config.Variables, input map[string]output) (output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, cfg config.Configuration, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	inputValues, err := getInputValues(step.Variables, vars, input)
+	inputValues, err := getInputValues(step.Variables, cfg, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, vars, inputValues)
+	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, cfg, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}

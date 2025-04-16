@@ -92,7 +92,7 @@ func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
 
 func (o *RunOptions) RunPipeline(ctx context.Context) error {
 	rolloutOptions := o.PipelineOptions.RolloutOptions
-	variables, err := rolloutOptions.Options.ConfigProvider.GetVariables(
+	variables, err := rolloutOptions.Options.ConfigProvider.GetDeployEnvRegionConfiguration(
 		rolloutOptions.Cloud,
 		rolloutOptions.DeployEnv,
 		rolloutOptions.Region,
@@ -107,7 +107,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 	}
 	_, err = pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
 		DryRun:                   o.DryRun,
-		Vars:                     variables,
+		Configuration:            variables,
 		Region:                   rolloutOptions.Region,
 		Step:                     o.PipelineOptions.Step,
 		SubsciptionLookupFunc:    pipeline.LookupSubscriptionID,

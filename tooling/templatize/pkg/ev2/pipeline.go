@@ -14,8 +14,8 @@ import (
 
 const precompiledPrefix = "ev2-precompiled-"
 
-func PrecompilePipelineFileForEV2(pipelineFilePath string, vars config.Variables) (string, error) {
-	precompiledPipeline, err := PrecompilePipelineForEV2(pipelineFilePath, vars)
+func PrecompilePipelineFileForEV2(pipelineFilePath string, cfg config.Configuration) (string, error) {
+	precompiledPipeline, err := PrecompilePipelineForEV2(pipelineFilePath, cfg)
 	if err != nil {
 		return "", err
 	}
@@ -33,9 +33,9 @@ func PrecompilePipelineFileForEV2(pipelineFilePath string, vars config.Variables
 	return precompiledPipeline.PipelineFilePath(), nil
 }
 
-func PrecompilePipelineForEV2(pipelineFilePath string, vars config.Variables) (*pipeline.Pipeline, error) {
+func PrecompilePipelineForEV2(pipelineFilePath string, cfg config.Configuration) (*pipeline.Pipeline, error) {
 	// load the pipeline and referenced files
-	originalPipeline, err := pipeline.NewPipelineFromFile(pipelineFilePath, vars)
+	originalPipeline, err := pipeline.NewPipelineFromFile(pipelineFilePath, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func PrecompilePipelineForEV2(pipelineFilePath string, vars config.Variables) (*
 	}
 
 	// precompile the pipeline and referenced files
-	processedPipeline, processedFiles, err := processPipelineForEV2(originalPipeline, referencedFiles, vars)
+	processedPipeline, processedFiles, err := processPipelineForEV2(originalPipeline, referencedFiles, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -86,13 +86,13 @@ func readReferencedPipelineFiles(p *pipeline.Pipeline) (map[string][]byte, error
 	return referencedFiles, nil
 }
 
-func processPipelineForEV2(p *pipeline.Pipeline, referencedFiles map[string][]byte, vars config.Variables) (*pipeline.Pipeline, map[string][]byte, error) {
+func processPipelineForEV2(p *pipeline.Pipeline, referencedFiles map[string][]byte, cfg config.Configuration) (*pipeline.Pipeline, map[string][]byte, error) {
 	processingPipeline, err := p.DeepCopy(buildPrefixedFilePath(p.PipelineFilePath(), precompiledPrefix))
 	if err != nil {
 		return nil, nil, err
 	}
 	processedFiles := make(map[string][]byte)
-	_, scopeBoundBicepParamVars := EV2Mapping(vars, NewBicepParamPlaceholders(), []string{})
+	_, scopeBoundBicepParamVars := EV2Mapping(cfg, NewBicepParamPlaceholders(), []string{})
 	for _, rg := range processingPipeline.ResourceGroups {
 		for _, step := range rg.Steps {
 			// preprocess the parameters file with scopebinding variables
