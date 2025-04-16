@@ -16,6 +16,5 @@ clean:
 
 .PHONY: clean
 
-kubernetesControlPlane-prometheusRule.yaml:
-	mkdir -p $(dir $@)
-	wget --quiet --output-document=$@ https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/refs/heads/main/manifests/$(notdir $@)
+run: 
+	go run ./...  --config-file ../../observability/observability.yaml
