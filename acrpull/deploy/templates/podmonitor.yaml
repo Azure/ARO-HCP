@@ -9,6 +9,7 @@ metadata:
 spec:
   podMetricsEndpoints:
   - port: metrics
+    path: /metrics
   selector:
     matchLabels:
       app.kubernetes.io/name: acrpull
