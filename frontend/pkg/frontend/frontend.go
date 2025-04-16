@@ -486,7 +486,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	cloudError = versionedRequestCluster.ValidateStatic(versionedCurrentCluster, updating, request.Method)
+	cloudError = versionedRequestCluster.ValidateStatic(versionedCurrentCluster, updating, request)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -929,7 +929,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	cloudError := api.ValidateSubscription(&subscription)
+	cloudError := api.ValidateSubscription(&subscription, request)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -1026,7 +1026,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(api.ClusterResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
 			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, request.Method, preflightResource)
+			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
 			if len(resourceErrors) > 0 {
 				// Preflight is best-effort: a malformed resource is not a validation failure.
 				logger.Warn(
@@ -1047,12 +1047,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a cluster creation request.
-			cloudError = versionedCluster.ValidateStatic(versionedCluster, false, http.MethodPut)
+			cloudError = versionedCluster.ValidateStatic(versionedCluster, false, request)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
 			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, request.Method, preflightResource)
+			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
 			if len(resourceErrors) > 0 {
 				// Preflight is best-effort: a malformed resource is not a validation failure.
 				logger.Warn(
@@ -1073,7 +1073,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, nil, false, http.MethodPut)
+			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, nil, false, request)
 
 		default:
 			// Disregard foreign resource types.
