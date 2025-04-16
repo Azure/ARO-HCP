@@ -16,6 +16,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -40,12 +41,12 @@ var (
 
 type VersionedHCPOpenShiftCluster interface {
 	Normalize(*HCPOpenShiftCluster)
-	ValidateStatic(current VersionedHCPOpenShiftCluster, updating bool, method string) *arm.CloudError
+	ValidateStatic(current VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
 }
 
 type VersionedHCPOpenShiftClusterNodePool interface {
 	Normalize(*HCPOpenShiftClusterNodePool)
-	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, method string) *arm.CloudError
+	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
 }
 
 type Version interface {

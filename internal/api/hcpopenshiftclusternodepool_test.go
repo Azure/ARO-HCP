@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -61,7 +62,10 @@ func TestNodePoolRequiredForPut(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualErrors := ValidateRequest(validate, http.MethodPut, tt.resource)
+			request, err := http.NewRequest(http.MethodPut, "localhost", nil)
+			require.NoError(t, err)
+
+			actualErrors := ValidateRequest(validate, request, tt.resource)
 
 			// from hcpopenshiftcluster_test.go
 			diff := compareErrors(tt.expectErrors, actualErrors)
@@ -269,7 +273,7 @@ func TestNodePoolValidateTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := NodePoolTestCase(t, tt.tweaks)
 
-			actualErrors := ValidateRequest(validate, http.MethodPut, resource)
+			actualErrors := ValidateRequest(validate, nil, resource)
 
 			// from hcpopenshiftcluster_test.go
 			diff := compareErrors(tt.expectErrors, actualErrors)

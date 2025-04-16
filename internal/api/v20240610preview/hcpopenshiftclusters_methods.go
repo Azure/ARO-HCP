@@ -338,7 +338,7 @@ func (c *HcpOpenShiftCluster) validateStaticComplex(normalized *api.HCPOpenShift
 	return errorDetails
 }
 
-func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, method string) *arm.CloudError {
+func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
 	var normalized api.HCPOpenShiftCluster
 	var errorDetails []arm.CloudErrorBody
 
@@ -360,7 +360,7 @@ func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCl
 
 	c.Normalize(&normalized)
 
-	errorDetails = api.ValidateRequest(validate, method, &normalized)
+	errorDetails = api.ValidateRequest(validate, request, &normalized)
 	if errorDetails != nil {
 		cloudError.Details = append(cloudError.Details, errorDetails...)
 	}
