@@ -81,6 +81,10 @@
       "name": "arohcp-cs-cspr",
       "private": false,
       "zoneRedundantMode": "Auto"
+    },
+    "tracing": {
+      "address": "",
+      "exporter": ""
     }
   },
   "cxKeyVault": {
@@ -119,6 +123,10 @@
       "digest": "",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpfrontend"
+    },
+    "tracing": {
+      "address": "",
+      "exporter": ""
     }
   },
   "genevaActions": {

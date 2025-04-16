@@ -81,6 +81,10 @@
       "name": "arohcp-cs-usw3tst",
       "private": false,
       "zoneRedundantMode": "Auto"
+    },
+    "tracing": {
+      "address": "http://jaeger.observability",
+      "exporter": "otlp"
     }
   },
   "cxKeyVault": {
@@ -119,6 +123,10 @@
       "digest": "",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpfrontend"
+    },
+    "tracing": {
+      "address": "http://jaeger.observability",
+      "exporter": "otlp"
     }
   },
   "genevaActions": {

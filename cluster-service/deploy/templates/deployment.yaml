@@ -141,6 +141,11 @@ spec:
         - name: azure-operators-managed-identities-config
           mountPath: /configs/azure-operators-managed-identities-config.yaml
           subPath: azure-operators-managed-identities-config.yaml
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: '{{ .Values.tracing.address  }}'
+        - name: OTEL_TRACES_EXPORTER
+          value: '{{ .Values.tracing.exporter  }}'
         command:
         - /usr/local/bin/clusters-service
         - serve

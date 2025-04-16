@@ -241,3 +241,6 @@ pullBinding:
   scope: ""
   workloadIdentityClientId: ""
   workloadIdentityTenantId: ""
+tracing:
+  address: ""
+  exporter: ""
