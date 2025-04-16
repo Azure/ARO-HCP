@@ -138,6 +138,7 @@ jobs:
       run: |
         # https://github.com/actions/runner-images/issues/11987
         az config set bicep.use_binary_from_path=false
+        az bicep install
         cd dev-infrastructure/
         PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make mgmt
     - name: 'Az CLI login again'
