@@ -10,7 +10,7 @@ import (
 )
 
 func TestMapping(t *testing.T) {
-	testData := config.Variables{
+	testData := config.Configuration{
 		"key1": "value1",
 		"key2": 42,
 		"key3": true,

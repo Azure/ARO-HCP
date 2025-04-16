@@ -47,13 +47,13 @@ func NewBicepParamPlaceholders() PlaceholderGenerator {
 	}
 }
 
-func EV2Mapping(input config.Variables, placeholderGenerator PlaceholderGenerator, prefix []string) (map[string]string, map[string]interface{}) {
-	vars, _ := config.InterfaceToVariables(input)
+func EV2Mapping(input config.Configuration, placeholderGenerator PlaceholderGenerator, prefix []string) (map[string]string, map[string]interface{}) {
+	vars, _ := config.InterfaceToConfiguration(input)
 	output := map[string]string{}
 	replaced := map[string]interface{}{}
 	for key, value := range vars {
 		nestedKey := append(prefix, key)
-		nested, ok := value.(config.Variables)
+		nested, ok := value.(config.Configuration)
 		if ok {
 			flattened, replacement := EV2Mapping(nested, placeholderGenerator, nestedKey)
 			for index, what := range flattened {

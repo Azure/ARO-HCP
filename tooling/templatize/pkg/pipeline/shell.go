@@ -45,7 +45,7 @@ func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, opti
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// build ENV vars
-	stepVars, err := s.mapStepVariables(options.Vars, inputs)
+	stepVars, err := s.mapStepVariables(options.Configuration, inputs)
 	if err != nil {
 		return fmt.Errorf("failed to build env vars: %w", err)
 	}
@@ -76,8 +76,8 @@ func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, opti
 	return nil
 }
 
-func (s *ShellStep) mapStepVariables(vars config.Variables, inputs map[string]output) (map[string]string, error) {
-	values, err := getInputValues(s.Variables, vars, inputs)
+func (s *ShellStep) mapStepVariables(cfg config.Configuration, inputs map[string]output) (map[string]string, error) {
+	values, err := getInputValues(s.Variables, cfg, inputs)
 	if err != nil {
 		return nil, err
 	}

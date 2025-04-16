@@ -14,7 +14,7 @@ func DefaultRolloutOptions() *RawRolloutOptions {
 	}
 }
 
-func NewRolloutOptions(config config.Variables) *RolloutOptions {
+func NewRolloutOptions(config config.Configuration) *RolloutOptions {
 	return &RolloutOptions{
 		completedRolloutOptions: &completedRolloutOptions{
 			Config: config,
@@ -65,7 +65,7 @@ type ValidatedRolloutOptions struct {
 type completedRolloutOptions struct {
 	*ValidatedRolloutOptions
 	Options *Options
-	Config  config.Variables
+	Config  config.Configuration
 }
 
 type RolloutOptions struct {
@@ -93,7 +93,7 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 		return nil, err
 	}
 
-	variables, err := completed.ConfigProvider.GetVariables(o.Cloud, o.DeployEnv, o.Region, config.NewConfigReplacements(o.Region, o.RegionShort, o.Stamp))
+	variables, err := completed.ConfigProvider.GetDeployEnvRegionConfiguration(o.Cloud, o.DeployEnv, o.Region, config.NewConfigReplacements(o.Region, o.RegionShort, o.Stamp))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get variables: %w", err)
 	}

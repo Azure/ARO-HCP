@@ -24,7 +24,7 @@ func shouldRunE2E() bool {
 }
 
 type E2E interface {
-	SetConfig(updates config.Variables)
+	SetConfig(updates config.Configuration)
 	UseRandomRG() func() error
 	AddBicepTemplate(template, templateFileName, paramfile, paramfileName string)
 	AddStep(step pipeline.Step, rg int)
@@ -41,7 +41,7 @@ type bicepTemplate struct {
 }
 
 type e2eImpl struct {
-	config   config.Variables
+	config   config.Configuration
 	makefile string
 	pipeline pipeline.Pipeline
 	biceps   []bicepTemplate
@@ -56,19 +56,19 @@ func newE2E(tmpdir string) e2eImpl {
 	imp := e2eImpl{
 		tmpdir: tmpdir,
 		schema: `{"type": "object"}`,
-		config: config.Variables{
+		config: config.Configuration{
 			"$schema": "schema.json",
-			"defaults": config.Variables{
+			"defaults": config.Configuration{
 				"region":       "westus3",
 				"subscription": "ARO Hosted Control Planes (EA Subscription 1)",
 				"rg":           defaultRgName,
 			},
-			"clouds": config.Variables{
-				"public": config.Variables{
-					"defaults": config.Variables{},
-					"environments": config.Variables{
-						"dev": config.Variables{
-							"defaults": config.Variables{},
+			"clouds": config.Configuration{
+				"public": config.Configuration{
+					"defaults": config.Configuration{},
+					"environments": config.Configuration{
+						"dev": config.Configuration{
+							"defaults": config.Configuration{},
 						},
 					},
 				},
@@ -106,7 +106,7 @@ func GenerateRandomRGName() string {
 
 func (e *e2eImpl) UseRandomRG() func() error {
 	e.rgName = GenerateRandomRGName()
-	e.SetConfig(config.Variables{"defaults": config.Variables{"rg": e.rgName}})
+	e.SetConfig(config.Configuration{"defaults": config.Configuration{"rg": e.rgName}})
 
 	return func() error {
 		subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
@@ -158,8 +158,8 @@ func (e *e2eImpl) AddStep(step pipeline.Step, rg int) {
 	e.pipeline.ResourceGroups[rg].Steps = append(e.pipeline.ResourceGroups[rg].Steps, step)
 }
 
-func (e *e2eImpl) SetConfig(updates config.Variables) {
-	config.MergeVariables(e.config, updates)
+func (e *e2eImpl) SetConfig(updates config.Configuration) {
+	config.MergeConfiguration(e.config, updates)
 }
 
 func (e *e2eImpl) AddBicepTemplate(template, templateFileName, paramfile, paramfileName string) {

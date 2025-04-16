@@ -14,7 +14,7 @@ import (
 
 func TestDeepCopy(t *testing.T) {
 	configProvider := config.NewConfigProvider("../../testdata/config.yaml")
-	vars, err := configProvider.GetVariables("public", "int", "", config.NewConfigReplacements("r", "sr", "s"))
+	vars, err := configProvider.GetDeployEnvRegionConfiguration("public", "int", "", config.NewConfigReplacements("r", "sr", "s"))
 	if err != nil {
 		t.Errorf("failed to get variables: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestDeepCopy(t *testing.T) {
 
 func TestAbsoluteFilePath(t *testing.T) {
 	configProvider := config.NewConfigProvider("../../testdata/config.yaml")
-	vars, err := configProvider.GetVariables("public", "int", "", config.NewConfigReplacements("r", "sr", "s"))
+	vars, err := configProvider.GetDeployEnvRegionConfiguration("public", "int", "", config.NewConfigReplacements("r", "sr", "s"))
 	if err != nil {
 		t.Errorf("failed to get variables: %v", err)
 	}

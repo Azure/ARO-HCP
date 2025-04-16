@@ -22,19 +22,19 @@ func NewEv2ConfigReplacements() *config.ConfigReplacements {
 // Non regional means: global variables + cloud overrides + deployment environment overrides - but not regional overrides.
 // The variable values are formatted to contain EV2 $location(), $stamp() and $(serviceConfigVar) variables.
 // This function is useful to get the variables to fill the `Settings` section of an EV2 `ServiceConfig.json“
-func GetNonRegionalServiceConfigVariables(configProvider config.ConfigProvider, cloud, deployEnv string) (config.Variables, error) {
-	return configProvider.GetVariables(cloud, deployEnv, "", NewEv2ConfigReplacements())
+func GetNonRegionalServiceConfigVariables(configProvider config.ConfigProvider, cloud, deployEnv string) (config.Configuration, error) {
+	return configProvider.GetDeployEnvRegionConfiguration(cloud, deployEnv, "", NewEv2ConfigReplacements())
 }
 
 // GetRegionalServiceConfigVariableOverrides returns the regional overrides of a config.yaml file.
 // The variable values are formatted to contain EV2 $location(), $stamp() and $(serviceConfigVar) variables.
 // This function is useful to get the variables to fill the `Geographies/Regions` section of an EV2 `ServiceConfig.json`
-func GetRegionalServiceConfigVariableOverrides(configProvider config.ConfigProvider, cloud, deployEnv string) (map[string]config.Variables, error) {
+func GetRegionalServiceConfigVariableOverrides(configProvider config.ConfigProvider, cloud, deployEnv string) (map[string]config.Configuration, error) {
 	regions, err := configProvider.GetRegions(cloud, deployEnv)
 	if err != nil {
 		return nil, err
 	}
-	overrides := make(map[string]config.Variables)
+	overrides := make(map[string]config.Configuration)
 	for _, region := range regions {
 		regionOverrides, err := configProvider.GetRegionOverrides(cloud, deployEnv, region, NewEv2ConfigReplacements())
 		if err != nil {
@@ -49,7 +49,7 @@ func GetRegionalServiceConfigVariableOverrides(configProvider config.ConfigProvi
 // It uses the provided configProvider to fetch the variables, flattens them into a __VAR__ = $config(var) formatted map.
 // This function is useful to get the find/replace pairs for an EV2 `ScopeBinding.json`
 func ScopeBindingVariables(configProvider config.ConfigProvider, cloud, deployEnv string) (map[string]string, error) {
-	vars, err := configProvider.GetVariables(cloud, deployEnv, "", NewEv2ConfigReplacements())
+	vars, err := configProvider.GetDeployEnvRegionConfiguration(cloud, deployEnv, "", NewEv2ConfigReplacements())
 	if err != nil {
 		return nil, err
 	}

@@ -22,19 +22,19 @@ type InspectOptions struct {
 	Format         string
 	Step           string
 	Region         string
-	Vars           config.Variables
+	Configuration  config.Configuration
 	ScopeFunctions map[string]StepInspectScope
 	OutputFile     io.Writer
 }
 
 // NewInspectOptions creates a new PipelineInspectOptions struct
-func NewInspectOptions(vars config.Variables, region, step, scope, format string, outputFile io.Writer) *InspectOptions {
+func NewInspectOptions(cfg config.Configuration, region, step, scope, format string, outputFile io.Writer) *InspectOptions {
 	return &InspectOptions{
 		Scope:          scope,
 		Format:         format,
 		Step:           step,
 		Region:         region,
-		Vars:           vars,
+		Configuration:  cfg,
 		ScopeFunctions: NewStepInspectScopes(),
 		OutputFile:     outputFile,
 	}
@@ -77,7 +77,7 @@ func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *Inspe
 		if err != nil {
 			return err
 		}
-		envVars, err = step.mapStepVariables(options.Vars, inputs)
+		envVars, err = step.mapStepVariables(options.Configuration, inputs)
 		if err != nil {
 			return err
 		}
@@ -101,7 +101,7 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *P
 	for _, depStep := range steps {
 		runOptions := &PipelineRunOptions{
 			DryRun:                   true,
-			Vars:                     options.Vars,
+			Configuration:            options.Configuration,
 			Region:                   options.Region,
 			Step:                     depStep,
 			SubsciptionLookupFunc:    LookupSubscriptionID,

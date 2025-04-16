@@ -13,8 +13,8 @@ import (
 
 var DefaultDeploymentTimeoutSeconds = 30 * 60
 
-func NewPipelineFromFile(pipelineFilePath string, vars config.Variables) (*Pipeline, error) {
-	bytes, err := config.PreprocessFile(pipelineFilePath, vars)
+func NewPipelineFromFile(pipelineFilePath string, cfg config.Configuration) (*Pipeline, error) {
+	bytes, err := config.PreprocessFile(pipelineFilePath, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to preprocess pipeline file %w", err)
 	}
@@ -44,7 +44,7 @@ type PipelineRunOptions struct {
 	DryRun                   bool
 	Step                     string
 	Region                   string
-	Vars                     config.Variables
+	Configuration            config.Configuration
 	SubsciptionLookupFunc    subsciptionLookup
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
@@ -194,7 +194,7 @@ func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget
 	}
 }
 
-func getInputValues(configuredVariables []Variable, cfg config.Variables, inputs map[string]output) (map[string]any, error) {
+func getInputValues(configuredVariables []Variable, cfg config.Configuration, inputs map[string]output) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {

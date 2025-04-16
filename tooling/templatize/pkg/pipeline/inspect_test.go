@@ -25,7 +25,7 @@ func TestInspectVars(t *testing.T) {
 				ConfigRef: "foo",
 			}),
 			options: &InspectOptions{
-				Vars: config.Variables{
+				Configuration: config.Configuration{
 					"foo": "bar",
 				},
 				Format: "shell",
@@ -39,7 +39,7 @@ func TestInspectVars(t *testing.T) {
 				ConfigRef: "foo",
 			}),
 			options: &InspectOptions{
-				Vars: config.Variables{
+				Configuration: config.Configuration{
 					"foo": "bar",
 				},
 				Format: "makefile",
@@ -84,7 +84,7 @@ func TestInspect(t *testing.T) {
 		},
 		},
 	}
-	opts := NewInspectOptions(config.Variables{}, "", "step1", "scope", "format", new(bytes.Buffer))
+	opts := NewInspectOptions(config.Configuration{}, "", "step1", "scope", "format", new(bytes.Buffer))
 
 	opts.ScopeFunctions = map[string]StepInspectScope{
 		"scope": func(ctx context.Context, p *Pipeline, s Step, o *InspectOptions) error {
@@ -106,7 +106,7 @@ func TestInspectWrongScope(t *testing.T) {
 		},
 		},
 	}
-	opts := NewInspectOptions(config.Variables{}, "", "step1", "foo", "format", new(bytes.Buffer))
+	opts := NewInspectOptions(config.Configuration{}, "", "step1", "foo", "format", new(bytes.Buffer))
 
 	err := p.Inspect(context.Background(), opts)
 	assert.Error(t, err, "unknown inspect scope \"foo\"")
