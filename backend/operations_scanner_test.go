@@ -335,6 +335,7 @@ func TestConvertClusterStatus(t *testing.T) {
 		updatedProvisioningState arm.ProvisioningState
 		expectCloudError         bool
 		expectConversionError    bool
+		internalId               ocm.InternalID
 	}{
 		{
 			name:                     "Convert ClusterStateError",
@@ -451,6 +452,7 @@ func TestConvertClusterStatus(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		var operationsScanner *OperationsScanner
 		t.Run(tt.name, func(t *testing.T) {
 			clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
 				State(tt.clusterState).
@@ -459,7 +461,8 @@ func TestConvertClusterStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			opState, opError, err := convertClusterStatus(clusterStatus, tt.currentProvisioningState)
+			opState, opError, err := operationsScanner.convertClusterStatus(context.Background(), slog.Default(),
+				clusterStatus, tt.currentProvisioningState, tt.internalId)
 
 			assert.Equal(t, tt.updatedProvisioningState, opState)
 

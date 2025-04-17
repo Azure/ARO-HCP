@@ -69,6 +69,10 @@ const (
 	NodePoolStateError            NodePoolStateValue = "error"
 )
 
+const (
+	InflightChecksFailedProvisionErrorCode = "OCM4001"
+)
+
 type operation struct {
 	id     string
 	pk     azcosmos.PartitionKey
@@ -387,7 +391,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 		return
 	}
 
-	opStatus, opError, err := convertClusterStatus(clusterStatus, op.doc.Status)
+	opStatus, opError, err := s.convertClusterStatus(ctx, op.logger, clusterStatus, op.doc.Status, op.doc.InternalID)
 	if err != nil {
 		s.operationsFailedCount.WithLabelValues(pollClusterOperationLabel).Inc()
 		op.logger.Warn(err.Error())
@@ -671,7 +675,9 @@ func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operat
 // convertClusterStatus attempts to translate a ClusterStatus object from
 // Cluster Service into an ARM provisioning state and, if necessary, a
 // structured OData error.
-func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current arm.ProvisioningState) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func (s *OperationsScanner) convertClusterStatus(ctx context.Context, logger *slog.Logger,
+	clusterStatus *arohcpv1alpha1.ClusterStatus, current arm.ProvisioningState,
+	internalId ocm.InternalID) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
 	var opStatus = current
 	var opError *arm.CloudErrorBody
 	var err error
@@ -679,9 +685,8 @@ func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current a
 	switch state := clusterStatus.State(); state {
 	case arohcpv1alpha1.ClusterStateError:
 		opStatus = arm.ProvisioningStateFailed
-		// FIXME This is guesswork. Need clarity from Cluster Service
-		//       on what provision error codes are possible so we can
-		//       translate to an appropriate cloud error code.
+		// Provision error codes are defined in the CS repo:
+		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/cluster_errors.go
 		code := clusterStatus.ProvisionErrorCode()
 		if code == "" {
 			code = arm.CloudErrorCodeInternalServerError
@@ -690,7 +695,16 @@ func convertClusterStatus(clusterStatus *arohcpv1alpha1.ClusterStatus, current a
 		if message == "" {
 			message = clusterStatus.Description()
 		}
-		opError = &arm.CloudErrorBody{Code: code, Message: message}
+		// Construct the cloud error code depending on the provision error code.
+		switch code {
+		case InflightChecksFailedProvisionErrorCode:
+			opError, err = s.convertInflightChecks(ctx, logger, internalId)
+			if err != nil {
+				return opStatus, opError, err
+			}
+		default:
+			opError = &arm.CloudErrorBody{Code: code, Message: message}
+		}
 	case arohcpv1alpha1.ClusterStateInstalling:
 		opStatus = arm.ProvisioningStateProvisioning
 	case arohcpv1alpha1.ClusterStateReady:
@@ -746,4 +760,79 @@ func convertNodePoolStatus(nodePoolStatus *arohcpv1alpha1.NodePoolStatus, curren
 	}
 
 	return opStatus, opError, err
+}
+
+// convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them
+// to arm.CloudErrorBody type.
+// The function should be triggered only if inflight errors occurred with provision error code OCM4001.
+func (s *OperationsScanner) convertInflightChecks(ctx context.Context, logger *slog.Logger,
+	internalId ocm.InternalID) (*arm.CloudErrorBody, error) {
+	inflightChecks, err := s.clusterService.GetClusterInflightChecks(ctx, internalId)
+	if err != nil {
+		return &arm.CloudErrorBody{}, err
+	}
+
+	var cloudErrors []arm.CloudErrorBody
+	for _, inflightCheck := range inflightChecks.Items() {
+		if inflightCheck.State() == arohcpv1alpha1.InflightCheckStateFailed {
+			cloudErrors = append(cloudErrors, convertInflightCheck(inflightCheck, logger))
+		}
+	}
+
+	// This is a fallback case and should not normally occur. If the provision error code is OCM4001,
+	// there should be at least one inflight failure.
+	if len(cloudErrors) == 0 {
+		logger.Error(fmt.Sprintf(
+			"Cluster '%s' returned error code OCM4001, but no inflight failures were found", internalId))
+		return &arm.CloudErrorBody{
+			Code: arm.CloudErrorCodeInternalServerError,
+		}, nil
+	}
+
+	if len(cloudErrors) == 1 {
+		return &arm.CloudErrorBody{
+			Code:    cloudErrors[0].Code,
+			Message: cloudErrors[0].Message,
+		}, nil
+	}
+
+	return &arm.CloudErrorBody{
+		Code:    arm.CloudErrorCodeMultipleErrorsOccurred,
+		Message: "Content validation failed on multiple fields",
+		Details: cloudErrors,
+	}, nil
+}
+
+func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger *slog.Logger) arm.CloudErrorBody {
+	message, succeeded := convertInflightCheckDetails(inflightCheck)
+	if !succeeded {
+		logger.Error(fmt.Sprintf("error converting inflight check '%s' details", inflightCheck.Name()))
+	}
+
+	return arm.CloudErrorBody{
+		Code:    arm.CloudErrorCodeInternalServerError,
+		Message: message,
+	}
+}
+
+// convertInflightCheckDetails gets an inflight check object and extracts the error message.
+func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (string, bool) {
+	details, ok := inflightCheck.GetDetails()
+	if !ok {
+		return "", false
+	}
+
+	detailsMap, ok := details.(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+
+	// Retrieve "error" key safely
+	if errMsg, exists := detailsMap["error"]; exists {
+		if errStr, ok := errMsg.(string); ok {
+			return errStr, true
+		}
+	}
+
+	return "", false
 }

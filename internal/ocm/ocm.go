@@ -33,6 +33,9 @@ type ClusterServiceClientSpec interface {
 	// GetClusterStatus sends a GET request to fetch a cluster's status from Cluster Service.
 	GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error)
 
+	// GetClusterInflightChecks sends a GET request to fetch a cluster's inflight checks from Cluster Service.
+	GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error)
+
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
 	PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
 
@@ -143,6 +146,22 @@ func (csc *ClusterServiceClient) GetClusterStatus(ctx context.Context, internalI
 		return nil, fmt.Errorf("empty response body")
 	}
 	return status, nil
+}
+
+func (csc *ClusterServiceClient) GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error) {
+	client, ok := internalID.GetAroHCPClusterClient(csc.Conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	clusterInflightChecksResponse, err := client.InflightChecks().List().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inflightChecks, ok := clusterInflightChecksResponse.GetItems()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return inflightChecks, nil
 }
 
 func (csc *ClusterServiceClient) PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
