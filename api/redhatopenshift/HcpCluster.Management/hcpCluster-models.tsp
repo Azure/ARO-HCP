@@ -65,10 +65,6 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read)
   api?: ApiProfile;
 
-  /** Disable user workload monitoring */
-  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  disableUserWorkloadMonitoring?: boolean = false;
-
   /** Azure platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: PlatformProfile;
@@ -332,12 +328,9 @@ model NodePoolProperties {
   /** Representation of a autoscaling in a node pool. */
   autoScaling?: NodePoolAutoScaling;
 
-  // This warning means to ensure good customer experience, to not create
-  // poorly defined types. However here the type literally is the map<string, value>
   /** K8s labels to propagate to the NodePool Nodes
    * The good example of the label is `node-role.kubernetes.io/master: ""`
    */
-  #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" ""
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
@@ -347,20 +340,6 @@ model NodePoolProperties {
   @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
   taints?: Taint[];
 }
-
-/** taintKey is the k8s valid key of the taint type on the nodepool nodes
- * @example node-role.kubernetes.io/master
- */
-@minLength(1)
-@maxLength(316)
-scalar taintKey extends string;
-
-/** taintValue is the k8s valid value of the taint type on the nodepool nodes
- * @example true
- */
-@minLength(1)
-@maxLength(63)
-scalar taintValue extends string;
 
 /** The taint effect the same as in K8s */
 union Effect {
@@ -381,12 +360,16 @@ model Taint {
   /** The key of the taint
    * @example node-role.kubernetes.io/master
    */
-  key?: taintKey;
+  @minLength(1)
+  @maxLength(316)
+  key?: string;
 
   /** The value of the taint
    * @example true
    */
-  value?: taintValue;
+  @minLength(1)
+  @maxLength(63)
+  value?: string;
 
   /** The effect of the taint
    * @example NoSchedule

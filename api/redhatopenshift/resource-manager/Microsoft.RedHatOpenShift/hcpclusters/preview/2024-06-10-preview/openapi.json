@@ -1146,16 +1146,6 @@
           "description": "Shows the cluster API server profile",
           "readOnly": true
         },
-        "disableUserWorkloadMonitoring": {
-          "type": "boolean",
-          "description": "Disable user workload monitoring",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
-        },
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
           "description": "Azure platform configuration",
@@ -1184,16 +1174,6 @@
         "dns": {
           "$ref": "#/definitions/DnsProfile",
           "description": "Cluster DNS configuration"
-        },
-        "disableUserWorkloadMonitoring": {
-          "type": "boolean",
-          "description": "Disable user workload monitoring",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
         }
       }
     },
@@ -1779,12 +1759,16 @@
       "description": "Taint is controlling the node taint and its effects",
       "properties": {
         "key": {
-          "$ref": "#/definitions/taintKey",
-          "description": "The key of the taint"
+          "type": "string",
+          "description": "The key of the taint",
+          "minLength": 1,
+          "maxLength": 316
         },
         "value": {
-          "$ref": "#/definitions/taintValue",
-          "description": "The value of the taint"
+          "type": "string",
+          "description": "The value of the taint",
+          "minLength": 1,
+          "maxLength": 63
         },
         "effect": {
           "$ref": "#/definitions/Effect",
@@ -1879,18 +1863,6 @@
       "required": [
         "availableUpgrades"
       ]
-    },
-    "taintKey": {
-      "type": "string",
-      "description": "taintKey is the k8s valid key of the taint type on the nodepool nodes",
-      "minLength": 1,
-      "maxLength": 316
-    },
-    "taintValue": {
-      "type": "string",
-      "description": "taintValue is the k8s valid value of the taint type on the nodepool nodes",
-      "minLength": 1,
-      "maxLength": 63
     }
   },
   "parameters": {}

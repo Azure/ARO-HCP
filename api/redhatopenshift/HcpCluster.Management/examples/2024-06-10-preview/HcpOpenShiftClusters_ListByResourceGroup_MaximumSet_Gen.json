@@ -12,7 +12,7 @@
         "value": [
           {
             "properties": {
-            "provisioningState": "Succeeded",
+              "provisioningState": "Succeeded",
               "version": {
                 "channelGroup": "stable",
                 "availableUpgrades": [
