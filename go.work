@@ -10,7 +10,8 @@ use (
 	./test
 	./tooling/image-sync
 	./tooling/mcerepkg
+	./tooling/pipeline-documentation
+	./tooling/prometheus-rules
 	./tooling/secret-sync
 	./tooling/templatize
-	tooling/prometheus-rules
 )
