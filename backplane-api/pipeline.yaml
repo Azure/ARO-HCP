@@ -22,7 +22,7 @@ resourceGroups:
       configRef: svc.rg
     - name: AKS_NAME
       configRef: svc.aks.name
-    - name: COMMIT
+    - name: DIGEST
       configRef: backplaneAPI.image.digest
     - name: SERVICE_KEY_VAULT
       configRef: serviceKeyVault.name
