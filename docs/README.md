@@ -46,5 +46,6 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 6. **Observability**
    - [Grafana Dashboards](grafana-dashboards.md)
+   - [Prometheus Rules](prometheus-rules.md)
 
 7. **[Terminology](terminology.md)**
