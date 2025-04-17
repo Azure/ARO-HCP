@@ -98,7 +98,7 @@ resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZ
 ]
 
 resource privateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
-  name: uniqueString('eventgrid-${uniqueString(vnetId)}')
+  name: uniqueString('${serviceType}-${uniqueString(vnetId)}')
   parent: privateEndpointDnsZone
   location: 'global'
   properties: {
