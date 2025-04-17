@@ -12,7 +12,5 @@ grafana-dashboards:
   dashboardFolders:
   - name: istio
     path: ../istio/grafana-dashboards
-image-sync:
-  dashboardFolders:
   - name: Image Sync
     path: ../image-sync/grafana-dashboards
