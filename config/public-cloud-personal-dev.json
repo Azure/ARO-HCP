@@ -83,7 +83,7 @@
       "zoneRedundantMode": "Auto"
     },
     "tracing": {
-      "address": "http://jaeger.observability",
+      "address": "http://ingest.observability:4318",
       "exporter": "otlp"
     }
   },
@@ -125,7 +125,7 @@
       "repository": "arohcpfrontend"
     },
     "tracing": {
-      "address": "http://jaeger.observability",
+      "address": "http://ingest.observability:4318",
       "exporter": "otlp"
     }
   },
@@ -274,6 +274,9 @@
       "vnetAddressPrefix": "10.128.0.0/14"
     },
     "applyKubeletFixes": false,
+    "jaeger": {
+      "deploy": false
+    },
     "rg": "hcp-underlay-usw3tst-mgmt-1",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
@@ -358,6 +361,9 @@
       "tag": "prod-stable",
       "targetVersion": "asm-1-23",
       "versions": "asm-1-23"
+    },
+    "jaeger": {
+      "deploy": true
     },
     "rg": "hcp-underlay-usw3tst-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
