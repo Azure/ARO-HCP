@@ -463,7 +463,7 @@ clouds:
             postgres:
               deploy: false
             tracing:
-              address: "http://jaeger.observability"
+              address: "http://ingest.observability:4318"
               exporter: "otlp"
           # DNS
           dns:
@@ -480,11 +480,17 @@ clouds:
               private: false
               zoneRedundantMode: 'Disabled'
             tracing:
-              address: "http://jaeger.observability"
+              address: "http://ingest.observability:4318"
               exporter: "otlp"
           # MC
           mgmt:
+            jaeger:
+              deploy: false
             applyKubeletFixes: false
+          # SVC
+          svc:
+            jaeger:
+              deploy: true
       personal-perfscale:
         defaults:
           dns:
