@@ -903,6 +903,9 @@
         "subscription": {
           "type": "string"
         },
+        "jaeger": {
+          "deploy": "boolean"
+        },
         "logs": {
           "description": "MDSD / Genevabits log aggregation and shipping configuration",
           "$ref": "#/definitions/aksLogConfig"
@@ -1077,6 +1080,9 @@
         },
         "subscription": {
           "type": "string"
+        },
+        "jaeger": {
+          "deploy": "boolean"
         },
         "istio": {
           "type": "object",
