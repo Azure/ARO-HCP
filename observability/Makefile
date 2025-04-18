@@ -1,4 +1,4 @@
-
+-include ../setup-env.mk
 
 kubernetesControlPlane-prometheusRule:
 	wget --quiet --output-document=alerts/kubernetesControlPlane-prometheusRule.yaml \
