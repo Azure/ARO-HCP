@@ -216,6 +216,31 @@ func approximateJSONName(s string) string {
 	return string(lc) + s[size:]
 }
 
+// fieldErrorToTarget converts a validator.FieldError to a string suitable
+// for use as a CloudErrorBody.Target by removing leading namespace segments
+// that have no JSON tag (struct name + any embedded structs).
+//
+// e.g. "HCPOpenShiftCluster.TrackedResource.Resource.name" shortens to "name"
+// because the Resource.Name field has a JSON tag but the rest of the namespace
+// segments do not.
+func fieldErrorToTarget(fe validator.FieldError) string {
+	// These segments use the JSON field name if present.
+	namespace := strings.Split(fe.Namespace(), ".")
+	// These segments use only the struct field name.
+	structNamespace := strings.Split(fe.StructNamespace(), ".")
+
+	// Find the index where namespace and structNamespace diverge.
+	minLength := min(len(namespace), len(structNamespace))
+	for i := 0; i < minLength; i++ {
+		if namespace[i] != structNamespace[i] {
+			return strings.Join(namespace[i:], ".")
+		}
+	}
+
+	// Fallback in case none of the namespace segments have JSON names.
+	return fe.Namespace()
+}
+
 func ValidateRequest(validate *validator.Validate, method string, resource any) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
@@ -330,8 +355,7 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 			errorDetails = append(errorDetails, arm.CloudErrorBody{
 				Code:    arm.CloudErrorCodeInvalidRequestContent,
 				Message: message,
-				// Split "validateContext.Resource.{REMAINING_FIELDS}"
-				Target: strings.SplitN(fieldErr.Namespace(), ".", 3)[2],
+				Target:  fieldErrorToTarget(fieldErr),
 			})
 		}
 	default:
