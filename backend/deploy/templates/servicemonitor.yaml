@@ -1,7 +1,7 @@
-apiVersion: azmonitoring.coreos.com/v1
+apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: aro-hcp-backend-service-monitor
+  name: aro-hcp-backend
 spec:
   endpoints:
   - interval: 30s
