@@ -1,3 +1,5 @@
+-include ../../setup-env.mk
+
 all: deploy patch-frontend patch-clusterservice
 	@echo "Observability services are now configured and enabled."
 	@echo "Run the following command to port-forward traffic to the Jaeger service:"

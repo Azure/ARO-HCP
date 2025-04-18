@@ -1,4 +1,6 @@
--include ../setup-env.mk
+deploy:
+	make -C ./tracing deploy
+.PHONY: deploy
 
 kubernetesControlPlane-prometheusRule:
 	wget --quiet --output-document=alerts/kubernetesControlPlane-prometheusRule.yaml \
