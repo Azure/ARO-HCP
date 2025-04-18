@@ -53,6 +53,7 @@ type DeploymentPreflightResource struct {
 	APIVersion string `json:"apiVersion,omitempty" validate:"required,api_version"`
 
 	// Preserve other tracked resource fields as raw data.
+	Identity   json.RawMessage `json:"identity,omitempty"`
 	Properties json.RawMessage `json:"properties,omitempty"`
 	Tags       json.RawMessage `json:"tags,omitempty"`
 }
