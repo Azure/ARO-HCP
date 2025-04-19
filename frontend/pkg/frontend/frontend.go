@@ -1014,12 +1014,27 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	for index, raw := range deploymentPreflight.Resources {
 		var cloudError *arm.CloudError
 
+		// Check the raw JSON for any Template Language Expressions (TLEs).
+		// If any are detected, skip the resource because Cluster Service
+		// does not handle TLEs in its input validation.
+		detectedTLE, err := arm.DetectTLE(raw)
+		if err != nil {
+			cloudError = arm.NewInvalidRequestContentError(err)
+			// Preflight is best-effort: a malformed resource is not a validation failure.
+			logger.Warn(cloudError.Message)
+			continue
+		}
+		if detectedTLE {
+			continue
+		}
+
 		preflightResource := &arm.DeploymentPreflightResource{}
 		err = json.Unmarshal(raw, preflightResource)
 		if err != nil {
 			cloudError = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
 			logger.Warn(cloudError.Message)
+			continue
 		}
 
 		switch strings.ToLower(preflightResource.Type) {
