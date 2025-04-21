@@ -88,13 +88,6 @@ var keyVaultCryptoUserId = subscriptionResourceId(
   '12338af0-0e69-4776-bea7-57ae8d297424'
 )
 
-// Azure Kubernetes Service Cluster Admin Role
-// https://www.azadvertizer.net/azrolesadvertizer/0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8.html
-var aksClusterAdminRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions/',
-  '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8'
-)
-
 // Azure Kubernetes Service RBAC Cluster Admin Role
 // https://www.azadvertizer.net/azrolesadvertizer/b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b.html
 var aksClusterAdminRBACRoleId = subscriptionResourceId(
@@ -235,16 +228,6 @@ resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssign
   name: guid(aksClusterUserDefinedManagedIdentity.id, networkContributorRoleId, aksNodeSubnet.id)
   properties: {
     roleDefinitionId: networkContributorRoleId
-    principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource aksClusterAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: aksCluster
-  name: guid(aksClusterUserDefinedManagedIdentity.id, aksClusterAdminRoleId, aksCluster.id)
-  properties: {
-    roleDefinitionId: aksClusterAdminRoleId
     principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
