@@ -54,7 +54,6 @@ type DeploymentPreflightResource struct {
 
 	// Preserve other tracked resource fields as raw data.
 	Properties json.RawMessage `json:"properties,omitempty"`
-	SystemData json.RawMessage `json:"systemData,omitempty"`
 	Tags       json.RawMessage `json:"tags,omitempty"`
 }
 
