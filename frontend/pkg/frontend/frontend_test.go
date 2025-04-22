@@ -180,7 +180,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
-			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + subscriptionID + "?api-version=2.0")
+			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + subscriptionID + "?api-version=" + arm.SubscriptionAPIVersion)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -205,7 +205,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 	}{
 		{
 			name:    "PUT Subscription - Doc does not exist",
-			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID,
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -216,7 +216,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Doc Exists",
-			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID,
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -231,7 +231,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Invalid Subscription",
-			urlPath: "/subscriptions/oopsie-i-no-good0?api-version=2.0",
+			urlPath: "/subscriptions/oopsie-i-no-good0",
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -242,7 +242,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing State",
-			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID,
 			subscription: &arm.Subscription{
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -252,7 +252,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Invalid State",
-			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID,
 			subscription: &arm.Subscription{
 				State:            "Bogus",
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -263,7 +263,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing RegistrationDate",
-			urlPath: "/subscriptions/" + subscriptionID + "?api-version=2.0",
+			urlPath: "/subscriptions/" + subscriptionID,
 			subscription: &arm.Subscription{
 				State:      arm.SubscriptionStateRegistered,
 				Properties: nil,
@@ -320,7 +320,8 @@ func TestSubscriptionsPUT(t *testing.T) {
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
-			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
+			urlPath := test.urlPath + "?api-version=" + arm.SubscriptionAPIVersion
+			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
 			if err != nil {
 				t.Fatal(err)
 			}
