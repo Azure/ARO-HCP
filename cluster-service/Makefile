@@ -12,7 +12,7 @@ deploy:
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
-	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
+	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${REGIONAL_RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
 	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name "${OP_CLUSTER_API_AZURE_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name "${OP_CONTROL_PLANE_ROLE_NAME}" --query "[].name" -o tsv) && \
