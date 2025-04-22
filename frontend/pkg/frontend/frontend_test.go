@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -31,13 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
-
-const (
-	apiVersion     = "2024-06-10-preview"
-	subscriptionID = "00000000-0000-0000-0000-000000000000"
-)
-
 func getMockDBDoc[T any](t *T) (*T, error) {
 	if t != nil {
 		return t, nil
@@ -49,7 +41,7 @@ func getMockDBDoc[T any](t *T) (*T, error) {
 func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
 	resourceID, err := azcorearm.ParseResourceID(path.Join(
 		"/",
-		"subscriptions", subscriptionID,
+		"subscriptions", api.TestSubscriptionID,
 		"resourceGroups", "myResourceGroup",
 		"providers", api.ProviderNamespace,
 		api.ClusterResourceTypeName, "myCluster"))
@@ -102,7 +94,7 @@ func TestReadiness(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
-				testLogger,
+				api.NewTestLogger(),
 				nil,
 				nil,
 				reg,
@@ -158,7 +150,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
-				testLogger,
+				api.NewTestLogger(),
 				nil,
 				nil,
 				reg,
@@ -176,11 +168,11 @@ func TestSubscriptionsGET(t *testing.T) {
 			// The subscription collector lists all documents once.
 			subs := make(map[string]*arm.Subscription)
 			if test.subDoc != nil {
-				subs[subscriptionID] = test.subDoc
+				subs[api.TestSubscriptionID] = test.subDoc
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
-			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + subscriptionID + "?api-version=" + arm.SubscriptionAPIVersion)
+			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + api.TestSubscriptionID + "?api-version=" + arm.SubscriptionAPIVersion)
 			require.NoError(t, err)
 
 			assert.Equal(t, test.expectedStatusCode, rs.StatusCode)
@@ -201,7 +193,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 	}{
 		{
 			name:    "PUT Subscription - Doc does not exist",
-			urlPath: "/subscriptions/" + subscriptionID,
+			urlPath: "/subscriptions/" + api.TestSubscriptionID,
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -212,7 +204,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Doc Exists",
-			urlPath: "/subscriptions/" + subscriptionID,
+			urlPath: "/subscriptions/" + api.TestSubscriptionID,
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -238,7 +230,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing State",
-			urlPath: "/subscriptions/" + subscriptionID,
+			urlPath: "/subscriptions/" + api.TestSubscriptionID,
 			subscription: &arm.Subscription{
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -248,7 +240,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Invalid State",
-			urlPath: "/subscriptions/" + subscriptionID,
+			urlPath: "/subscriptions/" + api.TestSubscriptionID,
 			subscription: &arm.Subscription{
 				State:            "Bogus",
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -259,7 +251,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing RegistrationDate",
-			urlPath: "/subscriptions/" + subscriptionID,
+			urlPath: "/subscriptions/" + api.TestSubscriptionID,
 			subscription: &arm.Subscription{
 				State:      arm.SubscriptionStateRegistered,
 				Properties: nil,
@@ -276,7 +268,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
-				testLogger,
+				api.NewTestLogger(),
 				nil,
 				nil,
 				reg,
@@ -310,7 +302,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 
 			subs := make(map[string]*arm.Subscription)
 			if test.subDoc != nil {
-				subs[subscriptionID] = test.subDoc
+				subs[api.TestSubscriptionID] = test.subDoc
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
@@ -365,7 +357,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"name":       "my-hcp-cluster",
 				"type":       api.ClusterResourceType.String(),
 				"location":   "eastus",
-				"apiVersion": "2024-06-10-preview",
+				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
 						"id":           "4.0.0",
@@ -388,7 +380,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"name":       "my-hcp-cluster",
 				"type":       api.ClusterResourceType.String(),
 				"location":   "eastus",
-				"apiVersion": "2024-06-10-preview",
+				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
 						"channelGroup": "stable",
@@ -415,7 +407,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"name":       "my-node-pool",
 				"type":       api.NodePoolResourceType.String(),
 				"location":   "eastus",
-				"apiVersion": "2024-06-10-preview",
+				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
 						"channelGroup": "stable",
@@ -433,7 +425,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"name":       "my-node-pool",
 				"type":       api.NodePoolResourceType.String(),
 				"location":   "eastus",
-				"apiVersion": "2024-06-10-preview",
+				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
 						"channelGroup": "stable",
@@ -461,14 +453,14 @@ func TestDeploymentPreflight(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			preflightPath := fmt.Sprintf("/subscriptions/%s/resourceGroups/myRG/providers/%s/deployments/myDeployment/preflight", subscriptionID, api.ProviderNamespace)
+			preflightPath := fmt.Sprintf("/subscriptions/%s/resourceGroups/myRG/providers/%s/deployments/myDeployment/preflight", api.TestSubscriptionID, api.ProviderNamespace)
 
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
-				testLogger,
+				api.NewTestLogger(),
 				nil,
 				nil,
 				reg,
@@ -479,14 +471,14 @@ func TestDeploymentPreflight(t *testing.T) {
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), subscriptionID).
+				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				}, nil).
 				MaxTimes(2)
 
 			subs := map[string]*arm.Subscription{
-				subscriptionID: &arm.Subscription{
+				api.TestSubscriptionID: &arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				},
 			}
@@ -574,7 +566,7 @@ func TestRequestAdminCredential(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			clusterResourceID := newClusterResourceID(t)
 			clusterInternalID := newClusterInternalID(t)
-			pk := database.NewPartitionKey(subscriptionID)
+			pk := database.NewPartitionKey(api.TestSubscriptionID)
 
 			requestPath := path.Join(clusterResourceID.String(), "requestAdminCredential")
 
@@ -584,7 +576,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
 
 			f := NewFrontend(
-				testLogger,
+				api.NewTestLogger(),
 				nil,
 				nil,
 				reg,
@@ -595,7 +587,7 @@ func TestRequestAdminCredential(t *testing.T) {
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), subscriptionID).
+				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				}, nil).
@@ -653,13 +645,13 @@ func TestRequestAdminCredential(t *testing.T) {
 			}
 
 			subs := map[string]*arm.Subscription{
-				subscriptionID: &arm.Subscription{
+				api.TestSubscriptionID: &arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				},
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
-			url := ts.URL + requestPath + "?api-version=" + apiVersion
+			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
 			require.NoError(t, err)
 
@@ -710,7 +702,7 @@ func TestRevokeCredentials(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			clusterResourceID := newClusterResourceID(t)
 			clusterInternalID := newClusterInternalID(t)
-			pk := database.NewPartitionKey(subscriptionID)
+			pk := database.NewPartitionKey(api.TestSubscriptionID)
 
 			requestPath := path.Join(clusterResourceID.String(), "revokeCredentials")
 
@@ -720,7 +712,7 @@ func TestRevokeCredentials(t *testing.T) {
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
 
 			f := NewFrontend(
-				testLogger,
+				api.NewTestLogger(),
 				nil,
 				nil,
 				reg,
@@ -731,7 +723,7 @@ func TestRevokeCredentials(t *testing.T) {
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), subscriptionID).
+				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				}, nil).
@@ -814,13 +806,13 @@ func TestRevokeCredentials(t *testing.T) {
 			}
 
 			subs := map[string]*arm.Subscription{
-				subscriptionID: &arm.Subscription{
+				api.TestSubscriptionID: &arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				},
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
-			url := ts.URL + requestPath + "?api-version=" + apiVersion
+			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
 			require.NoError(t, err)
 
@@ -925,7 +917,7 @@ func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.Moc
 	// executed here.
 	stop := make(chan struct{})
 	close(stop)
-	f.collector.Run(testLogger, stop)
+	f.collector.Run(api.NewTestLogger(), stop)
 
 	return ts
 }

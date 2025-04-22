@@ -107,7 +107,7 @@ func (a *attributes) resourceID() string {
 	}
 
 	return fmt.Sprintf(
-		"/subscriptions/%s/resourcegroups/%s/providers/%s/%s",
+		"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
 		a.subscriptionID,
 		a.resourceGroup,
 		api.ClusterResourceType,

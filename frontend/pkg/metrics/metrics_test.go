@@ -6,8 +6,6 @@ package metrics
 import (
 	"bytes"
 	"errors"
-	"io"
-	"log/slog"
 	"maps"
 	"testing"
 	"time"
@@ -24,7 +22,7 @@ import (
 )
 
 func TestSubscriptionCollector(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := api.NewTestLogger()
 	nosubs := maps.All(map[string]*arm.Subscription{})
 	subs := maps.All(map[string]*arm.Subscription{
 		"00000000-0000-0000-0000-000000000000": &arm.Subscription{

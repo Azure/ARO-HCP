@@ -175,7 +175,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 }
 
 func testResourceID(t *testing.T) *azcorearm.ResourceID {
-	resourceID, err := azcorearm.ParseResourceID("/subscriptions/test/resourceGroups/test/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test")
+	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 	return resourceID
 }
@@ -184,9 +184,9 @@ func clusterResource(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCl
 	c := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
-				ID:   "/subscriptions/test/resourceGroups/test/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test",
-				Name: "test",
-				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+				ID:   api.TestClusterResourceID,
+				Name: api.TestClusterName,
+				Type: api.ClusterResourceType.String(),
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{},

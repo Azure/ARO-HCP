@@ -7,40 +7,11 @@ import (
 	"net/http"
 	"testing"
 
-	"dario.cat/mergo"
-	validator "github.com/go-playground/validator/v10"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
-
-func newTestValidator() *validator.Validate {
-	validate := NewValidator()
-
-	validate.RegisterAlias("enum_diskstorageaccounttype", EnumValidateTag(
-		DiskStorageAccountTypePremium_LRS,
-		DiskStorageAccountTypeStandardSSD_LRS,
-		DiskStorageAccountTypeStandard_LRS))
-	validate.RegisterAlias("enum_networktype", EnumValidateTag(
-		NetworkTypeOVNKubernetes,
-		NetworkTypeOther))
-	validate.RegisterAlias("enum_outboundtype", EnumValidateTag(
-		OutboundTypeLoadBalancer))
-	validate.RegisterAlias("enum_visibility", EnumValidateTag(
-		VisibilityPublic,
-		VisibilityPrivate))
-	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(
-		arm.ManagedServiceIdentityTypeNone,
-		arm.ManagedServiceIdentityTypeSystemAssigned,
-		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
-		arm.ManagedServiceIdentityTypeUserAssigned))
-	validate.RegisterAlias("enum_optionalclustercapability", EnumValidateTag(
-		OptionalClusterCapabilityImageRegistry))
-
-	return validate
-}
 
 func compareErrors(x, y []arm.CloudErrorBody) string {
 	return cmp.Diff(x, y,
@@ -48,64 +19,11 @@ func compareErrors(x, y []arm.CloudErrorBody) string {
 		cmpopts.IgnoreFields(arm.CloudErrorBody{}, "Code"))
 }
 
-func minimumValidCluster() *HCPOpenShiftCluster {
-	// Values are meaningless but need to pass validation.
-	return &HCPOpenShiftCluster{
-		Properties: HCPOpenShiftClusterProperties{
-			Version: VersionProfile{
-				ChannelGroup: "stable",
-			},
-			Platform: PlatformProfile{
-				SubnetID:               "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
-				NetworkSecurityGroupID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/networkSecurityGroups/MyNSG",
-				OperatorsAuthentication: OperatorsAuthenticationProfile{
-					UserAssignedIdentities: UserAssignedIdentitiesProfile{
-						ControlPlaneOperators: map[string]string{
-							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity",
-						},
-					},
-				},
-			},
-		},
-		Identity: arm.ManagedServiceIdentity{
-			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{},
-			},
-		},
-	}
-}
-
-func minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication() *HCPOpenShiftCluster {
-	// Values are meaningless but need to pass validation.
-	return &HCPOpenShiftCluster{
-		Properties: HCPOpenShiftClusterProperties{
-			Version: VersionProfile{
-				ChannelGroup: "stable",
-			},
-			Platform: PlatformProfile{
-				SubnetID:               "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
-				NetworkSecurityGroupID: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/networkSecurityGroups/MyNSG",
-				OperatorsAuthentication: OperatorsAuthenticationProfile{
-					UserAssignedIdentities: UserAssignedIdentitiesProfile{
-						ControlPlaneOperators: map[string]string{
-							"operatorX": "wrong/Pattern/Of/ResourceID",
-						},
-					},
-				},
-			},
-		},
-		Identity: arm.ManagedServiceIdentity{
-			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-				"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{},
-			},
-		},
-	}
-}
-
 func TestClusterRequiredForPut(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     *HCPOpenShiftCluster
+		tweaks       *HCPOpenShiftCluster
 		expectErrors []arm.CloudErrorBody
 	}{
 		{
@@ -133,8 +51,50 @@ func TestClusterRequiredForPut(t *testing.T) {
 			},
 		},
 		{
-			name:     "Minimum valid cluster with Broken Identity",
-			resource: minimumValidClusterwithBrokenIdentityAndOperatorsAuthentication(),
+			name:     "Minimum valid cluster",
+			resource: MinimumValidClusterTestCase(),
+		},
+		{
+			name: "Cluster with identity",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						OperatorsAuthentication: OperatorsAuthenticationProfile{
+							UserAssignedIdentities: UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"operatorX": NewTestUserAssignedIdentity("MyManagedIdentity"),
+								},
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						NewTestUserAssignedIdentity("MyManagedIdentity"): &arm.UserAssignedIdentity{},
+					},
+				},
+			},
+		},
+		{
+			name: "Cluster with broken identity",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						OperatorsAuthentication: OperatorsAuthenticationProfile{
+							UserAssignedIdentities: UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"operatorX": "wrong/Pattern/Of/ResourceID",
+								},
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{},
+					},
+				},
+			},
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Invalid value 'wrong/Pattern/Of/ResourceID' for field 'controlPlaneOperators[operatorX]' (must be a valid 'Microsoft.ManagedIdentity/userAssignedIdentities' resource ID)",
@@ -147,17 +107,17 @@ func TestClusterRequiredForPut(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:     "Minimum valid cluster",
-			resource: minimumValidCluster(),
-		},
 	}
 
-	validate := newTestValidator()
+	validate := NewTestValidator()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualErrors := ValidateRequest(validate, http.MethodPut, tt.resource)
+			resource := tt.resource
+			if resource == nil {
+				resource = ClusterTestCase(t, tt.tweaks)
+			}
+			actualErrors := ValidateRequest(validate, http.MethodPut, resource)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {
@@ -319,13 +279,11 @@ func TestClusterValidateTags(t *testing.T) {
 		},
 	}
 
-	validate := newTestValidator()
+	validate := NewTestValidator()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resource := minimumValidCluster()
-			err := mergo.Merge(resource, tt.tweaks, mergo.WithOverride)
-			require.NoError(t, err)
+			resource := ClusterTestCase(t, tt.tweaks)
 
 			actualErrors := ValidateRequest(validate, http.MethodPut, resource)
 

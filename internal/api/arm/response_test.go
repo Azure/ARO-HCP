@@ -17,8 +17,8 @@ func TestWriteJSONResponse(t *testing.T) {
 	resourceStruct := &TrackedResource{
 		Resource: Resource{
 			ID:   "00000000-0000-0000-0000-000000000000",
-			Name: "testCluster",
-			Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+			Name: "testVM",
+			Type: "Microsoft.Compute/virtualMachines",
 		},
 		Location: "eastus1",
 		Tags: map[string]string{

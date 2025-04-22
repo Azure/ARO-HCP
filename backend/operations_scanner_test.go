@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
@@ -58,10 +59,10 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 	internalID, err := ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/placeholder")
 	require.NoError(t, err)
 
-	resourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
+	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
-	operationID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/oz/hcpOperationsStatus/operationID")
+	operationID, err := azcorearm.ParseResourceID("/subscriptions/" + api.TestSubscriptionID + "/providers/" + api.ProviderNamespace + "/locations/oz/" + api.OperationStatusResourceTypeName + "/operationID")
 	require.NoError(t, err)
 
 	for _, tt := range tests {
@@ -210,10 +211,10 @@ func TestUpdateOperationStatus(t *testing.T) {
 	internalID, err := ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/placeholder")
 	require.NoError(t, err)
 
-	resourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
+	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
-	operationID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/oz/hcpOperationsStatus/operationID")
+	operationID, err := azcorearm.ParseResourceID("/subscriptions/" + api.TestSubscriptionID + "/providers/" + api.ProviderNamespace + "/locations/oz/" + api.OperationStatusResourceTypeName + "/operationID")
 	require.NoError(t, err)
 
 	for _, tt := range tests {
