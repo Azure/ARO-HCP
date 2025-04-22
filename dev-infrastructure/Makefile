@@ -284,19 +284,19 @@ acr-ocp-cfg.what-if:
 #
 
 cs-current-user-pg-connect:
-	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME)
+	@scripts/cs-current-user-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(CS_PG_NAME)
 .PHONY: cs-current-user-pg-connect
 
 cs-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME) $(CS_MI_NAME) $(CS_NS_NAME) $(CS_SA_NAME)
+	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(CS_PG_NAME) $(CS_MI_NAME) $(CS_NS_NAME) $(CS_SA_NAME)
 .PHONY: cs-miwi-pg-connect
 
 maestro-current-user-pg-connect:
-	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME)
+	@scripts/cs-current-user-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(MAESTRO_PG_NAME)
 .PHONY: maestro-current-user-pg-connect
 
 maestro-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
+	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
 .PHONY: maestro-miwi-pg-connect
 
 #

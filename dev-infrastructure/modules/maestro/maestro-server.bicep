@@ -52,6 +52,8 @@ param privateEndpointSubnetId string = ''
 
 param privateEndpointVnetId string = ''
 
+param privateEndpointResourceGroup string = ''
+
 @description('The name of the database to create for Maestro')
 param maestroDatabaseName string
 
@@ -69,14 +71,18 @@ param postgresZoneRedundantMode string
 @description('The log analytics workspace ID to link to the server.')
 param logAnalyticsWorkspaceId string = ''
 
+@description('The regional resource group')
+param regionalResourceGroup string
+
 //
 //   P O S T G R E S
 //
 
 import * as res from '../resource.bicep'
 
-module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
+module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
   name: '${deployment().name}-postgres'
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     name: postgresServerName
     postgresZoneRedundantMode: postgresZoneRedundantMode
@@ -120,11 +126,13 @@ module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
     vnetId: privateEndpointVnetId
     managedPrivateEndpoint: true
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+    managedPrivateEndpointResourceGroup: privateEndpointResourceGroup
   }
 }
 
-module csManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' = if (deployPostgres) {
+module maestroManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' = if (deployPostgres) {
   name: '${deployment().name}-maestro-db-access'
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     postgresServerName: postgresServerName
     postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
@@ -133,7 +141,7 @@ module csManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' = if 
     newUserPrincipalId: maestroServerManagedIdentityPrincipalId
   }
   dependsOn: [
-    postgres
+    maestroPostgres
   ]
 }
 
