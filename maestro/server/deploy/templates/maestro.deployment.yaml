@@ -123,11 +123,11 @@ spec:
             memory: '{{ .Values.deployment.limits.memory  }}'
         livenessProbe:
           httpGet:
-            path: /api/maestro
-            port: {{ .Values.maestro.httpBindPort }}
+            path: /healthcheck
+            port: {{ .Values.maestro.healthCheckBindPort }}
             scheme: HTTP
-          initialDelaySeconds: 15
-          periodSeconds: 5
+          initialDelaySeconds: 25
+          periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /healthcheck
@@ -137,4 +137,4 @@ spec:
             - name: User-Agent
               value: Probe
           initialDelaySeconds: 20
-          periodSeconds: 10
+          periodSeconds: 5
