@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
@@ -28,8 +29,8 @@ func TestMiddlewareResourceID(t *testing.T) {
 			name: "subscription resource",
 			path: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000",
 			resourceTypes: []string{
-				"Microsoft.Resources/subscriptions",
-				"Microsoft.Resources/tenants",
+				azcorearm.SubscriptionResourceType.String(),
+				azcorearm.TenantResourceType.String(),
 			},
 		},
 		{
@@ -37,9 +38,9 @@ func TestMiddlewareResourceID(t *testing.T) {
 			path: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/RESOURCEGROUPS/MyResourceGroup/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/myCluster",
 			resourceTypes: []string{
 				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS",
-				"Microsoft.Resources/resourceGroups",
-				"Microsoft.Resources/subscriptions",
-				"Microsoft.Resources/tenants",
+				azcorearm.ResourceGroupResourceType.String(),
+				azcorearm.SubscriptionResourceType.String(),
+				azcorearm.TenantResourceType.String(),
 			},
 		},
 		{
@@ -49,9 +50,9 @@ func TestMiddlewareResourceID(t *testing.T) {
 			resourceTypes: []string{
 				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/myAction",
 				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS",
-				"Microsoft.Resources/resourceGroups",
-				"Microsoft.Resources/subscriptions",
-				"Microsoft.Resources/tenants",
+				azcorearm.ResourceGroupResourceType.String(),
+				azcorearm.SubscriptionResourceType.String(),
+				azcorearm.TenantResourceType.String(),
 			},
 		},
 		{
@@ -60,9 +61,9 @@ func TestMiddlewareResourceID(t *testing.T) {
 			resourceTypes: []string{
 				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/NODEPOOLS",
 				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS",
-				"Microsoft.Resources/resourceGroups",
-				"Microsoft.Resources/subscriptions",
-				"Microsoft.Resources/tenants",
+				azcorearm.ResourceGroupResourceType.String(),
+				azcorearm.SubscriptionResourceType.String(),
+				azcorearm.TenantResourceType.String(),
 			},
 		},
 		{
@@ -71,9 +72,9 @@ func TestMiddlewareResourceID(t *testing.T) {
 			resourceTypes: []string{
 				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/NODEPOOLS",
 				"MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS",
-				"Microsoft.Resources/resourceGroups",
-				"Microsoft.Resources/subscriptions",
-				"Microsoft.Resources/tenants",
+				azcorearm.ResourceGroupResourceType.String(),
+				azcorearm.SubscriptionResourceType.String(),
+				azcorearm.TenantResourceType.String(),
 			},
 		},
 		{
@@ -81,9 +82,9 @@ func TestMiddlewareResourceID(t *testing.T) {
 			path: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/RESOURCEGROUPS/MyResourceGroup/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/DEPLOYMENTS/preflight",
 			resourceTypes: []string{
 				"MICROSOFT.REDHATOPENSHIFT/DEPLOYMENTS",
-				"Microsoft.Resources/resourceGroups",
-				"Microsoft.Resources/subscriptions",
-				"Microsoft.Resources/tenants",
+				azcorearm.ResourceGroupResourceType.String(),
+				azcorearm.SubscriptionResourceType.String(),
+				azcorearm.TenantResourceType.String(),
 			},
 		},
 		{
@@ -92,8 +93,8 @@ func TestMiddlewareResourceID(t *testing.T) {
 			resourceTypes: []string{
 				"MICROSOFT.REDHATOPENSHIFT/LOCATIONS/HCPOPERATIONSSTATUS",
 				"MICROSOFT.REDHATOPENSHIFT/LOCATIONS",
-				"Microsoft.Resources/subscriptions",
-				"Microsoft.Resources/tenants",
+				azcorearm.SubscriptionResourceType.String(),
+				azcorearm.TenantResourceType.String(),
 			},
 		},
 		{

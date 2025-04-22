@@ -53,11 +53,11 @@ func TestGetJSONTagName(t *testing.T) {
 	}
 }
 
-type TestAPIVersion struct {
+type TestAPIVersionTag struct {
 	APIVersion string `validate:"api_version"`
 }
 
-type TestRequiredForPut struct {
+type TestRequiredForPutTag struct {
 	StructField any `json:"field" validate:"required_for_put"`
 }
 
@@ -78,7 +78,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation passes on known API version",
 			context: validateContext{
 				Method: http.MethodPost, // not relevant
-				Resource: TestAPIVersion{
+				Resource: TestAPIVersionTag{
 					APIVersion: "valid-api-version",
 				},
 			},
@@ -87,7 +87,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on unknown API version",
 			context: validateContext{
 				Method: http.MethodPost, // not relevant
-				Resource: TestAPIVersion{
+				Resource: TestAPIVersionTag{
 					APIVersion: "bogus-api-version",
 				},
 			},
@@ -104,7 +104,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Zero value on required field is error when method is PUT",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: int(0),
 				},
 			},
@@ -114,7 +114,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Zero value on required field is ok when method is not PUT",
 			context: validateContext{
 				Method: http.MethodGet,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: int(0),
 				},
 			},
@@ -123,7 +123,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on nil slice",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: nilSlice,
 				},
 			},
@@ -133,7 +133,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation passes on empty slice",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: []int{},
 				},
 			},
@@ -142,7 +142,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on nil map",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: nilMap,
 				},
 			},
@@ -152,7 +152,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation passes on empty map",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: map[int]int{},
 				},
 			},
@@ -161,7 +161,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on nil pointer",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: nilPointer,
 				},
 			},
@@ -172,7 +172,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on pointer to zero value",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: Ptr(nilSlice),
 				},
 			},
@@ -183,7 +183,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation passes on pointer to non-zero value",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: Ptr([]int{}),
 				},
 			},
