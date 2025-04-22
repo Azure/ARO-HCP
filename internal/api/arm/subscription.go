@@ -15,6 +15,9 @@
 package arm
 
 import (
+	"iter"
+	"slices"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -80,3 +83,15 @@ const (
 	SubscriptionStateDeleted      SubscriptionState = "Deleted"
 	SubscriptionStateSuspended    SubscriptionState = "Suspended"
 )
+
+// ListSubscriptionStates returns an iterator that yields all recognized
+// SubscriptionState values. This function is intended as a test aid.
+func ListSubscriptionStates() iter.Seq[SubscriptionState] {
+	return slices.Values([]SubscriptionState{
+		SubscriptionStateRegistered,
+		SubscriptionStateUnregistered,
+		SubscriptionStateWarned,
+		SubscriptionStateDeleted,
+		SubscriptionStateSuspended,
+	})
+}
