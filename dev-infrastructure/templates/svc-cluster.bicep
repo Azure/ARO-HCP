@@ -409,6 +409,7 @@ var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain :
 module maestroServer '../modules/maestro/maestro-server.bicep' = {
   name: 'maestro-server'
   params: {
+    regionalResourceGroup: regionalResourceGroup
     maestroInfraResourceGroup: regionalResourceGroup
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     mqttClientName: maestroServerMqttClientName
@@ -427,6 +428,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       : 'SameZone'
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
+    privateEndpointResourceGroup: resourceGroup().name
     maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
     postgresAdministrationManagedIdentityId: aroDevopsMsiId
@@ -482,6 +484,7 @@ module cs '../modules/cluster-service.bicep' = {
     postgresServerMinTLSVersion: csPostgresServerMinTLSVersion
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
+    privateEndpointResourceGroup: resourceGroup().name
     deployPostgres: csPostgresDeploy
     postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, csPostgresZoneRedundantMode)
       ? 'ZoneRedundant'

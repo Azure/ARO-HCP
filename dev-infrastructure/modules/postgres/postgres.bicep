@@ -70,6 +70,7 @@ param version string
 param private bool
 
 param managedPrivateEndpoint bool = true
+param managedPrivateEndpointResourceGroup string = resourceGroup().name
 
 param subnetId string = ''
 
@@ -195,6 +196,7 @@ output port int = 5432
 
 module servicePostgresPrivateEndpoint '../private-endpoint.bicep' = if (managedPrivateEndpoint) {
   name: '${deployment().name}-svcs-kv-pe'
+  scope: resourceGroup(managedPrivateEndpointResourceGroup)
   params: {
     location: location
     subnetIds: [subnetId]
