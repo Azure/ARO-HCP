@@ -86,25 +86,6 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
   ]
 }
 
-module assetManagement '../modules/automation-account/runbook.bicep' = {
-  name: 'assetManagement'
-  params: {
-    automationAccountName: automationAccountName
-    runbookDescription: 'Simulate Automation Assets during offline development'
-    runbookName: 'assetManagement'
-    runbookType: 'Python3'
-    runbookVersion: '1.0.0'
-    location: location
-    rubookScript: {
-      ref: '9f17bb8a93c5c820ff3095d836eb706acbdf75e8'
-      path: 'tooling/azure-automation/resources-cleanup/src/automationassets.py'
-    }
-  }
-  dependsOn: [
-    automationAccount
-  ]
-}
-
 module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'roleAssignmentsCleanup'
   params: {
