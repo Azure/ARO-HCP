@@ -25,9 +25,6 @@ interface HcpOpenShiftClusters {
   listByResourceGroup is ArmResourceListByParent<HcpOpenShiftCluster>;
   listBySubscription is ArmListBySubscription<HcpOpenShiftCluster>;
 
-  // ------------------------------
-  // The requestAdminCredential and revokeAdminCredentials are
-  // asynchronous POST actions on an HcpOpenShiftClusterResource.
   /** Request a temporary admin kubeconfig for the cluster */
   requestAdminCredential is ArmResourceActionAsync<
     HcpOpenShiftCluster,
