@@ -1,7 +1,5 @@
 package tracing
 
-// Copyright (c) Microsoft Corporation.
-// Licensed under the Apache License 2.0.
 
 import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"

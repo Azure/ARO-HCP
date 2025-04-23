@@ -1,7 +1,5 @@
 package ocm
 
-// Copyright (c) Microsoft Corporation.
-// Licensed under the apache License 2.0.
 
 import (
 	"encoding/json"
