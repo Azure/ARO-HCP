@@ -1,0 +1,35 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Observability
+rolloutName: Observability Rollout
+resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription }}'
+  steps:
+  - name: mirror-image
+    action: Shell
+    command: ../../image-sync/on-demand/sync.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: TARGET_ACR
+      configRef: acr.svc.name
+    - name: PULL_SECRET_KV
+      configRef: global.keyVault.name
+    - name: PULL_SECRET
+      configRef: imageSync.componentSync.pullSecretName
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  aksCluster: '{{ .svc.aks.name  }}'
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: DEPLOY
+      configRef: svc.jaeger.deploy
