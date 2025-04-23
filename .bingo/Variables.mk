@@ -7,16 +7,22 @@ GO     ?= $(shell which go)
 
 # Below generated variables ensure that every time a tool under each variable is invoked, the correct version
 # will be used; reinstalling only if needed.
-# For example for bingo variable:
+# For example for addlicense variable:
 #
 # In your main Makefile (for non array binaries):
 #
 #include .bingo/Variables.mk # Assuming -dir was set to .bingo .
 #
-#command: $(BINGO)
-#	@echo "Running bingo"
-#	@$(BINGO) <flags/args..>
+#command: $(ADDLICENSE)
+#	@echo "Running addlicense"
+#	@$(ADDLICENSE) <flags/args..>
 #
+ADDLICENSE := $(GOBIN)/addlicense-v1.1.1
+$(ADDLICENSE): $(BINGO_DIR)/addlicense.mod
+	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
+	@echo "(re)installing $(GOBIN)/addlicense-v1.1.1"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
+
 BINGO := $(GOBIN)/bingo-v0.9.0
 $(BINGO): $(BINGO_DIR)/bingo.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
