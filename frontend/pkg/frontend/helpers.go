@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -136,10 +136,10 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 	logger := LoggerFromContext(ctx)
 
 	switch resourceDoc.InternalID.Kind() {
-	case cmv1.ClusterKind:
+	case arohcpv1alpha1.ClusterKind:
 		err = f.clusterServiceClient.DeleteCluster(ctx, resourceDoc.InternalID)
 
-	case cmv1.NodePoolKind:
+	case arohcpv1alpha1.NodePoolKind:
 		err = f.clusterServiceClient.DeleteNodePool(ctx, resourceDoc.InternalID)
 
 	default:
@@ -257,7 +257,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 	}
 
 	switch doc.InternalID.Kind() {
-	case cmv1.ClusterKind:
+	case arohcpv1alpha1.ClusterKind:
 		csCluster, err := f.clusterServiceClient.GetCluster(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
@@ -271,7 +271,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			return nil, arm.NewInternalServerError()
 		}
 
-	case cmv1.NodePoolKind:
+	case arohcpv1alpha1.NodePoolKind:
 		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())

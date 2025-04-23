@@ -78,14 +78,12 @@ func (id *InternalID) validate() error {
 	}
 
 	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
-		// Temporarily use cmv1 constant for backward-compatibility.
-		id.kind = cmv1.ClusterKind
+		id.kind = arohcpv1alpha1.ClusterKind
 		return nil
 	}
 
 	if match, _ = path.Match(aroHcpV1Alpha1NodePoolPattern, id.path); match {
-		// Temporarily use cmv1 constant for backward-compatibility.
-		id.kind = cmv1.NodePoolKind
+		id.kind = arohcpv1alpha1.NodePoolKind
 		return nil
 	}
 
