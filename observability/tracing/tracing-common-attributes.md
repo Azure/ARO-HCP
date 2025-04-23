@@ -28,6 +28,11 @@ These attributes are present in all emitted spans.
 | `aro.api_version`         | string | The version of the provider API. | `2024-06-10-preview` |
 | `cloud.resource_id`       | string | The identifier of the resource. | `/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/example-rg/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/example-hcp` |
 | `aro.resource.name`       | string | The name of the resource. | `example-hcp` |
+| `aro.resource.type`       | string | The type of the resource. | `hcpOpenShiftClusters` |
+| `aro.operation.id`        | string | The identifier of the operation. | `74a284b3-5469-4c08-96db-5ce418eef313` |
+| `aro.operation.status`    | string | The status of the operation. | `Succeeded` |
+| `aro.operation.type`      | string | The type of the operation. | `Create` |
 | `aro.resource_group.name` | string | The name of the resource group. | `example-rg` |
 | `aro.subscription.id`     | string | The identifier of the subscription. | `291bba3f-e0a5-47bc-a099-3bdcb2a50a05` |
 | `aro.subscription.state`  | string | The state of the subscription. | `Registered` |
+| `aro.backend.processed_items` | int | The number of items (operations or subscriptions) processed by the Resource Provider backend. | `2` |
