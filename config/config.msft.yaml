@@ -133,6 +133,7 @@ defaults:
         kvSoftDelete: true
       #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-cx"
       clusterOutboundIPAddressIPTags: ""
+      enableSwiftV2: true
     applyKubeletFixes: true
     logs:
       namespace: HCPCustomerLogs

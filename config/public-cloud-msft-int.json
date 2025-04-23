@@ -241,6 +241,7 @@
   "mgmt": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
+      "enableSwiftV2": true,
       "etcd": {
         "kvName": "arohcpint-etcd-usw3-1",
         "kvSoftDelete": true

@@ -45,6 +45,7 @@ param workloadIdentities array
 param nodeSubnetNSGId string
 param networkDataplane string
 param networkPolicy string
+param enableSwiftV2 bool
 
 @description('Istio Ingress Gateway Public IP Address resource name')
 param istioIngressGatewayIPAddressName string = ''
@@ -80,7 +81,7 @@ param userOsDiskSizeGB int
 param pullAcrResourceIds array = []
 
 @description('MSI that will take actions on the AKS cluster during service deployment time')
-param aroDevopsMsiId string
+param deploymentMsiId string
 
 @description('Perform cryptographic operations using keys. Only works for key vaults that use the Azure role-based access control permission model.')
 var keyVaultCryptoUserId = subscriptionResourceId(
@@ -102,7 +103,18 @@ var networkContributorRoleId = subscriptionResourceId(
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
 )
 
+// Tag Contributor Role
+// https://www.azadvertizer.net/azrolesadvertizer/4a9ae827-6dc8-4573-8ac7-8239d42aa03f.html
+var tagContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions/',
+  '4a9ae827-6dc8-4573-8ac7-8239d42aa03f'
+)
+
 import * as res from '../modules/resource.bicep'
+
+//
+//   E T C D   K E Y V A U L T
+//
 
 module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
   name: aksKeyVaultName
@@ -155,16 +167,52 @@ resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
-  location: location
-  name: 'aks-net'
+//
+//   N E T W O R K
+//
+
+resource deploymentMsiNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: resourceGroup()
+  name: guid(deploymentMsiId, networkContributorRoleId, resourceGroup().id)
   properties: {
-    addressSpace: {
-      addressPrefixes: [
-        vnetAddressPrefix
-      ]
-    }
+    roleDefinitionId: networkContributorRoleId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
   }
+}
+
+resource deploymentMsiTagContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: resourceGroup()
+  name: guid(deploymentMsiId, tagContributorRoleId, resourceGroup().id)
+  properties: {
+    roleDefinitionId: tagContributorRoleId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+var vnetName = 'aks-net'
+
+module vnetCreation '../modules/network/vnet.bicep' = {
+  name: 'vnet-${vnetName}-creation'
+  params: {
+    location: location
+    vnetName: vnetName
+    vnetAddressPrefix: vnetAddressPrefix
+    enableSwift: enableSwiftV2
+    deploymentMsiId: deploymentMsiId
+  }
+  dependsOn: [
+    deploymentMsiNetworkContributorRoleAssignment
+    deploymentMsiTagContributorRoleAssignment
+  ]
+}
+
+resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
+  name: vnetName
+  dependsOn: [
+    vnetCreation
+  ]
 }
 
 resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
@@ -218,6 +266,10 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
   ]
 }
 
+//
+//   E G R E S S   A N D   I N G R E S S
+//
+
 resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${aksClusterName}-msi'
   location: location
@@ -265,6 +317,10 @@ module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = 
     }
   }
 }
+
+//
+//   A K S   C L U S T E R
+//
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   location: location
@@ -453,6 +509,10 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   ]
 }
 
+//
+//   O B S E R V A B I L I T Y
+//
+
 resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2017-05-01-preview' = if (logAnalyticsWorkspaceId != '') {
   scope: aksCluster
   name: aksClusterName
@@ -561,6 +621,11 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
         enableSecureBoot: false
         enableVTPM: false
       }
+      tags: enableSwiftV2
+        ? {
+            'aks-nic-enable-multi-tenancy': 'true'
+          }
+        : null
     }
   }
 ]
@@ -649,10 +714,10 @@ resource puller_fedcred 'Microsoft.ManagedIdentity/userAssignedIdentities/federa
 // grant aroDevopsMsi the aksClusterAdmin role on the aksCluster so it can
 // deploy services to the cluster
 resource aroDevopsMSIClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aksCluster.id, aroDevopsMsiId, aksClusterAdminRBACRoleId)
+  name: guid(aksCluster.id, deploymentMsiId, aksClusterAdminRBACRoleId)
   scope: aksCluster
   properties: {
-    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: aksClusterAdminRBACRoleId
   }
