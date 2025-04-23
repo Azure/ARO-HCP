@@ -31,6 +31,9 @@ install-tools: $(BINGO)
 	$(BINGO) get
 .PHONY: install-tools
 
+licenses: $(ADDLICENSE)
+	$(ADDLICENSE) -c 'Microsoft Corporation' -l apache $(shell find -type f -name '*.go')
+
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
@@ -56,7 +59,7 @@ tidy: $(MODULES:/...=.tidy)
 %.tidy:
 	cd $(basename $@) && go mod tidy
 
-all-tidy: tidy fmt yamlfmt
+all-tidy: tidy fmt yamlfmt licenses
 	go work sync
 
 mega-lint:
