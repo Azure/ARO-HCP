@@ -65,6 +65,17 @@ const (
 	ResourceIDKey = semconv.CloudResourceIDKey
 )
 
+// Operation attributes.
+const (
+	// OperationTypeKey is the span's attribute Key reporting the operation
+	// type.
+	OperationTypeKey = attribute.Key("aro.operation.type")
+
+	// OperationStatusKey is the span's attribute Key reporting the operation
+	// status.
+	OperationStatusKey = attribute.Key("aro.operation.status")
+)
+
 // Clusters service attributes.
 const (
 	// ClusterIDKey is the span's attribute Key reporting the internal cluster identifier.

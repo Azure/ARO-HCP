@@ -33,6 +33,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -44,6 +46,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
 
@@ -141,6 +144,19 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create leader election lock: %w", err)
 	}
 
+	// Initialize the global OpenTelemetry tracer.
+	ctx := context.Background()
+	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
+		ctx,
+		logger,
+		semconv.CloudRegion(argLocation),
+		semconv.ServiceNameKey.String("ARO HCP Backend"),
+		semconv.ServiceVersionKey.String(version.CommitSHA),
+	)
+	if err != nil {
+		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
+	}
+
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		argCosmosURL,
@@ -161,6 +177,9 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	// Create OCM connection
 	ocmConnection, err := ocmsdk.NewUnauthenticatedConnectionBuilder().
+		TransportWrapper(func(r http.RoundTripper) http.RoundTripper {
+			return otelhttp.NewTransport(http.DefaultTransport)
+		}).
 		URL(argClustersServiceURL).
 		Insecure(argInsecure).
 		Build()
@@ -173,7 +192,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	// Create HealthzAdaptor for leader election
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
 
-	group, ctx := errgroup.WithContext(context.Background())
+	group, ctx := errgroup.WithContext(ctx)
 
 	// Handle requests directly for /healthz endpoint
 	if argPortListenAddress != "" {
@@ -278,6 +297,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
+	_ = otelShutdown(ctx)
 	logger.Info(fmt.Sprintf("%s (%s) stopped", cmd.Short, cmd.Version))
 
 	return nil
