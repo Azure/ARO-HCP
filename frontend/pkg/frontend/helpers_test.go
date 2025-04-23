@@ -10,17 +10,16 @@ import (
 	"testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
 func TestCheckForProvisioningStateConflict(t *testing.T) {
-	const clusterResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster"
-	const nodePoolResourceID = clusterResourceID + "/nodePools/testNodePool"
-
 	tests := []struct {
 		name             string
 		resourceID       string
@@ -30,51 +29,51 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 	}{
 		{
 			name:             "Create cluster",
-			resourceID:       clusterResourceID,
+			resourceID:       api.TestClusterResourceID,
 			operationRequest: database.OperationRequestCreate,
 			directConflict:   func(s arm.ProvisioningState) bool { return false },
 		},
 		{
 			name:             "Delete cluster",
-			resourceID:       clusterResourceID,
+			resourceID:       api.TestClusterResourceID,
 			operationRequest: database.OperationRequestDelete,
 			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
 		},
 		{
 			name:             "Update cluster",
-			resourceID:       clusterResourceID,
+			resourceID:       api.TestClusterResourceID,
 			operationRequest: database.OperationRequestUpdate,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Request cluster credential",
-			resourceID:       clusterResourceID,
+			resourceID:       api.TestClusterResourceID,
 			operationRequest: database.OperationRequestRequestCredential,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Revoke cluster credentials",
-			resourceID:       clusterResourceID,
+			resourceID:       api.TestClusterResourceID,
 			operationRequest: database.OperationRequestRevokeCredentials,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Create node pool",
-			resourceID:       nodePoolResourceID,
+			resourceID:       api.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestCreate,
 			directConflict:   func(s arm.ProvisioningState) bool { return false },
 			parentConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
 		},
 		{
 			name:             "Delete node pool",
-			resourceID:       nodePoolResourceID,
+			resourceID:       api.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestDelete,
 			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
 			parentConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
 		},
 		{
 			name:             "Update node pool",
-			resourceID:       nodePoolResourceID,
+			resourceID:       api.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestUpdate,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 			parentConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
@@ -85,14 +84,12 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		var name string
 
 		resourceID, err := azcorearm.ParseResourceID(tt.resourceID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		for provisioningState := range arm.ListProvisioningStates() {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
 			t.Run(name, func(t *testing.T) {
-				ctx := ContextWithLogger(context.Background(), testLogger)
+				ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
 				ctrl := gomock.NewController(t)
 				mockDBClient := mocks.NewMockDBClient(ctrl)
 
@@ -131,7 +128,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			for provisioningState := range arm.ListProvisioningStates() {
 				name = fmt.Sprintf("%s (parent provisioningState=%s)", tt.name, provisioningState)
 				t.Run(name, func(t *testing.T) {
-					ctx := ContextWithLogger(context.Background(), testLogger)
+					ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
 					ctrl := gomock.NewController(t)
 					mockDBClient := mocks.NewMockDBClient(ctrl)
 

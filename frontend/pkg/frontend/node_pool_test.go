@@ -1,8 +1,9 @@
 package frontend
 
+// Copyright (c) Microsoft Corporation.
+// Licensed under the Apache License 2.0.
+
 import (
-	// This will invoke the init() function in each
-	// API version package so it can register itself.
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,27 +18,20 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	// This will invoke the init() function in each
+	// API version package so it can register itself.
+	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-const dummyTenantId = "dummy-tenant-id"
-const dummySubscriptionId = "00000000-0000-0000-0000-000000000000"
-const dummyResourceGroupId = "dummy_resource_group_name"
-const dummyClusterName = "dev-test-cluster"
-const dummyNodePoolName = "dev-nodepool"
-
-const dummyClusterID = ("/subscriptions/" + dummySubscriptionId + "/resourcegroups/" + dummyResourceGroupId +
-	"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + dummyClusterName)
-const dummyNodePoolID = dummyClusterID + "/nodePools/" + dummyNodePoolName
-
-var dummyClusterHREF = ocm.GenerateClusterHREF(dummyClusterName)
-var dummyNodePoolHREF = ocm.GenerateNodePoolHREF(dummyClusterHREF, dummyNodePoolName)
+var dummyClusterHREF = ocm.GenerateClusterHREF(api.TestClusterName)
+var dummyNodePoolHREF = ocm.GenerateNodePoolHREF(dummyClusterHREF, api.TestNodePoolName)
 
 var dummyLocation = "Spain"
 var dummyVMSize = "Big"
@@ -45,11 +39,11 @@ var dummyChannelGroup = "dummyChannelGroup"
 var dummyVersionID = "dummy"
 
 func TestCreateNodePool(t *testing.T) {
-	clusterResourceID, _ := azcorearm.ParseResourceID(dummyClusterID)
+	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	clusterDoc := database.NewResourceDocument(clusterResourceID)
 	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
 
-	nodePoolResourceID, _ := azcorearm.ParseResourceID(dummyNodePoolID)
+	nodePoolResourceID, _ := azcorearm.ParseResourceID(api.TestNodePoolResourceID)
 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 
@@ -77,7 +71,7 @@ func TestCreateNodePool(t *testing.T) {
 	}{
 		{
 			name:    "PUT Node Pool - Create a new Node Pool",
-			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
+			urlPath: api.TestNodePoolResourceID + "?api-version=2024-06-10-preview",
 			subDoc: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -97,7 +91,7 @@ func TestCreateNodePool(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
-				testLogger,
+				api.NewTestLogger(),
 				nil,
 				nil,
 				reg,
@@ -107,11 +101,11 @@ func TestCreateNodePool(t *testing.T) {
 			)
 
 			requestHeader := make(http.Header)
-			requestHeader.Add(arm.HeaderNameHomeTenantID, dummyTenantId)
+			requestHeader.Add(arm.HeaderNameHomeTenantID, api.TestTenantID)
 
 			body, _ := json.Marshal(requestBody)
 
-			subs := map[string]*arm.Subscription{dummySubscriptionId: test.subDoc}
+			subs := map[string]*arm.Subscription{api.TestSubscriptionID: test.subDoc}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
 			// CreateOrUpdateNodePool
@@ -131,7 +125,7 @@ func TestCreateNodePool(t *testing.T) {
 				GetLockClient()
 			// MiddlewareValidateSubscriptionState
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), dummySubscriptionId).
+				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
 				Return(test.subDoc, nil).
 				Times(1)
 			// CreateOrUpdateNodePool
@@ -154,9 +148,7 @@ func TestCreateNodePool(t *testing.T) {
 				CreateResourceDoc(gomock.Any(), gomock.Any())
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set(arm.HeaderNameARMResourceSystemData, "{}")
 
@@ -175,11 +167,11 @@ func TestCreateNodePool(t *testing.T) {
 // TODO: Fix the update logic for this test.
 
 // func TestUpdateNodePool(t *testing.T) {
-// 	clusterResourceID, _ := arm.ParseResourceID(dummyClusterID)
+// 	clusterResourceID, _ := arm.ParseResourceID(api.TestClusterResourceID)
 // 	clusterDoc := database.NewResourceDocument(clusterResourceID)
 // 	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
 
-// 	nodePoolResourceID, _ := arm.ParseResourceID(dummyNodePoolID)
+// 	nodePoolResourceID, _ := arm.ParseResourceID(api.TestNodePoolResourceID)
 // 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
 // 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 
@@ -208,7 +200,7 @@ func TestCreateNodePool(t *testing.T) {
 // 	}{
 // 		{
 // 			name:    "PUT Node Pool - Update an existing Node Pool",
-// 			urlPath: dummyNodePoolID + "?api-version=2024-06-10-preview",
+// 			urlPath: api.TestNodePoolResourceID + "?api-version=2024-06-10-preview",
 // 			subDoc: &arm.Subscription{
 // 				State:            arm.SubscriptionStateRegistered,
 // 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -226,20 +218,20 @@ func TestCreateNodePool(t *testing.T) {
 // 		t.Run(test.name, func(t *testing.T) {
 // 			f := &Frontend{
 // 				dbClient:             database.NewCache(),
-// 				logger:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+// 				logger:               api.NewTestLogger(),
 // 				metrics:              NewPrometheusEmitter(),
 // 				clusterServiceClient: &mockCSClient,
 // 			}
 // 			hcpCluster := api.NewDefaultHCPOpenShiftCluster()
 // 			hcpCluster.Name = dummyCluster
-// 			csCluster, _ := f.BuildCSCluster(clusterResourceID, dummyTenantId, hcpCluster, false)
+// 			csCluster, _ := f.BuildCSCluster(clusterResourceID, api.TestTenantID, hcpCluster, false)
 
 // 			hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
 // 			hcpNodePool.Name = dummyNodePool
 // 			csNodePool, _ := f.BuildCSNodePool(context.TODO(), hcpNodePool, false)
 
 // 			if test.subDoc != nil {
-// 				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), dummySubscriptionId, test.subDoc)
+// 				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), api.TestSubscriptionID, test.subDoc)
 // 				if err != nil {
 // 					t.Fatal(err)
 // 				}

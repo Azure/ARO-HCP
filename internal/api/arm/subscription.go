@@ -7,6 +7,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
+// SubscriptionAPIVersion is the system API version for the subscription endpoint.
+const SubscriptionAPIVersion = "2.0"
+
 type Subscription struct {
 	// The resource provider contract gives an example RegistrationDate
 	// in RFC1123 format but does not explicitly state a required format

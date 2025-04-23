@@ -7,15 +7,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMiddlewareLowercase(t *testing.T) {
 	writer := httptest.NewRecorder()
 
 	request, err := http.NewRequest(http.MethodGet, "/TEST", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	next := func(w http.ResponseWriter, r *http.Request) {
 		request = r // capture modified request
@@ -23,15 +24,10 @@ func TestMiddlewareLowercase(t *testing.T) {
 
 	MiddlewareLowercase(writer, request, next)
 
-	if request.URL.Path != "/test" {
-		t.Error(request.URL.Path)
-	}
+	assert.Equal(t, "/test", request.URL.Path)
 
 	originalPath, err := OriginalPathFromContext(request.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if originalPath != "/TEST" {
-		t.Error(originalPath)
+	if assert.NoError(t, err) {
+		assert.Equal(t, "/TEST", originalPath)
 	}
 }

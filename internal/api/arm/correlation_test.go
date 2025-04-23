@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewCorrelationData(t *testing.T) {
@@ -32,17 +33,9 @@ func TestNewCorrelationData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			correlationData := NewCorrelationData(tt.request)
 
-			if correlationData.RequestID == uuid.Nil {
-				t.Fatalf("correlationData.RequestID is nil")
-			}
-
-			if correlationData.ClientRequestID != client_request_id {
-				t.Errorf("got %v, but want %v", correlationData.ClientRequestID, client_request_id)
-			}
-
-			if correlationData.CorrelationRequestID != correlation_request_id {
-				t.Errorf("got %v, but want %v", correlationData.CorrelationRequestID, correlation_request_id)
-			}
+			assert.NotEqual(t, uuid.Nil, correlationData.RequestID)
+			assert.Equal(t, client_request_id, correlationData.ClientRequestID)
+			assert.Equal(t, correlation_request_id, correlationData.CorrelationRequestID)
 		})
 	}
 }

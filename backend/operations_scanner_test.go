@@ -13,8 +13,11 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
@@ -54,9 +57,13 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 
 	// Placeholder InternalID for NewOperationDocument
 	internalID, err := ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/placeholder")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
+	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+	require.NoError(t, err)
+
+	operationID, err := azcorearm.ParseResourceID("/subscriptions/" + api.TestSubscriptionID + "/providers/" + api.ProviderNamespace + "/locations/oz/" + api.OperationStatusResourceTypeName + "/operationID")
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -65,16 +72,6 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			ctx := context.Background()
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
-
-			resourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			operationID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/oz/hcpOperationsStatus/operationID")
-			if err != nil {
-				t.Fatal(err)
-			}
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
@@ -120,27 +117,19 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 
 			err = scanner.setDeleteOperationAsCompleted(ctx, op)
 
-			if request == nil && tt.expectAsyncNotification {
-				t.Error("Did not POST to async notification URI")
-			} else if request != nil && !tt.expectAsyncNotification {
-				t.Error("Unexpected POST to async notification URI")
-			}
+			if tt.expectError {
+				assert.Error(t, err)
 
-			if err == nil && tt.expectError {
-				t.Error("Expected error but got none")
-			} else if err != nil && !tt.expectError {
-				t.Errorf("Got unexpected error: %v", err)
-			}
+			} else if assert.NoError(t, err) {
+				if tt.resourceDocPresent {
+					assert.True(t, resourceDocDeleted)
+				}
 
-			if err == nil && tt.resourceDocPresent && !resourceDocDeleted {
-				t.Error("Expected resource document to be deleted")
-			}
-
-			if err == nil && tt.expectAsyncNotification {
-				if operationDoc.Status != arm.ProvisioningStateSucceeded {
-					t.Errorf("Expected updated operation status to be %s but got %s",
-						arm.ProvisioningStateSucceeded,
-						operationDoc.Status)
+				if tt.expectAsyncNotification {
+					assert.Equal(t, arm.ProvisioningStateSucceeded, operationDoc.Status)
+					assert.NotNil(t, request, "Did not POST to async notification URI")
+				} else {
+					assert.Nil(t, request, "Unexpected POST to async notification URI")
 				}
 			}
 		})
@@ -220,9 +209,13 @@ func TestUpdateOperationStatus(t *testing.T) {
 
 	// Placeholder InternalID for NewOperationDocument
 	internalID, err := ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/placeholder")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
+	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+	require.NoError(t, err)
+
+	operationID, err := azcorearm.ParseResourceID("/subscriptions/" + api.TestSubscriptionID + "/providers/" + api.ProviderNamespace + "/locations/oz/" + api.OperationStatusResourceTypeName + "/operationID")
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -231,16 +224,6 @@ func TestUpdateOperationStatus(t *testing.T) {
 			ctx := context.Background()
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
-
-			resourceID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testGroup/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testCluster")
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			operationID, err := azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/oz/hcpOperationsStatus/operationID")
-			if err != nil {
-				t.Fatal(err)
-			}
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
@@ -299,36 +282,25 @@ func TestUpdateOperationStatus(t *testing.T) {
 
 			err = scanner.updateOperationStatus(ctx, op, tt.updatedOperationStatus, nil)
 
-			if request == nil && tt.expectAsyncNotification {
-				t.Error("Did not POST to async notification URI")
-			} else if request != nil && !tt.expectAsyncNotification {
-				t.Error("Unexpected POST to async notification URI")
-			}
+			if tt.expectError {
+				assert.Error(t, err)
 
-			if err == nil && tt.expectError {
-				t.Error("Expected error but got none")
-			} else if err != nil && !tt.expectError {
-				t.Errorf("Got unexpected error: %v", err)
-			}
+			} else if assert.NoError(t, err) {
+				if tt.resourceDocPresent {
+					if tt.expectResourceOperationIDCleared {
+						assert.Empty(t, resourceDoc.ActiveOperationID, "Resource's active operation ID was not cleared")
+					} else {
+						assert.NotEmpty(t, resourceDoc.ActiveOperationID, "Resource's active operation ID is unexpectedly empty")
+					}
 
-			if err == nil && tt.expectAsyncNotification {
-				if operationDoc.Status != tt.updatedOperationStatus {
-					t.Errorf("Expected updated operation status to be %s but got %s",
-						tt.updatedOperationStatus,
-						operationDoc.Status)
+					assert.Equal(t, tt.expectResourceProvisioningState, resourceDoc.ProvisioningState)
 				}
-			}
 
-			if err == nil && tt.resourceDocPresent {
-				if resourceDoc.ActiveOperationID == "" && !tt.expectResourceOperationIDCleared {
-					t.Error("Resource's active operation ID is unexpectedly empty")
-				} else if resourceDoc.ActiveOperationID != "" && tt.expectResourceOperationIDCleared {
-					t.Errorf("Resource's active operation ID was not cleared; has '%s'", resourceDoc.ActiveOperationID)
-				}
-				if resourceDoc.ProvisioningState != tt.expectResourceProvisioningState {
-					t.Errorf("Expected updated provisioning state to be %s but got %s",
-						tt.expectResourceProvisioningState,
-						resourceDoc.ProvisioningState)
+				if tt.expectAsyncNotification {
+					assert.Equal(t, tt.updatedOperationStatus, operationDoc.Status)
+					assert.NotNil(t, request, "Did not POST to async notification URI")
+				} else {
+					assert.Nil(t, request, "Unexpected POST to async notification URI")
 				}
 			}
 		})
@@ -477,18 +449,19 @@ func TestConvertClusterStatus(t *testing.T) {
 			}
 
 			opState, opError, err := convertClusterStatus(clusterStatus, tt.currentProvisioningState)
-			if opState != tt.updatedProvisioningState {
-				t.Errorf("Expected provisioning state '%s' but got '%s'", tt.updatedProvisioningState, opState)
+
+			assert.Equal(t, tt.updatedProvisioningState, opState)
+
+			if tt.expectCloudError {
+				assert.NotNil(t, opError)
+			} else {
+				assert.Nil(t, opError)
 			}
-			if opError == nil && tt.expectCloudError {
-				t.Error("Expected a cloud error but got none")
-			} else if opError != nil && !tt.expectCloudError {
-				t.Errorf("Got unexpected cloud error: %v", opError)
-			}
-			if err == nil && tt.expectConversionError {
-				t.Error("Expected a conversion error but got none")
-			} else if err != nil && !tt.expectConversionError {
-				t.Errorf("Got unexpected conversion error: %v", err)
+
+			if tt.expectConversionError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

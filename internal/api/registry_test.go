@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	validator "github.com/go-playground/validator/v10"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetJSONTagName(t *testing.T) {
@@ -47,18 +48,16 @@ func TestGetJSONTagName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actualResult := GetJSONTagName(tt.structTag)
-			if actualResult != tt.expectedResult {
-				t.Errorf("Expected field name '%s' for %s, got '%s'", tt.expectedResult, tt.structTag, actualResult)
-			}
+			assert.Equal(t, tt.expectedResult, actualResult)
 		})
 	}
 }
 
-type TestAPIVersion struct {
+type TestAPIVersionTag struct {
 	APIVersion string `validate:"api_version"`
 }
 
-type TestRequiredForPut struct {
+type TestRequiredForPutTag struct {
 	StructField any `json:"field" validate:"required_for_put"`
 }
 
@@ -79,7 +78,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation passes on known API version",
 			context: validateContext{
 				Method: http.MethodPost, // not relevant
-				Resource: TestAPIVersion{
+				Resource: TestAPIVersionTag{
 					APIVersion: "valid-api-version",
 				},
 			},
@@ -88,7 +87,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on unknown API version",
 			context: validateContext{
 				Method: http.MethodPost, // not relevant
-				Resource: TestAPIVersion{
+				Resource: TestAPIVersionTag{
 					APIVersion: "bogus-api-version",
 				},
 			},
@@ -105,7 +104,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Zero value on required field is error when method is PUT",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: int(0),
 				},
 			},
@@ -115,7 +114,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Zero value on required field is ok when method is not PUT",
 			context: validateContext{
 				Method: http.MethodGet,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: int(0),
 				},
 			},
@@ -124,7 +123,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on nil slice",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: nilSlice,
 				},
 			},
@@ -134,7 +133,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation passes on empty slice",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: []int{},
 				},
 			},
@@ -143,7 +142,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on nil map",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: nilMap,
 				},
 			},
@@ -153,7 +152,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation passes on empty map",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: map[int]int{},
 				},
 			},
@@ -162,7 +161,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on nil pointer",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: nilPointer,
 				},
 			},
@@ -173,7 +172,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation fails on pointer to zero value",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: Ptr(nilSlice),
 				},
 			},
@@ -184,7 +183,7 @@ func TestNewValidator(t *testing.T) {
 			name: "Validation passes on pointer to non-zero value",
 			context: validateContext{
 				Method: http.MethodPut,
-				Resource: TestRequiredForPut{
+				Resource: TestRequiredForPutTag{
 					StructField: Ptr([]int{}),
 				},
 			},
@@ -196,25 +195,18 @@ func TestNewValidator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validate.Struct(tt.context)
-			if err == nil {
-				if tt.expectError {
-					t.Errorf("Expected a FieldError but got none")
-				}
-			} else if !tt.expectError {
-				t.Errorf("Unexpected error: %v", err)
-			} else {
+			if !tt.expectError {
+				assert.NoError(t, err)
+
+			} else if assert.Error(t, err) {
 				for _, fieldError := range err.(validator.ValidationErrors) {
 					switch fieldError.Tag() {
 					case "api_version":
 						// Valid tag, nothing more to check.
 					case "required_for_put":
 						// Verify the validate instance is using GetJSONTagName.
-						if fieldError.Field() != "field" {
-							t.Errorf("Unexpected JSON field name '%s' in FieldError, expected 'field'", fieldError.Field())
-						}
-						if fieldError.StructField() != "StructField" {
-							t.Errorf("Unexpected struct field name '%s' in FieldError, expected 'StructField'", fieldError.StructField())
-						}
+						assert.Equal(t, "field", fieldError.Field())
+						assert.Equal(t, "StructField", fieldError.StructField())
 					default:
 						t.Errorf("Unexpected validation tag: %s", fieldError.Tag())
 					}

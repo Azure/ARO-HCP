@@ -3,7 +3,6 @@ package frontend
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -26,10 +25,6 @@ func noModifyReqfunc(req *http.Request) {
 }
 
 func TestMiddlewareLoggingPostMux(t *testing.T) {
-	fakeSubscriptionId := "the_subscription_id"
-	fakeResourceGroupName := "the_resource_group_name"
-	fakeResourceName := "the_resource_name"
-
 	type testCase struct {
 		name            string
 		wantLogAttrs    []slog.Attr
@@ -45,49 +40,42 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 		},
 		{
 			name:          "handles the common attributes and the attributes for the subscription_id segment path",
-			wantLogAttrs:  []slog.Attr{slog.String("subscription_id", fakeSubscriptionId)},
-			wantSpanAttrs: map[string]string{"aro.subscription.id": fakeSubscriptionId},
+			wantLogAttrs:  []slog.Attr{slog.String("subscription_id", api.TestSubscriptionID)},
+			wantSpanAttrs: map[string]string{"aro.subscription.id": api.TestSubscriptionID},
 			setReqPathValue: func(req *http.Request) {
-				req.SetPathValue(PathSegmentSubscriptionID, fakeSubscriptionId)
+				req.SetPathValue(PathSegmentSubscriptionID, api.TestSubscriptionID)
 			},
 		},
 		{
 			name:          "handles the common attributes and the attributes for the resourcegroupname path",
-			wantLogAttrs:  []slog.Attr{slog.String("resource_group", fakeResourceGroupName)},
-			wantSpanAttrs: map[string]string{"aro.resource_group.name": fakeResourceGroupName},
+			wantLogAttrs:  []slog.Attr{slog.String("resource_group", api.TestResourceGroupName)},
+			wantSpanAttrs: map[string]string{"aro.resource_group.name": api.TestResourceGroupName},
 			setReqPathValue: func(req *http.Request) {
-				req.SetPathValue(PathSegmentResourceGroupName, fakeResourceGroupName)
+				req.SetPathValue(PathSegmentResourceGroupName, api.TestResourceGroupName)
 			},
 		},
 		{
 			name: "handles the common attributes and the attributes for the resourcename path, and produces the correct resourceID attribute",
 			wantLogAttrs: []slog.Attr{
-				slog.String("subscription_id", fakeSubscriptionId),
-				slog.String("resource_group", fakeResourceGroupName),
-				slog.String("resource_name", fakeResourceName),
-				slog.String(
-					"resource_id",
-					fmt.Sprintf(
-						"/subscriptions/%s/resourcegroups/%s/providers/%s/%s",
-						fakeSubscriptionId,
-						fakeResourceGroupName,
-						api.ClusterResourceType,
-						fakeResourceName)),
+				slog.String("subscription_id", api.TestSubscriptionID),
+				slog.String("resource_group", api.TestResourceGroupName),
+				slog.String("resource_name", api.TestClusterName),
+				slog.String("resource_id", api.TestClusterResourceID),
 			},
 			wantSpanAttrs: map[string]string{
-				"aro.subscription.id":     fakeSubscriptionId,
-				"aro.resource_group.name": fakeResourceGroupName,
-				"aro.resource.name":       fakeResourceName,
+				"aro.subscription.id":     api.TestSubscriptionID,
+				"aro.resource_group.name": api.TestResourceGroupName,
+				"aro.resource.name":       api.TestClusterName,
 			},
 			setReqPathValue: func(req *http.Request) {
 				// assuming the PathSegmentResourceName is present in the Path
-				req.SetPathValue(PathSegmentResourceName, fakeResourceName)
+				req.SetPathValue(PathSegmentResourceName, api.TestClusterName)
 
 				// assuming the PathSegmentSubscriptionID is present in the Path
-				req.SetPathValue(PathSegmentSubscriptionID, fakeSubscriptionId)
+				req.SetPathValue(PathSegmentSubscriptionID, api.TestSubscriptionID)
 
 				// assuming the PathSegmentResourceGroupName is present in the Path
-				req.SetPathValue(PathSegmentResourceGroupName, fakeResourceGroupName)
+				req.SetPathValue(PathSegmentResourceGroupName, api.TestResourceGroupName)
 			},
 		},
 	}

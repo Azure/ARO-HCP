@@ -14,163 +14,130 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
+var (
+	managedIdentity1 = api.NewTestUserAssignedIdentity("myManagedIdentity1")
+	managedIdentity2 = api.NewTestUserAssignedIdentity("myManagedIdentity2")
+	managedIdentity3 = api.NewTestUserAssignedIdentity("myManagedIdentity3")
+)
+
 func compareErrors(x, y []arm.CloudErrorBody) string {
 	return cmp.Diff(x, y,
 		cmpopts.SortSlices(func(x, y arm.CloudErrorBody) bool { return x.Target < y.Target }),
 		cmpopts.IgnoreFields(arm.CloudErrorBody{}, "Code"))
 }
 
-// This function returns a valid HCPOpenShiftCluster where MI in Identity field is used in OperatorsAuthentication field.
-func minimumValidClusterIdentities() *api.HCPOpenShiftCluster {
-	// Values are meaningless but need to pass validation.
-	return &api.HCPOpenShiftCluster{
-		Properties: api.HCPOpenShiftClusterProperties{
-			Network: api.NetworkProfile{
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-			},
-			API: api.APIProfile{
-				Visibility: "public",
-			},
-			Platform: api.PlatformProfile{
-				SubnetID: "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-					UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-						ControlPlaneOperators: map[string]string{
-							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
-						},
-						ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2",
-					},
-				},
-			},
-		},
-		Identity: arm.ManagedServiceIdentity{
-			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1": &arm.UserAssignedIdentity{},
-				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2": &arm.UserAssignedIdentity{},
-			},
-		},
-	}
-}
-
-// This function returns a in-valid HCPOpenShiftCluster where MI is assigned in Identity field but its not used in OperatorsAuthentication field.
-func minimumValidClusterwithBrokenIdentities() *api.HCPOpenShiftCluster {
-	// Values are meaningless but need to pass validation.
-	return &api.HCPOpenShiftCluster{
-		Properties: api.HCPOpenShiftClusterProperties{
-			Network: api.NetworkProfile{
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-			},
-			API: api.APIProfile{
-				Visibility: "public",
-			},
-			Platform: api.PlatformProfile{
-				SubnetID: "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-					UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-						ControlPlaneOperators: map[string]string{
-							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
-						},
-						ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2",
-					},
-				},
-			},
-		},
-		Identity: arm.ManagedServiceIdentity{
-			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity": &arm.UserAssignedIdentity{},
-			},
-		},
-	}
-}
-
-// This function returns a in-valid HCPOpenShiftCluster where MI is assigned in Identity field but its used multiple times in OperatorsAuthentication field.
-func minimumValidClusterwithMultipleIdentities() *api.HCPOpenShiftCluster {
-	// Values are meaningless but need to pass validation.
-	return &api.HCPOpenShiftCluster{
-		Properties: api.HCPOpenShiftClusterProperties{
-			Network: api.NetworkProfile{
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-			},
-			API: api.APIProfile{
-				Visibility: "public",
-			},
-			Platform: api.PlatformProfile{
-				SubnetID: "/something/something/virtualNetworks/subnets",
-				OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-					UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-						ControlPlaneOperators: map[string]string{
-							"operatorX": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
-							"operatorY": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
-						},
-						ServiceManagedIdentity: "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1",
-					},
-				},
-			},
-		},
-		Identity: arm.ManagedServiceIdentity{
-			UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-				"/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1": &arm.UserAssignedIdentity{},
-			},
-		},
-	}
-}
 func TestClusterRequiredForPut(t *testing.T) {
 	tests := []struct {
 		name         string
-		resource     *api.HCPOpenShiftCluster
+		tweaks       *api.HCPOpenShiftCluster
 		expectErrors []arm.CloudErrorBody
 	}{
 		{
-			name:     "Minimum valid cluster with Broken Identity",
-			resource: minimumValidClusterwithBrokenIdentities(),
+			name:   "Minimum valid cluster",
+			tweaks: &api.HCPOpenShiftCluster{},
+		},
+		{
+			name: "Cluster with identities",
+			tweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					Platform: api.PlatformProfile{
+						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"operatorX": managedIdentity1,
+								},
+								ServiceManagedIdentity: managedIdentity2,
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						managedIdentity1: &arm.UserAssignedIdentity{},
+						managedIdentity2: &arm.UserAssignedIdentity{},
+					},
+				},
+			},
+		},
+		{
+			name: "Cluster with broken identities",
+			tweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					Platform: api.PlatformProfile{
+						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"operatorX": managedIdentity1,
+								},
+								ServiceManagedIdentity: managedIdentity2,
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						managedIdentity3: &arm.UserAssignedIdentity{},
+					},
+				},
+			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1 is not assigned to this resource",
+					Message: "identity " + managedIdentity1 + " is not assigned to this resource",
 					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
-					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity is assigned to this resource but not used",
+					Message: "identity " + managedIdentity3 + " is assigned to this resource but not used",
 					Target:  "identity.UserAssignedIdentities",
 				},
 				{
-					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity2 is not assigned to this resource",
+					Message: "identity " + managedIdentity2 + " is not assigned to this resource",
 					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				},
 			},
 		},
 		{
-			name:     "Minimum valid cluster with Multiple Identity",
-			resource: minimumValidClusterwithMultipleIdentities(),
+			name: "Cluster with multiple identities",
+			tweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					Platform: api.PlatformProfile{
+						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
+							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"operatorX": managedIdentity1,
+									"operatorY": managedIdentity1,
+								},
+								ServiceManagedIdentity: managedIdentity1,
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						managedIdentity1: &arm.UserAssignedIdentity{},
+					},
+				},
+			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1 is used multiple times",
+					Message: "identity " + managedIdentity1 + " is used multiple times",
 					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
-					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1 is used multiple times",
+					Message: "identity " + managedIdentity1 + " is used multiple times",
 					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorY]",
 				},
 				{
-					Message: "identity /subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/MyManagedIdentity1 is used multiple times",
+					Message: "identity " + managedIdentity1 + " is used multiple times",
 					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				},
 			},
-		},
-		{
-			name:     "Minimum valid cluster",
-			resource: minimumValidClusterIdentities(),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualErrors := validateStaticComplex(tt.resource)
+			resource := api.ClusterTestCase(t, tt.tweaks)
+			actualErrors := validateStaticComplex(resource)
 			fmt.Printf("tt: %v\n", actualErrors)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
