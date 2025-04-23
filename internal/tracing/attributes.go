@@ -67,6 +67,14 @@ const (
 
 // Operation attributes.
 const (
+	// ResourceTypeKey is the span's attribute Key reporting the resource
+	// type associated to the current request.
+	ResourceTypeKey = attribute.Key("aro.resource.type")
+
+	// OperationIDKey is the span's attribute Key reporting the operation
+	// identifier.
+	OperationIDKey = attribute.Key("aro.operation.id")
+
 	// OperationTypeKey is the span's attribute Key reporting the operation
 	// type.
 	OperationTypeKey = attribute.Key("aro.operation.type")
