@@ -170,6 +170,9 @@
         },
         "clusterOutboundIPAddressIPTags": {
           "$ref": "#/definitions/keyColonValueCSV"
+        },
+        "enableSwiftV2": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -182,7 +185,8 @@
         "networkDataplane",
         "networkPolicy",
         "userAgentPool",
-        "systemAgentPool"
+        "systemAgentPool",
+        "clusterOutboundIPAddressIPTags"
       ]
     },
     "containerImage": {

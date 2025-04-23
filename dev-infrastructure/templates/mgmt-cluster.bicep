@@ -74,6 +74,9 @@ param aksEtcdKVEnableSoftDelete bool = true
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
 
+@description('Enable Swift V2 for the AKS cluster and VNET')
+param aksEnableSwift bool
+
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
@@ -200,8 +203,9 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     userOsDiskSizeGB: aksUserOsDiskSizeGB
-    aroDevopsMsiId: aroDevopsMsiId
+    deploymentMsiId: aroDevopsMsiId
     dcrId: dataCollection.outputs.dcrId
+    enableSwiftV2: aksEnableSwift
   }
 }
 
