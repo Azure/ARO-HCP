@@ -814,6 +814,11 @@
             }
           }
         },
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_RequestAdminCredential_MaximumSet": {
+            "$ref": "./examples/HcpOpenShiftClusters_RequestAdminCredential_MaximumSet_Gen.json"
+          }
+        },
         "x-ms-long-running-operation-options": {
           "final-state-via": "location"
         },
@@ -866,6 +871,11 @@
             "schema": {
               "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
             }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOpenShiftClusters_RevokeCredentials_MaximumSet": {
+            "$ref": "./examples/HcpOpenShiftClusters_RevokeCredentials_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
