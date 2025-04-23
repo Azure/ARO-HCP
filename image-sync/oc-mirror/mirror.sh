@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/bin/bash
+
+set -euxo pipefail
+
 echo "Azure login"
 az login --identity --client-id "${AZURE_CLIENT_ID}"
 
@@ -11,8 +14,6 @@ echo "${IMAGE_SET_CONFIG}" | base64 -d | yq eval -P > ${IMAGE_SET_CONFIG_FILE}
 API_VERSION=$(yq eval '.apiVersion' ${IMAGE_SET_CONFIG_FILE})
 if echo "$API_VERSION" | grep -q "^mirror.openshift.io/v2"; then
     ADDITIONAL_FLAGS="--workspace file:///oc-mirror-workspace --v2"
-else
-    ADDITIONAL_FLAGS="--continue-on-error"
 fi
 
 # switching between versions of oc-mirror is a temporary fix until
