@@ -418,7 +418,7 @@ var ocpMirrorConfig = {
           type: 'ocp'
           full: true
           minVersion: '4.18.1'
-          maxVersion: '4.18.1'
+          maxVersion: '4.18.9'
         }
       ]
       graph: true
