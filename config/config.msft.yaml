@@ -96,6 +96,12 @@ defaults:
       userAgentPool:
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
+      infraAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 128
+        azCount: 3
       etcd:
         kvSoftDelete: true
       #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-svc"
@@ -146,6 +152,12 @@ defaults:
       userAgentPool:
         vmSize: 'Standard_D16s_v3'
         osDiskSizeGB: 128
+      infraAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 128
+        azCount: 3
       etcd:
         kvSoftDelete: true
       #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-cx"

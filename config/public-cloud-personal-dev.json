@@ -253,6 +253,13 @@
         "kvName": "arohcp-etcd-usw3tst-1",
         "kvSoftDelete": false
       },
+      "infraAgentPool": {
+        "azCount": 1,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
       "kubernetesVersion": "1.31.6",
       "name": "usw3tst-mgmt-1",
       "networkDataplane": "azure",
@@ -355,6 +362,13 @@
       "etcd": {
         "kvName": "arohcp-etcd-usw3tst",
         "kvSoftDelete": false
+      },
+      "infraAgentPool": {
+        "azCount": 1,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.6",
       "name": "usw3tst-svc",

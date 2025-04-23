@@ -48,6 +48,21 @@ param userAgentVMSize string
 @description('Number of availability zones to use for the AKS clusters user agent pool')
 param userAgentPoolAZCount int
 
+@description('Min replicas for the infra worker nodes')
+param infraAgentMinCount int
+
+@description('Max replicas for the infra worker nodes')
+param infraAgentMaxCount int
+
+@description('VM instance type for the infra worker nodes')
+param infraAgentVMSize string
+
+@description('Number of availability zones to use for the AKS clusters infra user agent pool')
+param infraAgentPoolAZCount int
+
+@description('Disk size for the AKS infra nodes')
+param aksInfraOsDiskSizeGB int
+
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
 
@@ -302,6 +317,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
     userAgentPoolAZCount: userAgentPoolAZCount
+    infraAgentMinCount: infraAgentMinCount
+    infraAgentMaxCount: infraAgentMaxCount
+    infraAgentVMSize: infraAgentVMSize
+    infraAgentPoolAZCount: infraAgentPoolAZCount
+    infraOsDiskSizeGB: aksInfraOsDiskSizeGB
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize

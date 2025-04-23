@@ -23,6 +23,12 @@ param userAgentMaxCount int = 3
 param userAgentVMSize string = 'Standard_D2s_v3'
 param userAgentPoolAZCount int = 3
 
+// User agentpool spec (Infra)
+param infraAgentMinCount int = 1
+param infraAgentMaxCount int = 3
+param infraAgentVMSize string = 'Standard_D2s_v3'
+param infraAgentPoolAZCount int = 1
+
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
 
@@ -75,6 +81,7 @@ param dnsPrefix string = aksClusterName
 @maxValue(1023)
 param systemOsDiskSizeGB int
 param userOsDiskSizeGB int
+param infraOsDiskSizeGB int
 
 @description('The resource IDs of ACR instances that the AKS cluster will pull images from')
 param pullAcrResourceIds array = []
@@ -625,6 +632,47 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
             'aks-nic-enable-multi-tenancy': 'true'
           }
         : null
+    }
+  }
+]
+
+resource infraAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
+  for i in range(0, infraAgentPoolAZCount): {
+    parent: aksCluster
+    name: 'infra${take(string(i+1), 7)}'
+    properties: {
+      osType: 'Linux'
+      osSKU: 'AzureLinux'
+      mode: 'User'
+      enableAutoScaling: true
+      enableEncryptionAtHost: true
+      enableFIPS: true
+      enableNodePublicIP: false
+      kubeletDiskType: 'OS'
+      osDiskType: 'Ephemeral'
+      osDiskSizeGB: infraOsDiskSizeGB
+      count: infraAgentMinCount
+      minCount: infraAgentMinCount
+      maxCount: infraAgentMaxCount
+      vmSize: infraAgentVMSize
+      type: 'VirtualMachineScaleSets'
+      upgradeSettings: {
+        maxSurge: '10%'
+      }
+      vnetSubnetID: aksNodeSubnet.id
+      podSubnetID: aksPodSubnet.id
+      maxPods: 225
+      availabilityZones: locationHasAvailabilityZones ? [locationAvailabilityZones[i]] : null
+      securityProfile: {
+        enableSecureBoot: false
+        enableVTPM: false
+      }
+      nodeLabels: {
+        infra: 'true'
+      }
+      nodeTaints: [
+        'infra=true:NoSchedule'
+      ]
     }
   }
 ]
