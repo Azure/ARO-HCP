@@ -1,17 +1,17 @@
 -include ../setup-env.mk
 
-CURRENT_COMMIT := $(shell git rev-parse --short=7 HEAD)
+CURRENT_COMMIT ?= $(shell COMMIT_SHA=$$(git rev-parse --short=7 HEAD); if [ -z "$$(git status --porcelain 2>/dev/null)" ]; then echo "$$COMMIT_SHA"; else echo "$$COMMIT_SHA"-dirty; fi )
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ARO_HCP_IMAGE_REPOSITORY)
 
 .DEFAULT_GOAL := frontend
 
 frontend:
-	go build -o aro-hcp-frontend .
+	go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${CURRENT_COMMIT}" -o aro-hcp-frontend .
 
 info:
 	@echo "ARO_HCP_FRONTEND_IMAGE: ${ARO_HCP_FRONTEND_IMAGE}"
-	@echo "COMMIT: ${COMMIT}"
+	@echo "COMMIT: ${CURRENT_COMMIT}"
 
 run:
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
@@ -29,7 +29,7 @@ build-push: image push
 
 image:
 	pushd .. && git archive --output frontend/archive.tar.gz HEAD && popd
-	docker build -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT} .
+	docker build --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT} .
 	rm -f archive.tar.gz
 .PHONY: image
 
