@@ -4,8 +4,9 @@ from typing import List
 import datetime
 import os
 import json
+import sys
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import ManagedIdentityCredential
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource.resources.v2022_09_01.models._models_py3 import GenericResourceExpanded, ResourceGroup
@@ -211,12 +212,12 @@ def get_subscription_id():
         )
 
 def main():
-    subscription_id = get_subscription_id()
+    subscription_id = sys.argv[1]
     if not subscription_id:
         raise ValueError("Subscription ID not found in automation variables or environment variables")
 
     resource_client = ResourceManagementClient(
-        credential=DefaultAzureCredential(),
+        credential=ManagedIdentityCredential(client_id=sys.argv[2]),
         subscription_id=subscription_id,
         api_version=DEFAULT_API_VERSION
     )
