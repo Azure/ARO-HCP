@@ -66,7 +66,7 @@ def get_automation_credential(name):
 # If DRY_RUN is TRUE, the script will print which resource groups should be deleted
 # without deleting them. If it is FALSE, the script will print which resource groups
 # should be deleted and delete those that should be deleted.
-DRY_RUN = True
+DRY_RUN = False
 
 # VERBOSE is used to control whether to print all the resources of each resource group
 # for informational purposes.
