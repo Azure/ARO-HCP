@@ -12,5 +12,6 @@ param keyVaultPrivate = {{ .global.keyVault.private }}
 param keyVaultSoftDelete = {{ .global.keyVault.softDelete }}
 
 param grafanaName = '{{ .monitoring.grafanaName }}'
+param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
 param grafanaAdminGroupPrincipalId = '{{ .monitoring.grafanaAdminGroupPrincipalId }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'

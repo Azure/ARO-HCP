@@ -931,6 +931,9 @@
         "grafanaName": {
           "type": "string"
         },
+        "grafanaMajorVersion": {
+          "type": "string"
+        },
         "grafanaZoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },

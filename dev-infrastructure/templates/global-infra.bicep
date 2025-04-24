@@ -27,6 +27,9 @@ param safeDnsIntAppObjectId string
 @description('Global Grafana instance name')
 param grafanaName string
 
+@description('The Grafana major version')
+param grafanaMajorVersion string
+
 @description('The admin group principal ID to use Grafana')
 param grafanaAdminGroupPrincipalId string
 
@@ -170,6 +173,7 @@ module grafana '../modules/grafana/instance.bicep' = {
   params: {
     location: location
     grafanaName: grafanaName
+    grafanaMajorVersion: grafanaMajorVersion
     grafanaAdminGroupPrincipalId: grafanaAdminGroupPrincipalId
     grafanaManagerPrincipalId: globalMSI.properties.principalId
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
