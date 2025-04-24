@@ -181,7 +181,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:6016058b113d0dd61fce42747cc4cf6b0d47bbe260892a9825d24d19b6834ef4
+        digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
       pullSecretName: ocmirror-pull-secret
   # MCE
   mce:
