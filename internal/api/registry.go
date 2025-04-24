@@ -28,7 +28,7 @@ const (
 	ClusterResourceTypeName         = "hcpOpenShiftClusters"
 	NodePoolResourceTypeName        = "nodePools"
 	OperationResultResourceTypeName = "hcpOperationResults"
-	OperationStatusResourceTypeName = "hcpOperationsStatus"
+	OperationStatusResourceTypeName = "hcpOperationStatuses"
 	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
