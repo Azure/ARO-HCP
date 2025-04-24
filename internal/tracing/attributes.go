@@ -17,9 +17,11 @@ package tracing
 import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
+// Correlation data and generic attributes.
 const (
 	// CorrelationIDKey is the span's attribute Key reporting the correlation
 	// ID from the originating ARM request.
@@ -33,6 +35,12 @@ const (
 	// assigned by the RP frontend.
 	RequestIDKey = attribute.Key("aro.request_id")
 
+	// APIVersionKey is the span's attribute Key reporting the API version.
+	APIVersionKey = attribute.Key("aro.api_version")
+)
+
+// Subscription attributes.
+const (
 	// SubscriptionIDKey is the span's attribute Key reporting the subscription
 	// identifier associated to the current request.
 	SubscriptionIDKey = attribute.Key("aro.subscription.id")
@@ -40,7 +48,10 @@ const (
 	// SubscriptionStateKey is the span's attribute Key reporting the
 	// subscription state associated to the current request.
 	SubscriptionStateKey = attribute.Key("aro.subscription.state")
+)
 
+// Resource attributes.
+const (
 	// ResourceGroupNameKey is the span's attribute Key reporting the resource
 	// group name associated to the current request.
 	ResourceGroupNameKey = attribute.Key("aro.resource_group.name")
@@ -49,9 +60,13 @@ const (
 	// name associated to the current request.
 	ResourceNameKey = attribute.Key("aro.resource.name")
 
-	// APIVersionKey is the span's attribute Key reporting the API version.
-	APIVersionKey = attribute.Key("aro.api_version")
+	// ResourceIDKey is the span's attribute Key reporting the resource
+	// identifier associated to the current request.
+	ResourceIDKey = semconv.CloudResourceIDKey
+)
 
+// Clusters service attributes.
+const (
 	// ClusterIDKey is the span's attribute Key reporting the internal cluster identifier.
 	// The key needs to be kept in sync with the key used by the Clusters Service.
 	ClusterIDKey = attribute.Key("cs.cluster.id")
