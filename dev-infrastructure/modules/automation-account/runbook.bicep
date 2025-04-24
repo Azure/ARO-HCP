@@ -34,7 +34,7 @@ param startTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:0
 param identityName string = 'hcp-dev-automation'
 
 @description('Runbook parameter')
-param runbookParameter string
+param runbookParameter string = ''
 
 resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' existing = {
   name: automationAccountName
@@ -59,7 +59,6 @@ resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-0
       uri: rubookScriptUrl
       version: runbookVersion
     }
-    
   }
 }
 
@@ -75,7 +74,7 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
   }
 }
 
-var baseArguments =  '-ResourceGroupName ${resourceGroup().name} -AutomationAccountName ${automationAccountName} -RunbookName ${accountRunbook.name} -ScheduleName ${runbookSchedule.name}'
+var baseArguments = '-ResourceGroupName ${resourceGroup().name} -AutomationAccountName ${automationAccountName} -RunbookName ${accountRunbook.name} -ScheduleName ${runbookSchedule.name}'
 var arguments = length(runbookParameter) > 0 ? '${baseArguments} -Parameters ${runbookParameter}' : baseArguments
 
 // Link Schedule to Runbook
