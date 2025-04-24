@@ -22,76 +22,55 @@ services:
     children:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
       children:
-      - serviceGroup: Microsoft.Azure.ARO.HCP.ACRPull
-        metadata:
-          pipeline: acrpull/pipeline.yaml
-          purpose: 'Manage ACR pull credentials.'
-          intPipelineId: ''
-          stgPipelineId: ''
-          prodPipelineId: ''
       - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
         metadata:
           pipeline: maestro/server/pipeline.yaml
           purpose: 'Deploy the Maestro Server.'
           intPipelineId: '382258'
-          stgPipelineId: ''
+          stgPipelineId: '412495'
           prodPipelineId: ''
       - serviceGroup: Microsoft.Azure.ARO.HCP.ClusterService
         metadata:
           pipeline: cluster-service/pipeline.yaml
           purpose: 'Deploy Cluster Service.'
           intPipelineId: '402943'
-          stgPipelineId: ''
+          stgPipelineId: '412487'
           prodPipelineId: ''
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Backend
         metadata:
           pipeline: backend/pipeline.yaml
           purpose: 'Deploy the RP Backend.'
           intPipelineId: '398456'
-          stgPipelineId: ''
+          stgPipelineId: '412483'
           prodPipelineId: ''
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Frontend
         metadata:
           pipeline: frontend/pipeline.yaml
           purpose: 'Deploy the RP Frontend.'
           intPipelineId: '398460'
-          stgPipelineId: ''
-          prodPipelineId: ''
-      - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Istio
-        metadata:
-          pipeline: istio/pipeline.yaml
-          purpose: 'Deploy Istio.'
-          intPipelineId: ''
-          stgPipelineId: ''
+          stgPipelineId: '412478'
           prodPipelineId: ''
       metadata:
         pipeline: dev-infrastructure/svc-pipeline.yaml
         purpose: 'Deploy the service cluster and supporting infrastructure.'
         intPipelineId: '367765'
-        stgPipelineId: ''
+        stgPipelineId: '410646'
         prodPipelineId: ''
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
       children:
-      - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra.Solo
-        metadata:
-          pipeline: dev-infrastructure/mgmt-solo-pipeline.yaml
-          purpose: ''
-          intPipelineId: ''
-          stgPipelineId: ''
-          prodPipelineId: ''
       - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
         metadata:
           pipeline: acm/pipeline.yaml
           purpose: 'Deploy Advanced Cluster Management and Multi-Cluster Engine.'
           intPipelineId: '402939'
-          stgPipelineId: ''
+          stgPipelineId: '414075'
           prodPipelineId: ''
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
         metadata:
           pipeline: hypershiftoperator/pipeline.yaml
           purpose: 'Deploy the HyperShift operator.'
           intPipelineId: '402934'
-          stgPipelineId: ''
+          stgPipelineId: '414071'
           prodPipelineId: ''
       - serviceGroup: Microsoft.Azure.ARO.HCP.PKO
         metadata:
@@ -100,35 +79,28 @@ services:
           intPipelineId: ''
           stgPipelineId: ''
           prodPipelineId: ''
-      - serviceGroup: Microsoft.Azure.ARO.HCP.ACRPull
-        metadata:
-          pipeline: acrpull/pipeline.yaml
-          purpose: 'Manage ACR pull credentials.'
-          intPipelineId: ''
-          stgPipelineId: ''
-          prodPipelineId: ''
       - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
         metadata:
           pipeline: maestro/agent/pipeline.yaml
           purpose: 'Deploy the Maestro Agent and register it with the MQTT stream.'
           intPipelineId: '388100'
-          stgPipelineId: ''
+          stgPipelineId: '412491'
           prodPipelineId: ''
       metadata:
         pipeline: dev-infrastructure/mgmt-pipeline.yaml
         purpose: 'Deploy a management cluster and backing infrastructure.'
         intPipelineId: '372877'
-        stgPipelineId: ''
+        stgPipelineId: '412495'
         prodPipelineId: ''
     metadata:
       pipeline: dev-infrastructure/region-pipeline.yaml
       purpose: 'Deploy regional shared infrastructure.'
       intPipelineId: '381618'
-      stgPipelineId: ''
+      stgPipelineId: '410324'
       prodPipelineId: ''
   metadata:
     pipeline: dev-infrastructure/global-pipeline.yaml
     purpose: 'Deploy global shared infrastructure.'
     intPipelineId: '378908'
-    stgPipelineId: ''
+    stgPipelineId: '409617'
     prodPipelineId: ''
