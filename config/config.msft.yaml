@@ -110,6 +110,23 @@ defaults:
       ingressGatewayIPAddressIPTags: ""
     logs:
       namespace: HCPServiceLogs
+    prometheus:
+      namespace: prometheus
+      namespaceLabel: ""
+      prometheusOperator:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-operator
+          digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+        version: ""
+      prometheusSpec:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus
+          digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+        version: ""
+        replicas: 2
+        shards: 1
   # MGMT cluster specifics
   mgmt:
     subscription: "hcp-{{ .ctx.region }}"
@@ -137,6 +154,23 @@ defaults:
     applyKubeletFixes: true
     logs:
       namespace: HCPCustomerLogs
+    prometheus:
+      namespace: prometheus
+      namespaceLabel: network.openshift.io/policy-group=monitoring
+      prometheusOperator:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-operator
+          digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+        version: ""
+      prometheusSpec:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus
+          digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+        version: "v2.55.1-3"
+        replicas: 2
+        shards: 1
   # RP Frontend
   frontend:
     image:

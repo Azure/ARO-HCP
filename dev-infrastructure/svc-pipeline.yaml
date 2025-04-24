@@ -101,11 +101,43 @@ resourceGroups:
     - svc-oncert-public-kv-issuer
     - global-output
     - region-output
-# Now that we have the SVC cluster, we can configure istio.
+# Deploy prometheus first since istio depends on it's CRDs
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   aksCluster: '{{ .svc.aks.name  }}'
   steps:
+  - name: prometheus
+    action: Shell
+    command: make -C ../observability/prometheus deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: PROMETHEUS_OPERATOR_REGISTRY
+      configRef: svc.prometheus.prometheusOperator.image.registry
+    - name: PROMETHEUS_OPERATOR_REPOSITORY
+      configRef: svc.prometheus.prometheusOperator.image.repository
+    - name: PROMETHEUS_OPERATOR_DIGEST
+      configRef: svc.prometheus.prometheusOperator.image.digest
+    - name: PROMETHEUS_SPEC_REGISTRY
+      configRef: svc.prometheus.prometheusSpec.image.registry
+    - name: PROMETHEUS_SPEC_REPOSITORY
+      configRef: svc.prometheus.prometheusSpec.image.repository
+    - name: PROMETHEUS_SPEC_DIGEST
+      configRef: svc.prometheus.prometheusSpec.image.digest
+    - name: PROMETHEUS_SPEC_REPLICAS
+      configRef: svc.prometheus.prometheusSpec.replicas
+    - name: PROMETHEUS_SPEC_SHARDS
+      configRef: svc.prometheus.prometheusSpec.shards
+    - name: PROMETHEUS_SPEC_VERSION
+      configRef: svc.prometheus.prometheusSpec.version
+    - name: PROMETHEUS_NAMESPACE_LABEL
+      configRef: svc.prometheus.namespaceLabel
+    - name: RESOURCE_GROUP
+      configRef: svc.rg
+    dependsOn:
+    - svc
   # configure istio
   - name: istio-config
     action: Shell
@@ -118,7 +150,7 @@ resourceGroups:
     - name: ISTIO_VERSIONS
       configRef: svc.istio.versions
     dependsOn:
-    - svc
+    - prometheus
   # - updates workload to use istio on version svc.istio.targetVersion
   # - configures istio IP tag usage
   - name: istio-upgrade

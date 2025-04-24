@@ -1,14 +1,15 @@
-apiVersion: azmonitoring.coreos.com/v1
+apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   labels:
     app.kubernetes.io/name: acrpull
     app.kubernetes.io/managed-by: Helm
-  name: acrpull-monitor
+  name: acrpull
   namespace: '{{ .Values.namespace  }}'
 spec:
   podMetricsEndpoints:
   - port: metrics
+    path: /metrics
   selector:
     matchLabels:
       app.kubernetes.io/name: acrpull
