@@ -19,8 +19,9 @@ import (
 	"net/http"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 
 // This middleware only applies to endpoints whose path form a valid Azure
@@ -39,7 +40,7 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 	resourceID, err := azcorearm.ParseResourceID(originalPath)
 	if err == nil {
 		span := trace.SpanFromContext(ctx)
-		span.SetAttributes(semconv.CloudResourceID(resourceID.String()))
+		span.SetAttributes(tracing.ResourceIDKey.String(resourceID.String()))
 
 		ctx = ContextWithResourceID(ctx, resourceID)
 		r = r.WithContext(ctx)
