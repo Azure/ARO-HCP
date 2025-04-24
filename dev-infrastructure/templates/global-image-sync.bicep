@@ -484,6 +484,7 @@ var ocMirrorJobConfiguration = ocMirrorEnabled
         name: 'oc-mirror'
         cron: '0 * * * *'
         timeout: 4 * 60 * 60
+        retryLimit: 3
         targetRegistry: ocpAcrName
         imageSetConfig: ocpMirrorConfig
         compatibility: 'LATEST'
@@ -492,6 +493,7 @@ var ocMirrorJobConfiguration = ocMirrorEnabled
         name: 'acm-mirror'
         cron: '0 10 * * *'
         timeout: 4 * 60 * 60
+        retryLimit: 3
         targetRegistry: svcAcrName
         imageSetConfig: acmMirrorConfig
         compatibility: 'NOCATALOG'
@@ -522,6 +524,7 @@ resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
           parallelism: 1
         }
         replicaTimeout: ocMirrorJobConfiguration[i].timeout
+        replicaRetryLimit: ocMirrorJobConfiguration[i].retryLimit
         registries: [
           {
             identity: uami.id
