@@ -239,21 +239,24 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 // contains structured but user-friendly details for all discovered errors.
 func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
-	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is being declared under Properties.Platform.OperatorsAuthentication.UserAssignedIdentities
+
+	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is
+	// being declared under Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.
 	if normalized.Identity.UserAssignedIdentities != nil {
-		//Initiate the map that will have the number occurence of ConstrolPlaneOperators fields .
+		// Initiate the map that will have the number occurence of ConstrolPlaneOperators fields.
 		controlPlaneOpOccurrences := make(map[string]int)
-		//Generate a Map of Resource IDs of ControlplaneOperators MI , disregard the DataPlaneOperators.
+		// Generate a Map of Resource IDs of ControlplaneOperators MI, disregard the DataPlaneOperators.
 		for _, operatorResourceID := range normalized.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 			controlPlaneOpOccurrences[operatorResourceID]++
 		}
-		//variable to hold serviceManagedIdentity
+		// variable to hold serviceManagedIdentity
 		smiResourceID := normalized.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 
 		for operatorName, resourceID := range normalized.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 			_, ok := normalized.Identity.UserAssignedIdentities[resourceID]
 			if !ok {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
 						"identity %s is not assigned to this resource",
 						resourceID),
@@ -261,11 +264,11 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 				})
 			} else if controlPlaneOpOccurrences[resourceID] > 1 {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
 						"identity %s is used multiple times", resourceID),
 					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
 				})
-
 			}
 		}
 
@@ -273,15 +276,17 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 			_, ok := normalized.Identity.UserAssignedIdentities[smiResourceID]
 			if !ok {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
 						"identity %s is not assigned to this resource",
 						smiResourceID),
 					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				})
 			}
-			//making sure serviceManagedIdentity is not already assigned to controlPlaneOperators
+			// Making sure serviceManagedIdentity is not already assigned to controlPlaneOperators.
 			if _, ok := controlPlaneOpOccurrences[smiResourceID]; ok {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
 						"identity %s is used multiple times", smiResourceID),
 					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
@@ -293,6 +298,7 @@ func validateStaticComplex(normalized *api.HCPOpenShiftCluster) []arm.CloudError
 			if _, ok := controlPlaneOpOccurrences[resourceID]; !ok {
 				if smiResourceID != resourceID {
 					errorDetails = append(errorDetails, arm.CloudErrorBody{
+						Code: arm.CloudErrorCodeInvalidRequestContent,
 						Message: fmt.Sprintf(
 							"identity %s is assigned to this resource but not used",
 							resourceID),

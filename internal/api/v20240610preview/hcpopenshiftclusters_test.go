@@ -15,7 +15,6 @@
 package v20240610preview
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -37,7 +36,7 @@ func compareErrors(x, y []arm.CloudErrorBody) string {
 		cmpopts.IgnoreFields(arm.CloudErrorBody{}, "Code"))
 }
 
-func TestClusterRequiredForPut(t *testing.T) {
+func TestClusterValidateStaticComplex(t *testing.T) {
 	tests := []struct {
 		name         string
 		tweaks       *api.HCPOpenShiftCluster
@@ -149,7 +148,6 @@ func TestClusterRequiredForPut(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := api.ClusterTestCase(t, tt.tweaks)
 			actualErrors := validateStaticComplex(resource)
-			fmt.Printf("tt: %v\n", actualErrors)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {
