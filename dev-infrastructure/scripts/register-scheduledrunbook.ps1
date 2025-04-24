@@ -13,11 +13,14 @@
     The name of the runbook to register.
 .PARAMETER ScheduleName
     The name of the schedule to link to the runbook.
+.PARAMETER Parameters
+    Key vaule pairs of parameters
 .EXAMPLE
     .\register-scheduledrunbook.ps1 -ResourceGroupName "myRG" `
         -AutomationAccountName "myAA" `
         -RunbookName "myRunbook" `
         -ScheduleName "dailySchedule"
+        -Parameters @{"Parameter1"="Value1";"Parameter2"="Value2"}
 #>
 
 param(
@@ -32,6 +35,9 @@ param(
 
     [Parameter(Mandatory = $true)]
     [string]$ScheduleName
+
+    [Parameter(Mandatory = $false)]
+    [object]$Parameters
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,6 +57,7 @@ Parameters:
     Runbook:           $RunbookName
     Schedule:          $ScheduleName
     Resource Group:    $ResourceGroupName
+    Parameters:        $Parameters
 "@
 
     # Validate that the runbook exists and is published.

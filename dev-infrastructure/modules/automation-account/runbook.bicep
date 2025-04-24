@@ -33,6 +33,9 @@ param startTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:0
 @description('Name of the managed identity')
 param identityName string = 'hcp-dev-automation'
 
+@description('Runbook parameter')
+param runbookParameter string = ''
+
 resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' existing = {
   name: automationAccountName
 }
@@ -71,6 +74,9 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
   }
 }
 
+var baseArguments = '-ResourceGroupName ${resourceGroup().name} -AutomationAccountName ${automationAccountName} -RunbookName ${accountRunbook.name} -ScheduleName ${runbookSchedule.name}'
+var arguments = length(runbookParameter) > 0 ? '${baseArguments} -Parameters ${runbookParameter}' : baseArguments
+
 // Link Schedule to Runbook
 resource registerScheduledRunbook 'Microsoft.Resources/deploymentScripts@2023-08-01' = if (!empty(scheduleName)) {
   name: 'registerScheduledRunbook_${uniqueString(runbookName, scheduleName)}'
@@ -85,7 +91,7 @@ resource registerScheduledRunbook 'Microsoft.Resources/deploymentScripts@2023-08
   properties: {
     azPowerShellVersion: '12.0.0'
     scriptContent: loadTextContent('../../scripts/register-scheduledrunbook.ps1')
-    arguments: '-ResourceGroupName ${resourceGroup().name} -AutomationAccountName ${automationAccountName} -RunbookName ${accountRunbook.name} -ScheduleName ${runbookSchedule.name}'
+    arguments: arguments
     retentionInterval: 'P1D'
     cleanupPreference: 'OnSuccess'
     timeout: 'PT30M'
