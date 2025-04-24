@@ -174,7 +174,7 @@ def main():
     dashboards_visited = set()
 
     for local_folder in config["grafana-dashboards"]["dashboardFolders"]:
-        folder_uid = get_or_create_folder(local_folder["path"], g, existing_folders)
+        folder_uid = get_or_create_folder(local_folder["name"], g, existing_folders)
 
         for dashboard in fs_get_dashboards(
             os.path.join(WORK_DIR, local_folder["path"])
