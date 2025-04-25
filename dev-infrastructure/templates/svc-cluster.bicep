@@ -608,7 +608,6 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
   }
 }
 
-
 // 
 //   N E T W O R K    S E C U R I T Y    P E R I M E T E R
 //
@@ -622,7 +621,6 @@ module svcNSP '../modules/network/nsp.bicep' = {
     associatedResources: [
       serviceKeyVault.id
       rpCosmosDb.outputs.cosmosDbAccountId
-      
     ]
   }
 }
