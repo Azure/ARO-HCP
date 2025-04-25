@@ -226,16 +226,16 @@
         "Auto"
       ]
     },
-    "prometheus":{
+    "prometheus": {
       "type": "object",
-      "properties":{
-        "namespace":{
+      "properties": {
+        "namespace": {
           "type": "string"
         },
         "namespaceLabel": {
-          "type" :"string"
+          "type": "string"
         },
-        "prometheusOperator":{
+        "prometheusOperator": {
           "type:": "object",
           "properties": {
             "image": {
@@ -246,7 +246,7 @@
             }
           }
         },
-        "prometheusSpec":{
+        "prometheusSpec": {
           "type": "object",
           "properties": {
             "image": {
@@ -255,10 +255,10 @@
             "version": {
               "type": "string"
             },
-            "replicas":{
+            "replicas": {
               "type": "number"
             },
-            "shards":{
+            "shards": {
               "type": "number"
             }
           }
@@ -583,26 +583,26 @@
         "serviceTag"
       ]
     },
-    "mise":{
+    "mise": {
       "properties": {
-        "deploy" :{
+        "deploy": {
           "type": "boolean"
         },
-        "azureAdInstance":{
-          "type":"string"
+        "azureAdInstance": {
+          "type": "string"
         },
-        "firstPartyAppId":{
-          "type":"string"
+        "firstPartyAppId": {
+          "type": "string"
         },
-        "armAppId":{
-          "type":"string",
+        "armAppId": {
+          "type": "string",
           "description": "The valid app ID for mise, which is the ARM Application Id, this is common across all clouds (MSIT/AME/FF)"
         },
-        "image":{
+        "image": {
           "$ref": "#/definitions/containerImage"
         }
       },
-      "required" : [
+      "required": [
         "deploy",
         "image",
         "azureAdInstance",
@@ -649,8 +649,8 @@
       "type": "object",
       "properties": {
         "image": {
-        "$ref": "#/definitions/containerImage"
-     }
+          "$ref": "#/definitions/containerImage"
+        }
       },
       "additionalProperties": false,
       "required": [
@@ -949,7 +949,7 @@
           "description": "MDSD / Genevabits log aggregation and shipping configuration",
           "$ref": "#/definitions/aksLogConfig"
         },
-        "prometheus":{
+        "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
         }
@@ -1002,7 +1002,6 @@
             "enable": {
               "type": "boolean"
             }
-
           },
           "additionalProperties": false,
           "required": [
@@ -1124,6 +1123,17 @@
         },
         "subscription": {
           "type": "string"
+        },
+        "nspName": {
+          "type": "string"
+        },
+        "nspAccessMode": {
+          "type": "string",
+          "enum": [
+            "Audit",
+            "Enforced",
+            "Learning"
+          ]
         },
         "jaeger": {
           "deploy": "boolean"

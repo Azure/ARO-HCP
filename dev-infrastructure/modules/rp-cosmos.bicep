@@ -154,3 +154,4 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
 ]
 
 output cosmosDBName string = name
+output cosmosDbAccountId string = cosmosDbAccount.id

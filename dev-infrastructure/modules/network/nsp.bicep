@@ -1,6 +1,7 @@
 param location string
 
 @description('Access mode for this NSP')
+@allowed(['Audit', 'Enforced', 'Learning'])
 param accessMode string
 
 @description('Resource IDs to associate with this NSP')
@@ -10,13 +11,13 @@ param associatedResources array
 param nspName string
 
 @description('Array of IPs that will be allowd to access NSP')
-param addressPrefixes array
+param addressPrefixes array = []
 
 @description('Array of Service Tags that will be allowd to access NSP')
-param serviceTags array
+param serviceTags array = []
 
 @description('Array of Subscription ids that will be allowd to access NSP')
-param subscriptions array
+param subscriptions array = []
 
 var subscriptionObjects = [for s in subscriptions: { 'id': s }]
 
