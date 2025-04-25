@@ -77,7 +77,7 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpint-cs-usw3",
+      "name": "arohcpint-csdb-usw3",
       "private": false,
       "zoneRedundantMode": "Auto"
     }
@@ -216,7 +216,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpint-maestro-usw3",
+      "name": "arohcpint-maestrodb-usw3",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",

@@ -340,7 +340,7 @@ clouds:
           clusterService:
             environment: "arohcpint"
             postgres:
-              name: "arohcpint-cs-{{ .ctx.regionShort }}" # [globally-unique]
+              name: "arohcpint-csdb-{{ .ctx.regionShort }}" # [globally-unique]
             image:
               digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
           # Geneva Actions
@@ -431,7 +431,7 @@ clouds:
             eventGrid:
               name: "arohcpint-maestro-{{ .ctx.regionShort }}" # [globally-unique]
             postgres:
-              name: "arohcpint-maestro-{{ .ctx.regionShort }}" # [globally-unique]
+              name: "arohcpint-maestrodb-{{ .ctx.regionShort }}" # [globally-unique]
             image:
               digest: sha256:f64ad21dcbe40ed7d29aff7d2d7320c0a5ee18c6bfabfef9486550a96ff27141
           # 1P app - from RH Tenant
