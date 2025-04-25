@@ -388,6 +388,8 @@
     "jaeger": {
       "deploy": true
     },
+    "nspAccessMode": "Learning",
+    "nspName": "nsp-usw3tst-svc",
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "",

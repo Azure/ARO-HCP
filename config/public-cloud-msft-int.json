@@ -384,6 +384,8 @@
       "namespace": "HCPServiceLogs",
       "san": "SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
     },
+    "nspAccessMode": "Learning",
+    "nspName": "nsp-usw3-svc",
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "",

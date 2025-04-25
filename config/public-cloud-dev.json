@@ -382,6 +382,8 @@
       "targetVersion": "asm-1-23",
       "versions": "asm-1-23"
     },
+    "nspAccessMode": "Learning",
+    "nspName": "nsp-dev-svc",
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "",

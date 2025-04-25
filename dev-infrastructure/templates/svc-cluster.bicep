@@ -233,6 +233,13 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
+@description('Tha name of the SVC NSP')
+param svcNSPName string
+
+@description('Access mode for this NSP')
+@allowed(['Audit', 'Enforced', 'Learning'])
+param svcNSPAccessMode string
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -598,5 +605,22 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
       fpaCertificateSNI
     ]
     issuerName: fpaCertificateIssuer
+  }
+}
+
+// 
+//   N E T W O R K    S E C U R I T Y    P E R I M E T E R
+//
+
+module svcNSP '../modules/network/nsp.bicep' = {
+  name: 'nsp-${uniqueString(resourceGroup().name)}'
+  params: {
+    accessMode: svcNSPAccessMode
+    nspName: svcNSPName
+    location: location
+    associatedResources: [
+      serviceKeyVault.id
+      rpCosmosDb.outputs.cosmosDbAccountId
+    ]
   }
 }

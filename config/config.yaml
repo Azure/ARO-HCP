@@ -43,6 +43,8 @@ defaults:
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-svc
+    nspName: nsp-{{ .ctx.regionShort }}-svc
+    nspAccessMode: 'Learning'
     istio:
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
