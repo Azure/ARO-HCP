@@ -296,7 +296,7 @@
           "repository": "prometheus/prometheus"
         },
         "replicas": 2,
-        "shards": 1,
+        "shards": 2,
         "version": "v2.55.1-3"
       }
     },

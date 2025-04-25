@@ -5,6 +5,14 @@ NAMESPACE ?= "prometheus"
 CHART_VERSION ?= 70.4.1
 LABEL_NAMESPACE_CMD := $(if $(PROMETHEUS_NAMESPACE_LABEL),kubectl label namespace ${NAMESPACE} ${PROMETHEUS_NAMESPACE_LABEL},)
 
+ZONE_COUNT := $(shell az account list-locations --query "[?name=='${REGION}'] | [0].availabilityZoneMappings" --output tsv | wc -l)
+
+ifeq ($(ZONE_COUNT),0)
+  TOPOLOGY_KEY := "kubernetes.azure.com/agentpool"
+else
+  TOPOLOGY_KEY := "failure-domain.beta.kubernetes.io/zone"
+endif
+
 deploy: pull-chart
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
 	@${LABEL_NAMESPACE_CMD}
@@ -30,7 +38,8 @@ deploy: pull-chart
 		--set prometheus.prometheusSpec.version=${PROMETHEUS_SPEC_VERSION} \
 		--set prometheus.prometheusSpec.shards=${PROMETHEUS_SPEC_SHARDS} \
 		--set prometheus.prometheusSpec.replicas=${PROMETHEUS_SPEC_REPLICAS} \
-		--set prometheus.prometheusSpec.remoteWrite[0].url=$${PROMETHEUS_RW_ENDPOINT}
+		--set prometheus.prometheusSpec.remoteWrite[0].url=$${PROMETHEUS_RW_ENDPOINT} \
+		--set prometheus.prometheusSpec.topologySpreadConstraints[0].topologyKey=${TOPOLOGY_KEY}
 .PHONY: deploy
 
 pull-chart:
