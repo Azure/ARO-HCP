@@ -32,7 +32,7 @@ resource nspProfile 'Microsoft.Network/networkSecurityPerimeters/profiles@2024-0
   name: '${nspName}-profile'
 }
 
-resource accessRule 'Microsoft.Network/networkSecurityPerimeters/profiles/accessRules@2024-06-01-preview' = {
+resource accessRule 'Microsoft.Network/networkSecurityPerimeters/profiles/accessRules@2024-06-01-preview' = if (length(addressPrefixes) > 0 || length(serviceTags) > 0 || length(subscriptionObjects) > 0) {
   parent: nspProfile
   location: location
   name: '${nspName}-inbound-accessRule'
