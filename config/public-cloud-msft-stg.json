@@ -137,7 +137,7 @@
     "subscription": "hcp-global"
   },
   "hypershift": {
-    "additionalInstallArg": "",
+    "additionalInstallArg": "--limit-crd-install=Azure",
     "image": {
       "digest": "sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef",
       "registry": "quay.io",
@@ -149,7 +149,7 @@
     "componentSync": {
       "enabled": false,
       "image": {
-        "digest": "sha256:6a212720d25f270073318b1b480f326fcda08fbf6a1e435b7651e0336c72caee",
+        "digest": "sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f",
         "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/component-sync"
       },
@@ -161,7 +161,7 @@
     "ocMirror": {
       "enabled": true,
       "image": {
-        "digest": "sha256:6016058b113d0dd61fce42747cc4cf6b0d47bbe260892a9825d24d19b6834ef4",
+        "digest": "sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e",
         "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/oc-mirror"
       },
@@ -238,7 +238,7 @@
   },
   "mgmt": {
     "aks": {
-      "clusterOutboundIPAddressIPTags": "",
+      "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/aro-hcp-prod-outbound-cx",
       "enableSwiftV2": true,
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3-1",
@@ -246,8 +246,8 @@
       },
       "kubernetesVersion": "1.31.6",
       "name": "westus3-mgmt-1",
-      "networkDataplane": "cilium",
-      "networkPolicy": "cilium",
+      "networkDataplane": "azure",
+      "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
@@ -343,7 +343,7 @@
   },
   "svc": {
     "aks": {
-      "clusterOutboundIPAddressIPTags": "",
+      "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/aro-hcp-prod-outbound-svc",
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3",
         "kvSoftDelete": true
@@ -370,7 +370,7 @@
       "vnetAddressPrefix": "10.128.0.0/14"
     },
     "istio": {
-      "ingressGatewayIPAddressIPTags": "",
+      "ingressGatewayIPAddressIPTags": "FirstPartyUsage:/aro-hcp-prod-inbound-svc",
       "ingressGatewayIPAddressName": "aro-hcp-istio-ingress",
       "istioctlVersion": "1.24.1",
       "tag": "prod-stable",
