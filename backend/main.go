@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime/debug"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -45,6 +44,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/version"
 )
 
 const (
@@ -101,14 +101,7 @@ func init() {
 
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				rootCmd.Version = setting.Value
-				break
-			}
-		}
-	}
+	rootCmd.Version = version.CommitSHA
 }
 
 func newKubeconfig(kubeconfig string) (*rest.Config, error) {

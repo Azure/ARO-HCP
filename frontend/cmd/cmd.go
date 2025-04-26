@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/version"
 )
 
 type FrontendOpts struct {
@@ -62,7 +63,7 @@ func NewRootCmd() *cobra.Command {
 	opts := &FrontendOpts{}
 	rootCmd := &cobra.Command{
 		Use:     "aro-hcp-frontend",
-		Version: util.Version(),
+		Version: version.CommitSHA,
 		Args:    cobra.NoArgs,
 		Short:   "Serve the ARO HCP Frontend",
 		Long: `Serve the ARO HCP Frontend
@@ -121,7 +122,7 @@ func (opts *FrontendOpts) Run() error {
 	ctx := context.Background()
 
 	logger := util.DefaultLogger()
-	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, util.Version()))
+	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version.CommitSHA))
 
 	// Initialize the global OpenTelemetry tracer.
 	otelShutdown, err := frontend.ConfigureOpenTelemetryTracer(ctx, logger, semconv.CloudRegion(opts.location))
@@ -203,7 +204,7 @@ func (opts *FrontendOpts) Run() error {
 
 	f.Join()
 	_ = otelShutdown(ctx)
-	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, util.Version()))
+	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version.CommitSHA))
 
 	return nil
 }
