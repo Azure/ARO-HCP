@@ -185,4 +185,5 @@ resourceGroups:
     - name: ACRPULL_REGISTRY
       configRef: acrPull.image.registry
     dependsOn:
+    - prometheus
     - svc
