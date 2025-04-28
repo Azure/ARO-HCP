@@ -33,7 +33,7 @@
       "repository": "app-sre/backplane-api"
     }
   },
-  "clusterService": {
+  "clustersService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
         "roleName": "Azure Red Hat OpenShift Cloud Controller Manager"

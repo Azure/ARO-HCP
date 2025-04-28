@@ -1,3 +1,3 @@
 using '../templates/output-svc.bicep'
 
-param csMIName = '{{ .clusterService.managedIdentityName }}'
+param csMIName = '{{ .clustersService.managedIdentityName }}'

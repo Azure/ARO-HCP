@@ -351,7 +351,7 @@
         "imageTag"
       ]
     },
-    "clusterService": {
+    "clustersService": {
       "type": "object",
       "properties": {
         "environment": {
@@ -1247,7 +1247,7 @@
     "aroDevopsMsiId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
-    "clusterService",
+    "clustersService",
     "cxKeyVault",
     "firstPartyAppClientId",
     "firstPartyAppCertificate",

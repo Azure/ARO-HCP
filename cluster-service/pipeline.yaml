@@ -16,11 +16,11 @@ resourceGroups:
     - name: TARGET_ACR
       configRef: 'acr.svc.name'
     - name: SOURCE_REGISTRY
-      configRef: clusterService.image.registry
+      configRef: clustersService.image.registry
     - name: REPOSITORY
-      configRef: clusterService.image.repository
+      configRef: clustersService.image.repository
     - name: DIGEST
-      configRef: clusterService.image.digest
+      configRef: clustersService.image.digest
     - name: PULL_SECRET_KV
       configRef: global.keyVault.name
     - name: PULL_SECRET
@@ -57,9 +57,9 @@ resourceGroups:
     - name: OIDC_STORAGE_ACCOUNT
       configRef: oidcStorageAccountName
     - name: IMAGE_REPO
-      configRef: clusterService.image.repository
+      configRef: clustersService.image.repository
     - name: IMAGE_DIGEST
-      configRef: clusterService.image.digest
+      configRef: clustersService.image.digest
     - name: ACR_NAME
       configRef: acr.svc.name
     - name: OCP_ACR_NAME
@@ -85,37 +85,37 @@ resourceGroups:
     - name: REGIONAL_DNS_SUBDOMAIN
       configRef: dns.regionalSubdomain
     - name: USE_AZURE_DB
-      configRef: clusterService.postgres.deploy
+      configRef: clustersService.postgres.deploy
     - name: DATABASE_SERVER_NAME
-      configRef: clusterService.postgres.name
+      configRef: clustersService.postgres.name
     - name: OP_CLUSTER_API_AZURE_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.clusterApiAzure.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.clusterApiAzure.roleName
     - name: OP_CONTROL_PLANE_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.controlPlane.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.controlPlane.roleName
     - name: OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.cloudControllerManager.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.cloudControllerManager.roleName
     - name: OP_INGRESS_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.ingress.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.ingress.roleName
     - name: OP_DISK_CSI_DRIVER_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.diskCsiDriver.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.diskCsiDriver.roleName
     - name: OP_FILE_CSI_DRIVER_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.fileCsiDriver.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.fileCsiDriver.roleName
     - name: OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.imageRegistry.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.imageRegistry.roleName
     - name: OP_CLOUD_NETWORK_CONFIG_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.cloudNetworkConfig.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.cloudNetworkConfig.roleName
     - name: OP_KMS_ROLE_NAME
-      configRef: clusterService.azureOperatorsManagedIdentities.kms.roleName
+      configRef: clustersService.azureOperatorsManagedIdentities.kms.roleName
     - name: ISTO_TAG
       configRef: svc.istio.tag
     - name: MI_NAME
-      configRef: clusterService.managedIdentityName
+      configRef: clustersService.managedIdentityName
     - name: NAMESPACE
-      configRef: clusterService.k8s.namespace
+      configRef: clustersService.k8s.namespace
     - name: SERVICE_ACCOUNT_NAME
-      configRef: clusterService.k8s.serviceAccountName
+      configRef: clustersService.k8s.serviceAccountName
     - name: ENVIRONMENT
-      configRef: clusterService.environment
+      configRef: clustersService.environment
     - name: OCP_ACR_RESOURCE_ID
       input:
         step: global-output
@@ -137,6 +137,6 @@ resourceGroups:
     - name: CX_MI_KV_NAME
       configRef: msiKeyVault.name
     - name: TRACING_ADDRESS
-      configRef: clusterService.tracing.address
+      configRef: clustersService.tracing.address
     - name: TRACING_EXPORTER
-      configRef: clusterService.tracing.exporter
+      configRef: clustersService.tracing.exporter

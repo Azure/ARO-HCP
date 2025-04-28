@@ -235,7 +235,7 @@ defaults:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   # Cluster Service
-  clusterService:
+  clustersService:
     image:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
@@ -350,7 +350,7 @@ clouds:
               name: arohcpint-global # [globally-unique]
             secretsToSyncDir: "msft-int/arohcpint-global"
           # Cluster Service
-          clusterService:
+          clustersService:
             environment: "arohcpint"
             postgres:
               name: "arohcpint-csdb-{{ .ctx.regionShort }}" # [globally-unique]
@@ -483,7 +483,7 @@ clouds:
               name: arohcpstg-global # [globally-unique]
             secretsToSyncDir: "msft-stg/arohcpstg-global"
           # Cluster Service
-          clusterService:
+          clustersService:
             environment: "arohcpstg"
             postgres:
               name: "arohcpstg-cs-{{ .ctx.regionShort }}" # [globally-unique]

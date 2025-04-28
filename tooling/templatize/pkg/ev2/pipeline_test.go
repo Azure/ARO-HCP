@@ -41,7 +41,7 @@ func TestProcessPipelineForEV2(t *testing.T) {
 		strings.Join(
 			[]string{
 				"param regionRG = '{{ .regionRG }}'",
-				"param replicas = {{ .clusterService.replicas }}",
+				"param replicas = {{ .clustersService.replicas }}",
 			},
 			"\n",
 		),
