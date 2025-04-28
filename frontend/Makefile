@@ -82,8 +82,8 @@ deploy:
 		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE}@$${DIGEST} \
 		--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
 		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
-		--set clusterService.namespace=${CS_NAMESPACE} \
-		--set clusterService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
+		--set clustersService.namespace=${CS_NAMESPACE} \
+		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
 		--set deployMise=${DEPLOY_MISE} \
 		--set mise.namespace=mise \
 		--set mise.imageRegistry=${ARO_HCP_IMAGE_REGISTRY} \

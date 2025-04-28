@@ -24,8 +24,8 @@ deploy:
 		--set image.repository=${IMAGE_REPO} \
 		--set database.host=$${DATABASE_HOST} \
 		--set database.name=${DATABASE_NAME} \
-		--set clusterService.namespace=${CS_NAMESPACE} \
-		--set clusterService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
+		--set clustersService.namespace=${CS_NAMESPACE} \
+		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 		--set pullBinding.workloadIdentityTenantId="$${TENANT_ID}" \
 		--set pullBinding.registry=${ACR_NAME}.azurecr.io \
