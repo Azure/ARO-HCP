@@ -80,6 +80,10 @@
       "name": "arohcpstg-cs-usw3",
       "private": false,
       "zoneRedundantMode": "Auto"
+    },
+    "tracing": {
+      "address": "",
+      "exporter": ""
     }
   },
   "cxKeyVault": {
@@ -118,6 +122,10 @@
       "digest": "sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpfrontend"
+    },
+    "tracing": {
+      "address": "",
+      "exporter": ""
     }
   },
   "genevaActions": {

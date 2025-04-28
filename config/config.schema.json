@@ -26,7 +26,11 @@
           "type": "string",
           "description": "Defines which exporter the SDK should use"
         }
-      }
+      },
+      "required": [
+        "address",
+        "exporter"
+      ]
     },
     "acr": {
       "type": "object",
@@ -464,7 +468,8 @@
         "managedIdentityName",
         "k8s",
         "azureOperatorsManagedIdentities",
-        "postgres"
+        "postgres",
+        "tracing"
       ]
     },
     "cxKeyVault": {
@@ -585,7 +590,8 @@
       "required": [
         "image",
         "cosmosDB",
-        "cert"
+        "cert",
+        "tracing"
       ]
     },
     "genevaActions": {
