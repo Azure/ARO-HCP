@@ -43,8 +43,9 @@ defaults:
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-svc
-    nspName: nsp-{{ .ctx.regionShort }}-svc
-    nspAccessMode: 'Learning'
+    nsp:
+      name: nsp-{{ .ctx.regionShort }}-svc
+      accessMode: 'Learning'
     istio:
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
@@ -86,6 +87,9 @@ defaults:
     subscription: ARO Hosted Control Planes (EA Subscription 1)
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     applyKubeletFixes: true
+    nsp:
+      name: nsp-{{ .ctx.regionShort }}-mgmt
+      accessMode: 'Learning'
     aks:
       name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
       vnetAddressPrefix: "10.128.0.0/14"

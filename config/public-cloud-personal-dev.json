@@ -278,6 +278,10 @@
     "jaeger": {
       "deploy": false
     },
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-usw3tst-mgmt"
+    },
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "network.openshift.io/policy-group=monitoring",
@@ -389,8 +393,10 @@
     "jaeger": {
       "deploy": true
     },
-    "nspAccessMode": "Learning",
-    "nspName": "nsp-usw3tst-svc",
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-usw3tst-svc"
+    },
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "",
