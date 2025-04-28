@@ -737,3 +737,4 @@ output aksOidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerU
 output aksClusterName string = aksClusterName
 output aksClusterKeyVaultSecretsProviderPrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
 output istioIngressGatewayIPAddress string = deployIstio ? istioIngressGatewayIPAddress.outputs.ipAddress : ''
+output etcKeyVaultId string = aks_keyvault_builder.outputs.kvId
