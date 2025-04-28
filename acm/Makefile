@@ -1,7 +1,7 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
 
-MCE_OPERATOR_BUNDLE_IMAGE ?= registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.7.0-116
+MCE_OPERATOR_BUNDLE_IMAGE ?= registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.8.1-12
 REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 
 MCE_OPERATOR_BUNDLE_FILE = mce-operator-bundle.tgz
