@@ -55,3 +55,7 @@ resourceGroups:
       configRef: backend.image.repository
     - name: ISTO_TAG
       configRef: svc.istio.tag
+    - name: CS_NAMESPACE
+      configRef: clustersService.k8s.namespace
+    - name: CS_SERVICE_ACCOUNT_NAME
+      configRef: clustersService.k8s.serviceAccountName

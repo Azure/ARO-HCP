@@ -44,8 +44,8 @@ func TestScopeBindingVariables(t *testing.T) {
 		"__serviceClusterRG__":              "$config(serviceClusterRG)",
 		"__serviceClusterSubscription__":    "$config(serviceClusterSubscription)",
 		"__vaultBaseUrl__":                  "$config(vaultBaseUrl)",
-		"__clustersService.imageTag__":       "$config(clustersService.imageTag)",
-		"__clustersService.replicas__":       "$config(clustersService.replicas)",
+		"__clustersService.imageTag__":      "$config(clustersService.imageTag)",
+		"__clustersService.replicas__":      "$config(clustersService.replicas)",
 		"__enableOptionalStep__":            "$config(enableOptionalStep)",
 	}
 
