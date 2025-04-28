@@ -43,8 +43,6 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = if (!enableSwift)
 // tag it when it already exists. The identity used for this needs to be registered
 // for swift usage with the network RP.
 
-
-
 resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-01' = if (enableSwift) {
   name: 'vnet-${vnetName}'
   location: location
