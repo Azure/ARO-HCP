@@ -22,7 +22,7 @@
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
     "image": {
-      "digest": "sha256:a2953aef23ac3dc376485fafefdbb2d949aebb11f6f9029bcae836bab929d5c3",
+      "digest": "sha256:c56e94968978542c13d295de05c3ccb8ff7476c0eabae0c8defc861d76f93616",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpbackend"
     }
@@ -77,7 +77,7 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpint-cs-usw3",
+      "name": "arohcpint-csdb-usw3",
       "private": false,
       "zoneRedundantMode": "Auto"
     }
@@ -115,7 +115,7 @@
       "zoneRedundantMode": "Auto"
     },
     "image": {
-      "digest": "sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364",
+      "digest": "sha256:8e7fb81a0643341feb7cad5b9f33152798b6754f4dcb1441c3e65be47517f574",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpfrontend"
     }
@@ -137,9 +137,9 @@
     "subscription": "hcp-global"
   },
   "hypershift": {
-    "additionalInstallArg": "",
+    "additionalInstallArg": "--limit-crd-install=Azure",
     "image": {
-      "digest": "sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef",
+      "digest": "sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821",
       "registry": "quay.io",
       "repository": "acm-d/rhtap-hypershift-operator"
     },
@@ -149,7 +149,7 @@
     "componentSync": {
       "enabled": false,
       "image": {
-        "digest": "sha256:6a212720d25f270073318b1b480f326fcda08fbf6a1e435b7651e0336c72caee",
+        "digest": "sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f",
         "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/component-sync"
       },
@@ -161,7 +161,7 @@
     "ocMirror": {
       "enabled": true,
       "image": {
-        "digest": "sha256:6016058b113d0dd61fce42747cc4cf6b0d47bbe260892a9825d24d19b6834ef4",
+        "digest": "sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e",
         "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/oc-mirror"
       },
@@ -216,7 +216,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpint-maestro-usw3",
+      "name": "arohcpint-maestrodb-usw3",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -248,8 +248,8 @@
       },
       "kubernetesVersion": "1.31.6",
       "name": "westus3-mgmt-1",
-      "networkDataplane": "cilium",
-      "networkPolicy": "cilium",
+      "networkDataplane": "azure",
+      "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {

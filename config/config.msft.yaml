@@ -68,7 +68,7 @@ defaults:
   # Hypershift
   hypershift:
     namespace: hypershift
-    additionalInstallArg: ''
+    additionalInstallArg: '--limit-crd-install=Azure'
     image:
       registry: quay.io
       repository: acm-d/rhtap-hypershift-operator
@@ -101,16 +101,14 @@ defaults:
         osDiskSizeGB: 32
       etcd:
         kvSoftDelete: true
-      #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-svc"
-      clusterOutboundIPAddressIPTags: ""
+      clusterOutboundIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-outbound-svc"
     istio:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
       targetVersion: "asm-1-23"
       versions: "asm-1-23"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
-      #ingressGatewayIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-inbound-svc"
-      ingressGatewayIPAddressIPTags: ""
+      ingressGatewayIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-inbound-svc"
     logs:
       namespace: HCPServiceLogs
     prometheus:
@@ -144,8 +142,8 @@ defaults:
       podSubnetPrefix: "10.128.64.0/18"
       kubernetesVersion: 1.31.6
       # CNI
-      networkDataplane: "cilium" # should be switch to azure during next rebuild
-      networkPolicy: "cilium" # should be switch to azure during next rebuild
+      networkDataplane: "azure"
+      networkPolicy: "azure"
       systemAgentPool:
         vmSize: 'Standard_E8s_v3'
         osDiskSizeGB: 128
@@ -154,8 +152,7 @@ defaults:
         osDiskSizeGB: 128
       etcd:
         kvSoftDelete: true
-      #clusterOutboundIPAddressIPTags: "FirstPartyUsage:aro-hcp-prod-outbound-cx"
-      clusterOutboundIPAddressIPTags: ""
+      clusterOutboundIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-outbound-cx"
       enableSwiftV2: true
     applyKubeletFixes: true
     logs:
@@ -328,10 +325,10 @@ clouds:
       imageSync:
         componentSync:
           image:
-            digest: sha256:6a212720d25f270073318b1b480f326fcda08fbf6a1e435b7651e0336c72caee
+            digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
         ocMirror:
           image:
-            digest: sha256:6016058b113d0dd61fce42747cc4cf6b0d47bbe260892a9825d24d19b6834ef4
+            digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
       mise:
         azureAdInstance: https://login.microsoftonline.com/
         armInstance: https://management.azure.com
@@ -350,7 +347,7 @@ clouds:
           clusterService:
             environment: "arohcpint"
             postgres:
-              name: "arohcpint-cs-{{ .ctx.regionShort }}" # [globally-unique]
+              name: "arohcpint-csdb-{{ .ctx.regionShort }}" # [globally-unique]
             image:
               digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
           # Geneva Actions
@@ -421,7 +418,7 @@ clouds:
               name: "arohcpint-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
-              digest: sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364
+              digest: sha256:8e7fb81a0643341feb7cad5b9f33152798b6754f4dcb1441c3e65be47517f574
           # Mise
           mise:
             firstPartyAppId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37 # This is the aro-hcp-fp-int app in the MSIT Tenant.
@@ -431,17 +428,17 @@ clouds:
           # RP Backend
           backend:
             image:
-              digest: sha256:a2953aef23ac3dc376485fafefdbb2d949aebb11f6f9029bcae836bab929d5c3
+              digest: sha256:c56e94968978542c13d295de05c3ccb8ff7476c0eabae0c8defc861d76f93616
           # Hypershift
           hypershift:
             image:
-              digest: sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef
+              digest: sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821
           # Maestro
           maestro:
             eventGrid:
               name: "arohcpint-maestro-{{ .ctx.regionShort }}" # [globally-unique]
             postgres:
-              name: "arohcpint-maestro-{{ .ctx.regionShort }}" # [globally-unique]
+              name: "arohcpint-maestrodb-{{ .ctx.regionShort }}" # [globally-unique]
             image:
               digest: sha256:f64ad21dcbe40ed7d29aff7d2d7320c0a5ee18c6bfabfef9486550a96ff27141
           # 1P app - from RH Tenant

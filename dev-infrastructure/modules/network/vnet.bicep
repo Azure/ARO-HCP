@@ -42,6 +42,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = if (!enableSwift)
 // for swift deployments we use a deployment script to create the VNET or just
 // tag it when it already exists. The identity used for this needs to be registered
 // for swift usage with the network RP.
+
 resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-01' = if (enableSwift) {
   name: 'vnet-${vnetName}'
   location: location
@@ -55,6 +56,8 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
   properties: {
     azCliVersion: '2.53.1'
     scriptContent: '''
+      az account set --subscription "${VNET_SUBSCRIPTION_ID}"
+
       az network vnet show \
         --resource-group "${VNET_RG}" \
         --name "${VNET_NAME}" \
@@ -86,6 +89,10 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
       {
         name: 'VNET_RG'
         value: resourceGroup().name
+      }
+      {
+        name: 'VNET_SUBSCRIPTION_ID'
+        value: subscription().subscriptionId
       }
       {
         name: 'VNET_ADDRESS_PREFIX'
