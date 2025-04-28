@@ -8,7 +8,6 @@ MCE_OPERATOR_BUNDLE_FILE = mce-operator-bundle.tgz
 HELM_BASE_DIR = deploy/helm
 MCE_CHART_DIR = ${HELM_BASE_DIR}/multicluster-engine
 POLICY_CHART_DIR = ${HELM_BASE_DIR}/policies
-CLC_CHART_DIR = ${HELM_BASE_DIR}/clc-state-metrics
 MCE_CONFIG_DIR = ${HELM_BASE_DIR}/multicluster-engine-config
 MCE_NS = multicluster-engine
 POLICY_NS = open-cluster-management-policies
@@ -25,11 +24,6 @@ deploy:
 		mce-config ${MCE_CONFIG_DIR} \
 		--namespace ${MCE_NS} \
 		--set global.registryOverride=${REGISTRY}
-	${HELM_CMD} \
-		clc-state-metrics ${CLC_CHART_DIR} \
-		--namespace ${MCE_NS} \
-		--set global.imageOverrides.clusterlifecycle_state_metrics=${REGISTRY}/multicluster-engine/clusterlifecycle-state-metrics-rhel9@sha256:${CLC_STATE_METRICS_IMAGE_DIGEST} \
-		--set global.namespace=${MCE_NS}
 	$(MAKE) deploy-policies
 
 deploy-policies:
