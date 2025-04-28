@@ -190,6 +190,7 @@ module svcNSP '../modules/network/nsp.bicep' = {
     associatedResources: [
       cxKeyVault.outputs.kvId
       msiKeyVault.outputs.kvId
+      mgmtKeyVault.outputs.kvId
     ]
   }
 }
