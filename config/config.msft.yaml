@@ -82,8 +82,9 @@ defaults:
   svc:
     subscription: "hcp-{{ .ctx.region }}"
     rg: "hcp-underlay-{{ .ctx.region }}-svc"
-    nspName: nsp-{{ .ctx.regionShort }}-svc
-    nspAccessMode: 'Learning'
+    nsp:
+      name: nsp-{{ .ctx.regionShort }}-svc
+      accessMode: 'Learning'
     aks:
       name: "{{ .ctx.region }}-svc-1" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
@@ -133,6 +134,9 @@ defaults:
   mgmt:
     subscription: "hcp-{{ .ctx.region }}"
     rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
+    nsp:
+      name: nsp-{{ .ctx.regionShort }}-mgmt
+      accessMode: 'Learning'
     aks:
       name: "{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"

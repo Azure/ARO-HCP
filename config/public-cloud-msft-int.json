@@ -273,6 +273,10 @@
       "namespace": "HCPCustomerLogs",
       "san": "MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
     },
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-usw3-mgmt"
+    },
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "network.openshift.io/policy-group=monitoring",
@@ -385,8 +389,10 @@
       "namespace": "HCPServiceLogs",
       "san": "SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
     },
-    "nspAccessMode": "Learning",
-    "nspName": "nsp-usw3-svc",
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-usw3-svc"
+    },
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "",

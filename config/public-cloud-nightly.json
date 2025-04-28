@@ -275,6 +275,10 @@
       "vnetAddressPrefix": "10.128.0.0/14"
     },
     "applyKubeletFixes": false,
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-nightly-mgmt"
+    },
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "network.openshift.io/policy-group=monitoring",
@@ -383,8 +387,10 @@
       "targetVersion": "asm-1-23",
       "versions": "asm-1-23"
     },
-    "nspAccessMode": "Learning",
-    "nspName": "nsp-nightly-svc",
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-nightly-svc"
+    },
     "prometheus": {
       "namespace": "prometheus",
       "namespaceLabel": "",

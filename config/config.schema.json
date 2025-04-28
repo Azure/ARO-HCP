@@ -44,6 +44,23 @@
         "zoneRedundantMode"
       ]
     },
+    "nsp": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": [
+            "Audit",
+            "Enforced",
+            "Learning"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "keyVault": {
       "type": "object",
       "properties": {
@@ -936,6 +953,9 @@
         "applyKubeletFixes": {
           "type": "boolean"
         },
+        "nsp": {
+          "$ref": "#/definitions/nsp"
+        },
         "rg": {
           "type": "string"
         },
@@ -1127,16 +1147,8 @@
         "subscription": {
           "type": "string"
         },
-        "nspName": {
-          "type": "string"
-        },
-        "nspAccessMode": {
-          "type": "string",
-          "enum": [
-            "Audit",
-            "Enforced",
-            "Learning"
-          ]
+        "nsp": {
+          "$ref": "#/definitions/nsp"
         },
         "jaeger": {
           "deploy": "boolean"
