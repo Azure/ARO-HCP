@@ -319,6 +319,7 @@
   },
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
+    "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-int",
     "grafanaZoneRedundantMode": "Disabled",
     "workspaceName": "arohcp-usw3"

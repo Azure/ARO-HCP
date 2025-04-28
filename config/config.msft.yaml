@@ -309,6 +309,7 @@ defaults:
   # Metrics
   monitoring:
     grafanaZoneRedundantMode: Disabled
+    grafanaMajorVersion: "11"
     workspaceName: "arohcp-{{ .ctx.regionShort }}"
   # Mock Managed Identities - not relevant for most MSFT envs
   miMockClientId: ""

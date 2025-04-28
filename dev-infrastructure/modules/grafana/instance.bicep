@@ -3,6 +3,9 @@ param location string
 @description('Metrics global Grafana name')
 param grafanaName string
 
+@description('The Grafana major version')
+param grafanaMajorVersion string
+
 @description('The admin group principal ID to manage Grafana')
 param grafanaAdminGroupPrincipalId string
 
@@ -23,7 +26,7 @@ var grafanaContributor = '5c2d7e57-b7c2-4d8a-be4f-82afa42c6e95'
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#grafana-admin
 var grafanaAdminRole = '22926164-76b3-42b3-bc55-97df8dab3e41'
 
-resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
+resource grafana 'Microsoft.Dashboard/grafana@2024-10-01' = {
   name: grafanaName
   location: location
   sku: {
@@ -41,6 +44,7 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
       ]
     }
     zoneRedundancy: zoneRedundancy ? 'Enabled' : 'Disabled'
+    grafanaMajorVersion: grafanaMajorVersion
   }
 }
 

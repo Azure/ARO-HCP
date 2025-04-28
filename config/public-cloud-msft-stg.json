@@ -317,6 +317,7 @@
   },
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "",
+    "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-stg",
     "grafanaZoneRedundantMode": "Disabled",
     "workspaceName": "arohcp-usw3"
