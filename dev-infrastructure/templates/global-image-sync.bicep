@@ -459,6 +459,9 @@ var acmMirrorConfig = {
               {
                 name: 'multicluster-engine.v2.8.0'
               }
+              {
+                name: 'multicluster-engine.v2.8.1'
+              }
             ]
           }
           {
