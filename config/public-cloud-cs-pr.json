@@ -71,7 +71,7 @@
       "repository": "app-sre/uhc-clusters-service"
     },
     "k8s": {
-      "namespace": "clusters-service",
+      "namespace": "cluster-service",
       "serviceAccountName": "clusters-service"
     },
     "managedIdentityName": "clusters-service",

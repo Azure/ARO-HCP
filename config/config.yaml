@@ -201,7 +201,7 @@ defaults:
       zoneRedundantMode: 'Auto'
     managedIdentityName: clusters-service
     k8s:
-      namespace: clusters-service
+      namespace: cluster-service
       serviceAccountName: clusters-service
   # Image Sync
   imageSync:
