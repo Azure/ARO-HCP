@@ -280,7 +280,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-usw3tst-mgmt"
+      "name": "nsp-usw3tst-mgmt-1"
     },
     "prometheus": {
       "namespace": "prometheus",

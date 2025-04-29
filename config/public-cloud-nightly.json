@@ -277,7 +277,7 @@
     "applyKubeletFixes": false,
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-nightly-mgmt"
+      "name": "nsp-nightly-mgmt-1"
     },
     "prometheus": {
       "namespace": "prometheus",

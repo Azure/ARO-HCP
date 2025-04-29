@@ -277,7 +277,7 @@
     "applyKubeletFixes": true,
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-cspr-mgmt"
+      "name": "nsp-cspr-mgmt-1"
     },
     "prometheus": {
       "namespace": "prometheus",
