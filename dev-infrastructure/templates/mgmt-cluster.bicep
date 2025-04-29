@@ -323,4 +323,3 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
     groupId: 'topicspace'
   }
 }
-
