@@ -88,7 +88,7 @@ defaults:
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     applyKubeletFixes: true
     nsp:
-      name: nsp-{{ .ctx.regionShort }}-mgmt
+      name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
       accessMode: 'Learning'
     aks:
       name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"

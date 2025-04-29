@@ -28,6 +28,3 @@ param clusterServiceMIResourceId = '__clusterServiceMIResourceId__'
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
 
-// NSP
-param mgmtNSPName = '{{ .mgmt.nsp.name }}'
-param mgmtNSPAccessMode = '{{ .mgmt.nsp.accessMode }}'

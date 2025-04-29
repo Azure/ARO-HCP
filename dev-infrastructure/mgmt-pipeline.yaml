@@ -127,6 +127,14 @@ resourceGroups:
     - mgmt-oncert-public-kv-issuer
     - global-output
     - region-output
+  - name: mgmt-nsp
+    action: ARM
+    template: templates/mgmt-nsp.bicep
+    parameters: configurations/mgmt-nsp.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - mgmt-cluster
+    - mgmt-infra
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
   aksCluster: '{{ .mgmt.aks.name  }}'

@@ -621,5 +621,8 @@ module svcNSP '../modules/network/nsp.bicep' = {
       svcCluster.outputs.etcKeyVaultId
       rpCosmosDb.outputs.cosmosDbAccountId
     ]
+    subscriptions: [
+      subscription()
+    ]
   }
 }

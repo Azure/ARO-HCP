@@ -324,18 +324,3 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
   }
 }
 
-// 
-//   N E T W O R K    S E C U R I T Y    P E R I M E T E R
-//
-
-module svcNSP '../modules/network/nsp.bicep' = {
-  name: 'nsp-${uniqueString(resourceGroup().name)}'
-  params: {
-    accessMode: mgmtNSPAccessMode
-    nspName: mgmtNSPName
-    location: location
-    associatedResources: [
-      mgmtCluster.outputs.etcKeyVaultId
-    ]
-  }
-}
