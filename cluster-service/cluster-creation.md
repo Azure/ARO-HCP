@@ -8,7 +8,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
 * If running CS on the AKS cluster, port-forward the CS service to your local machine
 
     ```bash
-    kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
+    kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service
     ```
 
 * Otherwise start CS on your local machine
@@ -20,7 +20,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
 * Access your CS deployment locally
 
     ```bash
-    KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
+    KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service
     ```
 
   Alternative: if you run CS on your local machine, this step is not necessary.

@@ -4,7 +4,7 @@
 
 * have a `KUBECONFIG` for a SC and MC, e.g. for the [integrated DEV environment](../dev-infrastructure/docs/development-setup.md#access-integrated-dev-environment)
 * port-forward RP running on SC: `kubectl port-forward -n aro-hcp svc/aro-hcp-frontend 8443:8443`
-* (optional but useful) port-forward CS running on SC: `kubectl port-forward -n cluster-service svc/clusters-service 8001:8000`
+* (optional but useful) port-forward CS running on SC: `kubectl port-forward -n clusters-service svc/clusters-service 8001:8000`
 * (optional but useful) port-forward Maestro running on SC: `kubectl port-forward -n maestro svc/maestro 8002:8000`
 
 ## Register the subscription with the RP

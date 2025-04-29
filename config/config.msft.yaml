@@ -266,7 +266,7 @@ defaults:
       zoneRedundantMode: 'Auto'
     managedIdentityName: clusters-service
     k8s:
-      namespace: cluster-service
+      namespace: clusters-service
       serviceAccountName: clusters-service
     tracing:
       address: ""
