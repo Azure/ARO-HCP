@@ -6,5 +6,5 @@ param baseDNSZoneName = 'hcp.osadev.cloud'
 param baseDNSZoneResourceGroup = 'global'
 
 // CS
-param csImage = '{{ .clusterService.imageTag }}'
+param csImage = '{{ .clustersService.imageTag }}'
 param regionRG = '{{ .regionRG }}'

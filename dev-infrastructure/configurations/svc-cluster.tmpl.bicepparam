@@ -47,14 +47,14 @@ param deployMaestroPostgres = {{ .maestro.postgres.deploy }}
 param maestroPostgresZoneRedundantMode = '{{ .maestro.postgres.zoneRedundantMode }}'
 param maestroPostgresPrivate = {{ .maestro.postgres.private }}
 
-param csPostgresDeploy = {{ .clusterService.postgres.deploy }}
-param csPostgresZoneRedundantMode = '{{ .clusterService.postgres.zoneRedundantMode }}'
-param csPostgresServerName = '{{ .clusterService.postgres.name }}'
-param csPostgresServerMinTLSVersion = '{{ .clusterService.postgres.minTLSVersion }}'
-param clusterServicePostgresPrivate = {{ .clusterService.postgres.private }}
-param csMIName = '{{ .clusterService.managedIdentityName }}'
-param csNamespace = '{{ .clusterService.k8s.namespace }}'
-param csServiceAccountName = '{{ .clusterService.k8s.serviceAccountName }}'
+param csPostgresDeploy = {{ .clustersService.postgres.deploy }}
+param csPostgresZoneRedundantMode = '{{ .clustersService.postgres.zoneRedundantMode }}'
+param csPostgresServerName = '{{ .clustersService.postgres.name }}'
+param csPostgresServerMinTLSVersion = '{{ .clustersService.postgres.minTLSVersion }}'
+param clusterServicePostgresPrivate = {{ .clustersService.postgres.private }}
+param csMIName = '{{ .clustersService.managedIdentityName }}'
+param csNamespace = '{{ .clustersService.k8s.namespace }}'
+param csServiceAccountName = '{{ .clustersService.k8s.serviceAccountName }}'
 
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'

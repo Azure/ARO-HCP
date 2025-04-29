@@ -8,3 +8,6 @@ deployment:
   imageName: ""
 serviceAccount:
   workloadIdentityClientId: ""
+clustersService:
+  namespace: ""
+  serviceAccount: ""

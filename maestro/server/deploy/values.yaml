@@ -31,9 +31,9 @@ maestro:
   grpcBindPort: 8090
   healthCheckBindPort: 8083
   glog_v: 10
-clusterService:
-  namespace: cluster-service
-  serviceAccount: clusters-service
+clustersService:
+  namespace: ""
+  serviceAccount: ""
 istio:
   restrictIngress: true
 azure:

@@ -146,9 +146,9 @@ memoryLimit: "1Gi"
 cpuRequest: "50m"
 # CPU limit.
 cpuLimit: "1"
-# Client ID for the clusters-service manage identity.
+# Client ID for the CS manage identity.
 azureCsMiClientId: ""
-# Azure region the cluster-service instance is running in.
+# Azure region the CS instance is running in.
 region: "westus3"
 # The client id of the first party application identity.
 azureFirstPartyApplicationClientId: ""
