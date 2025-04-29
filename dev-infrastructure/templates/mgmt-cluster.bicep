@@ -121,7 +121,6 @@ param logsServiceAccount string
 param mgmtNSPName string
 
 @description('Access mode for this NSP')
-@allowed(['Audit', 'Enforced', 'Learning'])
 param mgmtNSPAccessMode string
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
