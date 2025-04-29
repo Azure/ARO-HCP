@@ -575,7 +575,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef
+              digest: sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821
           # Maestro
           maestro:
             eventGrid:
