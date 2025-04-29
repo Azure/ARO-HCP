@@ -34,6 +34,10 @@ Run in debug mode: `ginkgo --tags E2Etests --vv ./`
 
 ## Writing E2E test with ginkgo
 
+Keep description of specs informational and comprehensive so that it can be read and understood as a complete sentence, e.g. "Get HCPOpenShiftCluster: it fails to get a nonexistent cluster with a Not Found error by preparing an HCP clusters client (and) by sending a GET request for the nonexistent cluster".
+
+Wondering which labels to use and where to write your test ? Refer to this [document](https://docs.google.com/document/d/1v7Xe-BVactmt79Fa5GKxd-r2Q9QuYoOpCIL-m46wp7M/edit?usp=sharing).
+
 [Ginkgo documentation](https://onsi.github.io/ginkgo/)
 
 [Gomega documentation](https://onsi.github.io/gomega/)
