@@ -16,7 +16,6 @@ package frontend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -142,7 +141,7 @@ func (f *Frontend) CancelOperation(ctx context.Context, pk azcosmos.PartitionKey
 		return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, &cloudError)
 	})
 	// Disregard "not found" errors; a missing operation is effectively canceled.
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
+	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		return err
 	}
 	if updated {
