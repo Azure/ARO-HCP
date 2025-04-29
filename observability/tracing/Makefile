@@ -23,6 +23,6 @@ patch-frontend:
 .PHONY: patch-frontend
 
 patch-clusterservice:
-	@kubectl set env -n cluster-service deployment clusters-service --containers service OTEL_EXPORTER_OTLP_ENDPOINT=http://ingest.observability:4318 OTEL_TRACES_EXPORTER=otlp
-	@kubectl wait --for=condition=Available -n cluster-service deployment clusters-service --timeout=30s
+	@kubectl set env -n ${CS_NAMESPACE} deployment clusters-service --containers service OTEL_EXPORTER_OTLP_ENDPOINT=http://ingest.observability:4318 OTEL_TRACES_EXPORTER=otlp
+	@kubectl wait --for=condition=Available -n ${CS_NAMESPACE} deployment clusters-service --timeout=30s
 .PHONY: patch-clusterservice
