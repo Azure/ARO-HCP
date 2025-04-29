@@ -48,7 +48,7 @@ type SubscriptionProperties struct {
 	SpendingLimit        *string              `json:"spendingLimit,omitempty"`
 	AccountOwner         *AccountOwner        `json:"accountOwner,omitempty"`
 	ManagedByTenants     *[]map[string]string `json:"managedByTenants,omitempty"`
-	AdditionalProperties *map[string]string   `json:"additionalProperties,omitempty"`
+	AdditionalProperties any                  `json:"additionalProperties,omitempty"`
 }
 
 type Feature struct {
@@ -58,7 +58,7 @@ type Feature struct {
 
 type AvailabilityZone struct {
 	Location     *string        `json:"location,omitempty"`
-	ZoneMappings *[]ZoneMapping `json:"zoneMppings,omitempty"`
+	ZoneMappings *[]ZoneMapping `json:"zoneMappings,omitempty"`
 }
 
 type ZoneMapping struct {
