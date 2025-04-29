@@ -141,6 +141,7 @@ defaults:
     firstPartyAppId: ""
     armInstance: ""
     armAppId: ""
+    tenantId: ""
     image:
       repository: ""
       digest: ""

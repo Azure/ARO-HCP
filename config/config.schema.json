@@ -623,6 +623,9 @@
         },
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "tenantId": {
+          "type": "string"
         }
       },
       "required": [
@@ -630,7 +633,8 @@
         "image",
         "azureAdInstance",
         "firstPartyAppId",
-        "armAppId"
+        "armAppId",
+        "tenantId"
       ]
     },
     "global": {
