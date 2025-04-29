@@ -16,7 +16,6 @@ package frontend
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -69,7 +68,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
+	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
@@ -141,7 +140,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	clusterResourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID.Parent)
 		} else {
 			arm.WriteInternalServerError(writer)

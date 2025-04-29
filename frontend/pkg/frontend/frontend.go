@@ -287,7 +287,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, prefix)
 		if err != nil {
 			logger.Error(err.Error())
-			if errors.Is(err, database.ErrNotFound) {
+			if database.IsResponseError(err, http.StatusNotFound) {
 				arm.WriteResourceNotFoundError(writer, prefix)
 			} else {
 				arm.WriteInternalServerError(writer)
@@ -408,7 +408,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 
 	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
+	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
@@ -641,7 +641,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	if err != nil {
 		// For resource not found errors on deletion, ARM requires
 		// us to simply return 204 No Content and no response body.
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			writer.WriteHeader(http.StatusNoContent)
 		} else {
 			logger.Error(err.Error())
@@ -701,7 +701,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
 			arm.WriteInternalServerError(writer)
@@ -792,7 +792,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
 			arm.WriteInternalServerError(writer)
@@ -896,7 +896,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
 			arm.WriteInternalServerError(writer)
@@ -939,7 +939,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
-	if errors.Is(err, database.ErrNotFound) {
+	if database.IsResponseError(err, http.StatusNotFound) {
 		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, &subscription)
 		if err != nil {
 			logger.Error(err.Error())
@@ -1163,7 +1163,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -1259,7 +1259,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
 			writer.WriteHeader(http.StatusInternalServerError)

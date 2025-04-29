@@ -16,7 +16,6 @@ package frontend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -249,7 +248,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			return nil, arm.NewResourceNotFoundError(resourceID)
 		} else {
 			return nil, arm.NewInternalServerError()

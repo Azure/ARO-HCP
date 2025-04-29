@@ -38,9 +38,7 @@ const (
 	operationTimeToLive = 604800 // 7 days
 )
 
-var ErrNotFound = errors.New("not found")
-
-func isResponseError(err error, statusCode int) bool {
+func IsResponseError(err error, statusCode int) bool {
 	var responseError *azcore.ResponseError
 	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
 }
@@ -242,7 +240,9 @@ func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorea
 		}
 	}
 
-	return nil, nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, ErrNotFound)
+	// Fabricate a "404 Not Found" ResponseError to wrap.
+	err := &azcore.ResponseError{StatusCode: http.StatusNotFound}
+	return nil, nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, err)
 }
 
 func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
@@ -329,7 +329,7 @@ func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azco
 func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	typedDoc, _, err := d.getResourceDoc(ctx, resourceID)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if IsResponseError(err, http.StatusNotFound) {
 			return nil
 		}
 		return err
@@ -378,9 +378,6 @@ func (d *cosmosDBClient) getOperationDoc(ctx context.Context, pk azcosmos.Partit
 
 	response, err := d.resources.ReadItem(ctx, pk, operationID, nil)
 	if err != nil {
-		if isResponseError(err, http.StatusNotFound) {
-			err = ErrNotFound
-		}
 		return nil, nil, fmt.Errorf("failed to read Operations container item for '%s': %w", operationID, err)
 	}
 
@@ -501,9 +498,6 @@ func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID 
 
 	response, err := d.resources.ReadItem(ctx, pk, subscriptionID, nil)
 	if err != nil {
-		if isResponseError(err, http.StatusNotFound) {
-			err = ErrNotFound
-		}
 		return nil, nil, fmt.Errorf("failed to read Subscriptions container item for '%s': %w", subscriptionID, err)
 	}
 
