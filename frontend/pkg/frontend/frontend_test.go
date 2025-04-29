@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -48,7 +49,7 @@ func getMockDBDoc[T any](t *T) (*T, error) {
 	if t != nil {
 		return t, nil
 	} else {
-		return nil, database.ErrNotFound
+		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
 	}
 }
 
