@@ -25,6 +25,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -559,7 +560,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		return
 	}
 
-	var opStatus = op.doc.Status
+	var opStatus arm.ProvisioningState
 	var opError *arm.CloudErrorBody
 
 	switch status := breakGlassCredential.Status(); status {
@@ -581,16 +582,10 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		return
 	}
 
-	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
-		return updateDoc.UpdateStatus(opStatus, opError)
-	})
+	err = s.patchOperationDocument(ctx, op, opStatus, opError)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredential, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
-	}
-	if updated {
-		op.logger.Info(fmt.Sprintf("Updated status to '%s'", opStatus))
-		s.maybePostAsyncNotification(ctx, op)
 	}
 }
 
@@ -652,16 +647,10 @@ loop:
 		return
 	}
 
-	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
-		return updateDoc.UpdateStatus(opStatus, opError)
-	})
+	err = s.patchOperationDocument(ctx, op, opStatus, opError)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
-	}
-	if updated {
-		op.logger.Info(fmt.Sprintf("Updated status to '%s'", opStatus))
-		s.maybePostAsyncNotification(ctx, op)
 	}
 }
 
@@ -692,22 +681,17 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, logger *sl
 
 // setDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
 func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, op operation) error {
+	// Delete the resource document first. If it fails the backend will retry
+	// by virtue of the operation document still having a non-terminal status.
 	err := s.dbClient.DeleteResourceDoc(ctx, op.doc.ExternalID)
 	if err != nil {
 		return err
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	const opStatus arm.ProvisioningState = arm.ProvisioningStateSucceeded
-	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
-		return updateDoc.UpdateStatus(opStatus, nil)
-	})
+	err = s.patchOperationDocument(ctx, op, arm.ProvisioningStateSucceeded, nil)
 	if err != nil {
 		return err
-	}
-	if updated {
-		op.logger.Info("Deletion completed")
-		s.maybePostAsyncNotification(ctx, op)
 	}
 
 	return nil
@@ -715,67 +699,108 @@ func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, o
 
 // updateOperationStatus updates Cosmos DB to reflect an updated resource status.
 func (s *OperationsScanner) updateOperationStatus(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	updated, err := s.dbClient.UpdateOperationDoc(ctx, op.pk, op.id, func(updateDoc *database.OperationDocument) bool {
-		return updateDoc.UpdateStatus(opStatus, opError)
-	})
+	err := s.patchOperationDocument(ctx, op, opStatus, opError)
 	if err != nil {
 		return err
 	}
-	if updated {
-		op.logger.Info(fmt.Sprintf("Updated status to '%s'", opStatus))
-		s.maybePostAsyncNotification(ctx, op)
+
+	var patchOperations database.ResourceDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.ResourceDocumentJSONPathActiveOperationID, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s = '%s'", scalar, op.id)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetProvisioningState(opStatus)
+	if opStatus.IsTerminal() {
+		patchOperations.SetActiveOperationID(nil)
 	}
 
-	_, err = s.dbClient.UpdateResourceDoc(ctx, op.doc.ExternalID, func(updateDoc *database.ResourceDocument) bool {
-		var updated bool
+	_, err = s.dbClient.PatchResourceDoc(ctx, op.doc.ExternalID, patchOperations)
+	return err
+}
 
-		if op.id == updateDoc.ActiveOperationID {
-			if opStatus != updateDoc.ProvisioningState {
-				updateDoc.ProvisioningState = opStatus
-				updated = true
+// patchOperationDocument patches the status and error fields of an OperationDocument.
+func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	var patchOperations database.OperationDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.OperationDocumentJSONPathStatus, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetLastTransitionTime(time.Now().UTC())
+	patchOperations.SetStatus(opStatus)
+	if opError != nil {
+		patchOperations.SetError(opError)
+	}
+
+	updatedDoc, err := s.dbClient.PatchOperationDoc(ctx, op.pk, op.id, patchOperations)
+	if err == nil {
+		op.doc = updatedDoc
+		message := fmt.Sprintf("Updated status to '%s'", opStatus)
+		switch opStatus {
+		case arm.ProvisioningStateSucceeded:
+			switch op.doc.Request {
+			case database.OperationRequestCreate:
+				message = "Resource creation succeeded"
+			case database.OperationRequestUpdate:
+				message = "Resource update succeeded"
+			case database.OperationRequestDelete:
+				message = "Resource deletion succeeded"
+			case database.OperationRequestRequestCredential:
+				message = "Credential request succeeded"
+			case database.OperationRequestRevokeCredentials:
+				message = "Credential revocation succeeded"
 			}
-			if opStatus.IsTerminal() {
-				updateDoc.ActiveOperationID = ""
-				updated = true
+		case arm.ProvisioningStateFailed:
+			switch op.doc.Request {
+			case database.OperationRequestCreate:
+				message = "Resource creation failed"
+			case database.OperationRequestUpdate:
+				message = "Resource update failed"
+			case database.OperationRequestDelete:
+				message = "Resource deletion failed"
+			case database.OperationRequestRequestCredential:
+				message = "Credential request failed"
+			case database.OperationRequestRevokeCredentials:
+				message = "Credential revocation failed"
 			}
 		}
-
-		return updated
-	})
-	if err != nil {
+		op.logger.Info(message)
+	} else if !database.IsResponseError(err, http.StatusPreconditionFailed) {
 		return err
+	}
+
+	if opStatus.IsTerminal() && len(op.doc.NotificationURI) > 0 {
+		err = s.postAsyncNotification(ctx, op)
+		if err == nil {
+			op.logger.Info("Posted async notification")
+
+			// Remove the notification URI from the document
+			// so the ARM notification is only sent once.
+			var patchOperations database.OperationDocumentPatchOperations
+			patchOperations.SetNotificationURI(nil)
+			updatedDoc, err = s.dbClient.PatchOperationDoc(ctx, op.pk, op.id, patchOperations)
+			if err == nil {
+				op.doc = updatedDoc
+			} else {
+				op.logger.Error(fmt.Sprintf("Failed to clear notification URI: %v", err))
+			}
+		} else {
+			op.logger.Error(fmt.Sprintf("Failed to post async notification: %v", err.Error()))
+		}
 	}
 
 	return nil
 }
 
-// maybePostAsyncNotification attempts to notify ARM of a completed asynchronous
-// operation if the initial request included an "Azure-AsyncNotificationUri" header.
-func (s *OperationsScanner) maybePostAsyncNotification(ctx context.Context, op operation) {
-	if len(op.doc.NotificationURI) > 0 {
-		err := s.postAsyncNotification(ctx, op)
-		if err == nil {
-			op.logger.Info("Posted async notification")
-		} else {
-			op.logger.Error(fmt.Sprintf("Failed to post async notification: %v", err.Error()))
-		}
-	}
-}
-
 // postAsyncNotification submits an POST request with status payload to the given URL.
 func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operation) error {
-	// Refetch the operation document to provide the latest status.
-	doc, err := s.dbClient.GetOperationDoc(ctx, op.pk, op.id)
+	data, err := arm.MarshalJSON(op.doc.ToStatus())
 	if err != nil {
 		return err
 	}
 
-	data, err := arm.MarshalJSON(doc.ToStatus())
-	if err != nil {
-		return err
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, doc.NotificationURI, bytes.NewBuffer(data))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, op.doc.NotificationURI, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
