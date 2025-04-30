@@ -10,8 +10,8 @@ param mgmtKeyVaultName string
 @description('The name of the MSI KeyVault')
 param msiKeyVaultName string
 
-@description('Naming prefixes for mgmt NSPs')
-param mgmtNSPNamePrefix string
+@description('Name of the mgmt NSPs')
+param mgmtNSPName string
 
 @description('Access mode for this NSP')
 @allowed(['Audit', 'Enforced', 'Learning'])
@@ -37,35 +37,52 @@ resource aksKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: aksKeyVaultName
 }
 
-module externalNSP '../modules/network/nsp.bicep' = {
+module nsp '../modules/network/nsp.bicep' = {
   name: 'nsp-${uniqueString(resourceGroup().name)}-external'
   params: {
+    nspName: mgmtNSPName
+    location: location
+  }
+}
+
+module externalProfile '../modules/network/nsp-profile.bicep' = {
+  name: 'profile-${uniqueString(resourceGroup().name)}-external'
+  params: {
     accessMode: mgmtNSPAccessMode
-    nspName: '${mgmtNSPNamePrefix}-external'
+    nspName: mgmtNSPName
+    profileName: '${mgmtNSPName}-external'
     location: location
     associatedResources: [
       cxKeyVault.id
-      msiKeyVault.id
+      mgmtKeyVault.id
     ]
     // TODO: will add EV2 Service Tags here
+    // TODO: add service cluster subscription here
     subscriptions: [
       subscription().id
     ]
   }
+  dependsOn: [
+    nsp
+  ]
 }
 
-module internalNSP '../modules/network/nsp.bicep' = {
-  name: 'nsp-${uniqueString(resourceGroup().name)}-internal'
+module internalProfile '../modules/network/nsp-profile.bicep' = {
+  name: 'profile-${uniqueString(resourceGroup().name)}-internal'
   params: {
     accessMode: mgmtNSPAccessMode
-    nspName: '${mgmtNSPNamePrefix}-internal'
+    nspName: mgmtNSPName
+    profileName: '${mgmtNSPName}-internal'
     location: location
     associatedResources: [
-      mgmtKeyVault.id
+      msiKeyVault.id
       aksKeyVault.id
     ]
     subscriptions: [
       subscription().id
     ]
   }
+  dependsOn: [
+    nsp
+  ]
 }

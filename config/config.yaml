@@ -9,6 +9,9 @@ defaults:
     globalMSIName: "global-rollout-identity"
     safeDnsIntAppObjectId: "" # intentionally left empty
     secretsToSyncDir: "dev/arohcpdev-global"
+    nsp:
+      name: nsp-global
+      accessMode: 'Learning'
     keyVault:
       name: arohcpdev-global
       private: false

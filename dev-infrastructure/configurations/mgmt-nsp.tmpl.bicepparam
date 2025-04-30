@@ -13,5 +13,5 @@ param mgmtKeyVaultName = '{{ .mgmtKeyVault.name }}'
 param aksKeyVaultName = '{{ .mgmt.aks.etcd.kvName }}'
 
 
-param mgmtNSPNamePrefix = '{{ .mgmt.nsp.name }}'
+param mgmtNSPName = '{{ .mgmt.nsp.name }}'
 param mgmtNSPAccessMode = '{{ .mgmt.nsp.accessMode }}'
