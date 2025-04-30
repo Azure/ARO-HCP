@@ -629,7 +629,9 @@ module svcNSPProfile '../modules/network/nsp-profile.bicep' = {
     associatedResources: [
       svcCluster.outputs.etcKeyVaultId
       rpCosmosDb.outputs.cosmosDbAccountId
+      serviceKeyVault.id
     ]
+    // TODO Add EV2 access here
     subscriptions: [
       subscription().id
     ]
