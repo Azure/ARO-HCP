@@ -145,7 +145,7 @@
     "subscription": "hcp-global"
   },
   "hypershift": {
-    "additionalInstallArg": "--limit-crd-install=Azure",
+    "additionalInstallArg": "",
     "image": {
       "digest": "sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821",
       "registry": "quay.io",
