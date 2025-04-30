@@ -38,7 +38,7 @@ resource aksKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
 }
 
 module nsp '../modules/network/nsp.bicep' = {
-  name: 'nsp-${uniqueString(resourceGroup().name)}-external'
+  name: 'nsp-${uniqueString(resourceGroup().name)}'
   params: {
     nspName: mgmtNSPName
     location: location
@@ -46,38 +46,20 @@ module nsp '../modules/network/nsp.bicep' = {
 }
 
 module externalProfile '../modules/network/nsp-profile.bicep' = {
-  name: 'profile-${uniqueString(resourceGroup().name)}-external'
+  name: 'profile-${uniqueString(resourceGroup().name)}'
   params: {
     accessMode: mgmtNSPAccessMode
     nspName: mgmtNSPName
-    profileName: '${mgmtNSPName}-external'
+    profileName: '${mgmtNSPName}-profile'
     location: location
     associatedResources: [
       cxKeyVault.id
       mgmtKeyVault.id
       msiKeyVault.id
+      aksKeyVault.id
     ]
     // TODO: will add EV2 Service Tags here
     // TODO: add service cluster subscription here
-    subscriptions: [
-      subscription().id
-    ]
-  }
-  dependsOn: [
-    nsp
-  ]
-}
-
-module internalProfile '../modules/network/nsp-profile.bicep' = {
-  name: 'profile-${uniqueString(resourceGroup().name)}-internal'
-  params: {
-    accessMode: mgmtNSPAccessMode
-    nspName: mgmtNSPName
-    profileName: '${mgmtNSPName}-internal'
-    location: location
-    associatedResources: [
-      aksKeyVault.id
-    ]
     subscriptions: [
       subscription().id
     ]
