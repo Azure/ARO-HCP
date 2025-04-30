@@ -82,6 +82,17 @@ else
   echo "No ServiceAccounts found in namespace $NAMESPACE"
 fi
 
+echo -e "\n--- SecretProviderClass in $NAMESPACE ---"
+SECRET_PROVIDER_CLASSES=$(kubectl get secretproviderclass -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+if [ -n "$SECRET_PROVIDER_CLASSES" ]; then
+  for SPC in $SECRET_PROVIDER_CLASSES; do
+    echo -e "\n>>> Describe SecretProviderClass: $SPC"
+    kubectl describe secretproviderclass "$SPC" -n "$NAMESPACE"
+  done
+else
+  echo "No SecretProviderClass found in namespace $NAMESPACE"
+fi
+
 echo -e "\n--- Events in $NAMESPACE (last 100) ---"
 kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' | tail -n 100
 
