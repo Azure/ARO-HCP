@@ -14,15 +14,15 @@ deploy:
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
 	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
-	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name "${OP_CLUSTER_API_AZURE_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name "${OP_CONTROL_PLANE_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_INGRESS_ROLE_ID=$(shell az role definition list --name "${OP_INGRESS_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_DISK_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_KMS_ROLE_ID=$(shell az role definition list --name "${OP_KMS_ROLE_NAME}" --query "[].name" -o tsv) && \
+	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name ${OP_CLUSTER_API_AZURE_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name ${OP_CONTROL_PLANE_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name ${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_INGRESS_ROLE_ID=$(shell az role definition list --name ${OP_INGRESS_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name ${OP_DISK_CSI_DRIVER_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name ${OP_FILE_CSI_DRIVER_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name ${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name ${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_KMS_ROLE_ID=$(shell az role definition list --name ${OP_KMS_ROLE_NAME} --query "[].name" -o tsv) && \
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
@@ -56,21 +56,21 @@ deploy:
 	  --set azureArmHelperIdentityCertName=${ARM_HELPER_CERT_NAME} \
 	  --set azureArmHelperIdentityClientId=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
 	  --set azureArmHelperMockFpaPrincipalId=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
-	  --set azureOperatorsMI.clusterApiAzure.roleName="${OP_CLUSTER_API_AZURE_ROLE_NAME}" \
+	  --set azureOperatorsMI.clusterApiAzure.roleName=${OP_CLUSTER_API_AZURE_ROLE_NAME} \
 	  --set azureOperatorsMI.clusterApiAzure.roleId="$${OP_CLUSTER_API_AZURE_ROLE_ID}" \
-	  --set azureOperatorsMI.controlPlane.roleName="${OP_CONTROL_PLANE_ROLE_NAME}" \
+	  --set azureOperatorsMI.controlPlane.roleName=${OP_CONTROL_PLANE_ROLE_NAME} \
 	  --set azureOperatorsMI.controlPlane.roleId="$${OP_CONTROL_PLANE_ROLE_ID}" \
-	  --set azureOperatorsMI.cloudControllerManager.roleName="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudControllerManager.roleName=${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME} \
 	  --set azureOperatorsMI.cloudControllerManager.roleId="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
-	  --set azureOperatorsMI.ingress.roleName="${OP_INGRESS_ROLE_NAME}" \
+	  --set azureOperatorsMI.ingress.roleName=${OP_INGRESS_ROLE_NAME} \
 	  --set azureOperatorsMI.ingress.roleId="$${OP_INGRESS_ROLE_ID}" \
-	  --set azureOperatorsMI.diskCsiDriver.roleName="${OP_DISK_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.diskCsiDriver.roleName=${OP_DISK_CSI_DRIVER_ROLE_NAME} \
 	  --set azureOperatorsMI.diskCsiDriver.roleId="$${OP_DISK_CSI_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.fileCsiDriver.roleName="${OP_FILE_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.fileCsiDriver.roleName=${OP_FILE_CSI_DRIVER_ROLE_NAME} \
 	  --set azureOperatorsMI.fileCsiDriver.roleId="$${OP_FILE_CSI_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.imageRegistry.roleName="${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.imageRegistry.roleName=${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME} \
 	  --set azureOperatorsMI.imageRegistry.roleId="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.cloudNetworkConfig.roleName="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudNetworkConfig.roleName=${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME} \
 	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
 	  --set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
@@ -78,7 +78,7 @@ deploy:
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
 	  --set tracing.address=${TRACING_ADDRESS} \
 	  --set tracing.exporter=${TRACING_EXPORTER} \
-	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
+	  --set azureOperatorsMI.kms.roleName=${OP_KMS_ROLE_NAME} \
 	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}"
 
 deploy-pr-env-deps:
@@ -126,33 +126,34 @@ personal-runtime-config:
 .PHONY: personal-runtime-config
 
 local-azure-operators-managed-identities-config:
-	@OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_INGRESS_ROLE_ID=$(shell az role definition list --name "${OP_INGRESS_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_DISK_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name "${OP_CLUSTER_API_AZURE_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name "${OP_CONTROL_PLANE_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" --query "[].name" -o tsv) && \
-	OP_KMS_ROLE_ID=$(shell az role definition list --name "${OP_KMS_ROLE_NAME}" --query "[].name" -o tsv) && \
+	@OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name ${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_INGRESS_ROLE_ID=$(shell az role definition list --name ${OP_INGRESS_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name ${OP_DISK_CSI_DRIVER_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name ${OP_FILE_CSI_DRIVER_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_CLUSTER_API_AZURE_ROLE_ID=$(shell az role definition list --name ${OP_CLUSTER_API_AZURE_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_CONTROL_PLANE_ROLE_ID=$(shell az role definition list --name ${OP_CONTROL_PLANE_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_IMAGE_REGISTRY_DRIVER_ROLE_ID=$(shell az role definition list --name ${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME} --query "[].name" -o tsv) && \
+	OP_CLOUD_NETWORK_CONFIG_ROLE_ID=$(shell az role definition list --name ${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME} --query "[].name" -o tsv) && \
+	echo "bubu"
+	OP_KMS_ROLE_ID=$(shell az role definition list --name ${OP_KMS_ROLE_NAME} --query "[].name" -o tsv) && \
 	helm template deploy -s templates/azure-operators-managed-identities-config.configmap.yaml \
-	  --set azureOperatorsMI.cloudControllerManager.roleName="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudControllerManager.roleName=${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME} \
 	  --set azureOperatorsMI.cloudControllerManager.roleId="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
-	  --set azureOperatorsMI.ingress.roleName="${OP_INGRESS_ROLE_NAME}" \
+	  --set azureOperatorsMI.ingress.roleName=${OP_INGRESS_ROLE_NAME} \
 	  --set azureOperatorsMI.ingress.roleId="$${OP_INGRESS_ROLE_ID}" \
-	  --set azureOperatorsMI.clusterApiAzure.roleName="${OP_CLUSTER_API_AZURE_ROLE_NAME}" \
+	  --set azureOperatorsMI.clusterApiAzure.roleName=${OP_CLUSTER_API_AZURE_ROLE_NAME} \
 	  --set azureOperatorsMI.clusterApiAzure.roleId="$${OP_CLUSTER_API_AZURE_ROLE_ID}" \
-	  --set azureOperatorsMI.controlPlane.roleName="${OP_CONTROL_PLANE_ROLE_NAME}" \
+	  --set azureOperatorsMI.controlPlane.roleName=${OP_CONTROL_PLANE_ROLE_NAME} \
 	  --set azureOperatorsMI.controlPlane.roleId="$${OP_CONTROL_PLANE_ROLE_ID}" \
-	  --set azureOperatorsMI.diskCsiDriver.roleName="${OP_DISK_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.diskCsiDriver.roleName=${OP_DISK_CSI_DRIVER_ROLE_NAME} \
 	  --set azureOperatorsMI.diskCsiDriver.roleId="$${OP_DISK_CSI_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.fileCsiDriver.roleName="${OP_FILE_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.fileCsiDriver.roleName=${OP_FILE_CSI_DRIVER_ROLE_NAME} \
 	  --set azureOperatorsMI.fileCsiDriver.roleId="$${OP_FILE_CSI_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.imageRegistry.roleName="${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.imageRegistry.roleName=${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME} \
 	  --set azureOperatorsMI.imageRegistry.roleId="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.cloudNetworkConfig.roleName="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudNetworkConfig.roleName=${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME} \
 	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
-	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
+	  --set azureOperatorsMI.kms.roleName=${OP_KMS_ROLE_NAME} \
 	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}" \
 	  | yq '.data."azure-operators-managed-identities-config.yaml"' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
