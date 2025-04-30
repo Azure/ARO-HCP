@@ -135,7 +135,7 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *P
 
 func printMakefileVars(vars map[string]string, writer io.Writer) {
 	for k, v := range vars {
-		fmt.Fprintf(writer, "%s ?= \"%s\"\n", k, v)
+		fmt.Fprintf(writer, "%s ?= %s\n", k, v)
 	}
 }
 

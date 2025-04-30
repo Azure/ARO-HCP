@@ -58,7 +58,7 @@ func TestInspectVars(t *testing.T) {
 				},
 				Format: "makefile",
 			},
-			expected: "FOO ?= \"bar\"\n",
+			expected: "FOO ?= bar\n",
 		},
 		{
 			name:     "failed action",
