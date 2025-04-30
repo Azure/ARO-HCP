@@ -327,7 +327,8 @@
     "image": {
       "digest": "sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b",
       "repository": "mise"
-    }
+    },
+    "tenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d"
   },
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",

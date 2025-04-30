@@ -89,7 +89,7 @@ deploy:
 		--set mise.imageRegistry=${ARO_HCP_IMAGE_REGISTRY} \
 		--set mise.imageRepository=${MISE_IMAGE_REPOSITORY} \
 		--set mise.imageDigest=${MISE_IMAGE_DIGEST} \
-		--set mise.tenantId=$${TENANT_ID} \
+		--set mise.tenantId=${MISE_TENANT_ID} \
 		--set mise.azureAdInstance=${MISE_AZURE_AD_INSTANCE} \
 		--set mise.firstPartyAppId=${MISE_FIRST_PARTY_APP_ID} \
 		--set mise.armInstance=${MISE_ARM_INSTANCE} \

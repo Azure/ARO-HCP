@@ -34,7 +34,7 @@ spec:
         - name: AzureAd__TenantId
           value: '{{ .Values.tenantId  }}'
         - name: AzureAd__Audience
-          value: "api://{{ .Values.azureAdClientId }}"
+          value: "api://{{ .Values.firstPartyAppId }}"
         - name: AzureAd__InboundPolicies__0__Label
           value: "ARM Policy"
         - name: AzureAd__InboundPolicies__0__Authority

@@ -429,6 +429,7 @@ clouds:
           mise:
             firstPartyAppId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37 # This is the aro-hcp-fp-int app in the MSIT Tenant.
             armAppId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
+            tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
             image:
               digest: sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b
           # RP Backend
@@ -566,6 +567,7 @@ clouds:
           mise:
             firstPartyAppId: 7f4a113a-c61d-412a-bea1-85dee5baf4a8
             armAppId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
+            tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
             image:
               digest: sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b
           # RP Backend
