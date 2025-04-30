@@ -323,7 +323,7 @@ model NodePoolProperties {
 
   /** Auto-repair */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  autoRepair?: boolean = false;
+  autoRepair?: boolean = true;
 
   /** Representation of a autoscaling in a node pool. */
   autoScaling?: NodePoolAutoScaling;

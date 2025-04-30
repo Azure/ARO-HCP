@@ -1457,7 +1457,7 @@
         "autoRepair": {
           "type": "boolean",
           "description": "Auto-repair",
-          "default": false,
+          "default": true,
           "x-ms-mutability": [
             "read",
             "create"

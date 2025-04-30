@@ -77,6 +77,7 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 			Platform: NodePoolPlatformProfile{
 				DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
 			},
+			AutoRepair: true,
 		},
 	}
 }
