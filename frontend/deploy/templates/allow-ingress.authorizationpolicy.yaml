@@ -5,14 +5,14 @@ metadata:
   name: allow-istio-ingress
   namespace: '{{ .Release.namespace  }}'
 spec:
-  action: ALLOW
+  action: CUSTOM
+  provider:
+    name: ext-authz
   rules:
-  - from:
-    - source:
-        namespaces: ["aks-istio-ingress"]
-    to:
+  - to:
     - operation:
-        methods: ["GET", "PUT", "POST","PATCH", "DELETE"]
+        paths: ["/*"]
+        methods: ["GET", "PUT", "POST", "PATCH", "DELETE"]
         ports:
         - "8443"
 {{- end }}
