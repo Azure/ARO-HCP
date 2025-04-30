@@ -411,7 +411,7 @@ model NodePoolPlatformProfile {
   vmSize: string;
 
   /** The OS disk size in GiB */
-  diskSizeGiB?: int32;
+  diskSizeGiB?: int32 = 64;
 
   /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
