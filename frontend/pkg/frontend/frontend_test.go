@@ -211,7 +211,21 @@ func TestSubscriptionsPUT(t *testing.T) {
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
-				Properties:       nil,
+				Properties: &arm.SubscriptionProperties{
+					TenantId: api.Ptr("12345678-1234-1234-1234-123456789abc"),
+					AdditionalProperties: &map[string]any{
+						"foo": "bar",
+						"baz": []int{1, 2, 3, 4},
+						"test": struct{ blah string }{
+							"hello",
+						},
+					},
+					ManagedByTenants: &[]map[string]string{
+						{
+							"tenantId": "12345678-1234-1234-1234-123456789abc",
+						},
+					},
+				},
 			},
 			subDoc:             nil,
 			expectedStatusCode: http.StatusOK,
