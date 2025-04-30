@@ -424,7 +424,7 @@ clouds:
               name: "arohcpint-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
-              digest: sha256:8e7fb81a0643341feb7cad5b9f33152798b6754f4dcb1441c3e65be47517f574
+              digest: sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3
           # Mise
           mise:
             firstPartyAppId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37 # This is the aro-hcp-fp-int app in the MSIT Tenant.
@@ -435,7 +435,7 @@ clouds:
           # RP Backend
           backend:
             image:
-              digest: sha256:c56e94968978542c13d295de05c3ccb8ff7476c0eabae0c8defc861d76f93616
+              digest: sha256:02a32af8d34c5725d0096ee7f94adf2ef151d0634e8682fe7517e6f9ebba9bdc
           # Hypershift
           hypershift:
             image:
@@ -560,7 +560,7 @@ clouds:
               name: "arohcpstg-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
-              digest: sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364
+              digest: sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3
             cert:
               issuer: OneCertV2-PrivateCA # let's use private until we have approval for public
           # Mise
@@ -573,7 +573,7 @@ clouds:
           # RP Backend
           backend:
             image:
-              digest: sha256:a2953aef23ac3dc376485fafefdbb2d949aebb11f6f9029bcae836bab929d5c3
+              digest: sha256:02a32af8d34c5725d0096ee7f94adf2ef151d0634e8682fe7517e6f9ebba9bdc
           # Hypershift
           hypershift:
             image:
