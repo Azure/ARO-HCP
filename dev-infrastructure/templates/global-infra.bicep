@@ -44,7 +44,6 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 param globalNSPName string
 
 @description('Access mode for this NSP')
-@allowed(['Audit', 'Enforced', 'Learning'])
 param globalNSPAccessMode string
 
 //

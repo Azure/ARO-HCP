@@ -14,7 +14,6 @@ param msiKeyVaultName string
 param mgmtNSPName string
 
 @description('Access mode for this NSP')
-@allowed(['Audit', 'Enforced', 'Learning'])
 param mgmtNSPAccessMode string
 
 @description('The name of the keyvault for AKS.')

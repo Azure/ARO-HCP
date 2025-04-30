@@ -117,12 +117,6 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
-@description('Tha name of the SVC NSP')
-param mgmtNSPName string
-
-@description('Access mode for this NSP')
-param mgmtNSPAccessMode string
-
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
