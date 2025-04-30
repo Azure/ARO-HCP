@@ -12,4 +12,5 @@ spec:
   - to:
     - operation:
         paths: ["/*"]
+        notPaths: ["/metrics"]
 {{- end }}
