@@ -211,7 +211,6 @@ module globalNSPProfile '../modules/network/nsp-profile.bicep' = {
       globalKV.outputs.kvId
     ]
     subscriptions: [
-      //TODO: add service cluster subscription
       //TODO: add ev2 access
       subscription().id
     ]

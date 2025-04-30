@@ -55,6 +55,7 @@ module externalProfile '../modules/network/nsp-profile.bicep' = {
     associatedResources: [
       cxKeyVault.id
       mgmtKeyVault.id
+      msiKeyVault.id
     ]
     // TODO: will add EV2 Service Tags here
     // TODO: add service cluster subscription here
@@ -75,7 +76,6 @@ module internalProfile '../modules/network/nsp-profile.bicep' = {
     profileName: '${mgmtNSPName}-internal'
     location: location
     associatedResources: [
-      msiKeyVault.id
       aksKeyVault.id
     ]
     subscriptions: [
