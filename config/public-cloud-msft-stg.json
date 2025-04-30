@@ -22,7 +22,7 @@
   "aroDevopsMsiId": "/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
     "image": {
-      "digest": "sha256:a2953aef23ac3dc376485fafefdbb2d949aebb11f6f9029bcae836bab929d5c3",
+      "digest": "sha256:02a32af8d34c5725d0096ee7f94adf2ef151d0634e8682fe7517e6f9ebba9bdc",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpbackend"
     }
@@ -119,7 +119,7 @@
       "zoneRedundantMode": "Auto"
     },
     "image": {
-      "digest": "sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364",
+      "digest": "sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpfrontend"
     },
