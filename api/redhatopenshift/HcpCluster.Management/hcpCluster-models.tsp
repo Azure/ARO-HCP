@@ -323,7 +323,7 @@ model NodePoolProperties {
 
   /** Auto-repair */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  autoRepair?: boolean = false;
+  autoRepair?: boolean = true;
 
   /** Representation of a autoscaling in a node pool. */
   autoScaling?: NodePoolAutoScaling;
@@ -411,7 +411,7 @@ model NodePoolPlatformProfile {
   vmSize: string;
 
   /** The OS disk size in GiB */
-  diskSizeGiB?: int32;
+  diskSizeGiB?: int32 = 64;
 
   /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
