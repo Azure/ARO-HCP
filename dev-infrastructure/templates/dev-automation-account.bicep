@@ -66,7 +66,7 @@ module permissions '../modules/automation-account/permissions.bicep' = {
   }
 }
 
-var runbookParameter = '@{"parameter1": ${subscription()}, "parameter2": ${automationAccount.outputs.automationAccountManagedIdentityId}}'
+var runbookParameter = '@{"parameter1" = "${subscription().subscriptionId}"; "parameter2" = "${automationAccount.outputs.automationAccountManagedIdentityId}"}'
 
 module resouceCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'resourceCleanup'
@@ -77,16 +77,13 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
     runbookType: 'Python3'
     runbookVersion: '1.0.0'
     location: location
+    runbookParameter: runbookParameter    
     rubookScript: {
       ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
       path: 'tooling/azure-automation/resources-cleanup/src/resources_cleanup.py'
     }
     scheduleName: 'nightly-schedule'
-    runbookParameter: runbookParameter
   }
-  dependsOn: [
-    automationAccount
-  ]
 }
 
 module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {

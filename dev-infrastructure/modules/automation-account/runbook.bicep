@@ -46,6 +46,7 @@ var rubookScriptUrl = format(
   rubookScript.path
 )
 
+
 resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-08-08' = {
   name: '${automationAccountName}_${runbookName}'
   location: location
@@ -59,6 +60,7 @@ resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-0
       uri: rubookScriptUrl
       version: runbookVersion
     }
+    arguments: '-Parameters ${runbookParameter}'
   }
 }
 
@@ -75,7 +77,7 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
 }
 
 var baseArguments = '-ResourceGroupName ${resourceGroup().name} -AutomationAccountName ${automationAccountName} -RunbookName ${accountRunbook.name} -ScheduleName ${runbookSchedule.name}'
-var arguments = length(runbookParameter) > 0 ? '${baseArguments} -Parameters ${runbookParameter}' : baseArguments
+// var arguments = length(runbookParameter) > 0 ? '${baseArguments} -Parameters ${runbookParameter}' : baseArguments
 
 // Link Schedule to Runbook
 resource registerScheduledRunbook 'Microsoft.Resources/deploymentScripts@2023-08-01' = if (!empty(scheduleName)) {
@@ -91,7 +93,7 @@ resource registerScheduledRunbook 'Microsoft.Resources/deploymentScripts@2023-08
   properties: {
     azPowerShellVersion: '12.0.0'
     scriptContent: loadTextContent('../../scripts/register-scheduledrunbook.ps1')
-    arguments: arguments
+    arguments: baseArguments
     retentionInterval: 'P1D'
     cleanupPreference: 'OnSuccess'
     timeout: 'PT30M'
