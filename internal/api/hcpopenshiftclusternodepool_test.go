@@ -125,12 +125,12 @@ func TestNodePoolValidateTags(t *testing.T) {
 			},
 		},
 		{
-			name: "Only AutoScaling present with zero-values",
+			name: "Only AutoScaling present",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
 					AutoScaling: &NodePoolAutoScaling{
-						Min: 0,
-						Max: 0,
+						Min: 1,
+						Max: 2,
 					},
 				},
 			},
@@ -140,14 +140,14 @@ func TestNodePoolValidateTags(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
 					AutoScaling: &NodePoolAutoScaling{
-						Min: 1,
-						Max: 0,
+						Min: 2,
+						Max: 1,
 					},
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid value '0' for field 'max' (must be at least the value of 'min')",
+					Message: "Invalid value '1' for field 'max' (must be at least the value of 'min')",
 					Target:  "properties.autoScaling.max",
 				},
 			},

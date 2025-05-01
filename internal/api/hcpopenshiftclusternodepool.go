@@ -58,8 +58,8 @@ type NodePoolPlatformProfile struct {
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
 type NodePoolAutoScaling struct {
-	Min int32 `json:"min,omitempty" validate:"min=0"`
-	Max int32 `json:"max,omitempty" validate:"min=0,gtefield=Min"`
+	Min int32 `json:"min,omitempty" validate:"min=1"`
+	Max int32 `json:"max,omitempty" validate:"gtefield=Min"`
 }
 
 type Taint struct {
