@@ -16,6 +16,7 @@ require (
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
 	go.uber.org/mock v0.5.0
+	k8s.io/apimachinery v0.33.0
 )
 
 require (
@@ -29,6 +30,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
@@ -60,4 +62,6 @@ require (
 	golang.org/x/tools v0.31.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	k8s.io/klog/v2 v2.130.1 // indirect
+	k8s.io/utils v0.0.0-20250321185631-1f6e0b77f77e // indirect
 )

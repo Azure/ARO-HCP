@@ -34,7 +34,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	Replicas          int32                   `json:"replicas,omitempty"          visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
 	AutoRepair        bool                    `json:"autoRepair,omitempty"        visibility:"read create"`
 	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty"       visibility:"read create update"`
-	Labels            map[string]string       `json:"labels,omitempty"            visibility:"read create update"`
+	Labels            map[string]string       `json:"labels,omitempty"            visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
 	Taints            []*Taint                `json:"taints,omitempty"            visibility:"read create update" validate:"dive"`
 }
 
@@ -64,8 +64,8 @@ type NodePoolAutoScaling struct {
 
 type Taint struct {
 	Effect Effect `json:"effect,omitempty" validate:"required_for_put,enum_effect"`
-	Key    string `json:"key,omitempty"    validate:"required_for_put,min=1,max=316"`
-	Value  string `json:"value,omitempty"  validate:"omitempty,min=1,max=63"`
+	Key    string `json:"key,omitempty"    validate:"required_for_put,k8s_qualified_name"`
+	Value  string `json:"value,omitempty"  validate:"k8s_label_value"`
 }
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {

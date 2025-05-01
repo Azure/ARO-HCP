@@ -52,6 +52,9 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250115164207-1a7da9e5054f // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
 	google.golang.org/grpc v1.70.0 // indirect
+	k8s.io/apimachinery v0.33.0 // indirect
+	k8s.io/klog/v2 v2.130.1 // indirect
+	k8s.io/utils v0.0.0-20250321185631-1f6e0b77f77e // indirect
 )
 
 require (
