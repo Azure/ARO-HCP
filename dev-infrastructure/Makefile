@@ -49,6 +49,53 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
+create-int-mock-identities:
+	MSI_MOCK_ROLE_NAME=int-msi-mock && \
+	FIRST_PARTY_ROLE_NAME=int-first-party && \
+	FIRST_PARTY_CERT_NAME=intFirstPartyCert && \
+	FIRST_PARTY_CERT_DNS=intfirstparty.hcp.osadev.cloud && \
+	MSI_MOCK_CERT_NAME=intMsiMockCert && \
+	MSI_MOCK_CERT_DNS=intmsimock.hcp.osadev.cloud && \
+	ARM_HELPER_CERT_NAME=intArmHelperCert && \
+	ARM_HELPER_CERT_DNS=intarmhelper.hcp.osadev.cloud && \
+	az deployment group create \
+		--name "aro-hcp-int-mock-certificates" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/mock-identities.bicep \
+		--parameters configurations/mock-identities.bicepparam \
+		keyVaultName=aro-hcp-int-kv \
+		msiMockRoleName=$${MSI_MOCK_ROLE_NAME} \
+		firstPartyRoleName=$${FIRST_PARTY_ROLE_NAME} \
+		firstPartyCertName=$${FIRST_PARTY_CERT_NAME} \
+		firstPartyCertDns=$${FIRST_PARTY_CERT_DNS} \
+		msiMockCertName=$${MSI_MOCK_CERT_NAME} \
+		msiMockCertDns=$${MSI_MOCK_CERT_DNS} \
+		armHelperCertName=$${ARM_HELPER_CERT_NAME} \
+		armHelperCertDns=$${ARM_HELPER_CERT_DNS}
+
+# APPLICATION_NAME=aro-dev-first-party2 \
+# KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+# CERTIFICATE_NAME=firstPartyCert2 \
+# ROLE_DEFINITION_NAME=dev-first-party-mock \
+# SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+# ./scripts/create-sp-for-rbac.sh
+
+# APPLICATION_NAME=aro-dev-arm-helper2 \
+# KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+# CERTIFICATE_NAME=armHelperCert2 \
+# ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
+# SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+# ./scripts/create-sp-for-rbac.sh
+
+# APPLICATION_NAME=aro-dev-msi-mock2 \
+# KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+# CERTIFICATE_NAME=msiMockCert2 \
+# ROLE_DEFINITION_NAME=dev-msi-mock \
+# SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+# ./scripts/create-sp-for-rbac.sh
+
+.PHONY: create-mock-identities
+
 create-mock-identities:
 	az deployment group wait --created --name "aro-hcp-dev-mock-certificates" --resource-group $(GLOBAL_RESOURCEGROUP) --interval 10
 	az deployment group create \
