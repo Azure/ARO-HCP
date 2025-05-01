@@ -23,8 +23,7 @@
         -Parameters @{"Parameter1"="Value1";"Parameter2"="Value2"}
 #>
 
-param
-(
+param(
     [Parameter(Mandatory = $true)]
     [string]$ResourceGroupName,
 
@@ -35,9 +34,14 @@ param
     [string]$RunbookName,
 
     [Parameter(Mandatory = $true)]
-    [string]$ScheduleName
+    [string]$ScheduleName,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Parameters
 )
-    
+
+$parsedParams = Invoke-Expression $Parameters
+
 $ErrorActionPreference = 'Stop'
 
 $output = @{
@@ -55,13 +59,13 @@ Parameters:
     Runbook:           $RunbookName
     Schedule:          $ScheduleName
     Resource Group:    $ResourceGroupName
+    Parameters:        $parsedParams
 "@
 
     # Validate that the runbook exists and is published.
     $runbook = Get-AzAutomationRunbook -ResourceGroupName $ResourceGroupName `
                  -AutomationAccountName $AutomationAccountName `
-                 -Name $RunbookName `
-                 -ErrorAction Stop
+                 -Name $RunbookName -ErrorAction Stop
     if ($runbook.State -ne "Published") {
         $warningMessage = "Runbook '$RunbookName' is not published - schedule registration skipped."
         $output.warnings += $warningMessage
@@ -93,7 +97,7 @@ Parameters:
                    -AutomationAccountName $AutomationAccountName `
                    -RunbookName $RunbookName `
                    -ScheduleName $ScheduleName `
-                   -ErrorAction Stop
+                   -Parameters $parsedParams -ErrorAction Stop
 
     $output.success = $true
     $output.message = "Successfully registered '$RunbookName' to schedule '$ScheduleName' (JobScheduleId: $($jobSchedule.JobScheduleId))"

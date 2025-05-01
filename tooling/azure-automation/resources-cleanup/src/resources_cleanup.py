@@ -212,12 +212,16 @@ def get_subscription_id():
         )
 
 def main():
-    subscription_id = sys.argv[1]
-    if not subscription_id:
-        raise ValueError("Subscription ID not found in automation variables or environment variables")
+    runbookParameter = os.environ.get("runbookParameter")
+    if not runbookParameter:
+        raise ValueError("runbookParameter parameters not found in environment variables")
+    subscription_id = os.environ.get("parameter1")
+    managed_id = os.environ.get("parameter2")
+    if not subscription_id or not managed_id:
+        raise ValueError("Required parameters not found in environment variables")
 
     resource_client = ResourceManagementClient(
-        credential=ManagedIdentityCredential(client_id=sys.argv[2]),
+        credential=ManagedIdentityCredential(client_id=managed_id),
         subscription_id=subscription_id,
         api_version=DEFAULT_API_VERSION
     )
