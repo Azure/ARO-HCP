@@ -221,7 +221,7 @@ func TestNodePoolValidateTags(t *testing.T) {
 			name: "Bad k8s_qualified_name",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
-					Taints: []*Taint{
+					Taints: []Taint{
 						{
 							Effect: EffectNoExecute,
 							Key:    k8sQualifiedNameInvalid.value,

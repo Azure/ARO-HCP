@@ -35,7 +35,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	AutoRepair        bool                    `json:"autoRepair,omitempty"        visibility:"read create"`
 	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty"       visibility:"read create update"`
 	Labels            map[string]string       `json:"labels,omitempty"            visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
-	Taints            []*Taint                `json:"taints,omitempty"            visibility:"read create update" validate:"dive"`
+	Taints            []Taint                 `json:"taints,omitempty"            visibility:"read create update" validate:"dive"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

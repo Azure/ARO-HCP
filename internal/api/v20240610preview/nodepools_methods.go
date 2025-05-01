@@ -101,9 +101,8 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 				out.Properties.Labels[*v.Key] = *v.Value
 			}
 		}
-		out.Properties.Taints = make([]*api.Taint, len(h.Properties.Taints))
+		out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
 		for i := range h.Properties.Taints {
-			out.Properties.Taints[i] = &api.Taint{}
 			if h.Properties.Taints[i].Effect != nil {
 				out.Properties.Taints[i].Effect = api.Effect(*h.Properties.Taints[i].Effect)
 			}
@@ -302,14 +301,6 @@ func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) *generated.NodePoolAu
 	return autoScaling
 }
 
-func newNodePoolTaint(from *api.Taint) *generated.Taint {
-	return &generated.Taint{
-		Effect: api.Ptr(generated.Effect(from.Effect)),
-		Key:    api.Ptr(from.Key),
-		Value:  api.Ptr(from.Value),
-	}
-}
-
 func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
 		from = api.NewDefaultHCPOpenShiftClusterNodePool()
@@ -330,7 +321,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 				AutoScaling:       newNodePoolAutoScaling(from.Properties.AutoScaling),
 				Labels:            []*generated.Label{},
 				Replicas:          api.Ptr(from.Properties.Replicas),
-				Taints:            make([]*generated.Taint, len(from.Properties.Taints)),
+				Taints:            []*generated.Taint{},
 			},
 		},
 	}
@@ -353,8 +344,12 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 		})
 	}
 
-	for i := range from.Properties.Taints {
-		out.Properties.Taints[i] = newNodePoolTaint(from.Properties.Taints[i])
+	for _, t := range from.Properties.Taints {
+		out.Properties.Taints = append(out.Properties.Taints, &generated.Taint{
+			Effect: api.Ptr(generated.Effect(t.Effect)),
+			Key:    api.Ptr(t.Key),
+			Value:  api.Ptr(t.Value),
+		})
 	}
 
 	return out
