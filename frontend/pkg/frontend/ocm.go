@@ -16,6 +16,7 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -24,6 +25,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -421,6 +423,58 @@ func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential)
 		ExpirationTimestamp: breakGlassCredential.ExpirationTimestamp(),
 		Kubeconfig:          breakGlassCredential.Kubeconfig(),
 	}
+}
+
+// CSErrorToCloudError attempts to convert various 4xx status codes from
+// Cluster Service to an ARM-compliant error structure, with 500 Internal
+// Server Error as a last-ditch fallback.
+func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.CloudError {
+	var ocmError *ocmerrors.Error
+
+	if errors.As(err, &ocmError) {
+		switch statusCode := ocmError.Status(); statusCode {
+		case http.StatusBadRequest:
+			// BadRequest can be returned when an object fails validation.
+			//
+			// We try our best to mimic Cluster Service's validation for a
+			// couple reasons:
+			//
+			// 1) Whereas Cluster Service aborts on the first validation error,
+			//    we try to report as many validation errors as possible at once
+			//    for a better user experience.
+			//
+			// 2) CloudErrorBody.Target should reference the erroneous field but
+			//    validation errors from Cluster Service cannot easily be mapped
+			//    to a field without extensive pattern matching of the reason.
+			//
+			// That said, Cluster Service's validation is more comprehensive and
+			// probably always will be. So it's important we try to handle their
+			// errors as best we can.
+			return arm.NewCloudError(
+				statusCode,
+				arm.CloudErrorCodeInvalidRequestContent,
+				"", "%s", ocmError.Reason())
+		case http.StatusNotFound:
+			if resourceID != nil {
+				return arm.NewResourceNotFoundError(resourceID)
+			}
+			return arm.NewCloudError(
+				statusCode,
+				arm.CloudErrorCodeNotFound,
+				"", "%s", ocmError.Reason())
+		case http.StatusConflict:
+			var target string
+			if resourceID != nil {
+				target = resourceID.String()
+			}
+			return arm.NewCloudError(
+				statusCode,
+				arm.CloudErrorCodeConflict,
+				target, "%s", ocmError.Reason())
+		}
+	}
+
+	return arm.NewInternalServerError()
 }
 
 // transportFunc implements the http.RoundTripper interface.

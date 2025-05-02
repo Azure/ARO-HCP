@@ -23,7 +23,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -149,12 +148,13 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 	}
 
 	if err != nil {
-		var ocmError *ocmerrors.Error
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-			return "", arm.NewResourceNotFoundError(resourceDoc.ResourceID)
+		cloudError := CSErrorToCloudError(err, resourceDoc.ResourceID)
+		// Do not log attempts to delete a nonexistent
+		// resource because the end result is the same.
+		if cloudError.StatusCode != http.StatusNotFound {
+			logger.Error(err.Error())
 		}
-		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", cloudError
 	}
 
 	// Cluster Service will take care of canceling any ongoing operations
@@ -261,11 +261,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		csCluster, err := f.clusterServiceClient.GetCluster(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
-			var ocmError *ocmerrors.Error
-			if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-				return nil, arm.NewResourceNotFoundError(resourceID)
-			}
-			return nil, arm.NewInternalServerError()
+			return nil, CSErrorToCloudError(err, resourceID)
 		}
 		tracing.SetClusterAttributes(trace.SpanFromContext(ctx), csCluster)
 
@@ -279,11 +275,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
-			var ocmError *ocmerrors.Error
-			if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-				return nil, arm.NewResourceNotFoundError(resourceID)
-			}
-			return nil, arm.NewInternalServerError()
+			return nil, CSErrorToCloudError(err, resourceID)
 		}
 		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
 		if err != nil {

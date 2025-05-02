@@ -68,14 +68,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var updating = (doc != nil)
+	var updating = (resourceDoc != nil)
 	var operationRequest database.OperationRequest
 
 	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
@@ -83,16 +83,10 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	var successStatusCode int
 
 	if updating {
-		// Note that because we found a database document for the cluster,
-		// we expect Cluster Service to return us a node pool object.
-		//
-		// No special treatment here for "not found" errors. A "not found"
-		// error indicates the database has gotten out of sync and so it's
-		// appropriate to fail.
-		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
+		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
@@ -130,12 +124,12 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		doc = database.NewResourceDocument(resourceID)
+		resourceDoc = database.NewResourceDocument(resourceID)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, doc)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
@@ -173,10 +167,10 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, doc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePool)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 	} else {
@@ -191,11 +185,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePool)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
-		doc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
+		resourceDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -203,7 +197,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceID, doc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
 
 	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
@@ -222,13 +216,13 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	// This is called directly when creating a resource, and indirectly from
 	// within a retry loop when updating a resource.
-	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
-		doc.ActiveOperationID = operationID
-		doc.ProvisioningState = operationDoc.Status
+	updateResourceMetadata := func(updateDoc *database.ResourceDocument) bool {
+		updateDoc.ActiveOperationID = operationID
+		updateDoc.ProvisioningState = operationDoc.Status
 
 		// Record the latest system data values from ARM, if present.
 		if systemData != nil {
-			doc.SystemData = systemData
+			updateDoc.SystemData = systemData
 		}
 
 		// Here the difference between a nil map and an empty map is significant.
@@ -237,15 +231,15 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// empty, that means it was specified in the request body and should fully
 		// replace any existing tags.
 		if hcpNodePool.Tags != nil {
-			doc.Tags = hcpNodePool.Tags
+			updateDoc.Tags = hcpNodePool.Tags
 		}
 
 		return true
 	}
 
 	if !updating {
-		updateResourceMetadata(doc)
-		err = f.dbClient.CreateResourceDoc(ctx, doc)
+		updateResourceMetadata(resourceDoc)
+		err = f.dbClient.CreateResourceDoc(ctx, resourceDoc)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -263,7 +257,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
 		// Get the updated resource document for the response.
-		doc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
+		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -271,7 +265,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	}
 
-	responseBody, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
+	responseBody, err := marshalCSNodePool(csNodePool, resourceDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
