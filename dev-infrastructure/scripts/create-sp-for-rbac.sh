@@ -1,16 +1,20 @@
 set -euo pipefail
 
 APP_ID=$(az ad app list --display-name ${APPLICATION_NAME} --query '[*]'.appId -o tsv)
-if [[ $(echo ${APP_ID} | wc -l ) == 1 ]];
+if [[ -n "${APP_ID}" ]];
 then
-    echo "Application exists, resetting certificate."
+    echo "Resetting credentials for existing application ${APPLICATION_NAME} with appId ${APP_ID}"
 
     az ad app credential reset \
-        --id "${APPLICATION_NAME}" \
+        --id "${APP_ID}" \
         --keyvault "${KEY_VAULT_NAME}" \
-        --cert "${CERTIFICATE_NAME}" \
+        --cert "${CERTIFICATE_NAME}"
+
+    echo "Assigning role ${ROLE_DEFINITION_NAME} to appId ${APP_ID}"
+    az role assignment create \
+        --assignee "${APP_ID}" \
         --role "${ROLE_DEFINITION_NAME}" \
-        --scopes "/subscriptions/${SUBSCRIPTION_ID}"
+        --scope "/subscriptions/${SUBSCRIPTION_ID}"
 
     exit 0
 fi
