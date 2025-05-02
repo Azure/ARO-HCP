@@ -49,6 +49,9 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
+# Create mock identities for the INT environment
+# This is done within the subscription the customer MRG / nodepools would be created
+# Manually lift/shift the cert/keys to the MSIT environment keyvault
 create-int-mock-identities:
 	MSI_MOCK_ROLE_NAME=int-msi-mock && \
 	FIRST_PARTY_ROLE_NAME=int-first-party && \
@@ -71,28 +74,25 @@ create-int-mock-identities:
 		msiMockCertName=$${MSI_MOCK_CERT_NAME} \
 		msiMockCertDns=$${MSI_MOCK_CERT_DNS} \
 		armHelperCertName=$${ARM_HELPER_CERT_NAME} \
-		armHelperCertDns=$${ARM_HELPER_CERT_DNS}
-
-# APPLICATION_NAME=aro-dev-first-party2 \
-# KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-# CERTIFICATE_NAME=firstPartyCert2 \
-# ROLE_DEFINITION_NAME=dev-first-party-mock \
-# SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-# ./scripts/create-sp-for-rbac.sh
-
-# APPLICATION_NAME=aro-dev-arm-helper2 \
-# KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-# CERTIFICATE_NAME=armHelperCert2 \
-# ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
-# SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-# ./scripts/create-sp-for-rbac.sh
-
-# APPLICATION_NAME=aro-dev-msi-mock2 \
-# KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-# CERTIFICATE_NAME=msiMockCert2 \
-# ROLE_DEFINITION_NAME=dev-msi-mock \
-# SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-# ./scripts/create-sp-for-rbac.sh
+		armHelperCertDns=$${ARM_HELPER_CERT_DNS} && \
+	APPLICATION_NAME=aro-hcp-int-fp \
+	KEY_VAULT_NAME=aro-hcp-int-kv \
+	CERTIFICATE_NAME=$${FIRST_PARTY_CERT_NAME} \
+	ROLE_DEFINITION_NAME=$${FIRST_PARTY_ROLE_NAME} \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh && \
+	APPLICATION_NAME=aro-hcp-int-arm-helper \
+	KEY_VAULT_NAME=aro-hcp-int-kv \
+	CERTIFICATE_NAME=$${ARM_HELPER_CERT_NAME} \
+	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh && \
+	APPLICATION_NAME=aro-hcp-int-msi-mock \
+	KEY_VAULT_NAME=aro-hcp-int-kv \
+	CERTIFICATE_NAME=$${MSI_MOCK_CERT_NAME} \
+	ROLE_DEFINITION_NAME=$${MSI_MOCK_ROLE_NAME} \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh
 
 .PHONY: create-mock-identities
 
