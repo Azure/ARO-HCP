@@ -44,7 +44,7 @@ module firstPartyIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     location: location
     keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
-    certName: firstPartyCertName 
+    certName: firstPartyCertName
     subjectName: 'CN=${firstPartyCertDns}'
     issuerName: 'Self'
     dnsNames: [firstPartyCertDns]

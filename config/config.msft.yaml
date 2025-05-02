@@ -401,12 +401,12 @@ clouds:
           # 1P app - from RH Tenant
           firstPartyAppClientId: b8c3986a-6f66-4905-a935-03763eb9fbb3
           firstPartyAppCertificate:
-            name: intFirstPartyCert 
+            name: intFirstPartyCert
             manage: false # we have the cert from RH for int
           # Mock Managed Identities Service Princiapl - from RH Tenant
           miMockClientId: f2e4769e-d3c2-498d-92b9-3e6d24cd2d7a
           miMockPrincipalId: a5c120f7-50c3-4cf6-84b4-57517f60630d
-          miMockCertName: intMsiMockCert 
+          miMockCertName: intMsiMockCert
           # ARM Helper - from RH Tenant
           armHelperClientId: 356c7253-24f3-4dc5-b4e1-498c73331cf4
           armHelperFPAPrincipalId: d663e08c-31a0-488a-8ecb-03af4fce5e83
