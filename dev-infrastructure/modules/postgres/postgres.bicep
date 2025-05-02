@@ -78,6 +78,10 @@ param subnetId string = ''
 
 param vnetId string = ''
 
+@secure()
+@description('The administrator login password (required for server creation).')
+param administratorLoginPassword string = ''
+
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' = {
   name: name
   location: resourceGroup().location
@@ -87,7 +91,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
   }
   properties: {
     administratorLogin: ''
-    administratorLoginPassword: ''
+    administratorLoginPassword: administratorLoginPassword
     version: version
     createMode: 'Default'
     network: {
