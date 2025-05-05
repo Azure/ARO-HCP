@@ -284,7 +284,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		var resourceDoc *database.ResourceDocument
 
 		// Fetch the cluster document for the Cluster Service ID.
-		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, prefix)
+		_, resourceDoc, err = f.dbClient.GetResourceDoc(ctx, prefix)
 		if err != nil {
 			logger.Error(err.Error())
 			if database.IsResponseError(err, http.StatusNotFound) {
@@ -407,7 +407,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -599,7 +599,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
 		// Get the updated resource document for the response.
-		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
+		_, resourceDoc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -637,7 +637,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		// For resource not found errors on deletion, ARM requires
 		// us to simply return 204 No Content and no response body.
@@ -698,7 +698,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	resourceID = resourceID.Parent
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -789,7 +789,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	resourceID = resourceID.Parent
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {

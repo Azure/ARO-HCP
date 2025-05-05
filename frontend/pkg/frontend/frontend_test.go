@@ -628,11 +628,18 @@ func TestRequestAdminCredential(t *testing.T) {
 			// ArmResourceActionRequestAdminCredential
 			mockDBClient.EXPECT().
 				GetResourceDoc(gomock.Any(), equalResourceID(clusterResourceID)).
-				Return(getMockDBDoc(&database.ResourceDocument{
-					ResourceID:        clusterResourceID,
-					InternalID:        clusterInternalID,
-					ProvisioningState: test.clusterProvisioningState,
-				}))
+				Return(func() (string, *database.ResourceDocument, error) {
+					var itemID string
+					doc, err := getMockDBDoc(&database.ResourceDocument{
+						ResourceID:        clusterResourceID,
+						InternalID:        clusterInternalID,
+						ProvisioningState: test.clusterProvisioningState,
+					})
+					if err != nil {
+						itemID = "itemID"
+					}
+					return itemID, doc, err
+				}())
 			if test.clusterProvisioningState.IsTerminal() {
 				revokeOperations := make(map[string]*database.OperationDocument)
 				if !test.revokeCredentialsStatus.IsTerminal() {
@@ -764,11 +771,18 @@ func TestRevokeCredentials(t *testing.T) {
 			// ArmResourceActionRequestAdminCredential
 			mockDBClient.EXPECT().
 				GetResourceDoc(gomock.Any(), equalResourceID(clusterResourceID)).
-				Return(getMockDBDoc(&database.ResourceDocument{
-					ResourceID:        clusterResourceID,
-					InternalID:        clusterInternalID,
-					ProvisioningState: test.clusterProvisioningState,
-				}))
+				Return(func() (string, *database.ResourceDocument, error) {
+					var itemID string
+					doc, err := getMockDBDoc(&database.ResourceDocument{
+						ResourceID:        clusterResourceID,
+						InternalID:        clusterInternalID,
+						ProvisioningState: test.clusterProvisioningState,
+					})
+					if err != nil {
+						itemID = "itemID"
+					}
+					return itemID, doc, err
+				}())
 			if test.clusterProvisioningState.IsTerminal() {
 				revokeOperations := make(map[string]*database.OperationDocument)
 				if !test.revokeCredentialsStatus.IsTerminal() {
