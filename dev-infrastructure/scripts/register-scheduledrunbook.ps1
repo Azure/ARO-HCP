@@ -34,10 +34,13 @@ param(
     [string]$RunbookName,
 
     [Parameter(Mandatory = $true)]
-    [string]$ScheduleName
+    [string]$ScheduleName,
 
-    [Parameter(Mandatory = $false)]
-    [object]$Parameters
+    [Parameter(Mandatory=$false)]
+    [string] $SubscriptionId,
+
+    [Parameter(Mandatory=$false)]
+    [string] $ManagedIdentityId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,10 +57,12 @@ try {
     Write-Verbose @"
 Parameters:
     Automation Account: $AutomationAccountName
-    Runbook:           $RunbookName
-    Schedule:          $ScheduleName
-    Resource Group:    $ResourceGroupName
-    Parameters:        $Parameters
+    Runbook:            $RunbookName
+    Schedule:           $ScheduleName
+    Resource Group:     $ResourceGroupName
+    Parameters:         $Parameters
+    SubscriptionId:     $SubscriptionId,
+    ManagedIdentityId:  $ManagedIdentityId
 "@
 
     # Validate that the runbook exists and is published.
