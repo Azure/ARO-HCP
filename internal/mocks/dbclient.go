@@ -452,12 +452,13 @@ func (c *MockDBClientGetOperationDocCall) DoAndReturn(f func(context.Context, az
 }
 
 // GetResourceDoc mocks base method.
-func (m *MockDBClient) GetResourceDoc(ctx context.Context, resourceID *arm0.ResourceID) (*database.ResourceDocument, error) {
+func (m *MockDBClient) GetResourceDoc(ctx context.Context, resourceID *arm0.ResourceID) (string, *database.ResourceDocument, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetResourceDoc", ctx, resourceID)
-	ret0, _ := ret[0].(*database.ResourceDocument)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(*database.ResourceDocument)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // GetResourceDoc indicates an expected call of GetResourceDoc.
@@ -473,19 +474,19 @@ type MockDBClientGetResourceDocCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockDBClientGetResourceDocCall) Return(arg0 *database.ResourceDocument, arg1 error) *MockDBClientGetResourceDocCall {
-	c.Call = c.Call.Return(arg0, arg1)
+func (c *MockDBClientGetResourceDocCall) Return(arg0 string, arg1 *database.ResourceDocument, arg2 error) *MockDBClientGetResourceDocCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBClientGetResourceDocCall) Do(f func(context.Context, *arm0.ResourceID) (*database.ResourceDocument, error)) *MockDBClientGetResourceDocCall {
+func (c *MockDBClientGetResourceDocCall) Do(f func(context.Context, *arm0.ResourceID) (string, *database.ResourceDocument, error)) *MockDBClientGetResourceDocCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientGetResourceDocCall) DoAndReturn(f func(context.Context, *arm0.ResourceID) (*database.ResourceDocument, error)) *MockDBClientGetResourceDocCall {
+func (c *MockDBClientGetResourceDocCall) DoAndReturn(f func(context.Context, *arm0.ResourceID) (string, *database.ResourceDocument, error)) *MockDBClientGetResourceDocCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

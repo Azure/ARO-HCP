@@ -78,7 +78,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 
 	// ResourceType casing is preserved for parents in the same namespace.
 	for parent.ResourceType.Namespace == doc.ResourceID.ResourceType.Namespace {
-		parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
+		_, parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
 		if err != nil {
 			logger.Error(err.Error())
 			return arm.NewInternalServerError()
@@ -245,7 +245,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 
 	logger := LoggerFromContext(ctx)
 
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {

@@ -150,11 +150,11 @@ func TestCreateNodePool(t *testing.T) {
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
 				GetResourceDoc(gomock.Any(), equalResourceID(test.nodePoolDoc.ResourceID)).
-				Return(nil, &azcore.ResponseError{StatusCode: http.StatusNotFound})
+				Return("", nil, &azcore.ResponseError{StatusCode: http.StatusNotFound})
 			// CheckForProvisioningStateConflict and CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
 				GetResourceDoc(gomock.Any(), equalResourceID(test.clusterDoc.ResourceID)). // defined in frontend_test.go
-				Return(test.clusterDoc, nil).
+				Return("itemID", test.clusterDoc, nil).
 				Times(3)
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().

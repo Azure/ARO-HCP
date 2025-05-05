@@ -67,7 +67,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -137,7 +137,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 
-	clusterResourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
+	_, clusterResourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -197,7 +197,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
+		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -279,7 +279,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
 		// Get the updated resource document for the response.
-		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
+		_, resourceDoc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
