@@ -1,0 +1,59 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+  name: sre-role-policy
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: sre-role
+        spec:
+          evaluationInterval:
+            compliant: 1m
+            noncompliant: 45s
+          pruneObjectBehavior: DeleteIfCreated
+          remediationAction: enforce
+          object-templates:
+          - complianceType: MustHave
+            objectDefinition:
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRole
+              metadata:
+                creationTimestamp: null
+                name: sre-role
+              rules:
+              - apiGroups:
+                - ""
+                resources:
+                  - namespaces
+                verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+          - complianceType: MustHave
+            objectDefinition:
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: sre-group-sre-role-rolebinding
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: sre-role
+              subjects:
+              - kind: Group
+                name: sre-group
+                apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,13 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: sre-role-placement-binding
+  namespace: '{{ .Release.Namespace }}'
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: all-hosted-clusters
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: sre-role-policy
