@@ -85,8 +85,8 @@ type OperationsScanner struct {
 	lockClient          *database.LockClient
 	clusterService      ocm.ClusterServiceClient
 	notificationClient  *http.Client
-	subscriptions       []string
 	subscriptionsLock   sync.Mutex
+	subscriptions       []string
 	subscriptionChannel chan string
 	subscriptionWorkers sync.WaitGroup
 
@@ -96,6 +96,7 @@ type OperationsScanner struct {
 	operationsFailedCount  *prometheus.CounterVec
 	operationsDuration     *prometheus.HistogramVec
 	lastOperationTimestamp *prometheus.GaugeVec
+	subscriptionsByState   *prometheus.GaugeVec
 }
 
 func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
@@ -150,6 +151,13 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 			},
 			[]string{"type"},
 		),
+		subscriptionsByState: promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "backend_subscriptions",
+				Help: "Number of subscriptions by state.",
+			},
+			[]string{"state"},
+		),
 	}
 
 	// Initialize the counter and histogram metrics.
@@ -164,6 +172,10 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 		s.operationsFailedCount.WithLabelValues(v)
 		s.operationsDuration.WithLabelValues(v)
 		s.lastOperationTimestamp.WithLabelValues(v)
+	}
+
+	for subscriptionState := range arm.ListSubscriptionStates() {
+		s.subscriptionsByState.WithLabelValues(string(subscriptionState))
 	}
 
 	return s
@@ -281,12 +293,17 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 
 	iterator := s.dbClient.ListAllSubscriptionDocs()
 
+	subscriptionStates := map[arm.SubscriptionState]int{}
+	for subscriptionState := range arm.ListSubscriptionStates() {
+		subscriptionStates[subscriptionState] = 0
+	}
 	for subscriptionID, subscription := range iterator.Items(ctx) {
 		// Unregistered subscriptions should have no active operations,
 		// not even deletes.
 		if subscription.State != arm.SubscriptionStateUnregistered {
 			subscriptions = append(subscriptions, subscriptionID)
 		}
+		subscriptionStates[subscription.State]++
 	}
 
 	err := iterator.GetError()
@@ -301,6 +318,10 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 
 	if len(subscriptions) != len(s.subscriptions) {
 		logger.Info(fmt.Sprintf("Tracking %d active subscriptions", len(subscriptions)))
+	}
+
+	for k, v := range subscriptionStates {
+		s.subscriptionsByState.WithLabelValues(string(k)).Set(float64(v))
 	}
 
 	s.subscriptions = subscriptions
