@@ -239,6 +239,9 @@ param svcNSPName string
 @description('Access mode for this NSP')
 param svcNSPAccessMode string
 
+@description('Access mode for this NSP')
+param rhDevFixSVCKVAsignNSP bool = true
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -619,7 +622,7 @@ module svcNSP '../modules/network/nsp.bicep' = {
   }
 }
 
-module svcNSPProfile '../modules/network/nsp-profile.bicep' = {
+module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
   name: 'profile-${uniqueString(resourceGroup().name)}'
   params: {
     accessMode: svcNSPAccessMode
@@ -629,6 +632,23 @@ module svcNSPProfile '../modules/network/nsp-profile.bicep' = {
     associatedResources: [
       svcCluster.outputs.etcKeyVaultId
       rpCosmosDb.outputs.cosmosDbAccountId
+    ]
+    // TODO Add EV2 access here
+    subscriptions: [
+      subscription().id
+    ]
+  }
+}
+
+module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (rhDevFixSVCKVAsignNSP) {
+ 
+  name: 'profile-svc-kv-${uniqueString(resourceGroup().name)}'
+  params: {
+    accessMode: svcNSPAccessMode
+    nspName: svcNSPName
+    profileName: '${svcNSPName}-svc-kv'
+    location: location
+    associatedResources: [
       serviceKeyVault.id
     ]
     // TODO Add EV2 access here

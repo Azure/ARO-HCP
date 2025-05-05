@@ -394,7 +394,8 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-nightly-svc"
+      "name": "nsp-nightly-svc",
+      "rhDevFixSVCKVAsignNSP": false
     },
     "prometheus": {
       "namespace": "prometheus",
