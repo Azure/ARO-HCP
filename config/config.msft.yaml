@@ -438,6 +438,7 @@ clouds:
               digest: sha256:02a32af8d34c5725d0096ee7f94adf2ef151d0634e8682fe7517e6f9ebba9bdc
           # Hypershift
           hypershift:
+            additionalInstallArg: ''
             image:
               digest: sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821
           # Maestro
