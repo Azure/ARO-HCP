@@ -641,7 +641,6 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
 }
 
 module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (rhDevFixSVCKVAsignNSP) {
- 
   name: 'profile-svc-kv-${uniqueString(resourceGroup().name)}'
   params: {
     accessMode: svcNSPAccessMode
