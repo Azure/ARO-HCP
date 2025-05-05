@@ -61,6 +61,9 @@
             "Enforced",
             "Learning"
           ]
+        },
+        "rhDevFixSVCKVAsignNSP":{
+          "type":"boolean"
         }
       },
       "additionalProperties": false

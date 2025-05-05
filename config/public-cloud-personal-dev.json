@@ -400,7 +400,8 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-usw3tst-svc"
+      "name": "nsp-usw3tst-svc",
+      "rhDevFixSVCKVAsignNSP": false
     },
     "prometheus": {
       "namespace": "prometheus",
