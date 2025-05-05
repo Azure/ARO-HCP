@@ -614,12 +614,26 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
 module svcNSP '../modules/network/nsp.bicep' = {
   name: 'nsp-${uniqueString(resourceGroup().name)}'
   params: {
+    nspName: svcNSPName
+    location: location
+  }
+}
+
+module svcNSPProfile '../modules/network/nsp-profile.bicep' = {
+  name: 'profile-${uniqueString(resourceGroup().name)}'
+  params: {
     accessMode: svcNSPAccessMode
     nspName: svcNSPName
+    profileName: svcNSPName
     location: location
     associatedResources: [
       svcCluster.outputs.etcKeyVaultId
       rpCosmosDb.outputs.cosmosDbAccountId
+      serviceKeyVault.id
+    ]
+    // TODO Add EV2 access here
+    subscriptions: [
+      subscription().id
     ]
   }
 }

@@ -40,6 +40,12 @@ param grafanaZoneRedundantMode string
 param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
 var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 
+@description('Tha name of the SVC NSP')
+param globalNSPName string
+
+@description('Access mode for this NSP')
+param globalNSPAccessMode string
+
 //
 //  G L O B A L   M S I
 //
@@ -178,5 +184,34 @@ module grafana '../modules/grafana/instance.bicep' = {
     grafanaManagerPrincipalId: globalMSI.properties.principalId
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
     azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
+  }
+}
+
+// 
+//   N E T W O R K    S E C U R I T Y    P E R I M E T E R
+//
+
+module globalNSP '../modules/network/nsp.bicep' = {
+  name: 'nsp-${uniqueString(resourceGroup().name)}'
+  params: {
+    nspName: globalNSPName
+    location: location
+  }
+}
+
+module globalNSPProfile '../modules/network/nsp-profile.bicep' = {
+  name: 'profile-${uniqueString(resourceGroup().name)}'
+  params: {
+    accessMode: globalNSPAccessMode
+    nspName: globalNSPName
+    profileName: globalNSPName
+    location: location
+    associatedResources: [
+      globalKV.outputs.kvId
+    ]
+    subscriptions: [
+      //TODO: add ev2 access
+      subscription().id
+    ]
   }
 }

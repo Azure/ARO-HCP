@@ -139,6 +139,10 @@
       "private": false,
       "softDelete": true
     },
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-global"
+    },
     "region": "westus3",
     "rg": "global",
     "safeDnsIntAppObjectId": "",
@@ -277,7 +281,7 @@
     "applyKubeletFixes": true,
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-cspr-mgmt"
+      "name": "nsp-cspr-mgmt-1"
     },
     "prometheus": {
       "namespace": "prometheus",

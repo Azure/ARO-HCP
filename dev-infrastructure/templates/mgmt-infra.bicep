@@ -40,13 +40,6 @@ param kvCertOfficerPrincipalId string
 @description('MSI that will be used during pipeline runs')
 param aroDevopsMsiId string
 
-@description('Tha name of the SVC NSP')
-param mgmtNSPName string
-
-@description('Access mode for this NSP')
-@allowed(['Audit', 'Enforced', 'Learning'])
-param mgmtNSPAccessMode string
-
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -175,22 +168,4 @@ module csKeyVaultAccess '../modules/cluster-service-mc-kv-access.bicep' = if (re
     cxKeyVault
     msiKeyVault
   ]
-}
-
-// 
-//   N E T W O R K    S E C U R I T Y    P E R I M E T E R
-//
-
-module svcNSP '../modules/network/nsp.bicep' = {
-  name: 'nsp-${uniqueString(resourceGroup().name)}'
-  params: {
-    accessMode: mgmtNSPAccessMode
-    nspName: mgmtNSPName
-    location: location
-    associatedResources: [
-      cxKeyVault.outputs.kvId
-      msiKeyVault.outputs.kvId
-      mgmtKeyVault.outputs.kvId
-    ]
-  }
 }

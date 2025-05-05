@@ -139,6 +139,10 @@
       "private": false,
       "softDelete": true
     },
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-global"
+    },
     "region": "westus3",
     "rg": "global",
     "safeDnsIntAppObjectId": "",
@@ -280,7 +284,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-usw3tst-mgmt"
+      "name": "nsp-usw3tst-mgmt-1"
     },
     "prometheus": {
       "namespace": "prometheus",

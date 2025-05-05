@@ -9,6 +9,9 @@ defaults:
     globalMSIName: "global-rollout-identity"
     safeDnsIntAppObjectId: "" # intentionally left empty
     secretsToSyncDir: "dev/arohcpdev-global"
+    nsp:
+      name: nsp-global
+      accessMode: 'Learning'
     keyVault:
       name: arohcpdev-global
       private: false
@@ -88,7 +91,7 @@ defaults:
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     applyKubeletFixes: true
     nsp:
-      name: nsp-{{ .ctx.regionShort }}-mgmt
+      name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
       accessMode: 'Learning'
     aks:
       name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
