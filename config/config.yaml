@@ -286,9 +286,9 @@ clouds:
           digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
         azureOperatorsManagedIdentities:
           clusterApiAzure:
-            roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev
-          controlPlane:
             roleName: Azure Red Hat OpenShift Cluster API Role - Dev
+          controlPlane:
+            roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev
           cloudControllerManager:
             roleName: Azure Red Hat OpenShift Cloud Controller Manager - Dev
           ingress:

@@ -240,6 +240,12 @@ defaults:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
     azureOperatorsManagedIdentities:
+      # newly configured ARO-HCP builtin roles:
+      clusterApiAzure:
+        roleName: Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
+      controlPlane:
+        roleName: Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
+      # Classic roles:
       cloudControllerManager:
         roleName: Azure Red Hat OpenShift Cloud Controller Manager
       ingress:
@@ -254,11 +260,6 @@ defaults:
         roleName: Azure Red Hat OpenShift Network Operator
       kms:
         roleName: Key Vault Crypto User
-      # below two are supposed to be replaced with ARO-specific builtin roles
-      clusterApiAzure:
-        roleName: Contributor
-      controlPlane:
-        roleName: Contributor
     postgres:
       deploy: true
       private: false
