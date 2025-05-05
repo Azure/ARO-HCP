@@ -75,7 +75,7 @@ type DBClient interface {
 
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
-	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error)
+	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error)
 
 	// CreateResourceDoc creates a new cluster or node pool document in the "Resources" container.
 	CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error
@@ -245,10 +245,10 @@ func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorea
 	return nil, nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, err)
 }
 
-func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*ResourceDocument, error) {
-	_, innerDoc, err := d.getResourceDoc(ctx, resourceID)
+func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error) {
+	typedDoc, innerDoc, err := d.getResourceDoc(ctx, resourceID)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	// Replace the key field from Cosmos with the given resourceID,
@@ -267,7 +267,7 @@ func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 	// name must come from the URL and not the request body.
 	innerDoc.ResourceID = resourceID
 
-	return innerDoc, nil
+	return typedDoc.ID, innerDoc, nil
 }
 
 func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {
