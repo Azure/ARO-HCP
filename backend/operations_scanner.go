@@ -350,14 +350,14 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 		op := operation{operationID, pk, operationDoc, operationLogger}
 
 		switch operationDoc.InternalID.Kind() {
-		case cmv1.ClusterKind:
+		case arohcpv1alpha1.ClusterKind:
 			switch operationDoc.Request {
 			case database.OperationRequestRevokeCredentials:
 				s.pollBreakGlassCredentialRevoke(ctx, op)
 			default:
 				s.pollClusterOperation(ctx, op)
 			}
-		case cmv1.NodePoolKind:
+		case arohcpv1alpha1.NodePoolKind:
 			s.pollNodePoolOperation(ctx, op)
 		case cmv1.BreakGlassCredentialKind:
 			s.pollBreakGlassCredential(ctx, op)
