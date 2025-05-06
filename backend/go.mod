@@ -7,7 +7,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.3.0
 	github.com/go-logr/logr v1.4.2
-	github.com/openshift-online/ocm-sdk-go v0.1.464
+	github.com/openshift-online/ocm-sdk-go v0.1.465
 	github.com/prometheus/client_golang v1.22.0
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
