@@ -15,8 +15,12 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
+
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -69,6 +73,32 @@ func TestNodePoolRequiredForPut(t *testing.T) {
 }
 
 func TestNodePoolValidateTags(t *testing.T) {
+	const maxQualifiedNameLength = 63
+	var value string
+
+	type k8sValidationError struct {
+		value   string
+		message string
+	}
+
+	// Induce error messages from Kubernetes validation
+	// functions so we don't have to hardcode them below.
+
+	value = "-invalidname-"
+	k8sQualifiedNameInvalid := k8sValidationError{value, k8svalidation.IsQualifiedName(value)[0]}
+
+	value = strings.Repeat("x", maxQualifiedNameLength+1)
+	k8sQualifiedNameTooLong := k8sValidationError{value, k8svalidation.IsQualifiedName(value)[0]}
+
+	value = "Invalid.Prefix/name"
+	k8sQualifiedNamePrefixInvalid := k8sValidationError{value, k8svalidation.IsQualifiedName(value)[0]}
+
+	value = "-Invalid.Value"
+	k8sLabelValueInvalid := k8sValidationError{value, k8svalidation.IsValidLabelValue(value)[0]}
+
+	value = strings.Repeat("x", maxQualifiedNameLength+1)
+	k8sLabelValueTooLong := k8sValidationError{value, k8svalidation.IsValidLabelValue(value)[0]}
+
 	// Note "required_for_put" validation tests are above.
 	// This function tests all the other validators in use.
 	tests := []struct {
@@ -76,6 +106,22 @@ func TestNodePoolValidateTags(t *testing.T) {
 		tweaks       *HCPOpenShiftClusterNodePool
 		expectErrors []arm.CloudErrorBody
 	}{
+		{
+			name: "Bad openshift_version",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Version: NodePoolVersionProfile{
+						ID: "bad.version",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid OpenShift version 'bad.version'",
+					Target:  "properties.version.id",
+				},
+			},
+		},
 		{
 			name: "Min=0 not satisfied",
 			tweaks: &HCPOpenShiftClusterNodePool{
@@ -109,12 +155,12 @@ func TestNodePoolValidateTags(t *testing.T) {
 			},
 		},
 		{
-			name: "Only AutoScaling present with zero-values",
+			name: "Only AutoScaling present",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
 					AutoScaling: &NodePoolAutoScaling{
-						Min: 0,
-						Max: 0,
+						Min: 1,
+						Max: 2,
 					},
 				},
 			},
@@ -124,15 +170,94 @@ func TestNodePoolValidateTags(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
 					AutoScaling: &NodePoolAutoScaling{
-						Min: 1,
-						Max: 0,
+						Min: 2,
+						Max: 1,
 					},
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid value '0' for field 'max' (must be at least the value of 'min')",
+					Message: "Invalid value '1' for field 'max' (must be at least the value of 'min')",
 					Target:  "properties.autoScaling.max",
+				},
+			},
+		},
+		{
+			name: "Empty k8s_label_value is valid",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Labels: map[string]string{
+						"labelName": "",
+					},
+				},
+			},
+		},
+		{
+			name: "Bad k8s_label_value",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Labels: map[string]string{
+						"labelName1": k8sLabelValueInvalid.value,
+						"labelName2": k8sLabelValueTooLong.value,
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: fmt.Sprintf("Invalid value '%s' for field 'labels[labelName1]' (%s)",
+						k8sLabelValueInvalid.value,
+						k8sLabelValueInvalid.message),
+					Target: "properties.labels[labelName1]",
+				},
+				{
+					Message: fmt.Sprintf("Invalid value '%s' for field 'labels[labelName2]' (%s)",
+						k8sLabelValueTooLong.value,
+						k8sLabelValueTooLong.message),
+					Target: "properties.labels[labelName2]",
+				},
+			},
+		},
+		{
+			name: "Bad k8s_qualified_name",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Taints: []Taint{
+						{
+							Effect: EffectNoExecute,
+							Key:    k8sQualifiedNameInvalid.value,
+							Value:  "value",
+						},
+						{
+							Effect: EffectNoExecute,
+							Key:    k8sQualifiedNameTooLong.value,
+							Value:  "value",
+						},
+						{
+							Effect: EffectNoExecute,
+							Key:    k8sQualifiedNamePrefixInvalid.value,
+							Value:  "value",
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: fmt.Sprintf("Invalid value '%s' for field 'key' (%s)",
+						k8sQualifiedNameInvalid.value,
+						k8sQualifiedNameInvalid.message),
+					Target: "properties.taints[0].key",
+				},
+				{
+					Message: fmt.Sprintf("Invalid value '%s' for field 'key' (%s)",
+						k8sQualifiedNameTooLong.value,
+						k8sQualifiedNameTooLong.message),
+					Target: "properties.taints[1].key",
+				},
+				{
+					Message: fmt.Sprintf("Invalid value '%s' for field 'key' (%s)",
+						k8sQualifiedNamePrefixInvalid.value,
+						k8sQualifiedNamePrefixInvalid.message),
+					Target: "properties.taints[2].key",
 				},
 			},
 		},

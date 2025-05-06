@@ -361,13 +361,13 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 		}
 	}
 
-	taints := make([]*api.Taint, len(np.Taints()))
-	for i, t := range np.Taints() {
-		taints[i] = &api.Taint{
+	taints := make([]api.Taint, 0, len(np.Taints()))
+	for _, t := range np.Taints() {
+		taints = append(taints, api.Taint{
 			Effect: api.Effect(t.Effect()),
 			Key:    t.Key(),
 			Value:  t.Value(),
-		}
+		})
 	}
 	nodePool.Properties.Taints = taints
 
