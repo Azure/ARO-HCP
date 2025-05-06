@@ -7,12 +7,14 @@ param skuName string
 param msiId string
 param deploymentScriptLocation string
 param enabledAFD bool = false
+param regionalResourceGroup string = resourceGroup().name
 
 var rpMsiResourceURI = resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', rpMsiName)
 
 // Storage deployment
 module storageAccount 'storage.bicep' = {
   name: 'storage'
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     accountName: storageAccountName
     location: location
