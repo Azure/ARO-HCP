@@ -106,7 +106,7 @@ defaults:
         kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: ""
-      enableSwiftV2: false
+      enableSwiftV2: true
     prometheus:
       namespace: prometheus
       namespaceLabel: network.openshift.io/policy-group=monitoring

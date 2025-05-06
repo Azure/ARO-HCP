@@ -252,7 +252,7 @@
   "mgmt": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
-      "enableSwiftV2": false,
+      "enableSwiftV2": true,
       "etcd": {
         "kvName": "arohcp-etcd-nightly-1",
         "kvSoftDelete": false
