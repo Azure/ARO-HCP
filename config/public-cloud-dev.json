@@ -259,8 +259,8 @@
       },
       "kubernetesVersion": "1.31.6",
       "name": "dev-mgmt-1",
-      "networkDataplane": "cilium",
-      "networkPolicy": "cilium",
+      "networkDataplane": "azure",
+      "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
