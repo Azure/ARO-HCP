@@ -87,6 +87,20 @@ prometheusOperator:
     # limits:
     #   cpu: 200m
     #   memory: 50Mi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: infra
+            operator: In
+            values:
+            - "true"
+  tolerations:
+  - key: "infra"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
 ## Deploy a Prometheus instance
 ##
 prometheus:
