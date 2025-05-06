@@ -116,17 +116,6 @@ type DBClient interface {
 	// CreateResourceDoc creates a new asynchronous operation document in the "Resources" container.
 	CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error)
 
-	// UpdateOperationDoc updates an asynchronous operation document in the "Resources" container
-	// by first fetching the document and passing it to the provided callback for modifications to
-	// be applied. It then attempts to replace the existing document with the modified document and
-	// an "etag" precondition. Upon a precondition failure the function repeats for a limited number
-	// of times before giving up.
-	//
-	// The callback function should return true if modifications were applied, signaling to proceed
-	// with the document replacement. The boolean return value reflects this: returning true if the
-	// document was successfully replaced, or false with or without an error to indicate no change.
-	UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error)
-
 	// PatchOperationDoc patches an asynchronous operation document in the "Resources" container
 	// by applying a sequence of patch operations. The patch operations may include a precondition
 	// which, if not satisfied, will cause the function to return an azcore.ResponseError with a
@@ -404,46 +393,6 @@ func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 	}
 
 	return typedDoc.ID, nil
-}
-
-func (d *cosmosDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*OperationDocument) bool) (bool, error) {
-	var err error
-
-	options := &azcosmos.ItemOptions{}
-
-	for try := 0; try < 5; try++ {
-		var typedDoc *typedDocument
-		var innerDoc *OperationDocument
-		var data []byte
-
-		typedDoc, innerDoc, err = d.getOperationDoc(ctx, pk, operationID)
-		if err != nil {
-			return false, err
-		}
-
-		if !callback(innerDoc) {
-			return false, nil
-		}
-
-		data, err = typedDocumentMarshal(typedDoc, innerDoc)
-		if err != nil {
-			return false, fmt.Errorf("failed to marshal Operations container item for '%s': %w", operationID, err)
-		}
-
-		options.IfMatchEtag = &typedDoc.CosmosETag
-		_, err = d.resources.ReplaceItem(ctx, pk, typedDoc.ID, data, options)
-		if err == nil {
-			return true, nil
-		}
-
-		var responseError *azcore.ResponseError
-		err = fmt.Errorf("failed to replace Operations container item for '%s': %w", operationID, err)
-		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
-			return false, err
-		}
-	}
-
-	return false, err
 }
 
 func (d *cosmosDBClient) PatchOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops OperationDocumentPatchOperations) (*OperationDocument, error) {
