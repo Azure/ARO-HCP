@@ -16,6 +16,10 @@ POLICY_HELM_REPO_BRANCH = release-2.12
 
 deploy:
 	@kubectl create namespace ${MCE_NS} --dry-run=client -o json | kubectl apply -f -
+	# Ensure smooth upgrade from mce 2.7.0 to 2.8.1
+	- helm uninstall --ignore-not-found \
+		clc-state-metrics \
+		--namespace ${MCE_NS}
 	${HELM_CMD} \
 		mce ${MCE_CHART_DIR} \
 		--namespace ${MCE_NS} \
