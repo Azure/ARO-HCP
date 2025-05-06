@@ -321,6 +321,16 @@ module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = 
 //   A K S   C L U S T E R
 //
 
+// conditional advanced networking. only supported with cilium
+var advancedNetworking = networkDataplane == 'cilium'
+  ? {
+      enabled: true
+      observability: {
+        enabled: true
+      }
+    }
+  : {}
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   location: location
   name: aksClusterName
@@ -433,6 +443,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
       }
     }
     networkProfile: {
+      advancedNetworking: advancedNetworking
       ipFamilies: ['IPv4']
       loadBalancerSku: 'standard'
       loadBalancerProfile: {
