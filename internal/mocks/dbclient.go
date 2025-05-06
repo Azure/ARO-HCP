@@ -760,45 +760,6 @@ func (c *MockDBClientPatchResourceDocCall) DoAndReturn(f func(context.Context, *
 	return c
 }
 
-// UpdateOperationDoc mocks base method.
-func (m *MockDBClient) UpdateOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOperationDoc", ctx, pk, operationID, callback)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateOperationDoc indicates an expected call of UpdateOperationDoc.
-func (mr *MockDBClientMockRecorder) UpdateOperationDoc(ctx, pk, operationID, callback any) *MockDBClientUpdateOperationDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperationDoc", reflect.TypeOf((*MockDBClient)(nil).UpdateOperationDoc), ctx, pk, operationID, callback)
-	return &MockDBClientUpdateOperationDocCall{Call: call}
-}
-
-// MockDBClientUpdateOperationDocCall wrap *gomock.Call
-type MockDBClientUpdateOperationDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientUpdateOperationDocCall) Return(arg0 bool, arg1 error) *MockDBClientUpdateOperationDocCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientUpdateOperationDocCall) Do(f func(context.Context, azcosmos.PartitionKey, string, func(*database.OperationDocument) bool) (bool, error)) *MockDBClientUpdateOperationDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientUpdateOperationDocCall) DoAndReturn(f func(context.Context, azcosmos.PartitionKey, string, func(*database.OperationDocument) bool) (bool, error)) *MockDBClientUpdateOperationDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // UpdateSubscriptionDoc mocks base method.
 func (m *MockDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
 	m.ctrl.T.Helper()
