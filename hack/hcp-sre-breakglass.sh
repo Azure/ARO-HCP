@@ -20,11 +20,7 @@ SUBJECT="/CN=system:sre-break-glass:${USER}/O=sre-group"
 CS_CLUSTER_ID=$1
 HOSTED_CLUSTER_CR=$(kubectl get hostedcluster -A -l "api.openshift.com/id=${CS_CLUSTER_ID}" -o yaml | yq -r '.items[0]')
 HCP_NAMESPACE=$(echo "${HOSTED_CLUSTER_CR}" | yq '.metadata.namespace + "-" + (.metadata.labels["api.openshift.com/name"] | tostring)')
-HCP_API_SERVER=$(echo "${HOSTED_CLUSTER_CR}" | yq '.status.controlPlaneEndpoint.host')
-
-# download the API server CA from the HCP_API_SERVER_URL
-echo "Downloading the API server CA from ${HCP_API_SERVER}"
-HCP_ROOT_CA_CRT=$(openssl s_client -servername "${HCP_API_SERVER}" -connect "${HCP_API_SERVER}:443" </dev/null 2>/dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | base64 | tr -d '\n')
+HCP_KAS_CA_CRT=$(oc get secret kas-server-crt -n "${HCP_NAMESPACE}" -o yaml | yq '.data."tls.crt"')
 
 KEY_FILE="sre-breakglass-${CS_CLUSTER_ID}-${USER}.key"
 CSR_NAME="sre-breakglass-${CS_CLUSTER_ID}-${USER}"
@@ -36,6 +32,7 @@ cleanup() {
   kubectl delete csr "${CSR_NAME}" 2>/dev/null || true
   kubectl delete CertificateSigningRequestApproval "${CSR_NAME}" -n "${HCP_NAMESPACE}" 2>/dev/null || true
   rm -f "${KEY_FILE}" 2>/dev/null || true
+  rm -f "${KUBECONFIG_FILE}" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -88,13 +85,22 @@ kubectl wait --for=jsonpath='{.status.certificate}' --timeout=15s "csr/${CSR_NAM
 CERTIFICATE=$(kubectl get "csr/${CSR_NAME}" -o jsonpath='{.status.certificate}')
 echo "CSR ${CSR_NAME} signed."
 
+# Function to find a free local port
+find_free_port() {
+  # Use Python to find a free port (cross-platform)
+  python -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.bind(('', 0)); print(s.getsockname()[1]); s.close()"
+}
+
+# Find a free local port for port-forwarding
+HCP_KAS_LOCAL_PORT=$(find_free_port)
+
 # build a kubeconfig from it
 cat <<EOF > "${KUBECONFIG_FILE}"
 apiVersion: v1
 clusters:
 - cluster:
-    certificate-authority-data: ${HCP_ROOT_CA_CRT}
-    server: https://${HCP_API_SERVER}:443
+    certificate-authority-data: ${HCP_KAS_CA_CRT}
+    server: https://localhost:${HCP_KAS_LOCAL_PORT}
   name: ${CS_CLUSTER_ID}
 contexts:
 - context:
@@ -112,3 +118,6 @@ users:
 EOF
 echo "Kubeconfig ${KUBECONFIG_FILE} created."
 echo "export KUBECONFIG=$(realpath "${KUBECONFIG_FILE}")"
+
+echo "Setup kubectl port-forward to the HCP KAS server on local port ${HCP_KAS_LOCAL_PORT}"
+kubectl port-forward -n "${HCP_NAMESPACE}" svc/kube-apiserver "${HCP_KAS_LOCAL_PORT}:6443"
