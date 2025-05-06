@@ -62,6 +62,8 @@ type DBClientListActiveOperationDocsOptions struct {
 	Request *OperationRequest
 	// ExternalID matches (case-insensitively) the Azure resource ID of the cluster or node pool
 	ExternalID *azcorearm.ResourceID
+	// IncludeNestedResources includes nested resources under ExternalID
+	IncludeNestedResources bool
 }
 
 // DBClient provides a customized interface to the Cosmos DB containers used by the
@@ -476,7 +478,14 @@ func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, optio
 		}
 
 		if options.ExternalID != nil {
-			query += " AND STRINGEQUALS(c.properties.externalId, @externalId, true)"
+			query += " AND "
+			const resourceFilter = "STRINGEQUALS(c.properties.externalId, @externalId, true)"
+			if options.IncludeNestedResources {
+				const nestedResourceFilter = "STARTSWITH(c.properties.externalId, CONCAT(@externalId, \"/\"), true)"
+				query += fmt.Sprintf("(%s OR %s)", resourceFilter, nestedResourceFilter)
+			} else {
+				query += resourceFilter
+			}
 			queryParameter := azcosmos.QueryParameter{
 				Name:  "@externalId",
 				Value: options.ExternalID.String(),
