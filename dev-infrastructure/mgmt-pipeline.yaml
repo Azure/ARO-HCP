@@ -19,6 +19,28 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: mirror-eso-image
+    action: Shell
+    command: ../image-sync/on-demand/sync.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: TARGET_ACR
+      configRef: 'acr.svc.name'
+    - name: SOURCE_REGISTRY
+      configRef: externalSecretsOperator.image.registry
+    - name: REPOSITORY
+      configRef: externalSecretsOperator.image.repository
+    - name: DIGEST
+      configRef: externalSecretsOperator.image.digest
+    - name: PULL_SECRET_KV
+      configRef: global.keyVault.name
+    - name: PULL_SECRET
+      configRef: imageSync.componentSync.pullSecretName
+    - name: RUN_OUTSIDE_EV2
+      value: "true"
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
@@ -201,3 +223,27 @@ resourceGroups:
       configRef: mgmt.applyKubeletFixes
     dependsOn:
     - mgmt-cluster
+  # Install External Secrets Operator
+  - name: external-secrets-operator
+    action: Shell
+    command: make -C ../eso deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: NAMESPACE
+      configRef: externalSecretsOperator.k8s.namespace
+    - name: SERVICE_ACCOUNT
+      configRef: externalSecretsOperator.k8s.serviceAccountName
+    - name: CHART_VERSION
+      configRef: externalSecretsOperator.version
+    - name: ESO_REPOSTIORY
+      configRef: externalSecretsOperator.image.repository
+    - name: ESO_DIGEST
+      configRef: externalSecretsOperator.image.digest
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    dependsOn:
+    - mirror-eso-image
+    - prometheus

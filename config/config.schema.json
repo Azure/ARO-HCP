@@ -253,6 +253,22 @@
         "Auto"
       ]
     },
+    "k8sWorkloadPlacement": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "serviceAccountName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "serviceAccountName"
+      ]
+    },
     "prometheus": {
       "type": "object",
       "properties": {
@@ -376,20 +392,7 @@
           "description": "The name of the MSI that will be used by CS to interact with Azure"
         },
         "k8s": {
-          "type": "object",
-          "properties": {
-            "namespace": {
-              "type": "string"
-            },
-            "serviceAccountName": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "namespace",
-            "serviceAccountName"
-          ]
+          "$ref": "#/definitions/k8sWorkloadPlacement"
         },
         "postgres": {
           "type": "object",
@@ -790,6 +793,26 @@
         "image"
       ]
     },
+    "externalSecretsOperator": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sWorkloadPlacement"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "k8s",
+        "image"
+      ]
+    },
     "maestro": {
       "type": "object",
       "properties": {
@@ -813,20 +836,7 @@
               "type": "integer"
             },
             "k8s": {
-              "type": "object",
-              "properties": {
-                "namespace": {
-                  "type": "string"
-                },
-                "serviceAccountName": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "namespace",
-                "serviceAccountName"
-              ]
+              "$ref": "#/definitions/k8sWorkloadPlacement"
             }
           },
           "additionalProperties": false,
@@ -1270,6 +1280,7 @@
     "hypershift",
     "imageSync",
     "acrPull",
+    "externalSecretsOperator",
     "maestro",
     "mgmt",
     "mgmtKeyVault",
