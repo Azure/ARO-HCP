@@ -18,4 +18,4 @@ spec:
       clc-app: clusterlifecycle-state-metrics-v2
   namespaceSelector:
     matchNames:
-      - '{{ .Release.Namespace }}'
+    - '{{ .Release.Namespace }}'

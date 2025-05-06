@@ -1,13 +1,13 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-    creationTimestamp: null
-    name: multicluster-engine-ixu1k452vplrmrwqn1we7nyr579d3i93vr116pfyu3e
+  creationTimestamp: null
+  name: multicluster-engine-ixu1k452vplrmrwqn1we7nyr579d3i93vr116pfyu3e
 roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: multicluster-engine-ixu1k452vplrmrwqn1we7nyr579d3i93vr116pfyu3e
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: multicluster-engine-ixu1k452vplrmrwqn1we7nyr579d3i93vr116pfyu3e
 subjects:
-    - kind: ServiceAccount
-      name: multicluster-engine-operator
-      namespace: '{{ .Release.Namespace }}'
+- kind: ServiceAccount
+  name: multicluster-engine-operator
+  namespace: '{{ .Release.Namespace }}'
