@@ -234,6 +234,8 @@ prometheus:
         maxBackoff: 256s
       metadataConfig:
         send: false
+    externalLabels:
+      cluster: ""
     ## Resource limits & requests
     ##
     resources: {}
