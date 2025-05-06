@@ -329,7 +329,7 @@ var advancedNetworking = networkDataplane == 'cilium'
         enabled: true
       }
     }
-  : {}
+  : null
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   location: location
