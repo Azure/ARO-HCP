@@ -7,6 +7,9 @@ param location string = resourceGroup().location
 param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
 var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 
+@description('The resourcegroup for regional infrastructure')
+param regionalResourceGroup string
+
 @description('AKS cluster name')
 param aksClusterName string = 'aro-hcp-aks'
 
@@ -161,6 +164,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   params: {
     location: location
     locationAvailabilityZones: locationAvailabilityZoneList
+    regionalResourceGroup: regionalResourceGroup
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
