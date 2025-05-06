@@ -192,6 +192,9 @@
         "systemAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
         },
+        "infraAgentPool": {
+          "$ref": "#/definitions/aksAgentPool"
+        },
         "clusterOutboundIPAddressIPTags": {
           "$ref": "#/definitions/keyColonValueCSV"
         },

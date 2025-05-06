@@ -361,6 +361,12 @@ clouds:
             vmSize: 'Standard_D2s_v3'
             osDiskSizeGB: 32
             azCount: 3
+          infraAgentPool:
+            minCount: 1
+            maxCount: 3
+            vmSize: 'Standard_D2s_v3'
+            osDiskSizeGB: 32
+            azCount: 1
       mgmt:
         aks:
           # MGMTM AKS nodepools - big enough for 2 HCPs
@@ -375,6 +381,12 @@ clouds:
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
             azCount: 3
+          infraAgentPool:
+            minCount: 1
+            maxCount: 3
+            vmSize: 'Standard_D2s_v3'
+            osDiskSizeGB: 32
+            azCount: 1
           etcd:
             kvSoftDelete: false
         subscription: ARO Hosted Control Planes (EA Subscription 1)

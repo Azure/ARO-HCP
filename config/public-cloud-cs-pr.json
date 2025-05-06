@@ -257,6 +257,13 @@
         "kvName": "arohcp-etcd-cspr-1",
         "kvSoftDelete": false
       },
+      "infraAgentPool": {
+        "azCount": 1,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
       "kubernetesVersion": "1.31.6",
       "name": "cspr-mgmt-1",
       "networkDataplane": "cilium",
@@ -362,6 +369,13 @@
       "etcd": {
         "kvName": "arohcp-etcd-cspr",
         "kvSoftDelete": false
+      },
+      "infraAgentPool": {
+        "azCount": 1,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.6",
       "name": "cspr-svc",

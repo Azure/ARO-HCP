@@ -252,6 +252,13 @@
         "kvName": "arohcpstg-etcd-usw3-1",
         "kvSoftDelete": true
       },
+      "infraAgentPool": {
+        "azCount": 3,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 128,
+        "vmSize": "Standard_D2s_v3"
+      },
       "kubernetesVersion": "1.31.6",
       "name": "westus3-mgmt-1",
       "networkDataplane": "azure",
@@ -301,7 +308,7 @@
           "repository": "prometheus/prometheus"
         },
         "replicas": 2,
-        "shards": 1,
+        "shards": 2,
         "version": "v2.55.1-3"
       }
     },
@@ -361,6 +368,13 @@
       "etcd": {
         "kvName": "arohcpstg-etcd-usw3",
         "kvSoftDelete": true
+      },
+      "infraAgentPool": {
+        "azCount": 3,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 128,
+        "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.6",
       "name": "westus3-svc-1",
