@@ -27,3 +27,8 @@ go run . \
    -l $BUNDLE_IMAGE \
    -o helm -s ../../acm/scaffold
 ```
+
+## Next steps
+
+1. Overwrite the old helm chart files with the new ones (make sure not to leave around deleted ones).
+2. Run `make all-tidy` in repo root, which is likely to modify indenting in the helm files.
