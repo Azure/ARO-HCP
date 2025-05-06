@@ -20,9 +20,8 @@ import (
 
 // Positivity of test cases
 var (
-	Positive              = ginkgo.Label("Positive")
-	Negative              = ginkgo.Label("Negative")
-	CreateClusterNegative = ginkgo.Label("Create-Cluster-Negative")
+	Positive = ginkgo.Label("Positive")
+	Negative = ginkgo.Label("Negative")
 )
 
 // Importance of test cases
@@ -35,6 +34,8 @@ var (
 
 // Usage of test cases
 var (
-	CoreInfraService = ginkgo.Label("Core-Infra-Service")
-	Validate         = ginkgo.Label("Validate")
+	CoreInfraService   = ginkgo.Label("Core-Infra-Service")
+	CreateCluster      = ginkgo.Label("Create-Cluster")
+	SetupValidation    = ginkgo.Label("Setup-Validation")
+	TeardownValidation = ginkgo.Label("Teardown-Validation")
 )
