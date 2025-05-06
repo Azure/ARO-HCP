@@ -85,17 +85,6 @@ type DBClient interface {
 	// CreateResourceDoc creates a new cluster or node pool document in the "Resources" container.
 	CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error
 
-	// UpdateResourceDoc updates a cluster or node pool document in the "Resources" container by
-	// first fetching the document and passing it to the provided callback for modifications to be
-	// applied. It then attempts to replace the existing document with the modified document and an
-	// "etag" precondition. Upon a precondition failure the function repeats for a limited number of
-	// times before giving up.
-	//
-	// The callback function should return true if modifications were applied, signaling to proceed
-	// with the document replacement. The boolean return value reflects this: returning true if the
-	// document was successfully replaced, or false with or without an error to indicate no change.
-	UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error)
-
 	// PatchResourceDoc patches a cluster or node pool document in the "Resources" container by
 	// applying a sequence of patch operations. The patch operations may include a precondition
 	// which, if not satisfied, will cause the function to return an azcore.ResponseError with
@@ -307,46 +296,6 @@ func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDoc
 	}
 
 	return nil
-}
-
-func (d *cosmosDBClient) UpdateResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*ResourceDocument) bool) (bool, error) {
-	var err error
-
-	options := &azcosmos.ItemOptions{}
-
-	for try := 0; try < 5; try++ {
-		var typedDoc *typedDocument
-		var innerDoc *ResourceDocument
-		var data []byte
-
-		typedDoc, innerDoc, err = d.getResourceDoc(ctx, resourceID)
-		if err != nil {
-			return false, err
-		}
-
-		if !callback(innerDoc) {
-			return false, nil
-		}
-
-		data, err = typedDocumentMarshal(typedDoc, innerDoc)
-		if err != nil {
-			return false, fmt.Errorf("failed to marshal Resources container item for '%s': %w", resourceID, err)
-		}
-
-		options.IfMatchEtag = &typedDoc.CosmosETag
-		_, err = d.resources.ReplaceItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, data, options)
-		if err == nil {
-			return true, nil
-		}
-
-		var responseError *azcore.ResponseError
-		err = fmt.Errorf("failed to replace Resources container item for '%s': %w", resourceID, err)
-		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
-			return false, err
-		}
-	}
-
-	return false, err
 }
 
 func (d *cosmosDBClient) PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error) {

@@ -799,45 +799,6 @@ func (c *MockDBClientUpdateOperationDocCall) DoAndReturn(f func(context.Context,
 	return c
 }
 
-// UpdateResourceDoc mocks base method.
-func (m *MockDBClient) UpdateResourceDoc(ctx context.Context, resourceID *arm0.ResourceID, callback func(*database.ResourceDocument) bool) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateResourceDoc", ctx, resourceID, callback)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateResourceDoc indicates an expected call of UpdateResourceDoc.
-func (mr *MockDBClientMockRecorder) UpdateResourceDoc(ctx, resourceID, callback any) *MockDBClientUpdateResourceDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateResourceDoc", reflect.TypeOf((*MockDBClient)(nil).UpdateResourceDoc), ctx, resourceID, callback)
-	return &MockDBClientUpdateResourceDocCall{Call: call}
-}
-
-// MockDBClientUpdateResourceDocCall wrap *gomock.Call
-type MockDBClientUpdateResourceDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientUpdateResourceDocCall) Return(arg0 bool, arg1 error) *MockDBClientUpdateResourceDocCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientUpdateResourceDocCall) Do(f func(context.Context, *arm0.ResourceID, func(*database.ResourceDocument) bool) (bool, error)) *MockDBClientUpdateResourceDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientUpdateResourceDocCall) DoAndReturn(f func(context.Context, *arm0.ResourceID, func(*database.ResourceDocument) bool) (bool, error)) *MockDBClientUpdateResourceDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // UpdateSubscriptionDoc mocks base method.
 func (m *MockDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
 	m.ctrl.T.Helper()
