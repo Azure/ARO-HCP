@@ -1,10 +1,7 @@
 #!/bin/sh
 #
 # E X P E R I M E N T A L   -   N O T   I N T E N D E D   F O R   P R O D U C T I O N
-#
-# Use at your own risk. This script does not do sanity checks and does not have error handling.
-# In case of errors, resources may be left behind, etc.
-# TLDR: this script is the worst but good enough for a quick and dirty POC.
+# Use at your own risk. This script does not do sanity checks and only partial error handling.
 #
 # This is an experiment script that creates a kubeconfig for an HCP using the sre-break-glass signer.
 # This script is intended to be run towards the management cluster that hosts the HCP we want to access.
@@ -15,6 +12,8 @@
 # Example usage:
 # ./hcp-sre-breakglass.sh <cs-cluster-id>
 #
+
+set -euo pipefail
 
 SUBJECT="/CN=system:sre-break-glass:${USER}/O=sre-group"
 
@@ -29,8 +28,16 @@ HCP_ROOT_CA_CRT=$(openssl s_client -servername "${HCP_API_SERVER}" -connect "${H
 
 KEY_FILE="sre-breakglass-${CS_CLUSTER_ID}-${USER}.key"
 CSR_NAME="sre-breakglass-${CS_CLUSTER_ID}-${USER}"
-CSR_FILE="${CSR_NAME}.csr"
 KUBECONFIG_FILE="${CSR_NAME}.kubeconfig"
+
+# Ensure cleanup happens on script exit
+cleanup() {
+  echo "Cleaning up resources..."
+  kubectl delete csr "${CSR_NAME}" 2>/dev/null || true
+  kubectl delete CertificateSigningRequestApproval "${CSR_NAME}" -n "${HCP_NAMESPACE}" 2>/dev/null || true
+  rm -f "${KEY_FILE}" 2>/dev/null || true
+}
+trap cleanup EXIT
 
 # Generate a private key
 echo "Create private key"
@@ -38,10 +45,7 @@ openssl genrsa -out "${KEY_FILE}" 2048
 
 # Generate a CSR using the private key and subject
 echo "Create CSR with subject ${SUBJECT}"
-openssl req -new -key "${KEY_FILE}" -subj "${SUBJECT}" -out "${CSR_FILE}"
-
-# Base64 encode the CSR
-CSR_BASE64=$(base64 -i "${CSR_FILE}" | tr -d '\n')
+CSR_BASE64=$(openssl req -new -key "${KEY_FILE}" -subj "${SUBJECT}" | base64 | tr -d '\n')
 
 # Create a Kubernetes CSR manifest
 cat <<EOF | kubectl apply -f -
@@ -61,7 +65,6 @@ spec:
   - client auth
   - digital signature
 EOF
-
 echo "Kubernetes CSR ${CSR_NAME} applied to the cluster."
 
 cat <<EOF | kubectl apply -f -
@@ -76,30 +79,13 @@ metadata:
   name: ${CSR_NAME}
   namespace: ${HCP_NAMESPACE}
 EOF
-
 echo "Hypershift CSR Approval ${CSR_NAME} applied to the cluster."
 
-# wait for the CSR to be approved
-while true; do
-  STATUS=$(kubectl get csr "${CSR_NAME}" -o jsonpath='{.status.conditions[?(@.type=="Approved")].status}')
-  if [ "$STATUS" == "True" ]; then
-    echo "CSR ${CSR_NAME} approved."
-    break
-  else
-    echo "Waiting for CSR ${CSR_NAME} to be approved..."
-    sleep 5
-  fi
-done
-
-# Check status of CSR
-CERTIFICATE=$(kubectl get csr "${CSR_NAME}" -o jsonpath='{.status.certificate}')
-kubectl delete csr "${CSR_NAME}"
-kubectl delete CertificateSigningRequestApproval "${CSR_NAME}" -n "${HCP_NAMESPACE}"
-if [ -z "$CERTIFICATE" ]; then
-  echo "CSR ${CSR_NAME} not signed yet."
-  # cleanup
-  exit 1
-fi
+# Wait for the CSR to be approved and signed
+echo "Waiting for CSR ${CSR_NAME} to be approved (15s timeout)..."
+kubectl wait --for=condition=Approved "csr/${CSR_NAME}" --timeout=15s
+kubectl wait --for=jsonpath='{.status.certificate}' --timeout=15s "csr/${CSR_NAME}"
+CERTIFICATE=$(kubectl get "csr/${CSR_NAME}" -o jsonpath='{.status.certificate}')
 echo "CSR ${CSR_NAME} signed."
 
 # build a kubeconfig from it
