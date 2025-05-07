@@ -23,10 +23,10 @@ import (
 
 // Resource represents a basic ARM resource
 type Resource struct {
-	ID         string      `json:"id,omitempty"`
-	Name       string      `json:"name,omitempty"`
-	Type       string      `json:"type,omitempty"`
-	SystemData *SystemData `json:"systemData,omitempty"`
+	ID         string      `json:"id,omitempty"         visibility:"read"`
+	Name       string      `json:"name,omitempty"       visibility:"read"`
+	Type       string      `json:"type,omitempty"       visibility:"read"`
+	SystemData *SystemData `json:"systemData,omitempty" visibility:"read"`
 }
 
 func (src *Resource) Copy(dst *Resource) {
@@ -44,8 +44,8 @@ func (src *Resource) Copy(dst *Resource) {
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
-	Location string            `json:"location,omitempty"`
-	Tags     map[string]string `json:"tags,omitempty"`
+	Location string            `json:"location,omitempty" visibility:"read create"`
+	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 }
 
 func (src *TrackedResource) Copy(dst *TrackedResource) {
