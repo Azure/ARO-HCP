@@ -1288,7 +1288,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	default:
 		// Operation is still in progress.
-		f.AddLocationHeader(writer, request, doc)
+		f.AddLocationHeader(writer, request, doc.OperationID)
 		writer.WriteHeader(http.StatusAccepted)
 		return
 	}
