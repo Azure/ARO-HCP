@@ -42,10 +42,10 @@
         "roleName": "Azure Red Hat OpenShift Network Operator"
       },
       "clusterApiAzure": {
-        "roleName": "Contributor"
+        "roleName": "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider"
       },
       "controlPlane": {
-        "roleName": "Contributor"
+        "roleName": "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator"
       },
       "diskCsiDriver": {
         "roleName": "Azure Red Hat OpenShift Disk Storage Operator"
