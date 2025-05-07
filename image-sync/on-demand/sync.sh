@@ -7,6 +7,11 @@ if [[ -z "${EV2:-}" && -z "${GITHUB_ACTIONS:-}" ]]; then
   exit 0
 fi
 
+if [ -n "${GITHUB_ACTIONS:-}" ] && [ -z "${DIGEST:-}" ]; then
+  echo "Running in GitHub Actions but no digest provided. We assume the image is somehow else provided."
+  exit 0
+fi
+
 # validate
 REQUIRED_VARS=("PULL_SECRET_KV" "PULL_SECRET" "TARGET_ACR" "SOURCE_REGISTRY" "REPOSITORY" "DIGEST")
 for VAR in "${REQUIRED_VARS[@]}"; do
