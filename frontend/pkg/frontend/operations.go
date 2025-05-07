@@ -31,8 +31,8 @@ import (
 )
 
 // AddAsyncOperationHeader adds an "Azure-AsyncOperation" header to the ResponseWriter
-// with a URL of the operation status endpoint for the given OperationDocument.
-func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, doc *database.OperationDocument) {
+// with a URL of the operation status endpoint.
+func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
 	logger := LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
@@ -42,7 +42,7 @@ func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *
 		return
 	}
 
-	u.Path = doc.OperationID.String()
+	u.Path = operationID.String()
 
 	apiVersion := request.URL.Query().Get(APIVersionKey)
 	if apiVersion != "" {
@@ -55,8 +55,8 @@ func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *
 }
 
 // AddLocationHeader adds a "Location" header to the ResponseWriter with a URL of the
-// operation result endpoint for the given OperationDocument.
-func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.Request, doc *database.OperationDocument) {
+// operation result endpoint.
+func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
 	logger := LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
@@ -67,10 +67,10 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 	}
 
 	u.Path = path.Join("/",
-		"subscriptions", doc.OperationID.SubscriptionID,
-		"providers", api.ProviderNamespace,
-		"locations", doc.OperationID.Location,
-		api.OperationResultResourceTypeName, doc.OperationID.Name)
+		"subscriptions", operationID.SubscriptionID,
+		"providers", operationID.ResourceType.Namespace,
+		"locations", operationID.Location,
+		api.OperationResultResourceTypeName, operationID.Name)
 
 	apiVersion := request.URL.Query().Get(APIVersionKey)
 	if apiVersion != "" {
@@ -113,10 +113,10 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 		// Add callback header(s) based on the request method.
 		switch request.Method {
 		case http.MethodDelete, http.MethodPatch, http.MethodPost:
-			f.AddLocationHeader(writer, request, updateDoc)
+			f.AddLocationHeader(writer, request, updateDoc.OperationID)
 			fallthrough
 		case http.MethodPut:
-			f.AddAsyncOperationHeader(writer, request, updateDoc)
+			f.AddAsyncOperationHeader(writer, request, updateDoc.OperationID)
 		}
 
 		return true
