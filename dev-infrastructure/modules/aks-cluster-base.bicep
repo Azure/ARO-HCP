@@ -408,6 +408,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
           enableSecureBoot: false
           enableVTPM: false
         }
+        nodeLabels: {
+          'aro-hcp.azure.com/role': 'system'
+        }
         nodeTaints: [
           'CriticalAddonsOnly=true:NoSchedule'
         ]
@@ -638,6 +641,9 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
         enableSecureBoot: false
         enableVTPM: false
       }
+      nodeLabels: {
+        'aro-hcp.azure.com/role': 'worker'
+      }
       tags: enableSwiftV2
         ? {
             'aks-nic-enable-multi-tenancy': 'true'
@@ -679,7 +685,7 @@ resource infraAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@
         enableVTPM: false
       }
       nodeLabels: {
-        infra: 'true'
+        'aro-hcp.azure.com/role': 'infra'
       }
       nodeTaints: [
         'infra=true:NoSchedule'

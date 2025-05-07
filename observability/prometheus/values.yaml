@@ -92,10 +92,10 @@ prometheusOperator:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
         - matchExpressions:
-          - key: infra
+          - key: aro-hcp.azure.com/role
             operator: In
             values:
-            - "true"
+            - "infra"
   tolerations:
   - key: "infra"
     operator: "Equal"
@@ -201,10 +201,10 @@ prometheus:
         requiredDuringSchedulingIgnoredDuringExecution:
           nodeSelectorTerms:
           - matchExpressions:
-            - key: infra
+            - key: aro-hcp.azure.com/role
               operator: In
               values:
-              - "true"
+              - "infra"
     tolerations:
     - key: "infra"
       operator: "Equal"

@@ -21,7 +21,7 @@ spec:
         tier: node
     spec:
       nodeSelector:
-        kubernetes.azure.com/mode: user
+        aro-hcp.azure.com/role: worker
       containers:
       - command:
         - nsenter
