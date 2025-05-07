@@ -660,6 +660,9 @@ func TestRequestAdminCredential(t *testing.T) {
 					ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRevokeCredentials, clusterResourceID)).
 					Return(mockOperationIter)
 				if test.revokeCredentialsStatus.IsTerminal() {
+					mockDBTransaction := mocks.NewMockDBTransaction(ctrl)
+					mockDBTransactionResult := mocks.NewMockDBTransactionResult(ctrl)
+
 					mockOperationIter.EXPECT().
 						GetError().
 						Return(nil)
@@ -669,14 +672,26 @@ func TestRequestAdminCredential(t *testing.T) {
 						Return(cmv1.NewBreakGlassCredential().
 							HREF(ocm.GenerateBreakGlassCredentialHREF(clusterInternalID.String(), "0")).Build())
 					// ArmResourceActionRequestAdminCredential
-					operationID := uuid.New().String()
 					mockDBClient.EXPECT().
-						CreateOperationDoc(gomock.Any(), gomock.Any()).
-						Return(operationID, nil)
+						NewTransaction(pk).
+						Return(mockDBTransaction)
 					// ArmResourceActionRequestAdminCredential
-					mockDBClient.EXPECT().
-						UpdateOperationDoc(gomock.Any(), pk, operationID, gomock.Any()).
-						Return(true, nil)
+					operationID := uuid.New().String()
+					mockDBTransaction.EXPECT().
+						CreateOperationDoc(gomock.Any(), nil).
+						Return(operationID)
+
+					// ExposeOperation
+					mockDBTransaction.EXPECT().
+						PatchOperationDoc(operationID, gomock.Any(), nil)
+					// ExposeOperation
+					mockDBTransaction.EXPECT().
+						OnSuccess(gomock.Any())
+
+					// ArmResourceActionRequestAdminCredential
+					mockDBTransaction.EXPECT().
+						Execute(gomock.Any(), nil).
+						Return(mockDBTransactionResult, nil)
 				}
 			}
 
@@ -803,6 +818,9 @@ func TestRevokeCredentials(t *testing.T) {
 					ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRevokeCredentials, clusterResourceID)).
 					Return(mockOperationIter)
 				if test.revokeCredentialsStatus.IsTerminal() {
+					mockDBTransaction := mocks.NewMockDBTransaction(ctrl)
+					mockDBTransactionResult := mocks.NewMockDBTransactionResult(ctrl)
+
 					mockOperationIter.EXPECT().
 						GetError().
 						Return(nil)
@@ -811,8 +829,9 @@ func TestRevokeCredentials(t *testing.T) {
 						DeleteBreakGlassCredentials(gomock.Any(), clusterInternalID).
 						Return(nil)
 
+					requestOperationID := string(arm.ProvisioningStateProvisioning)
 					requestOperations := map[string]*database.OperationDocument{
-						string(arm.ProvisioningStateProvisioning): &database.OperationDocument{
+						requestOperationID: &database.OperationDocument{
 							Request:    database.OperationRequestRequestCredential,
 							ExternalID: clusterResourceID,
 							InternalID: clusterInternalID,
@@ -829,22 +848,38 @@ func TestRevokeCredentials(t *testing.T) {
 
 					// ArmResourceActionRequestAdminCredential
 					mockDBClient.EXPECT().
+						NewTransaction(pk).
+						Return(mockDBTransaction)
+
+					// CancelActiveOperations
+					mockDBTransaction.EXPECT().
+						GetPartitionKey().
+						Return(pk)
+					// CancelActiveOperations
+					mockDBClient.EXPECT().
 						ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRequestCredential, clusterResourceID)).
 						Return(mockOperationIter)
-					// CancelOperation
-					mockDBClient.EXPECT().
-						UpdateOperationDoc(gomock.Any(), pk, string(arm.ProvisioningStateProvisioning), gomock.Any()).
-						Return(true, nil)
+					// CancelActiveOperations
+					mockDBTransaction.EXPECT().
+						PatchOperationDoc(requestOperationID, gomock.Any(), nil)
 
 					// ArmResourceActionRequestAdminCredential
 					operationID := uuid.New().String()
-					mockDBClient.EXPECT().
+					mockDBTransaction.EXPECT().
 						CreateOperationDoc(gomock.Any(), gomock.Any()).
-						Return(operationID, nil)
+						Return(operationID)
+
+					// ExposeOperation
+					mockDBTransaction.EXPECT().
+						PatchOperationDoc(operationID, gomock.Any(), nil)
+					// ExposeOperation
+					mockDBTransaction.EXPECT().
+						OnSuccess(gomock.Any())
+
 					// ArmResourceActionRequestAdminCredential
-					mockDBClient.EXPECT().
-						UpdateOperationDoc(gomock.Any(), pk, operationID, gomock.Any()).
-						Return(true, nil)
+					mockDBTransaction.EXPECT().
+						Execute(gomock.Any(), nil).
+						Return(mockDBTransactionResult, nil)
 				}
 			}
 
