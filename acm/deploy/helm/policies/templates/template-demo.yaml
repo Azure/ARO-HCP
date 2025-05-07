@@ -1,0 +1,48 @@
+---
+# Attempt to figure out how templates work within ACM Policies
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+  name: demo-config-policy
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  disabled: false
+  remediationAction: enforce 
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: demo-config
+        spec:
+          evaluationInterval:
+            compliant: 2h
+            noncompliant: 45s
+          object-templates-raw: |
+            - complianceType: MustHave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                    name: demo-config
+                    namespace: kube-system
+                data:
+                    key: {{`{{hub .ManagedClusterName hub}}`}}
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: configmap-placement-binding
+  namespace: '{{ .Release.Namespace }}'
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: all-hosted-clusters
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: demo-config-policy
