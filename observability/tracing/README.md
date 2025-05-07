@@ -8,9 +8,9 @@ This page explains how you can enable tracing for ARO HCP in your [development s
 
 ## Tracing
 
-The ARO frontend, cluster service and other components are instrumented with
-the OpenTelemetry SDK but by default, there's no backend configured to collect
-and visualize the traces.
+The ARO resource provider frontend, Clusters Service and other components are
+instrumented with the OpenTelemetry SDK but by default, there's no backend
+configured to collect and visualize the traces.
 
 ### Deploy Jaeger all-in-one testing backend
 
@@ -40,21 +40,13 @@ make patch-frontend
 make patch-clusterservice
 ```
 
-The export of the trace information is configured via environment variables. Existing deployments are patched as follows:
-
-```diff
-+        env:
-+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-+          value: https://ingest.observability:4318
-+        - name: OTEL_TRACES_EXPORTER
-+          value: otlp
-```
+The export of the trace information is configured via environment variables for the RP Frontend and command-line arguments for the Clusters Service.
 
 ### Correlate with ARM requests
 
 #### Generate Traces
 
-Traces are automatically generated for every incoming HTTP request (sampling rate: 100%). A simple way to generate incoming requests is to follow the [demo instructions](../demo/README.md).
+Traces are automatically generated for every incoming HTTP request (sampling rate: 100%). A simple way to generate incoming requests is to follow the [demo instructions](../../demo/README.md).
 
 #### Common Attributes
 

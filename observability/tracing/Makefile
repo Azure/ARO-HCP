@@ -23,6 +23,7 @@ patch-frontend:
 .PHONY: patch-frontend
 
 patch-clusterservice:
-	@kubectl set env -n ${CS_NAMESPACE} deployment clusters-service --containers service OTEL_EXPORTER_OTLP_ENDPOINT=http://ingest.observability:4318 OTEL_TRACES_EXPORTER=otlp
+	kubectl patch -n ${CS_NAMESPACE} deployment clusters-service --type json \
+		--patch="[{\"op\": \"add\", \"path\": \"/spec/template/spec/containers/0/command/-\", \"value\": \"--tracing-otlp-url=http://ingest.observability:4318\"}]"
 	@kubectl wait --for=condition=Available -n ${CS_NAMESPACE} deployment clusters-service --timeout=30s
 .PHONY: patch-clusterservice

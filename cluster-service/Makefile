@@ -77,7 +77,6 @@ deploy:
 	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
 	  --set tracing.address=${TRACING_ADDRESS} \
-	  --set tracing.exporter=${TRACING_EXPORTER} \
 	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
 	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}"
 
