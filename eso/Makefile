@@ -9,11 +9,12 @@ deploy: pull-chart
 		--namespace ${NAMESPACE} \
 		--set serviceAccount.name=${SERVICE_ACCOUNT} \
 		--set installCRDs=true \
-		--set certController.create=false \
-		--set webhook.create=false \
-		--set crds.conversion.enabled=False \
 		--set image.repository=${ACR_NAME}.azurecr.io/${ESO_REPOSTIORY}@sha256 \
-		--set image.tag=${ESO_DIGEST}
+		--set image.tag=${ESO_DIGEST} \
+		--set webhook.image.repository=${ACR_NAME}.azurecr.io/${ESO_REPOSTIORY}@sha256 \
+		--set webhook.image.tag=${ESO_DIGEST} \
+		--set certController.image.repository=${ACR_NAME}.azurecr.io/${ESO_REPOSTIORY}@sha256 \
+		--set certController.image.tag=${ESO_DIGEST}
 .PHONY: deploy
 
 pull-chart:
