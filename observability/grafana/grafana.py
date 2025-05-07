@@ -133,11 +133,15 @@ def create_dashboard(
             del dashboard["dashboard"]["version"]
 
         if existing_dashboard["dashboard"] == dashboard["dashboard"]:
-            print("Dashboard matches, no update needed")
+            print(
+                f"Dashboard '{dashboard['dashboard']['title']}' matches, no update needed"
+            )
             create_or_update = False
 
     if create_or_update:
-        print("Dashboard differs or does not exist update needed")
+        print(
+            f"Dashboard '{dashboard['dashboard']['title']}' differs or does not exist update needed"
+        )
         g.create_dashboard(temp_file)
 
 
@@ -191,7 +195,7 @@ def main():
         delete_stale_dashboard(
             d,
             dashboards_visited,
-            existing_dashboards,
+            existing_folders,
             g,
             config["grafana-dashboards"]["azureManagedFolders"],
         )
