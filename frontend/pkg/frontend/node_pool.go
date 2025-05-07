@@ -20,6 +20,7 @@ import (
 	"maps"
 	"net/http"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -67,7 +68,9 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -219,72 +222,53 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	}
 
+	transaction := f.dbClient.NewTransaction(pk)
+
 	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
-	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-	err = f.ExposeOperation(writer, request, pk, operationID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	// This is called directly when creating a resource, and indirectly from
-	// within a retry loop when updating a resource.
-	updateResourceMetadata := func(updateDoc *database.ResourceDocument) bool {
-		updateDoc.ActiveOperationID = operationID
-		updateDoc.ProvisioningState = operationDoc.Status
-
-		// Record the latest system data values from ARM, if present.
-		if systemData != nil {
-			updateDoc.SystemData = systemData
-		}
-
-		// Here the difference between a nil map and an empty map is significant.
-		// If the Tags map is nil, that means it was omitted from the request body,
-		// so we leave any existing tags alone. If the Tags map is non-nil, even if
-		// empty, that means it was specified in the request body and should fully
-		// replace any existing tags.
-		if hcpNodePool.Tags != nil {
-			updateDoc.Tags = hcpNodePool.Tags
-		}
-
-		return true
-	}
+	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		updateResourceMetadata(resourceDoc)
-		err = f.dbClient.CreateResourceDoc(ctx, resourceDoc)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		logger.Info(fmt.Sprintf("document created for %s", resourceID))
-	} else {
-		updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, updateResourceMetadata)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		if updated {
-			logger.Info(fmt.Sprintf("document updated for %s", resourceID))
-		}
-		// Get the updated resource document for the response.
-		_, resourceDoc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+	}
+
+	var patchOperations database.ResourceDocumentPatchOperations
+
+	patchOperations.SetActiveOperationID(&operationID)
+	patchOperations.SetProvisioningState(operationDoc.Status)
+
+	// Record the latest system data values from ARM, if present.
+	if systemData != nil {
+		patchOperations.SetSystemData(systemData)
+	}
+
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if hcpNodePool.Tags != nil {
+		patchOperations.SetTags(hcpNodePool.Tags)
+	}
+
+	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+
+	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
+		EnableContentResponseOnWrite: true,
+	})
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Read back the resource document so the response body is accurate.
+	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
 	responseBody, err := marshalCSNodePool(csNodePool, resourceDoc, versionedInterface)
