@@ -25,6 +25,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/google/uuid"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
@@ -100,7 +102,10 @@ func TestCreateNodePool(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockDBTransaction := mocks.NewMockDBTransaction(ctrl)
+			mockDBTransactionResult := mocks.NewMockDBTransactionResult(ctrl)
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
+			pk := database.NewPartitionKey(api.TestSubscriptionID)
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -158,13 +163,38 @@ func TestCreateNodePool(t *testing.T) {
 				Times(3)
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
-				CreateOperationDoc(gomock.Any(), gomock.Any())
-			// ExposeOperation
-			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
+				NewTransaction(pk).
+				Return(mockDBTransaction)
 			// CreateOrUpdateNodePool
-			mockDBClient.EXPECT().
-				CreateResourceDoc(gomock.Any(), gomock.Any())
+			operationID := uuid.New().String()
+			mockDBTransaction.EXPECT().
+				CreateOperationDoc(gomock.Any(), nil).
+				Return(operationID)
+
+			// ExposeOperation
+			mockDBTransaction.EXPECT().
+				PatchOperationDoc(operationID, gomock.Any(), nil)
+			// ExposeOperation
+			mockDBTransaction.EXPECT().
+				OnSuccess(gomock.Any())
+
+			// CreateOrUpdateNodePool
+			nodePoolItemID := uuid.New().String()
+			mockDBTransaction.EXPECT().
+				CreateResourceDoc(test.nodePoolDoc, nil).
+				Return(nodePoolItemID)
+			// CreateOrUpdateNodePool
+			mockDBTransaction.EXPECT().
+				PatchResourceDoc(nodePoolItemID, gomock.Any(), nil)
+			// CreateOrUpdateNodePool
+			mockDBTransaction.EXPECT().
+				Execute(gomock.Any(), &azcosmos.TransactionalBatchOptions{
+					EnableContentResponseOnWrite: true}).
+				Return(mockDBTransactionResult, nil)
+			// CreateOrUpdateNodePool
+			mockDBTransactionResult.EXPECT().
+				GetResourceDoc(nodePoolItemID).
+				Return(test.nodePoolDoc, nil)
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
 			require.NoError(t, err)

@@ -85,51 +85,46 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 
 // ExposeOperation fully initiates a new asynchronous operation by enriching
 // the operation database item and adding the necessary response headers.
-func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Request, pk azcosmos.PartitionKey, operationID string) error {
-	ctx := request.Context()
+func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Request, operationID string, transaction database.DBTransaction) {
+	var patchOperations database.OperationDocumentPatchOperations
 
-	_, err := f.dbClient.UpdateOperationDoc(ctx, pk, operationID, func(updateDoc *database.OperationDocument) bool {
-		// There is no way to propagate a parse error here but it should
-		// never fail since we are building a trusted resource ID string.
-		operationID, err := azcorearm.ParseResourceID(path.Join("/",
-			"subscriptions", updateDoc.ExternalID.SubscriptionID,
-			"providers", api.ProviderNamespace,
-			"locations", f.location,
-			api.OperationStatusResourceTypeName, operationID))
-		if err != nil {
-			LoggerFromContext(ctx).Error(err.Error())
-			return false
-		}
+	// This should never fail since we are building a trusted resource ID string.
+	operationResourceID, err := azcorearm.ParseResourceID(path.Join("/",
+		"subscriptions", request.PathValue(PathSegmentSubscriptionID),
+		"providers", api.ProviderNamespace,
+		"locations", f.location,
+		api.OperationStatusResourceTypeName, operationID))
+	if err != nil {
+		LoggerFromContext(request.Context()).Error(err.Error())
+		return
+	}
 
-		updateDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-		updateDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-		updateDoc.OperationID = operationID
-		updateDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+	patchOperations.SetTenantID(request.Header.Get(arm.HeaderNameHomeTenantID))
+	patchOperations.SetClientID(request.Header.Get(arm.HeaderNameClientObjectID))
+	patchOperations.SetOperationID(operationResourceID)
 
+	notificationURI := request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+	if notificationURI != "" {
+		patchOperations.SetNotificationURI(&notificationURI)
+	}
+
+	transaction.PatchOperationDoc(operationID, patchOperations, nil)
+
+	transaction.OnSuccess(func(result database.DBTransactionResult) {
 		// If ARM passed a notification URI, acknowledge it.
-		if updateDoc.NotificationURI != "" {
+		if notificationURI != "" {
 			writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
 		}
 
 		// Add callback header(s) based on the request method.
 		switch request.Method {
 		case http.MethodDelete, http.MethodPatch, http.MethodPost:
-			f.AddLocationHeader(writer, request, updateDoc.OperationID)
+			f.AddLocationHeader(writer, request, operationResourceID)
 			fallthrough
 		case http.MethodPut:
-			f.AddAsyncOperationHeader(writer, request, updateDoc.OperationID)
+			f.AddAsyncOperationHeader(writer, request, operationResourceID)
 		}
-
-		return true
 	})
-	if err != nil {
-		// Delete any response headers that may have been added.
-		writer.Header().Del(arm.HeaderNameAsyncNotification)
-		writer.Header().Del(arm.HeaderNameAsyncOperation)
-		writer.Header().Del("Location")
-	}
-
-	return err
 }
 
 // CancelOperation marks the status of an operation as canceled.
