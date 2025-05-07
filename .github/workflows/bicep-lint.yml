@@ -20,6 +20,7 @@ jobs:
       run: |
         # https://github.com/actions/runner-images/issues/11987
         az config set bicep.use_binary_from_path=false
+        az bicep install
         az bicep version
         make fmt
         make lint
