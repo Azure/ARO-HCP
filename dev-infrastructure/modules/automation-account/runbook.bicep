@@ -33,8 +33,10 @@ param startTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:0
 @description('Name of the managed identity')
 param identityName string = 'hcp-dev-automation'
 
-@description('Runbook parameter')
+@description('Subscription ID to use for the runbook')
 param subscriptionId string = ''
+
+@description('Managed Identity ID to use for the runbook')
 param managedIdentityId string = ''
 
 resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' existing = {
