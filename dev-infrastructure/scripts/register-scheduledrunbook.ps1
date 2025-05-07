@@ -13,16 +13,20 @@
     The name of the runbook to register.
 .PARAMETER ScheduleName
     The name of the schedule to link to the runbook.
-.PARAMETER Parameters
-    Key vaule pairs of parameters
+.PARAMETER SubscriptionId
+    (Optional) The Subscription ID.
+.PARAMETER ManagedIdentityId
+    (Optional) The Managed Identity ID.
 .EXAMPLE
     .\register-scheduledrunbook.ps1 -ResourceGroupName "myRG" `
         -AutomationAccountName "myAA" `
         -RunbookName "myRunbook" `
         -ScheduleName "dailySchedule"
-        -Parameters @{"Parameter1"="Value1";"Parameter2"="Value2"}
+        -SubscriptionId        "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" `
+        -ManagedIdentityId     "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
 #>
 
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ResourceGroupName,
@@ -52,8 +56,8 @@ $output = @{
 
 try {
     Write-Verbose "PowerShell Version: $($PSVersionTable.PSVersion)"
-    Write-Verbose "Loaded Az Modules: $(Get-Module Az.* | Select-Object Name, Version | Out-String)"
-
+    Write-Verbose "Loaded Az Modules: $(Get-Module Az.* | Select-Object Name, Version | Format-Table -AutoSize | Out-String)"
+    
     Write-Verbose @"
 Parameters:
     Automation Account: $AutomationAccountName
@@ -61,8 +65,8 @@ Parameters:
     Schedule:           $ScheduleName
     Resource Group:     $ResourceGroupName
     Parameters:         $Parameters
-    SubscriptionId:     $SubscriptionId,
-    ManagedIdentityId:  $ManagedIdentityId
+    SubscriptionId:    $(if ($SubscriptionId) { $SubscriptionId } else { 'Not provided' })
+    ManagedIdentityId: $(if ($ManagedIdentityId) { $ManagedIdentityId } else { 'Not provided' })
 "@
 
     # Validate that the runbook exists and is published.
@@ -94,12 +98,25 @@ Parameters:
         $existingJob | Unregister-AzAutomationScheduledRunbook -Force -ErrorAction Stop
     }
 
+    # Prepare registration arguments
+    $registrationArgs = @{
+        ResourceGroupName     = $ResourceGroupName
+        AutomationAccountName = $AutomationAccountName
+        RunbookName           = $RunbookName
+        ScheduleName          = $ScheduleName
+        ErrorAction           = 'Stop'
+    }
+    # Add optional parameters if provided
+    $jobParameters = @{}
+    if ($SubscriptionId) { $jobParameters['SubscriptionId'] = $SubscriptionId }
+    if ($ManagedIdentityId) { $jobParameters['ManagedIdentityId'] = $ManagedIdentityId }
+
+    if ($jobParameters.Count -gt 0) {
+        $registrationArgs['Parameters'] = $jobParameters
+    }
     # Register the new schedule.
     Write-Verbose "Registering new schedule '$ScheduleName' for runbook '$RunbookName'..."
-    $jobSchedule = Register-AzAutomationScheduledRunbook -ResourceGroupName $ResourceGroupName `
-                   -AutomationAccountName $AutomationAccountName `
-                   -RunbookName $RunbookName `
-                   -ScheduleName $ScheduleName -ErrorAction Stop
+    $job = Register-AzAutomationScheduledRunbook @registrationArgs 
 
     $output.success = $true
     $output.message = "Successfully registered '$RunbookName' to schedule '$ScheduleName' (JobScheduleId: $($jobSchedule.JobScheduleId))"
