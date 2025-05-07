@@ -133,11 +133,15 @@ def create_dashboard(
             del dashboard["dashboard"]["version"]
 
         if existing_dashboard["dashboard"] == dashboard["dashboard"]:
-            print(f"Dashboard '{dashboard['dashboard']['title']}' matches, no update needed")
+            print(
+                f"Dashboard '{dashboard['dashboard']['title']}' matches, no update needed"
+            )
             create_or_update = False
 
     if create_or_update:
-        print(f"Dashboard '{dashboard['dashboard']['title']}' differs or does not exist update needed")
+        print(
+            f"Dashboard '{dashboard['dashboard']['title']}' differs or does not exist update needed"
+        )
         g.create_dashboard(temp_file)
 
 
