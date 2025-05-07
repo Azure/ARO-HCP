@@ -39,8 +39,6 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
-    - name: RUN_OUTSIDE_EV2
-      value: "true"
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
