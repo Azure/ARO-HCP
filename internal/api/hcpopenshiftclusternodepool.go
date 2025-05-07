@@ -29,7 +29,7 @@ type HCPOpenShiftClusterNodePool struct {
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
 	ProvisioningState arm.ProvisioningState   `json:"provisioningState,omitempty" visibility:"read"`
-	Version           NodePoolVersionProfile  `json:"version,omitempty"           visibility:"read create"`
+	Version           NodePoolVersionProfile  `json:"version,omitempty"`
 	Platform          NodePoolPlatformProfile `json:"platform,omitempty"          visibility:"read create"`
 	Replicas          int32                   `json:"replicas,omitempty"          visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
 	AutoRepair        bool                    `json:"autoRepair,omitempty"        visibility:"read create"`
@@ -62,6 +62,8 @@ type NodePoolAutoScaling struct {
 	Max int32 `json:"max,omitempty" validate:"gtefield=Min"`
 }
 
+// Taint represents a Kubernetes taint for a node.
+// Visibility for the entire struct is "read create update".
 type Taint struct {
 	Effect Effect `json:"effect,omitempty" validate:"required_for_put,enum_effect"`
 	Key    string `json:"key,omitempty"    validate:"required_for_put,k8s_qualified_name"`
