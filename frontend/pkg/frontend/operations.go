@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -159,6 +160,31 @@ func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *datab
 
 	pk := database.NewPartitionKey(resourceDoc.ResourceID.SubscriptionID)
 	return f.CancelOperation(ctx, pk, resourceDoc.ActiveOperationID)
+}
+
+// CancelActiveOperations queries for operation documents with a non-terminal
+// status using the filters specified in opts. For every document returned in
+// the query result, CancelActiveOperations adds patch operations to the given
+// DBTransaction to mark the document as canceled.
+func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction database.DBTransaction, opts *database.DBClientListActiveOperationDocsOptions) error {
+	var now = time.Now().UTC()
+
+	iterator := f.dbClient.ListActiveOperationDocs(transaction.GetPartitionKey(), opts)
+
+	for operationID, _ := range iterator.Items(ctx) {
+		var patchOperations database.OperationDocumentPatchOperations
+
+		patchOperations.SetLastTransitionTime(now)
+		patchOperations.SetStatus(arm.ProvisioningStateCanceled)
+		patchOperations.SetError(&arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeCanceled,
+			Message: "This operation was superseded by another",
+		})
+
+		transaction.PatchOperationDoc(operationID, patchOperations, nil)
+	}
+
+	return iterator.GetError()
 }
 
 // OperationIsVisible returns true if the request is being called from the same
