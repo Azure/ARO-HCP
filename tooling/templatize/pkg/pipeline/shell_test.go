@@ -17,19 +17,22 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"testing"
 
 	"gotest.tools/v3/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
 func TestCreateCommand(t *testing.T) {
 	ctx := context.Background()
 	testCases := []struct {
 		name           string
-		step           *ShellStep
+		step           *types.ShellStep
 		dryRun         bool
 		envVars        map[string]string
 		expectedScript string
@@ -38,16 +41,16 @@ func TestCreateCommand(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			step: &ShellStep{
+			step: &types.ShellStep{
 				Command: "/bin/echo hello",
 			},
 			expectedScript: buildBashScript("/bin/echo hello"),
 		},
 		{
 			name: "dry-run",
-			step: &ShellStep{
+			step: &types.ShellStep{
 				Command: "/bin/echo hello",
-				DryRun: DryRun{
+				DryRun: types.DryRun{
 					Command: "/bin/echo dry-run",
 				},
 			},
@@ -56,10 +59,10 @@ func TestCreateCommand(t *testing.T) {
 		},
 		{
 			name: "dry-run-env",
-			step: &ShellStep{
+			step: &types.ShellStep{
 				Command: "/bin/echo",
-				DryRun: DryRun{
-					Variables: []Variable{
+				DryRun: types.DryRun{
+					Variables: []types.Variable{
 						{
 							Name:  "DRY_RUN",
 							Value: "true",
@@ -74,7 +77,7 @@ func TestCreateCommand(t *testing.T) {
 		},
 		{
 			name: "dry-run fail",
-			step: &ShellStep{
+			step: &types.ShellStep{
 				Command: "/bin/echo",
 			},
 			dryRun:      true,
@@ -83,7 +86,11 @@ func TestCreateCommand(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cmd, skipCommand := tc.step.createCommand(ctx, tc.dryRun, tc.envVars)
+			var dryRun *types.DryRun
+			if tc.dryRun {
+				dryRun = &tc.step.DryRun
+			}
+			cmd, skipCommand := createCommand(ctx, tc.step.Command, dryRun, tc.envVars)
 			assert.Equal(t, skipCommand, tc.skipCommand)
 			if !tc.skipCommand {
 				assert.Equal(t, strings.Join(cmd.Args, " "), fmt.Sprintf("/bin/bash -c %s", tc.expectedScript))
@@ -101,7 +108,7 @@ func TestMapStepVariables(t *testing.T) {
 		name     string
 		cfg      config.Configuration
 		input    map[string]output
-		step     *ShellStep
+		step     *types.ShellStep
 		expected map[string]string
 		err      string
 	}{
@@ -110,8 +117,8 @@ func TestMapStepVariables(t *testing.T) {
 			cfg: config.Configuration{
 				"FOO": "bar",
 			},
-			step: &ShellStep{
-				Variables: []Variable{
+			step: &types.ShellStep{
+				Variables: []types.Variable{
 					{
 						Name:      "BAZ",
 						ConfigRef: "FOO",
@@ -125,8 +132,8 @@ func TestMapStepVariables(t *testing.T) {
 		{
 			name: "missing",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
-				Variables: []Variable{
+			step: &types.ShellStep{
+				Variables: []types.Variable{
 					{
 						ConfigRef: "FOO",
 					},
@@ -139,8 +146,8 @@ func TestMapStepVariables(t *testing.T) {
 			cfg: config.Configuration{
 				"FOO": 42,
 			},
-			step: &ShellStep{
-				Variables: []Variable{
+			step: &types.ShellStep{
+				Variables: []types.Variable{
 					{
 						Name:      "BAZ",
 						ConfigRef: "FOO",
@@ -154,8 +161,8 @@ func TestMapStepVariables(t *testing.T) {
 		{
 			name: "value",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
-				Variables: []Variable{
+			step: &types.ShellStep{
+				Variables: []types.Variable{
 					{
 						Name:  "BAZ",
 						Value: "bar",
@@ -169,11 +176,11 @@ func TestMapStepVariables(t *testing.T) {
 		{
 			name: "output chaining",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
-				Variables: []Variable{
+			step: &types.ShellStep{
+				Variables: []types.Variable{
 					{
 						Name: "BAZ",
-						Input: &Input{
+						Input: &types.Input{
 							Name: "output1",
 							Step: "step1",
 						},
@@ -195,11 +202,11 @@ func TestMapStepVariables(t *testing.T) {
 		{
 			name: "output chaining step missing",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
-				Variables: []Variable{
+			step: &types.ShellStep{
+				Variables: []types.Variable{
 					{
 						Name: "BAZ",
-						Input: &Input{
+						Input: &types.Input{
 							Name: "output1",
 							Step: "step1",
 						},
@@ -211,11 +218,11 @@ func TestMapStepVariables(t *testing.T) {
 		{
 			name: "output chaining output missing",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
-				Variables: []Variable{
+			step: &types.ShellStep{
+				Variables: []types.Variable{
 					{
 						Name: "BAZ",
-						Input: &Input{
+						Input: &types.Input{
 							Name: "output1",
 							Step: "step1",
 						},
@@ -235,7 +242,7 @@ func TestMapStepVariables(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			envVars, err := tc.step.mapStepVariables(tc.cfg, tc.input)
+			envVars, err := mapStepVariables(tc.step.Variables, tc.cfg, tc.input)
 			t.Log(envVars)
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)
@@ -251,20 +258,20 @@ func TestRunShellStep(t *testing.T) {
 	testCases := []struct {
 		name string
 		cfg  config.Configuration
-		step *ShellStep
+		step *types.ShellStep
 		err  string
 	}{
 		{
 			name: "basic",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
+			step: &types.ShellStep{
 				Command: "echo hello",
 			},
 		},
 		{
 			name: "test nounset",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
+			step: &types.ShellStep{
 				Command: "echo $DOES_NOT_EXIST",
 			},
 			err: "DOES_NOT_EXIST: unbound variable\n exit status 1",
@@ -272,7 +279,7 @@ func TestRunShellStep(t *testing.T) {
 		{
 			name: "test errexit",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
+			step: &types.ShellStep{
 				Command: "false ; echo hello",
 			},
 			err: "failed to execute shell command:  exit status 1",
@@ -280,7 +287,7 @@ func TestRunShellStep(t *testing.T) {
 		{
 			name: "test pipefail",
 			cfg:  config.Configuration{},
-			step: &ShellStep{
+			step: &types.ShellStep{
 				Command: "false | echo",
 			},
 			err: "failed to execute shell command: \n exit status 1",
@@ -288,7 +295,7 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, map[string]output{})
+			err := runShellStepAndCaptureOutput(tc.step, context.Background(), "", &PipelineRunOptions{}, map[string]output{})
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
@@ -296,4 +303,22 @@ func TestRunShellStep(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunShellStepCaptureOutput(t *testing.T) {
+	step := &types.ShellStep{
+		Command: "echo hallo",
+	}
+	outFile, err := os.CreateTemp("", "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.Remove(outFile.Name())
+	os.Setenv(OUTPUT_CAPTURE_PATH, outFile.Name())
+
+	err = runShellStepAndCaptureOutput(step, context.Background(), "", &PipelineRunOptions{}, map[string]output{})
+	assert.NilError(t, err)
+	content, err := os.ReadFile(outFile.Name())
+	assert.NilError(t, err)
+	assert.Equal(t, string(content), "hallo\n")
 }

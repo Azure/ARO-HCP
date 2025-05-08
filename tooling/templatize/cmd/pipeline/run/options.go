@@ -127,6 +127,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		SubsciptionLookupFunc:    pipeline.LookupSubscriptionID,
 		NoPersist:                o.NoPersist,
 		DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
+		PipelineFilePath:         o.PipelineOptions.PipelineFilePath,
 	})
 	return err
 }
