@@ -151,7 +151,7 @@
     "rg": "global",
     "safeDnsIntAppObjectId": "",
     "secretsToSyncDir": "dev/arohcpdev-global",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
+    "subscription": "ARO HCP nightly global (EA Subscription)"
   },
   "hypershift": {
     "additionalInstallArg": "",
@@ -317,7 +317,7 @@
       }
     },
     "rg": "hcp-underlay-ntly-mgmt-1",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
+    "subscription": "ARO HCP nightly management (EA Subscription)"
   },
   "mgmtKeyVault": {
     "name": "arohcp-mgmt-ntly-1",
@@ -443,6 +443,6 @@
       }
     },
     "rg": "hcp-underlay-ntly-svc",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
+    "subscription": "ARO HCP nightly service (EA Subscription)"
   }
 }
