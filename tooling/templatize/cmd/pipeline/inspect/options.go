@@ -133,11 +133,13 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 		rolloutOptions.Cloud,
 		rolloutOptions.DeployEnv,
 		rolloutOptions.Region,
-		config.NewConfigReplacements(
-			rolloutOptions.Region,
-			rolloutOptions.RegionShort,
-			rolloutOptions.Stamp,
-		),
+		&config.ConfigReplacements{
+			RegionReplacement:      rolloutOptions.Region,
+			RegionShortReplacement: rolloutOptions.RegionShort,
+			StampReplacement:       rolloutOptions.Stamp,
+			CloudReplacement:       rolloutOptions.Cloud,
+			EnvironmentReplacement: rolloutOptions.DeployEnv,
+		},
 	)
 	if err != nil {
 		return err

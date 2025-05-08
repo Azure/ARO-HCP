@@ -107,7 +107,16 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 		return nil, err
 	}
 
-	variables, err := completed.ConfigProvider.GetDeployEnvRegionConfiguration(o.Cloud, o.DeployEnv, o.Region, config.NewConfigReplacements(o.Region, o.RegionShort, o.Stamp))
+	variables, err := completed.ConfigProvider.GetDeployEnvRegionConfiguration(
+		o.Cloud, o.DeployEnv, o.Region,
+		&config.ConfigReplacements{
+			RegionReplacement:      o.Region,
+			RegionShortReplacement: o.RegionShort,
+			StampReplacement:       o.Stamp,
+			CloudReplacement:       o.Cloud,
+			EnvironmentReplacement: o.DeployEnv,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get variables: %w", err)
 	}
