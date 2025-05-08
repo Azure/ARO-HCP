@@ -2,11 +2,14 @@
 
 set -euo pipefail
 
-# only run within EV2 for now
-# RH dev envs have the regular component sync in place to make images available
-if [[ -z "${EV2:-}" ]]; then
-    echo "The image-sync/on-demand/sync.sh script runs only within EV2. Exiting."
-    exit 0
+# only run within EV2 and within GH actions for now
+if [[ -z "${EV2:-}" && -z "${GITHUB_ACTIONS:-}" ]]; then
+  exit 0
+fi
+
+if [ -n "${GITHUB_ACTIONS:-}" ] && [ -z "${DIGEST:-}" ]; then
+  echo "Running in GitHub Actions but no digest provided. We assume the image is somehow else provided."
+  exit 0
 fi
 
 # validate
