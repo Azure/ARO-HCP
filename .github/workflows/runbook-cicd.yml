@@ -1,4 +1,6 @@
 name: Azure Automation Runbook CI/CD
+env:
+  SKIP_CONFIRM: true
 on:
   pull_request:
     paths:
