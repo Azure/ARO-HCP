@@ -16,57 +16,67 @@ package pipeline
 
 import (
 	"context"
+	"log"
+	"os"
 	"testing"
 
 	"gotest.tools/v3/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
+func createTempOutputFile() string {
+	outFile, err := os.CreateTemp("", "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	os.Setenv(OUTPUT_CAPTURE_PATH, outFile.Name())
+	return outFile.Name()
+}
+
 func TestStepRun(t *testing.T) {
-	foundOutput := ""
-	s := NewShellStep("step", "echo hello").WithOutputFunc(
-		func(output string) {
-			foundOutput = output
-		},
-	)
+	outFile := createTempOutputFile()
+	defer os.Remove(outFile)
+	s := types.NewShellStep("step", "echo hello")
 	_, err := RunStep(s, context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{}, nil)
 	assert.NilError(t, err)
-	assert.Equal(t, foundOutput, "hello\n")
+	content, err := os.ReadFile(outFile)
+	assert.NilError(t, err)
+	assert.Equal(t, string(content), "hello\n")
 }
 
 func TestResourceGroupRun(t *testing.T) {
-	foundOutput := ""
-	rg := &ResourceGroup{
-		Steps: []Step{
-			NewShellStep("step", "echo hello").WithOutputFunc(
-				func(output string) {
-					foundOutput = output
-				},
-			),
+	outFile := createTempOutputFile()
+	defer os.Remove(outFile)
+	rg := &types.ResourceGroup{
+		Steps: []types.Step{
+			types.NewShellStep("step", "echo hello"),
 		},
 	}
 	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, make(map[string]output))
 	assert.NilError(t, err)
-	assert.Equal(t, foundOutput, "hello\n")
+	content, err := os.ReadFile(outFile)
+	assert.NilError(t, err)
+	assert.Equal(t, string(content), "hello\n")
 }
 
 func TestResourceGroupError(t *testing.T) {
-	tmpVals := make([]string, 0)
-	outputFunc := func(output string) {
-		tmpVals = append(tmpVals, output)
-	}
-	rg := &ResourceGroup{
-		Steps: []Step{
-			NewShellStep("step1", "echo hello").WithOutputFunc(outputFunc),
-			NewShellStep("step2", "faaaaafffaa").WithOutputFunc(outputFunc),
-			NewShellStep("step3", "echo hallo").WithOutputFunc(outputFunc),
+	outFile := createTempOutputFile()
+	defer os.Remove(outFile)
+	rg := &types.ResourceGroup{
+		Steps: []types.Step{
+			types.NewShellStep("step1", "echo hello"),
+			types.NewShellStep("step2", "faaaaafffaa"),
+			types.NewShellStep("step3", "echo hallo"),
 		},
 	}
 	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, make(map[string]output))
 	assert.ErrorContains(t, err, "faaaaafffaa: command not found\n exit status 127")
 	// Test processing ends after first error
-	assert.Equal(t, len(tmpVals), 1)
+	content, err := os.ReadFile(outFile)
+	assert.NilError(t, err)
+	assert.Equal(t, string(content), "hello\n")
 }
 
 type testExecutionTarget struct{}
@@ -80,24 +90,21 @@ func (t *testExecutionTarget) GetResourceGroup() string  { return "test" }
 func (t *testExecutionTarget) GetRegion() string         { return "test" }
 
 func TestResourceGroupRunRequireKubeconfig(t *testing.T) {
-	rg := &ResourceGroup{Steps: []Step{}}
+	rg := &types.ResourceGroup{Steps: []types.Step{}}
 	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &testExecutionTarget{}, make(map[string]output))
 	assert.NilError(t, err)
 }
 
 func TestPipelineRun(t *testing.T) {
-	foundOutput := ""
-	pipeline := &Pipeline{
-		ResourceGroups: []*ResourceGroup{
+	outFile := createTempOutputFile()
+	defer os.Remove(outFile)
+	pipeline := &types.Pipeline{
+		ResourceGroups: []*types.ResourceGroup{
 			{
 				Name:         "test",
 				Subscription: "test",
-				Steps: []Step{
-					NewShellStep("step", "echo hello").WithOutputFunc(
-						func(output string) {
-							foundOutput = output
-						},
-					),
+				Steps: []types.Step{
+					types.NewShellStep("step", "echo hello"),
 				},
 			},
 		},
@@ -110,7 +117,9 @@ func TestPipelineRun(t *testing.T) {
 	})
 
 	assert.NilError(t, err)
-	assert.Equal(t, foundOutput, "hello\n")
+	content, err := os.ReadFile(outFile)
+	assert.NilError(t, err)
+	assert.Equal(t, string(content), "hello\n")
 }
 
 func TestArmGetValue(t *testing.T) {
@@ -132,7 +141,7 @@ func TestAddInputVars(t *testing.T) {
 		name          string
 		cfg           config.Configuration
 		input         map[string]output
-		stepVariables []Variable
+		stepVariables []types.Variable
 		expected      map[string]any
 		err           string
 	}{
@@ -146,10 +155,10 @@ func TestAddInputVars(t *testing.T) {
 					},
 				},
 			},
-			stepVariables: []Variable{
+			stepVariables: []types.Variable{
 				{
 					Name: "input1",
-					Input: &Input{
+					Input: &types.Input{
 						Name: "output1",
 						Step: "step1",
 					},
@@ -167,10 +176,10 @@ func TestAddInputVars(t *testing.T) {
 					},
 				},
 			},
-			stepVariables: []Variable{
+			stepVariables: []types.Variable{
 				{
 					Name: "input1",
-					Input: &Input{
+					Input: &types.Input{
 						Name: "output1",
 						Step: "missingstep",
 					},
@@ -188,10 +197,10 @@ func TestAddInputVars(t *testing.T) {
 					},
 				},
 			},
-			stepVariables: []Variable{
+			stepVariables: []types.Variable{
 				{
 					Name: "input1",
-					Input: &Input{
+					Input: &types.Input{
 						Name: "missingvar",
 						Step: "step1",
 					},
@@ -201,7 +210,7 @@ func TestAddInputVars(t *testing.T) {
 		},
 		{
 			name: "value",
-			stepVariables: []Variable{
+			stepVariables: []types.Variable{
 				{
 					Name:  "input1",
 					Value: "bar",
@@ -216,7 +225,7 @@ func TestAddInputVars(t *testing.T) {
 					"config": "bar",
 				},
 			},
-			stepVariables: []Variable{
+			stepVariables: []types.Variable{
 				{
 					Name:      "input1",
 					ConfigRef: "some.config",
@@ -231,7 +240,7 @@ func TestAddInputVars(t *testing.T) {
 					"config": "bar",
 				},
 			},
-			stepVariables: []Variable{
+			stepVariables: []types.Variable{
 				{
 					Name:      "input1",
 					ConfigRef: "some.missing",

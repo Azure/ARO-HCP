@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 
@@ -89,7 +90,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 	return fmt.Errorf("timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *ARMStep, input map[string]output) (output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, input map[string]output) (output, error) {
 	// Ensure resourcegroup exists
 	err := a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
 	if err != nil {
@@ -185,7 +186,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, cfg config.Configuration, input map[string]output) (output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *types.ARMStep, cfg config.Configuration, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
@@ -259,7 +260,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *ARMStep, cfg config.Configuration, input map[string]output) (output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *types.ARMStep, cfg config.Configuration, input map[string]output) (output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
