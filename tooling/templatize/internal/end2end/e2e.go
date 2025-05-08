@@ -35,8 +35,7 @@ import (
 var defaultRgName = "hcp-templatize"
 
 func shouldRunE2E() bool {
-	// return os.Getenv("RUN_TEMPLATIZE_E2E") == "true"
-	return true
+	return os.Getenv("RUN_TEMPLATIZE_E2E") == "true"
 }
 
 type E2E interface {
