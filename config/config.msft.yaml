@@ -49,6 +49,15 @@ defaults:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
       digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+  externalSecretsOperator:
+    version: v0.16.1
+    k8s:
+      namespace: external-secrets
+      serviceAccountName: external-secrets
+    image:
+      registry: oci.external-secrets.io
+      repository: external-secrets/external-secrets
+      digest: sha256:31e3431814feec71860d30520ec437006a60e0f30f5a67ef2a06fa94823692b5
   backplaneAPI:
     image:
       registry: quay.io
