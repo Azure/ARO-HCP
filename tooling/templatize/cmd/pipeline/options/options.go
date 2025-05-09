@@ -20,8 +20,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 	"github.com/Azure/ARO-Tools/pkg/types"
+
+	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 )
 
 func DefaultOptions() *RawPipelineOptions {
