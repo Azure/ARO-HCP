@@ -4,6 +4,8 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-cbl-mariner2.0 AS builder
 RUN yum install --assumeyes jq
 ARG CURRENT_COMMIT
+COPY image-dependencies .
+RUN cat image-dependencies | xargs go mod download
 WORKDIR /app
 ADD archive.tar.gz .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
