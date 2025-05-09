@@ -138,5 +138,3 @@ resourceGroups:
       configRef: msiKeyVault.name
     - name: TRACING_ADDRESS
       configRef: clustersService.tracing.address
-    - name: TRACING_EXPORTER
-      configRef: clustersService.tracing.exporter

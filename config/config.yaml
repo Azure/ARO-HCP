@@ -284,7 +284,7 @@ clouds:
       # Cluster Service
       clustersService:
         image:
-          digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
+          digest: sha256:ec301b5cdd705c5bc07812f5d6628bf8ffe792a3a38f3876ac4fdc669d7f8485
         azureOperatorsManagedIdentities:
           clusterApiAzure:
             roleName: Azure Red Hat OpenShift Cluster API Role - Dev

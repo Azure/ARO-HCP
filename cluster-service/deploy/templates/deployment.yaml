@@ -141,11 +141,6 @@ spec:
         - name: azure-operators-managed-identities-config
           mountPath: /configs/azure-operators-managed-identities-config.yaml
           subPath: azure-operators-managed-identities-config.yaml
-        env:
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: '{{ .Values.tracing.address  }}'
-        - name: OTEL_TRACES_EXPORTER
-          value: '{{ .Values.tracing.exporter  }}'
         command:
         - /usr/local/bin/clusters-service
         - serve
@@ -204,6 +199,9 @@ spec:
         {{- end }}
         # Baggage items are populated by the RP frontend and defined in internal/tracing/attributes.go.
         - --log-fields-from-baggage=aro.correlation_id=correlation_id,aro.client.request_id=client_request_id
+        {{ if .Values.tracing.address }}
+        - --tracing-otlp-url={{ .Values.tracing.address }}
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /api/clusters_mgmt/v1

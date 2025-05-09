@@ -243,4 +243,3 @@ pullBinding:
   workloadIdentityTenantId: ""
 tracing:
   address: ""
-  exporter: ""
