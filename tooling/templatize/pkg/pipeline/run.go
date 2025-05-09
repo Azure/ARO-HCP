@@ -15,6 +15,7 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -41,21 +42,21 @@ type PipelineRunOptions struct {
 	PipelineFilePath         string
 }
 
-type armOutput map[string]any
-
-type output interface {
-	GetValue(key string) (*outPutValue, error)
+type Output interface {
+	GetValue(key string) (*OutPutValue, error)
 }
 
-type outPutValue struct {
+type OutPutValue struct {
 	Type  string `yaml:"type"`
 	Value any    `yaml:"value"`
 }
 
-func (o armOutput) GetValue(key string) (*outPutValue, error) {
+type ArmOutput map[string]any
+
+func (o ArmOutput) GetValue(key string) (*OutPutValue, error) {
 	if v, ok := o[key]; ok {
 		if innerValue, innerConversionOk := v.(map[string]any); innerConversionOk {
-			returnValue := outPutValue{
+			returnValue := OutPutValue{
 				Type:  innerValue["type"].(string),
 				Value: innerValue["value"],
 			}
@@ -65,10 +66,19 @@ func (o armOutput) GetValue(key string) (*outPutValue, error) {
 	return nil, fmt.Errorf("key %q not found", key)
 }
 
-func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions) (map[string]output, error) {
+type ShellOutput string
+
+func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
+	return &OutPutValue{
+		Type:  "string",
+		Value: string(o),
+	}, nil
+}
+
+func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions) (map[string]Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	outPuts := make(map[string]output)
+	outPuts := make(map[string]Output)
 
 	// set working directory to the pipeline file directory for the
 	// duration of the execution so that all commands and file references
@@ -112,7 +122,7 @@ func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *Pipelin
 	return outPuts, nil
 }
 
-func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]output) error {
+func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]Output) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
@@ -154,7 +164,7 @@ func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *Pip
 	return nil
 }
 
-func RunStep(s types.Step, ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]output) (output, error) {
+func RunStep(s types.Step, ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]Output) (Output, error) {
 	if options.Step != "" && s.StepName() != options.Step {
 		// skip steps that don't match the specified step name
 		return nil, nil
@@ -168,7 +178,14 @@ func RunStep(s types.Step, ctx context.Context, kubeconfigFile string, execution
 
 	switch step := s.(type) {
 	case *types.ShellStep:
-		return nil, runShellStepAndCaptureOutput(step, ctx, kubeconfigFile, options, outPuts)
+		var buf bytes.Buffer
+		err := runShellStep(step, ctx, kubeconfigFile, options, outPuts, &buf)
+		if err != nil {
+			return nil, fmt.Errorf("error running Shell Step, %v", err)
+		}
+		output := buf.String()
+		fmt.Println(output)
+		return ShellOutput(output), nil
 	case *types.ARMStep:
 		a := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
 		if a == nil {
@@ -185,7 +202,7 @@ func RunStep(s types.Step, ctx context.Context, kubeconfigFile string, execution
 	}
 }
 
-func getInputValues(configuredVariables []types.Variable, cfg config.Configuration, inputs map[string]output) (map[string]any, error) {
+func getInputValues(configuredVariables []types.Variable, cfg config.Configuration, inputs map[string]Output) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {

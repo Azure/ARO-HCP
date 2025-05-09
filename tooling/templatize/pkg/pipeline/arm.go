@@ -90,7 +90,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 	return fmt.Errorf("timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, input map[string]output) (output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, input map[string]Output) (Output, error) {
 	// Ensure resourcegroup exists
 	err := a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
 	if err != nil {
@@ -186,7 +186,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *types.ARMStep, cfg config.Configuration, input map[string]output) (output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *types.ARMStep, cfg config.Configuration, input map[string]Output) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
@@ -231,7 +231,7 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 	return nil, nil
 }
 
-func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutput, error) {
+func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutput, error) {
 	respRaw, err := p.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to wait for deployment completion: %w", err)
@@ -250,7 +250,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutp
 
 	if outputs != nil {
 		if outputMap, ok := outputs.(map[string]any); ok {
-			returnMap := armOutput{}
+			returnMap := ArmOutput{}
 			for k, v := range outputMap {
 				returnMap[k] = v
 			}
@@ -260,7 +260,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (armOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *types.ARMStep, cfg config.Configuration, input map[string]output) (output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *types.ARMStep, cfg config.Configuration, input map[string]Output) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
