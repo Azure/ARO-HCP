@@ -375,6 +375,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
             enabled: true
             config: {
               logAnalyticsWorkspaceResourceID: logAnalyticsWorkspaceId
+              useAADAuth: 'true'
             }
           }
         : {
@@ -529,87 +530,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
     aks_keyvault_crypto_user
     aksClusterOutboundIPAddress
   ]
-}
-
-//
-//   O B S E R V A B I L I T Y
-//
-
-resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2017-05-01-preview' = if (logAnalyticsWorkspaceId != '') {
-  scope: aksCluster
-  name: aksClusterName
-  properties: {
-    logs: [
-      {
-        category: 'kube-audit'
-        enabled: true
-      }
-      {
-        category: 'kube-audit-admin'
-        enabled: true
-      }
-    ]
-    workspaceId: logAnalyticsWorkspaceId
-  }
-}
-
-resource aksClusterDcr 'Microsoft.Insights/dataCollectionRules@2023-03-11' = if (logAnalyticsWorkspaceId != '') {
-  name: '${aksClusterName}-dcr'
-  location: location
-  kind: 'Linux'
-  properties: {
-    dataSources: {
-      extensions: [
-        {
-          name: 'ContainerInsightsExtension'
-          streams: [
-            'Microsoft-ContainerLog'
-            'Microsoft-ContainerLogV2'
-            'Microsoft-KubeEvents'
-            'Microsoft-KubePodInventory'
-          ]
-          extensionSettings: {
-            dataCollectionSettings: {
-              interval: '1m'
-              namespaceFilteringMode: 'Off'
-              enableContainerLogV2: true
-            }
-          }
-          extensionName: 'ContainerInsights'
-        }
-      ]
-    }
-    destinations: {
-      logAnalytics: [
-        {
-          name: 'ContainerInsightsWorkspace'
-          workspaceResourceId: logAnalyticsWorkspaceId
-        }
-      ]
-    }
-    dataFlows: [
-      {
-        destinations: [
-          'ContainerInsightsWorkspace'
-        ]
-        streams: [
-          'Microsoft-ContainerLog'
-          'Microsoft-ContainerLogV2'
-          'Microsoft-KubeEvents'
-          'Microsoft-KubePodInventory'
-        ]
-      }
-    ]
-  }
-}
-
-resource aksClusterDcra 'Microsoft.Insights/dataCollectionRuleAssociations@2023-03-11' = if (logAnalyticsWorkspaceId != '') {
-  name: '${aksClusterName}-dcra'
-  scope: aksCluster
-  properties: {
-    description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'
-    dataCollectionRuleId: aksClusterDcr.id
-  }
 }
 
 resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [

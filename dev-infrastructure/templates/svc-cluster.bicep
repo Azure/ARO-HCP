@@ -389,6 +389,19 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 output aksClusterName string = svcCluster.outputs.aksClusterName
 
 //
+// L O G S
+//
+
+// NOTE: This is only enabled for non-prod environments
+module logsCollection '../modules/logs/collection.bicep' = if (logAnalyticsWorkspaceId != '') {
+  name: 'logs-collection'
+  params: {
+    aksClusterName: svcCluster.outputs.aksClusterName
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+  }
+}
+
+//
 // M E T R I C S
 //
 
