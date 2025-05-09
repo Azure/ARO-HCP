@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/http"
 	"os"
@@ -45,11 +46,14 @@ const (
 	defaultPollIntervalSubscriptions = 10 * time.Minute
 	defaultPollIntervalOperations    = 10 * time.Second
 
-	collectSubscriptionsLabel  = "list_subscriptions"
-	processSubscriptionsLabel  = "process_subscriptions"
-	processOperationsLabel     = "process_operations"
-	pollClusterOperationLabel  = "poll_cluster"
-	pollNodePoolOperationLabel = "poll_node_pool"
+	// Check listOperationLabelValues() if adding more constants.
+	collectSubscriptionsLabel      = "list_subscriptions"
+	processSubscriptionsLabel      = "process_subscriptions"
+	processOperationsLabel         = "process_operations"
+	pollClusterOperationLabel      = "poll_cluster"
+	pollNodePoolOperationLabel     = "poll_node_pool"
+	pollBreakGlassCredential       = "poll_break_glass_credential"
+	pollBreakGlassCredentialRevoke = "poll_break_glass_credential_revoke"
 )
 
 // Copied from uhc-clusters-service, because the
@@ -78,6 +82,20 @@ type operation struct {
 	pk     azcosmos.PartitionKey
 	doc    *database.OperationDocument
 	logger *slog.Logger
+}
+
+// listOperationLabelValues returns an iterator that yields all recognized
+// label values for operation metrics.
+func listOperationLabelValues() iter.Seq[string] {
+	return slices.Values([]string{
+		collectSubscriptionsLabel,
+		processSubscriptionsLabel,
+		processOperationsLabel,
+		pollClusterOperationLabel,
+		pollNodePoolOperationLabel,
+		pollBreakGlassCredential,
+		pollBreakGlassCredentialRevoke,
+	})
 }
 
 type OperationsScanner struct {
@@ -161,13 +179,7 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 	}
 
 	// Initialize the counter and histogram metrics.
-	for _, v := range []string{
-		collectSubscriptionsLabel,
-		processSubscriptionsLabel,
-		processOperationsLabel,
-		pollClusterOperationLabel,
-		pollNodePoolOperationLabel,
-	} {
+	for v := range listOperationLabelValues() {
 		s.operationsCount.WithLabelValues(v)
 		s.operationsFailedCount.WithLabelValues(v)
 		s.operationsDuration.WithLabelValues(v)
@@ -462,8 +474,11 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 
 // pollBreakGlassCredential updates the status of a credential creation operation.
 func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op operation) {
+	defer s.updateOperationMetrics(pollBreakGlassCredential)()
+
 	breakGlassCredential, err := s.clusterService.GetBreakGlassCredential(ctx, op.doc.InternalID)
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
 		op.logger.Error(fmt.Sprintf("Failed to get break-glass credential: %v", err))
 		return
 	}
@@ -485,6 +500,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 	case cmv1.BreakGlassCredentialStatusIssued:
 		opStatus = arm.ProvisioningStateSucceeded
 	default:
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
 		op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
 		return
 	}
@@ -493,6 +509,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		return updateDoc.UpdateStatus(opStatus, opError)
 	})
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 	if updated {
@@ -503,6 +520,8 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 
 // pollBreakGlassCredentialRevoke updates the status of a credential revocation operation.
 func (s *OperationsScanner) pollBreakGlassCredentialRevoke(ctx context.Context, op operation) {
+	defer s.updateOperationMetrics(pollBreakGlassCredentialRevoke)()
+
 	var opStatus = arm.ProvisioningStateSucceeded
 	var opError *arm.CloudErrorBody
 
@@ -540,6 +559,7 @@ loop:
 				// Use a label to break out of the loop.
 				break loop
 			default:
+				s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
 				op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
 			}
 		}
@@ -547,6 +567,7 @@ loop:
 
 	err := iterator.GetError()
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
 		op.logger.Error(fmt.Sprintf("Error while paging through Cluster Service query results: %v", err.Error()))
 		return
 	}
@@ -555,6 +576,7 @@ loop:
 		return updateDoc.UpdateStatus(opStatus, opError)
 	})
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 	if updated {
