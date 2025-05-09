@@ -169,6 +169,8 @@ resourceGroups:
       configRef: mgmt.prometheus.namespaceLabel
     - name: RESOURCE_GROUP
       configRef: mgmt.rg
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
     dependsOn:
     - mgmt-cluster
   # Install ACRpull

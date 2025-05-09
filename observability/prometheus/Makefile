@@ -39,7 +39,8 @@ deploy: pull-chart
 		--set prometheus.prometheusSpec.shards=${PROMETHEUS_SPEC_SHARDS} \
 		--set prometheus.prometheusSpec.replicas=${PROMETHEUS_SPEC_REPLICAS} \
 		--set prometheus.prometheusSpec.remoteWrite[0].url=$${PROMETHEUS_RW_ENDPOINT} \
-		--set prometheus.prometheusSpec.topologySpreadConstraints[0].topologyKey=${TOPOLOGY_KEY}
+		--set prometheus.prometheusSpec.topologySpreadConstraints[0].topologyKey=${TOPOLOGY_KEY} \
+		--set prometheus.prometheusSpec.externalLabels.cluster=${CLUSTER_NAME}
 .PHONY: deploy
 
 pull-chart:
