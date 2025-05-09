@@ -13,6 +13,8 @@ node_modules
 .idea
 env
 */archive.tar.gz
+*/image-dependencies
+*/image-environment
 tooling/bin
 tooling/image-sync/config.yml
 **/venv
