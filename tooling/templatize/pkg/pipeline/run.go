@@ -15,6 +15,7 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -23,36 +24,12 @@ import (
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
 var DefaultDeploymentTimeoutSeconds = 30 * 60
 
-func NewPipelineFromFile(pipelineFilePath string, cfg config.Configuration) (*Pipeline, error) {
-	bytes, err := config.PreprocessFile(pipelineFilePath, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to preprocess pipeline file %w", err)
-	}
-
-	err = ValidatePipelineSchema(bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate pipeline schema: %w", err)
-	}
-
-	absPath, err := filepath.Abs(pipelineFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path for pipeline file %q: %w", pipelineFilePath, err)
-	}
-
-	pipeline, err := NewPlainPipelineFromBytes(absPath, bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal pipeline file %w", err)
-	}
-	err = pipeline.Validate()
-	if err != nil {
-		return nil, fmt.Errorf("pipeline file failed validation %w", err)
-	}
-	return pipeline, nil
-}
+type subsciptionLookup func(context.Context, string) (string, error)
 
 type PipelineRunOptions struct {
 	DryRun                   bool
@@ -62,23 +39,24 @@ type PipelineRunOptions struct {
 	SubsciptionLookupFunc    subsciptionLookup
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
+	PipelineFilePath         string
 }
 
-type armOutput map[string]any
-
-type output interface {
-	GetValue(key string) (*outPutValue, error)
+type Output interface {
+	GetValue(key string) (*OutPutValue, error)
 }
 
-type outPutValue struct {
+type OutPutValue struct {
 	Type  string `yaml:"type"`
 	Value any    `yaml:"value"`
 }
 
-func (o armOutput) GetValue(key string) (*outPutValue, error) {
+type ArmOutput map[string]any
+
+func (o ArmOutput) GetValue(key string) (*OutPutValue, error) {
 	if v, ok := o[key]; ok {
 		if innerValue, innerConversionOk := v.(map[string]any); innerConversionOk {
-			returnValue := outPutValue{
+			returnValue := OutPutValue{
 				Type:  innerValue["type"].(string),
 				Value: innerValue["value"],
 			}
@@ -88,10 +66,19 @@ func (o armOutput) GetValue(key string) (*outPutValue, error) {
 	return nil, fmt.Errorf("key %q not found", key)
 }
 
-func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOptions) (map[string]output, error) {
+type ShellOutput string
+
+func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
+	return &OutPutValue{
+		Type:  "string",
+		Value: string(o),
+	}, nil
+}
+
+func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions) (map[string]Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	outPuts := make(map[string]output)
+	outPuts := make(map[string]Output)
 
 	// set working directory to the pipeline file directory for the
 	// duration of the execution so that all commands and file references
@@ -100,7 +87,7 @@ func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOp
 	if err != nil {
 		return nil, err
 	}
-	dir := filepath.Dir(pipeline.pipelineFilePath)
+	dir := filepath.Dir(options.PipelineFilePath)
 	logger.V(7).Info("switch current dir to pipeline file directory", "path", dir)
 	err = os.Chdir(dir)
 	if err != nil {
@@ -135,7 +122,7 @@ func RunPipeline(pipeline *Pipeline, ctx context.Context, options *PipelineRunOp
 	return outPuts, nil
 }
 
-func RunResourceGroup(rg *ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]output) error {
+func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]Output) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
@@ -177,7 +164,7 @@ func RunResourceGroup(rg *ResourceGroup, ctx context.Context, options *PipelineR
 	return nil
 }
 
-func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]output) (output, error) {
+func RunStep(s types.Step, ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]Output) (Output, error) {
 	if options.Step != "" && s.StepName() != options.Step {
 		// skip steps that don't match the specified step name
 		return nil, nil
@@ -190,9 +177,16 @@ func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget
 	fmt.Print("\n")
 
 	switch step := s.(type) {
-	case *ShellStep:
-		return nil, runShellStep(step, ctx, kubeconfigFile, options, outPuts)
-	case *ARMStep:
+	case *types.ShellStep:
+		var buf bytes.Buffer
+		err := runShellStep(step, ctx, kubeconfigFile, options, outPuts, &buf)
+		if err != nil {
+			return nil, fmt.Errorf("error running Shell Step, %v", err)
+		}
+		output := buf.String()
+		fmt.Println(output)
+		return ShellOutput(output), nil
+	case *types.ARMStep:
 		a := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
 		if a == nil {
 			return nil, fmt.Errorf("failed to create ARM client")
@@ -208,7 +202,7 @@ func RunStep(s Step, ctx context.Context, kubeconfigFile string, executionTarget
 	}
 }
 
-func getInputValues(configuredVariables []Variable, cfg config.Configuration, inputs map[string]output) (map[string]any, error) {
+func getInputValues(configuredVariables []types.Variable, cfg config.Configuration, inputs map[string]Output) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {

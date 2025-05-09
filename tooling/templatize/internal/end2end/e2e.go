@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -41,7 +42,7 @@ type E2E interface {
 	SetConfig(updates config.Configuration)
 	UseRandomRG() func() error
 	AddBicepTemplate(template, templateFileName, paramfile, paramfileName string)
-	AddStep(step pipeline.Step, rg int)
+	AddStep(step types.Step, rg int)
 	SetOSArgs()
 	EnableDryRun()
 	Persist() error
@@ -57,7 +58,7 @@ type bicepTemplate struct {
 type e2eImpl struct {
 	config   config.Configuration
 	makefile string
-	pipeline pipeline.Pipeline
+	pipeline types.Pipeline
 	biceps   []bicepTemplate
 	schema   string
 	tmpdir   string
@@ -88,10 +89,10 @@ func newE2E(tmpdir string) e2eImpl {
 				},
 			},
 		},
-		pipeline: pipeline.Pipeline{
+		pipeline: types.Pipeline{
 			ServiceGroup: "Microsoft.Azure.ARO.Test",
 			RolloutName:  "Test Rollout",
-			ResourceGroups: []*pipeline.ResourceGroup{
+			ResourceGroups: []*types.ResourceGroup{
 				{
 					Name:         "{{ .rg }}",
 					Subscription: "{{ .subscription }}",
@@ -157,7 +158,7 @@ func (e *e2eImpl) EnableDryRun() {
 
 func (e *e2eImpl) AddResourceGroup() {
 	numRgs := len(e.pipeline.ResourceGroups)
-	e.pipeline.ResourceGroups = append(e.pipeline.ResourceGroups, &pipeline.ResourceGroup{
+	e.pipeline.ResourceGroups = append(e.pipeline.ResourceGroups, &types.ResourceGroup{
 		Name:         fmt.Sprintf("{{ .rg }}-%d", numRgs+1),
 		Subscription: "{{ .subscription }}",
 	},
@@ -168,7 +169,7 @@ func (e *e2eImpl) SetAKSName(aksName string) {
 	e.pipeline.ResourceGroups[0].AKSCluster = aksName
 }
 
-func (e *e2eImpl) AddStep(step pipeline.Step, rg int) {
+func (e *e2eImpl) AddStep(step types.Step, rg int) {
 	e.pipeline.ResourceGroups[rg].Steps = append(e.pipeline.ResourceGroups[rg].Steps, step)
 }
 

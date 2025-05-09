@@ -20,8 +20,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-Tools/pkg/types"
+
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func DefaultOptions() *RawPipelineOptions {
@@ -69,9 +70,10 @@ type ValidatedPipelineOptions struct {
 
 // completedPipelineOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedPipelineOptions struct {
-	RolloutOptions *options.RolloutOptions
-	Pipeline       *pipeline.Pipeline
-	Step           string
+	RolloutOptions   *options.RolloutOptions
+	Pipeline         *types.Pipeline
+	Step             string
+	PipelineFilePath string
 }
 
 type PipelineOptions struct {
@@ -103,16 +105,17 @@ func (o *ValidatedPipelineOptions) Complete() (*PipelineOptions, error) {
 		return nil, err
 	}
 
-	pipeline, err := pipeline.NewPipelineFromFile(o.PipelineFile, completed.Config)
+	pipeline, err := types.NewPipelineFromFile(o.PipelineFile, completed.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load pipeline %s: %w", o.PipelineFile, err)
 	}
 
 	return &PipelineOptions{
 		completedPipelineOptions: &completedPipelineOptions{
-			RolloutOptions: completed,
-			Pipeline:       pipeline,
-			Step:           o.Step,
+			RolloutOptions:   completed,
+			Pipeline:         pipeline,
+			Step:             o.Step,
+			PipelineFilePath: o.PipelineFile,
 		},
 	}, nil
 }

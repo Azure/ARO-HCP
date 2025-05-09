@@ -110,11 +110,13 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		rolloutOptions.Cloud,
 		rolloutOptions.DeployEnv,
 		rolloutOptions.Region,
-		config.NewConfigReplacements(
-			rolloutOptions.Region,
-			rolloutOptions.RegionShort,
-			rolloutOptions.Stamp,
-		),
+		&config.ConfigReplacements{
+			RegionReplacement:      rolloutOptions.Region,
+			RegionShortReplacement: rolloutOptions.RegionShort,
+			StampReplacement:       rolloutOptions.Stamp,
+			CloudReplacement:       rolloutOptions.Cloud,
+			EnvironmentReplacement: rolloutOptions.DeployEnv,
+		},
 	)
 	if err != nil {
 		return err
@@ -127,6 +129,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		SubsciptionLookupFunc:    pipeline.LookupSubscriptionID,
 		NoPersist:                o.NoPersist,
 		DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
+		PipelineFilePath:         o.PipelineOptions.PipelineFilePath,
 	})
 	return err
 }
