@@ -52,6 +52,24 @@ type DocumentProperties interface {
 	GetValidTypes() []string
 }
 
+type BillingDocument struct {
+	// The cluster creation time represents the time when the cluster was provisioned successfully
+	CreationTime time.Time `json:"creationTime,omitempty"`
+	// The cluster deletion time
+	DeletionTime *time.Time `json:"deletionTime,omitempty"`
+	// The cluster last billing time
+	LastBillingTime *time.Time `json:"lastBillingTime,omitempty"`
+
+	// The location of the HCP cluster
+	Location string `json:"location,omitempty"`
+	// The tenant ID of the HCP cluster
+	TenantID string `json:"tenantId,omitempty"`
+	// The hcp cluster ARM resource ID
+	ResourceID string `json:"resourceId,omitempty"`
+	// The ARM resource ID of the managed resource group of the hcp cluster
+	ManagedResourceGroup string `json:"managedResourceGroup,omitempty"`
+}
+
 // ResourceDocument captures the mapping of an Azure resource ID
 // to an internal resource ID (the OCM API path), as well as any
 // ARM-specific metadata for the resource.
