@@ -37,9 +37,6 @@ func createCommand(ctx context.Context, scriptCommand string, dryRun *types.DryR
 		if dryRun.Command != "" {
 			scriptCommand = dryRun.Command
 		}
-		for _, e := range dryRun.Variables {
-			envVars[e.Name] = e.Value
-		}
 	}
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", buildBashScript(scriptCommand))
 	cmd.Env = append(cmd.Env, utils.MapToEnvVarArray(envVars)...)
@@ -53,6 +50,18 @@ func buildBashScript(command string) string {
 func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	// set dryRun config if needed
+	var dryRun *types.DryRun
+	var dryRunVars map[string]string
+	var err error
+	if options.DryRun {
+		dryRun = &s.DryRun
+		dryRunVars, err = mapStepVariables(dryRun.Variables, options.Configuration, inputs)
+		if err != nil {
+			return fmt.Errorf("failed to build dry run vars: %w", err)
+		}
+	}
+
 	// build ENV vars
 	stepVars, err := mapStepVariables(s.Variables, options.Configuration, inputs)
 	if err != nil {
@@ -62,12 +71,8 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	envVars := utils.GetOsVariable()
 
 	maps.Copy(envVars, stepVars)
+	maps.Copy(envVars, dryRunVars)
 
-	// execute the command
-	var dryRun *types.DryRun
-	if options.DryRun {
-		dryRun = &s.DryRun
-	}
 	cmd, skipCommand := createCommand(ctx, s.Command, dryRun, envVars)
 	if skipCommand {
 		logger.V(5).Info(fmt.Sprintf("Skipping step '%s' due to missing dry-run configuration", s.Name))
