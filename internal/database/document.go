@@ -66,7 +66,7 @@ type BillingDocument struct {
 	TenantID string `json:"tenantId,omitempty"`
 	// The hcp cluster ARM resource ID
 	ResourceID string `json:"resourceId,omitempty"`
-	// The managed resource group of the hcp cluster
+	// The ARM resource ID of the managed resource group of the hcp cluster
 	ManagedResourceGroup string `json:"managedResourceGroup,omitempty"`
 }
 
