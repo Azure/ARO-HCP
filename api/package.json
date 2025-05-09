@@ -1,14 +1,14 @@
 {
   "dependencies": {
-    "@azure-tools/typespec-autorest": "^0.53.0",
-    "@azure-tools/typespec-azure-core": "^0.53.0",
-    "@azure-tools/typespec-azure-resource-manager": "^0.53.0",
-    "@azure-tools/typespec-azure-rulesets": "^0.53.0",
+    "@azure-tools/typespec-autorest": "^0.55.0",
+    "@azure-tools/typespec-azure-core": "^0.55.0",
+    "@azure-tools/typespec-azure-resource-manager": "^0.55.0",
+    "@azure-tools/typespec-azure-rulesets": "^0.55.0",
     "@typespec/http": "^0.67.1",
     "@typespec/openapi": "^0.67.1",
     "@typespec/openapi3": "^0.67.1",
-    "@typespec/rest": "^0.67.1",
-    "@typespec/versioning": "^0.67.1"
+    "@typespec/rest": "^0.69.0",
+    "@typespec/versioning": "^0.69.0"
   },
   "scripts": {
     "format-check": "tsp format --check \"**/*.tsp\"",
@@ -16,7 +16,7 @@
     "generate": "tsp compile redhatopenshift/HcpCluster.Management --warn-as-error && autorest --verbose autorest-config.yaml"
   },
   "devDependencies": {
-    "@typespec/compiler": "^0.67.1",
+    "@typespec/compiler": "^0.67.2",
     "autorest": "^3.7.1"
   }
 }
