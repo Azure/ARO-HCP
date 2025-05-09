@@ -5,10 +5,10 @@ FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-
 RUN yum install --assumeyes jq
 ARG CURRENT_COMMIT
 WORKDIR /app
-ADD archive.tar.gz .
+COPY . .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips' CURRENT_COMMIT=${CURRENT_COMMIT}
-RUN cd frontend && make frontend CURRENT_COMMIT=${CURRENT_COMMIT}
+RUN make --directory frontend CURRENT_COMMIT=${CURRENT_COMMIT}
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot
 WORKDIR /
