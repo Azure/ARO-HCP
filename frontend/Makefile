@@ -29,7 +29,7 @@ build-push: image push
 
 image:
 	pushd .. && git archive --output frontend/archive.tar.gz HEAD && popd
-	docker build --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} -f "./Dockerfile" -t ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT} .
+	docker build --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} --build-arg PLATFORM=linux/amd64 --tag ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT} .
 	rm -f archive.tar.gz
 .PHONY: image
 
