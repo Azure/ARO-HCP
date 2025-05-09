@@ -17,7 +17,7 @@ spec:
       name: hypershift-local-hosting
     - enabled: true
       name: hypershift
-    - enabled: false
+    - enabled: true
       name: cluster-lifecycle
     - enabled: false
       name: discovery
