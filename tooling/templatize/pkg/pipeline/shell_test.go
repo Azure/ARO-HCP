@@ -15,10 +15,9 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"log"
-	"os"
 	"strings"
 	"testing"
 
@@ -107,7 +106,7 @@ func TestMapStepVariables(t *testing.T) {
 	testCases := []struct {
 		name     string
 		cfg      config.Configuration
-		input    map[string]output
+		input    map[string]Output
 		step     *types.ShellStep
 		expected map[string]string
 		err      string
@@ -187,8 +186,8 @@ func TestMapStepVariables(t *testing.T) {
 					},
 				},
 			},
-			input: map[string]output{
-				"step1": armOutput{
+			input: map[string]Output{
+				"step1": ArmOutput{
 					"output1": map[string]any{
 						"type":  "String",
 						"value": "bar",
@@ -229,8 +228,8 @@ func TestMapStepVariables(t *testing.T) {
 					},
 				},
 			},
-			input: map[string]output{
-				"step1": armOutput{
+			input: map[string]Output{
+				"step1": ArmOutput{
 					"anotheroutput": map[string]any{
 						"type":  "String",
 						"value": "bar",
@@ -255,6 +254,7 @@ func TestMapStepVariables(t *testing.T) {
 }
 
 func TestRunShellStep(t *testing.T) {
+	var buf bytes.Buffer
 	testCases := []struct {
 		name string
 		cfg  config.Configuration
@@ -295,7 +295,7 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := runShellStepAndCaptureOutput(tc.step, context.Background(), "", &PipelineRunOptions{}, map[string]output{})
+			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, map[string]Output{}, &buf)
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
@@ -309,16 +309,9 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 	step := &types.ShellStep{
 		Command: "echo hallo",
 	}
-	outFile, err := os.CreateTemp("", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.Remove(outFile.Name())
-	os.Setenv(OUTPUT_CAPTURE_PATH, outFile.Name())
+	var buf bytes.Buffer
 
-	err = runShellStepAndCaptureOutput(step, context.Background(), "", &PipelineRunOptions{}, map[string]output{})
+	err := runShellStep(step, context.Background(), "", &PipelineRunOptions{}, map[string]Output{}, &buf)
 	assert.NilError(t, err)
-	content, err := os.ReadFile(outFile.Name())
-	assert.NilError(t, err)
-	assert.Equal(t, string(content), "hallo\n")
+	assert.Equal(t, buf.String(), "hallo\n")
 }
