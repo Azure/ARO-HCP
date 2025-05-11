@@ -25,8 +25,9 @@ clean:
 
 image:
 	@bash -c "set -e; pushd .. > /dev/null; \
-	          trap 'rm --force image-dependencies && popd > /dev/null' EXIT; \
+	          trap 'rm --force image-dependencies image-environment && popd > /dev/null' EXIT; \
 	          go list -f "{{.Path}}@{{.Version}}" -m all | grep --invert-match "github.com/Azure/ARO-HCP" > image-dependencies; \
+	          cp ${ENV_VARS_FILE} image-environment; \
 	          docker build . --file backend/Dockerfile \
 	                         --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} \
 	                         --build-arg PLATFORM=linux/amd64 \
