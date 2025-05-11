@@ -25,9 +25,10 @@ clean:
 
 image:
 	pushd .. && git archive --output backend/archive.tar.gz HEAD && popd
+	cp ${ENV_VARS_FILE} image-environment
 	go list -f "{{.Path}}@{{.Version}}" -m all | grep --invert-match "github.com/Azure/ARO-HCP" > image-dependencies
 	docker build --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} --build-arg PLATFORM=linux/amd64 --tag ${ARO_HCP_BACKEND_IMAGE}:${CURRENT_COMMIT} .
-	rm -f archive.tar.gz image-dependencies
+	rm -f archive.tar.gz image-dependencies image-environment
 .PHONY: image
 
 push: image
