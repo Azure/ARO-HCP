@@ -854,7 +854,13 @@ func (s *OperationsScanner) convertClusterStatus(ctx context.Context, op operati
 	case arohcpv1alpha1.ClusterStateInstalling:
 		opStatus = arm.ProvisioningStateProvisioning
 	case arohcpv1alpha1.ClusterStateReady:
-		opStatus = arm.ProvisioningStateSucceeded
+		// Resource deletion is successful when fetching its state
+		// from Cluster Service returns a "404 Not Found" error. If
+		// we see the resource in a "Ready" state during a deletion
+		// operation, leave the current provisioning state as is.
+		if op.doc.Request != database.OperationRequestDelete {
+			opStatus = arm.ProvisioningStateSucceeded
+		}
 	case arohcpv1alpha1.ClusterStateUninstalling:
 		opStatus = arm.ProvisioningStateDeleting
 	case arohcpv1alpha1.ClusterStatePending, arohcpv1alpha1.ClusterStateValidating:
@@ -890,7 +896,13 @@ func convertNodePoolStatus(op operation, nodePoolStatus *arohcpv1alpha1.NodePool
 	case NodePoolStateInstalling:
 		opStatus = arm.ProvisioningStateProvisioning
 	case NodePoolStateReady:
-		opStatus = arm.ProvisioningStateSucceeded
+		// Resource deletion is successful when fetching its state
+		// from Cluster Service returns a "404 Not Found" error. If
+		// we see the resource in a "Ready" state during a deletion
+		// operation, leave the current provisioning state as is.
+		if op.doc.Request != database.OperationRequestDelete {
+			opStatus = arm.ProvisioningStateSucceeded
+		}
 	case NodePoolStateUpdating:
 		opStatus = arm.ProvisioningStateUpdating
 	case NodePoolStateUninstalling:
