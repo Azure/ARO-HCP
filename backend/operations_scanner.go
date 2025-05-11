@@ -532,7 +532,7 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 		return
 	}
 
-	opStatus, opError, err := convertNodePoolStatus(nodePoolStatus, op.doc.Status)
+	opStatus, opError, err := convertNodePoolStatus(op, nodePoolStatus)
 	if err != nil {
 		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 		op.logger.Warn(err.Error())
@@ -874,8 +874,8 @@ func (s *OperationsScanner) convertClusterStatus(ctx context.Context, op operati
 // convertNodePoolStatus attempts to translate a NodePoolStatus object
 // from Cluster Service into an ARM provisioning state and, if necessary,
 // a structured OData error.
-func convertNodePoolStatus(nodePoolStatus *arohcpv1alpha1.NodePoolStatus, current arm.ProvisioningState) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
-	var opStatus = current
+func convertNodePoolStatus(op operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var opStatus = op.doc.Status
 	var opError *arm.CloudErrorBody
 	var err error
 
@@ -884,8 +884,8 @@ func convertNodePoolStatus(nodePoolStatus *arohcpv1alpha1.NodePoolStatus, curren
 		// These are valid node pool states for ARO-HCP but there are
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
-		if current != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, current, arm.ProvisioningStateAccepted)
+		if opStatus != arm.ProvisioningStateAccepted {
+			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, opStatus, arm.ProvisioningStateAccepted)
 		}
 	case NodePoolStateInstalling:
 		opStatus = arm.ProvisioningStateProvisioning
