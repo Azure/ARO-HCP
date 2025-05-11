@@ -11,7 +11,7 @@ WORKDIR /app
 COPY . .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips' CURRENT_COMMIT=${CURRENT_COMMIT}
-RUN make --directory backend CURRENT_COMMIT=${CURRENT_COMMIT}
+RUN make --directory backend CURRENT_COMMIT=${CURRENT_COMMIT} ENV_VARS_FILE=/app/image-environment
 
 
 # Deployment image copies aro-hcp-backend from builder image
