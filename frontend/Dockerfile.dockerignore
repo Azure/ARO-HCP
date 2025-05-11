@@ -1,4 +1,5 @@
 **
+!image-environment
 !internal/go.*
 !internal/**/*.go
 !frontend/go.*

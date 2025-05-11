@@ -29,7 +29,8 @@ build-push: image push
 
 image:
 	@bash -c "set -e; pushd .. > /dev/null; \
-	          trap 'popd > /dev/null' EXIT; \
+	          trap 'rm --force image-environment && popd > /dev/null' EXIT; \
+	          cp ${ENV_VARS_FILE} image-environment; \
 	          docker build . --file frontend/Dockerfile \
 	                         --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} \
 	                         --build-arg PLATFORM=linux/amd64 \
