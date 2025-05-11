@@ -8,9 +8,10 @@ COPY image-dependencies .
 RUN cat image-dependencies | xargs go mod download
 WORKDIR /app
 ADD archive.tar.gz .
+COPY image-environment .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips' CURRENT_COMMIT=${CURRENT_COMMIT}
-RUN cd frontend && make frontend CURRENT_COMMIT=${CURRENT_COMMIT}
+RUN cd frontend && make frontend CURRENT_COMMIT=${CURRENT_COMMIT} ENV_VARS_FILE=/app/image-environment
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot
 WORKDIR /
