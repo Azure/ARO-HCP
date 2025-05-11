@@ -486,8 +486,17 @@ func TestConvertClusterStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			opState, opError, err := operationsScanner.convertClusterStatus(context.Background(), slog.Default(),
-				clusterStatus, tt.currentProvisioningState, tt.internalId)
+			ctx := context.Background()
+
+			op := operation{
+				doc: &database.OperationDocument{
+					InternalID: tt.internalId,
+					Status:     tt.currentProvisioningState,
+				},
+				logger: slog.Default(),
+			}
+
+			opState, opError, err := operationsScanner.convertClusterStatus(ctx, op, clusterStatus)
 
 			assert.Equal(t, tt.updatedProvisioningState, opState)
 
