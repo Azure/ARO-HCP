@@ -494,7 +494,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 		return
 	}
 
-	opStatus, opError, err := s.convertClusterStatus(ctx, op.logger, clusterStatus, op.doc.Status, op.doc.InternalID)
+	opStatus, opError, err := s.convertClusterStatus(ctx, op, clusterStatus)
 	if err != nil {
 		s.recordOperationError(ctx, pollClusterOperationLabel, err)
 		op.logger.Warn(err.Error())
@@ -823,10 +823,8 @@ func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operat
 // convertClusterStatus attempts to translate a ClusterStatus object from
 // Cluster Service into an ARM provisioning state and, if necessary, a
 // structured OData error.
-func (s *OperationsScanner) convertClusterStatus(ctx context.Context, logger *slog.Logger,
-	clusterStatus *arohcpv1alpha1.ClusterStatus, current arm.ProvisioningState,
-	internalId ocm.InternalID) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
-	var opStatus = current
+func (s *OperationsScanner) convertClusterStatus(ctx context.Context, op operation, clusterStatus *arohcpv1alpha1.ClusterStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var opStatus = op.doc.Status
 	var opError *arm.CloudErrorBody
 	var err error
 
@@ -846,7 +844,7 @@ func (s *OperationsScanner) convertClusterStatus(ctx context.Context, logger *sl
 		// Construct the cloud error code depending on the provision error code.
 		switch code {
 		case InflightChecksFailedProvisionErrorCode:
-			opError, err = s.convertInflightChecks(ctx, logger, internalId)
+			opError, err = s.convertInflightChecks(ctx, op.logger, op.doc.InternalID)
 			if err != nil {
 				return opStatus, opError, err
 			}
@@ -863,8 +861,8 @@ func (s *OperationsScanner) convertClusterStatus(ctx context.Context, logger *sl
 		// These are valid cluster states for ARO-HCP but there are
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
-		if current != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, current, arm.ProvisioningStateAccepted)
+		if opStatus != arm.ProvisioningStateAccepted {
+			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, opStatus, arm.ProvisioningStateAccepted)
 		}
 	default:
 		err = fmt.Errorf("unhandled ClusterState '%s'", state)
