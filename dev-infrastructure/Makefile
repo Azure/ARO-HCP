@@ -352,6 +352,19 @@ infra: region svc.init mgmt.init
 clean: svc.clean mgmt.clean region.clean
 .PHONY: clean
 
+nightly:
+nightly: DEPLOY_ENV = nightly
+nightly: global acr-svc-cfg acr-ocp-cfg infra
+.PHONY: nightly
+
+nightly.what-if: DEPLOY_ENV = nightly
+nightly.what-if: what-if
+.PHONY: nightly.what-if
+
+nightly.clean: DEPLOY_ENV = nightly
+nightly.clean: clean
+.PHONY: nightly.clean
+
 #
 # Local CS Development
 #
