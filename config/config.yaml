@@ -508,7 +508,7 @@ clouds:
         # this is an environment to test the deployability of infra nightly
         defaults:
           global:
-            subscription: ARO HCP nightly global (EA Subscription)
+            subscription: ARO Hosted Control Planes (EA Subscription 1)
             rg: global
             region: westus3
             globalMSIName: "global-rollout-identity"
@@ -521,17 +521,20 @@ clouds:
               name: arohcpdev-global
               private: false
               softDelete: true
-          acr:
-            svc:
-              name: arohcpsvcdev
-              zoneRedundantMode: Disabled
-            ocp:
-              name: arohcpocpdev
-              zoneRedundantMode: Disabled
+            # acr:
+            #   svc:
+            #     name: arohcpsvcdevntly
+            #     zoneRedundantMode: Disabled
+            #   ocp:
+            #     name: arohcpocpdevntly
+            #     zoneRedundantMode: Disabled
           # Cluster Service
           svc:
             subscription: ARO HCP nightly service (EA Subscription)
             rg: hcp-underlay-{{ .ctx.regionShort }}-svc
+            nsp:
+              name: nsp-{{ .ctx.regionShort }}-svc
+              accessMode: 'Learning'
             aks:
               name: "{{ .ctx.regionShort }}-svc"
               etcd:
@@ -547,6 +550,9 @@ clouds:
             subscription: ARO HCP nightly management (EA Subscription)
             rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
             applyKubeletFixes: false
+            nsp:
+              name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+              accessMode: 'Learning'
             aks:
               name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
               systemAgentPool:
@@ -555,6 +561,8 @@ clouds:
               userAgentPool:
                 minCount: 1
                 maxCount: 6
+          serviceKeyVault:
+            assignNSP: false
           # Cluster Service
           clustersService:
             postgres:
