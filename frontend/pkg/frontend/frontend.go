@@ -317,7 +317,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	// Check for iteration error.
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
 		return
 	}
 
@@ -407,14 +407,14 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var updating = (doc != nil)
+	var updating = (resourceDoc != nil)
 	var operationRequest database.OperationRequest
 
 	var versionedCurrentCluster api.VersionedHCPOpenShiftCluster
@@ -422,16 +422,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	var successStatusCode int
 
 	if updating {
-		// Note that because we found a database document for the cluster,
-		// we expect Cluster Service to return us a cluster object.
-		//
-		// No special treatment here for "not found" errors. A "not found"
-		// error indicates the database has gotten out of sync and so it's
-		// appropriate to fail.
-		csCluster, err := f.clusterServiceClient.GetCluster(ctx, doc.InternalID)
+		csCluster, err := f.clusterServiceClient.GetCluster(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
@@ -469,12 +463,12 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 
-		doc = database.NewResourceDocument(resourceID)
+		resourceDoc = database.NewResourceDocument(resourceID)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, doc)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
@@ -512,10 +506,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, doc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 	} else {
@@ -523,11 +517,11 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
-		doc.InternalID, err = ocm.NewInternalID(csCluster.HREF())
+		resourceDoc.InternalID, err = ocm.NewInternalID(csCluster.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -536,7 +530,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 	tracing.SetClusterAttributes(trace.SpanFromContext(ctx), csCluster)
 
-	operationDoc := database.NewOperationDocument(operationRequest, doc.ResourceID, doc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
 
 	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
 	if err != nil {
@@ -555,14 +549,14 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	// This is called directly when creating a resource, and indirectly from
 	// within a retry loop when updating a resource.
-	updateResourceMetadata := func(doc *database.ResourceDocument) bool {
-		doc.ActiveOperationID = operationID
-		doc.ProvisioningState = operationDoc.Status
+	updateResourceMetadata := func(updateDoc *database.ResourceDocument) bool {
+		updateDoc.ActiveOperationID = operationID
+		updateDoc.ProvisioningState = operationDoc.Status
 
 		// Record managed identity type and any system-assigned identifiers.
 		// Omit the user-assigned identities map since that is reconstructed
 		// from Cluster Service data.
-		doc.Identity = &arm.ManagedServiceIdentity{
+		updateDoc.Identity = &arm.ManagedServiceIdentity{
 			PrincipalID: hcpCluster.Identity.PrincipalID,
 			TenantID:    hcpCluster.Identity.TenantID,
 			Type:        hcpCluster.Identity.Type,
@@ -570,7 +564,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 		// Record the latest system data values from ARM, if present.
 		if systemData != nil {
-			doc.SystemData = systemData
+			updateDoc.SystemData = systemData
 		}
 
 		// Here the difference between a nil map and an empty map is significant.
@@ -579,15 +573,15 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// empty, that means it was specified in the request body and should fully
 		// replace any existing tags.
 		if hcpCluster.Tags != nil {
-			doc.Tags = hcpCluster.Tags
+			updateDoc.Tags = hcpCluster.Tags
 		}
 
 		return true
 	}
 
 	if !updating {
-		updateResourceMetadata(doc)
-		err = f.dbClient.CreateResourceDoc(ctx, doc)
+		updateResourceMetadata(resourceDoc)
+		err = f.dbClient.CreateResourceDoc(ctx, resourceDoc)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -605,7 +599,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			logger.Info(fmt.Sprintf("document updated for %s", resourceID))
 		}
 		// Get the updated resource document for the response.
-		doc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
+		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -613,7 +607,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	}
 
-	responseBody, err := marshalCSCluster(csCluster, doc, versionedInterface)
+	responseBody, err := marshalCSCluster(csCluster, resourceDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1079,7 +1073,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, false, http.MethodPut)
+			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, nil, false, http.MethodPut)
 
 		default:
 			// Disregard foreign resource types.

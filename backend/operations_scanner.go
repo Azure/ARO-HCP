@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/http"
 	"os"
@@ -45,11 +46,14 @@ const (
 	defaultPollIntervalSubscriptions = 10 * time.Minute
 	defaultPollIntervalOperations    = 10 * time.Second
 
-	collectSubscriptionsLabel  = "list_subscriptions"
-	processSubscriptionsLabel  = "process_subscriptions"
-	processOperationsLabel     = "process_operations"
-	pollClusterOperationLabel  = "poll_cluster"
-	pollNodePoolOperationLabel = "poll_node_pool"
+	// Check listOperationLabelValues() if adding more constants.
+	collectSubscriptionsLabel      = "list_subscriptions"
+	processSubscriptionsLabel      = "process_subscriptions"
+	processOperationsLabel         = "process_operations"
+	pollClusterOperationLabel      = "poll_cluster"
+	pollNodePoolOperationLabel     = "poll_node_pool"
+	pollBreakGlassCredential       = "poll_break_glass_credential"
+	pollBreakGlassCredentialRevoke = "poll_break_glass_credential_revoke"
 )
 
 // Copied from uhc-clusters-service, because the
@@ -80,13 +84,27 @@ type operation struct {
 	logger *slog.Logger
 }
 
+// listOperationLabelValues returns an iterator that yields all recognized
+// label values for operation metrics.
+func listOperationLabelValues() iter.Seq[string] {
+	return slices.Values([]string{
+		collectSubscriptionsLabel,
+		processSubscriptionsLabel,
+		processOperationsLabel,
+		pollClusterOperationLabel,
+		pollNodePoolOperationLabel,
+		pollBreakGlassCredential,
+		pollBreakGlassCredentialRevoke,
+	})
+}
+
 type OperationsScanner struct {
 	dbClient            database.DBClient
 	lockClient          *database.LockClient
 	clusterService      ocm.ClusterServiceClient
 	notificationClient  *http.Client
-	subscriptions       []string
 	subscriptionsLock   sync.Mutex
+	subscriptions       []string
 	subscriptionChannel chan string
 	subscriptionWorkers sync.WaitGroup
 
@@ -96,6 +114,7 @@ type OperationsScanner struct {
 	operationsFailedCount  *prometheus.CounterVec
 	operationsDuration     *prometheus.HistogramVec
 	lastOperationTimestamp *prometheus.GaugeVec
+	subscriptionsByState   *prometheus.GaugeVec
 }
 
 func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
@@ -150,20 +169,25 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 			},
 			[]string{"type"},
 		),
+		subscriptionsByState: promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "backend_subscriptions",
+				Help: "Number of subscriptions by state.",
+			},
+			[]string{"state"},
+		),
 	}
 
 	// Initialize the counter and histogram metrics.
-	for _, v := range []string{
-		collectSubscriptionsLabel,
-		processSubscriptionsLabel,
-		processOperationsLabel,
-		pollClusterOperationLabel,
-		pollNodePoolOperationLabel,
-	} {
+	for v := range listOperationLabelValues() {
 		s.operationsCount.WithLabelValues(v)
 		s.operationsFailedCount.WithLabelValues(v)
 		s.operationsDuration.WithLabelValues(v)
 		s.lastOperationTimestamp.WithLabelValues(v)
+	}
+
+	for subscriptionState := range arm.ListSubscriptionStates() {
+		s.subscriptionsByState.WithLabelValues(string(subscriptionState))
 	}
 
 	return s
@@ -281,12 +305,17 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 
 	iterator := s.dbClient.ListAllSubscriptionDocs()
 
+	subscriptionStates := map[arm.SubscriptionState]int{}
+	for subscriptionState := range arm.ListSubscriptionStates() {
+		subscriptionStates[subscriptionState] = 0
+	}
 	for subscriptionID, subscription := range iterator.Items(ctx) {
 		// Unregistered subscriptions should have no active operations,
 		// not even deletes.
 		if subscription.State != arm.SubscriptionStateUnregistered {
 			subscriptions = append(subscriptions, subscriptionID)
 		}
+		subscriptionStates[subscription.State]++
 	}
 
 	err := iterator.GetError()
@@ -301,6 +330,10 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 
 	if len(subscriptions) != len(s.subscriptions) {
 		logger.Info(fmt.Sprintf("Tracking %d active subscriptions", len(subscriptions)))
+	}
+
+	for k, v := range subscriptionStates {
+		s.subscriptionsByState.WithLabelValues(string(k)).Set(float64(v))
 	}
 
 	s.subscriptions = subscriptions
@@ -350,14 +383,14 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 		op := operation{operationID, pk, operationDoc, operationLogger}
 
 		switch operationDoc.InternalID.Kind() {
-		case cmv1.ClusterKind:
+		case arohcpv1alpha1.ClusterKind:
 			switch operationDoc.Request {
 			case database.OperationRequestRevokeCredentials:
 				s.pollBreakGlassCredentialRevoke(ctx, op)
 			default:
 				s.pollClusterOperation(ctx, op)
 			}
-		case cmv1.NodePoolKind:
+		case arohcpv1alpha1.NodePoolKind:
 			s.pollNodePoolOperation(ctx, op)
 		case cmv1.BreakGlassCredentialKind:
 			s.pollBreakGlassCredential(ctx, op)
@@ -441,8 +474,11 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 
 // pollBreakGlassCredential updates the status of a credential creation operation.
 func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op operation) {
+	defer s.updateOperationMetrics(pollBreakGlassCredential)()
+
 	breakGlassCredential, err := s.clusterService.GetBreakGlassCredential(ctx, op.doc.InternalID)
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
 		op.logger.Error(fmt.Sprintf("Failed to get break-glass credential: %v", err))
 		return
 	}
@@ -464,6 +500,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 	case cmv1.BreakGlassCredentialStatusIssued:
 		opStatus = arm.ProvisioningStateSucceeded
 	default:
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
 		op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
 		return
 	}
@@ -472,6 +509,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		return updateDoc.UpdateStatus(opStatus, opError)
 	})
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 	if updated {
@@ -482,6 +520,8 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 
 // pollBreakGlassCredentialRevoke updates the status of a credential revocation operation.
 func (s *OperationsScanner) pollBreakGlassCredentialRevoke(ctx context.Context, op operation) {
+	defer s.updateOperationMetrics(pollBreakGlassCredentialRevoke)()
+
 	var opStatus = arm.ProvisioningStateSucceeded
 	var opError *arm.CloudErrorBody
 
@@ -519,6 +559,7 @@ loop:
 				// Use a label to break out of the loop.
 				break loop
 			default:
+				s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
 				op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
 			}
 		}
@@ -526,6 +567,7 @@ loop:
 
 	err := iterator.GetError()
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
 		op.logger.Error(fmt.Sprintf("Error while paging through Cluster Service query results: %v", err.Error()))
 		return
 	}
@@ -534,6 +576,7 @@ loop:
 		return updateDoc.UpdateStatus(opStatus, opError)
 	})
 	if err != nil {
+		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 	if updated {

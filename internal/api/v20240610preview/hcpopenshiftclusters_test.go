@@ -15,7 +15,6 @@
 package v20240610preview
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -37,7 +36,7 @@ func compareErrors(x, y []arm.CloudErrorBody) string {
 		cmpopts.IgnoreFields(arm.CloudErrorBody{}, "Code"))
 }
 
-func TestClusterRequiredForPut(t *testing.T) {
+func TestClusterValidateStaticComplex(t *testing.T) {
 	tests := []struct {
 		name         string
 		tweaks       *api.HCPOpenShiftCluster
@@ -46,6 +45,22 @@ func TestClusterRequiredForPut(t *testing.T) {
 		{
 			name:   "Minimum valid cluster",
 			tweaks: &api.HCPOpenShiftCluster{},
+		},
+		{
+			name: "Cluster with invalid channel group",
+			tweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					Version: api.VersionProfile{
+						ChannelGroup: "freshmeat",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Channel group must be 'stable'",
+					Target:  "properties.version.channelGroup",
+				},
+			},
 		},
 		{
 			name: "Cluster with identities",
@@ -147,9 +162,9 @@ func TestClusterRequiredForPut(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var cluster HcpOpenShiftCluster
 			resource := api.ClusterTestCase(t, tt.tweaks)
-			actualErrors := validateStaticComplex(resource)
-			fmt.Printf("tt: %v\n", actualErrors)
+			actualErrors := cluster.validateStaticComplex(resource)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {

@@ -16,10 +16,10 @@ package ocm
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/stretchr/testify/assert"
 )
@@ -52,10 +52,10 @@ func TestInternalID(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "parse v1 cluster",
+			name:      "parse aro_hcp v1alpha1 cluster",
 			path:      "/api/aro_hcp/v1alpha1/clusters/abc",
 			id:        "abc",
-			kind:      cmv1.ClusterKind,
+			kind:      arohcpv1alpha1.ClusterKind,
 			expectErr: false,
 		},
 		{
@@ -63,6 +63,13 @@ func TestInternalID(t *testing.T) {
 			path:      "/api/clusters_mgmt/v1/clusters/abc/node_pools/def",
 			id:        "def",
 			kind:      cmv1.NodePoolKind,
+			expectErr: false,
+		},
+		{
+			name:      "parse aro_hcp v1alpha1 node pool",
+			path:      "/api/aro_hcp/v1alpha1/clusters/abc/node_pools/def",
+			id:        "def",
+			kind:      arohcpv1alpha1.NodePoolKind,
 			expectErr: false,
 		},
 	}
@@ -96,14 +103,13 @@ func TestInternalID(t *testing.T) {
 			str := internalID.String()
 			assert.Equal(t, tt.path, str)
 
-			if kind == cmv1.NodePoolKind {
+			if kind == arohcpv1alpha1.NodePoolKind {
 				_, ok := internalID.GetNodePoolClient(transport)
 				assert.True(t, ok, "failed to get node pool client")
 			}
 
 			bytes, err := json.Marshal(internalID)
 			if assert.NoError(t, err) {
-				fmt.Printf("Bytes: %s\n", bytes)
 				err = json.Unmarshal(bytes, &internalID)
 				assert.NoError(t, err)
 			}

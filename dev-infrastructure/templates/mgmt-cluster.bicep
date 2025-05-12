@@ -40,6 +40,21 @@ param userAgentVMSize string = 'Standard_D2s_v3'
 @description('Availability Zone count for worker nodes')
 param userAgentPoolAZCount int = 3
 
+@description('Min replicas for the infra worker nodes')
+param infraAgentMinCount int
+
+@description('Max replicas for the infra worker nodes')
+param infraAgentMaxCount int
+
+@description('VM instance type for the infra worker nodes')
+param infraAgentVMSize string
+
+@description('Number of availability zones to use for the AKS clusters infra user agent pool')
+param infraAgentPoolAZCount int
+
+@description('Disk size for the AKS infra nodes')
+param aksInfraOsDiskSizeGB int
+
 @description('Min replicas for the system nodes')
 param systemAgentMinCount int = 2
 
@@ -116,13 +131,6 @@ param logsMSI string
 
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
-
-@description('Tha name of the SVC NSP')
-param mgmtNSPName string
-
-@description('Access mode for this NSP')
-@allowed(['Audit', 'Enforced', 'Learning'])
-param mgmtNSPAccessMode string
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
@@ -212,6 +220,11 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
+    infraAgentMinCount: infraAgentMinCount
+    infraAgentMaxCount: infraAgentMaxCount
+    infraAgentVMSize: infraAgentVMSize
+    infraAgentPoolAZCount: infraAgentPoolAZCount
+    infraOsDiskSizeGB: aksInfraOsDiskSizeGB
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     userOsDiskSizeGB: aksUserOsDiskSizeGB
@@ -322,21 +335,5 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
     vnetId: mgmtCluster.outputs.aksVnetId
     serviceType: 'eventgrid'
     groupId: 'topicspace'
-  }
-}
-
-// 
-//   N E T W O R K    S E C U R I T Y    P E R I M E T E R
-//
-
-module svcNSP '../modules/network/nsp.bicep' = {
-  name: 'nsp-${uniqueString(resourceGroup().name)}'
-  params: {
-    accessMode: mgmtNSPAccessMode
-    nspName: mgmtNSPName
-    location: location
-    associatedResources: [
-      mgmtCluster.outputs.etcKeyVaultId
-    ]
   }
 }

@@ -48,6 +48,21 @@ param userAgentVMSize string
 @description('Number of availability zones to use for the AKS clusters user agent pool')
 param userAgentPoolAZCount int
 
+@description('Min replicas for the infra worker nodes')
+param infraAgentMinCount int
+
+@description('Max replicas for the infra worker nodes')
+param infraAgentMaxCount int
+
+@description('VM instance type for the infra worker nodes')
+param infraAgentVMSize string
+
+@description('Number of availability zones to use for the AKS clusters infra user agent pool')
+param infraAgentPoolAZCount int
+
+@description('Disk size for the AKS infra nodes')
+param aksInfraOsDiskSizeGB int
+
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
 
@@ -237,8 +252,10 @@ param logsServiceAccount string
 param svcNSPName string
 
 @description('Access mode for this NSP')
-@allowed(['Audit', 'Enforced', 'Learning'])
 param svcNSPAccessMode string
+
+@description('Access mode for this NSP')
+param rhDevFixSVCKVAsignNSP bool = true
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
@@ -309,6 +326,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
     userAgentPoolAZCount: userAgentPoolAZCount
+    infraAgentMinCount: infraAgentMinCount
+    infraAgentMaxCount: infraAgentMaxCount
+    infraAgentVMSize: infraAgentVMSize
+    infraAgentPoolAZCount: infraAgentPoolAZCount
+    infraOsDiskSizeGB: aksInfraOsDiskSizeGB
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
@@ -615,12 +637,42 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
 module svcNSP '../modules/network/nsp.bicep' = {
   name: 'nsp-${uniqueString(resourceGroup().name)}'
   params: {
+    nspName: svcNSPName
+    location: location
+  }
+}
+
+module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
+  name: 'profile-${uniqueString(resourceGroup().name)}'
+  params: {
     accessMode: svcNSPAccessMode
     nspName: svcNSPName
+    profileName: svcNSPName
     location: location
     associatedResources: [
       svcCluster.outputs.etcKeyVaultId
       rpCosmosDb.outputs.cosmosDbAccountId
+    ]
+    // TODO Add EV2 access here
+    subscriptions: [
+      subscription().id
+    ]
+  }
+}
+
+module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (rhDevFixSVCKVAsignNSP) {
+  name: 'profile-svc-kv-${uniqueString(resourceGroup().name)}'
+  params: {
+    accessMode: svcNSPAccessMode
+    nspName: svcNSPName
+    profileName: '${svcNSPName}-svc-kv'
+    location: location
+    associatedResources: [
+      serviceKeyVault.id
+    ]
+    // TODO Add EV2 access here
+    subscriptions: [
+      subscription().id
     ]
   }
 }

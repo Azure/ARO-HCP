@@ -74,8 +74,8 @@ resourceGroups:
     - name: MANAGED_IDENTITY_NAME
       configRef: maestro.server.managedIdentityName
     - name: CS_NAMESPACE
-      configRef: clusterService.k8s.namespace
+      configRef: clustersService.k8s.namespace
     - name: CS_SERVICE_ACCOUNT_NAME
-      configRef: clusterService.k8s.serviceAccountName
+      configRef: clustersService.k8s.serviceAccountName
     - name: ACR_NAME
       configRef: acr.svc.name

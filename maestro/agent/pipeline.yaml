@@ -25,6 +25,15 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .svc.subscription  }}'
+  steps:
+  - name: region-output
+    action: ARM
+    template: ../../dev-infrastructure/templates/output-region.bicep
+    parameters: ../../dev-infrastructure/configurations/output-region.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
   aksCluster: '{{ .mgmt.aks.name  }}'
@@ -61,8 +70,13 @@ resourceGroups:
       configRef: maestro.agent.sidecar.image.digest
     - name: ACR_NAME
       configRef: acr.svc.name
-  dependsOn:
-  - mirror-image
+    - name: EVENTGRID_HOSTNAME
+      input:
+        step: region-output
+        name: maestroEventGridNamespacesHostname
+    dependsOn:
+    - mirror-image
+    - region-output
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   aksCluster: '{{ .svc.aks.name  }}'

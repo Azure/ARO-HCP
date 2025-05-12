@@ -9,7 +9,7 @@ defaults:
   managementClusterRG: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
   imageSyncRG: hcp-underlay-{{ .ctx.regionShort }}-imagesync
   aksName: aro-hcp-aks
-  clusterService:
+  clustersService:
     imageTag: abcdef
     replicas: 3
   parentZone: example.com

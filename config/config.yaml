@@ -9,6 +9,9 @@ defaults:
     globalMSIName: "global-rollout-identity"
     safeDnsIntAppObjectId: "" # intentionally left empty
     secretsToSyncDir: "dev/arohcpdev-global"
+    nsp:
+      name: nsp-global
+      accessMode: 'Learning'
     keyVault:
       name: arohcpdev-global
       private: false
@@ -46,6 +49,7 @@ defaults:
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
       accessMode: 'Learning'
+      rhDevFixSVCKVAsignNSP: false
     istio:
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
@@ -88,7 +92,7 @@ defaults:
     rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     applyKubeletFixes: true
     nsp:
-      name: nsp-{{ .ctx.regionShort }}-mgmt
+      name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
       accessMode: 'Learning'
     aks:
       name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -141,6 +145,7 @@ defaults:
     firstPartyAppId: ""
     armInstance: ""
     armAppId: ""
+    tenantId: ""
     image:
       repository: ""
       digest: ""
@@ -185,7 +190,7 @@ defaults:
     imageManager: arohcpsvcdev.azurecr.io/package-operator/package-operator-manager
     imageTag: v1.15.0
   # Cluster Service
-  clusterService:
+  clustersService:
     image:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
@@ -277,14 +282,14 @@ clouds:
         image:
           digest: sha256:f64ad21dcbe40ed7d29aff7d2d7320c0a5ee18c6bfabfef9486550a96ff27141
       # Cluster Service
-      clusterService:
+      clustersService:
         image:
           digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
         azureOperatorsManagedIdentities:
           clusterApiAzure:
-            roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev
-          controlPlane:
             roleName: Azure Red Hat OpenShift Cluster API Role - Dev
+          controlPlane:
+            roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev
           cloudControllerManager:
             roleName: Azure Red Hat OpenShift Cloud Controller Manager - Dev
           ingress:
@@ -356,6 +361,12 @@ clouds:
             vmSize: 'Standard_D2s_v3'
             osDiskSizeGB: 32
             azCount: 3
+          infraAgentPool:
+            minCount: 1
+            maxCount: 3
+            vmSize: 'Standard_D2s_v3'
+            osDiskSizeGB: 32
+            azCount: 1
       mgmt:
         aks:
           # MGMTM AKS nodepools - big enough for 2 HCPs
@@ -370,6 +381,12 @@ clouds:
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
             azCount: 3
+          infraAgentPool:
+            minCount: 1
+            maxCount: 3
+            vmSize: 'Standard_D2s_v3'
+            osDiskSizeGB: 32
+            azCount: 1
           etcd:
             kvSoftDelete: false
         subscription: ARO Hosted Control Planes (EA Subscription 1)
@@ -401,6 +418,9 @@ clouds:
           logs:
             loganalytics:
               enable: true
+          svc:
+            nsp:
+              rhDevFixSVCKVAsignNSP: true
           mgmt:
             aks:
               systemAgentPool:
@@ -477,7 +497,7 @@ clouds:
         # this is an environment to test the deployability of infra nightly
         defaults:
           # Cluster Service
-          clusterService:
+          clustersService:
             postgres:
               deploy: false
           # DNS
@@ -501,7 +521,7 @@ clouds:
         # this is the personal DEV environment
         defaults:
           # Cluster Service
-          clusterService:
+          clustersService:
             postgres:
               deploy: false
             tracing:

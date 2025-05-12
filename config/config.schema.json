@@ -61,6 +61,9 @@
             "Enforced",
             "Learning"
           ]
+        },
+        "rhDevFixSVCKVAsignNSP":{
+          "type":"boolean"
         }
       },
       "additionalProperties": false
@@ -187,6 +190,9 @@
           "$ref": "#/definitions/aksAgentPool"
         },
         "systemAgentPool": {
+          "$ref": "#/definitions/aksAgentPool"
+        },
+        "infraAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
         },
         "clusterOutboundIPAddressIPTags": {
@@ -351,7 +357,7 @@
         "imageTag"
       ]
     },
-    "clusterService": {
+    "clustersService": {
       "type": "object",
       "properties": {
         "environment": {
@@ -623,6 +629,9 @@
         },
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "tenantId": {
+          "type": "string"
         }
       },
       "required": [
@@ -630,12 +639,16 @@
         "image",
         "azureAdInstance",
         "firstPartyAppId",
-        "armAppId"
+        "armAppId",
+        "tenantId"
       ]
     },
     "global": {
       "type": "object",
       "properties": {
+        "nsp": {
+          "$ref": "#/definitions/nsp"
+        },
         "rg": {
           "type": "string"
         },
@@ -1247,7 +1260,7 @@
     "aroDevopsMsiId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
-    "clusterService",
+    "clustersService",
     "cxKeyVault",
     "firstPartyAppClientId",
     "firstPartyAppCertificate",

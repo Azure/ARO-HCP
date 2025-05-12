@@ -34,7 +34,7 @@
       "repository": "app-sre/backplane-api"
     }
   },
-  "clusterService": {
+  "clustersService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
         "roleName": "Azure Red Hat OpenShift Cloud Controller Manager - Dev"
@@ -43,10 +43,10 @@
         "roleName": "Azure Red Hat OpenShift Network Operator - Dev"
       },
       "clusterApiAzure": {
-        "roleName": "Azure Red Hat OpenShift Control Plane Operator Role - Dev"
+        "roleName": "Azure Red Hat OpenShift Cluster API Role - Dev"
       },
       "controlPlane": {
-        "roleName": "Azure Red Hat OpenShift Cluster API Role - Dev"
+        "roleName": "Azure Red Hat OpenShift Control Plane Operator Role - Dev"
       },
       "diskCsiDriver": {
         "roleName": "Azure Red Hat OpenShift Disk Storage Operator - Dev"
@@ -138,6 +138,10 @@
       "name": "arohcpdev-global",
       "private": false,
       "softDelete": true
+    },
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-global"
     },
     "region": "westus3",
     "rg": "global",
@@ -253,6 +257,13 @@
         "kvName": "arohcp-etcd-dev-1",
         "kvSoftDelete": false
       },
+      "infraAgentPool": {
+        "azCount": 1,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
       "kubernetesVersion": "1.31.6",
       "name": "dev-mgmt-1",
       "networkDataplane": "cilium",
@@ -277,7 +288,7 @@
     "applyKubeletFixes": true,
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-dev-mgmt"
+      "name": "nsp-dev-mgmt-1"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -321,7 +332,8 @@
     "image": {
       "digest": "",
       "repository": ""
-    }
+    },
+    "tenantId": ""
   },
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "6b6d3adf-8476-4727-9812-20ffdef2b85c",
@@ -358,6 +370,13 @@
         "kvName": "arohcp-etcd-dev",
         "kvSoftDelete": false
       },
+      "infraAgentPool": {
+        "azCount": 1,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 32,
+        "vmSize": "Standard_D2s_v3"
+      },
       "kubernetesVersion": "1.31.6",
       "name": "dev-svc",
       "networkDataplane": "cilium",
@@ -389,7 +408,8 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-dev-svc"
+      "name": "nsp-dev-svc",
+      "rhDevFixSVCKVAsignNSP": true
     },
     "prometheus": {
       "namespace": "prometheus",

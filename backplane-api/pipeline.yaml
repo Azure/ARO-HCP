@@ -35,6 +35,6 @@ resourceGroups:
     - name: BACKPLANE_TLS_SECRET
       value: "backplane-api-tls"
     - name: CS_NAMESPACE
-      configRef: clusterService.k8s.namespace
+      configRef: clustersService.k8s.namespace
     - name: CS_SERVICE_ACCOUNT_NAME
-      configRef: clusterService.k8s.serviceAccountName
+      configRef: clustersService.k8s.serviceAccountName

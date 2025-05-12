@@ -1377,7 +1377,8 @@
         "diskSizeGiB": {
           "type": "integer",
           "format": "int32",
-          "description": "The OS disk size in GiB"
+          "description": "The OS disk size in GiB",
+          "default": 64
         },
         "diskStorageAccountType": {
           "type": "string",
@@ -1457,7 +1458,7 @@
         "autoRepair": {
           "type": "boolean",
           "description": "Auto-repair",
-          "default": false,
+          "default": true,
           "x-ms-mutability": [
             "read",
             "create"

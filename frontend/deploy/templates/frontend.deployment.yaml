@@ -28,7 +28,7 @@ spec:
       - name: aro-hcp-frontend
         image: '{{ .Values.deployment.imageName }}'
         imagePullPolicy: Always
-        args: ["--clusters-service-url", "http://clusters-service.{{ .Values.clusterService.namespace }}.svc.cluster.local:8000"]
+        args: ["--clusters-service-url", "http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000"]
         env:
         - name: DB_NAME
           valueFrom:

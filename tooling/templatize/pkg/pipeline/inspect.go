@@ -20,9 +20,10 @@ import (
 	"io"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
-type StepInspectScope func(context.Context, *Pipeline, Step, *InspectOptions) error
+type StepInspectScope func(context.Context, *types.Pipeline, types.Step, *InspectOptions) error
 
 func NewStepInspectScopes() map[string]StepInspectScope {
 	return map[string]StepInspectScope{
@@ -54,7 +55,7 @@ func NewInspectOptions(cfg config.Configuration, region, step, scope, format str
 	}
 }
 
-func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions) error {
+func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) error {
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {
 			if step.StepName() == options.Step {
@@ -73,10 +74,10 @@ func (p *Pipeline) Inspect(ctx context.Context, options *InspectOptions) error {
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *InspectOptions) error {
+func inspectVars(ctx context.Context, pipeline *types.Pipeline, s types.Step, options *InspectOptions) error {
 	var envVars map[string]string
 	switch step := s.(type) {
-	case *ShellStep:
+	case *types.ShellStep:
 		outputChainingDependencies := make(map[string]bool)
 		for _, stepVar := range step.Variables {
 			if stepVar.Input != nil && stepVar.Input.Step != "" {
@@ -91,7 +92,7 @@ func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *Inspe
 		if err != nil {
 			return err
 		}
-		envVars, err = step.mapStepVariables(options.Configuration, inputs)
+		envVars, err = mapStepVariables(step.Variables, options.Configuration, inputs)
 		if err != nil {
 			return err
 		}
@@ -110,8 +111,8 @@ func inspectVars(ctx context.Context, pipeline *Pipeline, s Step, options *Inspe
 	return nil
 }
 
-func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *Pipeline, options *InspectOptions) (map[string]output, error) {
-	inputs := make(map[string]output)
+func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *types.Pipeline, options *InspectOptions) (map[string]Output, error) {
+	inputs := make(map[string]Output)
 	for _, depStep := range steps {
 		runOptions := &PipelineRunOptions{
 			DryRun:                   true,
@@ -135,7 +136,7 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *P
 
 func printMakefileVars(vars map[string]string, writer io.Writer) {
 	for k, v := range vars {
-		fmt.Fprintf(writer, "%s ?= \"%s\"\n", k, v)
+		fmt.Fprintf(writer, "%s ?= %s\n", k, v)
 	}
 }
 

@@ -16,6 +16,11 @@ param userAgentMinCount = {{ .mgmt.aks.userAgentPool.minCount }}
 param userAgentMaxCount = {{ .mgmt.aks.userAgentPool.maxCount }}
 param userAgentVMSize = '{{ .mgmt.aks.userAgentPool.vmSize }}'
 param userAgentPoolAZCount = {{ .mgmt.aks.userAgentPool.azCount }}
+param infraAgentMinCount = {{ .mgmt.aks.infraAgentPool.minCount }}
+param infraAgentMaxCount = {{ .mgmt.aks.infraAgentPool.maxCount }}
+param infraAgentVMSize = '{{ .mgmt.aks.infraAgentPool.vmSize }}'
+param infraAgentPoolAZCount = {{ .mgmt.aks.infraAgentPool.azCount }}
+param aksInfraOsDiskSizeGB = {{ .mgmt.aks.infraAgentPool.osDiskSizeGB }}
 param aksUserOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
 param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
@@ -58,6 +63,3 @@ param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
 
-// NSP
-param mgmtNSPName = '{{ .mgmt.nsp.name }}'
-param mgmtNSPAccessMode = '{{ .mgmt.nsp.accessMode }}'

@@ -9,6 +9,9 @@ if [[ -z "${EV2:-}" ]]; then
    exit 0
 fi
 
+HACK_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
+
 HELM_RELEASE_NAME="$1"
 NAMESPACE="$2"
 
@@ -62,7 +65,19 @@ for DEPLOY in $DEPLOYMENTS; do
     kubectl describe deployment "$DEPLOY" -n "$NAMESPACE"
 done
 
+JOBS=$(kubectl get jobs -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+for JOB in $JOBS; do
+    echo -e "\n--- Describe Job: $JOB ---"
+    kubectl describe job "$JOB" -n "$NAMESPACE"
+done
+
 # TODO - add ready-to-click kusto links once kusto is ready
+
+echo -e "\n--- Troubled Pod logs ---"
+PODS=$(kubectl get pods -n "$NAMESPACE" --field-selector=status.phase!=Running,status.phase!=Succeeded -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+for POD in $PODS; do
+    "${HACK_DIR}/pod-logs.sh" "$POD" "$NAMESPACE" 100
+done
 
 echo -e "\n--- ServiceAccounts in $NAMESPACE ---"
 SERVICE_ACCOUNTS=$(kubectl get serviceaccounts -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
@@ -74,6 +89,17 @@ if [ -n "$SERVICE_ACCOUNTS" ]; then
   done
 else
   echo "No ServiceAccounts found in namespace $NAMESPACE"
+fi
+
+echo -e "\n--- SecretProviderClass in $NAMESPACE ---"
+SECRET_PROVIDER_CLASSES=$(kubectl get secretproviderclass -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+if [ -n "$SECRET_PROVIDER_CLASSES" ]; then
+  for SPC in $SECRET_PROVIDER_CLASSES; do
+    echo -e "\n>>> Describe SecretProviderClass: $SPC"
+    kubectl describe secretproviderclass "$SPC" -n "$NAMESPACE"
+  done
+else
+  echo "No SecretProviderClass found in namespace $NAMESPACE"
 fi
 
 echo -e "\n--- Events in $NAMESPACE (last 100) ---"

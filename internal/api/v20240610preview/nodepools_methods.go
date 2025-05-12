@@ -15,7 +15,11 @@
 package v20240610preview
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -97,9 +101,8 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 				out.Properties.Labels[*v.Key] = *v.Value
 			}
 		}
-		out.Properties.Taints = make([]*api.Taint, len(h.Properties.Taints))
+		out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
 		for i := range h.Properties.Taints {
-			out.Properties.Taints[i] = &api.Taint{}
 			if h.Properties.Taints[i].Effect != nil {
 				out.Properties.Taints[i].Effect = api.Effect(*h.Properties.Taints[i].Effect)
 			}
@@ -142,7 +145,71 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 }
 
-func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError {
+func (c *NodePool) validateVersion(normalized *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	if normalized.Properties.Version.ChannelGroup != cluster.Properties.Version.ChannelGroup {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code: arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf(
+				"Node pool channel group '%s' must be the same as control plane channel group '%s'",
+				normalized.Properties.Version.ChannelGroup,
+				cluster.Properties.Version.ChannelGroup),
+			Target: "properties.version.channelGroup",
+		})
+	}
+
+	return errorDetails
+}
+
+func (h *NodePool) validateSubnet(subnetID string, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	// Cluster and node pool subnet IDs have already passed syntax validation so
+	// parsing should not fail. If parsing does somehow fail then skip the validation.
+
+	clusterSubnetResourceID, err := azcorearm.ParseResourceID(cluster.Properties.Platform.SubnetID)
+	if err != nil {
+		return nil
+	}
+
+	nodePoolSubnetResourceID, err := azcorearm.ParseResourceID(subnetID)
+	if err != nil {
+		return nil
+	}
+
+	clusterVNet := clusterSubnetResourceID.Parent.String()
+	nodePoolVNet := nodePoolSubnetResourceID.Parent.String()
+
+	if !strings.EqualFold(nodePoolVNet, clusterVNet) {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf("Subnet '%s' must belong to the same VNet as the parent cluster VNet '%s'", subnetID, clusterVNet),
+			Target:  "properties.platform.subnetId",
+		})
+	}
+
+	return errorDetails
+}
+
+// validateStaticComplex performs more complex, multi-field validations than
+// are possible with struct tag validation. The returned CloudErrorBody slice
+// contains structured but user-friendly details for all discovered errors.
+func (h *NodePool) validateStaticComplex(normalized *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	if cluster != nil {
+		errorDetails = append(errorDetails, h.validateVersion(normalized, cluster)...)
+
+		if normalized.Properties.Platform.SubnetID != "" {
+			errorDetails = append(errorDetails, h.validateSubnet(normalized.Properties.Platform.SubnetID, cluster)...)
+		}
+	}
+
+	return errorDetails
+}
+
+func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, method string) *arm.CloudError {
 	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
 
@@ -167,6 +234,17 @@ func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePo
 	errorDetails = api.ValidateRequest(validate, method, &normalized)
 	if errorDetails != nil {
 		cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
+
+	// Proceed with complex, multi-field validation only if single-field
+	// validation has passed. This avoids running further checks on data
+	// we already know to be invalid and prevents the response body from
+	// becoming overwhelming.
+	if len(cloudError.Details) == 0 {
+		errorDetails = h.validateStaticComplex(&normalized, cluster)
+		if errorDetails != nil {
+			cloudError.Details = append(cloudError.Details, errorDetails...)
+		}
 	}
 
 	switch len(cloudError.Details) {
@@ -223,14 +301,6 @@ func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) *generated.NodePoolAu
 	return autoScaling
 }
 
-func newNodePoolTaint(from *api.Taint) *generated.Taint {
-	return &generated.Taint{
-		Effect: api.Ptr(generated.Effect(from.Effect)),
-		Key:    api.Ptr(from.Key),
-		Value:  api.Ptr(from.Value),
-	}
-}
-
 func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
 		from = api.NewDefaultHCPOpenShiftClusterNodePool()
@@ -251,7 +321,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 				AutoScaling:       newNodePoolAutoScaling(from.Properties.AutoScaling),
 				Labels:            []*generated.Label{},
 				Replicas:          api.Ptr(from.Properties.Replicas),
-				Taints:            make([]*generated.Taint, len(from.Properties.Taints)),
+				Taints:            []*generated.Taint{},
 			},
 		},
 	}
@@ -274,8 +344,12 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 		})
 	}
 
-	for i := range from.Properties.Taints {
-		out.Properties.Taints[i] = newNodePoolTaint(from.Properties.Taints[i])
+	for _, t := range from.Properties.Taints {
+		out.Properties.Taints = append(out.Properties.Taints, &generated.Taint{
+			Effect: api.Ptr(generated.Effect(t.Effect)),
+			Key:    api.Ptr(t.Key),
+			Value:  api.Ptr(t.Value),
+		})
 	}
 
 	return out

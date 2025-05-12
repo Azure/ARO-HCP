@@ -133,15 +133,17 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 		rolloutOptions.Cloud,
 		rolloutOptions.DeployEnv,
 		rolloutOptions.Region,
-		config.NewConfigReplacements(
-			rolloutOptions.Region,
-			rolloutOptions.RegionShort,
-			rolloutOptions.Stamp,
-		),
+		&config.ConfigReplacements{
+			RegionReplacement:      rolloutOptions.Region,
+			RegionShortReplacement: rolloutOptions.RegionShort,
+			StampReplacement:       rolloutOptions.Stamp,
+			CloudReplacement:       rolloutOptions.Cloud,
+			EnvironmentReplacement: rolloutOptions.DeployEnv,
+		},
 	)
 	if err != nil {
 		return err
 	}
 	inspectOptions := pipeline.NewInspectOptions(variables, rolloutOptions.Region, o.PipelineOptions.Step, o.Scope, o.Format, o.OutputFile)
-	return o.PipelineOptions.Pipeline.Inspect(ctx, inspectOptions)
+	return pipeline.Inspect(o.PipelineOptions.Pipeline, ctx, inspectOptions)
 }

@@ -24,6 +24,7 @@ import (
 	"gotest.tools/v3/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
@@ -53,7 +54,7 @@ func TestE2EMake(t *testing.T) {
 
 	e2eImpl := newE2E(tmpDir)
 	e2eImpl.AddStep(
-		pipeline.NewShellStep("test", "make test").WithVariables(pipeline.Variable{
+		types.NewShellStep("test", "make test").WithVariables(types.Variable{
 			Name:      "TEST_ENV",
 			ConfigRef: "test_env",
 		}),
@@ -81,7 +82,7 @@ func TestE2EKubernetes(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewShellStep("test", "kubectl get namespaces"), 0)
+	e2eImpl.AddStep(types.NewShellStep("test", "kubectl get namespaces"), 0)
 	e2eImpl.SetAKSName("dev-svc")
 
 	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"rg": "hcp-underlay-dev-svc"}})
@@ -97,7 +98,7 @@ func TestE2EArmDeploy(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("test", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
+	e2eImpl.AddStep(types.NewARMStep("test", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
@@ -144,7 +145,7 @@ func TestE2EShell(t *testing.T) {
 	e2eImpl := newE2E(tmpDir)
 
 	e2eImpl.AddStep(
-		pipeline.NewShellStep("readInput", "/bin/echo ${PWD} > env.txt"),
+		types.NewShellStep("readInput", "/bin/echo ${PWD} > env.txt"),
 		0,
 	)
 
@@ -164,14 +165,14 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 
 	e2eImpl := newE2E(tmpDir)
 
-	e2eImpl.AddStep(pipeline.NewARMStep("createZone", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
+	e2eImpl.AddStep(types.NewARMStep("createZone", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
 
-	e2eImpl.AddStep(pipeline.NewShellStep(
+	e2eImpl.AddStep(types.NewShellStep(
 		"readInput", "echo ${zoneName} > env.txt",
 	).WithVariables(
-		pipeline.Variable{
+		types.Variable{
 			Name: "zoneName",
-			Input: &pipeline.Input{
+			Input: &types.Input{
 				Name: "zoneName",
 				Step: "createZone",
 			},
@@ -208,21 +209,21 @@ func TestE2EArmDeployWithStaticVariable(t *testing.T) {
 
 	e2eImpl := newE2E(tmpDir)
 
-	e2eImpl.AddStep(pipeline.NewARMStep(
+	e2eImpl.AddStep(types.NewARMStep(
 		"createZone", "test.bicep", "test.bicepparm", "ResourceGroup",
 	).WithVariables(
-		pipeline.Variable{
+		types.Variable{
 			Name:  "zoneName",
 			Value: "e2etestarmdeploy.foo.bar.example.com",
 		},
 	), 0)
 
-	e2eImpl.AddStep(pipeline.NewShellStep(
+	e2eImpl.AddStep(types.NewShellStep(
 		"readInput", "echo ${zoneName} > env.txt",
 	).WithVariables(
-		pipeline.Variable{
+		types.Variable{
 			Name: "zoneName",
-			Input: &pipeline.Input{
+			Input: &types.Input{
 				Name: "zoneName",
 				Step: "createZone",
 			},
@@ -258,21 +259,21 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("stepA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
-	e2eImpl.AddStep(pipeline.NewARMStep("stepB", "testb.bicep", "testb.bicepparm", "ResourceGroup").WithVariables(pipeline.Variable{
+	e2eImpl.AddStep(types.NewARMStep("stepA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
+	e2eImpl.AddStep(types.NewARMStep("stepB", "testb.bicep", "testb.bicepparm", "ResourceGroup").WithVariables(types.Variable{
 		Name: "parameterB",
-		Input: &pipeline.Input{
+		Input: &types.Input{
 			Name: "parameterA",
 			Step: "stepA",
 		},
 	}), 0)
 
-	e2eImpl.AddStep(pipeline.NewShellStep(
+	e2eImpl.AddStep(types.NewShellStep(
 		"readInput", "echo ${end} > env.txt",
 	).WithVariables(
-		pipeline.Variable{
+		types.Variable{
 			Name: "end",
-			Input: &pipeline.Input{
+			Input: &types.Input{
 				Name: "parameterC",
 				Step: "stepB",
 			},
@@ -319,14 +320,14 @@ func TestE2EArmDeployWithOutputRGOverlap(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
+	e2eImpl.AddStep(types.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
 
 	e2eImpl.AddResourceGroup()
 
-	e2eImpl.AddStep(pipeline.NewShellStep("readInput", "echo ${end} > env.txt").WithVariables(
-		pipeline.Variable{
+	e2eImpl.AddStep(types.NewShellStep("readInput", "echo ${end} > env.txt").WithVariables(
+		types.Variable{
 			Name: "end",
-			Input: &pipeline.Input{
+			Input: &types.Input{
 				Name: "parameterA",
 				Step: "parameterA",
 			},
@@ -362,7 +363,7 @@ func TestE2EArmDeploySubscriptionScope(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "Subscription"), 0)
+	e2eImpl.AddStep(types.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "Subscription"), 0)
 	rgName := GenerateRandomRGName()
 	e2eImpl.AddBicepTemplate(fmt.Sprintf(`
 targetScope='subscription'
@@ -399,7 +400,7 @@ func TestE2EDryRun(t *testing.T) {
 
 	e2eImpl := newE2E(tmpDir)
 
-	e2eImpl.AddStep(pipeline.NewARMStep("output", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
+	e2eImpl.AddStep(types.NewARMStep("output", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
 
 	bicepFile := `
 param zoneName string
@@ -431,26 +432,26 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 }
 
 func TestE2EOutputOnly(t *testing.T) {
-	// if !shouldRunE2E() {
-	// 	t.Skip("Skipping end-to-end tests")
-	// }
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
 
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(pipeline.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup").WithOutputOnly(), 0)
+	e2eImpl.AddStep(types.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup").WithOutputOnly(), 0)
 
-	e2eImpl.AddStep(pipeline.NewShellStep(
+	e2eImpl.AddStep(types.NewShellStep(
 		"readInput", "echo ${end} > env.txt",
 	).WithVariables(
-		pipeline.Variable{
+		types.Variable{
 			Name: "end",
-			Input: &pipeline.Input{
+			Input: &types.Input{
 				Name: "parameterA",
 				Step: "parameterA",
 			},
 		},
-	).WithDryRun(pipeline.DryRun{
+	).WithDryRun(types.DryRun{
 		Command: "echo ${end} > env.txt"}),
 		0)
 

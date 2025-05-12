@@ -15,7 +15,7 @@ spec:
       - source:
           principals:
             {{- if .Values.istio.restrictIngress }}
-            - "cluster.local/ns/{{ .Values.clusterService.namespace }}/sa/{{ .Values.clusterService.serviceAccount }}"
+            - "cluster.local/ns/{{ .Values.clustersService.namespace }}/sa/{{ .Values.clustersService.serviceAccount }}"
             {{- else }}
             - "*"
             {{- end }}

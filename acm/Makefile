@@ -1,20 +1,25 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
 
-MCE_OPERATOR_BUNDLE_IMAGE ?= registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.7.0-116
+MCE_OPERATOR_BUNDLE_IMAGE ?= registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.8.1-12
 REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 
 MCE_OPERATOR_BUNDLE_FILE = mce-operator-bundle.tgz
 HELM_BASE_DIR = deploy/helm
 MCE_CHART_DIR = ${HELM_BASE_DIR}/multicluster-engine
-CLC_CHART_DIR = ${HELM_BASE_DIR}/clc-state-metrics
+POLICY_CHART_DIR = ${HELM_BASE_DIR}/policies
 MCE_CONFIG_DIR = ${HELM_BASE_DIR}/multicluster-engine-config
 MCE_NS = multicluster-engine
+POLICY_NS = open-cluster-management-policies
 POLICY_HELM_REPO = https://github.com/stolostron/mce-install-kube.git
 POLICY_HELM_REPO_BRANCH = release-2.12
 
 deploy:
 	@kubectl create namespace ${MCE_NS} --dry-run=client -o json | kubectl apply -f -
+	# Ensure smooth upgrade from mce 2.7.0 to 2.8.1
+	- helm uninstall --ignore-not-found \
+		clc-state-metrics \
+		--namespace ${MCE_NS}
 	${HELM_CMD} \
 		mce ${MCE_CHART_DIR} \
 		--namespace ${MCE_NS} \
@@ -23,12 +28,12 @@ deploy:
 		mce-config ${MCE_CONFIG_DIR} \
 		--namespace ${MCE_NS} \
 		--set global.registryOverride=${REGISTRY}
-	${HELM_CMD} \
-		clc-state-metrics ${CLC_CHART_DIR} \
-		--namespace ${MCE_NS} \
-		--set global.imageOverrides.clusterlifecycle_state_metrics=${REGISTRY}/multicluster-engine/clusterlifecycle-state-metrics-rhel9@sha256:${CLC_STATE_METRICS_IMAGE_DIGEST} \
-		--set global.namespace=${MCE_NS}
+	$(MAKE) deploy-policies
 
+deploy-policies:
+	${HELM_CMD} \
+		policy ${POLICY_CHART_DIR} \
+		--namespace ${POLICY_NS}
 
 helm-chart:
 	@podman pull --arch amd64 ${MCE_OPERATOR_BUNDLE_IMAGE}

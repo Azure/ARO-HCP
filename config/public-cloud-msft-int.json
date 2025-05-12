@@ -22,7 +22,7 @@
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
     "image": {
-      "digest": "sha256:c56e94968978542c13d295de05c3ccb8ff7476c0eabae0c8defc861d76f93616",
+      "digest": "sha256:02a32af8d34c5725d0096ee7f94adf2ef151d0634e8682fe7517e6f9ebba9bdc",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpbackend"
     }
@@ -33,7 +33,7 @@
       "repository": "app-sre/backplane-api"
     }
   },
-  "clusterService": {
+  "clustersService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
         "roleName": "Azure Red Hat OpenShift Cloud Controller Manager"
@@ -42,10 +42,10 @@
         "roleName": "Azure Red Hat OpenShift Network Operator"
       },
       "clusterApiAzure": {
-        "roleName": "Contributor"
+        "roleName": "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider"
       },
       "controlPlane": {
-        "roleName": "Contributor"
+        "roleName": "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator"
       },
       "diskCsiDriver": {
         "roleName": "Azure Red Hat OpenShift Disk Storage Operator"
@@ -70,7 +70,7 @@
       "repository": "app-sre/uhc-clusters-service"
     },
     "k8s": {
-      "namespace": "cluster-service",
+      "namespace": "clusters-service",
       "serviceAccountName": "clusters-service"
     },
     "managedIdentityName": "clusters-service",
@@ -119,7 +119,7 @@
       "zoneRedundantMode": "Auto"
     },
     "image": {
-      "digest": "sha256:8e7fb81a0643341feb7cad5b9f33152798b6754f4dcb1441c3e65be47517f574",
+      "digest": "sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpfrontend"
     },
@@ -145,7 +145,7 @@
     "subscription": "hcp-global"
   },
   "hypershift": {
-    "additionalInstallArg": "--limit-crd-install=Azure",
+    "additionalInstallArg": "",
     "image": {
       "digest": "sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821",
       "registry": "quay.io",
@@ -254,6 +254,13 @@
         "kvName": "arohcpint-etcd-usw3-1",
         "kvSoftDelete": true
       },
+      "infraAgentPool": {
+        "azCount": 3,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 128,
+        "vmSize": "Standard_D2s_v3"
+      },
       "kubernetesVersion": "1.31.6",
       "name": "westus3-mgmt-1",
       "networkDataplane": "azure",
@@ -303,7 +310,7 @@
           "repository": "prometheus/prometheus"
         },
         "replicas": 2,
-        "shards": 1,
+        "shards": 2,
         "version": "v2.55.1-3"
       }
     },
@@ -327,7 +334,8 @@
     "image": {
       "digest": "sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b",
       "repository": "mise"
-    }
+    },
+    "tenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d"
   },
   "monitoring": {
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
@@ -362,6 +370,13 @@
       "etcd": {
         "kvName": "arohcpint-etcd-usw3",
         "kvSoftDelete": true
+      },
+      "infraAgentPool": {
+        "azCount": 3,
+        "maxCount": 3,
+        "minCount": 1,
+        "osDiskSizeGB": 128,
+        "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.6",
       "name": "westus3-svc-1",

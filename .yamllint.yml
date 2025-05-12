@@ -3,7 +3,6 @@ yaml-files:
 - '*.yml'
 - '.yamllint'
 ignore:
-- 'acm/deploy/helm/clc-state-metrics/'
 - 'acrpull/deploy/templates/deployment.yaml'
 - 'frontend/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/allow-ingress.authorizationpolicy.yaml'

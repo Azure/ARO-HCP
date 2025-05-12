@@ -99,6 +99,12 @@ defaults:
       userAgentPool:
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
+      infraAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 128
+        azCount: 3
       etcd:
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-outbound-svc"
@@ -150,6 +156,12 @@ defaults:
       userAgentPool:
         vmSize: 'Standard_D16s_v3'
         osDiskSizeGB: 128
+      infraAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 128
+        azCount: 3
       etcd:
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-outbound-cx"
@@ -173,7 +185,7 @@ defaults:
           digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         version: "v2.55.1-3"
         replicas: 2
-        shards: 1
+        shards: 2
   # RP Frontend
   frontend:
     image:
@@ -235,11 +247,17 @@ defaults:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   # Cluster Service
-  clusterService:
+  clustersService:
     image:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
     azureOperatorsManagedIdentities:
+      # newly configured ARO-HCP builtin roles:
+      clusterApiAzure:
+        roleName: Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
+      controlPlane:
+        roleName: Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
+      # Classic roles:
       cloudControllerManager:
         roleName: Azure Red Hat OpenShift Cloud Controller Manager
       ingress:
@@ -254,11 +272,6 @@ defaults:
         roleName: Azure Red Hat OpenShift Network Operator
       kms:
         roleName: Key Vault Crypto User
-      # below two are supposed to be replaced with ARO-specific builtin roles
-      clusterApiAzure:
-        roleName: Contributor
-      controlPlane:
-        roleName: Contributor
     postgres:
       deploy: true
       private: false
@@ -266,7 +279,7 @@ defaults:
       zoneRedundantMode: 'Auto'
     managedIdentityName: clusters-service
     k8s:
-      namespace: cluster-service
+      namespace: clusters-service
       serviceAccountName: clusters-service
     tracing:
       address: ""
@@ -350,7 +363,7 @@ clouds:
               name: arohcpint-global # [globally-unique]
             secretsToSyncDir: "msft-int/arohcpint-global"
           # Cluster Service
-          clusterService:
+          clustersService:
             environment: "arohcpint"
             postgres:
               name: "arohcpint-csdb-{{ .ctx.regionShort }}" # [globally-unique]
@@ -424,19 +437,21 @@ clouds:
               name: "arohcpint-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
-              digest: sha256:8e7fb81a0643341feb7cad5b9f33152798b6754f4dcb1441c3e65be47517f574
+              digest: sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3
           # Mise
           mise:
             firstPartyAppId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37 # This is the aro-hcp-fp-int app in the MSIT Tenant.
             armAppId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
+            tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
             image:
               digest: sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b
           # RP Backend
           backend:
             image:
-              digest: sha256:c56e94968978542c13d295de05c3ccb8ff7476c0eabae0c8defc861d76f93616
+              digest: sha256:02a32af8d34c5725d0096ee7f94adf2ef151d0634e8682fe7517e6f9ebba9bdc
           # Hypershift
           hypershift:
+            additionalInstallArg: ''
             image:
               digest: sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821
           # Maestro
@@ -483,12 +498,12 @@ clouds:
               name: arohcpstg-global # [globally-unique]
             secretsToSyncDir: "msft-stg/arohcpstg-global"
           # Cluster Service
-          clusterService:
+          clustersService:
             environment: "arohcpstg"
             postgres:
               name: "arohcpstg-cs-{{ .ctx.regionShort }}" # [globally-unique]
             image:
-              digest: sha256:89a09675100b106a6e7e0b21d6841338ee229fa637abea67d32b53d8052696cd
+              digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActions
@@ -559,23 +574,24 @@ clouds:
               name: "arohcpstg-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
-              digest: sha256:e9f39492701b13b90a554374156bb4c73654f2bc849bea98132be40cae948364
+              digest: sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3
             cert:
               issuer: OneCertV2-PrivateCA # let's use private until we have approval for public
           # Mise
           mise:
             firstPartyAppId: 7f4a113a-c61d-412a-bea1-85dee5baf4a8
             armAppId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
+            tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
             image:
               digest: sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b
           # RP Backend
           backend:
             image:
-              digest: sha256:a2953aef23ac3dc376485fafefdbb2d949aebb11f6f9029bcae836bab929d5c3
+              digest: sha256:02a32af8d34c5725d0096ee7f94adf2ef151d0634e8682fe7517e6f9ebba9bdc
           # Hypershift
           hypershift:
             image:
-              digest: sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef
+              digest: sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821
           # Maestro
           maestro:
             eventGrid:

@@ -15,3 +15,6 @@ param grafanaName = '{{ .monitoring.grafanaName }}'
 param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
 param grafanaAdminGroupPrincipalId = '{{ .monitoring.grafanaAdminGroupPrincipalId }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'
+
+param globalNSPName = '{{ .global.nsp.name }}'
+param globalNSPAccessMode = '{{ .global.nsp.accessMode }}'

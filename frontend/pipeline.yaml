@@ -60,11 +60,13 @@ resourceGroups:
     - name: ISTO_TAG
       configRef: svc.istio.tag
     - name: CS_NAMESPACE
-      configRef: clusterService.k8s.namespace
+      configRef: clustersService.k8s.namespace
     - name: CS_SERVICE_ACCOUNT_NAME
-      configRef: clusterService.k8s.serviceAccountName
+      configRef: clustersService.k8s.serviceAccountName
     - name: DEPLOY_MISE
       configRef: mise.deploy
+    - name: MISE_TENANT_ID
+      configRef: mise.tenantId
     - name: MISE_ARM_APP_ID
       configRef: mise.armAppId
     - name: MISE_IMAGE_REPOSITORY

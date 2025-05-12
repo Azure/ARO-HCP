@@ -25,6 +25,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	validator "github.com/go-playground/validator/v10"
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -88,6 +89,43 @@ func NewValidator() *validator.Validate {
 		}
 		_, ok := Lookup(field.String())
 		return ok
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// Use this for string fields that must be a valid Kubernetes qualified name.
+	err = validate.RegisterValidation("k8s_qualified_name", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			panic("String type required for k8s_qualified_name")
+		}
+		return len(k8svalidation.IsQualifiedName(field.String())) == 0
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// Use this for string fields that must be a valid Kubernetes label value.
+	err = validate.RegisterValidation("k8s_label_value", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			panic("String type required for k8s_label_value")
+		}
+		return len(k8svalidation.IsValidLabelValue(field.String())) == 0
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// Use this for version ID fields that might begin with "openshift-v".
+	err = validate.RegisterValidation("openshift_version", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			panic("String type required for openshift_version")
+		}
+		_, err := NewOpenShiftVersion(field.String())
+		return err == nil
 	})
 	if err != nil {
 		panic(err)
@@ -204,8 +242,22 @@ func ValidateRequest(validate *validator.Validate, method string, resource any) 
 				switch tag {
 				case "api_version": // custom tag
 					message = fmt.Sprintf("Unrecognized API version '%s'", fieldErr.Value())
+				case "openshift_version": // custom tag
+					message = fmt.Sprintf("Invalid OpenShift version '%s'", fieldErr.Value())
 				case "pem_certificates": // custom tag
 					message += " (must provide PEM encoded certificates)"
+				case "k8s_label_value": // custom tag
+					// Rerun the label value validation to obtain the error message.
+					if value, ok := fieldErr.Value().(string); ok {
+						errList := k8svalidation.IsValidLabelValue(value)
+						message += fmt.Sprintf(" (%s)", strings.Join(errList, "; "))
+					}
+				case "k8s_qualified_name": // custom tag
+					// Rerun the qualified name validation to obtain the error message.
+					if value, ok := fieldErr.Value().(string); ok {
+						errList := k8svalidation.IsQualifiedName(value)
+						message += fmt.Sprintf(" (%s)", strings.Join(errList, "; "))
+					}
 				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
 				case "required_unless":

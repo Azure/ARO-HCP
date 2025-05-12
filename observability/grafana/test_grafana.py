@@ -40,7 +40,7 @@ class TestDashboard(unittest.TestCase):
 
         temp_file = tempfile.NamedTemporaryFile()
 
-        create_dashboard(temp_file.name, {}, "a", [], g)
+        create_dashboard(temp_file.name, {"dashboard": {"title": "a"}}, "a", [], g)
         g.create_dashboard.assert_called_once_with(temp_file.name)
 
     def test_create_dashboard_exists(self):
