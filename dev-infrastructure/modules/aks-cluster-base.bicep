@@ -241,6 +241,7 @@ resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = 
         service: 'Microsoft.KeyVault'
       }
     ]
+    defaultOutboundAccess: false
     networkSecurityGroup: {
       id: nodeSubnetNSGId
     }
@@ -258,6 +259,7 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
         service: 'Microsoft.Storage'
       }
     ]
+    defaultOutboundAccess: false
     delegations: [
       {
         name: 'AKS'
