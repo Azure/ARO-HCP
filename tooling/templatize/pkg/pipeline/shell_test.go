@@ -18,10 +18,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
 
-	"gotest.tools/v3/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/types"
@@ -35,7 +36,8 @@ func TestCreateCommand(t *testing.T) {
 		dryRun         bool
 		envVars        map[string]string
 		expectedScript string
-		expectedEnv    []string
+		expectedEnv    string
+		configuration  config.Configuration
 		skipCommand    bool
 	}{
 		{
@@ -72,7 +74,26 @@ func TestCreateCommand(t *testing.T) {
 			dryRun:         true,
 			expectedScript: buildBashScript("/bin/echo"),
 			envVars:        map[string]string{},
-			expectedEnv:    []string{"DRY_RUN=true"},
+			expectedEnv:    "DRY_RUN=true",
+		},
+		{
+			name: "dry-run-configref",
+			step: &types.ShellStep{
+				Command: "/bin/echo",
+				DryRun: types.DryRun{
+					Variables: []types.Variable{
+						{
+							Name:      "DRY_RUN",
+							ConfigRef: "test",
+						},
+					},
+				},
+			},
+			dryRun:         true,
+			expectedScript: buildBashScript("/bin/echo"),
+			envVars:        map[string]string{},
+			configuration:  config.Configuration{"test": "foobar"},
+			expectedEnv:    "DRY_RUN=foobar",
 		},
 		{
 			name: "dry-run fail",
@@ -89,13 +110,17 @@ func TestCreateCommand(t *testing.T) {
 			if tc.dryRun {
 				dryRun = &tc.step.DryRun
 			}
+			dryRunVars, err := mapStepVariables(tc.step.DryRun.Variables, tc.configuration, map[string]Output{})
+			assert.NoError(t, err)
+			maps.Copy(tc.envVars, dryRunVars)
+
 			cmd, skipCommand := createCommand(ctx, tc.step.Command, dryRun, tc.envVars)
 			assert.Equal(t, skipCommand, tc.skipCommand)
 			if !tc.skipCommand {
 				assert.Equal(t, strings.Join(cmd.Args, " "), fmt.Sprintf("/bin/bash -c %s", tc.expectedScript))
 			}
-			if tc.expectedEnv != nil {
-				assert.DeepEqual(t, cmd.Env, tc.expectedEnv)
+			if tc.expectedEnv != "" {
+				assert.Contains(t, cmd.Env, tc.expectedEnv)
 			}
 		})
 	}
@@ -246,8 +271,8 @@ func TestMapStepVariables(t *testing.T) {
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)
 			} else {
-				assert.NilError(t, err)
-				assert.DeepEqual(t, envVars, tc.expected)
+				assert.NoError(t, err)
+				assert.Equal(t, envVars, tc.expected)
 			}
 		})
 	}
@@ -299,7 +324,7 @@ func TestRunShellStep(t *testing.T) {
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -312,6 +337,6 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 	var buf bytes.Buffer
 
 	err := runShellStep(step, context.Background(), "", &PipelineRunOptions{}, map[string]Output{}, &buf)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, buf.String(), "hallo\n")
 }
