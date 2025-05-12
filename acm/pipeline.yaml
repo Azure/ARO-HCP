@@ -16,5 +16,3 @@ resourceGroups:
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name
-    - name: CLC_STATE_METRICS_IMAGE_DIGEST
-      configRef: mce.clcStateMetrics.imageDigest

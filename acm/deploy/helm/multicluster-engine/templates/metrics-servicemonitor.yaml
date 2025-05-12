@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: clusterlifecycle-state-metrics-v2
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  endpoints:
+  - interval: 60s
+    port: https
+    scheme: https
+    scrapeTimeout: 10s
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tlsConfig:
+      insecureSkipVerify: true
+  jobLabel: clc-app
+  selector:
+    matchLabels:
+      clc-app: clusterlifecycle-state-metrics-v2

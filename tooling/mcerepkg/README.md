@@ -15,7 +15,7 @@ The OLM release bundle image for an MCE release can be found on <https://catalog
 This image needs to be pulled and saved to a tgz file
 
 ```sh
-podman pull --arch $BUNDLE_IMAGE
+podman pull --arch x86_64 $BUNDLE_IMAGE
 podman save -o mce-bundle.tgz $BUNDLE_IMAGE
 ```
 
@@ -23,6 +23,12 @@ podman save -o mce-bundle.tgz $BUNDLE_IMAGE
 
 ```sh
 go run . \
-   -b $BUNDLE_IMAGE \
-   -o helm -s scaffold
+   -b mce-bundle.tgz \
+   -l $BUNDLE_IMAGE \
+   -o helm -s ../../acm/scaffold
 ```
+
+## Next steps
+
+1. Overwrite the old helm chart files with the new ones (make sure not to leave around deleted ones).
+2. Run `make all-tidy` in repo root, which is likely to modify indenting in the helm files.

@@ -1,7 +1,0 @@
-# Original source https://github.com/stolostron/mce-install-kube/tree/main/clc-state-metrics
-# TODO: Remove this chart and enable via MCE once MCE 2.8.0 is released (Feb 2025)
-apiVersion: v2
-name: clusterlifecycle-state-metrics
-description: A Helm chart for clusterlifecycle-state-metrics
-version: 2.7.0
-appVersion: 2.7.0
