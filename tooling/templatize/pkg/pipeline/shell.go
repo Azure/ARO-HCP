@@ -17,27 +17,25 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"os/exec"
 
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
-func (s *ShellStep) createCommand(ctx context.Context, dryRun bool, envVars map[string]string) (*exec.Cmd, bool) {
-	var scriptCommand = s.Command
-	if dryRun {
-		if s.DryRun.Command == "" && s.DryRun.Variables == nil {
+func createCommand(ctx context.Context, scriptCommand string, dryRun *types.DryRun, envVars map[string]string) (*exec.Cmd, bool) {
+	if dryRun != nil {
+		if dryRun.Command == "" && dryRun.Variables == nil {
 			return nil, true
 		}
-		if s.DryRun.Command != "" {
-			scriptCommand = s.DryRun.Command
-		}
-		for _, e := range s.DryRun.Variables {
-			envVars[e.Name] = e.Value
+		if dryRun.Command != "" {
+			scriptCommand = dryRun.Command
 		}
 	}
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", buildBashScript(scriptCommand))
@@ -49,17 +47,23 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs map[string]output) error {
-	if s.outputFunc == nil {
-		s.outputFunc = func(output string) {
-			fmt.Println(output)
+func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	// set dryRun config if needed
+	var dryRun *types.DryRun
+	var dryRunVars map[string]string
+	var err error
+	if options.DryRun {
+		dryRun = &s.DryRun
+		dryRunVars, err = mapStepVariables(dryRun.Variables, options.Configuration, inputs)
+		if err != nil {
+			return fmt.Errorf("failed to build dry run vars: %w", err)
 		}
 	}
 
-	logger := logr.FromContextOrDiscard(ctx)
-
 	// build ENV vars
-	stepVars, err := s.mapStepVariables(options.Configuration, inputs)
+	stepVars, err := mapStepVariables(s.Variables, options.Configuration, inputs)
 	if err != nil {
 		return fmt.Errorf("failed to build env vars: %w", err)
 	}
@@ -67,9 +71,9 @@ func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, opti
 	envVars := utils.GetOsVariable()
 
 	maps.Copy(envVars, stepVars)
+	maps.Copy(envVars, dryRunVars)
 
-	// execute the command
-	cmd, skipCommand := s.createCommand(ctx, options.DryRun, envVars)
+	cmd, skipCommand := createCommand(ctx, s.Command, dryRun, envVars)
 	if skipCommand {
 		logger.V(5).Info(fmt.Sprintf("Skipping step '%s' due to missing dry-run configuration", s.Name))
 		return nil
@@ -85,13 +89,12 @@ func runShellStep(s *ShellStep, ctx context.Context, kubeconfigFile string, opti
 		return fmt.Errorf("failed to execute shell command: %s %w", string(output), err)
 	}
 
-	s.outputFunc(string(output))
-
+	fmt.Fprint(outputWriter, string(output))
 	return nil
 }
 
-func (s *ShellStep) mapStepVariables(cfg config.Configuration, inputs map[string]output) (map[string]string, error) {
-	values, err := getInputValues(s.Variables, cfg, inputs)
+func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs map[string]Output) (map[string]string, error) {
+	values, err := getInputValues(vars, cfg, inputs)
 	if err != nil {
 		return nil, err
 	}

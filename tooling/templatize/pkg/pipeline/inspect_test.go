@@ -22,19 +22,20 @@ import (
 	"gotest.tools/v3/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
 func TestInspectVars(t *testing.T) {
 	testCases := []struct {
 		name     string
-		caseStep Step
+		caseStep types.Step
 		options  *InspectOptions
 		expected string
 		err      string
 	}{
 		{
 			name: "basic",
-			caseStep: NewShellStep("step", "echo hello").WithVariables(Variable{
+			caseStep: types.NewShellStep("step", "echo hello").WithVariables(types.Variable{
 				Name:      "FOO",
 				ConfigRef: "foo",
 			}),
@@ -48,7 +49,7 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name: "makefile",
-			caseStep: NewShellStep("step", "echo hello").WithVariables(Variable{
+			caseStep: types.NewShellStep("step", "echo hello").WithVariables(types.Variable{
 				Name:      "FOO",
 				ConfigRef: "foo",
 			}),
@@ -62,13 +63,13 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name:     "failed action",
-			caseStep: NewARMStep("step", "test.bicep", "test.bicepparam", "ResourceGroup"),
+			caseStep: types.NewARMStep("step", "test.bicep", "test.bicepparam", "ResourceGroup"),
 			options:  &InspectOptions{},
 			err:      "inspecting step variables not implemented for action type ARM",
 		},
 		{
 			name:     "failed format",
-			caseStep: NewShellStep("step", "echo hello"),
+			caseStep: types.NewShellStep("step", "echo hello"),
 			options:  &InspectOptions{Format: "unknown"},
 			err:      "unknown output format \"unknown\"",
 		},
@@ -78,7 +79,7 @@ func TestInspectVars(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
 			tc.options.OutputFile = buf
-			err := inspectVars(context.Background(), &Pipeline{}, tc.caseStep, tc.options)
+			err := inspectVars(context.Background(), &types.Pipeline{}, tc.caseStep, tc.options)
 			if tc.err == "" {
 				assert.NilError(t, err)
 				assert.Equal(t, buf.String(), tc.expected)
@@ -90,10 +91,10 @@ func TestInspectVars(t *testing.T) {
 }
 
 func TestInspect(t *testing.T) {
-	p := Pipeline{
-		ResourceGroups: []*ResourceGroup{{
-			Steps: []Step{
-				NewShellStep("step1", "echo hello"),
+	p := types.Pipeline{
+		ResourceGroups: []*types.ResourceGroup{{
+			Steps: []types.Step{
+				types.NewShellStep("step1", "echo hello"),
 			},
 		},
 		},
@@ -101,27 +102,27 @@ func TestInspect(t *testing.T) {
 	opts := NewInspectOptions(config.Configuration{}, "", "step1", "scope", "format", new(bytes.Buffer))
 
 	opts.ScopeFunctions = map[string]StepInspectScope{
-		"scope": func(ctx context.Context, p *Pipeline, s Step, o *InspectOptions) error {
+		"scope": func(ctx context.Context, p *types.Pipeline, s types.Step, o *InspectOptions) error {
 			assert.Equal(t, s.StepName(), "step1")
 			return nil
 		},
 	}
 
-	err := p.Inspect(context.Background(), opts)
+	err := Inspect(&p, context.Background(), opts)
 	assert.NilError(t, err)
 }
 
 func TestInspectWrongScope(t *testing.T) {
-	p := Pipeline{
-		ResourceGroups: []*ResourceGroup{{
-			Steps: []Step{
-				NewShellStep("step1", "echo hello"),
+	p := types.Pipeline{
+		ResourceGroups: []*types.ResourceGroup{{
+			Steps: []types.Step{
+				types.NewShellStep("step1", "echo hello"),
 			},
 		},
 		},
 	}
 	opts := NewInspectOptions(config.Configuration{}, "", "step1", "foo", "format", new(bytes.Buffer))
 
-	err := p.Inspect(context.Background(), opts)
+	err := Inspect(&p, context.Background(), opts)
 	assert.Error(t, err, "unknown inspect scope \"foo\"")
 }
