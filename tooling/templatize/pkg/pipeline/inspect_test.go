@@ -19,7 +19,7 @@ import (
 	"context"
 	"testing"
 
-	"gotest.tools/v3/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/types"
@@ -81,7 +81,7 @@ func TestInspectVars(t *testing.T) {
 			tc.options.OutputFile = buf
 			err := inspectVars(context.Background(), &types.Pipeline{}, tc.caseStep, tc.options)
 			if tc.err == "" {
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, buf.String(), tc.expected)
 			} else {
 				assert.ErrorContains(t, err, tc.err)
@@ -109,7 +109,7 @@ func TestInspect(t *testing.T) {
 	}
 
 	err := Inspect(&p, context.Background(), opts)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 }
 
 func TestInspectWrongScope(t *testing.T) {
