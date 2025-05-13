@@ -17,7 +17,7 @@ package utils
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetOsVariable(t *testing.T) {
@@ -32,5 +32,5 @@ func TestMapToEnvVarArray(t *testing.T) {
 		"FOO": "BAR",
 	}
 	envVarArray := MapToEnvVarArray(envVars)
-	assert.DeepEqual(t, []string{"FOO=BAR"}, envVarArray)
+	assert.Equal(t, []string{"FOO=BAR"}, envVarArray)
 }

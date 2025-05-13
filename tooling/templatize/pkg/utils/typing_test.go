@@ -17,7 +17,7 @@ package utils
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAnyToString(t *testing.T) {

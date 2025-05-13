@@ -21,10 +21,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gotest.tools/v3/assert"
-
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/types"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
@@ -36,13 +36,13 @@ import (
 
 func persistAndRun(t *testing.T, e2eImpl E2E) {
 	err := e2eImpl.Persist()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	cmd, err := run.NewCommand()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	err = cmd.Execute()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 }
 
 func TestE2EMake(t *testing.T) {
@@ -70,7 +70,7 @@ test:
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(io), "test_env\n")
 }
 
@@ -102,7 +102,7 @@ func TestE2EArmDeploy(t *testing.T) {
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	bicepFile := `
@@ -121,16 +121,16 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 
 	// Todo move to e2e module, if needed more than once
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	cred, err := azauth.GetAzureTokenCredentials()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	zoneResp, err := zonesClient.Get(context.Background(), e2eImpl.rgName, "e2etestarmdeploy.foo.bar.example.com", nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, *zoneResp.Name, "e2etestarmdeploy.foo.bar.example.com")
 }
 
@@ -140,7 +140,7 @@ func TestE2EShell(t *testing.T) {
 	}
 
 	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	e2eImpl := newE2E(tmpDir)
 
@@ -152,7 +152,7 @@ func TestE2EShell(t *testing.T) {
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(io), tmpDir+"\n")
 }
 
@@ -182,7 +182,7 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	bicepFile := `
@@ -196,7 +196,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(io), "e2etestarmdeploy.foo.bar.example.com\n")
 }
 
@@ -233,7 +233,7 @@ func TestE2EArmDeployWithStaticVariable(t *testing.T) {
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	bicepFile := `
@@ -247,7 +247,7 @@ param zoneName = '__zoneName__'
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(io), "e2etestarmdeploy.foo.bar.example.com\n")
 }
 
@@ -303,12 +303,12 @@ param parameterB = '< provided at runtime >'
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 	}()
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(io), "Hello Bicep\n")
 }
 
@@ -346,12 +346,12 @@ param parameterA = 'Hello Bicep'`,
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 	}()
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(io), "Hello Bicep\n")
 }
 
@@ -379,16 +379,16 @@ resource newRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 	persistAndRun(t, &e2eImpl)
 
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	cred, err := azauth.GetAzureTokenCredentials()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	_, err = rgClient.BeginDelete(context.Background(), rgName, nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 }
 
 func TestE2EDryRun(t *testing.T) {
@@ -419,13 +419,13 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	persistAndRun(t, &e2eImpl)
 
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	cred, err := azauth.GetAzureTokenCredentials()
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	_, err = zonesClient.Get(context.Background(), e2eImpl.rgName, "e2etestarmdeploy.foo.bar.example.com", nil)
 	assert.ErrorContains(t, err, "RESPONSE 404: 404 Not Found")
@@ -469,7 +469,7 @@ param parameterA = 'Hello Bicep'`,
 	persistAndRun(t, &e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, string(io), "Hello Bicep\n")
 
 }

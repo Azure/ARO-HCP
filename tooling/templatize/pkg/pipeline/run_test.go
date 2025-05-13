@@ -18,7 +18,7 @@ import (
 	"context"
 	"testing"
 
-	"gotest.tools/v3/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/types"
@@ -27,9 +27,9 @@ import (
 func TestStepRun(t *testing.T) {
 	s := types.NewShellStep("step", "echo hello")
 	output, err := RunStep(s, context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{}, nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	o, err := output.GetValue("output")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, o.Value, "hello\n")
 }
 
@@ -41,9 +41,9 @@ func TestResourceGroupRun(t *testing.T) {
 	}
 	o := make(map[string]Output)
 	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, o)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	oValue, err := o["step"].GetValue("output")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, oValue.Value, "hello\n")
 }
 
@@ -60,8 +60,8 @@ func TestResourceGroupError(t *testing.T) {
 	assert.ErrorContains(t, err, "faaaaafffaa: command not found\n exit status 127")
 	// Test processing ends after first error
 	oValue, err := o["step1"].GetValue("output")
-	assert.NilError(t, err)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, oValue.Value, "hello\n")
 }
 
@@ -78,7 +78,7 @@ func (t *testExecutionTarget) GetRegion() string         { return "test" }
 func TestResourceGroupRunRequireKubeconfig(t *testing.T) {
 	rg := &types.ResourceGroup{Steps: []types.Step{}}
 	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &testExecutionTarget{}, make(map[string]Output))
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 }
 
 func TestPipelineRun(t *testing.T) {
@@ -100,9 +100,9 @@ func TestPipelineRun(t *testing.T) {
 		},
 	})
 
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	oValue, err := output["step"].GetValue("output")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, oValue.Value, "hello\n")
 }
 
@@ -117,7 +117,7 @@ func TestArmGetValue(t *testing.T) {
 	value, err := output.GetValue("zoneName")
 	assert.Equal(t, value.Value, "test")
 	assert.Equal(t, value.Type, "String")
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 }
 
 func TestAddInputVars(t *testing.T) {
@@ -240,8 +240,8 @@ func TestAddInputVars(t *testing.T) {
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)
 			} else {
-				assert.NilError(t, err)
-				assert.DeepEqual(t, result, tc.expected)
+				assert.NoError(t, err)
+				assert.Equal(t, result, tc.expected)
 			}
 		})
 	}
