@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
 
@@ -125,7 +126,13 @@ func (opts *FrontendOpts) Run() error {
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version.CommitSHA))
 
 	// Initialize the global OpenTelemetry tracer.
-	otelShutdown, err := frontend.ConfigureOpenTelemetryTracer(ctx, logger, semconv.CloudRegion(opts.location))
+	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
+		ctx,
+		logger,
+		semconv.CloudRegion(opts.location),
+		semconv.ServiceNameKey.String(frontend.ProgramName),
+		semconv.ServiceVersionKey.String(version.CommitSHA),
+	)
 	if err != nil {
 		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
 	}
