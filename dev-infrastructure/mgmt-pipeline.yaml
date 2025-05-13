@@ -177,6 +177,8 @@ resourceGroups:
       configRef: mgmt.rg
     - name: CLUSTER_NAME
       configRef: mgmt.aks.name
+    - name: CS_ENVIRONMENT
+      configRef: clustersService.environment
     dependsOn:
     - mgmt-cluster
   # Install ACRpull
