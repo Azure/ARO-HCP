@@ -450,6 +450,9 @@ clouds:
       cs-pr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
+          # Service Key Vault
+          serviceKeyVault:
+            assignNSP: false
           logs:
             loganalytics:
               enable: true
@@ -555,6 +558,9 @@ clouds:
               deploy: true
       personal-perfscale:
         defaults:
+          # Service Key Vault
+          serviceKeyVault:
+            assignNSP: false
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           mgmt:

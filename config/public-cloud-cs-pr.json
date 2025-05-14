@@ -357,7 +357,7 @@
   "region": "westus3",
   "regionRG": "hcp-underlay-cspr",
   "serviceKeyVault": {
-    "assignNSP": true,
+    "assignNSP": false,
     "name": "aro-hcp-dev-svc-kv",
     "private": false,
     "region": "westus3",
