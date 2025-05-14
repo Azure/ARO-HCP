@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
+	database "github.com/Azure/ARO-HCP/internal/database"
 	azcosmos "github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	gomock "go.uber.org/mock/gomock"
-
-	database "github.com/Azure/ARO-HCP/internal/database"
 )
 
 // MockDBTransaction is a mock of DBTransaction interface.
