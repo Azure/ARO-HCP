@@ -414,7 +414,8 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-usw3-svc"
+      "name": "nsp-usw3-svc",
+      "rhDevFixSVCKVAsignNSP": true
     },
     "prometheus": {
       "namespace": "prometheus",
