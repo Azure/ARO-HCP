@@ -16,6 +16,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -77,6 +78,15 @@ type DBClient interface {
 
 	// NewTransaction initiates a new transactional batch for the given partition key.
 	NewTransaction(pk azcosmos.PartitionKey) DBTransaction
+
+	// CreateBillingDoc creates a new document in the "Billing" container.
+	CreateBillingDoc(ctx context.Context, doc *BillingDocument) error
+
+	// PatchBillingDoc patches a document in the "Billing" container by applying a sequence
+	// of patch operations. The patch operations may include a precondition which, if not
+	// satisfied, will cause the function to return an azcore.ResponseError with a StatusCode
+	// of http.StatusPreconditionFailed.
+	PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error
 
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
@@ -165,6 +175,7 @@ var _ DBClient = &cosmosDBClient{}
 // cosmosDBClient defines the needed values to perform CRUD operations against Cosmos DB.
 type cosmosDBClient struct {
 	database   *azcosmos.DatabaseClient
+	billing    *azcosmos.ContainerClient
 	resources  *azcosmos.ContainerClient
 	lockClient *LockClient
 }
@@ -173,6 +184,11 @@ type cosmosDBClient struct {
 // targeting the Frontends async database.
 func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClient, error) {
 	resources, err := database.NewContainer(resourcesContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	billing, err := database.NewContainer(billingContainer)
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +205,7 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 
 	return &cosmosDBClient{
 		database:   database,
+		billing:    billing,
 		resources:  resources,
 		lockClient: lockClient,
 	}, nil
@@ -208,6 +225,85 @@ func (d *cosmosDBClient) GetLockClient() *LockClient {
 
 func (d *cosmosDBClient) NewTransaction(pk azcosmos.PartitionKey) DBTransaction {
 	return newCosmosDBTransaction(pk, d.resources)
+}
+
+func (d *cosmosDBClient) getBillingID(ctx context.Context, resourceID *azcorearm.ResourceID) (string, error) {
+	pk := NewPartitionKey(resourceID.SubscriptionID)
+
+	// Resource ID alone does not uniquely identify a billing document, but
+	// resource ID AND the absence of a deletion timestamp should be unique.
+	const query = "SELECT c.id FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND NOT IS_DEFINED(c.deletionTime)"
+	opt := azcosmos.QueryOptions{
+		PageSizeHint: 1,
+		QueryParameters: []azcosmos.QueryParameter{
+			{
+				Name:  "@resourceId",
+				Value: resourceID.String(),
+			},
+		},
+	}
+
+	queryPager := d.billing.NewQueryItemsPager(query, pk, &opt)
+
+	for queryPager.More() {
+		queryResponse, err := queryPager.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to advance page while querying Billing container for '%s': %w", resourceID, err)
+		}
+
+		for _, item := range queryResponse.Items {
+			var result map[string]string
+
+			err = json.Unmarshal(item, &result)
+			if err != nil {
+				return "", fmt.Errorf("failed to unmarshal Billing container item for '%s': %w", resourceID, err)
+			}
+
+			if id, ok := result["id"]; ok {
+				return id, nil
+			}
+		}
+	}
+
+	// Fabricate a "404 Not Found" ResponseError to wrap.
+	err := &azcore.ResponseError{StatusCode: http.StatusNotFound}
+	return "", fmt.Errorf("failed to read Billing container item for '%s': %w", resourceID, err)
+}
+
+func (d *cosmosDBClient) CreateBillingDoc(ctx context.Context, doc *BillingDocument) error {
+	if doc.ResourceID == nil {
+		return errors.New("BillingDocument is missing a ResourceID")
+	}
+
+	pk := NewPartitionKey(doc.ResourceID.SubscriptionID)
+
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return fmt.Errorf("failed to marshal Billing container item for '%s': %w", doc.ResourceID, err)
+	}
+
+	_, err = d.billing.CreateItem(ctx, pk, data, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create Billing container item for '%s': %w", doc.ResourceID, err)
+	}
+
+	return nil
+}
+
+func (d *cosmosDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error {
+	billingID, err := d.getBillingID(ctx, resourceID)
+	if err != nil {
+		return err
+	}
+
+	pk := NewPartitionKey(resourceID.SubscriptionID)
+
+	_, err = d.billing.PatchItem(ctx, pk, billingID, ops.PatchOperations, nil)
+	if err != nil {
+		return fmt.Errorf("failed to patch Billing container item for '%s': %w", resourceID, err)
+	}
+
+	return nil
 }
 
 func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*typedDocument, *ResourceDocument, error) {
