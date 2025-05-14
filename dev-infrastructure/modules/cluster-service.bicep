@@ -25,6 +25,9 @@ param privateEndpointSubnetId string = ''
 @description('The VNET ID for the private endpoint of the Postgres server')
 param privateEndpointVnetId string = ''
 
+@description('The resource group for the private endpoint of the Postgres server')
+param privateEndpointResourceGroup string = ''
+
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
 
@@ -54,8 +57,9 @@ param postgresZoneRedundantMode string
 
 import * as res from 'resource.bicep'
 
-module postgres 'postgres/postgres.bicep' = if (deployPostgres) {
+module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
   name: '${deployment().name}-postgres'
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     name: postgresServerName
     postgresZoneRedundantMode: postgresZoneRedundantMode
@@ -98,6 +102,7 @@ module postgres 'postgres/postgres.bicep' = if (deployPostgres) {
     subnetId: privateEndpointSubnetId
     vnetId: privateEndpointVnetId
     managedPrivateEndpoint: true
+    managedPrivateEndpointResourceGroup: privateEndpointResourceGroup
   }
 }
 
@@ -107,6 +112,7 @@ module postgres 'postgres/postgres.bicep' = if (deployPostgres) {
 
 module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = if (deployPostgres) {
   name: '${deployment().name}-cs-db-access'
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     postgresServerName: postgresServerName
     postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
@@ -115,7 +121,7 @@ module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = if (de
     newUserPrincipalId: clusterServiceManagedIdentityPrincipalId
   }
   dependsOn: [
-    postgres
+    csPostgres
   ]
 }
 
