@@ -183,6 +183,44 @@ func (m *MockDBClient) EXPECT() *MockDBClientMockRecorder {
 	return m.recorder
 }
 
+// CreateBillingDoc mocks base method.
+func (m *MockDBClient) CreateBillingDoc(ctx context.Context, doc *database.BillingDocument) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBillingDoc", ctx, doc)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateBillingDoc indicates an expected call of CreateBillingDoc.
+func (mr *MockDBClientMockRecorder) CreateBillingDoc(ctx, doc any) *MockDBClientCreateBillingDocCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBillingDoc", reflect.TypeOf((*MockDBClient)(nil).CreateBillingDoc), ctx, doc)
+	return &MockDBClientCreateBillingDocCall{Call: call}
+}
+
+// MockDBClientCreateBillingDocCall wrap *gomock.Call
+type MockDBClientCreateBillingDocCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientCreateBillingDocCall) Return(arg0 error) *MockDBClientCreateBillingDocCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientCreateBillingDocCall) Do(f func(context.Context, *database.BillingDocument) error) *MockDBClientCreateBillingDocCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientCreateBillingDocCall) DoAndReturn(f func(context.Context, *database.BillingDocument) error) *MockDBClientCreateBillingDocCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // CreateOperationDoc mocks base method.
 func (m *MockDBClient) CreateOperationDoc(ctx context.Context, doc *database.OperationDocument) (string, error) {
 	m.ctrl.T.Helper()
@@ -678,6 +716,44 @@ func (c *MockDBClientNewTransactionCall) Do(f func(azcosmos.PartitionKey) databa
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBClientNewTransactionCall) DoAndReturn(f func(azcosmos.PartitionKey) database.DBTransaction) *MockDBClientNewTransactionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// PatchBillingDoc mocks base method.
+func (m *MockDBClient) PatchBillingDoc(ctx context.Context, resourceID *arm0.ResourceID, ops database.BillingDocumentPatchOperations) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PatchBillingDoc", ctx, resourceID, ops)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PatchBillingDoc indicates an expected call of PatchBillingDoc.
+func (mr *MockDBClientMockRecorder) PatchBillingDoc(ctx, resourceID, ops any) *MockDBClientPatchBillingDocCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchBillingDoc", reflect.TypeOf((*MockDBClient)(nil).PatchBillingDoc), ctx, resourceID, ops)
+	return &MockDBClientPatchBillingDocCall{Call: call}
+}
+
+// MockDBClientPatchBillingDocCall wrap *gomock.Call
+type MockDBClientPatchBillingDocCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientPatchBillingDocCall) Return(arg0 error) *MockDBClientPatchBillingDocCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientPatchBillingDocCall) Do(f func(context.Context, *arm0.ResourceID, database.BillingDocumentPatchOperations) error) *MockDBClientPatchBillingDocCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientPatchBillingDocCall) DoAndReturn(f func(context.Context, *arm0.ResourceID, database.BillingDocumentPatchOperations) error) *MockDBClientPatchBillingDocCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
