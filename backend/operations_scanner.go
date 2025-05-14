@@ -130,6 +130,7 @@ func (o *operation) setSpanAttributes(span trace.Span) {
 }
 
 type OperationsScanner struct {
+	location            string
 	dbClient            database.DBClient
 	lockClient          *database.LockClient
 	clusterService      ocm.ClusterServiceClient
@@ -148,8 +149,9 @@ type OperationsScanner struct {
 	subscriptionsByState   *prometheus.GaugeVec
 }
 
-func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
+func NewOperationsScanner(location string, dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
 	s := &OperationsScanner{
+		location:           location,
 		dbClient:           dbClient,
 		lockClient:         dbClient.GetLockClient(),
 		clusterService:     ocm.ClusterServiceClient{Conn: ocmConnection},
