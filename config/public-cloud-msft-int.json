@@ -358,6 +358,7 @@
     "name": "TM-AzureRedHatOpenShift-HCP-Leads"
   },
   "serviceKeyVault": {
+    "assignNSP": true,
     "name": "arohcpint-svc-usw3",
     "private": false,
     "region": "westus3",

@@ -61,9 +61,6 @@
             "Enforced",
             "Learning"
           ]
-        },
-        "rhDevFixSVCKVAsignNSP":{
-          "type":"boolean"
         }
       },
       "additionalProperties": false
@@ -1143,6 +1140,9 @@
         },
         "softDelete": {
           "type": "boolean"
+        },
+        "assignNSP":{
+          "type":"boolean"
         }
       },
       "additionalProperties": false,

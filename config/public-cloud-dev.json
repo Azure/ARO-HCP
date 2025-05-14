@@ -357,6 +357,7 @@
   "region": "westus3",
   "regionRG": "hcp-underlay-dev",
   "serviceKeyVault": {
+    "assignNSP": true,
     "name": "aro-hcp-dev-svc-kv",
     "private": false,
     "region": "westus3",
@@ -408,8 +409,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-dev-svc",
-      "rhDevFixSVCKVAsignNSP": true
+      "name": "nsp-dev-svc"
     },
     "prometheus": {
       "namespace": "prometheus",
