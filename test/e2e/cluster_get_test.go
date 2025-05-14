@@ -22,26 +22,30 @@ import (
 	. "github.com/onsi/gomega"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 var _ = Describe("Get HCPOpenShiftCluster", func() {
 	var (
 		clustersClient *api.HcpOpenShiftClustersClient
+		customerEnv    *integration.CustomerEnv
 	)
 
 	BeforeEach(func() {
 		By("Preparing HCP clusters client")
 		clustersClient = clients.NewHcpOpenShiftClustersClient()
+		By("Preparing customer environment values")
+		customerEnv = &e2eSetup.CustomerEnv
 	})
 
 	Context("Negative", func() {
 		It("Fails to get a nonexistent cluster with a Not Found error", labels.Medium, labels.Negative, func(ctx context.Context) {
 			clusterName := "non-existing-cluster"
 			By("Sending a GET request for the nonexistent cluster")
-			_, err := clustersClient.Get(ctx, customerRGName, clusterName, nil)
+			_, err := clustersClient.Get(ctx, customerEnv.CustomerRGName, clusterName, nil)
 			Expect(err).ToNot(BeNil())
-			errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, customerRGName)
+			errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, customerEnv.CustomerRGName)
 			Expect(err.Error()).To(ContainSubstring(errMessage))
 		})
 	})
