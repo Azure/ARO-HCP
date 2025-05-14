@@ -63,6 +63,32 @@ const (
 	// ResourceIDKey is the span's attribute Key reporting the resource
 	// identifier associated to the current request.
 	ResourceIDKey = semconv.CloudResourceIDKey
+
+	// ResourceTypeKey is the span's attribute Key reporting the resource
+	// type associated to the current request.
+	ResourceTypeKey = attribute.Key("aro.resource.type")
+)
+
+// Operation attributes.
+const (
+	// OperationIDKey is the span's attribute Key reporting the operation
+	// identifier.
+	OperationIDKey = attribute.Key("aro.operation.id")
+
+	// OperationTypeKey is the span's attribute Key reporting the operation
+	// type.
+	OperationTypeKey = attribute.Key("aro.operation.type")
+
+	// OperationStatusKey is the span's attribute Key reporting the operation
+	// status.
+	OperationStatusKey = attribute.Key("aro.operation.status")
+)
+
+const (
+	// ProcessedItemsKey is the span's attribute Key reporting the number of
+	// items (subscriptions or operations) which have been processed by the
+	// Resource Provider backend.
+	ProcessedItemsKey = attribute.Key("aro.backend.processed_items")
 )
 
 // Clusters service attributes.

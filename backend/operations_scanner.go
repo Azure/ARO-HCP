@@ -35,10 +35,13 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 
 const (
@@ -54,6 +57,8 @@ const (
 	pollNodePoolOperationLabel     = "poll_node_pool"
 	pollBreakGlassCredential       = "poll_break_glass_credential"
 	pollBreakGlassCredentialRevoke = "poll_break_glass_credential_revoke"
+
+	tracerName = "github.com/Azure/ARO-HCP/backend"
 )
 
 // Copied from uhc-clusters-service, because the
@@ -96,6 +101,31 @@ func listOperationLabelValues() iter.Seq[string] {
 		pollBreakGlassCredential,
 		pollBreakGlassCredentialRevoke,
 	})
+}
+
+// setSpanAttributes sets the operation and resource attributes on the span.
+func (o *operation) setSpanAttributes(span trace.Span) {
+	// Operation attributes.
+	span.SetAttributes(
+		tracing.OperationIDKey.String(string(o.id)),
+		tracing.OperationTypeKey.String(string(o.doc.Request)),
+		tracing.OperationStatusKey.String(string(o.doc.Status)),
+	)
+
+	// Resource attributes.
+	if o.doc.ExternalID != nil {
+		span.SetAttributes(
+			tracing.ResourceGroupNameKey.String(o.doc.ExternalID.ResourceGroupName),
+			tracing.ResourceNameKey.String(o.doc.ExternalID.Name),
+			tracing.ResourceTypeKey.String(o.doc.ExternalID.ResourceType.Type),
+		)
+	}
+
+	switch o.doc.InternalID.Kind() {
+	case arohcpv1alpha1.ClusterKind:
+		span.SetAttributes(tracing.ClusterIDKey.String(o.doc.InternalID.ID()))
+		// TODO(simonpasquier): add node pool attribute when available
+	}
 }
 
 type OperationsScanner struct {
@@ -272,7 +302,7 @@ loop:
 		case <-collectSubscriptionsTicker.C:
 			s.collectSubscriptions(ctx, logger)
 		case <-processSubscriptionsTicker.C:
-			s.processSubscriptions(logger)
+			s.processSubscriptions(ctx, logger)
 		case <-ctx.Done():
 			// break alone just breaks out of select.
 			// Use a label to break out of the loop.
@@ -287,6 +317,7 @@ func (s *OperationsScanner) Join() {
 	s.leaderGauge.Set(0)
 }
 
+// updateOperationMetrics records counter and latency metrics for operations.
 func (s *OperationsScanner) updateOperationMetrics(label string) func() {
 	startTime := time.Now()
 	s.operationsCount.WithLabelValues(label).Inc()
@@ -299,6 +330,8 @@ func (s *OperationsScanner) updateOperationMetrics(label string) func() {
 // collectSubscriptions builds an internal list of Azure subscription IDs by
 // querying Cosmos DB.
 func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *slog.Logger) {
+	ctx, span := startRootSpan(ctx, "collectSubscriptions")
+	defer span.End()
 	defer s.updateOperationMetrics(collectSubscriptionsLabel)()
 
 	var subscriptions []string
@@ -318,9 +351,10 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 		subscriptionStates[subscription.State]++
 	}
 
+	span.SetAttributes(tracing.ProcessedItemsKey.Int(len(subscriptions)))
 	err := iterator.GetError()
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(collectSubscriptionsLabel).Inc()
+		s.recordOperationError(ctx, collectSubscriptionsLabel, err)
 		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
 		return
 	}
@@ -342,7 +376,9 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 // processSubscriptions feeds the internal list of Azure subscription IDs
 // to the worker pool for processing. processSubscriptions may block if the
 // worker pool gets overloaded. The log will indicate if this occurs.
-func (s *OperationsScanner) processSubscriptions(logger *slog.Logger) {
+func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *slog.Logger) {
+	_, span := startRootSpan(ctx, "processSubscriptions")
+	defer span.End()
 	defer s.updateOperationMetrics(processSubscriptionsLabel)()
 
 	// This method may block while feeding subscription IDs to the
@@ -368,45 +404,77 @@ func (s *OperationsScanner) processSubscriptions(logger *slog.Logger) {
 
 // processOperations processes all operations in a single Azure subscription.
 func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionID string, logger *slog.Logger) {
+	ctx, span := startRootSpan(ctx, "processOperations")
+	defer span.End()
 	defer s.updateOperationMetrics(processOperationsLabel)()
+	span.SetAttributes(tracing.SubscriptionIDKey.String(subscriptionID))
 
 	pk := database.NewPartitionKey(subscriptionID)
 
 	iterator := s.dbClient.ListActiveOperationDocs(pk, nil)
 
+	var n int
 	for operationID, operationDoc := range iterator.Items(ctx) {
-		operationLogger := logger.With(
-			"operation", operationDoc.Request,
-			"operation_id", operationID,
-			"resource_id", operationDoc.ExternalID.String(),
-			"internal_id", operationDoc.InternalID.String())
-		op := operation{operationID, pk, operationDoc, operationLogger}
-
-		switch operationDoc.InternalID.Kind() {
-		case arohcpv1alpha1.ClusterKind:
-			switch operationDoc.Request {
-			case database.OperationRequestRevokeCredentials:
-				s.pollBreakGlassCredentialRevoke(ctx, op)
-			default:
-				s.pollClusterOperation(ctx, op)
-			}
-		case arohcpv1alpha1.NodePoolKind:
-			s.pollNodePoolOperation(ctx, op)
-		case cmv1.BreakGlassCredentialKind:
-			s.pollBreakGlassCredential(ctx, op)
-		}
+		n++
+		s.processOperation(
+			ctx,
+			operation{
+				id:  operationID,
+				pk:  pk,
+				doc: operationDoc,
+				logger: logger.With(
+					"operation", operationDoc.Request,
+					"operation_id", operationID,
+					"resource_id", operationDoc.ExternalID.String(),
+					"internal_id", operationDoc.InternalID.String(),
+				),
+			})
 	}
+	span.SetAttributes(tracing.ProcessedItemsKey.Int(n))
 
 	err := iterator.GetError()
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(processOperationsLabel).Inc()
+		s.recordOperationError(ctx, processOperationsLabel, err)
 		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
 	}
 }
 
+// processOperation processes a single operation on a resource.
+func (s *OperationsScanner) processOperation(ctx context.Context, op operation) {
+	ctx, span := startChildSpan(ctx, "processOperation")
+	defer span.End()
+
+	switch op.doc.InternalID.Kind() {
+	case arohcpv1alpha1.ClusterKind:
+		switch op.doc.Request {
+		case database.OperationRequestRevokeCredentials:
+			s.pollBreakGlassCredentialRevoke(ctx, op)
+		default:
+			s.pollClusterOperation(ctx, op)
+		}
+	case arohcpv1alpha1.NodePoolKind:
+		s.pollNodePoolOperation(ctx, op)
+	case cmv1.BreakGlassCredentialKind:
+		s.pollBreakGlassCredential(ctx, op)
+	}
+}
+
+func (s *OperationsScanner) recordOperationError(ctx context.Context, operationName string, err error) {
+	if err == nil {
+		return
+	}
+
+	s.operationsFailedCount.WithLabelValues(operationName).Inc()
+	span := trace.SpanFromContext(ctx)
+	span.RecordError(err)
+}
+
 // pollClusterOperation updates the status of a cluster operation.
 func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operation) {
+	ctx, span := startChildSpan(ctx, "pollClusterOperation")
+	defer span.End()
 	defer s.updateOperationMetrics(pollClusterOperationLabel)()
+	op.setSpanAttributes(span)
 
 	clusterStatus, err := s.clusterService.GetClusterStatus(ctx, op.doc.InternalID)
 	if err != nil {
@@ -414,33 +482,37 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
 			err = s.setDeleteOperationAsCompleted(ctx, op)
 			if err != nil {
+				s.recordOperationError(ctx, pollClusterOperationLabel, err)
 				op.logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
 			}
 		} else {
+			s.recordOperationError(ctx, pollClusterOperationLabel, err)
 			op.logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
 		}
 
-		s.operationsFailedCount.WithLabelValues(pollClusterOperationLabel).Inc()
 		return
 	}
 
 	opStatus, opError, err := s.convertClusterStatus(ctx, op.logger, clusterStatus, op.doc.Status, op.doc.InternalID)
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(pollClusterOperationLabel).Inc()
+		s.recordOperationError(ctx, pollClusterOperationLabel, err)
 		op.logger.Warn(err.Error())
 		return
 	}
 
 	err = s.updateOperationStatus(ctx, op, opStatus, opError)
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(pollClusterOperationLabel).Inc()
+		s.recordOperationError(ctx, pollClusterOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 }
 
 // pollNodePoolOperation updates the status of a node pool operation.
 func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operation) {
+	ctx, span := startChildSpan(ctx, "pollNodePoolOperation")
+	defer span.End()
 	defer s.updateOperationMetrics(pollNodePoolOperationLabel)()
+	op.setSpanAttributes(span)
 
 	nodePoolStatus, err := s.clusterService.GetNodePoolStatus(ctx, op.doc.InternalID)
 	if err != nil {
@@ -448,37 +520,41 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
 			err = s.setDeleteOperationAsCompleted(ctx, op)
 			if err != nil {
+				s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 				op.logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
 			}
 		} else {
+			s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 			op.logger.Error(fmt.Sprintf("Failed to get node pool status: %v", err))
 		}
 
-		s.operationsFailedCount.WithLabelValues(pollNodePoolOperationLabel).Inc()
 		return
 	}
 
 	opStatus, opError, err := convertNodePoolStatus(nodePoolStatus, op.doc.Status)
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(pollNodePoolOperationLabel).Inc()
+		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 		op.logger.Warn(err.Error())
 		return
 	}
 
 	err = s.updateOperationStatus(ctx, op, opStatus, opError)
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(pollNodePoolOperationLabel).Inc()
+		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 }
 
 // pollBreakGlassCredential updates the status of a credential creation operation.
 func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op operation) {
+	ctx, span := startChildSpan(ctx, "pollBreakGlassCredential")
+	defer span.End()
 	defer s.updateOperationMetrics(pollBreakGlassCredential)()
+	op.setSpanAttributes(span)
 
 	breakGlassCredential, err := s.clusterService.GetBreakGlassCredential(ctx, op.doc.InternalID)
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
+		s.recordOperationError(ctx, pollBreakGlassCredential, err)
 		op.logger.Error(fmt.Sprintf("Failed to get break-glass credential: %v", err))
 		return
 	}
@@ -500,7 +576,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 	case cmv1.BreakGlassCredentialStatusIssued:
 		opStatus = arm.ProvisioningStateSucceeded
 	default:
-		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
+		s.recordOperationError(ctx, pollBreakGlassCredential, err)
 		op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
 		return
 	}
@@ -509,7 +585,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		return updateDoc.UpdateStatus(opStatus, opError)
 	})
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredential).Inc()
+		s.recordOperationError(ctx, pollBreakGlassCredential, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 	if updated {
@@ -520,7 +596,10 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 
 // pollBreakGlassCredentialRevoke updates the status of a credential revocation operation.
 func (s *OperationsScanner) pollBreakGlassCredentialRevoke(ctx context.Context, op operation) {
+	ctx, span := startChildSpan(ctx, "pollBreakGlassCredentialRevoke")
+	defer span.End()
 	defer s.updateOperationMetrics(pollBreakGlassCredentialRevoke)()
+	op.setSpanAttributes(span)
 
 	var opStatus = arm.ProvisioningStateSucceeded
 	var opError *arm.CloudErrorBody
@@ -559,15 +638,16 @@ loop:
 				// Use a label to break out of the loop.
 				break loop
 			default:
-				s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
-				op.logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
+				err := fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
+				s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
+				op.logger.Error(err.Error())
 			}
 		}
 	}
 
 	err := iterator.GetError()
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
+		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
 		op.logger.Error(fmt.Sprintf("Error while paging through Cluster Service query results: %v", err.Error()))
 		return
 	}
@@ -576,7 +656,7 @@ loop:
 		return updateDoc.UpdateStatus(opStatus, opError)
 	})
 	if err != nil {
-		s.operationsFailedCount.WithLabelValues(pollBreakGlassCredentialRevoke).Inc()
+		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 	if updated {
@@ -878,4 +958,24 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 	}
 
 	return "", false
+}
+
+// startRootSpan initiates a new parent trace.
+func startRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	return otel.GetTracerProvider().
+		Tracer(tracerName).
+		Start(
+			ctx,
+			name,
+			trace.WithNewRoot(),
+			trace.WithSpanKind(trace.SpanKindInternal),
+		)
+}
+
+// startChildSpan creates a new span linked to the parent span from the current context.
+func startChildSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	return trace.SpanFromContext(ctx).
+		TracerProvider().
+		Tracer(tracerName).
+		Start(ctx, name)
 }
