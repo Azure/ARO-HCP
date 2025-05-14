@@ -1,7 +1,7 @@
 * @bennerv @jharrington22 @SudoBrendan @ulrichschlueter @zgalor
-**/go.mod @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
-**/go.sum @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
-go.work* @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
+**/go.mod @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
+**/go.sum @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
+go.work* @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
 /.github/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
 /.devcontainer/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
 /dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521 @tony-schndr @jfchevrette @mmazur @stevekuznetsov
