@@ -529,11 +529,15 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "tracing": {
+          "$ref": "#/definitions/tracing"
         }
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "tracing"
       ]
     },
     "frontend": {

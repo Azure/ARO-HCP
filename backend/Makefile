@@ -54,6 +54,8 @@ deploy:
 		--set clustersService.namespace=${CS_NAMESPACE} \
 		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
 		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE}@$${DIGEST} \
+		--set tracing.address=${TRACING_ADDRESS} \
+		--set tracing.exporter=${TRACING_EXPORTER} \
 		--namespace aro-hcp
 .PHONY: deploy
 
