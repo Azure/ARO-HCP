@@ -29,5 +29,7 @@ deploy:
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 		--set pullBinding.workloadIdentityTenantId="$${TENANT_ID}" \
 		--set pullBinding.registry=${ACR_NAME}.azurecr.io \
-		--set pullBinding.scope=repository:${IMAGE_BASE}:pull
+		--set pullBinding.scope=repository:${IMAGE_BASE}:pull \
+	    --set tracing.address=${TRACING_ADDRESS} \
+	    --set tracing.exporter=${TRACING_EXPORTER} \
 .PHONY: deploy

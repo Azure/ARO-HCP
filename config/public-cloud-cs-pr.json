@@ -235,6 +235,10 @@
     },
     "restrictIstioIngress": false,
     "server": {
+      "tracing": {
+        "address": "",
+        "exporter": ""
+      },
       "k8s": {
         "namespace": "maestro",
         "serviceAccountName": "maestro"

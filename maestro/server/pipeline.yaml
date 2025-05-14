@@ -79,3 +79,7 @@ resourceGroups:
       configRef: clustersService.k8s.serviceAccountName
     - name: ACR_NAME
       configRef: acr.svc.name
+    - name: TRACING_ADDRESS
+      configRef: maestro.server.tracing.address
+    - name: TRACING_EXPORTER
+      configRef: maestro.server.tracing.exporter

@@ -812,6 +812,9 @@
             "loglevel": {
               "type": "integer"
             },
+            "tracing": {
+              "$ref": "#/definitions/tracing"
+            },
             "k8s": {
               "type": "object",
               "properties": {

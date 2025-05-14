@@ -152,6 +152,9 @@ defaults:
   # Maestro
   maestro:
     server:
+      tracing:
+        address: ""
+        exporter: ""
       mqttClientName: maestro-server
       loglevel: 4
       managedIdentityName: maestro-server
@@ -532,6 +535,9 @@ clouds:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
           maestro:
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
             postgres:
               deploy: false
             server:

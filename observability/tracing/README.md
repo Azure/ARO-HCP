@@ -40,7 +40,7 @@ make patch-frontend
 make patch-clusterservice
 ```
 
-The export of the trace information is configured via environment variables for the RP Frontend and command-line arguments for the Clusters Service.
+The export of the trace information is configured via environment variables for the RP Frontend, maestro server and command-line arguments for the Clusters Service.
 
 ### Correlate with ARM requests
 
