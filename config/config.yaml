@@ -162,6 +162,9 @@ defaults:
   # Maestro
   maestro:
     server:
+      tracing:
+        address: ""
+        exporter: ""
       mqttClientName: maestro-server
       loglevel: 4
       managedIdentityName: maestro-server
@@ -459,6 +462,9 @@ clouds:
           maestro:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
+              tracing:
+                address: "http://ingest.observability:4318"
+                exporter: "otlp"
           # Frontend
           frontend:
             cosmosDB:
@@ -556,6 +562,9 @@ clouds:
               deploy: false
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+              tracing:
+                address: "http://ingest.observability:4318"
+                exporter: "otlp"
           # Backend
           backend:
             tracing:

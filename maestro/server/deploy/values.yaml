@@ -6,6 +6,9 @@ deployment:
   limits:
     cpu: 1
     memory: 1Gi
+tracing:
+  address: ""
+  exporter: ""
 broker:
   host: ""
   port: 8883

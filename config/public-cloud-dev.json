@@ -245,7 +245,11 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-dev-dev"
+      "mqttClientName": "maestro-server-dev-dev",
+      "tracing": {
+        "address": "http://ingest.observability:4318",
+        "exporter": "otlp"
+      }
     }
   },
   "mce": {

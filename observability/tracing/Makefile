@@ -22,6 +22,11 @@ patch-frontend:
 	@kubectl wait --for=condition=Available -n aro-hcp deployment aro-hcp-frontend --timeout=30s
 .PHONY: patch-frontend
 
+patch-maestro-server:
+	@kubectl set env -n maestro deployment maestro --containers service OTEL_EXPORTER_OTLP_ENDPOINT=http://ingest.observability:4318 OTEL_TRACES_EXPORTER=otlp
+	@kubectl wait --for=condition=Available -n maestro deployment maestro --timeout=30s
+.PHONY: patch-maestro-server
+
 patch-clusterservice:
 	kubectl patch -n ${CS_NAMESPACE} deployment clusters-service --type json \
 		--patch="[{\"op\": \"add\", \"path\": \"/spec/template/spec/containers/0/command/-\", \"value\": \"--tracing-otlp-url=http://ingest.observability:4318\"}]"

@@ -72,6 +72,10 @@ spec:
           mountPath: /secrets/mqtt-creds
           readOnly: true
         env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: '{{ .Values.tracing.address  }}'
+        - name: OTEL_TRACES_EXPORTER
+          value: '{{ .Values.tracing.exporter  }}'
         - name: "AMS_ENV"
           value: "production"
         - name: POD_NAME
