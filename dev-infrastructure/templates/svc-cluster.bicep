@@ -255,7 +255,7 @@ param svcNSPName string
 param svcNSPAccessMode string
 
 @description('Access mode for this NSP')
-param rhDevFixSVCKVAsignNSP bool = true
+param serviceKeyVaultAsignNSP bool = true
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
@@ -660,7 +660,7 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
   }
 }
 
-module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (rhDevFixSVCKVAsignNSP) {
+module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVaultAsignNSP) {
   name: 'profile-svc-kv-${uniqueString(resourceGroup().name)}'
   params: {
     accessMode: svcNSPAccessMode

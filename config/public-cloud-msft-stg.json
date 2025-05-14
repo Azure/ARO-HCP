@@ -356,6 +356,7 @@
     "name": "TM-AzureRedHatOpenShift-HCP-Leads"
   },
   "serviceKeyVault": {
+    "assignNSP": true,
     "name": "arohcpstg-svc-usw3",
     "private": false,
     "region": "westus3",
@@ -412,8 +413,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-usw3-svc",
-      "rhDevFixSVCKVAsignNSP": true
+      "name": "nsp-usw3-svc"
     },
     "prometheus": {
       "namespace": "prometheus",

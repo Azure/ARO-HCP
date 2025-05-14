@@ -85,7 +85,6 @@ defaults:
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
       accessMode: 'Learning'
-      rhDevFixSVCKVAsignNSP: true
     aks:
       name: "{{ .ctx.region }}-svc-1" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
@@ -313,6 +312,7 @@ defaults:
     region: "{{ .ctx.region  }}"
     softDelete: false
     private: false
+    assignNSP: true
   # Management Cluster KV
   cxKeyVault:
     softDelete: false

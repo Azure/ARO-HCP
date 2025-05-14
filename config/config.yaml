@@ -49,7 +49,6 @@ defaults:
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
       accessMode: 'Learning'
-      rhDevFixSVCKVAsignNSP: false
     istio:
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
@@ -238,6 +237,7 @@ defaults:
     region: '{{ .ctx.region  }}'
     softDelete: true
     private: true
+    assignNSP: true
   # Management Cluster KV
   cxKeyVault:
     name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
@@ -418,9 +418,6 @@ clouds:
           logs:
             loganalytics:
               enable: true
-          svc:
-            nsp:
-              rhDevFixSVCKVAsignNSP: true
           mgmt:
             aks:
               systemAgentPool:
@@ -520,6 +517,9 @@ clouds:
       personal-dev:
         # this is the personal DEV environment
         defaults:
+          # Service Key Vault
+          serviceKeyVault:
+            assignNSP: false
           # Cluster Service
           clustersService:
             postgres:

@@ -102,4 +102,4 @@ param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
 
 param svcNSPName = '{{ .svc.nsp.name }}'
 param svcNSPAccessMode = '{{ .svc.nsp.accessMode }}'
-param rhDevFixSVCKVAsignNSP = {{ .svc.nsp.rhDevFixSVCKVAsignNSP }}
+param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
