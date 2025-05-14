@@ -1073,7 +1073,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, false, http.MethodPut)
+			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, nil, false, http.MethodPut)
 
 		default:
 			// Disregard foreign resource types.

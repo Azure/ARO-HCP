@@ -290,6 +290,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   scope: resourceGroup()
   params: {
     location: location
+    regionalResourceGroup: regionalResourceGroup
     locationAvailabilityZones: locationAvailabilityZoneList
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
@@ -387,16 +388,26 @@ var backendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiN
 
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   name: 'rp_cosmos_db'
-  scope: resourceGroup()
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     name: rpCosmosDbName
     location: location
     zoneRedundant: determineZoneRedundancy(locationAvailabilityZoneList, rpCosmosZoneRedundantMode)
-    aksNodeSubnetId: svcCluster.outputs.aksNodeSubnetId
-    vnetId: svcCluster.outputs.aksVnetId
     disableLocalAuth: disableLocalAuth
     userAssignedMIs: [frontendMI, backendMI]
     private: rpCosmosDbPrivate
+  }
+}
+
+module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = {
+  name: '${deployment().name}-rp-pe'
+  params: {
+    location: location
+    subnetIds: [svcCluster.outputs.aksNodeSubnetId]
+    vnetId: svcCluster.outputs.aksVnetId
+    privateLinkServiceId: rpCosmosDb.outputs.cosmosDBAccountId
+    serviceType: 'cosmosdb'
+    groupId: 'Sql'
   }
 }
 
@@ -412,6 +423,7 @@ var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain :
 module maestroServer '../modules/maestro/maestro-server.bicep' = {
   name: 'maestro-server'
   params: {
+    regionalResourceGroup: regionalResourceGroup
     maestroInfraResourceGroup: regionalResourceGroup
     maestroEventGridNamespaceName: maestroEventGridNamespacesName
     mqttClientName: maestroServerMqttClientName
@@ -430,6 +442,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       : 'SameZone'
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
+    privateEndpointResourceGroup: resourceGroup().name
     maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
     postgresAdministrationManagedIdentityId: aroDevopsMsiId
@@ -485,6 +498,7 @@ module cs '../modules/cluster-service.bicep' = {
     postgresServerMinTLSVersion: csPostgresServerMinTLSVersion
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
+    privateEndpointResourceGroup: resourceGroup().name
     deployPostgres: csPostgresDeploy
     postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, csPostgresZoneRedundantMode)
       ? 'ZoneRedundant'
@@ -631,7 +645,7 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
     location: location
     associatedResources: [
       svcCluster.outputs.etcKeyVaultId
-      rpCosmosDb.outputs.cosmosDbAccountId
+      rpCosmosDb.outputs.cosmosDBAccountId
     ]
     // TODO Add EV2 access here
     subscriptions: [

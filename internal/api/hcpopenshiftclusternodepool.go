@@ -34,13 +34,13 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	Replicas          int32                   `json:"replicas,omitempty"          visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
 	AutoRepair        bool                    `json:"autoRepair,omitempty"        visibility:"read create"`
 	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty"       visibility:"read create update"`
-	Labels            map[string]string       `json:"labels,omitempty"            visibility:"read create update"`
-	Taints            []*Taint                `json:"taints,omitempty"            visibility:"read create update" validate:"dive"`
+	Labels            map[string]string       `json:"labels,omitempty"            visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
+	Taints            []Taint                 `json:"taints,omitempty"            visibility:"read create update" validate:"dive"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
 type NodePoolVersionProfile struct {
-	ID                string   `json:"id,omitempty"                visibility:"read create update" validate:"required_unless=ChannelGroup stable"`
+	ID                string   `json:"id,omitempty"                visibility:"read create update" validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
 	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create update"`
 	AvailableUpgrades []string `json:"availableUpgrades,omitempty" visibility:"read"`
 }
@@ -58,14 +58,14 @@ type NodePoolPlatformProfile struct {
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
 type NodePoolAutoScaling struct {
-	Min int32 `json:"min,omitempty" validate:"min=0"`
-	Max int32 `json:"max,omitempty" validate:"min=0,gtefield=Min"`
+	Min int32 `json:"min,omitempty" validate:"min=1"`
+	Max int32 `json:"max,omitempty" validate:"gtefield=Min"`
 }
 
 type Taint struct {
 	Effect Effect `json:"effect,omitempty" validate:"required_for_put,enum_effect"`
-	Key    string `json:"key,omitempty"    validate:"required_for_put,min=1,max=316"`
-	Value  string `json:"value,omitempty"  validate:"omitempty,min=1,max=63"`
+	Key    string `json:"key,omitempty"    validate:"required_for_put,k8s_qualified_name"`
+	Value  string `json:"value,omitempty"  validate:"k8s_label_value"`
 }
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {

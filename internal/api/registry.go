@@ -44,7 +44,7 @@ type VersionedHCPOpenShiftCluster interface {
 
 type VersionedHCPOpenShiftClusterNodePool interface {
 	Normalize(*HCPOpenShiftClusterNodePool)
-	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, updating bool, method string) *arm.CloudError
+	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, method string) *arm.CloudError
 }
 
 type Version interface {

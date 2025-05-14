@@ -18,12 +18,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,8 +48,7 @@ var dummyNodePoolHREF = ocm.GenerateNodePoolHREF(dummyClusterHREF, api.TestNodeP
 
 var dummyLocation = "Spain"
 var dummyVMSize = "Big"
-var dummyChannelGroup = "dummyChannelGroup"
-var dummyVersionID = "dummy"
+var dummyVersionID = "openshift-v4.18.0"
 
 func TestCreateNodePool(t *testing.T) {
 	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
@@ -63,7 +64,7 @@ func TestCreateNodePool(t *testing.T) {
 		Properties: &generated.NodePoolProperties{
 			Version: &generated.NodePoolVersionProfile{
 				ID:           &dummyVersionID,
-				ChannelGroup: &dummyChannelGroup,
+				ChannelGroup: api.Ptr("stable"),
 			},
 			Platform: &generated.NodePoolPlatformProfile{
 				VMSize: &dummyVMSize,
@@ -121,6 +122,12 @@ func TestCreateNodePool(t *testing.T) {
 
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().
+				GetCluster(gomock.Any(), clusterDoc.InternalID).
+				Return(arohcpv1alpha1.NewCluster().
+					Version(cmv1.NewVersion().ChannelGroup("stable")).
+					Build())
+			// CreateOrUpdateNodePool
+			mockCSClient.EXPECT().
 				PostNodePool(gomock.Any(), clusterDoc.InternalID, gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
@@ -147,7 +154,7 @@ func TestCreateNodePool(t *testing.T) {
 			mockDBClient.EXPECT().
 				GetResourceDoc(gomock.Any(), equalResourceID(test.clusterDoc.ResourceID)). // defined in frontend_test.go
 				Return(test.clusterDoc, nil).
-				Times(2)
+				Times(3)
 			// CreateOrUpdateNodePool
 			mockDBClient.EXPECT().
 				CreateOperationDoc(gomock.Any(), gomock.Any())
@@ -167,7 +174,13 @@ func TestCreateNodePool(t *testing.T) {
 			t.Log(rs)
 			require.NoError(t, err)
 
-			assert.Equal(t, test.expectedStatusCode, rs.StatusCode)
+			if !assert.Equal(t, test.expectedStatusCode, rs.StatusCode) {
+				defer rs.Body.Close()
+				body, err := io.ReadAll(rs.Body)
+				require.NoError(t, err)
+
+				t.Log(string(body))
+			}
 
 			lintMetrics(t, reg)
 			assertHTTPMetrics(t, reg, test.subDoc)
@@ -193,7 +206,8 @@ func TestCreateNodePool(t *testing.T) {
 // 			Spec: &generated.NodePoolSpec{
 // 				Replicas: &dummyReplicas,
 // 				Version: &generated.VersionProfile{
-// 					ID: &dummyVersionID, ChannelGroup: &dummyChannelGroup,
+// 					ID:           &dummyVersionID,
+//					ChannelGroup: api.Ptr("stable"),
 // 				},
 // 			},
 // 		},

@@ -135,6 +135,29 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
+	// Node pool validation checks some fields against the parent cluster
+	// so we have to request the cluster from Cluster Service.
+
+	clusterResourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
+	if err != nil {
+		logger.Error(err.Error())
+		if errors.Is(err, database.ErrNotFound) {
+			arm.WriteResourceNotFoundError(writer, resourceID.Parent)
+		} else {
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterResourceDoc.InternalID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID.Parent))
+		return
+	}
+
+	hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID.Parent, csCluster)
+
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -147,7 +170,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, updating, request.Method)
+	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, hcpCluster, updating, request.Method)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
