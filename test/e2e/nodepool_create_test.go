@@ -30,18 +30,19 @@ var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 	)
 
 	BeforeEach(func() {
-		By("Prepare HCP nodepools client")
+		By("Preparing HCP nodepools client")
 		NodePoolsClient = clients.NewNodePoolsClient()
 	})
 
-	var (
-		nodePoolName     = "mynodepool"
-		nodePoolResource api.NodePool
-		nodePoolOptions  *api.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
-	)
-	It("Puts invalid nodepool request", labels.Medium, labels.Negative, func(ctx context.Context) {
-		clusterName := "non-existing_cluster"
-		By("Send put request to create nodepool for non-existing HCPOpenshiftCluster")
+	It("Attempts to create a nodepool for a non-existant HCPOpenshiftCluster", labels.Medium, labels.Negative, func(ctx context.Context) {
+		var (
+			nodePoolName     = "mynodepool"
+			clusterName      = "non-existing_cluster"
+			nodePoolResource api.NodePool
+			nodePoolOptions  *api.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
+		)
+
+		By("Sending a  put request to create nodepool for non-existing HCPOpenshiftCluster")
 		_, err := NodePoolsClient.BeginCreateOrUpdate(ctx, customerRGName, clusterName, nodePoolName, nodePoolResource, (*api.NodePoolsClientBeginCreateOrUpdateOptions)(nodePoolOptions))
 		Expect(err).ToNot(BeNil())
 		errMessage := "RESPONSE 500: 500 Internal Server Error"
