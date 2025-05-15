@@ -1,20 +1,38 @@
 
-# ARO HCP Debugging Cheatsheet
+# ARO HCP High Level Cluster Creation Flow
 
-This document is a cheatsheet for debugging ARO HCP cluster creation issues. It shows the rough flow of the cluster creation process through the individual service components. Each component is described in a separate section, including how to access it and how to query for the relevant resources.
+This document describes the high level cluster creation flow of an ARO HCP cluster. It is meant to be a quick reference for developers and engineers working on the ARO HCP service. It is not a comprehensive overview of the ARO HCP architecture or a complete SOP/TSG for debugging during oncall.
 
->[!NOTE]
-> This document it neither a complete overview of the ARO HCP architecture nor a comprehensive SOP/TSG for debugging during oncall. It is meant as a quick reference and should be considered a learning resource. PTAL at the respective SOPs/TSGs for all platform and service components (once they are available).
+The individual components are described in the [service components overview (todo)](service-components.md). The flowchart below shows the rough flow of the cluster creation process through the individual service components. Helpful debug commands are provided for each component in their respective sections.
 
-## Cluster Creation Flow in a Nutshell
+## Cluster Creation Flow Happy Path in a Nutshell
+
+1. A cluster creation request from ARM enters the ARO HCP service on the istio ingress
+2. The request is routed to the RP frontend
+3. The Istio sidecar of the RP frontend delegates authentication to MISE running as an ext-auth provider
+4. The frontend conducts a preflight check towards Clusters Service, stores a record in CosmosDB on success and issues a request to Clusters Service to create the cluster
+5. Clusters Service prepares a managed resource group in the customers subscription and creates the cloud resources for the cluster
+6. Clusters Service posts `ManifestWork` containing `HosterCluster` Hypershift CRs and other supporting resources to the Maestro Server
+7. The Maestro Server posts transfers the `ManifestWork` to the Maestro Agent via Eventgrid Namespaces MQTT
+8. The Maestro Agent applies the `ManifestWork`, creating the `ocm-xxx-${CLUSTER_ID}` namespace, the Hypershift `HostedCluster` CR, supporting secrets and configmaps as well as the `ManagedCluster` MCE CR.
+9. The Hypershift operator picks up on the `HostedCluster` CR, creates the `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace, the control plane deployments within it and supporting cloud resources in the managed resource group of the customer
+10. MCE picks up on the finished `HostedCluster` provisioning and updates the `ManagedCluster` CR.
+11. The Maestro Agent transfers all status updates from `HostedCluster`, `ManagedCluster` and other `ManifestWork` resources back to the Maestro Server via Eventgrid Namespaces MQTT
+12. CS notices the status updates and updates the cluster records
+13. The RP backend notices the status update in CS and updates the cluster record in CosmosDB
+14. The RP frontend now reports the cluster as `Provisioned` to ARM
 
 ```mermaid
 ---
 config:
   layout: dagre
 ---
-flowchart TB
- arm["ARM"]
+flowchart LR
+arm["ARM"]
+subgraph customer_subscription["Customer Subscription"]
+  subgraph managed_resourcegroup["Managed Resource Group"]
+  end
+end
 subgraph svc_cluster["service cluster"]
     subgraph istio_ns["aks-istio-ingress"]
         istio_ingress["Istio Ingress"]
@@ -23,6 +41,7 @@ subgraph svc_cluster["service cluster"]
         mise["MISE"]
     end
     subgraph rp_ns["ns aro-hcp"]
+        direction LR
         rp_backend["RP Backend"]
         rp_frontend["RP Frontend"]
     end
@@ -37,8 +56,8 @@ subgraph svc_cluster["service cluster"]
     subgraph maestro_agent_ns["ns maestro"]
         maestro_agent["Maestro Agent"]
     end
-    subgraph acm_mce_ns["ns multicluster-engine"]
-        acm["ACM MCE"]
+    subgraph acm_mce_ns["ns multicluster-engine (ACM)"]
+        mce["MCE"]
     end
     subgraph hypershift_ns["ns hypershift"]
         hypershift["Hypershift Operator"]
@@ -49,37 +68,29 @@ subgraph svc_cluster["service cluster"]
     subgraph hypershift_cp_ns["ns ocm-xxx-$cluster-id-$name"]
         cp_pods["Control Plane Pods"]
     end
-    subgraph local_cluster_ns["ns local-cluster"]
+    subgraph local_cluster_ns["ns local-cluster (ACM)"]
         managed_cluster_cr["ManagedCluster CR"]
     end
  end
- rp_backend --> cs
- arm --> istio_ingress --> rp_frontend --> cs -- manifests --> maestro_server -- ManifestWork --> maestro_agent -- ManifestWork --> acm --> hostedcluster_cr <--> hypershift
- rp_frontend -- auth --> mise
- istio_ingress --> mise
- hypershift --> hypershift_cp_ns
- acm --> managed_cluster_cr
- hostedcluster_cr -- status updats --> managed_cluster_cr
- hostedcluster_cr -- reconciled into --> cp_pods
- maestro_agent -- status --> maestro_server
+ arm -- (1)(14) --> istio_ingress -- (2) --> rp_frontend -- (4) --> cs
+ rp_frontend -.- rp_backend
+ cs -- (5) --> managed_resourcegroup
+ cs -- (6) --> maestro_server
+ rp_frontend -- (3) --> mise
+ maestro_server -- (7) --> maestro_agent
 
- click rp_frontend "#rp-frontend" "Go to RP Frontend Section"
- click rp_backend "#rp-backend" "Go to RP Backend Section"
- click cs "#clusters-service" "Go to Clusters Service Section"
- click maestro_agent "#maestro-agent" "Go to Maestro Agent Section"
- click maestro_server "#maestro-server" "Go to Maestro Server Section"
- click acm "#acm" "Go to ACM Section"
- click hypershift "#hypershift" "Go to Hypershift Section"
-
+ mce -- (10) --> managed_cluster_cr
+ maestro_agent -- (8) --> hypershift_hcp_ns
+ maestro_agent -- (8) --> managed_cluster_cr
+ hostedcluster_cr --> hypershift
+ hypershift -- (9) --> managed_resourcegroup
+ hypershift -- (9) --> hypershift_cp_ns
+ maestro_agent -- (11) --> maestro_server
+ cs -- (13) --> rp_backend
+ maestro_server -- (12) --> cs
 ```
 
 ## RP Frontend
-
-* The RP frontend is the primary regional API entry point for the ARO HCP service, as it receives requests from ARM
-* It delegates authentication to [MISE](../frontend/deploy/charts/mise) through an Istio [AuthorizationPolicy](../frontend/deploy/templates/ext-authz.authorizationpolicy.yaml)
-* It keeps track of cluster state in CosmosDB
-* It delegates the HCP creation to Clusters Service
-* Communication with Clusters Service is done via the Istio with mTLS and policies in place
 
 ### Port Forward to the RP Frontend
 
@@ -106,21 +117,7 @@ Noteworthy fields:
 * `.properties.api.url` - the HCP KAS URL
 * `.properties.dns.baseDomain` - the base DNS zone for the HCP (exists in our infrastructure)
 
-## RP Backend
-
-* Updates the state of the hosted control plane in CosmosDB to support async operations
-
 ## Clusters Service
-
-* orchestrates HCP creation by
-  * provisioning Azure cloud resources within the customer tenant and ARO HCP service tenants
-  * placing Hypershift related manifests onto the managemenet clusters (via Maestro) to drive the actual control plane creation
-* support day 2 operations like
-  * node pool management
-  * upgrade management
-  * breakglass credential management
-* Clusters Service communicates with the Maestro Server via GRPC over Istio
-* Clusters Service is not exposed outside of the service cluster
 
 ### Port Forward to Clusters Service
 
@@ -166,15 +163,6 @@ Currently this endpoint does not return yet direct management cluster metadata, 
 
 ## Maestro Server
 
-* In a nutshell, Maestro is a `kubectl apply over MQTT` service to bridge the gap between Clusters Service and the management cluster
-* The Maestro Server is transfering `ManifestWork` resources from Clusters Service to the management cluster
-* ... and transfers status back for Clusters Service to read (e.g. `HostedCluster` status)
-* The Maestro Server runs on the service cluster in the `maestro` namespace
-* The Maestro Server is not exposed outside of the service cluster
-* ... because only Clusters Service and Backplane need to access it
-* It uses a certificate from the mgmt KV to authenticate with the Eventgrid Namespace MQTT broker
-* ... and consums it via CSI secret store
-
 ### Port Forward to the Maestro Server
 
 The Maestro Server is not exposed at all outside of the service cluster, as it is usually only used by the Clusters Service and Backplane. In order to access it for debugging purposes, you can port forward to the service.
@@ -201,13 +189,13 @@ Noteworthy fields:
 
 ## Maestro Agent
 
-* The Maestro Agent is the client component of Maestro running on each management cluster
-* ... receiving `ManifestWork` resources from the Maestro Server via MQTT (Azure Eventgrid Namespaces)
-* ... applying them to the management cluster
-* ... and sending status updates back to the Maestro Server
-* The Maestro Agent runs on the management cluster in the `maestro` namespace
-* It uses a certificate from the mgmt KV to authenticate with the Eventgrid Namespace MQTT broker
-* ... and consums it via CSI secret store
+### Check Maestro Agent Logs
+
+The Maestro Agent runs on the management cluster in the `maestro` namespace. To check the logs of the Maestro Agent, you can use the following command:
+
+```sh
+kubectl logs -n maestro deployment/maestro-agent -c maestro-agent
+```
 
 ## ACM
 
