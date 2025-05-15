@@ -458,6 +458,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       id => id.uamiName == maestroMIName
     )[0].uamiPrincipalID
     maestroServerManagedIdentityName: maestroMIName
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
   dependsOn: [
     serviceKeyVault

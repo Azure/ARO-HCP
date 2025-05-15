@@ -66,6 +66,9 @@ param postgresAdministrationManagedIdentityId string
 
 param postgresZoneRedundantMode string
 
+@description('The log analytics workspace ID to link to the server.')
+param logAnalyticsWorkspaceId string = ''
+
 //
 //   P O S T G R E S
 //
@@ -116,6 +119,7 @@ module postgres '../postgres/postgres.bicep' = if (deployPostgres) {
     subnetId: privateEndpointSubnetId
     vnetId: privateEndpointVnetId
     managedPrivateEndpoint: true
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
