@@ -55,10 +55,8 @@ func ConfigureOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, reso
 		return nil, fmt.Errorf("failed to create OTEL exporter: %w", err)
 	}
 
-	var isNoop bool
-	if _, isNoop = exp.(*noopSpanExporter); !isNoop || autoexport.IsNoneSpanExporter(exp) {
-		isNoop = true
-	}
+	_, isNoop := exp.(*noopSpanExporter)
+	isNoop = isNoop || autoexport.IsNoneSpanExporter(exp)
 	logger.InfoContext(ctx, "initialising OpenTelemetry tracer", "isNoop", isNoop)
 
 	opts := []resource.Option{resource.WithHost()}
