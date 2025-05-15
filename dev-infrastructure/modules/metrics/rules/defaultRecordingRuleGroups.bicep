@@ -1,19 +1,14 @@
-param regionalResourceGroup string
-param azureMonitorWorkspaceName string
-param azureMonitorWorkspaceLocation string
-
-resource amw 'microsoft.monitor/accounts@2021-06-03-preview' existing = {
-  name: azureMonitorWorkspaceName
-  scope: resourceGroup(regionalResourceGroup)
-}
+param azureMonitoring string
 
 // default recording rules from https://github.com/Azure/prometheus-collector/blob/main/AddonBicepTemplate/FullAzureMonitorMetricsProfile.bicep
 resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'all-clusters-defaultK8sRecordingRules'
-  location: azureMonitorWorkspaceLocation
+  location: resourceGroup().location
   properties: {
     description: 'default kubernetes recording rules'
-    scopes: [amw.id]
+    scopes: [
+      azureMonitoring
+    ]
     enabled: true
     interval: 'PT1M'
     rules: [
@@ -112,10 +107,12 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
 resource nodeRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'all-clusters-defaultNodeRecordingRules'
 
-  location: azureMonitorWorkspaceLocation
+  location: resourceGroup().location
   properties: {
     description: 'default node recording rules'
-    scopes: [amw.id]
+    scopes: [
+      azureMonitoring
+    ]
     enabled: true
     interval: 'PT1M'
     rules: [
