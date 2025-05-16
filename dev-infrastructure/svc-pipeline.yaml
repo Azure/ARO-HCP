@@ -136,6 +136,8 @@ resourceGroups:
       configRef: svc.prometheus.namespaceLabel
     - name: RESOURCE_GROUP
       configRef: svc.rg
+    - name: CLUSTER_NAME
+      configRef: svc.aks.name
     dependsOn:
     - svc
   # configure istio
