@@ -48,4 +48,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - [Grafana Dashboards](grafana-dashboards.md)
    - [Prometheus Rules](prometheus-rules.md)
 
-7. **[Terminology](terminology.md)**
+7. **Operations**
+   - [High Level HCP Creation Flow](ops/hcp-cluster-creation-flow.md)
+
+8. **[Terminology](terminology.md)**
