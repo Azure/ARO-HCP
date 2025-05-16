@@ -420,6 +420,11 @@ var ocpMirrorConfig = {
           minVersion: '4.18.1'
           maxVersion: '4.18.9'
         }
+        {
+          name: 'candidate-4.19'
+          type: 'ocp'
+          full: true
+        }
       ]
       graph: true
     }
@@ -436,6 +441,10 @@ var ocpMirrorConfig = {
       { name: 'registry.redhat.io/redhat/certified-operator-index:v4.18' }
       { name: 'registry.redhat.io/redhat/community-operator-index:v4.18' }
       { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.18' }
+      { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.19' }
+      { name: 'registry.redhat.io/redhat/certified-operator-index:v4.19' }
+      { name: 'registry.redhat.io/redhat/community-operator-index:v4.19' }
+      { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.19' }
     ]
   }
 }
