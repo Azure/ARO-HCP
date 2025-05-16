@@ -100,6 +100,18 @@
     "regionalSubdomain": "nightly",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
+  "externalSecretsOperator": {
+    "image": {
+      "digest": "sha256:31e3431814feec71860d30520ec437006a60e0f30f5a67ef2a06fa94823692b5",
+      "registry": "oci.external-secrets.io",
+      "repository": "external-secrets/external-secrets"
+    },
+    "k8s": {
+      "namespace": "external-secrets",
+      "serviceAccountName": "external-secrets"
+    },
+    "version": "v0.16.1"
+  },
   "extraVars": {},
   "firstPartyAppCertificate": {
     "issuer": "Self",
