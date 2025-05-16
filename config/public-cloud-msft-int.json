@@ -347,11 +347,12 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-int",
     "grafanaZoneRedundantMode": "Disabled",
+    "hcpWorkspaceName": "arohcp-hcp-usw3",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "workspaceName": "arohcp-usw3"
+    "svcWorkspaceName": "arohcp-usw3"
   },
   "msiKeyVault": {
     "name": "arohcpint-msi-usw3-1",
