@@ -72,13 +72,31 @@ deploy:
 	  --set azureOperatorsMI.imageRegistry.roleId="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
 	  --set azureOperatorsMI.cloudNetworkConfig.roleName="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
 	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
+	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
+	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}" \
+	  --set azureOperatorsMI.clusterApiAzure.roles[0].name="${OP_CLUSTER_API_AZURE_ROLE_NAME}" \
+	  --set azureOperatorsMI.clusterApiAzure.roles[0].id="$${OP_CLUSTER_API_AZURE_ROLE_ID}" \
+	  --set azureOperatorsMI.controlPlane.roles[0].name="${OP_CONTROL_PLANE_ROLE_NAME}" \
+	  --set azureOperatorsMI.controlPlane.roles[0].id="$${OP_CONTROL_PLANE_ROLE_ID}" \
+	  --set azureOperatorsMI.cloudControllerManager.roles[0].name="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudControllerManager.roles[0].id="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
+	  --set azureOperatorsMI.ingress.roles[0].name="${OP_INGRESS_ROLE_NAME}" \
+	  --set azureOperatorsMI.ingress.roles[0].id="$${OP_INGRESS_ROLE_ID}" \
+	  --set azureOperatorsMI.diskCsiDriver.roles[0].name="${OP_DISK_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.diskCsiDriver.roles[0].id="$${OP_DISK_CSI_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.fileCsiDriver.roles[0].name="${OP_FILE_CSI_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.fileCsiDriver.roles[0].id="$${OP_FILE_CSI_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.imageRegistry.roles[0].name="${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" \
+	  --set azureOperatorsMI.imageRegistry.roles[0].id="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
+	  --set azureOperatorsMI.cloudNetworkConfig.roles[0].name="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
+	  --set azureOperatorsMI.cloudNetworkConfig.roles[0].id="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
+	  --set azureOperatorsMI.kms.roles[0].name="${OP_KMS_ROLE_NAME}" \
+	  --set azureOperatorsMI.kms.roles[0].id="$${OP_KMS_ROLE_ID}" \
 	  --set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
-	  --set tracing.address=${TRACING_ADDRESS} \
-	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
-	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}"
+	  --set tracing.address=${TRACING_ADDRESS} 
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
