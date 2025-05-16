@@ -258,10 +258,9 @@ func Run(cmd *cobra.Command, args []string) error {
 	group.Go(func() error {
 		var (
 			startedLeading    atomic.Bool
-			operationsScanner = NewOperationsScanner(dbClient, ocmConnection)
+			operationsScanner = NewOperationsScanner(argLocation, dbClient, ocmConnection)
 		)
 
-		// FIXME Integrate leaderelection.HealthzAdaptor into a /healthz endpoint.
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 			Lock:          leaderElectionLock,
 			LeaseDuration: leaderElectionLeaseDuration,
