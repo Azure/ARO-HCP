@@ -51,6 +51,9 @@ param grafanaResourceId string
 @description('Name of the Azure Monitor Workspace for services')
 param svcMonitorName string
 
+@description('Name of the Azure Monitor Workspace for hosted control planes')
+param hcpMonitorName string
+
 @description('List of emails for Dev Alerting')
 param devAlertingEmails string
 
@@ -207,6 +210,14 @@ module svcMonitoring '../modules/metrics/monitor.bicep' = {
   params: {
     grafanaResourceId: grafanaResourceId
     monitorName: svcMonitorName
+  }
+}
+
+module hcpMonitoring '../modules/metrics/monitor.bicep' = {
+  name: 'hcp-monitor'
+  params: {
+    grafanaResourceId: grafanaResourceId
+    monitorName: hcpMonitorName
   }
 }
 

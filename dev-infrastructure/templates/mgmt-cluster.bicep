@@ -119,8 +119,11 @@ param mgmtKeyVaultName string
 @description('MSI that will be used to run deploymentScripts')
 param aroDevopsMsiId string
 
-@description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
+@description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for services/aks level metrics)')
 param azureMonitoringWorkspaceId string
+
+@description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for hosted control planes)')
+param hcpAzureMonitoringWorkspaceId string
 
 // logs
 @description('The namespace of the logs')
@@ -257,6 +260,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   params: {
     azureMonitorWorkspaceLocation: location
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    hcpAzureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     aksClusterName: aksClusterName
     prometheusPrincipalId: filter(mgmtCluster.outputs.userAssignedIdentities, id => id.uamiName == 'prometheus')[0].uamiPrincipalID
   }
