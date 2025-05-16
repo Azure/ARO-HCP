@@ -329,6 +329,11 @@ defaults:
     regionalSubdomain: "{{ .ctx.region }}"
   # Metrics
   monitoring:
+    devAlerting: false
+    sev1ActionGroupIDs: ""
+    sev2ActionGroupIDs: ""
+    sev3ActionGroupIDs: ""
+    sev4ActionGroupIDs: ""
     grafanaZoneRedundantMode: Disabled
     grafanaMajorVersion: "11"
     workspaceName: "arohcp-{{ .ctx.regionShort }}"

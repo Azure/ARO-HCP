@@ -42,6 +42,12 @@ defaults:
   # Geneva Actions
   genevaActions:
     serviceTag: GenevaActionsNonProd
+  monitoring:
+    devAlerting: true
+    sev1ActionGroupIDs: ""
+    sev2ActionGroupIDs: ""
+    sev3ActionGroupIDs: ""
+    sev4ActionGroupIDs: ""
   # SVC cluster specifics
   svc:
     subscription: ARO Hosted Control Planes (EA Subscription 1)

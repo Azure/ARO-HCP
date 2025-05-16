@@ -338,10 +338,15 @@
     "tenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d"
   },
   "monitoring": {
+    "devAlerting": false,
     "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-int",
     "grafanaZoneRedundantMode": "Disabled",
+    "sev1ActionGroupIDs": "",
+    "sev2ActionGroupIDs": "",
+    "sev3ActionGroupIDs": "",
+    "sev4ActionGroupIDs": "",
     "workspaceName": "arohcp-usw3"
   },
   "msiKeyVault": {

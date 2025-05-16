@@ -1019,6 +1019,21 @@
         },
         "workspaceName": {
           "type": "string"
+        },
+        "devAlerting": {
+          "type": "boolean"
+        },
+        "sev1ActionGroupIDs": {
+          "type": "string"
+        },
+        "sev2ActionGroupIDs": {
+          "type": "string"
+        },
+        "sev3ActionGroupIDs": {
+          "type": "string"
+        },
+        "sev4ActionGroupIDs": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
