@@ -305,6 +305,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   scope: resourceGroup()
   params: {
     location: location
+    regionalResourceGroup: regionalResourceGroup
     locationAvailabilityZones: locationAvailabilityZoneList
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
