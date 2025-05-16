@@ -26,7 +26,8 @@ param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 param enableLogAnalytics = {{ .logs.loganalytics.enable }}
 
 // Metrics
-param svcMonitorName = '{{ .monitoring.workspaceName }}'
+param svcMonitorName = '{{ .monitoring.svcWorkspaceName }}'
+param hcpMonitorName = '{{ .monitoring.hcpWorkspaceName }}'
 param grafanaResourceId = '__grafanaResourceId__'
 
 param devAlertingEmails = '{{ .monitoring.devAlertingEmails }}'

@@ -414,7 +414,8 @@ clouds:
       oidcZoneRedundantMode: Auto
       # Metrics
       monitoring:
-        workspaceName: 'arohcp-{{ .ctx.regionShort }}'
+        svcWorkspaceName: 'arohcp-{{ .ctx.regionShort }}'
+        hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.regionShort }}'
         grafanaName: 'arohcp-dev'
         grafanaMajorVersion: '11'
         grafanaZoneRedundantMode: Disabled

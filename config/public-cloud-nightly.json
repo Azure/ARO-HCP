@@ -345,11 +345,12 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
+    "hcpWorkspaceName": "arohcp-hcp-nightly",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "workspaceName": "arohcp-nightly"
+    "svcWorkspaceName": "arohcp-nightly"
   },
   "msiKeyVault": {
     "name": "arohcp-msi-nightly-1",
