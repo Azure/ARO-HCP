@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -61,7 +62,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			name:                    "Operation already succeeded",
 			operationStatus:         arm.ProvisioningStateSucceeded,
 			resourceDocPresent:      true,
-			expectAsyncNotification: false,
+			expectAsyncNotification: true,
 			expectError:             false,
 		},
 	}
@@ -116,14 +117,22 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 					return nil
 				})
 			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
-					return callback(operationDoc), nil
+				PatchOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
+					if operationDoc.Status != arm.ProvisioningStateSucceeded {
+						operationDoc.Status = arm.ProvisioningStateSucceeded
+						return operationDoc, nil
+					} else {
+						return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+					}
 				})
 			if tt.expectAsyncNotification {
 				mockDBClient.EXPECT().
-					GetOperationDoc(gomock.Any(), op.pk, op.id).
-					Return(operationDoc, nil)
+					PatchOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
+					DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
+						operationDoc.NotificationURI = ""
+						return operationDoc, nil
+					})
 			}
 
 			err = scanner.setDeleteOperationAsCompleted(ctx, op)
@@ -139,6 +148,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 				if tt.expectAsyncNotification {
 					assert.Equal(t, arm.ProvisioningStateSucceeded, operationDoc.Status)
 					assert.NotNil(t, request, "Did not POST to async notification URI")
+					assert.Empty(t, operationDoc.NotificationURI)
 				} else {
 					assert.Nil(t, request, "Unexpected POST to async notification URI")
 				}
@@ -179,7 +189,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			resourceDocPresent:               true,
 			resourceMatchOperationID:         true,
 			resourceProvisioningState:        arm.ProvisioningStateSucceeded,
-			expectAsyncNotification:          true,
+			expectAsyncNotification:          false,
 			expectResourceOperationIDCleared: false,
 			expectResourceProvisioningState:  arm.ProvisioningStateDeleting,
 			expectError:                      false,
@@ -191,7 +201,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			resourceDocPresent:               true,
 			resourceMatchOperationID:         true,
 			resourceProvisioningState:        arm.ProvisioningStateSucceeded,
-			expectAsyncNotification:          false,
+			expectAsyncNotification:          true,
 			expectResourceOperationIDCleared: true,
 			expectResourceProvisioningState:  arm.ProvisioningStateSucceeded,
 			expectError:                      false,
@@ -214,7 +224,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			expectAsyncNotification:          true,
 			expectResourceOperationIDCleared: false,
 			expectResourceProvisioningState:  arm.ProvisioningStateDeleting,
-			expectError:                      false,
+			expectError:                      true,
 		},
 	}
 
@@ -272,23 +282,37 @@ func TestUpdateOperationStatus(t *testing.T) {
 			}
 
 			mockDBClient.EXPECT().
-				UpdateOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, callback func(*database.OperationDocument) bool) (bool, error) {
-					return callback(operationDoc), nil
+				PatchOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
+					if operationDoc.Status != tt.updatedOperationStatus {
+						operationDoc.Status = tt.updatedOperationStatus
+						return operationDoc, nil
+					} else {
+						return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+					}
 				})
 			mockDBClient.EXPECT().
-				UpdateResourceDoc(gomock.Any(), resourceID, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, resourceID *azcorearm.ResourceID, callback func(*database.ResourceDocument) bool) (bool, error) {
-					if resourceDoc != nil {
-						return callback(resourceDoc), nil
+				PatchResourceDoc(gomock.Any(), resourceID, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, resourceID *azcorearm.ResourceID, ops database.ResourceDocumentPatchOperations) (*database.ResourceDocument, error) {
+					if resourceDoc == nil {
+						return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+					} else if resourceDoc.ActiveOperationID == op.id {
+						resourceDoc.ProvisioningState = operationDoc.Status
+						if operationDoc.Status.IsTerminal() {
+							resourceDoc.ActiveOperationID = ""
+						}
+						return resourceDoc, nil
 					} else {
-						return false, database.ErrNotFound
+						return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
 					}
 				})
 			if tt.expectAsyncNotification {
 				mockDBClient.EXPECT().
-					GetOperationDoc(gomock.Any(), op.pk, op.id).
-					Return(operationDoc, nil)
+					PatchOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
+					DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
+						operationDoc.NotificationURI = ""
+						return operationDoc, nil
+					})
 			}
 
 			err = scanner.updateOperationStatus(ctx, op, tt.updatedOperationStatus, nil)
@@ -310,6 +334,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 				if tt.expectAsyncNotification {
 					assert.Equal(t, tt.updatedOperationStatus, operationDoc.Status)
 					assert.NotNil(t, request, "Did not POST to async notification URI")
+					assert.Empty(t, operationDoc.NotificationURI)
 				} else {
 					assert.Nil(t, request, "Unexpected POST to async notification URI")
 				}
@@ -461,8 +486,17 @@ func TestConvertClusterStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			opState, opError, err := operationsScanner.convertClusterStatus(context.Background(), slog.Default(),
-				clusterStatus, tt.currentProvisioningState, tt.internalId)
+			ctx := context.Background()
+
+			op := operation{
+				doc: &database.OperationDocument{
+					InternalID: tt.internalId,
+					Status:     tt.currentProvisioningState,
+				},
+				logger: slog.Default(),
+			}
+
+			opState, opError, err := operationsScanner.convertClusterStatus(ctx, op, clusterStatus)
 
 			assert.Equal(t, tt.updatedProvisioningState, opState)
 

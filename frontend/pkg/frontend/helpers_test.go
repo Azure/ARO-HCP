@@ -118,7 +118,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 
 				mockDBClient.EXPECT().
 					GetResourceDoc(gomock.Any(), equalResourceID(parentResourceID)). // defined in frontend_test.go
-					Return(parentDoc, nil).
+					Return("parentItemID", parentDoc, nil).
 					MaxTimes(1)
 
 				cloudError := frontend.CheckForProvisioningStateConflict(ctx, tt.operationRequest, doc)
@@ -158,7 +158,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 
 						mockDBClient.EXPECT().
 							GetResourceDoc(gomock.Any(), equalResourceID(parentResourceID)). // defined in frontend_test.go
-							Return(parentDoc, nil)
+							Return("parentItemID", parentDoc, nil)
 					} else {
 						t.Fatalf("Parent resource type namespace (%s) differs from child namespace (%s)",
 							parentResourceID.ResourceType.Namespace,
