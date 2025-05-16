@@ -123,6 +123,11 @@ defaults:
         version: "v2.55.1-3"
         replicas: 2
         shards: 1
+  # Backend
+  backend:
+    tracing:
+      address: ""
+      exporter: ""
   # Frontend
   frontend:
     tracing:
@@ -539,6 +544,11 @@ clouds:
               deploy: false
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+          # Backend
+          backend:
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
           # Frontend
           frontend:
             cosmosDB:

@@ -48,6 +48,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "{{ .Values.tracing.address }}"
+        - name: OTEL_TRACES_EXPORTER
+          value: "{{ .Values.tracing.exporter }}"
         ports:
         - containerPort: 8081
           protocol: TCP
