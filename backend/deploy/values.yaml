@@ -11,3 +11,6 @@ serviceAccount:
 clustersService:
   namespace: ""
   serviceAccount: ""
+tracing:
+  address: ""
+  exporter: ""

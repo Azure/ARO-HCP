@@ -59,3 +59,7 @@ resourceGroups:
       configRef: clustersService.k8s.namespace
     - name: CS_SERVICE_ACCOUNT_NAME
       configRef: clustersService.k8s.serviceAccountName
+    - name: TRACING_ADDRESS
+      configRef: backend.tracing.address
+    - name: TRACING_EXPORTER
+      configRef: backend.tracing.exporter

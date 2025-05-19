@@ -25,6 +25,10 @@
       "digest": "",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpbackend"
+    },
+    "tracing": {
+      "address": "http://ingest.observability:4318",
+      "exporter": "otlp"
     }
   },
   "backplaneAPI": {

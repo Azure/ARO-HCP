@@ -25,6 +25,10 @@
       "digest": "",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpbackend"
+    },
+    "tracing": {
+      "address": "",
+      "exporter": ""
     }
   },
   "backplaneAPI": {

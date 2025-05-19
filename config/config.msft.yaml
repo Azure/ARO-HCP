@@ -212,6 +212,9 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
+    tracing:
+      address: ""
+      exporter: ""
   # Maestro
   maestro:
     server:
