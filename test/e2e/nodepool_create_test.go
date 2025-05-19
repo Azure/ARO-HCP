@@ -39,11 +39,11 @@ var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 			nodePoolName     = "mynodepool"
 			clusterName      = "non-existing_cluster"
 			nodePoolResource api.NodePool
-			nodePoolOptions  *api.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
+			nodePoolOptions  *api.NodePoolsClientBeginCreateOrUpdateOptions
 		)
 
 		By("Sending a  put request to create nodepool for non-existing HCPOpenshiftCluster")
-		_, err := NodePoolsClient.BeginCreateOrUpdate(ctx, customerRGName, clusterName, nodePoolName, nodePoolResource, (*api.NodePoolsClientBeginCreateOrUpdateOptions)(nodePoolOptions))
+		_, err := NodePoolsClient.BeginCreateOrUpdate(ctx, customerRGName, clusterName, nodePoolName, nodePoolResource, nodePoolOptions)
 		Expect(err).ToNot(BeNil())
 		errMessage := "RESPONSE 500: 500 Internal Server Error"
 		Expect(err.Error()).To(ContainSubstring(errMessage))
