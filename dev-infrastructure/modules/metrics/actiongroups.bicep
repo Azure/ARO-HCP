@@ -24,8 +24,7 @@ resource emailActions 'Microsoft.Insights/actionGroups@2023-01-01' = [
     name: email
     location: 'Global'
     properties: {
-      // TODO generate
-      groupShortName: 'emailSLC'
+      groupShortName: substring(uniqueString(email), 0, 8)
       enabled: true
       emailReceivers: [
         {
