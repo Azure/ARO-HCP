@@ -4,8 +4,8 @@ param grafanaResourceId string
 @description('Metrics region monitor name')
 param monitorName string
 
-@description('Enable dev alerting')
-param devAlerting bool
+@description('List of emails for Dev Alerting')
+param devAlertingEmails string
 
 @description('Comma seperated list of action groups for Sev 1 alerts.')
 param sev1ActionGroupIDs string
@@ -58,7 +58,7 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 module actionGroups 'actiongroups.bicep' = {
   name: 'actionGroups'
   params: {
-    devAlerting: devAlerting
+    devAlertingEmails: devAlertingEmails
     sev1ActionGroupIDs: sev1ActionGroupIDs
     sev2ActionGroupIDs: sev2ActionGroupIDs
     sev3ActionGroupIDs: sev3ActionGroupIDs

@@ -6,8 +6,8 @@ param grafanaResourceId string
 @description('Metrics regional monitor name')
 param monitorName string
 
-@description('Enable dev alerting')
-param devAlerting bool
+@description('List of emails for Dev Alerting')
+param devAlertingEmails string
 
 @description('Comma seperated list of action groups for Sev 1 alerts.')
 param sev1ActionGroupIDs string
@@ -26,7 +26,7 @@ module monitor 'monitor.bicep' = {
   params: {
     grafanaResourceId: grafanaResourceId
     monitorName: monitorName
-    devAlerting: devAlerting
+    devAlertingEmails: devAlertingEmails
     sev1ActionGroupIDs: sev1ActionGroupIDs
     sev2ActionGroupIDs: sev2ActionGroupIDs
     sev3ActionGroupIDs: sev3ActionGroupIDs

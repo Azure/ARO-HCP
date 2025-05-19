@@ -1020,8 +1020,8 @@
         "workspaceName": {
           "type": "string"
         },
-        "devAlerting": {
-          "type": "boolean"
+        "devAlertingEmails": {
+          "type": "string"
         },
         "sev1ActionGroupIDs": {
           "type": "string"

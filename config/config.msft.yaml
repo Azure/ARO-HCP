@@ -329,7 +329,7 @@ defaults:
     regionalSubdomain: "{{ .ctx.region }}"
   # Metrics
   monitoring:
-    devAlerting: false
+    devAlertingEmails: ""
     sev1ActionGroupIDs: ""
     sev2ActionGroupIDs: ""
     sev3ActionGroupIDs: ""

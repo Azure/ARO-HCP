@@ -43,7 +43,7 @@ defaults:
   genevaActions:
     serviceTag: GenevaActionsNonProd
   monitoring:
-    devAlerting: true
+    devAlertingEmails: "aro-hcp-service-lifecycle-team@redhat.com"
     sev1ActionGroupIDs: ""
     sev2ActionGroupIDs: ""
     sev3ActionGroupIDs: ""

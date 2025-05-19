@@ -336,7 +336,7 @@
     "tenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d"
   },
   "monitoring": {
-    "devAlerting": false,
+    "devAlertingEmails": "",
     "grafanaAdminGroupPrincipalId": "",
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-stg",
