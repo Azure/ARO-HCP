@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Azure/ARO-HCP/tooling/prometheus-rules/internal"
 	"github.com/sirupsen/logrus"
+
+	"github.com/Azure/ARO-HCP/tooling/prometheus-rules/internal"
 )
 
 func Validate(args []string, configFilePath string) error {
