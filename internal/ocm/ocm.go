@@ -222,6 +222,39 @@ func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
+
+	// NodePoolGetResponse returns a NodePool with a VersionLink instead
+	// of a Version. Clients are responsible for dereferencing links, so
+	// we will do that now and rebuild the NodePool with a full Version.
+	if nodePool.Version().Link() {
+		// XXX arohcpv1alpha1.NodePool currently returns a link to a
+		//     v1.Version instead of an arohcpv1alpha1.Version. This
+		//     will change at some point.
+		versionClient := cmv1.NewVersionClient(csc.Conn, nodePool.Version().HREF())
+
+		versionGetResponse, err := versionClient.Get().SendContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		version, ok := versionGetResponse.GetBody()
+		if !ok {
+			return nil, fmt.Errorf("empty version response body")
+		}
+
+		// XXX Convert the v1.Version to a arohcpv1alpha1.Version.
+		//     Just cherry-pick the fields the RP actually needs
+		//     since this code is only temporary.
+		versionBuilder := arohcpv1alpha1.NewVersion().
+			AvailableUpgrades(version.AvailableUpgrades()...).
+			ChannelGroup(version.ChannelGroup()).
+			ID(version.ID())
+
+		nodePool, err = arohcpv1alpha1.NewNodePool().Copy(nodePool).Version(versionBuilder).Build()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return nodePool, nil
 }
 
