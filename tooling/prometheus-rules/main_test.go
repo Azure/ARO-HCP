@@ -48,11 +48,12 @@ func copyFile(fileToCopy, targetDir string) error {
 
 func TestPrometheusRules(t *testing.T) {
 	tmpDir := t.TempDir()
-	setupTestFiles(tmpDir)
+	assert.NoError(t, setupTestFiles(tmpDir))
+
 	for _, testfile := range []string{
 		"./testdata/alerts/testing-prometheusRule_test.yaml",
 		"./testdata/alerts/testing-prometheusRule.yaml"} {
-		copyFile(testfile, filepath.Join(tmpDir, "alerts"))
+		assert.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 	}
 	err := runGenerator(filepath.Join(tmpDir, "config.yaml"))
 	assert.NoError(t, err)
@@ -68,11 +69,11 @@ func TestPrometheusRules(t *testing.T) {
 
 func TestPrometheusRulesMissingTest(t *testing.T) {
 	tmpDir := t.TempDir()
-	setupTestFiles(tmpDir)
+	assert.NoError(t, setupTestFiles(tmpDir))
 
 	for _, testfile := range []string{
 		"./testdata/alerts/testing-prometheusRule.yaml"} {
-		copyFile(testfile, filepath.Join(tmpDir, "alerts"))
+		assert.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 	}
 	err := runGenerator(filepath.Join(tmpDir, "config.yaml"))
 	assert.ErrorContains(t, err, "missing testfile")
