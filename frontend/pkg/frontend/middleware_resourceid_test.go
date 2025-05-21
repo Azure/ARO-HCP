@@ -90,8 +90,9 @@ func TestMiddlewareResourceID(t *testing.T) {
 		},
 		{
 			name: "preflight deployment",
-			path: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/RESOURCEGROUPS/MyResourceGroup/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/DEPLOYMENTS/preflight",
+			path: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/RESOURCEGROUPS/MyResourceGroup/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/DEPLOYMENTS/MyDeployment/preflight",
 			resourceTypes: []string{
+				"MICROSOFT.REDHATOPENSHIFT/DEPLOYMENTS/preflight",
 				"MICROSOFT.REDHATOPENSHIFT/DEPLOYMENTS",
 				azcorearm.ResourceGroupResourceType.String(),
 				azcorearm.SubscriptionResourceType.String(),
