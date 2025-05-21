@@ -217,14 +217,6 @@ func (o *Options) Generate() error {
 	}()
 
 	if _, err := output.Write([]byte(`param azureMonitoring string
-
-param allSev1ActionGroups array
-
-param allSev2ActionGroups array
-
-param allSev3ActionGroups array
-
-param allSev4ActionGroups array
 `)); err != nil {
 		return err
 	}
@@ -298,7 +290,6 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
     rules: [
 {{- range .groups.Properties.Rules}}
       {
-        actions: [for g in allSev{{.Severity}}ActionGroups: { actionGroupId: g }]
         alert: '{{.Alert}}'
         enabled: {{.Enabled}}
 {{- if .Labels}}
@@ -332,6 +323,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
 	if err != nil {
 		return err
 	}
+
 	return tmpl.Execute(into, map[string]any{
 		"name":   bicepName(groups.Name),
 		"groups": groups,

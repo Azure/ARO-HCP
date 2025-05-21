@@ -1,20 +1,11 @@
 param azureMonitoring string
 
-param allSev1ActionGroups array
-
-param allSev2ActionGroups array
-
-param allSev3ActionGroups array
-
-param allSev4ActionGroups array
-
 resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-apps'
   location: resourceGroup().location
   properties: {
     rules: [
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubePodCrashLooping'
         enabled: true
         labels: {
@@ -30,7 +21,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubePodNotReady'
         enabled: true
         labels: {
@@ -46,7 +36,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeDeploymentGenerationMismatch'
         enabled: true
         labels: {
@@ -62,7 +51,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeDeploymentReplicasMismatch'
         enabled: true
         labels: {
@@ -78,7 +66,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeDeploymentRolloutStuck'
         enabled: true
         labels: {
@@ -94,7 +81,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeStatefulSetReplicasMismatch'
         enabled: true
         labels: {
@@ -110,7 +96,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeStatefulSetGenerationMismatch'
         enabled: true
         labels: {
@@ -126,7 +111,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeStatefulSetUpdateNotRolledOut'
         enabled: true
         labels: {
@@ -142,7 +126,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeDaemonSetRolloutStuck'
         enabled: true
         labels: {
@@ -158,7 +141,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeContainerWaiting'
         enabled: true
         labels: {
@@ -174,7 +156,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeDaemonSetNotScheduled'
         enabled: true
         labels: {
@@ -190,7 +171,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeDaemonSetMisScheduled'
         enabled: true
         labels: {
@@ -206,7 +186,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeJobNotCompleted'
         enabled: true
         labels: {
@@ -221,7 +200,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeJobFailed'
         enabled: true
         labels: {
@@ -237,7 +215,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeHpaReplicasMismatch'
         enabled: true
         labels: {
@@ -253,7 +230,6 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeHpaMaxedOut'
         enabled: true
         labels: {
@@ -281,7 +257,6 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
   properties: {
     rules: [
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeCPUOvercommit'
         enabled: true
         labels: {
@@ -297,7 +272,6 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeMemoryOvercommit'
         enabled: true
         labels: {
@@ -313,7 +287,6 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeCPUQuotaOvercommit'
         enabled: true
         labels: {
@@ -329,7 +302,6 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeMemoryQuotaOvercommit'
         enabled: true
         labels: {
@@ -345,7 +317,6 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         severity: 3
       }
       {
-        actions: [for g in allSev4ActionGroups: { actionGroupId: g }]
         alert: 'KubeQuotaAlmostFull'
         enabled: true
         labels: {
@@ -361,7 +332,6 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         severity: 4
       }
       {
-        actions: [for g in allSev4ActionGroups: { actionGroupId: g }]
         alert: 'KubeQuotaFullyUsed'
         enabled: true
         labels: {
@@ -377,7 +347,6 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         severity: 4
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeQuotaExceeded'
         enabled: true
         labels: {
@@ -393,7 +362,6 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         severity: 3
       }
       {
-        actions: [for g in allSev4ActionGroups: { actionGroupId: g }]
         alert: 'CPUThrottlingHigh'
         enabled: true
         labels: {
@@ -421,7 +389,6 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
   properties: {
     rules: [
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
@@ -437,7 +404,6 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         severity: 2
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
@@ -453,7 +419,6 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         severity: 3
       }
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
@@ -469,7 +434,6 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         severity: 2
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
@@ -485,7 +449,6 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         severity: 3
       }
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubePersistentVolumeErrors'
         enabled: true
         labels: {
@@ -513,7 +476,6 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
   properties: {
     rules: [
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeVersionMismatch'
         enabled: true
         labels: {
@@ -529,7 +491,6 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeClientErrors'
         enabled: true
         labels: {
@@ -557,7 +518,6 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
   properties: {
     rules: [
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
@@ -575,7 +535,6 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         severity: 2
       }
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
@@ -593,7 +552,6 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         severity: 2
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
@@ -611,7 +569,6 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
@@ -641,7 +598,6 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
   properties: {
     rules: [
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeClientCertificateExpiration'
         enabled: true
         labels: {
@@ -657,7 +613,6 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         severity: 3
       }
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeClientCertificateExpiration'
         enabled: true
         labels: {
@@ -673,7 +628,6 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         severity: 2
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeAggregatedAPIErrors'
         enabled: true
         labels: {
@@ -688,7 +642,6 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeAggregatedAPIDown'
         enabled: true
         labels: {
@@ -704,7 +657,6 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         severity: 3
       }
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeAPIDown'
         enabled: true
         labels: {
@@ -720,7 +672,6 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         severity: 2
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeAPITerminatedRequests'
         enabled: true
         labels: {
@@ -748,7 +699,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
   properties: {
     rules: [
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeNodeNotReady'
         enabled: true
         labels: {
@@ -764,7 +714,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeNodeUnreachable'
         enabled: true
         labels: {
@@ -780,7 +729,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev4ActionGroups: { actionGroupId: g }]
         alert: 'KubeletTooManyPods'
         enabled: true
         labels: {
@@ -796,7 +744,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 4
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeNodeReadinessFlapping'
         enabled: true
         labels: {
@@ -812,7 +759,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeletPlegDurationHigh'
         enabled: true
         labels: {
@@ -828,7 +774,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeletPodStartUpLatencyHigh'
         enabled: true
         labels: {
@@ -844,7 +789,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeletClientCertificateExpiration'
         enabled: true
         labels: {
@@ -859,7 +803,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeletClientCertificateExpiration'
         enabled: true
         labels: {
@@ -874,7 +817,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 2
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeletServerCertificateExpiration'
         enabled: true
         labels: {
@@ -889,7 +831,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeletServerCertificateExpiration'
         enabled: true
         labels: {
@@ -904,7 +845,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 2
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeletClientCertificateRenewalErrors'
         enabled: true
         labels: {
@@ -920,7 +860,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev3ActionGroups: { actionGroupId: g }]
         alert: 'KubeletServerCertificateRenewalErrors'
         enabled: true
         labels: {
@@ -936,7 +875,6 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         severity: 3
       }
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeletDown'
         enabled: true
         labels: {
@@ -964,7 +902,6 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
   properties: {
     rules: [
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeSchedulerDown'
         enabled: true
         labels: {
@@ -992,7 +929,6 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
   properties: {
     rules: [
       {
-        actions: [for g in allSev2ActionGroups: { actionGroupId: g }]
         alert: 'KubeControllerManagerDown'
         enabled: true
         labels: {
