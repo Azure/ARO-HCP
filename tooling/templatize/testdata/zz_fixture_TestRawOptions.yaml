@@ -4,15 +4,16 @@ rolloutName: Test Rollout
 resourceGroups:
 - name: 'hcp-underlay-uksouth-dev'
   subscription: 'hcp-uksouth'
-  aksCluster: 'aro-hcp-aks'
   steps:
   - name: deploy
+    aksCluster: 'aro-hcp-aks'
     action: Shell
     command: make deploy
     variables:
     - name: MAESTRO_IMAGE
       configRef: maestro_image
   - name: dry-run
+    aksCluster: 'aro-hcp-aks'
     action: Shell
     command: make deploy
     dryRun:

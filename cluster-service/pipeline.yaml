@@ -33,9 +33,9 @@ resourceGroups:
     outputOnly: true
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
-  aksCluster: '{{ .svc.aks.name  }}'
   steps:
   - name: deploy
+    aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
     command: make deploy
     dryRun:
