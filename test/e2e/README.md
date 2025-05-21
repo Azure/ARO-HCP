@@ -8,7 +8,7 @@ The E2E test suite will work in every environment of the ARO-HCP project. Its ma
 
 The client expects a subscription to be already registered. To assign the client to a specific subscription, set its ID in the environment variable **CUSTOMER_SUBSCRIPTION**. If not set, the default all-zero subscription will be used.
 
-Test cases expect resource group name, where cluster resources (vnet, managed identity, ...) are located, to be set in the environment variable **CUSTOMER_RG_NAME**.
+The E2E Test Suite expects the existence of a {cluster_name}.e2e-setup.json file in the current directory. To determine the exact name of this JSON file, the **CLUSTER_NAME** environment variable has to be present. The E2E Test Suite then receives all necessary values for testing from this setup.json file.
 
 To distinguish E2E test suite from unit tests, initial ginkgo file *e2e_test.go* has a build tag **E2Etests**. The build tag has to be explicitly set when running (or building) the E2E test suite.
 

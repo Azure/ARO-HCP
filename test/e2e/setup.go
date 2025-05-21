@@ -30,7 +30,6 @@ import (
 var (
 	clients        *api.ClientFactory
 	subscriptionID string
-	location       string
 	e2eSetup       integration.SetupModel
 )
 
@@ -61,9 +60,6 @@ func setup(ctx context.Context) error {
 
 	if subscriptionID, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
 		subscriptionID = "00000000-0000-0000-0000-000000000000"
-	}
-	if location, found = os.LookupEnv("LOCATION"); !found {
-		location = "westus3"
 	}
 	clusterName := os.Getenv("CLUSTER_NAME")
 	e2eSetup, err = integration.LoadE2ESetupFile(clusterName + ".e2e-setup.json")
