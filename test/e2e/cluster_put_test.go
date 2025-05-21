@@ -16,37 +16,35 @@ package e2e
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	apigen "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-func newClusterResource(identity arm.ManagedServiceIdentity) apigen.HcpOpenShiftCluster {
-	apiIdentity := make(map[string]*apigen.UserAssignedIdentity)
-	for key, value := range identity.UserAssignedIdentities {
-		apiIdentity[key] = (*apigen.UserAssignedIdentity)(value)
-	}
+type contextKey string
 
-	newCluster := apigen.HcpOpenShiftCluster{
-		Location: &location,
-		Identity: &apigen.ManagedServiceIdentity{
-			Type:                   api.Ptr(apigen.ManagedServiceIdentityType(identity.Type)),
-			UserAssignedIdentities: apiIdentity,
-		},
+const systemDataKey = contextKey("systemData")
+
+func prepareSystemData() arm.SystemData {
+	createdBy := "E2E Testing"
+	createdByType := arm.CreatedByType(arm.CreatedByTypeApplication)
+	createdAt := time.Now().UTC()
+	return arm.SystemData{
+		CreatedBy:     createdBy,
+		CreatedByType: createdByType,
+		CreatedAt:     &createdAt,
 	}
-	return newCluster
 }
 
 var _ = Describe("Cluster put operations", func() {
 	var (
-		clustersClient *apigen.HcpOpenShiftClustersClient
+		clustersClient *api.HcpOpenShiftClustersClient
 		customerEnv    *integration.CustomerEnv
 		cluster        *integration.Cluster
 	)
@@ -62,8 +60,11 @@ var _ = Describe("Cluster put operations", func() {
 
 	Context("Negative", func() {
 		It("Try to create cluster with managed identities and location", labels.Low, labels.Negative, func(ctx context.Context) {
-			clusterResource := v20240610preview.NewHCPOpenShiftCluster(cluster.ARMData)
-			poller, err := clustersClient.BeginCreateOrUpdate(ctx, customerEnv.CustomerRGName, cluster.Name, clusterResource.HcpOpenShiftCluster, nil)
+			By("Preparing location and systemData")
+			ctxWithSystemData := context.WithValue(ctx, systemDataKey, prepareSystemData())
+			cluster.ARMData.Location = &location
+			By("Sending Put Request")
+			poller, err := clustersClient.BeginCreateOrUpdate(ctxWithSystemData, customerEnv.CustomerRGName, cluster.Name, cluster.ARMData, nil)
 			Expect(err).ToNot(BeNil())
 			Expect(err.Error()).To(ContainSubstring("500 Internal Server Error"))
 			Expect(poller).To(BeNil())
