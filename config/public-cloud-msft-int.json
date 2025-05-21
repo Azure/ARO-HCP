@@ -220,7 +220,7 @@
       "private": false
     },
     "image": {
-      "digest": "sha256:f64ad21dcbe40ed7d29aff7d2d7320c0a5ee18c6bfabfef9486550a96ff27141",
+      "digest": "sha256:71788add6afc26829ef75432714fa3052c7dbc1d62d0002ff4c736a8038c18f4",
       "registry": "quay.io",
       "repository": "redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro"
     },
