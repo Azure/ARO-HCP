@@ -23,7 +23,7 @@ func (a *Admin) adminRoutes() *http.ServeMux {
 
 	adminMux := http.NewServeMux()
 
-	adminMux.HandleFunc("/admin/hellowworld", func(writer http.ResponseWriter, request *http.Request) {
+	adminMux.HandleFunc("/admin/helloworld", func(writer http.ResponseWriter, request *http.Request) {
 
 		// Return Hello, world! to the client
 		fmt.Fprintln(writer, "Hello, world!")
