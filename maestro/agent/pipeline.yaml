@@ -36,9 +36,9 @@ resourceGroups:
     outputOnly: true
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
-  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   - name: deploy
+    aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make deploy
     dryRun:
@@ -79,9 +79,9 @@ resourceGroups:
     - region-output
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
-  aksCluster: '{{ .svc.aks.name  }}'
   steps:
   - name: register-agent-with-server
+    aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
     command: make -C ../registration deploy
     dryRun:

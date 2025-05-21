@@ -137,9 +137,9 @@ resourceGroups:
     - mgmt-infra
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
-  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   - name: prometheus
+    aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make -C ../observability/prometheus deploy
     dryRun:
@@ -175,6 +175,7 @@ resourceGroups:
     - mgmt-cluster
   # Install ACRpull
   - name: acrpull
+    aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make -C ../acrpull deploy
     dryRun:
@@ -192,6 +193,7 @@ resourceGroups:
     - prometheus
   # Install cluster patches
   - name: mgmt-fixes
+    aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
     dryRun:
