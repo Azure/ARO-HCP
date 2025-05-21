@@ -24,12 +24,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/test/util/integration"
 )
 
 var (
 	clients        *api.ClientFactory
 	subscriptionID string
-	customerRGName string
+	location       string
+	e2eSetup       integration.SetupModel
 )
 
 func prepareDevelopmentConf() azcore.ClientOptions {
@@ -60,8 +62,14 @@ func setup(ctx context.Context) error {
 	if subscriptionID, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
 		subscriptionID = "00000000-0000-0000-0000-000000000000"
 	}
-
-	customerRGName = os.Getenv("CUSTOMER_RG_NAME")
+	if location, found = os.LookupEnv("LOCATION"); !found {
+		location = "westus3"
+	}
+	clusterName := os.Getenv("CLUSTER_NAME")
+	e2eSetup, err = integration.LoadE2ESetupFile(clusterName + ".e2e-setup.json")
+	if err != nil {
+		return err
+	}
 
 	opts := prepareDevelopmentConf()
 
