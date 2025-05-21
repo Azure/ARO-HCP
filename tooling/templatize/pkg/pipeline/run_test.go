@@ -26,7 +26,7 @@ import (
 
 func TestStepRun(t *testing.T) {
 	s := types.NewShellStep("step", "echo hello")
-	output, err := RunStep(s, context.Background(), "", &executionTargetImpl{}, &PipelineRunOptions{}, nil)
+	output, err := RunStep(s, context.Background(), &executionTargetImpl{}, &PipelineRunOptions{}, nil)
 	assert.NoError(t, err)
 	o, err := output.GetValue("output")
 	assert.NoError(t, err)
