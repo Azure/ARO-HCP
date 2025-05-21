@@ -82,8 +82,7 @@ func TestE2EKubernetes(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(types.NewShellStep("test", "kubectl get namespaces"), 0)
-	e2eImpl.SetAKSName("dev-svc")
+	e2eImpl.AddStep(types.NewShellStep("test", "kubectl get namespaces").WithAKSCluster("dev-svc"), 0)
 
 	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"rg": "hcp-underlay-dev-svc"}})
 
