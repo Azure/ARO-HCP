@@ -65,9 +65,10 @@ func setup(ctx context.Context) error {
 	if location, found = os.LookupEnv("LOCATION"); !found {
 		location = "westus3"
 	}
-	e2eSetup, err = integration.LoadE2ESetupFile("e2e-setup.json")
+	clusterName := os.Getenv("CLUSTER_NAME")
+	e2eSetup, err = integration.LoadE2ESetupFile(clusterName + ".e2e-setup.json")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	opts := prepareDevelopmentConf()

@@ -17,10 +17,8 @@ package integration
 import (
 	"encoding/json"
 	"os"
-	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 type SetupModel struct {
@@ -36,21 +34,21 @@ type E2ESetup struct {
 }
 
 type CustomerEnv struct {
-	CustomerRGName   string                             `json:"customer_rg_name,omitempty"`
-	CustomerVNetName string                             `json:"customer_vnet_name,omitempty"`
-	CustomerNSGName  string                             `json:"customer_nsg_name,omitempty"`
-	UAMIs            api.OperatorsAuthenticationProfile `json:"uamis,omitempty"`
-	IdentityUAMIs    arm.ManagedServiceIdentity         `json:"identity_uamis,omitempty"`
+	CustomerRGName   string                                    `json:"customer_rg_name,omitempty"`
+	CustomerVNetName string                                    `json:"customer_vnet_name,omitempty"`
+	CustomerNSGName  string                                    `json:"customer_nsg_name,omitempty"`
+	UAMIs            generated.UserAssignedIdentitiesProfile   `json:"uamis,omitempty"`
+	IdentityUAMIs    map[string]generated.UserAssignedIdentity `json:"identity_uamis,omitempty"`
 }
 
 type Cluster struct {
-	Name    string                  `json:"name,omitempty"`
-	ARMData api.HCPOpenShiftCluster `json:"armdata,omitempty"`
+	Name    string                        `json:"name,omitempty"`
+	ARMData generated.HcpOpenShiftCluster `json:"armdata,omitempty"`
 }
 
 type Nodepool struct {
-	Name    string                          `json:"name,omitempty"`
-	ARMData api.HCPOpenShiftClusterNodePool `json:"armdata,omitempty"`
+	Name    string             `json:"name,omitempty"`
+	ARMData generated.NodePool `json:"armdata,omitempty"`
 }
 
 func LoadE2ESetupFile(path string) (SetupModel, error) {
@@ -59,7 +57,6 @@ func LoadE2ESetupFile(path string) (SetupModel, error) {
 	if err != nil {
 		return e2eSetup, err
 	}
-	decoder := json.NewDecoder(strings.NewReader(string(content)))
-	err = decoder.Decode(&e2eSetup)
+	err = json.Unmarshal(content, &e2eSetup)
 	return e2eSetup, err
 }
