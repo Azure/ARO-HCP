@@ -69,7 +69,7 @@ resourceGroups:
 - name: '{{ .global.rg  }}'
   subscription: '{{ .global.subscription  }}'
   steps:
-  - name: add-grafana-datasource
+  - name: add-svc-grafana-datasource
     action: Shell
     command: scripts/add-grafana-datasource.sh
     variables:
@@ -85,5 +85,26 @@ resourceGroups:
       input:
         step: region-output
         name: azureMonitoringWorkspaceId
+    dependsOn:
+    - region-output
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
+  steps:
+  - name: add-hcp-grafana-datasource
+    action: Shell
+    command: scripts/add-grafana-datasource.sh
+    variables:
+    - name: GRAFANA_RESOURCE_ID
+      input:
+        step: global-output
+        name: grafanaResourceId
+    - name: PROM_QUERY_URL
+      input:
+        step: region-output
+        name: hcpMonitorPrometheusQueryEndpoint
+    - name: MONITOR_ID
+      input:
+        step: region-output
+        name: hcpAzureMonitoringWorkspaceId
     dependsOn:
     - region-output
