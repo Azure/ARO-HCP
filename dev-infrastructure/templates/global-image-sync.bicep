@@ -397,121 +397,122 @@ resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEna
   ]
 }
 
-// oc-mirror jobs
-
-var ocpMirrorConfig = {
-  kind: 'ImageSetConfiguration'
-  apiVersion: 'mirror.openshift.io/v2alpha1'
-  mirror: {
-    platform: {
-      architectures: ['multi', 'amd64', 'arm64']
-      channels: [
-        {
-          name: 'stable-4.17'
-          type: 'ocp'
-          full: true
-          minVersion: '4.17.0'
-          maxVersion: '4.17.0'
-        }
-        {
-          name: 'stable-4.18'
-          type: 'ocp'
-          full: true
-          minVersion: '4.18.1'
-          maxVersion: '4.18.9'
-        }
-        {
-          name: 'candidate-4.19'
-          type: 'ocp'
-          full: true
-        }
-      ]
-      graph: true
-    }
-    additionalImages: [
-      { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.16' }
-      { name: 'registry.redhat.io/redhat/certified-operator-index:v4.16' }
-      { name: 'registry.redhat.io/redhat/community-operator-index:v4.16' }
-      { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.16' }
-      { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.17' }
-      { name: 'registry.redhat.io/redhat/certified-operator-index:v4.17' }
-      { name: 'registry.redhat.io/redhat/community-operator-index:v4.17' }
-      { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.17' }
-      { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.18' }
-      { name: 'registry.redhat.io/redhat/certified-operator-index:v4.18' }
-      { name: 'registry.redhat.io/redhat/community-operator-index:v4.18' }
-      { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.18' }
-      { name: 'registry.redhat.io/redhat/redhat-operator-index:v4.19' }
-      { name: 'registry.redhat.io/redhat/certified-operator-index:v4.19' }
-      { name: 'registry.redhat.io/redhat/community-operator-index:v4.19' }
-      { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v4.19' }
-    ]
-  }
-}
+//
+//  O P E R A T O R   M I R R O R   J O B
+//
 
 // this is v2alpha1 syntax for oc-mirror 4.16, which we use until 4.18+ offers
 // a way to not rebuild the catalogs, which fails in ACA
-var acmMirrorConfig = {
-  kind: 'ImageSetConfiguration'
-  apiVersion: 'mirror.openshift.io/v2alpha1'
-  mirror: {
-    operators: [
-      {
-        catalog: 'registry.redhat.io/redhat/redhat-operator-index:v4.16'
-        packages: [
+
+var operatorMirrorJobConfiguration = [
+  {
+    name: 'acm-mirror'
+    cron: '0 10 * * *'
+    timeout: 4 * 60 * 60
+    retryLimit: 3
+    targetRegistry: svcAcrName
+    imageSetConfig: {
+      kind: 'ImageSetConfiguration'
+      apiVersion: 'mirror.openshift.io/v2alpha1'
+      mirror: {
+        operators: [
           {
-            name: 'multicluster-engine'
-            bundles: [
+            catalog: 'registry.redhat.io/redhat/redhat-operator-index:v4.16'
+            packages: [
               {
-                name: 'multicluster-engine.v2.7.0'
+                name: 'multicluster-engine'
+                bundles: [
+                  {
+                    name: 'multicluster-engine.v2.7.0'
+                  }
+                  {
+                    name: 'multicluster-engine.v2.8.0'
+                  }
+                  {
+                    name: 'multicluster-engine.v2.8.1'
+                  }
+                ]
               }
               {
-                name: 'multicluster-engine.v2.8.0'
-              }
-              {
-                name: 'multicluster-engine.v2.8.1'
-              }
-            ]
-          }
-          {
-            name: 'advanced-cluster-management'
-            bundles: [
-              {
-                name: 'advanced-cluster-management.v2.12.0'
-              }
-              {
-                name: 'advanced-cluster-management.v2.13.0'
+                name: 'advanced-cluster-management'
+                bundles: [
+                  {
+                    name: 'advanced-cluster-management.v2.12.0'
+                  }
+                  {
+                    name: 'advanced-cluster-management.v2.13.0'
+                  }
+                ]
               }
             ]
           }
         ]
       }
+    }
+    compatibility: 'NOCATALOG'
+  }
+]
+
+//
+//  O C P   M I R R O R   J O B
+//
+
+var ocpMirrorDefinitions = [
+  {
+    name: 'oc-mirror-4-18'
+    major: '4.18'
+    channels: [
+      {
+        name: 'stable-4.18'
+        type: 'ocp'
+        full: true
+        minVersion: '4.18.1'
+        maxVersion: '4.18.9'
+      }
     ]
   }
-}
-
-var ocMirrorJobConfiguration = ocMirrorEnabled
-  ? [
+  {
+    name: 'oc-mirror-4-19'
+    major: '4.19'
+    channels: [
       {
-        name: 'oc-mirror'
-        cron: '0 * * * *'
-        timeout: 4 * 60 * 60
-        retryLimit: 3
-        targetRegistry: ocpAcrName
-        imageSetConfig: ocpMirrorConfig
-        compatibility: 'LATEST'
-      }
-      {
-        name: 'acm-mirror'
-        cron: '0 10 * * *'
-        timeout: 4 * 60 * 60
-        retryLimit: 3
-        targetRegistry: svcAcrName
-        imageSetConfig: acmMirrorConfig
-        compatibility: 'NOCATALOG'
+        name: 'candidate-4.19'
+        type: 'ocp'
+        full: true
+        minVersion: '4.19.0-rc.2'
       }
     ]
-  : []
+  }
+]
+var ocpMirrorJobConfiguration = [
+  for job in ocpMirrorDefinitions: {
+    name: job.name
+    cron: '0 * * * *'
+    timeout: 4 * 60 * 60
+    retryLimit: 3
+    targetRegistry: ocpAcrName
+    imageSetConfig: {
+      kind: 'ImageSetConfiguration'
+      apiVersion: 'mirror.openshift.io/v2alpha1'
+      mirror: {
+        platform: {
+          architectures: ['multi', 'amd64', 'arm64']
+          channels: job.channels
+          graph: true
+        }
+        additionalImages: [
+          { name: 'registry.redhat.io/redhat/redhat-operator-index:v${job.major}' }
+          { name: 'registry.redhat.io/redhat/certified-operator-index:v${job.major}' }
+          { name: 'registry.redhat.io/redhat/community-operator-index:v${job.major}' }
+          { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v${job.major}' }
+        ]
+      }
+    }
+    compatibility: 'LATEST'
+  }
+]
+
+var ocMirrorJobConfiguration = ocMirrorEnabled ? union(ocpMirrorJobConfiguration, operatorMirrorJobConfiguration) : []
 
 resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
   for i in range(0, length(ocMirrorJobConfiguration)): {

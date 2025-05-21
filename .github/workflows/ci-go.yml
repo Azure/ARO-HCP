@@ -29,6 +29,12 @@ jobs:
       with:
         go-version-file: 'go.work'
         check-latest: true
+    - name: 'Install promtool'
+      run: |
+        cd $(mktemp -d)
+        curl -sfLo - https://github.com/prometheus/prometheus/releases/download/v3.2.1/prometheus-3.2.1.linux-amd64.tar.gz | tar xzf -
+        sudo mv prometheus-3.2.1.linux-amd64/promtool /usr/local/bin/promtool
+        chmod +x /usr/local/bin/promtool
     - name: 'Check Go modules'
       run: |
         make all-tidy

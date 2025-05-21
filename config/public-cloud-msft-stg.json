@@ -25,6 +25,10 @@
       "digest": "sha256:02a32af8d34c5725d0096ee7f94adf2ef151d0634e8682fe7517e6f9ebba9bdc",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpbackend"
+    },
+    "tracing": {
+      "address": "",
+      "exporter": ""
     }
   },
   "backplaneAPI": {
@@ -336,10 +340,15 @@
     "tenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d"
   },
   "monitoring": {
+    "devAlertingEmails": "",
     "grafanaAdminGroupPrincipalId": "",
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-stg",
     "grafanaZoneRedundantMode": "Disabled",
+    "sev1ActionGroupIDs": "",
+    "sev2ActionGroupIDs": "",
+    "sev3ActionGroupIDs": "",
+    "sev4ActionGroupIDs": "",
     "workspaceName": "arohcp-usw3"
   },
   "msiKeyVault": {

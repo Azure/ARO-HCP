@@ -4,6 +4,21 @@ param grafanaResourceId string
 @description('Metrics region monitor name')
 param monitorName string
 
+@description('List of emails for Dev Alerting')
+param devAlertingEmails string
+
+@description('Comma seperated list of action groups for Sev 1 alerts.')
+param sev1ActionGroupIDs string
+
+@description('Comma seperated list of action groups for Sev 2 alerts.')
+param sev2ActionGroupIDs string
+
+@description('Comma seperated list of action groups for Sev 3 alerts.')
+param sev3ActionGroupIDs string
+
+@description('Comma seperated list of action groups for Sev 4 alerts.')
+param sev4ActionGroupIDs string
+
 import * as res from '../resource.bicep'
 
 var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
@@ -37,6 +52,17 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     principalId: grafana.identity.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', dataReader)
+  }
+}
+
+module actionGroups 'actiongroups.bicep' = {
+  name: 'actionGroups'
+  params: {
+    devAlertingEmails: devAlertingEmails
+    sev1ActionGroupIDs: sev1ActionGroupIDs
+    sev2ActionGroupIDs: sev2ActionGroupIDs
+    sev3ActionGroupIDs: sev3ActionGroupIDs
+    sev4ActionGroupIDs: sev4ActionGroupIDs
   }
 }
 

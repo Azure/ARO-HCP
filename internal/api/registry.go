@@ -16,6 +16,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -33,18 +34,19 @@ const (
 )
 
 var (
-	ClusterResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
-	NodePoolResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	ClusterResourceType   = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	NodePoolResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	PreflightResourceType = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
 )
 
 type VersionedHCPOpenShiftCluster interface {
 	Normalize(*HCPOpenShiftCluster)
-	ValidateStatic(current VersionedHCPOpenShiftCluster, updating bool, method string) *arm.CloudError
+	ValidateStatic(current VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
 }
 
 type VersionedHCPOpenShiftClusterNodePool interface {
 	Normalize(*HCPOpenShiftClusterNodePool)
-	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, method string) *arm.CloudError
+	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
 }
 
 type Version interface {

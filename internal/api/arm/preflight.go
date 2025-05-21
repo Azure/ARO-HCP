@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path"
+	"strings"
 )
 
 // See https://learn.microsoft.com/en-us/rest/api/datareplication/deployment-preflight/deployment-preflight?view=rest-datareplication-2021-02-16-preview&tabs=Go
@@ -53,8 +54,8 @@ type DeploymentPreflightResource struct {
 	APIVersion string `json:"apiVersion,omitempty" validate:"required,api_version"`
 
 	// Preserve other tracked resource fields as raw data.
+	Identity   json.RawMessage `json:"identity,omitempty"`
 	Properties json.RawMessage `json:"properties,omitempty"`
-	SystemData json.RawMessage `json:"systemData,omitempty"`
 	Tags       json.RawMessage `json:"tags,omitempty"`
 }
 
@@ -122,4 +123,46 @@ func WriteDeploymentPreflightResponse(w http.ResponseWriter, preflightErrors []C
 	}
 
 	_, _ = WriteJSONResponse(w, http.StatusOK, response)
+}
+
+func recurseDetectTLE(v any) bool {
+	switch v := v.(type) {
+	case string:
+		return IsTLE(v)
+	case []any:
+		for _, item := range v {
+			if recurseDetectTLE(item) {
+				return true
+			}
+		}
+	case map[string]any:
+		for mapk, mapv := range v {
+			if recurseDetectTLE(mapk) {
+				return true
+			}
+			if recurseDetectTLE(mapv) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// DetectTLE returns true if a Template Language Expression is detected in
+// any part of the JSON input.
+func DetectTLE(data []byte) (bool, error) {
+	var v any
+
+	err := json.Unmarshal(data, &v)
+	if err != nil {
+		return false, err
+	}
+
+	return recurseDetectTLE(v), nil
+}
+
+// IsTLE returns true if s is a Template Language Expression.
+func IsTLE(s string) bool {
+	return strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")
 }

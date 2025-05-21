@@ -8,52 +8,102 @@ data:
     controlPlaneOperatorsIdentities:
       cluster-api-azure:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.clusterApiAzure.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.clusterApiAzure.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.clusterApiAzure.roleName }}'
         optional: false
       control-plane:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.controlPlane.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.controlPlane.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.controlPlane.roleName }}'
         optional: false
       cloud-controller-manager:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.cloudControllerManager.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.cloudControllerManager.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.cloudControllerManager.roleName }}'
         optional: false
       ingress:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.ingress.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.ingress.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.ingress.roleName }}'
         optional: false
       disk-csi-driver:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.diskCsiDriver.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.diskCsiDriver.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.diskCsiDriver.roleName }}'
         optional: false
       file-csi-driver:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.fileCsiDriver.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.fileCsiDriver.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.fileCsiDriver.roleName }}'
         optional: false
       image-registry:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.imageRegistry.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.imageRegistry.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.imageRegistry.roleName }}'
         optional: false
       cloud-network-config:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.cloudNetworkConfig.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.cloudNetworkConfig.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.cloudNetworkConfig.roleName }}'
         optional: false
       kms:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.kms.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.kms.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.kms.roleName }}'
         optional: true
     dataPlaneOperatorsIdentities:
       disk-csi-driver:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.diskCsiDriver.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.diskCsiDriver.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.diskCsiDriver.roleName }}'
         k8sServiceAccounts:
@@ -64,6 +114,11 @@ data:
         optional: false
       image-registry:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.imageRegistry.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.imageRegistry.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.imageRegistry.roleName }}'
         k8sServiceAccounts:
@@ -74,6 +129,11 @@ data:
         optional: false
       file-csi-driver:
         minOpenShiftVersion: 4.18
+        roleDefinitions:
+        {{- range .Values.azureOperatorsMI.fileCsiDriver.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
         azureRoleDefinitionResourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .Values.azureOperatorsMI.fileCsiDriver.roleId }}'
         azureRoleDefinitionName: '{{ .Values.azureOperatorsMI.fileCsiDriver.roleName }}'
         k8sServiceAccounts:

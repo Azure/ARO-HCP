@@ -99,8 +99,7 @@ module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
       path: 'tooling/azure-automation/resources-cleanup/src/clean-orphaned-role-assignments.ps1'
     }
     scheduleName: 'nightly-schedule'
+    subscriptionId: subscription().subscriptionId
+    managedIdentityId: automationAccount.outputs.automationAccountManagedIdentityId
   }
-  dependsOn: [
-    automationAccount
-  ]
 }

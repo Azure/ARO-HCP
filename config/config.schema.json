@@ -529,11 +529,15 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "tracing": {
+          "$ref": "#/definitions/tracing"
         }
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "tracing"
       ]
     },
     "frontend": {
@@ -1018,6 +1022,21 @@
           "$ref": "#/definitions/zoneRedundantMode"
         },
         "workspaceName": {
+          "type": "string"
+        },
+        "devAlertingEmails": {
+          "type": "string"
+        },
+        "sev1ActionGroupIDs": {
+          "type": "string"
+        },
+        "sev2ActionGroupIDs": {
+          "type": "string"
+        },
+        "sev3ActionGroupIDs": {
+          "type": "string"
+        },
+        "sev4ActionGroupIDs": {
           "type": "string"
         }
       },
