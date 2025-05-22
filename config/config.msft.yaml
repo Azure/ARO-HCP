@@ -387,6 +387,12 @@ clouds:
       mise:
         azureAdInstance: https://login.microsoftonline.com/
         armInstance: https://management.azure.com
+
+      # Logs
+      logs:
+        mdsd:
+          subscriptions:
+            - 9a53d80e-dae0-4c8a-af90-30575d253127  # Azure Red Hat OpenShift v4.x - HCP Global
     environments:
       int:
         # this is the MSFT INT environment
@@ -487,7 +493,7 @@ clouds:
           logs:
             mdsd:
               subscriptions:
-              - 5299e6b7-b23b-46c8-8277-dc1147807117
+              - 5299e6b7-b23b-46c8-8277-dc1147807117 # Azure Red Hat OpenShift v4.x - HCP
       stg:
         # this is the MSFT STAGE environment
         defaults:
@@ -574,11 +580,3 @@ clouds:
           aroDevopsMsiId: '/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: ce4e50ef-1059-4b6f-a53a-53001d517513 # objectId for 'aro-ev2-admin-prod-sp'
-          # Logs
-          logs:
-            mdsd:
-              subscriptions: [] # TBD
-          logs:
-            mdsd:
-              subscriptions:
-              - 9a53d80e-dae0-4c8a-af90-30575d253127
