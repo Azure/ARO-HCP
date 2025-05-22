@@ -101,10 +101,7 @@ resourceGroups:
     - svc-oncert-public-kv-issuer
     - global-output
     - region-output
-# Deploy prometheus first since istio depends on it's CRDs
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
-  steps:
+  # Deploy prometheus first since istio depends on it's CRDs
   - name: prometheus
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell

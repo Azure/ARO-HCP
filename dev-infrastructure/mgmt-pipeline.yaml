@@ -135,9 +135,6 @@ resourceGroups:
     dependsOn:
     - mgmt-cluster
     - mgmt-infra
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
-  steps:
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
