@@ -319,7 +319,7 @@
       }
     },
     "rg": "hcp-underlay-westus3-mgmt-1",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-int-mgmt-westus3-1"
   },
   "mgmtKeyVault": {
     "name": "arohcpint-mgmt-usw3-1",
@@ -449,6 +449,6 @@
       }
     },
     "rg": "hcp-underlay-westus3-svc",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-int-svc-westus3"
   }
 }

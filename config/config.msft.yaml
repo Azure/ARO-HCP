@@ -85,7 +85,7 @@ defaults:
     manage: true
   # SVC cluster specifics
   svc:
-    subscription: "hcp-{{ .ctx.region }}"
+    subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
     rg: "hcp-underlay-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
@@ -142,7 +142,7 @@ defaults:
         shards: 1
   # MGMT cluster specifics
   mgmt:
-    subscription: "hcp-{{ .ctx.region }}"
+    subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
     rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt
@@ -503,7 +503,6 @@ clouds:
             serviceTag: GenevaActions
           # SVC cluster settings
           svc:
-            subscription: "hcp-stg-svc-{{ .ctx.region }}"
             aks:
               systemAgentPool:
                 minCount: 1
@@ -516,7 +515,6 @@ clouds:
               configVersion: "1.0"
           # MC cluster settings
           mgmt:
-            subscription: "hcp-stg-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
             aks:
               # MGMTM AKS nodepools
               systemAgentPool:
