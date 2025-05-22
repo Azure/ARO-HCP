@@ -373,10 +373,12 @@ clouds:
       svc:
         logs:
           san: "svc.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
+          configVersion: "1.1"
       # MC cluster settings
       mgmt:
         logs:
           san: "mgmt.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
+          configVersion: "1.1"
       imageSync:
         componentSync:
           image:
@@ -422,7 +424,7 @@ clouds:
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
-              configVersion: "1.0"
+              configVersion: "1.8"
           # MC cluster settings
           mgmt:
             aks:
@@ -436,7 +438,7 @@ clouds:
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
-              configVersion: "1.0"
+              configVersion: "1.6"
           # DNS
           dns:
             cxParentZoneName: aroapp-hcp.azure-test.net
@@ -517,8 +519,6 @@ clouds:
                 minCount: 1
                 maxCount: 3
                 azCount: 3
-            logs:
-              configVersion: "1.0"
           # MC cluster settings
           mgmt:
             aks:
@@ -530,8 +530,6 @@ clouds:
                 minCount: 1
                 maxCount: 12
                 azCount: 3
-            logs:
-              configVersion: "1.0"
           # DNS
           dns:
             # we share the same DNS zones between staging and production
