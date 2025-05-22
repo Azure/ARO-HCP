@@ -409,7 +409,7 @@ clouds:
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
-              san: SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
+              san: svc.geneva.keyvault.aro-hcp-int.azure.com
               configVersion: "1.0"
           # MC cluster settings
           mgmt:
@@ -426,7 +426,7 @@ clouds:
               etcd:
                 kvName: "arohcpint-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
             logs:
-              san: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
+              san: mgmt.geneva.keyvault.aro-hcp-int.azure.com
               configVersion: "1.0"
           # DNS
           dns:
@@ -542,7 +542,7 @@ clouds:
               etcd:
                 kvName: "arohcpstg-etcd-{{ .ctx.regionShort }}" # [globally-unique]
             logs:
-              san: SVC.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM # TBD
+              san: svc.geneva.keyvault.aro-hcp-stg.azure.com # tbd
               configVersion: "1.0"
           # MC cluster settings
           mgmt:
@@ -559,7 +559,7 @@ clouds:
               etcd:
                 kvName: "arohcpstg-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
             logs:
-              san: MGMT.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM # TBD
+              san: mgmt.geneva.keyvault.aro-hcp-stg.azure.com # tbd
               configVersion: "1.0"
           # DNS
           dns:

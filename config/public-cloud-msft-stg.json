@@ -288,7 +288,7 @@
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPCustomerLogs",
-      "san": "MGMT.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM"
+      "san": "mgmt.geneva.keyvault.aro-hcp-stg.azure.com"
     },
     "nsp": {
       "accessMode": "Learning",
@@ -418,7 +418,7 @@
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPServiceLogs",
-      "san": "SVC.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM"
+      "san": "svc.geneva.keyvault.aro-hcp-stg.azure.com"
     },
     "nsp": {
       "accessMode": "Learning",
