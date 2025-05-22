@@ -76,6 +76,10 @@ module generatedAlerts 'rules/generatedPrometheusAlertingRules.bicep' = {
   name: 'generatedPrometheusAlertingRules'
   params: {
     azureMonitoring: monitor.id
+    allSev1ActionGroups: actionGroups.outputs.allSev1ActionGroups
+    allSev2ActionGroups: actionGroups.outputs.allSev2ActionGroups
+    allSev3ActionGroups: actionGroups.outputs.allSev3ActionGroups
+    allSev4ActionGroups: actionGroups.outputs.allSev4ActionGroups
   }
 }
 

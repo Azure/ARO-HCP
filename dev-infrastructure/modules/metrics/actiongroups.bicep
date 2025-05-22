@@ -39,7 +39,7 @@ resource emailActions 'Microsoft.Insights/actionGroups@2023-01-01' = [
 
 var actionGroupsCreated = [for (j, index) in emailAdresses: emailActions[index].id]
 
-output allSev1ActionGroups array = union(sev1ActionGroups, actionGroupsCreated)
-output allSev2ActionGroups array = union(sev2ActionGroups, actionGroupsCreated)
-output allSev3ActionGroups array = union(sev3ActionGroups, actionGroupsCreated)
-output allSev4ActionGroups array = union(sev4ActionGroups, actionGroupsCreated)
+output allSev1ActionGroups array = union(filter(sev1ActionGroups, a => (a != '')), actionGroupsCreated)
+output allSev2ActionGroups array = union(filter(sev2ActionGroups, a => (a != '')), actionGroupsCreated)
+output allSev3ActionGroups array = union(filter(sev3ActionGroups, a => (a != '')), actionGroupsCreated)
+output allSev4ActionGroups array = union(filter(sev4ActionGroups, a => (a != '')), actionGroupsCreated)
