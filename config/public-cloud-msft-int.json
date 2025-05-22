@@ -151,7 +151,7 @@
   "hypershift": {
     "additionalInstallArg": "",
     "image": {
-      "digest": "sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821",
+      "digest": "sha256:607dcc3e795a1fb8e7647aa6ccf5b19dbfba8b4387f8eac9e304b33265a80d05",
       "registry": "quay.io",
       "repository": "acm-d/rhtap-hypershift-operator"
     },
