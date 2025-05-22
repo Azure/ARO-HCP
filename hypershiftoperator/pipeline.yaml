@@ -27,9 +27,9 @@ resourceGroups:
       configRef: imageSync.componentSync.pullSecretName
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
-  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   - name: deploy
+    aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make deploy
     dryRun:

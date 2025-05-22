@@ -165,10 +165,6 @@ func (e *e2eImpl) AddResourceGroup() {
 	)
 }
 
-func (e *e2eImpl) SetAKSName(aksName string) {
-	e.pipeline.ResourceGroups[0].AKSCluster = aksName
-}
-
 func (e *e2eImpl) AddStep(step types.Step, rg int) {
 	e.pipeline.ResourceGroups[rg].Steps = append(e.pipeline.ResourceGroups[rg].Steps, step)
 }

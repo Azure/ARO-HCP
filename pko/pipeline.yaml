@@ -4,9 +4,9 @@ rolloutName: RP PKO Rollout
 resourceGroups:
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .svc.subscription  }}'
-  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   - name: deploy
+    aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make deploy
     dryRun:

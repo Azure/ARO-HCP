@@ -101,12 +101,9 @@ resourceGroups:
     - svc-oncert-public-kv-issuer
     - global-output
     - region-output
-# Deploy prometheus first since istio depends on it's CRDs
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
-  aksCluster: '{{ .svc.aks.name  }}'
-  steps:
+  # Deploy prometheus first since istio depends on it's CRDs
   - name: prometheus
+    aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
     command: make -C ../observability/prometheus deploy
     dryRun:
@@ -142,6 +139,7 @@ resourceGroups:
     - svc
   # configure istio
   - name: istio-config
+    aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
     command: make -C ../istio deploy
     dryRun:
@@ -156,6 +154,7 @@ resourceGroups:
   # - updates workload to use istio on version svc.istio.targetVersion
   # - configures istio IP tag usage
   - name: istio-upgrade
+    aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
     command: scripts/istio.sh
     variables:
@@ -173,6 +172,7 @@ resourceGroups:
     - istio-config
   # Install ACRpull
   - name: acrpull
+    aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
     command: make -C ../acrpull deploy
     dryRun:

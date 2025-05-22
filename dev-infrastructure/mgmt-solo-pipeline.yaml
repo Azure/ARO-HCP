@@ -67,12 +67,9 @@ resourceGroups:
     - mgmt-infra
     - region-output
     - global-output
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
-  aksCluster: '{{ .mgmt.aks.name  }}'
-  steps:
   # Install ACRpull
   - name: acrpull
+    aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make -C ../acrpull deploy
     dryRun:
@@ -90,6 +87,7 @@ resourceGroups:
     - mgmt-cluster
   # Install cluster patches
   - name: mgmt-fixes
+    aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
     dryRun:
