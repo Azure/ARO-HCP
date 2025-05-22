@@ -578,3 +578,7 @@ clouds:
           logs:
             mdsd:
               subscriptions: [] # TBD
+          logs:
+            mdsd:
+              subscriptions:
+              - 9a53d80e-dae0-4c8a-af90-30575d253127
