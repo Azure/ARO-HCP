@@ -75,7 +75,7 @@
       "repository": "app-sre/uhc-clusters-service"
     },
     "k8s": {
-      "namespace": "cluster-service",
+      "namespace": "clusters-service",
       "serviceAccountName": "clusters-service"
     },
     "managedIdentityName": "clusters-service",
@@ -256,7 +256,7 @@
   "mgmt": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
-      "enableSwiftV2": false,
+      "enableSwiftV2": true,
       "etcd": {
         "kvName": "arohcp-etcd-usw3tst-1",
         "kvSoftDelete": false
