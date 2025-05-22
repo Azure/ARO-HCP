@@ -372,12 +372,12 @@ clouds:
       # SVC cluster settings
       svc:
         logs:
-          san: "svc.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
+          san: "svc.geneva.keyvault.aro-hcp.azure.com"
           configVersion: "1.1"
       # MC cluster settings
       mgmt:
         logs:
-          san: "mgmt.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
+          san: "mgmt.geneva.keyvault.aro-hcp.azure.com"
           configVersion: "1.1"
       imageSync:
         componentSync:
@@ -424,6 +424,7 @@ clouds:
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
+              san: "svc.geneva.keyvault.aro-hcp-int.azure.com"
               configVersion: "1.8"
           # MC cluster settings
           mgmt:
@@ -438,6 +439,7 @@ clouds:
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
+              san: "mgmt.geneva.keyvault.aro-hcp-int.azure.com"
               configVersion: "1.6"
           # DNS
           dns:
