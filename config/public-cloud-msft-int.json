@@ -290,7 +290,7 @@
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPCustomerLogs",
-      "san": "MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
+      "san": "mgmt.geneva.keyvault.aro-hcp-int.azure.com"
     },
     "nsp": {
       "accessMode": "Learning",
@@ -319,7 +319,7 @@
       }
     },
     "rg": "hcp-underlay-westus3-mgmt-1",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-int-mgmt-westus3-1"
   },
   "mgmtKeyVault": {
     "name": "arohcpint-mgmt-usw3-1",
@@ -420,7 +420,7 @@
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPServiceLogs",
-      "san": "SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
+      "san": "svc.geneva.keyvault.aro-hcp-int.azure.com"
     },
     "nsp": {
       "accessMode": "Learning",
@@ -449,6 +449,6 @@
       }
     },
     "rg": "hcp-underlay-westus3-svc",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-int-svc-westus3"
   }
 }

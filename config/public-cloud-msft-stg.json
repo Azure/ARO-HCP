@@ -81,7 +81,7 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpstg-cs-usw3",
+      "name": "arohcpstg-csdb-usw3",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -226,7 +226,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpstg-maestro-usw3",
+      "name": "arohcpstg-maestrodb-usw3",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -288,7 +288,7 @@
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPCustomerLogs",
-      "san": "MGMT.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM"
+      "san": "mgmt.geneva.keyvault.aro-hcp-stg.azure.com"
     },
     "nsp": {
       "accessMode": "Learning",
@@ -418,7 +418,7 @@
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPServiceLogs",
-      "san": "SVC.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM"
+      "san": "svc.geneva.keyvault.aro-hcp-stg.azure.com"
     },
     "nsp": {
       "accessMode": "Learning",
