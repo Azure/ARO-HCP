@@ -144,7 +144,7 @@ svc.aks.kubeconfigfile:
 svc.oidc.storage.permissions:
 	@USER_TYPE=$(shell az account show -o json | jq -r '.user.type') && \
 	if [ "$${USER_TYPE}" = "user" ]; then \
-		STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
+		STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 		az role assignment create \
 		--role "Storage Blob Data Contributor" \
 		--assignee ${PRINCIPAL_ID} \

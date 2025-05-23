@@ -544,6 +544,7 @@ module oidc '../modules/oidc/main.bicep' = {
   name: '${deployment().name}-oidc'
   params: {
     location: location
+    regionalResourceGroup: regionalResourceGroup
     storageAccountName: oidcStorageAccountName
     rpMsiName: csMIName
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
