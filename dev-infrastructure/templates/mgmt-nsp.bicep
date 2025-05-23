@@ -20,6 +20,9 @@ param mgmtNSPAccessMode string
 @maxLength(24)
 param aksKeyVaultName string
 
+@description('ID of the Service Cluster subscription. Will be used to grant access to the NSP.')
+param serviceClusterSubscriptionId string
+
 resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: mgmtKeyVaultName
 }
@@ -60,6 +63,7 @@ module externalProfile '../modules/network/nsp-profile.bicep' = {
     // TODO: will add EV2 Service Tags here
     // TODO: add service cluster subscription here
     subscriptions: [
+      serviceClusterSubscriptionId
       subscription().id
     ]
   }

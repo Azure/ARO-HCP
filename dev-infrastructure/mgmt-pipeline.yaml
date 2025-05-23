@@ -132,6 +132,11 @@ resourceGroups:
     template: templates/mgmt-nsp.bicep
     parameters: configurations/mgmt-nsp.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: serviceClusterSubscriptionId
+      input:
+        step: svc-output
+        name: subscriptionId
     dependsOn:
     - mgmt-cluster
     - mgmt-infra
