@@ -19,6 +19,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -52,7 +53,14 @@ type DocumentProperties interface {
 	GetValidTypes() []string
 }
 
+// BillingDocument records timestamps of Hosted Control Plane OpenShift cluster
+// creation and deletion for the purpose of customer billing.
 type BillingDocument struct {
+	baseDocument
+
+	// The partition key is the Azure subscription ID
+	PartitionKey string `json:"partitionKey"`
+
 	// The cluster creation time represents the time when the cluster was provisioned successfully
 	CreationTime time.Time `json:"creationTime,omitempty"`
 	// The cluster deletion time
@@ -64,10 +72,28 @@ type BillingDocument struct {
 	Location string `json:"location,omitempty"`
 	// The tenant ID of the HCP cluster
 	TenantID string `json:"tenantId,omitempty"`
-	// The hcp cluster ARM resource ID
-	ResourceID string `json:"resourceId,omitempty"`
-	// The ARM resource ID of the managed resource group of the hcp cluster
+	// The HCP cluster ARM resource ID
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+	// The ARM resource ID of the managed resource group of the HCP cluster
 	ManagedResourceGroup string `json:"managedResourceGroup,omitempty"`
+}
+
+func NewBillingDocument(resourceID *azcorearm.ResourceID) *BillingDocument {
+	return &BillingDocument{
+		baseDocument: newBaseDocument(),
+		PartitionKey: resourceID.SubscriptionID,
+		ResourceID:   resourceID,
+	}
+}
+
+// BillingDocumentPatchOperations represents a patch request for a BillingDocument.
+type BillingDocumentPatchOperations struct {
+	azcosmos.PatchOperations
+}
+
+// SetDeletionTime appends a set operation for the DeletionTime field.
+func (p *BillingDocumentPatchOperations) SetDeletionTime(deletionTime time.Time) {
+	p.AppendSet("/deletionTime", deletionTime)
 }
 
 // ResourceDocument captures the mapping of an Azure resource ID

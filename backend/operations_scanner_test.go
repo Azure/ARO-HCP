@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -282,7 +283,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 					if resourceDoc != nil {
 						return callback(resourceDoc), nil
 					} else {
-						return false, database.ErrNotFound
+						return false, &azcore.ResponseError{StatusCode: http.StatusNotFound}
 					}
 				})
 			if tt.expectAsyncNotification {
