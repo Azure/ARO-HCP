@@ -413,8 +413,8 @@
       "ingressGatewayIPAddressName": "aro-hcp-istio-ingress",
       "istioctlVersion": "1.23.1",
       "tag": "prod-stable",
-      "targetVersion": "asm-1-23",
-      "versions": "asm-1-23"
+      "targetVersion": "asm-1-25",
+      "versions": "asm-1-23,asm-1-25"
     },
     "nsp": {
       "accessMode": "Learning",

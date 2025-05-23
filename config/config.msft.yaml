@@ -117,8 +117,8 @@ defaults:
     istio:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
-      targetVersion: "asm-1-23"
-      versions: "asm-1-23"
+      targetVersion: "asm-1-25"
+      versions: "asm-1-23,asm-1-25"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-inbound-svc"
     logs:
