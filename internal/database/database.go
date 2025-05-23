@@ -172,10 +172,15 @@ type cosmosDBClient struct {
 // NewDBClient instantiates a DBClient from a Cosmos DatabaseClient instance
 // targeting the Frontends async database.
 func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClient, error) {
-	// NewContainer only fails if the container ID argument is
-	// empty, so we can safely disregard the error return value.
-	resources, _ := database.NewContainer(resourcesContainer)
-	locks, _ := database.NewContainer(locksContainer)
+	resources, err := database.NewContainer(resourcesContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	locks, err := database.NewContainer(locksContainer)
+	if err != nil {
+		return nil, err
+	}
 
 	lockClient, err := NewLockClient(ctx, locks)
 	if err != nil {
