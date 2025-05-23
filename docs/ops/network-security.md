@@ -1,8 +1,14 @@
 # Network Security
 
+This documentation should provide a high level overview on the tools and concepts used for securing Platform as a Service (PaaS) resources. The goal of this document is not to explain these technologies in detail. For this refer to:
+
+- https://learn.microsoft.com/en-us/azure/private-link/private-link-overview
+- https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview
+- https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts
+
 ## Network Security Perimeter
 
-The Network Security Perimeter allows organizations to define a logical network isolation boundary for Platform as a Service (PaaS) resources, such as Azure Storage accounts and KeyVaults, that are deployed outside a virtual network. It restricts public network access to PaaS resources within the perimeter, but you can exempt access by using explicit access rules for public inbound and outbound traffic.
+The Network Security Perimeter allows organizations to define a logical network isolation boundary for PaaS, such as Azure Storage accounts and KeyVaults, that are deployed outside a virtual network. It restricts public network access to PaaS resources within the perimeter, but you can exempt access by using explicit access rules for public inbound and outbound traffic.
 
 ### Granting access
 
@@ -32,6 +38,10 @@ EV2 needs acces to some key vaults in order to manage them. For securing that ac
 Private endpoint traffic is considered highly secure and therefore isn't subject to Network Security Perimeter rules.
 
 A private endpoint grants access to a PaaS resource by creating a VNET local IP with an DNS record.
+
+### Deployment
+
+We provide a module that helps creating all resource required for a private endpoint: `private-endpoint.bicep`. See that module and it's usage for more details on the resource involved.
 
 ## Access overview
 
