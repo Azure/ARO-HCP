@@ -507,6 +507,54 @@ clouds:
       nightly:
         # this is an environment to test the deployability of infra nightly
         defaults:
+          global:
+            subscription: ARO HCP nightly global (EA Subscription)
+            rg: global
+            region: westus3
+            globalMSIName: "global-rollout-identity"
+            safeDnsIntAppObjectId: "" # intentionally left empty
+            secretsToSyncDir: "dev/arohcpdev-global"
+            nsp:
+              name: nsp-global
+              accessMode: 'Learning'
+            keyVault:
+              name: arohcpdev-global
+              private: false
+              softDelete: true
+          acr:
+            svc:
+              name: arohcpsvcdev
+              zoneRedundantMode: Disabled
+            ocp:
+              name: arohcpocpdev
+              zoneRedundantMode: Disabled
+          # Cluster Service
+          svc:
+            subscription: ARO HCP nightly service (EA Subscription)
+            rg: hcp-underlay-{{ .ctx.regionShort }}-svc
+            aks:
+              name: "{{ .ctx.regionShort }}-svc"
+              etcd:
+                kvName: arohcp-etcd-{{ .ctx.regionShort }}
+                kvSoftDelete: false
+              systemAgentPool:
+                minCount: 1
+                maxCount: 3
+              userAgentPool:
+                minCount: 1
+                maxCount: 3
+          mgmt:
+            subscription: ARO HCP nightly management (EA Subscription)
+            rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+            applyKubeletFixes: false
+            aks:
+              name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+              systemAgentPool:
+                minCount: 1
+                maxCount: 4
+              userAgentPool:
+                minCount: 1
+                maxCount: 6
           # Cluster Service
           clustersService:
             postgres:
@@ -525,9 +573,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-          # MC
-          mgmt:
-            applyKubeletFixes: false
       personal-dev:
         # this is the personal DEV environment
         defaults:
