@@ -75,7 +75,7 @@
       "repository": "app-sre/uhc-clusters-service"
     },
     "k8s": {
-      "namespace": "cluster-service",
+      "namespace": "clusters-service",
       "serviceAccountName": "clusters-service"
     },
     "managedIdentityName": "clusters-service",
@@ -256,7 +256,7 @@
   "mgmt": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
-      "enableSwiftV2": false,
+      "enableSwiftV2": true,
       "etcd": {
         "kvName": "arohcp-etcd-dev-1",
         "kvSoftDelete": false
@@ -270,8 +270,8 @@
       },
       "kubernetesVersion": "1.31.7",
       "name": "dev-mgmt-1",
-      "networkDataplane": "cilium",
-      "networkPolicy": "cilium",
+      "networkDataplane": "azure",
+      "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {

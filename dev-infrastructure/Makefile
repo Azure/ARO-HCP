@@ -49,6 +49,53 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
+# Create mock identities for the INT environment
+# This is done within the subscription the customer MRG / nodepools would be created
+# Manually lift/shift the cert/keys to the MSIT environment keyvault
+create-int-mock-identities:
+	MSI_MOCK_ROLE_NAME=int-msi-mock && \
+	FIRST_PARTY_ROLE_NAME=int-first-party && \
+	FIRST_PARTY_CERT_NAME=intFirstPartyCert && \
+	FIRST_PARTY_CERT_DNS=intfirstparty.hcp.osadev.cloud && \
+	MSI_MOCK_CERT_NAME=intMsiMockCert && \
+	MSI_MOCK_CERT_DNS=intmsimock.hcp.osadev.cloud && \
+	ARM_HELPER_CERT_NAME=intArmHelperCert && \
+	ARM_HELPER_CERT_DNS=intarmhelper.hcp.osadev.cloud && \
+	az deployment group create \
+		--name "aro-hcp-int-mock-certificates" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/mock-identities.bicep \
+		--parameters configurations/mock-identities.bicepparam \
+		keyVaultName=aro-hcp-int-kv \
+		msiMockRoleName=$${MSI_MOCK_ROLE_NAME} \
+		firstPartyRoleName=$${FIRST_PARTY_ROLE_NAME} \
+		firstPartyCertName=$${FIRST_PARTY_CERT_NAME} \
+		firstPartyCertDns=$${FIRST_PARTY_CERT_DNS} \
+		msiMockCertName=$${MSI_MOCK_CERT_NAME} \
+		msiMockCertDns=$${MSI_MOCK_CERT_DNS} \
+		armHelperCertName=$${ARM_HELPER_CERT_NAME} \
+		armHelperCertDns=$${ARM_HELPER_CERT_DNS} && \
+	APPLICATION_NAME=aro-hcp-int-fp \
+	KEY_VAULT_NAME=aro-hcp-int-kv \
+	CERTIFICATE_NAME=$${FIRST_PARTY_CERT_NAME} \
+	ROLE_DEFINITION_NAME=$${FIRST_PARTY_ROLE_NAME} \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh && \
+	APPLICATION_NAME=aro-hcp-int-arm-helper \
+	KEY_VAULT_NAME=aro-hcp-int-kv \
+	CERTIFICATE_NAME=$${ARM_HELPER_CERT_NAME} \
+	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh && \
+	APPLICATION_NAME=aro-hcp-int-msi-mock \
+	KEY_VAULT_NAME=aro-hcp-int-kv \
+	CERTIFICATE_NAME=$${MSI_MOCK_CERT_NAME} \
+	ROLE_DEFINITION_NAME=$${MSI_MOCK_ROLE_NAME} \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh
+
+.PHONY: create-mock-identities
+
 create-mock-identities:
 	az deployment group wait --created --name "aro-hcp-dev-mock-certificates" --resource-group $(GLOBAL_RESOURCEGROUP) --interval 10
 	az deployment group create \
@@ -144,7 +191,7 @@ svc.aks.kubeconfigfile:
 svc.oidc.storage.permissions:
 	@USER_TYPE=$(shell az account show -o json | jq -r '.user.type') && \
 	if [ "$${USER_TYPE}" = "user" ]; then \
-		STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${SVC_RESOURCEGROUP} --query id -o tsv) && \
+		STORAGEACCOUNTID=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 		az role assignment create \
 		--role "Storage Blob Data Contributor" \
 		--assignee ${PRINCIPAL_ID} \
@@ -284,19 +331,19 @@ acr-ocp-cfg.what-if:
 #
 
 cs-current-user-pg-connect:
-	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME)
+	@scripts/cs-current-user-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(CS_PG_NAME)
 .PHONY: cs-current-user-pg-connect
 
 cs-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(CS_PG_NAME) $(CS_MI_NAME) $(CS_NS_NAME) $(CS_SA_NAME)
+	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(CS_PG_NAME) $(CS_MI_NAME) $(CS_NS_NAME) $(CS_SA_NAME)
 .PHONY: cs-miwi-pg-connect
 
 maestro-current-user-pg-connect:
-	@scripts/cs-current-user-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME)
+	@scripts/cs-current-user-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(MAESTRO_PG_NAME)
 .PHONY: maestro-current-user-pg-connect
 
 maestro-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(SVC_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
+	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
 .PHONY: maestro-miwi-pg-connect
 
 #
