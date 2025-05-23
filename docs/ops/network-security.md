@@ -58,3 +58,10 @@ We provide a module that helps creating all resource required for a private endp
 | Management | KeyVault | msi | SVC AKS</br> MGMT AKS</br> EV2 | NSP |
 | Management | KeyVault | MGTM AKS etcd | MGMT AKS | NSP |
 | Management | KeyVault | MGTM | MGMT AKS | NSP |
+
+## Choosing between the two
+
+The general decision should be:
+
+- Use NSP if you need access from outside a known subscription, i.e. access from EV2.
+- Use Private endpoint for any other cases.
