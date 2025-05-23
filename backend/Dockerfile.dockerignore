@@ -1,0 +1,8 @@
+**
+!image-dependencies
+!image-environment
+!internal/go.*
+!internal/**/*.go
+!backend/go.*
+!backend/Makefile
+!backend/**/*.go
