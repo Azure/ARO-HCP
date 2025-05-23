@@ -263,7 +263,7 @@
         "osDiskSizeGB": 128,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.6",
+      "kubernetesVersion": "1.31.7",
       "name": "westus3-mgmt-1",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
@@ -386,7 +386,7 @@
         "osDiskSizeGB": 128,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.6",
+      "kubernetesVersion": "1.31.7",
       "name": "westus3-svc-1",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
