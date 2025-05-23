@@ -1,0 +1,42 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Management.Prometheus
+rolloutName: Management Cluster Prometheus Rollout
+resourceGroups:
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
+  aksCluster: '{{ .mgmt.aks.name  }}'
+  steps:
+  - name: deploy
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: PROMETHEUS_OPERATOR_REGISTRY
+      configRef: mgmt.prometheus.prometheusOperator.image.registry
+    - name: PROMETHEUS_OPERATOR_REPOSITORY
+      configRef: mgmt.prometheus.prometheusOperator.image.repository
+    - name: PROMETHEUS_OPERATOR_DIGEST
+      configRef: mgmt.prometheus.prometheusOperator.image.digest
+    - name: PROMETHEUS_SPEC_REGISTRY
+      configRef: mgmt.prometheus.prometheusSpec.image.registry
+    - name: PROMETHEUS_SPEC_REPOSITORY
+      configRef: mgmt.prometheus.prometheusSpec.image.repository
+    - name: PROMETHEUS_SPEC_DIGEST
+      configRef: mgmt.prometheus.prometheusSpec.image.digest
+    - name: PROMETHEUS_SPEC_REPLICAS
+      configRef: mgmt.prometheus.prometheusSpec.replicas
+    - name: PROMETHEUS_SPEC_SHARDS
+      configRef: mgmt.prometheus.prometheusSpec.shards
+    - name: PROMETHEUS_SPEC_VERSION
+      configRef: mgmt.prometheus.prometheusSpec.version
+    - name: PROMETHEUS_NAMESPACE_LABEL
+      configRef: mgmt.prometheus.namespaceLabel
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: CS_ENVIRONMENT
+      configRef: clustersService.environment

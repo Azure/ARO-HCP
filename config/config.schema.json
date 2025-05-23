@@ -1021,7 +1021,10 @@
         "grafanaZoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },
-        "workspaceName": {
+        "svcWorkspaceName": {
+          "type": "string"
+        },
+        "hcpWorkspaceName": {
           "type": "string"
         },
         "devAlertingEmails": {
@@ -1045,7 +1048,8 @@
         "grafanaAdminGroupPrincipalId",
         "grafanaName",
         "grafanaZoneRedundantMode",
-        "workspaceName"
+        "svcWorkspaceName",
+        "hcpWorkspaceName"
       ]
     },
     "logs": {
