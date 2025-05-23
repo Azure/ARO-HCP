@@ -16,7 +16,6 @@ package frontend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -79,7 +78,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 
 	// ResourceType casing is preserved for parents in the same namespace.
 	for parent.ResourceType.Namespace == doc.ResourceID.ResourceType.Namespace {
-		parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
+		_, parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
 		if err != nil {
 			logger.Error(err.Error())
 			return arm.NewInternalServerError()
@@ -107,29 +106,43 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 		return arm.NewInternalServerError()
 	}
 
+	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(subscriptionID))
+
 	dbIterator := f.dbClient.ListResourceDocs(prefix, -1, nil)
 
 	// Start a deletion operation for all clusters under the subscription.
 	// Cluster Service will delete all node pools belonging to these clusters
 	// so we don't need to explicitly delete node pools here.
-	for _, resourceDoc := range dbIterator.Items(ctx) {
+	for resourceItemID, resourceDoc := range dbIterator.Items(ctx) {
 		if !strings.EqualFold(resourceDoc.ResourceID.ResourceType.String(), api.ClusterResourceType.String()) {
 			continue
 		}
 
 		// Allow this method to be idempotent.
 		if resourceDoc.ProvisioningState != arm.ProvisioningStateDeleting {
-			_, cloudError := f.DeleteResource(ctx, resourceDoc)
+			_, cloudError := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc)
 			if cloudError != nil {
 				return cloudError
 			}
 		}
 	}
 
+	err = dbIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		return arm.NewInternalServerError()
+	}
+
+	_, err = transaction.Execute(ctx, nil)
+	if err != nil {
+		logger.Error(err.Error())
+		return arm.NewInternalServerError()
+	}
+
 	return nil
 }
 
-func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.ResourceDocument) (string, *arm.CloudError) {
+func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTransaction, resourceItemID string, resourceDoc *database.ResourceDocument) (string, *arm.CloudError) {
 	const operationRequest = database.OperationRequestDelete
 	var err error
 
@@ -161,75 +174,37 @@ func (f *Frontend) DeleteResource(ctx context.Context, resourceDoc *database.Res
 	// on the resource or child resources, but we need to do some database
 	// bookkeeping to reflect that.
 
-	// FIXME This would be a good place to use Cosmos DB's transactional batch
-	//       operations to ensure all these write operations succeed together
-	//       or roll back. We would need two parallel transactions: one for
-	//       the Operations container and another for the Resources container.
-	//       But we're stymied currently by the DBClient interface, and I have
-	//       no desire to implement this in the in-memory cache. DBClient has
-	//       served us well up to this point, but I think it's time to bid it
-	//       farewell and switch to gomock in unit tests.
-
-	err = f.CancelActiveOperation(ctx, resourceDoc)
-	if err != nil {
-		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
-	}
-
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
-
-	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
-	if err != nil {
-		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
-	}
-
-	_, err = f.dbClient.UpdateResourceDoc(ctx, resourceDoc.ResourceID, func(updateDoc *database.ResourceDocument) bool {
-		updateDoc.ActiveOperationID = operationID
-		updateDoc.ProvisioningState = operationDoc.Status
-		return true
+	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
+		ExternalID:             resourceDoc.ResourceID,
+		IncludeNestedResources: true,
 	})
 	if err != nil {
 		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
 
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
+
+	var patchOperations database.ResourceDocumentPatchOperations
+	patchOperations.SetActiveOperationID(&operationID)
+	patchOperations.SetProvisioningState(operationDoc.Status)
+	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+
 	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceID, -1, nil)
 
-	for _, child := range iterator.Items(ctx) {
-		// Anonymous function avoids repetitive error handling.
-		err = func() error {
-			err = f.CancelActiveOperation(ctx, child)
-			if err != nil {
-				return err
-			}
+	for childItemID, childResourceDoc := range iterator.Items(ctx) {
+		// This operation is not accessible through any REST endpoint.
+		// Its purpose is to cause the backend to delete the resource
+		// document once resource deletion completes.
 
-			// This operation is not accessible through any REST endpoint.
-			// Its purpose is to cause the backend to delete the resource
-			// document once resource deletion completes.
+		childOperationDoc := database.NewOperationDocument(operationRequest, childResourceDoc.ResourceID, childResourceDoc.InternalID)
+		childOperationID := transaction.CreateOperationDoc(childOperationDoc, nil)
 
-			childOperationDoc := database.NewOperationDocument(operationRequest, child.ResourceID, child.InternalID)
-
-			childOperationID, err := f.dbClient.CreateOperationDoc(ctx, childOperationDoc)
-			if err != nil {
-				return err
-			}
-
-			_, err = f.dbClient.UpdateResourceDoc(ctx, child.ResourceID, func(updateDoc *database.ResourceDocument) bool {
-				updateDoc.ActiveOperationID = childOperationID
-				updateDoc.ProvisioningState = childOperationDoc.Status
-				return true
-			})
-			if err != nil {
-				return err
-			}
-
-			return nil
-		}()
-		if err != nil {
-			logger.Error(err.Error())
-			return "", arm.NewInternalServerError()
-		}
+		var patchOperations database.ResourceDocumentPatchOperations
+		patchOperations.SetActiveOperationID(&childOperationID)
+		patchOperations.SetProvisioningState(childOperationDoc.Status)
+		transaction.PatchResourceDoc(childItemID, patchOperations, nil)
 	}
 
 	err = iterator.GetError()
@@ -246,10 +221,10 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 
 	logger := LoggerFromContext(ctx)
 
-	doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			return nil, arm.NewResourceNotFoundError(resourceID)
 		} else {
 			return nil, arm.NewInternalServerError()

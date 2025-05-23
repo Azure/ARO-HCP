@@ -30,6 +30,7 @@ import (
 	"sync/atomic"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
@@ -284,10 +285,10 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		var resourceDoc *database.ResourceDocument
 
 		// Fetch the cluster document for the Cluster Service ID.
-		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, prefix)
+		_, resourceDoc, err = f.dbClient.GetResourceDoc(ctx, prefix)
 		if err != nil {
 			logger.Error(err.Error())
-			if errors.Is(err, database.ErrNotFound) {
+			if database.IsResponseError(err, http.StatusNotFound) {
 				arm.WriteResourceNotFoundError(writer, prefix)
 			} else {
 				arm.WriteInternalServerError(writer)
@@ -407,8 +408,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
@@ -530,81 +533,62 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 	tracing.SetClusterAttributes(trace.SpanFromContext(ctx), csCluster)
 
+	transaction := f.dbClient.NewTransaction(pk)
+
 	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
-	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-	err = f.ExposeOperation(writer, request, pk, operationID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	// This is called directly when creating a resource, and indirectly from
-	// within a retry loop when updating a resource.
-	updateResourceMetadata := func(updateDoc *database.ResourceDocument) bool {
-		updateDoc.ActiveOperationID = operationID
-		updateDoc.ProvisioningState = operationDoc.Status
-
-		// Record managed identity type and any system-assigned identifiers.
-		// Omit the user-assigned identities map since that is reconstructed
-		// from Cluster Service data.
-		updateDoc.Identity = &arm.ManagedServiceIdentity{
-			PrincipalID: hcpCluster.Identity.PrincipalID,
-			TenantID:    hcpCluster.Identity.TenantID,
-			Type:        hcpCluster.Identity.Type,
-		}
-
-		// Record the latest system data values from ARM, if present.
-		if systemData != nil {
-			updateDoc.SystemData = systemData
-		}
-
-		// Here the difference between a nil map and an empty map is significant.
-		// If the Tags map is nil, that means it was omitted from the request body,
-		// so we leave any existing tags alone. If the Tags map is non-nil, even if
-		// empty, that means it was specified in the request body and should fully
-		// replace any existing tags.
-		if hcpCluster.Tags != nil {
-			updateDoc.Tags = hcpCluster.Tags
-		}
-
-		return true
-	}
+	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		updateResourceMetadata(resourceDoc)
-		err = f.dbClient.CreateResourceDoc(ctx, resourceDoc)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		logger.Info(fmt.Sprintf("document created for %s", resourceID))
-	} else {
-		updated, err := f.dbClient.UpdateResourceDoc(ctx, resourceID, updateResourceMetadata)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-		if updated {
-			logger.Info(fmt.Sprintf("document updated for %s", resourceID))
-		}
-		// Get the updated resource document for the response.
-		resourceDoc, err = f.dbClient.GetResourceDoc(ctx, resourceID)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+	}
+
+	var patchOperations database.ResourceDocumentPatchOperations
+
+	patchOperations.SetActiveOperationID(&operationID)
+	patchOperations.SetProvisioningState(operationDoc.Status)
+
+	// Record the latest system data values form ARM, if present.
+	if systemData != nil {
+		patchOperations.SetSystemData(systemData)
+	}
+
+	// Record managed identity type an any system-assigned identifiers.
+	// Omit the user-assigned identities map since that is reconstructed
+	// from Cluster Service data.
+	patchOperations.SetIdentity(&arm.ManagedServiceIdentity{
+		PrincipalID: hcpCluster.Identity.PrincipalID,
+		TenantID:    hcpCluster.Identity.TenantID,
+		Type:        hcpCluster.Identity.Type,
+	})
+
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if hcpCluster.Tags != nil {
+		patchOperations.SetTags(hcpCluster.Tags)
+	}
+
+	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+
+	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
+		EnableContentResponseOnWrite: true,
+	})
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Read back the resource document so the response body is accurate.
+	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
 	responseBody, err := marshalCSCluster(csCluster, resourceDoc, versionedInterface)
@@ -637,11 +621,13 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		// For resource not found errors on deletion, ARM requires
 		// us to simply return 204 No Content and no response body.
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			writer.WriteHeader(http.StatusNoContent)
 		} else {
 			logger.Error(err.Error())
@@ -658,7 +644,9 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	operationID, cloudError := f.DeleteResource(ctx, resourceDoc)
+	transaction := f.dbClient.NewTransaction(pk)
+
+	operationID, cloudError := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc)
 	if cloudError != nil {
 		// For resource not found errors on deletion, ARM requires
 		// us to simply return 204 No Content and no response body.
@@ -670,8 +658,9 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-	err = f.ExposeOperation(writer, request, pk, operationID)
+	f.ExposeOperation(writer, request, operationID, transaction)
+
+	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -698,10 +687,10 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	resourceID = resourceID.Parent
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
 			arm.WriteInternalServerError(writer)
@@ -753,16 +742,14 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return
 	}
 
+	transaction := f.dbClient.NewTransaction(pk)
+
 	operationDoc := database.NewOperationDocument(operationRequest, resourceID, internalID)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
-	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	f.ExposeOperation(writer, request, operationID, transaction)
 
-	err = f.ExposeOperation(writer, request, pk, operationID)
+	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -789,10 +776,10 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	resourceID = resourceID.Parent
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
 			arm.WriteInternalServerError(writer)
@@ -837,24 +824,14 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return
 	}
 
+	transaction := f.dbClient.NewTransaction(pk)
+
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
-
-	iterator = f.dbClient.ListActiveOperationDocs(pk, &database.DBClientListActiveOperationDocsOptions{
+	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRequestCredential),
 		ExternalID: resourceID,
 	})
-
-	for operationID, _ := range iterator.Items(ctx) {
-		err := f.CancelOperation(ctx, pk, operationID)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-	}
-
-	err = iterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -862,15 +839,11 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	}
 
 	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
-	operationID, err := f.dbClient.CreateOperationDoc(ctx, operationDoc)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	f.ExposeOperation(writer, request, operationID, transaction)
 
-	err = f.ExposeOperation(writer, request, pk, operationID)
+	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -896,7 +869,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
 			arm.WriteInternalServerError(writer)
@@ -939,7 +912,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
-	if errors.Is(err, database.ErrNotFound) {
+	if database.IsResponseError(err, http.StatusNotFound) {
 		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, &subscription)
 		if err != nil {
 			logger.Error(err.Error())
@@ -1160,10 +1133,11 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	}
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
 	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -1256,10 +1230,11 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	}
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
 	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
-		if errors.Is(err, database.ErrNotFound) {
+		if database.IsResponseError(err, http.StatusNotFound) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -1303,7 +1278,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	default:
 		// Operation is still in progress.
-		f.AddLocationHeader(writer, request, doc)
+		f.AddLocationHeader(writer, request, doc.OperationID)
 		writer.WriteHeader(http.StatusAccepted)
 		return
 	}
