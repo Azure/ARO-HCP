@@ -1,4 +1,5 @@
 **
+!image-dependencies
 !internal/go.*
 !internal/**/*.go
 !frontend/go.*
