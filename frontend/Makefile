@@ -29,7 +29,8 @@ build-push: image push
 
 image:
 	@bash -c "set -e; pushd .. > /dev/null; \
-	          trap 'popd > /dev/null' EXIT; \
+	          trap 'rm --force image-dependencies && popd > /dev/null' EXIT; \
+	          go list -f '{{.Path}}@{{.Version}}' -m all | grep --invert-match 'github.com/Azure/ARO-HCP' > image-dependencies; \
 	          docker build . --file frontend/Dockerfile \
 	                         --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} \
 	                         --build-arg PLATFORM=linux/amd64 \
