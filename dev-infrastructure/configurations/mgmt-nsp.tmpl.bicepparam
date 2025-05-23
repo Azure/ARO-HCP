@@ -16,4 +16,4 @@ param aksKeyVaultName = '{{ .mgmt.aks.etcd.kvName }}'
 param mgmtNSPName = '{{ .mgmt.nsp.name }}'
 param mgmtNSPAccessMode = '{{ .mgmt.nsp.accessMode }}'
 
-param serviceClusterSubscriptionId = ''
+param serviceClusterSubscriptionId = '__serviceClusterSubscriptionId__'
