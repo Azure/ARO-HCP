@@ -1,3 +1,5 @@
+import { csvToArray } from '../common.bicep'
+
 @description('Comma seperated list of email notifications. Only set in non MSFT environments!')
 param devAlertingEmails string
 
@@ -13,12 +15,12 @@ param sev3ActionGroupIDs string
 @description('Comma seperated list of action groups for Sev 4 alerts.')
 param sev4ActionGroupIDs string
 
-var sev1ActionGroups = [for eag in split(sev1ActionGroupIDs, ','): eag]
-var sev2ActionGroups = [for eag in split(sev2ActionGroupIDs, ','): eag]
-var sev3ActionGroups = [for eag in split(sev3ActionGroupIDs, ','): eag]
-var sev4ActionGroups = [for eag in split(sev4ActionGroupIDs, ','): eag]
+var sev1ActionGroups = csvToArray(sev1ActionGroupIDs)
+var sev2ActionGroups = csvToArray(sev2ActionGroupIDs)
+var sev3ActionGroups = csvToArray(sev3ActionGroupIDs)
+var sev4ActionGroups = csvToArray(sev4ActionGroupIDs)
 
-var emailAdresses = [for e in split(devAlertingEmails, ','): e]
+var emailAdresses = csvToArray(devAlertingEmails)
 resource emailActions 'Microsoft.Insights/actionGroups@2023-01-01' = [
   for email in emailAdresses: {
     name: email
