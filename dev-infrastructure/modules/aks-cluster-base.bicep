@@ -468,7 +468,11 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         outboundIPs: {
           publicIPs: [
             {
-              id: resourceId(regionalResourceGroup, 'Microsoft.Network/publicIPAddresses', aksClusterOutboundIPAddressName)
+              id: resourceId(
+                regionalResourceGroup,
+                'Microsoft.Network/publicIPAddresses',
+                aksClusterOutboundIPAddressName
+              )
             }
           ]
         }
