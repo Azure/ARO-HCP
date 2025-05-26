@@ -43,6 +43,14 @@ A private endpoint grants access to a PaaS resource by creating a VNET local IP 
 
 We provide a module that helps creating all resource required for a private endpoint: `private-endpoint.bicep`. See that module and it's usage for more details on the resource involved.
 
+## Comparison
+
+Using an NSP a resource can be associated to an NSP and a policy can be configured for it. That policy can restrict/allow certain traffic. This does not require additional resource except for the NSP and the PaaS Resource itself.
+
+In contrast using a private endpoint additional resources are needed. Using bicep we deploy a NIC into the subnet of the worker nodes. Additionally we have a private DNS zone, that has a record for the private endpoint secured resources pointing to the nic. That NIC then redirects traffic to the PaaS resource.
+
+![network_overview](network_overview.png)
+
 ## Access overview
 
 | Subscription | Type | Service | Connectivity | Secured By |
