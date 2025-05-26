@@ -166,8 +166,8 @@ resourceGroups:
       configRef: svc.istio.ingressGatewayIPAddressName
     - name: TAG
       configRef: svc.istio.tag
-    - name: SVC_RESOURCEGROUP
-      configRef: svc.rg
+    - name: REGION_RESOURCEGROUP
+      configRef: regionRG
     dependsOn:
     - istio-config
   # Install ACRpull
