@@ -34,6 +34,10 @@ Run in debug mode: `ginkgo --tags E2Etests --vv ./`
 
 ## Writing E2E test with ginkgo
 
+Keep description of specs and tests informational and comprehensive so that it can be read and understood as a complete sentence, e.g. "Get HCPOpenShiftCluster: it fails to get a nonexistent cluster with a Not Found error by preparing an HCP clusters client (and) by sending a GET request for the nonexistent cluster".
+
+Wondering which labels to use and where to write your test? See the section on [Labels](#labels) and [Files Structure](#files-structure). Optionally refer to this [document](https://docs.google.com/document/d/1v7Xe-BVactmt79Fa5GKxd-r2Q9QuYoOpCIL-m46wp7M/edit?usp=sharing).
+
 [Ginkgo documentation](https://onsi.github.io/ginkgo/)
 
 [Gomega documentation](https://onsi.github.io/gomega/)
@@ -56,9 +60,34 @@ Node *It* is the last node and contains the test itself. To describe useful test
 In higher level nodes, **BeforeEach** and **AfterEach** functions can be used to run the same code before and after every test.
 
 ### Labels
-Create a label with function **Label(name)** in file *util/labels/labels.go*.
+Labels are located in file *test/util/labels/labels.go*. 
 
-To run tests with specified labels use ginkgo with option --label-filter. Example: `ginkgo --label-filter=QUERY`
+Importance labels include four levels:
+- Critical: blockers for rollout
+- High: significant problems affecting a feature
+- Medium: less frequent scenarios
+- Low: very specific scenarios or enhancements to user experience
+
+Labels based on use cases:
+- Core-Infra-Service: use for gating a rollout of ARO-HCP componets
+- Create-Cluster: applied to test cases related to cluster creation
+- Setup-Validation/Teardown-validation: used for validation test cases run before and after tests
+
+Positivity labels:
+- Positive/Negative: indicates positive/negative test scenarios
+
+To run tests with specified labels use ginkgo with option --label-filter. Example: `ginkgo --tags E2Etests --label-filter=QUERY`
+
+### Files structure
+Test code is organized by grouping test cases into specs within files.
+
+Basic test cases for HTTP methods of clusters and nodepools are seperated into individual files, like 'cluster_get_test', 'nodepool_create_test' or 'nodepool_update_test'.
+
+Features requiring higher visibility or a large number of test cases have their own dedicated file, e.g. 'cluster_upgrade_test' or 'nodepool_upgrade_test'.
+
+Validation test cases go into the 'validation_test' file.
+
+Admin test cases have files with the prefix 'adminapi' followed by the name of specific group of actions or tool, such as 'adminapi_breakglass_kubeconfig_test'.
 
 ### Assertions
 

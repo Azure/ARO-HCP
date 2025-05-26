@@ -18,14 +18,24 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
+// Positivity of test cases
 var (
+	Positive = ginkgo.Label("Positive")
 	Negative = ginkgo.Label("Negative")
 )
 
-// Test cases importance
+// Importance of test cases
 var (
 	Low      = ginkgo.Label("Low")
 	Medium   = ginkgo.Label("Medium")
 	High     = ginkgo.Label("High")
 	Critical = ginkgo.Label("Critical")
+)
+
+// Usage of test cases
+var (
+	CoreInfraService   = ginkgo.Label("Core-Infra-Service")
+	CreateCluster      = ginkgo.Label("Create-Cluster")
+	SetupValidation    = ginkgo.Label("Setup-Validation")
+	TeardownValidation = ginkgo.Label("Teardown-Validation")
 )
