@@ -419,7 +419,6 @@ clouds:
         grafanaMajorVersion: '11'
         grafanaZoneRedundantMode: Disabled
         grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
-
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
     environments:
       dev:

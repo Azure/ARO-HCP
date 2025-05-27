@@ -568,8 +568,6 @@ clouds:
           # Grafana
           monitoring:
             grafanaAdminGroupPrincipalId: '' # object id for group 'RH-AROAPPR'. EV2 currently only allows service principal role assignment, so leave it empty for now
-          # Global MSI
-          aroDevopsMsiId: '/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: ce4e50ef-1059-4b6f-a53a-53001d517513 # objectId for 'aro-ev2-admin-prod-sp'
           # Logs
