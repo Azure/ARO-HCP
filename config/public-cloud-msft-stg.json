@@ -264,7 +264,7 @@
         "azCount": 3,
         "maxCount": 3,
         "minCount": 1,
-        "osDiskSizeGB": 128,
+        "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
@@ -388,7 +388,7 @@
         "azCount": 3,
         "maxCount": 3,
         "minCount": 1,
-        "osDiskSizeGB": 128,
+        "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
