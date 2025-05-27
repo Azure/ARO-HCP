@@ -108,7 +108,7 @@ defaults:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
-        osDiskSizeGB: 128
+        osDiskSizeGB: 32
         azCount: 3
       etcd:
         kvName: "arohcp{{ .ctx.environment }}-etcd-{{ .ctx.regionShort }}" # [globally-unique]
@@ -166,7 +166,7 @@ defaults:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
-        osDiskSizeGB: 128
+        osDiskSizeGB: 32
         azCount: 3
       etcd:
         kvName: "arohcp{{ .ctx.environment }}-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
