@@ -12,6 +12,62 @@ Istio was introduced to fulfill two critical requirements in ARO HCP:
 
 This document outlines the key mechanisms used to operate and manage Istio within the ARO HCP project, including mesh versioning strategies, workload integration, policy enforcement, and ingress configuration.
 
+## Architecture Overview
+
+The following diagram illustrates the Istio architecture within the ARO HCP service cluster. It highlights the key components, their interactions, and the flow of traffic through the mesh.
+
+```mermaid
+graph TB
+    subgraph "External"
+        Client[Client Requests]
+    end
+
+    subgraph "Service Cluster (AKS)"
+        subgraph "aks-istio-ingress"
+            Gateway["aks-istio-ingressgateway-external"]
+        end
+
+        subgraph "Istio Control Plane"
+            Rev1[asm-1-22 revision]
+            Rev2[asm-1-23 revision]
+            Tag[prod-stable tag<br/>↓ points to target revision]
+        end
+
+        subgraph "mise"
+            MISELabel[istio.io/rev=prod-stable]
+            MISE[MISE]
+        end
+
+        subgraph "aro-hcp"
+            RPLabel[label<br/>istio.io/rev=prod-stable]
+            RP[aro-hcp-frontend]
+            RPDeny[AuthorizationPolicy<br/>allow-nothing]
+            ExtAuthz[AuthorizationPolicy<br/>ext-authz<br/>References MISE]
+        end
+
+        subgraph "clusters-service"
+            CSLabel[label<br/>istio.io/rev=prod-stable]
+            CS[clusters-service]
+            CSPolicy[AuthorizationPolicy<br/>allow-frontend]
+            CSDeny[AuthorizationPolicy<br/>allow-nothing]
+        end
+
+        subgraph "maestro"
+            MLabel[label<br/>istio.io/rev=prod-stable]
+            Maestro[Maestro]
+            MPolicy[AuthorizationPolicy<br/>allow-cluster-service]
+            MDeny[AuthorizationPolicy<br/>allow-nothing]
+        end
+    end
+
+    Client -->|HTTPS| Gateway
+    Gateway -->|Strict mTLS| RP
+    RP -->|Strict mTLS| CS
+    CS -->|Strict mTLS| Maestro
+    Tag -.->|aliases| Rev2
+    ExtAuthz -->|Delegates authorization| MISE
+```
+
 ## Installation and Configuration
 
 Istio is installed and configured through a three-part process involving infrastructure provisioning and in-cluster setup:
