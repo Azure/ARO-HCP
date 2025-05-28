@@ -26,11 +26,13 @@ deploy:
 	--set pullBinding.scope='repository:*:pull'
 
 image:
-	az acr login --name ${ARO_HCP_IMAGE_ACR} && \
 	cd $$(mktemp -d) && \
 	git clone https://github.com/package-operator/package-operator.git && \
 	cd package-operator && \
 	git checkout ${PKO_IMAGE_TAG} && \
-	IMAGE_REGISTRY=${ARO_HCP_IMAGE_REGISTRY}/package-operator ./do ci:release
+	IMAGE_REGISTRY=${ARO_HCP_IMAGE_REGISTRY}/package-operator \
+	./do CI:RegistryLoginAndReleaseOnlyImages -u 00000000-0000-0000-0000-000000000000 \
+	-p $$(az acr login -n ${ARO_HCP_IMAGE_REGISTRY} --expose-token | jq -r '.accessToken') \
+	${ARO_HCP_IMAGE_REGISTRY}
 
 .PHONY: deploy
