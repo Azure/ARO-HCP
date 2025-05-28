@@ -163,7 +163,7 @@
           "type": "string",
           "minLength": 3,
           "maxLength": 44,
-          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "pattern": "^[a-z0-9][a-z0-9_-]*[a-z0-9]$",
           "description": "The name needs to be between 3-63 characters and can contain only letters, numbers, underscores, and hyphens. The name must start and end with a letter or number. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
         "vnetAddressPrefix": {
