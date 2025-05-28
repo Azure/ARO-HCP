@@ -398,7 +398,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
+              digest: sha256:7d6981f42a7bdfc1d75298918afbcc7fb698f4f67800538ab7d38ebddb284917
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActionsNonProd
@@ -497,7 +497,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
+              digest: sha256:7d6981f42a7bdfc1d75298918afbcc7fb698f4f67800538ab7d38ebddb284917
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActions
