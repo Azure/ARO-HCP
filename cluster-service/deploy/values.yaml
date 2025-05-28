@@ -210,40 +210,22 @@ managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
 azureOperatorsMI:
   clusterApiAzure:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
   controlPlane:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
   cloudControllerManager:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
   ingress:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
   diskCsiDriver:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
   fileCsiDriver:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
   imageRegistry:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
   cloudNetworkConfig:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
   kms:
     roleDefinitions: []
-    roleName: ''
-    roleId: ''
 # Pull binding configuration for ACR Pull Operator
 pullBinding:
   registry: ""
