@@ -268,7 +268,7 @@
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.7",
+      "kubernetesVersion": "1.31.8",
       "name": "usw3tst-mgmt-1",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
@@ -390,7 +390,7 @@
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.7",
+      "kubernetesVersion": "1.31.8",
       "name": "usw3tst-svc",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",

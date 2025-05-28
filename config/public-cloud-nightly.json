@@ -268,7 +268,7 @@
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.7",
+      "kubernetesVersion": "1.31.8",
       "name": "nightly-mgmt-1",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
@@ -387,7 +387,7 @@
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.7",
+      "kubernetesVersion": "1.31.8",
       "name": "nightly-svc",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",

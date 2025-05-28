@@ -268,7 +268,7 @@
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.7",
+      "kubernetesVersion": "1.31.8",
       "name": "dev-mgmt-1",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
@@ -387,7 +387,7 @@
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.7",
+      "kubernetesVersion": "1.31.8",
       "name": "dev-svc",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
