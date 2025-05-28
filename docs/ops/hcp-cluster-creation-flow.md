@@ -219,15 +219,20 @@ Expect to see one `ManagedCluster` per HCP named after the Clusters Service clus
 
 ## Hypershift
 
-* Hypershift is an operator for hosted controlplanes running on the management cluster in the `hypershift` namespace
-* `HostedCluster` CRs are create by Clusters Service in `ocm-xxx-${CLUSTER_ID}` namespaces (via Maestro)
-* Hypershift reacts to `HostedCluster` CRs and provisiones control planes for each of them
-* ... by creating an `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace to host the control plane pods, secrets, etc.
-
 ### List Hypershift HostedCluster CRs
 
 ```sh
 kubectl get hostedclusters -A
 ```
 
-This shows the `HostedCluster` resources in the `ocm-xxx-${CLUSTER_ID}` namespace. The `ocm-xxx-${CLUSTER_ID}` namespace contains the hosted control plane (e.g. pods, secrets, ...). The `ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}` namespace contains Hypershift CRs and secrets for an HCP.
+This shows the `HostedCluster` resources in the `ocm-xxx-${CLUSTER_ID}` namespace.
+
+### Check on control plane pods
+
+The `ocm-xxx-${CLUSTER_ID}-${CLUSTERNAME}` namespace contains the hosted control plane (e.g. pods, secrets, ...).
+
+```sh
+kubectl get pods -n ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}
+```
+
+The `ocm-xxx-${CLUSTER_ID}-${CLUSTERNAME}` namespace contains the hosted control plane (e.g. pods, secrets, ...).
