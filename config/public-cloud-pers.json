@@ -27,8 +27,8 @@
       "repository": "arohcpbackend"
     },
     "tracing": {
-      "address": "",
-      "exporter": ""
+      "address": "http://ingest.observability:4318",
+      "exporter": "otlp"
     }
   },
   "backplaneAPI": {
@@ -82,17 +82,17 @@
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cs-nightly",
+      "name": "arohcp-cs-ussw1tst",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
     "tracing": {
-      "address": "",
-      "exporter": ""
+      "address": "http://ingest.observability:4318",
+      "exporter": "otlp"
     }
   },
   "cxKeyVault": {
-    "name": "arohcp-cx-nightly-1",
+    "name": "arohcp-cx-ussw1tst-1",
     "private": false,
     "softDelete": false
   },
@@ -101,7 +101,7 @@
     "cxParentZoneDelegation": false,
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
-    "regionalSubdomain": "nightly",
+    "regionalSubdomain": "ussw1tst",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
@@ -114,12 +114,12 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-nightly"
+      "name": "frontend-cert-ussw1tst"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-nightly",
+      "name": "arohcp-rp-ussw1tst",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -129,8 +129,8 @@
       "repository": "arohcpfrontend"
     },
     "tracing": {
-      "address": "",
-      "exporter": ""
+      "address": "http://ingest.observability:4318",
+      "exporter": "otlp"
     }
   },
   "genevaActions": {
@@ -205,7 +205,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-nightly-mgmt-1",
+      "consumerName": "hcp-underlay-ussw1tst-mgmt-1",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -219,7 +219,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-maestro-nightly",
+      "name": "arohcp-maestro-ussw1tst",
       "private": false
     },
     "image": {
@@ -231,7 +231,7 @@
       "databaseName": "maestro",
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-maestro-nightly",
+      "name": "arohcp-maestro-ussw1tst",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -245,7 +245,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-nightly"
+      "mqttClientName": "maestro-server-ussw1tst"
     }
   },
   "mce": {
@@ -258,7 +258,7 @@
       "clusterOutboundIPAddressIPTags": "",
       "enableSwiftV2": false,
       "etcd": {
-        "kvName": "arohcp-etcd-nightly-1",
+        "kvName": "arohcp-etcd-ussw1tst-1",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -269,7 +269,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "nightly-mgmt-1",
+      "name": "ussw1tst-mgmt-1",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -290,9 +290,12 @@
       "vnetAddressPrefix": "10.128.0.0/14"
     },
     "applyKubeletFixes": false,
+    "jaeger": {
+      "deploy": false
+    },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-nightly-mgmt-1"
+      "name": "nsp-ussw1tst-mgmt-1"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -316,11 +319,11 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-nightly-mgmt-1",
+    "rg": "hcp-underlay-ussw1tst-mgmt-1",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "arohcp-mgmt-nightly-1",
+    "name": "arohcp-mgmt-ussw1tst-1",
     "private": false,
     "softDelete": false
   },
@@ -349,24 +352,24 @@
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "workspaceName": "arohcp-nightly"
+    "workspaceName": "arohcp-ussw1tst"
   },
   "msiKeyVault": {
-    "name": "arohcp-msi-nightly-1",
+    "name": "arohcp-msi-ussw1tst-1",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpoidcnightly",
+  "oidcStorageAccountName": "arohcpoidcussw1tst",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
     "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
     "imageTag": "v1.18.2"
   },
-  "region": "westus3",
-  "regionRG": "hcp-underlay-nightly",
+  "region": "southwestus",
+  "regionRG": "hcp-underlay-ussw1tst",
   "serviceKeyVault": {
-    "assignNSP": true,
+    "assignNSP": false,
     "name": "aro-hcp-dev-svc-kv",
     "private": false,
     "region": "westus3",
@@ -377,7 +380,7 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "arohcp-etcd-nightly",
+        "kvName": "arohcp-etcd-ussw1tst",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -388,7 +391,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "nightly-svc",
+      "name": "ussw1tst-svc",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -416,9 +419,12 @@
       "targetVersion": "asm-1-25",
       "versions": "asm-1-25"
     },
+    "jaeger": {
+      "deploy": true
+    },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-nightly-svc"
+      "name": "nsp-ussw1tst-svc"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -442,7 +448,7 @@
         "version": ""
       }
     },
-    "rg": "hcp-underlay-nightly-svc",
+    "rg": "hcp-underlay-ussw1tst-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   }
 }

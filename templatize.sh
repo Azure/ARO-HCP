@@ -96,13 +96,13 @@ if [ -z "$REGION_SHORT" ]; then
     echo "Failed to get region short name for region: $REGION" >&2
 fi
 
-if [ "$DEPLOY_ENV" == "personal-dev" ]; then
+if [ "$DEPLOY_ENV" == "pers" ]; then
     REGION_STAMP="${REGION_SHORT}${USER:0:4}"
-elif [ "$DEPLOY_ENV" == "nightly" ]; then
-    REGION_STAMP="nightly"
-elif [ "$DEPLOY_ENV" == "personal-perfscale" ]; then
+elif [ "$DEPLOY_ENV" == "nitey" ]; then
+    REGION_STAMP="nitey"
+elif [ "$DEPLOY_ENV" == "perf" ]; then
     REGION_STAMP="${REGION_SHORT}p${USER:0:4}"
-elif [ "$DEPLOY_ENV" == "dev" ] || [ "$DEPLOY_ENV" == "cs-pr" ]; then
+elif [ "$DEPLOY_ENV" == "dev" ] || [ "$DEPLOY_ENV" == "cspr" ]; then
     CLEAN_DEPLOY_ENV=$(echo "${DEPLOY_ENV}" | tr -cd '[:alnum:]')
     REGION_STAMP="${CLEAN_DEPLOY_ENV}"
 else
