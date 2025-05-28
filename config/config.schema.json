@@ -3,6 +3,20 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
+    "postgresName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 44,
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "description": "Server name must only contain lowercase letters, numbers, and hyphens. The server name must not start or end in a hyphen. Name must be between 3 be 63 characters long but we limited to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 24,
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "A KV name must be between 3-24 alphanumeric characters. The name must begin with a letter, end with a letter or digit, and not contain consecutive hyphens."
+    },
     "operatorConfig": {
       "type": "object",
       "properties": {
@@ -36,7 +50,11 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 44,
+          "pattern": "^[a-z0-9]+$",
+          "description": "Resource names may contain alpha numeric characters only and must be between 5 and 50 characters. We limited the length to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
@@ -52,7 +70,10 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 80,
+          "pattern": "^[a-z0-9][a-z0-9_-]*[a-z0-9_]$"
         },
         "accessMode": {
           "type": "string",
@@ -69,7 +90,7 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "$ref": "#/definitions/keyVaultName"
         },
         "private": {
           "type": "boolean"
@@ -139,7 +160,11 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 44,
+          "pattern": "^[a-z0-9][a-z0-9_-]*[a-z0-9]$",
+          "description": "The name needs to be between 3-63 characters and can contain only letters, numbers, underscores, and hyphens. The name must start and end with a letter or number. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
         "vnetAddressPrefix": {
           "type": "string"
@@ -171,7 +196,7 @@
           "type": "object",
           "properties": {
             "kvName": {
-              "type": "string"
+              "$ref": "#/definitions/keyVaultName"
             },
             "kvSoftDelete": {
               "type": "boolean"
@@ -395,7 +420,7 @@
               "type": "boolean"
             },
             "name": {
-              "type": "string"
+              "$ref": "#/definitions/postgresName"
             },
             "private": {
               "type": "boolean"
@@ -870,7 +895,18 @@
               "type": "integer"
             },
             "name": {
-              "type": "string"
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 44,
+              "pattern": "^[a-zA-Z0-9-]+$",
+              "not": {
+                "anyOf": [
+                  { "pattern": "^Microsoft-" },
+                  { "pattern": "^EventGrid-" },
+                  { "pattern": "^System-" }
+                ]
+              },
+              "description": "Name length should be between 3 and 50 characters in length but we limited to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts. Only alphanumeric letters, digits and the '-' character are allowed in the topic name. Also, the name shouldn't start with the following reserved words: Microsoft-, EventGrid-, System-"
             },
             "private": {
               "type": "boolean"
@@ -893,7 +929,7 @@
               "type": "boolean"
             },
             "name": {
-              "type": "string"
+              "$ref": "#/definitions/postgresName"
             },
             "private": {
               "type": "boolean"
@@ -1022,7 +1058,11 @@
           "$ref": "#/definitions/zoneRedundantMode"
         },
         "workspaceName": {
-          "type": "string"
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 44,
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
         "devAlertingEmails": {
           "type": "string"
@@ -1124,14 +1164,12 @@
     "msiKeyVault": {
       "$ref": "#/definitions/keyVault"
     },
-    "ocpAcrName": {
-      "type": "string"
-    },
-    "ocpAcrZoneRedundantMode": {
-      "$ref": "#/definitions/zoneRedundantMode"
-    },
     "oidcStorageAccountName": {
-      "type": "string"
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 24,
+      "pattern": "^[a-z0-9]+$",
+      "description": "The field can contain only lowercase letters and numbers. Name must be between 3 and 24 characters."
     },
     "oidcZoneRedundantMode": {
       "$ref": "#/definitions/zoneRedundantMode"
@@ -1146,7 +1184,7 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "$ref": "#/definitions/keyVaultName"
         },
         "private": {
           "type": "boolean"
