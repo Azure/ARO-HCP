@@ -342,49 +342,33 @@ func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCl
 	var normalized api.HCPOpenShiftCluster
 	var errorDetails []arm.CloudErrorBody
 
-	cloudError := arm.NewCloudError(
-		http.StatusBadRequest,
-		arm.CloudErrorCodeMultipleErrorsOccurred, "",
-		"Content validation failed on multiple fields")
-	cloudError.Details = make([]arm.CloudErrorBody, 0)
-
 	// Pass the embedded HcpOpenShiftCluster so the
 	// struct field names match the clusterStructTagMap keys.
 	errorDetails = api.ValidateVisibility(
 		c.HcpOpenShiftCluster,
 		current.(*HcpOpenShiftCluster).HcpOpenShiftCluster,
 		clusterStructTagMap, updating)
-	if errorDetails != nil {
-		cloudError.Details = append(cloudError.Details, errorDetails...)
-	}
 
 	c.Normalize(&normalized)
 
-	errorDetails = api.ValidateRequest(validate, request, &normalized)
-	if errorDetails != nil {
-		cloudError.Details = append(cloudError.Details, errorDetails...)
-	}
+	errorDetails = append(errorDetails, api.ValidateRequest(validate, request, &normalized)...)
 
 	// Proceed with complex, multi-field validation only if single-field
 	// validation has passed. This avoids running further checks on data
 	// we already know to be invalid and prevents the response body from
 	// becoming overwhelming.
-	if len(cloudError.Details) == 0 {
+	if len(errorDetails) == 0 {
 		errorDetails = c.validateStaticComplex(&normalized)
-		if errorDetails != nil {
-			cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
+
+	if len(errorDetails) > 0 {
+		return &arm.CloudError{
+			StatusCode:     http.StatusBadRequest,
+			CloudErrorBody: arm.NewCloudErrorBodyFromSlice(errorDetails, "Content validation failed on multiple fields"),
 		}
 	}
 
-	switch len(cloudError.Details) {
-	case 0:
-		cloudError = nil
-	case 1:
-		// Promote a single validation error out of details.
-		cloudError.CloudErrorBody = &cloudError.Details[0]
-	}
-
-	return cloudError
+	return nil
 }
 
 func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {

@@ -213,49 +213,33 @@ func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePo
 	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
 
-	cloudError := arm.NewCloudError(
-		http.StatusBadRequest,
-		arm.CloudErrorCodeMultipleErrorsOccurred, "",
-		"Content validation filed on multiple fields")
-	cloudError.Details = make([]arm.CloudErrorBody, 0)
-
 	// Pass the embedded NodePool so
 	// the struct field names match the nodePoolStructTagMap keys.
 	errorDetails = api.ValidateVisibility(
 		h.NodePool,
 		current.(*NodePool).NodePool,
 		nodePoolStructTagMap, updating)
-	if errorDetails != nil {
-		cloudError.Details = append(cloudError.Details, errorDetails...)
-	}
 
 	h.Normalize(&normalized)
 
-	errorDetails = api.ValidateRequest(validate, request, &normalized)
-	if errorDetails != nil {
-		cloudError.Details = append(cloudError.Details, errorDetails...)
-	}
+	errorDetails = append(errorDetails, api.ValidateRequest(validate, request, &normalized)...)
 
 	// Proceed with complex, multi-field validation only if single-field
 	// validation has passed. This avoids running further checks on data
 	// we already know to be invalid and prevents the response body from
 	// becoming overwhelming.
-	if len(cloudError.Details) == 0 {
+	if len(errorDetails) == 0 {
 		errorDetails = h.validateStaticComplex(&normalized, cluster)
-		if errorDetails != nil {
-			cloudError.Details = append(cloudError.Details, errorDetails...)
+	}
+
+	if len(errorDetails) > 0 {
+		return &arm.CloudError{
+			StatusCode:     http.StatusBadRequest,
+			CloudErrorBody: arm.NewCloudErrorBodyFromSlice(errorDetails, "Content validation failed on multiple fields"),
 		}
 	}
 
-	switch len(cloudError.Details) {
-	case 0:
-		cloudError = nil
-	case 1:
-		// Promote a single validation error out of details.
-		cloudError.CloudErrorBody = &cloudError.Details[0]
-	}
-
-	return cloudError
+	return nil
 }
 
 type NodePoolVersionProfile struct {
