@@ -29,7 +29,7 @@ import (
 var _ = Describe("Check if Subscriptions for HCPOpenShiftCluster are registered using HTTP GET requests to RP", func() {
 
 	Context("Negative", func() {
-		It("Sending GET request for unregistered subscription fails with <error here>", labels.Medium, labels.Negative, func(ctx context.Context) {
+		It("Sending GET request for unregistered subscription fails with 404 SubscriptionNotFound", labels.Medium, labels.Negative, func(ctx context.Context) {
 			unregisteredSubscription := "00000000-0000-0000-0000-000000000001"
 			By("Sending a GET request for the unregistered subscription")
 			HTTPClientConfig := HTTPRequest.HTTPRequestConfig{
@@ -41,7 +41,7 @@ var _ = Describe("Check if Subscriptions for HCPOpenShiftCluster are registered 
 			Expect(response.StatusCode).To(Equal(404))
 			Expect(response.Body).To(ContainSubstring("SubscriptionNotFound"))
 		})
-		It("Sends Get request for mal-formed subscription ID fails with <error here>", labels.Medium, labels.Negative, func(ctx context.Context) {
+		It("Sends Get request for mal-formed subscription ID fails with 400 InvalidSubscriptionID", labels.Medium, labels.Negative, func(ctx context.Context) {
 			malformedSubscription := "00000000-0000-0000-0000-000000BADSUB"
 			By("Sending a GET request for the mal-formed subscription ID")
 			HTTPClientConfig := HTTPRequest.HTTPRequestConfig{
@@ -55,8 +55,9 @@ var _ = Describe("Check if Subscriptions for HCPOpenShiftCluster are registered 
 		})
 	})
 	Context("Positive", func() {
-		It("Sends get request for a valid subscription", labels.Medium, labels.Positive, func(ctx context.Context) {
+		It("Sends get request for a valid subscription succeeds with 200 Registered", labels.Medium, labels.Positive, func(ctx context.Context) {
 			customerSubscriptionID := os.Getenv("CUSTOMER_SUBSCRIPTION")
+			By("Sending a GET request for the valid, registred subscription ID")
 			HTTPClientConfig := HTTPRequest.HTTPRequestConfig{
 				Method: "GET",
 				URL:    fmt.Sprintf("http://localhost:8443/subscriptions/%s?api-version=2.0", customerSubscriptionID),
