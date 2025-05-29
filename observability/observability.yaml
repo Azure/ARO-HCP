@@ -16,3 +16,5 @@ grafana-dashboards:
     path: ../image-sync/grafana-dashboards
   - name: Infrastructure
     path: infra-dashboards
+  - name: Frontend
+    path: ../frontend/grafana-dashboards
