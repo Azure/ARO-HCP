@@ -1,0 +1,39 @@
+{
+  "properties": {
+    "version": {
+      "id": "openshift-v4.18.1",
+      "channelGroup": "stable"
+    },
+    "dns": {},
+    "network": {
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16",
+      "machineCidr": "10.0.0.0/16",
+      "hostPrefix": 23
+    },
+    "console": {},
+    "api": {
+      "visibility": "public"
+    },
+    "platform": {
+      "managedResourceGroup": "$managed-resource-group",
+      "subnetId": "/subscriptions/$sub/resourceGroups/$customer-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
+      "outboundType": "loadBalancer",
+      "networkSecurityGroupId": "/subscriptions/$sub/resourceGroups/$customer-rg/providers/Microsoft.Network/networkSecurityGroups/customer-nsg",
+      "operatorsAuthentication": {
+        "userAssignedIdentities": {
+          "controlPlaneOperators": {"example_operator": "example_resource_id"},
+          "dataPlaneOperators": {"example_operator": "example_resource_id"},
+          "serviceManagedIdentity": "example_resource_id"
+        }
+      }
+    }
+  },
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {
+      "example_resource_id": {}
+    }
+  }
+}
