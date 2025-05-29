@@ -22,22 +22,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	//api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/HTTPRequest"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 var _ = Describe("Check if Subscriptions for HCPOpenShiftCluster are registered using HTTP GET requests to RP", func() {
-	var (
-	//clustersClient         *api.HcpOpenShiftClustersClient
-	//customerSubscriptionID string
-	//customerTenantID string
-	)
-
-	BeforeEach(func() {
-		By("Preparing HTTP API client")
-
-	})
 
 	Context("Negative", func() {
 		It("Sending GET request for unregistered subscription fails with <error here>", labels.Medium, labels.Negative, func(ctx context.Context) {
@@ -66,8 +55,7 @@ var _ = Describe("Check if Subscriptions for HCPOpenShiftCluster are registered 
 		})
 	})
 	Context("Positive", func() {
-		It("Sends get request for a valid subscription", labels.Medium, func(ctx context.Context) {
-			// should be labels.Positive
+		It("Sends get request for a valid subscription", labels.Medium, labels.Positive, func(ctx context.Context) {
 			customerSubscriptionID := os.Getenv("CUSTOMER_SUBSCRIPTION")
 			HTTPClientConfig := HTTPRequest.HTTPRequestConfig{
 				Method: "GET",
