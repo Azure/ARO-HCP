@@ -28,20 +28,25 @@ defaults:
   # The long Azure region name
   region: "{{ .ctx.region  }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
+  # OIDC
+  oidcStorageAccountName: "arohcp{{ .ctx.environment }}oidc{{ .ctx.regionShort }}" # [globally-unique]
   global:
     rg: global-shared-resources
     subscription: hcp-global
     globalMSIName: "global-ev2-identity"
     safeDnsIntAppObjectId: "" # intentionally blank - only required in INT
     keyVault:
+      name: 'arohcp{{ .ctx.environment }}-global' # [globally-unique]
       private: false
       softDelete: true
     secretsToSyncDir: "none"
   # ACR
   acr:
     svc:
+      name: 'arohcpsvc{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
     ocp:
+      name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
   # ACR Pull
   acrPull:
@@ -80,7 +85,7 @@ defaults:
     manage: true
   # SVC cluster specifics
   svc:
-    subscription: "hcp-{{ .ctx.region }}"
+    subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
     rg: "hcp-underlay-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
@@ -90,7 +95,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.6
+      kubernetesVersion: 1.31.8
       networkDataplane: "cilium"
       networkPolicy: "cilium"
       systemAgentPool:
@@ -106,13 +111,14 @@ defaults:
         osDiskSizeGB: 128
         azCount: 3
       etcd:
+        kvName: "arohcp{{ .ctx.environment }}-etcd-{{ .ctx.regionShort }}" # [globally-unique]
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-outbound-svc"
     istio:
       istioctlVersion: "1.24.1"
       tag: "prod-stable"
-      targetVersion: "asm-1-23"
-      versions: "asm-1-23"
+      targetVersion: "asm-1-25"
+      versions: "asm-1-25"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-inbound-svc"
     logs:
@@ -136,7 +142,7 @@ defaults:
         shards: 1
   # MGMT cluster specifics
   mgmt:
-    subscription: "hcp-{{ .ctx.region }}"
+    subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
     rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt
@@ -146,7 +152,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.6
+      kubernetesVersion: 1.31.8
       # CNI
       networkDataplane: "azure"
       networkPolicy: "azure"
@@ -163,6 +169,7 @@ defaults:
         osDiskSizeGB: 128
         azCount: 3
       etcd:
+        kvName: "arohcp{{ .ctx.environment }}-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-outbound-cx"
       enableSwiftV2: true
@@ -195,6 +202,7 @@ defaults:
       name: frontend-cert
       issuer: OneCertV2-PublicCA
     cosmosDB:
+      name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
       disableLocalAuth: true
       private: true
@@ -233,11 +241,13 @@ defaults:
           repository: azurelinux/base/nginx
           digest: sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83
     eventGrid:
+      name: "arohcp{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
       private: false
     certDomain: ""
     certIssuer: OneCertV2-PrivateCA
     postgres:
+      name: "arohcp{{ .ctx.environment }}-maestrodb-{{ .ctx.regionShort }}" # [globally-unique]
       serverVersion: '15'
       serverStorageSizeGB: 32
       deploy: true
@@ -251,6 +261,7 @@ defaults:
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   # Cluster Service
   clustersService:
+    environment: "arohcp{{ .ctx.environment }}"
     image:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
@@ -276,6 +287,7 @@ defaults:
       kms:
         roleName: Key Vault Crypto User
     postgres:
+      name: "arohcp{{ .ctx.environment }}-csdb-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
@@ -311,6 +323,7 @@ defaults:
       imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
   # SVC KV
   serviceKeyVault:
+    name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
     rg: "hcp-underlay-{{ .ctx.region }}-svc"
     region: "{{ .ctx.region  }}"
     softDelete: false
@@ -318,12 +331,15 @@ defaults:
     assignNSP: true
   # Management Cluster KV
   cxKeyVault:
+    name: "arohcp{{ .ctx.environment }}-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
   msiKeyVault:
+    name: "arohcp{{ .ctx.environment }}-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
   mgmtKeyVault:
+    name: "arohcp{{ .ctx.environment }}-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
   # DNS
@@ -332,6 +348,7 @@ defaults:
     regionalSubdomain: "{{ .ctx.region }}"
   # Metrics
   monitoring:
+    grafanaName: "arohcp-{{ .ctx.environment }}"
     devAlertingEmails: ""
     sev1ActionGroupIDs: ""
     sev2ActionGroupIDs: ""
@@ -350,6 +367,16 @@ defaults:
 clouds:
   public:
     defaults:
+      global:
+        secretsToSyncDir: 'msft-{{ .ctx.environment }}/arohcp{{ .ctx.environment }}-global'
+      # SVC cluster settings
+      svc:
+        logs:
+          san: "svc.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
+      # MC cluster settings
+      mgmt:
+        logs:
+          san: "mgmt.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
       imageSync:
         componentSync:
           image:
@@ -368,31 +395,13 @@ clouds:
           global:
             region: uksouth
             safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"
-            keyVault:
-              name: arohcpint-global # [globally-unique]
-            secretsToSyncDir: "msft-int/arohcpint-global"
           # Cluster Service
           clustersService:
-            environment: "arohcpint"
-            postgres:
-              name: "arohcpint-csdb-{{ .ctx.regionShort }}" # [globally-unique]
             image:
-              digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
+              digest: sha256:7d6981f42a7bdfc1d75298918afbcc7fb698f4f67800538ab7d38ebddb284917
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActionsNonProd
-          # OIDC
-          oidcStorageAccountName: "arohcpintoidc{{ .ctx.regionShort }}" # [globally-unique]
-          # SVC KV
-          serviceKeyVault:
-            name: "arohcpint-svc-{{ .ctx.regionShort }}" # [globally-unique]
-          # Management Cluster KV
-          cxKeyVault:
-            name: "arohcpint-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
-          msiKeyVault:
-            name: "arohcpint-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
-          mgmtKeyVault:
-            name: "arohcpint-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
           # SVC cluster settings
           svc:
             aks:
@@ -404,12 +413,9 @@ clouds:
                 maxCount: 3
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
-              etcd:
-                kvName: "arohcpint-etcd-{{ .ctx.regionShort }}" # [globally-unique]
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
-              san: SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
               configVersion: "1.0"
           # MC cluster settings
           mgmt:
@@ -423,10 +429,7 @@ clouds:
                 maxCount: 12
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
-              etcd:
-                kvName: "arohcpint-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
             logs:
-              san: MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM
               configVersion: "1.0"
           # DNS
           dns:
@@ -434,16 +437,9 @@ clouds:
             cxParentZoneDelegation: true
             svcParentZoneName: aro-hcp.azure-test.net
             parentZoneName: azure-test.net
-          # ACR
-          acr:
-            svc:
-              name: arohcpsvcint # [globally-unique]
-            ocp:
-              name: arohcpocpint # [globally-unique]
           # RP Frontend
           frontend:
             cosmosDB:
-              name: "arohcpint-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
               digest: sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3
@@ -465,10 +461,6 @@ clouds:
               digest: sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821
           # Maestro
           maestro:
-            eventGrid:
-              name: "arohcpint-maestro-{{ .ctx.regionShort }}" # [globally-unique]
-            postgres:
-              name: "arohcpint-maestrodb-{{ .ctx.regionShort }}" # [globally-unique]
             image:
               digest: sha256:71788add6afc26829ef75432714fa3052c7dbc1d62d0002ff4c736a8038c18f4
           # 1P app - from RH Tenant
@@ -486,7 +478,6 @@ clouds:
           armHelperCertName: armHelperCert2
           # Grafana
           monitoring:
-            grafanaName: "arohcp-int"
             grafanaAdminGroupPrincipalId: "2fdb57d4-3fd3-415d-b604-1d0e37a188fe" # Azure Red Hat OpenShift MSFT Engineering.
           # Global MSI
           aroDevopsMsiId: "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity"
@@ -503,34 +494,15 @@ clouds:
           # Region for global resources in STAGE is uksouth
           global:
             region: uksouth
-            keyVault:
-              name: arohcpstg-global # [globally-unique]
-            secretsToSyncDir: "msft-stg/arohcpstg-global"
           # Cluster Service
           clustersService:
-            environment: "arohcpstg"
-            postgres:
-              name: "arohcpstg-cs-{{ .ctx.regionShort }}" # [globally-unique]
             image:
-              digest: sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5
+              digest: sha256:7d6981f42a7bdfc1d75298918afbcc7fb698f4f67800538ab7d38ebddb284917
           # Geneva Actions
           genevaActions:
             serviceTag: GenevaActions
-          # OIDC
-          oidcStorageAccountName: "arohcpstgoidc{{ .ctx.regionShort }}" # [globally-unique]
-          # SVC KV
-          serviceKeyVault:
-            name: "arohcpstg-svc-{{ .ctx.regionShort }}" # [globally-unique]
-          # Management Cluster KV
-          cxKeyVault:
-            name: "arohcpstg-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
-          msiKeyVault:
-            name: "arohcpstg-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
-          mgmtKeyVault:
-            name: "arohcpstg-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
           # SVC cluster settings
           svc:
-            subscription: "hcp-stg-svc-{{ .ctx.region }}"
             aks:
               systemAgentPool:
                 minCount: 1
@@ -539,14 +511,10 @@ clouds:
                 minCount: 1
                 maxCount: 3
                 azCount: 3
-              etcd:
-                kvName: "arohcpstg-etcd-{{ .ctx.regionShort }}" # [globally-unique]
             logs:
-              san: SVC.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM # TBD
               configVersion: "1.0"
           # MC cluster settings
           mgmt:
-            subscription: "hcp-stg-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
             aks:
               # MGMTM AKS nodepools
               systemAgentPool:
@@ -556,10 +524,7 @@ clouds:
                 minCount: 1
                 maxCount: 12
                 azCount: 3
-              etcd:
-                kvName: "arohcpstg-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
             logs:
-              san: MGMT.GENEVA.KEYVAULT.ARO-HCP-STG.AZURE.COM # TBD
               configVersion: "1.0"
           # DNS
           dns:
@@ -571,16 +536,9 @@ clouds:
             cxParentZoneDelegation: false
             svcParentZoneName: aro-hcp.azure.com
             parentZoneName: azure.com
-          # ACR
-          acr:
-            svc:
-              name: arohcpsvcstg # [globally-unique]
-            ocp:
-              name: arohcpocpstg # [globally-unique]
           # RP Frontend
           frontend:
             cosmosDB:
-              name: "arohcpstg-rp-{{ .ctx.regionShort }}" # [globally-unique]
               private: false
             image:
               digest: sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3
@@ -603,10 +561,6 @@ clouds:
               digest: sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821
           # Maestro
           maestro:
-            eventGrid:
-              name: "arohcpstg-maestro-{{ .ctx.regionShort }}" # [globally-unique]
-            postgres:
-              name: "arohcpstg-maestro-{{ .ctx.regionShort }}" # [globally-unique]
             image:
               digest: sha256:f64ad21dcbe40ed7d29aff7d2d7320c0a5ee18c6bfabfef9486550a96ff27141
           # 1P app - from RH Tenant
@@ -615,7 +569,6 @@ clouds:
             name: tmp-rp-firstparty
           # Grafana
           monitoring:
-            grafanaName: 'arohcp-stg'
             grafanaAdminGroupPrincipalId: '' # object id for group 'RH-AROAPPR'. EV2 currently only allows service principal role assignment, so leave it empty for now
           # Global MSI
           aroDevopsMsiId: '/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'

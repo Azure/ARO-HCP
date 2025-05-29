@@ -16,15 +16,14 @@ package frontend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -32,8 +31,8 @@ import (
 )
 
 // AddAsyncOperationHeader adds an "Azure-AsyncOperation" header to the ResponseWriter
-// with a URL of the operation status endpoint for the given OperationDocument.
-func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, doc *database.OperationDocument) {
+// with a URL of the operation status endpoint.
+func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
 	logger := LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
@@ -43,7 +42,7 @@ func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *
 		return
 	}
 
-	u.Path = doc.OperationID.String()
+	u.Path = operationID.String()
 
 	apiVersion := request.URL.Query().Get(APIVersionKey)
 	if apiVersion != "" {
@@ -56,8 +55,8 @@ func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *
 }
 
 // AddLocationHeader adds a "Location" header to the ResponseWriter with a URL of the
-// operation result endpoint for the given OperationDocument.
-func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.Request, doc *database.OperationDocument) {
+// operation result endpoint.
+func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
 	logger := LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
@@ -68,10 +67,10 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 	}
 
 	u.Path = path.Join("/",
-		"subscriptions", doc.OperationID.SubscriptionID,
-		"providers", api.ProviderNamespace,
-		"locations", doc.OperationID.Location,
-		api.OperationResultResourceTypeName, doc.OperationID.Name)
+		"subscriptions", operationID.SubscriptionID,
+		"providers", operationID.ResourceType.Namespace,
+		"locations", operationID.Location,
+		api.OperationResultResourceTypeName, operationID.Name)
 
 	apiVersion := request.URL.Query().Get(APIVersionKey)
 	if apiVersion != "" {
@@ -85,81 +84,71 @@ func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.R
 
 // ExposeOperation fully initiates a new asynchronous operation by enriching
 // the operation database item and adding the necessary response headers.
-func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Request, pk azcosmos.PartitionKey, operationID string) error {
-	ctx := request.Context()
+func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Request, operationID string, transaction database.DBTransaction) {
+	var patchOperations database.OperationDocumentPatchOperations
 
-	_, err := f.dbClient.UpdateOperationDoc(ctx, pk, operationID, func(updateDoc *database.OperationDocument) bool {
-		// There is no way to propagate a parse error here but it should
-		// never fail since we are building a trusted resource ID string.
-		operationID, err := azcorearm.ParseResourceID(path.Join("/",
-			"subscriptions", updateDoc.ExternalID.SubscriptionID,
-			"providers", api.ProviderNamespace,
-			"locations", f.location,
-			api.OperationStatusResourceTypeName, operationID))
-		if err != nil {
-			LoggerFromContext(ctx).Error(err.Error())
-			return false
-		}
+	// This should never fail since we are building a trusted resource ID string.
+	operationResourceID, err := azcorearm.ParseResourceID(path.Join("/",
+		"subscriptions", request.PathValue(PathSegmentSubscriptionID),
+		"providers", api.ProviderNamespace,
+		"locations", f.location,
+		api.OperationStatusResourceTypeName, operationID))
+	if err != nil {
+		LoggerFromContext(request.Context()).Error(err.Error())
+		return
+	}
 
-		updateDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-		updateDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-		updateDoc.OperationID = operationID
-		updateDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+	patchOperations.SetTenantID(request.Header.Get(arm.HeaderNameHomeTenantID))
+	patchOperations.SetClientID(request.Header.Get(arm.HeaderNameClientObjectID))
+	patchOperations.SetOperationID(operationResourceID)
 
+	notificationURI := request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+	if notificationURI != "" {
+		patchOperations.SetNotificationURI(&notificationURI)
+	}
+
+	transaction.PatchOperationDoc(operationID, patchOperations, nil)
+
+	transaction.OnSuccess(func(result database.DBTransactionResult) {
 		// If ARM passed a notification URI, acknowledge it.
-		if updateDoc.NotificationURI != "" {
+		if notificationURI != "" {
 			writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
 		}
 
 		// Add callback header(s) based on the request method.
 		switch request.Method {
 		case http.MethodDelete, http.MethodPatch, http.MethodPost:
-			f.AddLocationHeader(writer, request, updateDoc)
+			f.AddLocationHeader(writer, request, operationResourceID)
 			fallthrough
 		case http.MethodPut:
-			f.AddAsyncOperationHeader(writer, request, updateDoc)
+			f.AddAsyncOperationHeader(writer, request, operationResourceID)
 		}
-
-		return true
 	})
-	if err != nil {
-		// Delete any response headers that may have been added.
-		writer.Header().Del(arm.HeaderNameAsyncNotification)
-		writer.Header().Del(arm.HeaderNameAsyncOperation)
-		writer.Header().Del("Location")
-	}
-
-	return err
 }
 
-// CancelOperation marks the status of an operation as canceled.
-func (f *Frontend) CancelOperation(ctx context.Context, pk azcosmos.PartitionKey, operationID string) error {
-	updated, err := f.dbClient.UpdateOperationDoc(ctx, pk, operationID, func(updateDoc *database.OperationDocument) bool {
-		var cloudError = arm.CloudErrorBody{
+// CancelActiveOperations queries for operation documents with a non-terminal
+// status using the filters specified in opts. For every document returned in
+// the query result, CancelActiveOperations adds patch operations to the given
+// DBTransaction to mark the document as canceled.
+func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction database.DBTransaction, opts *database.DBClientListActiveOperationDocsOptions) error {
+	var now = time.Now().UTC()
+
+	iterator := f.dbClient.ListActiveOperationDocs(transaction.GetPartitionKey(), opts)
+
+	for operationID, _ := range iterator.Items(ctx) {
+		var patchOperations database.OperationDocumentPatchOperations
+
+		patchOperations.SetLastTransitionTime(now)
+		patchOperations.SetStatus(arm.ProvisioningStateCanceled)
+		patchOperations.SetError(&arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeCanceled,
 			Message: "This operation was superseded by another",
-		}
-		return updateDoc.UpdateStatus(arm.ProvisioningStateCanceled, &cloudError)
-	})
-	// Disregard "not found" errors; a missing operation is effectively canceled.
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		return err
-	}
-	if updated {
-		logger := LoggerFromContext(ctx)
-		logger.Info(fmt.Sprintf("Canceled operation '%s'", operationID))
-	}
-	return nil
-}
+		})
 
-// CancelActiveOperation marks the status of any active operation on the resource as canceled.
-func (f *Frontend) CancelActiveOperation(ctx context.Context, resourceDoc *database.ResourceDocument) error {
-	if resourceDoc.ActiveOperationID == "" {
-		return nil
+		transaction.PatchOperationDoc(operationID, patchOperations, nil)
 	}
 
-	pk := database.NewPartitionKey(resourceDoc.ResourceID.SubscriptionID)
-	return f.CancelOperation(ctx, pk, resourceDoc.ActiveOperationID)
+	return iterator.GetError()
 }
 
 // OperationIsVisible returns true if the request is being called from the same

@@ -69,7 +69,7 @@
     },
     "environment": "arohcpint",
     "image": {
-      "digest": "sha256:777e6f7be92f113b9c188de36b6925dff2537c23fd2efca115b21d42fa9d29e5",
+      "digest": "sha256:7d6981f42a7bdfc1d75298918afbcc7fb698f4f67800538ab7d38ebddb284917",
       "registry": "quay.io",
       "repository": "app-sre/uhc-clusters-service"
     },
@@ -265,7 +265,7 @@
         "osDiskSizeGB": 128,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.6",
+      "kubernetesVersion": "1.31.8",
       "name": "westus3-mgmt-1",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
@@ -290,7 +290,7 @@
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPCustomerLogs",
-      "san": "MGMT.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
+      "san": "mgmt.geneva.keyvault.aro-hcp-int.azure.com"
     },
     "nsp": {
       "accessMode": "Learning",
@@ -319,7 +319,7 @@
       }
     },
     "rg": "hcp-underlay-westus3-mgmt-1",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-int-mgmt-westus3-1"
   },
   "mgmtKeyVault": {
     "name": "arohcpint-mgmt-usw3-1",
@@ -388,7 +388,7 @@
         "osDiskSizeGB": 128,
         "vmSize": "Standard_D2s_v3"
       },
-      "kubernetesVersion": "1.31.6",
+      "kubernetesVersion": "1.31.8",
       "name": "westus3-svc-1",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
@@ -414,13 +414,13 @@
       "ingressGatewayIPAddressName": "aro-hcp-istio-ingress",
       "istioctlVersion": "1.24.1",
       "tag": "prod-stable",
-      "targetVersion": "asm-1-23",
-      "versions": "asm-1-23"
+      "targetVersion": "asm-1-25",
+      "versions": "asm-1-25"
     },
     "logs": {
       "configVersion": "1.0",
       "namespace": "HCPServiceLogs",
-      "san": "SVC.GENEVA.KEYVAULT.ARO-HCP-INT.AZURE.COM"
+      "san": "svc.geneva.keyvault.aro-hcp-int.azure.com"
     },
     "nsp": {
       "accessMode": "Learning",
@@ -449,6 +449,6 @@
       }
     },
     "rg": "hcp-underlay-westus3-svc",
-    "subscription": "hcp-westus3"
+    "subscription": "hcp-int-svc-westus3"
   }
 }

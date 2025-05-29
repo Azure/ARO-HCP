@@ -261,7 +261,6 @@ func Run(cmd *cobra.Command, args []string) error {
 			operationsScanner = NewOperationsScanner(dbClient, ocmConnection)
 		)
 
-		// FIXME Integrate leaderelection.HealthzAdaptor into a /healthz endpoint.
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 			Lock:          leaderElectionLock,
 			LeaseDuration: leaderElectionLeaseDuration,

@@ -19,6 +19,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -94,6 +95,82 @@ func (doc ResourceDocument) GetValidTypes() []string {
 	return []string{
 		api.ClusterResourceType.String(),
 		api.NodePoolResourceType.String(),
+	}
+}
+
+const (
+	ResourceDocumentJSONPathResourceID        = typedDocumentJSONPathProperties + "/resourceId"
+	ResourceDocumentJSONPathInternalID        = typedDocumentJSONPathProperties + "/internalId"
+	ResourceDocumentJSONPathActiveOperationID = typedDocumentJSONPathProperties + "/activeOperationId"
+	ResourceDocumentJSONPathProvisioningState = typedDocumentJSONPathProperties + "/provisioningState"
+	ResourceDocumentJSONPathIdentity          = typedDocumentJSONPathProperties + "/identity"
+	ResourceDocumentJSONPathSystemData        = typedDocumentJSONPathProperties + "/systemData"
+	ResourceDocumentJSONPathTags              = typedDocumentJSONPathProperties + "/tags"
+)
+
+// ResourceDocumentPatchOperations represents a patch request for a ResourceDocument.
+type ResourceDocumentPatchOperations struct {
+	azcosmos.PatchOperations
+}
+
+// SetActiveOperationID appends a set or remove operation for the ActiveOperationID
+// field, depending on whether activeOperationID is nil.
+//
+// Be careful when appending a remove patch operation as it is NOT idempotent.
+// If the field to remove is not present in the Cosmos DB document, the entire
+// patch request will fail with a "400 Bad Request" status code.
+func (p *ResourceDocumentPatchOperations) SetActiveOperationID(activeOperationID *string) {
+	if activeOperationID != nil {
+		p.AppendSet(ResourceDocumentJSONPathActiveOperationID, *activeOperationID)
+	} else {
+		p.AppendRemove(ResourceDocumentJSONPathActiveOperationID)
+	}
+}
+
+// SetProvisioningState appends a set operation for the ProvisioningState field.
+func (p *ResourceDocumentPatchOperations) SetProvisioningState(provisioningState arm.ProvisioningState) {
+	p.AppendSet(ResourceDocumentJSONPathProvisioningState, provisioningState)
+}
+
+// SetIdentity appends a set or remove operation for the Identity field,
+// depending on whether identity is nil.
+//
+// Be careful when appending a remove patch operation as it is NOT idempotent.
+// If the field to remove is not present in the Cosmos DB document, the entire
+// patch request will fail with a "400 Bad Request" status code.
+func (p *ResourceDocumentPatchOperations) SetIdentity(identity *arm.ManagedServiceIdentity) {
+	if identity != nil {
+		p.AppendSet(ResourceDocumentJSONPathIdentity, identity)
+	} else {
+		p.AppendRemove(ResourceDocumentJSONPathIdentity)
+	}
+}
+
+// SetSystemData appends a set or remove operation for the SystemData field,
+// depending on whether systemData is nil.
+//
+// Be careful when appending a remove patch operation as it is NOT idempotent.
+// If the field to remove is not present in the Cosmos DB document, the entire
+// patch request will fail with a "400 Bad Request" status code.
+func (p *ResourceDocumentPatchOperations) SetSystemData(systemData *arm.SystemData) {
+	if systemData != nil {
+		p.AppendSet(ResourceDocumentJSONPathSystemData, systemData)
+	} else {
+		p.AppendRemove(ResourceDocumentJSONPathSystemData)
+	}
+}
+
+// SetTags appends a set or remove operation for the Tags field, depending on
+// whether tags is nil.
+//
+// Be careful when appending a remove patch operation as it is NOT idempotent.
+// If the field to remove is not present in the Cosmos DB document, the entire
+// patch request will fail with a "400 Bad Request" status code.
+func (p *ResourceDocumentPatchOperations) SetTags(tags map[string]string) {
+	if tags != nil {
+		p.AppendSet(ResourceDocumentJSONPathTags, tags)
+	} else {
+		p.AppendRemove(ResourceDocumentJSONPathTags)
 	}
 }
 
@@ -198,4 +275,85 @@ func (doc *OperationDocument) UpdateStatus(status arm.ProvisioningState, err *ar
 		return true
 	}
 	return false
+}
+
+// OperationDocumentPatchOperations represents a patch request for an OperationDocument.
+type OperationDocumentPatchOperations struct {
+	azcosmos.PatchOperations
+}
+
+const (
+	OperationDocumentJSONPathTenantID           = typedDocumentJSONPathProperties + "/tenantId"
+	OperationDocumentJSONPathClientID           = typedDocumentJSONPathProperties + "/clientId"
+	OperationDocumentJSONPathRequest            = typedDocumentJSONPathProperties + "/request"
+	OperationDocumentJSONPathExternalID         = typedDocumentJSONPathProperties + "/externalId"
+	OperationDocumentJSONPathInternalID         = typedDocumentJSONPathProperties + "/internalId"
+	OperationDocumentJSONPathOperationID        = typedDocumentJSONPathProperties + "/operationId"
+	OperationDocumentJSONPathNotificationURI    = typedDocumentJSONPathProperties + "/notificationUri"
+	OperationDocumentJSONPathStartTime          = typedDocumentJSONPathProperties + "/startTime"
+	OperationDocumentJSONPathLastTransitionTime = typedDocumentJSONPathProperties + "/lastTransitionTime"
+	OperationDocumentJSONPathStatus             = typedDocumentJSONPathProperties + "/status"
+	OperationDocumentJSONPathError              = typedDocumentJSONPathProperties + "/error"
+)
+
+// SetTenantID appends a set operation for the TenantID field.
+func (p *OperationDocumentPatchOperations) SetTenantID(tenantID string) {
+	p.AppendSet(OperationDocumentJSONPathTenantID, tenantID)
+}
+
+// SetClientID appends a set operation for the ClientID field.
+func (p *OperationDocumentPatchOperations) SetClientID(clientID string) {
+	p.AppendSet(OperationDocumentJSONPathClientID, clientID)
+}
+
+// SetOperationID appends a set or remove operation for the OperationID field,
+// depending on whether operationID is nil.
+//
+// Be careful when appending a remove patch operation as it is NOT idempotent.
+// If the field to remove is not present in the Cosmos DB document, the entire
+// patch request will fail with a "400 Bad Request" status code.
+func (p *OperationDocumentPatchOperations) SetOperationID(operationID *azcorearm.ResourceID) {
+	if operationID != nil {
+		p.AppendSet(OperationDocumentJSONPathOperationID, operationID)
+	} else {
+		p.AppendRemove(OperationDocumentJSONPathOperationID)
+	}
+}
+
+// SetNotificationURI appends a set or remove operation for the NotificationURI field,
+// depending on whether notificationURI is nil.
+//
+// Be careful when appending a remove patch operation as it is NOT idempotent.
+// If the field to remove is not present in the Cosmos DB document, the entire
+// patch request will fail with a "400 Bad Request" status code.
+func (p *OperationDocumentPatchOperations) SetNotificationURI(notificationURI *string) {
+	if notificationURI != nil {
+		p.AppendSet(OperationDocumentJSONPathNotificationURI, *notificationURI)
+	} else {
+		p.AppendRemove(OperationDocumentJSONPathNotificationURI)
+	}
+}
+
+// SetLastTransitionTime appends a set operation for the LastTransitionTime field.
+func (p *OperationDocumentPatchOperations) SetLastTransitionTime(lastTransitionTime time.Time) {
+	p.AppendSet(OperationDocumentJSONPathLastTransitionTime, lastTransitionTime)
+}
+
+// SetStatus appends a set operation for the Status field.
+func (p *OperationDocumentPatchOperations) SetStatus(status arm.ProvisioningState) {
+	p.AppendSet(OperationDocumentJSONPathStatus, status)
+}
+
+// SetError appends a set or remove operation for the Error field,
+// depending on whether err is nil.
+//
+// Be careful when appending a remove patch operation as it is NOT idempotent.
+// If the field to remove is not present in the Cosmos DB document, the entire
+// patch request will fail with a "400 Bad Request" status code.
+func (p *OperationDocumentPatchOperations) SetError(err *arm.CloudErrorBody) {
+	if err != nil {
+		p.AppendSet(OperationDocumentJSONPathError, err)
+	} else {
+		p.AppendRemove(OperationDocumentJSONPathError)
+	}
 }

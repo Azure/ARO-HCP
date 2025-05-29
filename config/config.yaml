@@ -58,8 +58,8 @@ defaults:
     istio:
       istioctlVersion: "1.23.1"
       tag: "prod-stable"
-      targetVersion: "asm-1-23"
-      versions: "asm-1-23"
+      targetVersion: "asm-1-25"
+      versions: "asm-1-25"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     aks:
@@ -67,7 +67,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.6
+      kubernetesVersion: 1.31.8
       networkDataplane: "cilium"
       networkPolicy: "cilium"
       etcd:
@@ -104,7 +104,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.6
+      kubernetesVersion: 1.31.8
       networkDataplane: "azure"
       networkPolicy: "azure"
       etcd:
@@ -198,7 +198,7 @@ defaults:
   pko:
     image: arohcpsvcdev.azurecr.io/package-operator/package-operator-package
     imageManager: arohcpsvcdev.azurecr.io/package-operator/package-operator-manager
-    imageTag: v1.15.0
+    imageTag: v1.18.2
   # Cluster Service
   clustersService:
     image:
@@ -295,7 +295,7 @@ clouds:
       # Cluster Service
       clustersService:
         image:
-          digest: sha256:ec301b5cdd705c5bc07812f5d6628bf8ffe792a3a38f3876ac4fdc669d7f8485
+          digest: sha256:7d6981f42a7bdfc1d75298918afbcc7fb698f4f67800538ab7d38ebddb284917
         azureOperatorsManagedIdentities:
           clusterApiAzure:
             roleName: Azure Red Hat OpenShift Cluster API Role - Dev

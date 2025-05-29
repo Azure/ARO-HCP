@@ -6,3 +6,5 @@ resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' exi
 }
 
 output cs string = csMSI.id
+
+output subscriptionId string = subscription().id

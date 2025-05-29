@@ -112,7 +112,6 @@ func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *Pipelin
 			subscriptionID:   subscriptionID,
 			region:           options.Region,
 			resourceGroup:    rg.Name,
-			aksClusterName:   rg.AKSCluster,
 		}
 		err = RunResourceGroup(rg, ctx, options, &executionTarget, outPuts)
 		if err != nil {
@@ -125,17 +124,6 @@ func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *Pipelin
 func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]Output) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	kubeconfigFile, err := executionTarget.KubeConfig(ctx)
-	if kubeconfigFile != "" {
-		defer func() {
-			if err := os.Remove(kubeconfigFile); err != nil {
-				logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
-			}
-		}()
-	} else if err != nil {
-		return fmt.Errorf("failed to prepare kubeconfig: %w", err)
-	}
-
 	for _, step := range rg.Steps {
 		// execute
 		output, err := RunStep(
@@ -146,10 +134,8 @@ func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *Pip
 					"step", step.StepName(),
 					"subscription", executionTarget.GetSubscriptionID(),
 					"resourceGroup", executionTarget.GetResourceGroup(),
-					"aksCluster", executionTarget.GetAkSClusterName(),
 				),
 			),
-			kubeconfigFile,
 			executionTarget, options,
 			outputs,
 		)
@@ -164,7 +150,9 @@ func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *Pip
 	return nil
 }
 
-func RunStep(s types.Step, ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]Output) (Output, error) {
+func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]Output) (Output, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	if options.Step != "" && s.StepName() != options.Step {
 		// skip steps that don't match the specified step name
 		return nil, nil
@@ -179,7 +167,19 @@ func RunStep(s types.Step, ctx context.Context, kubeconfigFile string, execution
 	switch step := s.(type) {
 	case *types.ShellStep:
 		var buf bytes.Buffer
-		err := runShellStep(step, ctx, kubeconfigFile, options, outPuts, &buf)
+
+		kubeconfigFile, err := KubeConfig(ctx, executionTarget.GetSubscriptionID(), executionTarget.GetResourceGroup(), step.AKSCluster)
+		if kubeconfigFile != "" {
+			defer func() {
+				if err := os.Remove(kubeconfigFile); err != nil {
+					logger.V(5).Error(err, "failed to delete kubeconfig file", "kubeconfig", kubeconfigFile)
+				}
+			}()
+		} else if err != nil {
+			return nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
+		}
+
+		err = runShellStep(step, ctx, kubeconfigFile, options, outPuts, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Shell Step, %v", err)
 		}
