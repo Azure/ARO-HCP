@@ -168,6 +168,19 @@ func WriteConflictError(w http.ResponseWriter, resourceID *azcorearm.ResourceID,
 	WriteCloudError(w, NewConflictError(resourceID, format, a...))
 }
 
+// NewContentValidationError creates a CloudError from a slice of validation errors.
+// For convenience, if the slice is empty then NewContentValidationError returns nil.
+func NewContentValidationError(errors []CloudErrorBody) *CloudError {
+	if len(errors) == 0 {
+		return nil
+	}
+
+	return &CloudError{
+		StatusCode:     http.StatusBadRequest,
+		CloudErrorBody: NewCloudErrorBodyFromSlice(errors, "Content validation failed on multiple fields"),
+	}
+}
+
 // NewResourceNotFoundError creates a CloudError for a nonexistent resource error
 func NewResourceNotFoundError(resourceID *azcorearm.ResourceID) *CloudError {
 	var code string

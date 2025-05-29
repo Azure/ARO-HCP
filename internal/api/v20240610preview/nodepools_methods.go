@@ -232,14 +232,8 @@ func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePo
 		errorDetails = h.validateStaticComplex(&normalized, cluster)
 	}
 
-	if len(errorDetails) > 0 {
-		return &arm.CloudError{
-			StatusCode:     http.StatusBadRequest,
-			CloudErrorBody: arm.NewCloudErrorBodyFromSlice(errorDetails, "Content validation failed on multiple fields"),
-		}
-	}
-
-	return nil
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
 }
 
 type NodePoolVersionProfile struct {

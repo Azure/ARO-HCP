@@ -361,14 +361,8 @@ func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCl
 		errorDetails = c.validateStaticComplex(&normalized)
 	}
 
-	if len(errorDetails) > 0 {
-		return &arm.CloudError{
-			StatusCode:     http.StatusBadRequest,
-			CloudErrorBody: arm.NewCloudErrorBodyFromSlice(errorDetails, "Content validation failed on multiple fields"),
-		}
-	}
-
-	return nil
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
 }
 
 func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {

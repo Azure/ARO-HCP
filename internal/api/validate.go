@@ -397,12 +397,6 @@ func ValidateRequest(validate *validator.Validate, request *http.Request, resour
 func ValidateSubscription(subscription *arm.Subscription, request *http.Request) *arm.CloudError {
 	errorDetails := ValidateRequest(NewValidator(), request, subscription)
 
-	if len(errorDetails) > 0 {
-		return &arm.CloudError{
-			StatusCode:     http.StatusBadRequest,
-			CloudErrorBody: arm.NewCloudErrorBodyFromSlice(errorDetails, "Content validation failed on multiple fields"),
-		}
-	}
-
-	return nil
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
 }
