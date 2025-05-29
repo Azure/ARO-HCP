@@ -61,8 +61,7 @@ func setup(ctx context.Context) error {
 	if subscriptionID, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
 		subscriptionID = "00000000-0000-0000-0000-000000000000"
 	}
-	clusterName := os.Getenv("CLUSTER_NAME")
-	e2eSetup, err = integration.LoadE2ESetupFile(clusterName + ".e2e-setup.json")
+	e2eSetup, err = integration.LoadE2ESetupFile(os.Getenv("SETUP_FILEPATH"))
 	if err != nil {
 		return err
 	}
