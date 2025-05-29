@@ -21,17 +21,21 @@ import (
 	. "github.com/onsi/gomega"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 	var (
 		NodePoolsClient *api.NodePoolsClient
+		customerEnv     *integration.CustomerEnv
 	)
 
 	BeforeEach(func() {
 		By("Preparing HCP nodepools client")
 		NodePoolsClient = clients.NewNodePoolsClient()
+		By("Preparing customer environment values")
+		customerEnv = &e2eSetup.CustomerEnv
 	})
 
 	It("Attempts to create a nodepool for a non-existant HCPOpenshiftCluster", labels.Medium, labels.Negative, func(ctx context.Context) {
@@ -43,7 +47,7 @@ var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 		)
 
 		By("Sending a  put request to create nodepool for non-existing HCPOpenshiftCluster")
-		_, err := NodePoolsClient.BeginCreateOrUpdate(ctx, customerRGName, clusterName, nodePoolName, nodePoolResource, nodePoolOptions)
+		_, err := NodePoolsClient.BeginCreateOrUpdate(ctx, customerEnv.CustomerRGName, clusterName, nodePoolName, nodePoolResource, nodePoolOptions)
 		Expect(err).ToNot(BeNil())
 		errMessage := "RESPONSE 500: 500 Internal Server Error"
 		Expect(err.Error()).To(ContainSubstring(errMessage))
