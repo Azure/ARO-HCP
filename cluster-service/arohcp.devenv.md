@@ -95,7 +95,7 @@ Simple `curl` commands without any RH token work fine:
 
 ```shell
 
-$ curl http://localhost:8000/api/clusters_mgmt/v1/clusters | jq
+$ curl http://localhost:8000/api/aro_hcp/v1alpha1/clusters | jq
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
 100    61  100    61    0     0    649      0 --:--:-- --:--:-- --:--:--   655
@@ -121,7 +121,7 @@ $ ocm list clusters
 ID                                NAME                                                    API URL                                                     OPENSHIFT_VERSION   PRODUCT ID  HCP      CLOUD_PROVIDER  REGION ID       STATE        
 
 
-$ ocm post /api/clusters_mgmt/v1/clusters  << EOF
+$ ocm post /api/aro_hcp/v1alpha1/clusters  << EOF
 {
     "name": "yourfakecluster",
     "region": {
@@ -144,7 +144,7 @@ $ ocm post /api/clusters_mgmt/v1/clusters  << EOF
 }
 EOF
 
-ocm post /api/clusters_mgmt/v1/clusters << EOF
+ocm post /api/aro_hcp/v1alpha1/clusters << EOF
 {
   "name": "hcp-1",
   "product": {
