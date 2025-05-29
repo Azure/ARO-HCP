@@ -70,7 +70,7 @@
     },
     "environment": "arohcpdev",
     "image": {
-      "digest": "sha256:ec301b5cdd705c5bc07812f5d6628bf8ffe792a3a38f3876ac4fdc669d7f8485",
+      "digest": "sha256:7d6981f42a7bdfc1d75298918afbcc7fb698f4f67800538ab7d38ebddb284917",
       "registry": "quay.io",
       "repository": "app-sre/uhc-clusters-service"
     },
