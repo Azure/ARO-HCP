@@ -5,7 +5,7 @@ ifndef EV2
 ifndef RUNS_IN_TEMPLATIZE
 PROJECT_ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-DEPLOY_ENV ?= personal-dev
+DEPLOY_ENV ?= pers
 PIPELINE ?= pipeline.yaml
 PIPELINE_STEP ?= deploy
 LOG_LEVEL ?= "0"

@@ -6,7 +6,7 @@ SHELL = /bin/bash
 GOTAGS?='containers_image_openpgp'
 LINT_GOTAGS?='${GOTAGS},E2Etests'
 TOOLS_BIN_DIR := tooling/bin
-DEPLOY_ENV ?= personal-dev
+DEPLOY_ENV ?= pers
 
 .DEFAULT_GOAL := all
 

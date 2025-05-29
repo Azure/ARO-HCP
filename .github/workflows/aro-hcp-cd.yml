@@ -137,7 +137,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/environment-infra-cd.yml
     with:
-      deploy_env: cs-pr
+      deploy_env: cspr
       deploy_cs_pr_check_deps: true
   deploy_cs_pr_environment_services:
     name: 'Deploy services to CS PR'
@@ -151,5 +151,5 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/services-cd.yml
     with:
-      deploy_env: cs-pr
+      deploy_env: cspr
       deploy_cs_pr_check_deps: true

@@ -1,5 +1,5 @@
 SHELL = /bin/bash
-DEPLOY_ENV ?= personal-dev
+DEPLOY_ENV ?= pers
 PRINCIPAL_ID ?= $(shell az ad signed-in-user show -o json | jq -r '.id')
 $(shell ./create-config.sh $(DEPLOY_ENV))
 include config.mk

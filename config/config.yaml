@@ -204,7 +204,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
-    tracing: # NOTE: Currently only enabled for personal-dev.
+    tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""
     environment: arohcpdev
@@ -458,7 +458,7 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-      cs-pr:
+      cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
           # Service Key Vault
@@ -504,7 +504,7 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-      nightly:
+      nitey:
         # this is an environment to test the deployability of infra nightly
         defaults:
           # Cluster Service
@@ -528,7 +528,7 @@ clouds:
           # MC
           mgmt:
             applyKubeletFixes: false
-      personal-dev:
+      pers:
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
@@ -572,7 +572,7 @@ clouds:
           svc:
             jaeger:
               deploy: true
-      personal-perfscale:
+      perf:
         defaults:
           # Service Key Vault
           serviceKeyVault:
