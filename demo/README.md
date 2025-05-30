@@ -4,7 +4,7 @@
 
 * have a `KUBECONFIG` for a SC and MC, e.g. for the [integrated DEV environment](../dev-infrastructure/docs/development-setup.md#access-integrated-dev-environment)
 * port-forward RP running on SC: `kubectl port-forward -n aro-hcp svc/aro-hcp-frontend 8443:8443`
-* (optional but useful) port-forward CS running on SC: `kubectl port-forward -n clusters-service svc/clusters-service 8001:8000`
+* (optional but useful) port-forward CS running on SC: `kubectl port-forward -n cluster-service svc/clusters-service 8001:8000`
 * (optional but useful) port-forward Maestro running on SC: `kubectl port-forward -n maestro svc/maestro 8002:8000`
 
 ## Register the subscription with the RP
@@ -90,7 +90,7 @@ kubectl logs deployment/clusters-service -c service -f
 ### Check cluster state in CS
 
 ```bash
-curl localhost:8001/api/clusters_mgmt/v1/clusters | jq
+curl localhost:8001/api/aro_hcp/v1alpha1/clusters | jq
 ```
 
 ### Check Maestro logs
@@ -114,7 +114,7 @@ curl localhost:8002/api/maestro/v1/resource-bundles | jq
 ### Check for manifestwork on MC
 
 ```bash
-CS_CLUSTER_ID=$(curl localhost:8001/api/clusters_mgmt/v1/clusters | jq .items[0].id -r)
+CS_CLUSTER_ID=$(curl localhost:8001/api/aro_hcp/v1alpha1/clusters | jq .items[0].id -r)
 kubectl get manifestwork -n local-cluster | grep ^${CS_CLUSTER_ID}
 ```
 
