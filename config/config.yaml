@@ -523,9 +523,13 @@ clouds:
               softDelete: true
           acr:
             svc:
+              subscription: "ARO Hosted Control Planes (EA Subscription 1)"
+              rg: global
               name: arohcpsvcdev
               zoneRedundantMode: Disabled
             ocp:
+              subscription: "ARO Hosted Control Planes (EA Subscription 1)"
+              rg: global
               name: arohcpocpdev
               zoneRedundantMode: Disabled
           # Cluster Service
