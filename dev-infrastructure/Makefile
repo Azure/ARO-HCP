@@ -84,11 +84,24 @@ create-mock-identities:
 #
 
 global:
-	../templatize.sh $(DEPLOY_ENV) -p global-pipeline.yaml -P run -c public
+	az account set --subscription "$(GLOBAL_SUBSCRIPTION_ID)"
+	../templatize.sh $(DEPLOY_ENV) -p global-pipeline.yaml -P run -c public \
+	--parameters \
+		resourceGroup="$(GLOBAL_RESOURCEGROUP)" \
+		location="$(GLOBAL_REGION)" \
+		acrSvcSubscriptionId="$(ACR_SVC_SUBSCRIPTION_ID)" \
+		acrSvcResourceGroup="$(ACR_SVC_RESOURCEGROUP)" \
+		acrSvcName="$(ACR_SVC_NAME)" \
+		acrOcpSubscriptionId="$(ACR_OCP_SUBSCRIPTION_ID)" \
+		acrOcpResourceGroup="$(ACR_OCP_RESOURCEGROUP)" \
+		acrOcpName="$(ACR_OCP_NAME)"
 .PHONY: global
 
 global.what-if:
+	az account set --subscription "$(GLOBAL_SUBSCRIPTION_ID)"
+	@echo "→ deploy global-output, pointing at existing ACRs"
 	../templatize.sh $(DEPLOY_ENV) -p global-pipeline.yaml -P run -c public -d
+.PHONY: global
 .PHONY: global.what-if
 
 #
@@ -96,6 +109,7 @@ global.what-if:
 #
 
 region:
+	az account set --subscription "$(GLOBAL_SUBSCRIPTION_ID)"
 	../templatize.sh $(DEPLOY_ENV) -p region-pipeline.yaml -P run -c public
 .PHONY: region
 
@@ -107,6 +121,7 @@ region.clean:
 .PHONY: region.clean
 
 region.what-if:
+	az account set --subscription "$(GLOBAL_SUBSCRIPTION_ID)"
 	../templatize.sh $(DEPLOY_ENV) -p region-pipeline.yaml -P run -c public -d
 .PHONY: region.what-if
 
@@ -115,6 +130,7 @@ region.what-if:
 #
 
 svc:
+	az account set --subscription "$(SVC_SUBSCRIPTION_ID)"
 	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run -c public
 .PHONY: svc
 
@@ -164,6 +180,7 @@ svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.dev.permissions
 .PHONY: svc.init
 
 svc.what-if:
+	az account set --subscription "$(SVC_SUBSCRIPTION_ID)"
 	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run -c public -d
 .PHONY: svc.what-if
 
@@ -188,6 +205,7 @@ svc.clean:
 #
 
 mgmt:
+	az account set --subscription "$(MGMT_SUBSCRIPTION_ID)"
 	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run -c public
 .PHONY: mgmt
 
@@ -208,6 +226,7 @@ mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permis
 .PHONY: mgmt.init
 
 mgmt.what-if:
+	az account set --subscription "$(MGMT_SUBSCRIPTION_ID)"
 	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run -c public -d
 .PHONY: mgmt.what-if
 
@@ -354,15 +373,14 @@ clean: svc.clean mgmt.clean region.clean
 
 nightly:
 nightly: DEPLOY_ENV = nightly
-nightly: global acr-svc-cfg acr-ocp-cfg infra
+nightly: infra
 .PHONY: nightly
 
 nightly.what-if: DEPLOY_ENV = nightly
-nightly.what-if: what-if
+nightly.what-if: global.what-if region.what-if svc.what-if mgmt.what-if
 .PHONY: nightly.what-if
 
-nightly.clean: DEPLOY_ENV = nightly
-nightly.clean: clean
+nightly.clean: DEPLOY_ENV = nightly clean
 .PHONY: nightly.clean
 
 #
