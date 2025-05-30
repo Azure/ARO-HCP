@@ -18,10 +18,13 @@ import (
 	"io"
 	"log/slog"
 	"path"
+	"reflect"
+	"strings"
 	"testing"
 
 	"dario.cat/mergo"
 	validator "github.com/go-playground/validator/v10"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -115,4 +118,42 @@ func NodePoolTestCase(t *testing.T, tweaks *HCPOpenShiftClusterNodePool) *HCPOpe
 	nodePool := MinimumValidNodePoolTestCase()
 	require.NoError(t, mergo.Merge(nodePool, tweaks, mergo.WithOverride))
 	return nodePool
+}
+
+// AssertJSONPath ensures path is valid for struct type T by following
+// its "json" struct tags. This is intended for validation errors where
+// the Target field must be hard-coded to a JSON path.
+func AssertJSONPath[T any](t *testing.T, path string) bool {
+	t.Helper()
+
+	structType := reflect.TypeFor[T]()
+	pathSegments := strings.Split(path, ".")
+
+	for depth, jsonTagName := range pathSegments {
+		currentPath := strings.Join(pathSegments[:depth+1], ".")
+		require.Equalf(t, reflect.Struct.String(), structType.Kind().String(), "Unexpected type at '%s'", currentPath)
+
+		// Discard any subscript in the path segment.
+		index := strings.Index(jsonTagName, "[")
+		if index >= 0 {
+			jsonTagName = jsonTagName[:index]
+		}
+
+		field, ok := structType.FieldByNameFunc(func(name string) bool {
+			field, ok := structType.FieldByName(name)
+			return ok && GetJSONTagName(field.Tag) == jsonTagName
+		})
+		if !assert.Truef(t, ok, "Invalid JSON path '%s'", currentPath) {
+			return false
+		}
+
+		switch field.Type.Kind() {
+		case reflect.Map, reflect.Pointer, reflect.Slice:
+			structType = field.Type.Elem()
+		default:
+			structType = field.Type
+		}
+	}
+
+	return true
 }

@@ -326,6 +326,10 @@ func TestNodePoolValidate(t *testing.T) {
 			if diff != "" {
 				t.Fatalf("Expected error mismatch:\n%s", diff)
 			}
+
+			for _, e := range actualErrors {
+				AssertJSONPath[HCPOpenShiftClusterNodePool](t, e.Target)
+			}
 		})
 	}
 }

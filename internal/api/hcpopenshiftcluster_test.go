@@ -451,6 +451,10 @@ func TestClusterValidate(t *testing.T) {
 			if diff != "" {
 				t.Fatalf("Expected error mismatch:\n%s", diff)
 			}
+
+			for _, e := range actualErrors {
+				AssertJSONPath[HCPOpenShiftCluster](t, e.Target)
+			}
 		})
 	}
 }
