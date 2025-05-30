@@ -30,18 +30,28 @@ import (
 // The definitions in this file are meant for unit tests.
 
 const (
-	TestAPIVersion        = "2024-06-10-preview"
-	TestTenantID          = "00000000-0000-0000-0000-000000000000"
-	TestSubscriptionID    = "11111111-1111-1111-1111-111111111111"
-	TestResourceGroupName = "testResourceGroup"
-	TestClusterName       = "testCluster"
-	TestNodePoolName      = "testNodePool"
+	TestAPIVersion               = "2024-06-10-preview"
+	TestTenantID                 = "00000000-0000-0000-0000-000000000000"
+	TestSubscriptionID           = "11111111-1111-1111-1111-111111111111"
+	TestAltSubscriptionID        = "22222222-2222-2222-2222-222222222222"
+	TestResourceGroupName        = "testResourceGroup"
+	TestClusterName              = "testCluster"
+	TestNodePoolName             = "testNodePool"
+	TestDeploymentName           = "testDeployment"
+	TestNetworkSecurityGroupName = "testNetworkSecurityGroup"
+	TestVirtualNetworkName       = "testVirtualNetwork"
+	TestSubnetName               = "testSubnet"
 )
 
 var (
-	TestGroupResourceID    = path.Join("/subscriptions", TestSubscriptionID, "resourceGroups", TestResourceGroupName)
-	TestClusterResourceID  = path.Join(TestGroupResourceID, "providers", ProviderNamespace, ClusterResourceTypeName, TestClusterName)
-	TestNodePoolResourceID = path.Join(TestClusterResourceID, NodePoolResourceTypeName, TestNodePoolName)
+	TestSubscriptionResourceID         = path.Join("/subscriptions", TestSubscriptionID)
+	TestResourceGroupResourceID        = path.Join(TestSubscriptionResourceID, "resourceGroups", TestResourceGroupName)
+	TestClusterResourceID              = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, ClusterResourceTypeName, TestClusterName)
+	TestNodePoolResourceID             = path.Join(TestClusterResourceID, NodePoolResourceTypeName, TestNodePoolName)
+	TestDeploymentResourceID           = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, "deployments", TestDeploymentName)
+	TestNetworkSecurityGroupResourceID = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", TestNetworkSecurityGroupName)
+	TestVirtualNetworkResourceID       = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName)
+	TestSubnetResourceID               = path.Join(TestVirtualNetworkResourceID, "subnets", TestSubnetName)
 )
 
 func NewTestLogger() *slog.Logger {
@@ -79,13 +89,13 @@ func NewTestValidator() *validator.Validate {
 }
 
 func NewTestUserAssignedIdentity(name string) string {
-	return path.Join(TestGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)
+	return path.Join(TestResourceGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)
 }
 
 func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource := NewDefaultHCPOpenShiftCluster()
-	resource.Properties.Platform.SubnetID = path.Join(TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "testVirtualNetwork", "subnets")
-	resource.Properties.Platform.NetworkSecurityGroupID = path.Join(TestGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", "testNetworkSecurityGroup")
+	resource.Properties.Platform.SubnetID = TestSubnetResourceID
+	resource.Properties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
 	return resource
 }
 

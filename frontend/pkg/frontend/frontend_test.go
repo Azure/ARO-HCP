@@ -54,12 +54,7 @@ func getMockDBDoc[T any](t *T) (*T, error) {
 }
 
 func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
-	resourceID, err := azcorearm.ParseResourceID(path.Join(
-		"/",
-		"subscriptions", api.TestSubscriptionID,
-		"resourceGroups", "myResourceGroup",
-		"providers", api.ProviderNamespace,
-		api.ClusterResourceTypeName, "myCluster"))
+	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 	return resourceID
 }
@@ -187,7 +182,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
-			rs, err := ts.Client().Get(ts.URL + "/subscriptions/" + api.TestSubscriptionID + "?api-version=" + arm.SubscriptionAPIVersion)
+			rs, err := ts.Client().Get(ts.URL + api.TestSubscriptionResourceID + "?api-version=" + arm.SubscriptionAPIVersion)
 			require.NoError(t, err)
 
 			assert.Equal(t, test.expectedStatusCode, rs.StatusCode)
@@ -208,7 +203,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 	}{
 		{
 			name:    "PUT Subscription - Doc does not exist",
-			urlPath: "/subscriptions/" + api.TestSubscriptionID,
+			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -233,7 +228,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Doc Exists",
-			urlPath: "/subscriptions/" + api.TestSubscriptionID,
+			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -259,7 +254,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing State",
-			urlPath: "/subscriptions/" + api.TestSubscriptionID,
+			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -269,7 +264,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Invalid State",
-			urlPath: "/subscriptions/" + api.TestSubscriptionID,
+			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
 				State:            "Bogus",
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -280,7 +275,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		},
 		{
 			name:    "PUT Subscription - Missing RegistrationDate",
-			urlPath: "/subscriptions/" + api.TestSubscriptionID,
+			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
 				State:      arm.SubscriptionStateRegistered,
 				Properties: nil,
@@ -396,8 +391,8 @@ func TestDeploymentPreflight(t *testing.T) {
 						"visibility": "public",
 					},
 					"platform": map[string]any{
-						"subnetId":               "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/virtualNetworks/MyVNet/subnets",
-						"networkSecurityGroupId": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/MyResourceGroup/providers/Microsoft.Network/networkSecurityGroups/MyNSG",
+						"subnetId":               api.TestSubnetResourceID,
+						"networkSecurityGroupId": api.TestNetworkSecurityGroupResourceID,
 					},
 				},
 			},
@@ -482,7 +477,7 @@ func TestDeploymentPreflight(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			preflightPath := fmt.Sprintf("/subscriptions/%s/resourceGroups/myRG/providers/%s/deployments/myDeployment/preflight", api.TestSubscriptionID, api.ProviderNamespace)
+			preflightPath := path.Join(api.TestDeploymentResourceID, "preflight")
 
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
