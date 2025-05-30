@@ -197,7 +197,7 @@ param oidcStorageAccountName string
 param oidcZoneRedundantMode string
 
 @description('MSI that will be used to run the deploymentScript')
-param aroDevopsMsiId string
+param globalMsiId string
 
 @description('The parent SVC DNS zone name')
 param svcDNSZoneName string
@@ -381,7 +381,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
-    deploymentMsiId: aroDevopsMsiId
+    aroDevopsMsiId: globalMsiId
     enableSwiftV2: false
   }
 }
@@ -450,7 +450,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     mqttClientName: maestroServerMqttClientName
     certKeyVaultName: serviceKeyVaultName
     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
-    keyVaultOfficerManagedIdentityName: aroDevopsMsiId
+    keyVaultOfficerManagedIdentityName: globalMsiId
     maestroCertificateDomain: effectiveMaestroCertDomain
     maestroCertificateIssuer: maestroCertIssuer
     deployPostgres: deployMaestroPostgres
@@ -465,7 +465,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
-    postgresAdministrationManagedIdentityId: aroDevopsMsiId
+    postgresAdministrationManagedIdentityId: globalMsiId
     maestroServerManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == maestroMIName
@@ -531,7 +531,7 @@ module cs '../modules/cluster-service.bicep' = {
     regionalCXDNSZoneName: regionalCXDNSZoneName
     regionalResourceGroup: regionalResourceGroup
     ocpAcrResourceId: ocpAcrResourceId
-    postgresAdministrationManagedIdentityId: aroDevopsMsiId
+    postgresAdministrationManagedIdentityId: globalMsiId
   }
   dependsOn: [
     maestroServer
@@ -549,7 +549,7 @@ module oidc '../modules/oidc/main.bicep' = {
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
       ? 'Standard_ZRS'
       : 'Standard_LRS'
-    msiId: aroDevopsMsiId
+    msiId: globalMsiId
     deploymentScriptLocation: location
   }
   dependsOn: [
@@ -593,7 +593,7 @@ module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
     keyVaultName: serviceKeyVaultName
     subjectName: 'CN=${frontendDnsFQDN}'
     certName: frontendIngressCertName
-    keyVaultManagedIdentityId: aroDevopsMsiId
+    keyVaultManagedIdentityId: globalMsiId
     dnsNames: [
       frontendDnsFQDN
     ]

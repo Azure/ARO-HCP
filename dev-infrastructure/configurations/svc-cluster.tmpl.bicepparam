@@ -72,7 +72,7 @@ param svcAcrResourceId = '__svcAcrResourceId__'
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
 param oidcZoneRedundantMode = '{{ .oidcZoneRedundantMode }}'
 
-param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+param globalMsiId = '__globalMsiId__'
 
 param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
 param regionalCXDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.cxParentZoneName }}'
