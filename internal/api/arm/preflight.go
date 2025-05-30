@@ -101,24 +101,14 @@ type DeploymentPreflightResponse struct {
 func WriteDeploymentPreflightResponse(w http.ResponseWriter, preflightErrors []CloudErrorBody) {
 	var response *DeploymentPreflightResponse
 
-	switch len(preflightErrors) {
-	case 0:
+	if len(preflightErrors) == 0 {
 		response = &DeploymentPreflightResponse{
 			Status: DeploymentPreflightStatusSucceeded,
 		}
-	case 1:
+	} else {
 		response = &DeploymentPreflightResponse{
 			Status: DeploymentPreflightStatusFailed,
-			Error:  &preflightErrors[0],
-		}
-	default:
-		response = &DeploymentPreflightResponse{
-			Status: DeploymentPreflightStatusFailed,
-			Error: &CloudErrorBody{
-				Code:    CloudErrorCodeMultipleErrorsOccurred,
-				Message: "Preflight validation failed on multiple resources",
-				Details: preflightErrors,
-			},
+			Error:  NewCloudErrorBodyFromSlice(preflightErrors, "Preflight validation failed on multiple resources"),
 		}
 	}
 
