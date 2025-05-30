@@ -113,6 +113,10 @@ resourceGroups:
       input:
         step: region-output
         name: azureMonitoringWorkspaceId
+    - name: hcpAzureMonitoringWorkspaceId
+      input:
+        step: region-output
+        name: hcpAzureMonitoringWorkspaceId
     - name: maestroEventGridNamespaceId
       input:
         step: region-output
@@ -173,6 +177,8 @@ resourceGroups:
       configRef: mgmt.rg
     - name: CLUSTER_NAME
       configRef: mgmt.aks.name
+    - name: CS_ENVIRONMENT
+      configRef: clustersService.environment
     dependsOn:
     - mgmt-cluster
   # Install ACRpull
