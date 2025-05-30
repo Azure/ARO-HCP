@@ -15,6 +15,7 @@
 package admin
 
 import (
+	"fmt"
 	"net/http"
 )
 
@@ -22,8 +23,10 @@ func (a *Admin) adminRoutes() *http.ServeMux {
 
 	adminMux := http.NewServeMux()
 
-	adminMux.HandleFunc("/v1/<something>/", func(writer http.ResponseWriter, request *http.Request) {
-		// Queries something
+	adminMux.HandleFunc("/admin/helloworld", func(writer http.ResponseWriter, request *http.Request) {
+
+		// Return Hello, world! to the client
+		fmt.Fprintln(writer, "Hello, world!")
 	})
 
 	adminMux.HandleFunc("/v1/<something>", func(writer http.ResponseWriter, request *http.Request) {
