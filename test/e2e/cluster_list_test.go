@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/log"
 )
@@ -30,11 +31,14 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 
 	var (
 		clustersClient *api.HcpOpenShiftClustersClient
+		customerEnv    *integration.CustomerEnv
 	)
 
 	BeforeEach(func() {
 		By("Preparing HCP clusters client")
 		clustersClient = clients.NewHcpOpenShiftClustersClient()
+		By("Preparing customer environment values")
+		customerEnv = &e2eSetup.CustomerEnv
 	})
 
 	Context("Positive", func() {
@@ -56,7 +60,7 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 
 		It("Successfully lists clusters filtered by resource group name", labels.Medium, labels.Positive, func(ctx context.Context) {
 			By("Preparing pager to list clusters")
-			pager := clustersClient.NewListByResourceGroupPager(customerRGName, nil)
+			pager := clustersClient.NewListByResourceGroupPager(customerEnv.CustomerRGName, nil)
 			By("Accessing IDs of all fetched clusters")
 			for pager.More() {
 				clusterList, err := pager.NextPage(ctx)
