@@ -372,11 +372,13 @@ clouds:
       # SVC cluster settings
       svc:
         logs:
-          san: "svc.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
+          san: "svc.geneva.keyvault.aro-hcp.azure.com"
+          configVersion: "1.1"
       # MC cluster settings
       mgmt:
         logs:
-          san: "mgmt.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
+          san: "mgmt.geneva.keyvault.aro-hcp.azure.com"
+          configVersion: "1.1"
       imageSync:
         componentSync:
           image:
@@ -387,6 +389,12 @@ clouds:
       mise:
         azureAdInstance: https://login.microsoftonline.com/
         armInstance: https://management.azure.com
+
+      # Logs
+      logs:
+        mdsd:
+          subscriptions:
+            - 9a53d80e-dae0-4c8a-af90-30575d253127  # Azure Red Hat OpenShift v4.x - HCP Global
     environments:
       int:
         # this is the MSFT INT environment
@@ -416,7 +424,8 @@ clouds:
             istio:
               ingressGatewayIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
-              configVersion: "1.0"
+              san: "svc.geneva.keyvault.aro-hcp-int.azure.com"
+              configVersion: "1.8"
           # MC cluster settings
           mgmt:
             aks:
@@ -430,7 +439,8 @@ clouds:
                 azCount: 3
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
             logs:
-              configVersion: "1.0"
+              san: "mgmt.geneva.keyvault.aro-hcp-int.azure.com"
+              configVersion: "1.6"
           # DNS
           dns:
             cxParentZoneName: aroapp-hcp.azure-test.net
@@ -487,7 +497,7 @@ clouds:
           logs:
             mdsd:
               subscriptions:
-              - 5299e6b7-b23b-46c8-8277-dc1147807117
+              - 5299e6b7-b23b-46c8-8277-dc1147807117 # Azure Red Hat OpenShift v4.x - HCP
       stg:
         # this is the MSFT STAGE environment
         defaults:
@@ -511,8 +521,6 @@ clouds:
                 minCount: 1
                 maxCount: 3
                 azCount: 3
-            logs:
-              configVersion: "1.0"
           # MC cluster settings
           mgmt:
             aks:
@@ -524,8 +532,6 @@ clouds:
                 minCount: 1
                 maxCount: 12
                 azCount: 3
-            logs:
-              configVersion: "1.0"
           # DNS
           dns:
             # we share the same DNS zones between staging and production
@@ -574,7 +580,3 @@ clouds:
           aroDevopsMsiId: '/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: ce4e50ef-1059-4b6f-a53a-53001d517513 # objectId for 'aro-ev2-admin-prod-sp'
-          # Logs
-          logs:
-            mdsd:
-              subscriptions: [] # TBD
