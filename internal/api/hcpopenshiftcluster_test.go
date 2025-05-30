@@ -16,6 +16,7 @@ package api
 
 import (
 	"net/http"
+	"path"
 	"strings"
 	"testing"
 
@@ -320,7 +321,51 @@ func TestClusterValidate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Control plane operator name cannot be empty",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						OperatorsAuthentication: OperatorsAuthenticationProfile{
+							UserAssignedIdentities: UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"": managedIdentity1,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Missing required field 'controlPlaneOperators[]'",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]",
+				},
+			},
+		},
 
+		{
+			name: "Data plane operator name cannot be empty",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						OperatorsAuthentication: OperatorsAuthenticationProfile{
+							UserAssignedIdentities: UserAssignedIdentitiesProfile{
+								DataPlaneOperators: map[string]string{
+									"": managedIdentity1,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Missing required field 'dataPlaneOperators[]'",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]",
+				},
+			},
+		},
 		//--------------------------------
 		// Complex multi-field validation
 		//--------------------------------
@@ -339,6 +384,96 @@ func TestClusterValidate(t *testing.T) {
 				{
 					Message: "Channel group must be 'stable'",
 					Target:  "properties.version.channelGroup",
+				},
+			},
+		},
+		{
+			name: "Cluster with overlapping machine and service CIDRs",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Network: NetworkProfile{
+						ServiceCIDR: "10.0.0.0/23",
+						MachineCIDR: "10.0.0.0/16",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Machine CIDR '10.0.0.0/16' and service CIDR '10.0.0.0/23' overlap",
+					Target:  "properties.network",
+				},
+			},
+		},
+		{
+			name: "Cluster with overlapping machine and pod CIDRs",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Network: NetworkProfile{
+						PodCIDR:     "10.1.0.0/18",
+						MachineCIDR: "10.1.0.0/23",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Machine CIDR '10.1.0.0/23' and pod CIDR '10.1.0.0/18' overlap",
+					Target:  "properties.network",
+				},
+			},
+		},
+		{
+			name: "Cluster with overlapping service and pod CIDRs",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Network: NetworkProfile{
+						PodCIDR:     "10.2.0.0/18",
+						ServiceCIDR: "10.2.0.0/24",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Service CIDR '10.2.0.0/24' and pod CIDR '10.2.0.0/18' overlap",
+					Target:  "properties.network",
+				},
+			},
+		},
+		{
+			name: "Cluster with invalid managed resource group",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						ManagedResourceGroup: TestResourceGroupName,
+						// Use a different resource group name to avoid a subnet ID error.
+						SubnetID: path.Join("/subscriptions", TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName, "subnets", TestSubnetName),
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Managed resource group name must not be the cluster's resource group name",
+					Target:  "properties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Cluster with invalid subnet ID",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						ManagedResourceGroup: "MRG",
+						SubnetID:             "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Subnet '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet' must be in the same Azure subscription as the cluster",
+					Target:  "properties.platform.subnetId",
+				},
+				{
+					Message: "Subnet '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet' cannot be in the managed resource group 'MRG'",
+					Target:  "properties.platform.subnetId",
 				},
 			},
 		},
@@ -467,9 +602,12 @@ func TestClusterValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodPut, TestClusterResourceID, nil)
+			require.NoError(t, err)
+
 			resource := ClusterTestCase(t, tt.tweaks)
 
-			actualErrors := resource.Validate(validate, nil)
+			actualErrors := resource.Validate(validate, request)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {

@@ -208,6 +208,16 @@ func NewValidator() *validator.Validate {
 		if err != nil {
 			return false
 		}
+		// Check for required fields.
+		if resourceID.SubscriptionID == "" {
+			return false
+		}
+		if resourceID.ResourceGroupName == "" {
+			return false
+		}
+		if resourceID.Name == "" {
+			return false
+		}
 		resourceType := resourceID.ResourceType.String()
 		return param == "" || strings.EqualFold(resourceType, param)
 	})
