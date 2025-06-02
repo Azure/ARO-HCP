@@ -49,7 +49,7 @@ param msiKeyVaultName = '{{ .msiKeyVault.name }}'
 param mgmtKeyVaultName = '{{ .mgmtKeyVault.name }}'
 
 // MI for deployment scripts
-param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+param globalMsiId = '__globalMsiId__'
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'

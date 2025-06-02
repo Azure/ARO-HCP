@@ -479,8 +479,6 @@ clouds:
           # Grafana
           monitoring:
             grafanaAdminGroupPrincipalId: "2fdb57d4-3fd3-415d-b604-1d0e37a188fe" # Azure Red Hat OpenShift MSFT Engineering.
-          # Global MSI
-          aroDevopsMsiId: "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity"
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: "32af88de-a61c-4f71-b709-50538598c4f2" # aro-ev2-admin-int-sp
           # Logs
@@ -570,8 +568,6 @@ clouds:
           # Grafana
           monitoring:
             grafanaAdminGroupPrincipalId: '' # object id for group 'RH-AROAPPR'. EV2 currently only allows service principal role assignment, so leave it empty for now
-          # Global MSI
-          aroDevopsMsiId: '/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
           kvCertOfficerPrincipalId: ce4e50ef-1059-4b6f-a53a-53001d517513 # objectId for 'aro-ev2-admin-prod-sp'
           # Logs
