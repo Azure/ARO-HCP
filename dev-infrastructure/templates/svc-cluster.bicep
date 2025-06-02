@@ -659,7 +659,7 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
   }
 }
 
-// 
+//
 //   N E T W O R K    S E C U R I T Y    P E R I M E T E R
 //
 
@@ -687,6 +687,9 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
       subscription().id
     ]
   }
+  dependsOn: [
+    svcNSP
+  ]
 }
 
 module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVaultAsignNSP) {
@@ -704,4 +707,7 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
       subscription().id
     ]
   }
+  dependsOn: [
+    svcNSP
+  ]
 }
