@@ -129,6 +129,9 @@ prometheus:
   ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api-reference/api.md#prometheusspec
   ##
   prometheusSpec:
+    ## The time to wait for Prometheus to start up before considering it failed.
+    ##
+    maximumStartupDurationSeconds: 360
     ## Image of Prometheus.
     ##
     image:
