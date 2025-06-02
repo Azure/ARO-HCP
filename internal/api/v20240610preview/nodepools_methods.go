@@ -15,11 +15,7 @@
 package v20240610preview
 
 import (
-	"fmt"
 	"net/http"
-	"strings"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -145,117 +141,24 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 }
 
-func (c *NodePool) validateVersion(normalized *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	if normalized.Properties.Version.ChannelGroup != cluster.Properties.Version.ChannelGroup {
-		errorDetails = append(errorDetails, arm.CloudErrorBody{
-			Code: arm.CloudErrorCodeInvalidRequestContent,
-			Message: fmt.Sprintf(
-				"Node pool channel group '%s' must be the same as control plane channel group '%s'",
-				normalized.Properties.Version.ChannelGroup,
-				cluster.Properties.Version.ChannelGroup),
-			Target: "properties.version.channelGroup",
-		})
-	}
-
-	return errorDetails
-}
-
-func (h *NodePool) validateSubnet(subnetID string, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	// Cluster and node pool subnet IDs have already passed syntax validation so
-	// parsing should not fail. If parsing does somehow fail then skip the validation.
-
-	clusterSubnetResourceID, err := azcorearm.ParseResourceID(cluster.Properties.Platform.SubnetID)
-	if err != nil {
-		return nil
-	}
-
-	nodePoolSubnetResourceID, err := azcorearm.ParseResourceID(subnetID)
-	if err != nil {
-		return nil
-	}
-
-	clusterVNet := clusterSubnetResourceID.Parent.String()
-	nodePoolVNet := nodePoolSubnetResourceID.Parent.String()
-
-	if !strings.EqualFold(nodePoolVNet, clusterVNet) {
-		errorDetails = append(errorDetails, arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: fmt.Sprintf("Subnet '%s' must belong to the same VNet as the parent cluster VNet '%s'", subnetID, clusterVNet),
-			Target:  "properties.platform.subnetId",
-		})
-	}
-
-	return errorDetails
-}
-
-// validateStaticComplex performs more complex, multi-field validations than
-// are possible with struct tag validation. The returned CloudErrorBody slice
-// contains structured but user-friendly details for all discovered errors.
-func (h *NodePool) validateStaticComplex(normalized *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	if cluster != nil {
-		errorDetails = append(errorDetails, h.validateVersion(normalized, cluster)...)
-
-		if normalized.Properties.Platform.SubnetID != "" {
-			errorDetails = append(errorDetails, h.validateSubnet(normalized.Properties.Platform.SubnetID, cluster)...)
-		}
-	}
-
-	return errorDetails
-}
-
 func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
 	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
 
-	cloudError := arm.NewCloudError(
-		http.StatusBadRequest,
-		arm.CloudErrorCodeMultipleErrorsOccurred, "",
-		"Content validation filed on multiple fields")
-	cloudError.Details = make([]arm.CloudErrorBody, 0)
-
-	// Pass the embedded NodePool so
-	// the struct field names match the nodePoolStructTagMap keys.
+	// Pass the embedded NodePool struct so the struct
+	// field names match the nodePoolStructTagMap keys.
 	errorDetails = api.ValidateVisibility(
 		h.NodePool,
 		current.(*NodePool).NodePool,
 		nodePoolStructTagMap, updating)
-	if errorDetails != nil {
-		cloudError.Details = append(cloudError.Details, errorDetails...)
-	}
 
 	h.Normalize(&normalized)
 
-	errorDetails = api.ValidateRequest(validate, request, &normalized)
-	if errorDetails != nil {
-		cloudError.Details = append(cloudError.Details, errorDetails...)
-	}
+	// Run additional validation on the "normalized" node pool model.
+	errorDetails = append(errorDetails, normalized.Validate(validate, request, cluster)...)
 
-	// Proceed with complex, multi-field validation only if single-field
-	// validation has passed. This avoids running further checks on data
-	// we already know to be invalid and prevents the response body from
-	// becoming overwhelming.
-	if len(cloudError.Details) == 0 {
-		errorDetails = h.validateStaticComplex(&normalized, cluster)
-		if errorDetails != nil {
-			cloudError.Details = append(cloudError.Details, errorDetails...)
-		}
-	}
-
-	switch len(cloudError.Details) {
-	case 0:
-		cloudError = nil
-	case 1:
-		// Promote a single validation error out of details.
-		cloudError.CloudErrorBody = &cloudError.Details[0]
-	}
-
-	return cloudError
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
 }
 
 type NodePoolVersionProfile struct {

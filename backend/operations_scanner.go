@@ -947,18 +947,7 @@ func (s *OperationsScanner) convertInflightChecks(ctx context.Context, logger *s
 		}, nil
 	}
 
-	if len(cloudErrors) == 1 {
-		return &arm.CloudErrorBody{
-			Code:    cloudErrors[0].Code,
-			Message: cloudErrors[0].Message,
-		}, nil
-	}
-
-	return &arm.CloudErrorBody{
-		Code:    arm.CloudErrorCodeMultipleErrorsOccurred,
-		Message: "Content validation failed on multiple fields",
-		Details: cloudErrors,
-	}, nil
+	return arm.NewCloudErrorBodyFromSlice(cloudErrors, "Cluster provisioning failed due to multiple errors"), nil
 }
 
 func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger *slog.Logger) arm.CloudErrorBody {

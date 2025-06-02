@@ -25,6 +25,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
+var (
+	managedIdentity1 = NewTestUserAssignedIdentity("myManagedIdentity1")
+	managedIdentity2 = NewTestUserAssignedIdentity("myManagedIdentity2")
+	managedIdentity3 = NewTestUserAssignedIdentity("myManagedIdentity3")
+)
+
 func compareErrors(x, y []arm.CloudErrorBody) string {
 	return cmp.Diff(x, y,
 		cmpopts.SortSlices(func(x, y arm.CloudErrorBody) bool { return x.Target < y.Target }),
@@ -143,7 +149,7 @@ func TestClusterRequiredForPut(t *testing.T) {
 	}
 }
 
-func TestClusterValidateTags(t *testing.T) {
+func TestClusterValidate(t *testing.T) {
 	// Note "required_for_put" validation tests are above.
 	// This function tests all the other validators in use.
 	tests := []struct {
@@ -151,6 +157,10 @@ func TestClusterValidateTags(t *testing.T) {
 		tweaks       *HCPOpenShiftCluster
 		expectErrors []arm.CloudErrorBody
 	}{
+		{
+			name:   "Minimum valid cluster",
+			tweaks: &HCPOpenShiftCluster{},
+		},
 		{
 			name: "Bad cidrv4",
 			tweaks: &HCPOpenShiftCluster{
@@ -309,6 +319,124 @@ func TestClusterValidateTags(t *testing.T) {
 				},
 			},
 		},
+
+		//--------------------------------
+		// Complex multi-field validation
+		//--------------------------------
+
+		{
+			name: "Cluster with invalid channel group",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Version: VersionProfile{
+						ID:           "openshift-v4.99.0",
+						ChannelGroup: "freshmeat",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Channel group must be 'stable'",
+					Target:  "properties.version.channelGroup",
+				},
+			},
+		},
+		{
+			name: "Cluster with identities",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						OperatorsAuthentication: OperatorsAuthenticationProfile{
+							UserAssignedIdentities: UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"operatorX": managedIdentity1,
+								},
+								ServiceManagedIdentity: managedIdentity2,
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						managedIdentity1: &arm.UserAssignedIdentity{},
+						managedIdentity2: &arm.UserAssignedIdentity{},
+					},
+				},
+			},
+		},
+		{
+			name: "Cluster with broken identities",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						OperatorsAuthentication: OperatorsAuthenticationProfile{
+							UserAssignedIdentities: UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"operatorX": managedIdentity1,
+								},
+								ServiceManagedIdentity: managedIdentity2,
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						managedIdentity3: &arm.UserAssignedIdentity{},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Identity " + managedIdentity1 + " is not assigned to this resource",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+				},
+				{
+					Message: "Identity " + managedIdentity3 + " is assigned to this resource but not used",
+					Target:  "identity.userAssignedIdentities",
+				},
+				{
+					Message: "Identity " + managedIdentity2 + " is not assigned to this resource",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				},
+			},
+		},
+		{
+			name: "Cluster with multiple identities",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						OperatorsAuthentication: OperatorsAuthenticationProfile{
+							UserAssignedIdentities: UserAssignedIdentitiesProfile{
+								ControlPlaneOperators: map[string]string{
+									"operatorX": managedIdentity1,
+									"operatorY": managedIdentity1,
+								},
+								ServiceManagedIdentity: managedIdentity1,
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						managedIdentity1: &arm.UserAssignedIdentity{},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Identity " + managedIdentity1 + " is used multiple times",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+				},
+				{
+					Message: "Identity " + managedIdentity1 + " is used multiple times",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorY]",
+				},
+				{
+					Message: "Identity " + managedIdentity1 + " is used multiple times",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				},
+			},
+		},
 	}
 
 	validate := NewTestValidator()
@@ -317,7 +445,7 @@ func TestClusterValidateTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := ClusterTestCase(t, tt.tweaks)
 
-			actualErrors := ValidateRequest(validate, nil, resource)
+			actualErrors := resource.Validate(validate, nil)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {
