@@ -175,6 +175,11 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create the database client: %w", err)
 	}
 
+	dbClient, err = database.NewDBClientWithInstrumentation(dbClient, tracerName)
+	if err != nil {
+		return fmt.Errorf("failed to instrument the database client: %w", err)
+	}
+
 	// Create OCM connection
 	ocmConnection, err := ocmsdk.NewUnauthenticatedConnectionBuilder().
 		TransportWrapper(func(r http.RoundTripper) http.RoundTripper {

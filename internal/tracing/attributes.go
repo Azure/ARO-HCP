@@ -93,6 +93,14 @@ const (
 
 // Clusters service attributes.
 const (
+	// ClustersServiceResourceIDKey is the span's attribute Key reporting the
+	// Clusters Service resource's identifier.
+	ClustersServiceResourceIDKey = attribute.Key("cs.resource.id")
+
+	// ClustersServiceResourceKindKey is the span's attribute Key reporting the
+	// Clusters Service resource's kind.
+	ClustersServiceResourceKindKey = attribute.Key("cs.resource.kind")
+
 	// ClusterIDKey is the span's attribute Key reporting the internal cluster identifier.
 	// The key needs to be kept in sync with the key used by the Clusters Service.
 	ClusterIDKey = attribute.Key("cs.cluster.id")
