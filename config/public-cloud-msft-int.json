@@ -81,7 +81,7 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpint-csdb-usw3",
+      "name": "arohcpint-csdb-ussw1",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -91,7 +91,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "arohcpint-cx-usw3-1",
+    "name": "arohcpint-cx-ussw1-1",
     "private": false,
     "softDelete": false
   },
@@ -100,7 +100,7 @@
     "cxParentZoneDelegation": true,
     "cxParentZoneName": "aroapp-hcp.azure-test.net",
     "parentZoneName": "azure-test.net",
-    "regionalSubdomain": "westus3",
+    "regionalSubdomain": "southwestus",
     "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "extraVars": {},
@@ -118,7 +118,7 @@
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcpint-rp-usw3",
+      "name": "arohcpint-rp-ussw1",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -202,7 +202,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-usw3-mgmt-1",
+      "consumerName": "hcp-underlay-ussw1-mgmt-1",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -216,7 +216,7 @@
     "certIssuer": "OneCertV2-PrivateCA",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcpint-maestro-usw3",
+      "name": "arohcpint-maestro-ussw1",
       "private": false
     },
     "image": {
@@ -228,7 +228,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpint-maestrodb-usw3",
+      "name": "arohcpint-maestrodb-ussw1",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -255,7 +255,7 @@
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "enableSwiftV2": true,
       "etcd": {
-        "kvName": "arohcpint-etcd-usw3-1",
+        "kvName": "arohcpint-etcd-ussw1-1",
         "kvSoftDelete": true
       },
       "infraAgentPool": {
@@ -266,7 +266,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "westus3-mgmt-1",
+      "name": "southwestus-mgmt-1",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -294,7 +294,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-usw3-mgmt"
+      "name": "nsp-ussw1-mgmt"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -318,11 +318,11 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-westus3-mgmt-1",
-    "subscription": "hcp-int-mgmt-westus3-1"
+    "rg": "hcp-underlay-southwestus-mgmt-1",
+    "subscription": "hcp-int-mgmt-southwestus-1"
   },
   "mgmtKeyVault": {
-    "name": "arohcpint-mgmt-usw3-1",
+    "name": "arohcpint-mgmt-ussw1-1",
     "private": false,
     "softDelete": false
   },
@@ -351,34 +351,34 @@
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "workspaceName": "arohcp-usw3"
+    "workspaceName": "arohcp-ussw1"
   },
   "msiKeyVault": {
-    "name": "arohcpint-msi-usw3-1",
+    "name": "arohcpint-msi-ussw1-1",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpintoidcusw3",
+  "oidcStorageAccountName": "arohcpintoidcussw1",
   "oidcZoneRedundantMode": "Auto",
-  "region": "westus3",
-  "regionRG": "westus3-shared-resources",
+  "region": "southwestus",
+  "regionRG": "southwestus-shared-resources",
   "releaseApprover": {
     "id": "feca6a27-8f05-4abe-b9e4-e1185f5833ab",
     "name": "TM-AzureRedHatOpenShift-HCP-Leads"
   },
   "serviceKeyVault": {
     "assignNSP": true,
-    "name": "arohcpint-svc-usw3",
+    "name": "arohcpint-svc-ussw1",
     "private": false,
-    "region": "westus3",
-    "rg": "hcp-underlay-westus3-svc",
+    "region": "southwestus",
+    "rg": "hcp-underlay-southwestus-svc",
     "softDelete": false
   },
   "svc": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "etcd": {
-        "kvName": "arohcpint-etcd-usw3",
+        "kvName": "arohcpint-etcd-ussw1",
         "kvSoftDelete": true
       },
       "infraAgentPool": {
@@ -389,7 +389,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "westus3-svc-1",
+      "name": "southwestus-svc-1",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -424,7 +424,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-usw3-svc"
+      "name": "nsp-ussw1-svc"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -448,7 +448,7 @@
         "version": ""
       }
     },
-    "rg": "hcp-underlay-westus3-svc",
-    "subscription": "hcp-int-svc-westus3"
+    "rg": "hcp-underlay-southwestus-svc",
+    "subscription": "hcp-int-svc-southwestus"
   }
 }

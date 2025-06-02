@@ -1,5 +1,5 @@
 SHELL = /bin/bash
-DEPLOY_ENV ?= personal-dev
+DEPLOY_ENV ?= pers
 $(shell ../../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
 include config.mk
 COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]])
