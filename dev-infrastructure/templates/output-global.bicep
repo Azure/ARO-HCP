@@ -13,15 +13,26 @@ param svcParentZoneName string
 @description('Metrics global Grafana name')
 param grafanaName string
 
+@description('Subscription where the service ACR lives')
+param acrSvcSubscriptionId string
+@description('Resource group of the service ACR')
+param acrSvcResourceGroup string
+@description('Subscription where the OCP ACR lives')
+param acrOcpSubscriptionId string
+@description('Resource group of the OCP ACR')
+param acrOcpResourceGroup string
+
 //
 //   A C R
 //
 
 resource ocpAcr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
+  scope: resourceGroup(acrOcpSubscriptionId, acrOcpResourceGroup)
   name: ocpAcrName
 }
 
 resource svcAcr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
+  scope: resourceGroup(acrSvcSubscriptionId, acrSvcResourceGroup)
   name: svcAcrName
 }
 

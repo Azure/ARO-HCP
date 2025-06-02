@@ -60,7 +60,7 @@
           "$ref": "#/definitions/zoneRedundantMode"
         }
       },
-      "additionalProperties": false,
+      "additionalProperties": true,
       "required": [
         "name",
         "zoneRedundantMode"
@@ -1297,7 +1297,7 @@
           "$ref": "#/definitions/acr"
         }
       },
-      "additionalProperties": false,
+      "additionalProperties": true,
       "required": [
         "svc",
         "ocp"
