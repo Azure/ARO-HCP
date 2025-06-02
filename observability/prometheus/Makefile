@@ -42,6 +42,7 @@ deploy: pull-chart
 		--set prometheusSpec.remoteWriteUrl=$${PROMETHEUS_RW_ENDPOINT} \
 		--set prometheusSpec.hcpRemoteWriteUrl=$${HCP_PROMETHEUS_RW_ENDPOINT} \
 		--set prometheusSpec.topologyKey=${TOPOLOGY_KEY} \
+		--set prometheusSpec.maximumStartupDurationSeconds=360 \
 		--set environment=${CS_ENVIRONMENT}
 .PHONY: deploy
 
