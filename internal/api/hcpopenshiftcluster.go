@@ -17,6 +17,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	validator "github.com/go-playground/validator/v10"
 
@@ -156,74 +157,81 @@ func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 }
 
 func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities() []arm.CloudErrorBody {
+	const baseTarget = "properties.platform.operatorsAuthentication.userAssignedIdentities"
 	var errorDetails []arm.CloudErrorBody
 
-	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is
-	// being declared under Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.
-	if cluster.Identity.UserAssignedIdentities != nil {
-		// Initiate the map that will have the number occurence of ConstrolPlaneOperators fields.
-		controlPlaneOpOccurrences := make(map[string]int)
-		// Generate a Map of Resource IDs of ControlplaneOperators MI, disregard the DataPlaneOperators.
-		for _, operatorResourceID := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-			controlPlaneOpOccurrences[operatorResourceID]++
-		}
-		// variable to hold serviceManagedIdentity
-		smiResourceID := cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
+	serviceManagedIdentity := cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 
-		for operatorName, resourceID := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-			_, ok := cluster.Identity.UserAssignedIdentities[resourceID]
-			if !ok {
+	// Verify that every key in Identity.UserAssignedIdentities is referenced
+	// exactly once by either ControlPlaneOperators or ServiceManagedIdentity.
+
+	userAssignedIdentities := make(map[string]int)
+	for key := range cluster.Identity.UserAssignedIdentities {
+		// Resource IDs are case-insensitive. Don't assume they
+		// have consistent casing, even within the same resource.
+		userAssignedIdentities[strings.ToLower(key)] = 0
+	}
+
+	tallyIdentity := func(identity, target string) {
+		key := strings.ToLower(identity)
+		if _, ok := userAssignedIdentities[key]; ok {
+			userAssignedIdentities[key]++
+		} else {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code: arm.CloudErrorCodeInvalidRequestContent,
+				Message: fmt.Sprintf(
+					"Identity '%s' is not assigned to this resource",
+					identity),
+				Target: target,
+			})
+		}
+	}
+
+	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		tallyIdentity(operatorIdentity, baseTarget+fmt.Sprintf(".controlPlaneOperators[%s]", operatorName))
+	}
+
+	if serviceManagedIdentity != "" {
+		tallyIdentity(serviceManagedIdentity, baseTarget+".serviceManagedIdentity")
+	}
+
+	for identity := range cluster.Identity.UserAssignedIdentities {
+		key := strings.ToLower(identity)
+		if tally, ok := userAssignedIdentities[key]; ok {
+			switch tally {
+			case 0:
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
-						"Identity %s is not assigned to this resource",
-						resourceID),
-					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+						"Identity '%s' is assigned to this resource but not used",
+						identity),
+					Target: "identity.userAssignedIdentities",
 				})
-			} else if controlPlaneOpOccurrences[resourceID] > 1 {
+			case 1:
+				// Valid: Identity is referenced once.
+			default:
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
-						"Identity %s is used multiple times", resourceID),
-					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+						"Identity '%s' is used multiple times",
+						identity),
+					Target: baseTarget,
 				})
 			}
 		}
+	}
 
-		if smiResourceID != "" {
-			_, ok := cluster.Identity.UserAssignedIdentities[smiResourceID]
-			if !ok {
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						"Identity %s is not assigned to this resource",
-						smiResourceID),
-					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
-				})
-			}
-			// Making sure serviceManagedIdentity is not already assigned to controlPlaneOperators.
-			if _, ok := controlPlaneOpOccurrences[smiResourceID]; ok {
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						"Identity %s is used multiple times", smiResourceID),
-					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
-				})
-			}
-		}
-
-		for resourceID := range cluster.Identity.UserAssignedIdentities {
-			if _, ok := controlPlaneOpOccurrences[resourceID]; !ok {
-				if smiResourceID != resourceID {
-					errorDetails = append(errorDetails, arm.CloudErrorBody{
-						Code: arm.CloudErrorCodeInvalidRequestContent,
-						Message: fmt.Sprintf(
-							"Identity %s is assigned to this resource but not used",
-							resourceID),
-						Target: "identity.userAssignedIdentities",
-					})
-				}
-			}
+	// Data-plane operator identities must not be assigned to this resource.
+	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		key := strings.ToLower(operatorIdentity)
+		if _, ok := userAssignedIdentities[key]; ok {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code: arm.CloudErrorCodeInvalidRequestContent,
+				Message: fmt.Sprintf(
+					"Data plane operator '%s' cannot use identity assigned to this resource",
+					operatorName),
+				Target: baseTarget + fmt.Sprintf(".dataPlaneOperators[%s]", operatorName),
+			})
 		}
 	}
 

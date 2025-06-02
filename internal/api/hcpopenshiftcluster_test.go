@@ -16,6 +16,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -342,24 +343,24 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Cluster with identities",
+			name: "Cluster with differently-cased identities",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]string{
-									"operatorX": managedIdentity1,
+									"operatorX": strings.ToLower(managedIdentity1),
 								},
-								ServiceManagedIdentity: managedIdentity2,
+								ServiceManagedIdentity: strings.ToLower(managedIdentity2),
 							},
 						},
 					},
 				},
 				Identity: arm.ManagedServiceIdentity{
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						managedIdentity1: &arm.UserAssignedIdentity{},
-						managedIdentity2: &arm.UserAssignedIdentity{},
+						strings.ToUpper(managedIdentity1): &arm.UserAssignedIdentity{},
+						strings.ToUpper(managedIdentity2): &arm.UserAssignedIdentity{},
 					},
 				},
 			},
@@ -387,15 +388,15 @@ func TestClusterValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Identity " + managedIdentity1 + " is not assigned to this resource",
+					Message: "Identity '" + managedIdentity1 + "' is not assigned to this resource",
 					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
-					Message: "Identity " + managedIdentity3 + " is assigned to this resource but not used",
+					Message: "Identity '" + managedIdentity3 + "' is assigned to this resource but not used",
 					Target:  "identity.userAssignedIdentities",
 				},
 				{
-					Message: "Identity " + managedIdentity2 + " is not assigned to this resource",
+					Message: "Identity '" + managedIdentity2 + "' is not assigned to this resource",
 					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				},
 			},
@@ -424,16 +425,39 @@ func TestClusterValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Identity " + managedIdentity1 + " is used multiple times",
-					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					Message: "Identity '" + managedIdentity1 + "' is used multiple times",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities",
+				},
+			},
+		},
+		{
+			name: "Cluster with invalid data plane operator identities",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Platform: PlatformProfile{
+						OperatorsAuthentication: OperatorsAuthenticationProfile{
+							UserAssignedIdentities: UserAssignedIdentitiesProfile{
+								DataPlaneOperators: map[string]string{
+									"operatorX": managedIdentity1,
+								},
+							},
+						},
+					},
+				},
+				Identity: arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						managedIdentity1: &arm.UserAssignedIdentity{},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Identity '" + managedIdentity1 + "' is assigned to this resource but not used",
+					Target:  "identity.userAssignedIdentities",
 				},
 				{
-					Message: "Identity " + managedIdentity1 + " is used multiple times",
-					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorY]",
-				},
-				{
-					Message: "Identity " + managedIdentity1 + " is used multiple times",
-					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					Message: "Data plane operator 'operatorX' cannot use identity assigned to this resource",
+					Target:  "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[operatorX]",
 				},
 			},
 		},
