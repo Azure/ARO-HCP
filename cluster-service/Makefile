@@ -1,10 +1,13 @@
 -include ../setup-env.mk
 
+export
+
 ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 
 
 deploy:
-	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
+	@source ./generate_helm_set_flags.sh && \
+	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
 	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query clientId -o tsv) && \
 	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query tenantId -o tsv) && \
 	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
@@ -74,29 +77,12 @@ deploy:
 	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
 	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
 	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}" \
-	  --set azureOperatorsMI.clusterApiAzure.roleDefinitions[0].name="${OP_CLUSTER_API_AZURE_ROLE_NAME}" \
-	  --set azureOperatorsMI.clusterApiAzure.roleDefinitions[0].id="$${OP_CLUSTER_API_AZURE_ROLE_ID}" \
-	  --set azureOperatorsMI.controlPlane.roleDefinitions[0].name="${OP_CONTROL_PLANE_ROLE_NAME}" \
-	  --set azureOperatorsMI.controlPlane.roleDefinitions[0].id="$${OP_CONTROL_PLANE_ROLE_ID}" \
-	  --set azureOperatorsMI.cloudControllerManager.roleDefinitions[0].name="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
-	  --set azureOperatorsMI.cloudControllerManager.roleDefinitions[0].id="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
-	  --set azureOperatorsMI.ingress.roleDefinitions[0].name="${OP_INGRESS_ROLE_NAME}" \
-	  --set azureOperatorsMI.ingress.roleDefinitions[0].id="$${OP_INGRESS_ROLE_ID}" \
-	  --set azureOperatorsMI.diskCsiDriver.roleDefinitions[0].name="${OP_DISK_CSI_DRIVER_ROLE_NAME}" \
-	  --set azureOperatorsMI.diskCsiDriver.roleDefinitions[0].id="$${OP_DISK_CSI_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.fileCsiDriver.roleDefinitions[0].name="${OP_FILE_CSI_DRIVER_ROLE_NAME}" \
-	  --set azureOperatorsMI.fileCsiDriver.roleDefinitions[0].id="$${OP_FILE_CSI_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.imageRegistry.roleDefinitions[0].name="${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" \
-	  --set azureOperatorsMI.imageRegistry.roleDefinitions[0].id="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.cloudNetworkConfig.roleDefinitions[0].name="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
-	  --set azureOperatorsMI.cloudNetworkConfig.roleDefinitions[0].id="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
-	  --set azureOperatorsMI.kms.roleDefinitions[0].name="${OP_KMS_ROLE_NAME}" \
-	  --set azureOperatorsMI.kms.roleDefinitions[0].id="$${OP_KMS_ROLE_ID}" \
 	  --set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
-	  --set tracing.address=${TRACING_ADDRESS} 
+	  --set tracing.address=${TRACING_ADDRESS} \
+	  "$${OP_HELM_SET_FLAGS[@]}"
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
@@ -143,7 +129,8 @@ personal-runtime-config:
 .PHONY: personal-runtime-config
 
 local-azure-operators-managed-identities-config:
-	@OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" --query "[].name" -o tsv) && \
+	@source ./generate_helm_set_flags.sh && \
+	OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID=$(shell az role definition list --name "${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_INGRESS_ROLE_ID=$(shell az role definition list --name "${OP_INGRESS_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_DISK_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_DISK_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
 	OP_FILE_CSI_DRIVER_ROLE_ID=$(shell az role definition list --name "${OP_FILE_CSI_DRIVER_ROLE_NAME}" --query "[].name" -o tsv) && \
@@ -171,24 +158,7 @@ local-azure-operators-managed-identities-config:
 	  --set azureOperatorsMI.cloudNetworkConfig.roleId="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
 	  --set azureOperatorsMI.kms.roleName="${OP_KMS_ROLE_NAME}" \
 	  --set azureOperatorsMI.kms.roleId="$${OP_KMS_ROLE_ID}" \
-	  --set azureOperatorsMI.clusterApiAzure.roleDefinitions[0].name="${OP_CLUSTER_API_AZURE_ROLE_NAME}" \
-	  --set azureOperatorsMI.clusterApiAzure.roleDefinitions[0].id="$${OP_CLUSTER_API_AZURE_ROLE_ID}" \
-	  --set azureOperatorsMI.controlPlane.roleDefinitions[0].name="${OP_CONTROL_PLANE_ROLE_NAME}" \
-	  --set azureOperatorsMI.controlPlane.roleDefinitions[0].id="$${OP_CONTROL_PLANE_ROLE_ID}" \
-	  --set azureOperatorsMI.cloudControllerManager.roleDefinitions[0].name="${OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME}" \
-	  --set azureOperatorsMI.cloudControllerManager.roleDefinitions[0].id="$${OP_CLOUD_CONTROLLER_MANAGER_ROLE_ID}" \
-	  --set azureOperatorsMI.ingress.roleDefinitions[0].name="${OP_INGRESS_ROLE_NAME}" \
-	  --set azureOperatorsMI.ingress.roleDefinitions[0].id="$${OP_INGRESS_ROLE_ID}" \
-	  --set azureOperatorsMI.diskCsiDriver.roleDefinitions[0].name="${OP_DISK_CSI_DRIVER_ROLE_NAME}" \
-	  --set azureOperatorsMI.diskCsiDriver.roleDefinitions[0].id="$${OP_DISK_CSI_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.fileCsiDriver.roleDefinitions[0].name="${OP_FILE_CSI_DRIVER_ROLE_NAME}" \
-	  --set azureOperatorsMI.fileCsiDriver.roleDefinitions[0].id="$${OP_FILE_CSI_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.imageRegistry.roleDefinitions[0].name="${OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME}" \
-	  --set azureOperatorsMI.imageRegistry.roleDefinitions[0].id="$${OP_IMAGE_REGISTRY_DRIVER_ROLE_ID}" \
-	  --set azureOperatorsMI.cloudNetworkConfig.roleDefinitions[0].name="${OP_CLOUD_NETWORK_CONFIG_ROLE_NAME}" \
-	  --set azureOperatorsMI.cloudNetworkConfig.roleDefinitions[0].id="$${OP_CLOUD_NETWORK_CONFIG_ROLE_ID}" \
-	  --set azureOperatorsMI.kms.roleDefinitions[0].name="${OP_KMS_ROLE_NAME}" \
-	  --set azureOperatorsMI.kms.roleDefinitions[0].id="$${OP_KMS_ROLE_ID}" \
+	  "$${OP_HELM_SET_FLAGS[@]}" \
 	  | yq '.data."azure-operators-managed-identities-config.yaml"' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
 
