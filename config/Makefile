@@ -11,8 +11,8 @@ materialize:
 	@REGION=$(REGION) ../templatize.sh dev > public-cloud-dev.json
 	@echo "Materializing public cloud cspr env of config/config.yaml"
 	@REGION=$(REGION) ../templatize.sh cspr > public-cloud-cspr.json
-	@echo "Materializing nitey env of config/config.yaml"
-	@REGION=$(REGION) ../templatize.sh nitey > public-cloud-nitey.json
+	@echo "Materializing ntly env of config/config.yaml"
+	@REGION=$(REGION) ../templatize.sh ntly > public-cloud-ntly.json
 	@echo "Materializing public cloud personal dev env of config/config.yaml"
 	@USER=tst REGION=$(REGION) ../templatize.sh pers > public-cloud-pers.json
 	@echo "Materializing public cloud int env of config/config.msft.yaml"

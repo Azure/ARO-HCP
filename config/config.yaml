@@ -504,7 +504,7 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-      nitey:
+      ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
           # Cluster Service

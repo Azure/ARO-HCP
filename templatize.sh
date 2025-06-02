@@ -98,8 +98,8 @@ fi
 
 if [ "$DEPLOY_ENV" == "pers" ]; then
     REGION_STAMP="${REGION_SHORT}${USER:0:4}"
-elif [ "$DEPLOY_ENV" == "nitey" ]; then
-    REGION_STAMP="nitey"
+elif [ "$DEPLOY_ENV" == "ntly" ]; then
+    REGION_STAMP="ntly"
 elif [ "$DEPLOY_ENV" == "perf" ]; then
     REGION_STAMP="${REGION_SHORT}p${USER:0:4}"
 elif [ "$DEPLOY_ENV" == "dev" ] || [ "$DEPLOY_ENV" == "cspr" ]; then

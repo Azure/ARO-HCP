@@ -82,7 +82,7 @@
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cs-nitey",
+      "name": "arohcp-cs-ntly",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -92,7 +92,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "arohcp-cx-nitey-1",
+    "name": "arohcp-cx-ntly-1",
     "private": false,
     "softDelete": false
   },
@@ -101,7 +101,7 @@
     "cxParentZoneDelegation": false,
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
-    "regionalSubdomain": "nitey",
+    "regionalSubdomain": "ntly",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
@@ -114,12 +114,12 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-nitey"
+      "name": "frontend-cert-ntly"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-nitey",
+      "name": "arohcp-rp-ntly",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -205,7 +205,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-nitey-mgmt-1",
+      "consumerName": "hcp-underlay-ntly-mgmt-1",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -219,7 +219,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-maestro-nitey",
+      "name": "arohcp-maestro-ntly",
       "private": false
     },
     "image": {
@@ -231,7 +231,7 @@
       "databaseName": "maestro",
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-maestro-nitey",
+      "name": "arohcp-maestro-ntly",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -245,7 +245,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-nitey"
+      "mqttClientName": "maestro-server-ntly"
     }
   },
   "mce": {
@@ -258,7 +258,7 @@
       "clusterOutboundIPAddressIPTags": "",
       "enableSwiftV2": false,
       "etcd": {
-        "kvName": "arohcp-etcd-nitey-1",
+        "kvName": "arohcp-etcd-ntly-1",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -269,7 +269,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "nitey-mgmt-1",
+      "name": "ntly-mgmt-1",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -292,7 +292,7 @@
     "applyKubeletFixes": false,
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-nitey-mgmt-1"
+      "name": "nsp-ntly-mgmt-1"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -316,11 +316,11 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-nitey-mgmt-1",
+    "rg": "hcp-underlay-ntly-mgmt-1",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "arohcp-mgmt-nitey-1",
+    "name": "arohcp-mgmt-ntly-1",
     "private": false,
     "softDelete": false
   },
@@ -349,14 +349,14 @@
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "workspaceName": "arohcp-nitey"
+    "workspaceName": "arohcp-ntly"
   },
   "msiKeyVault": {
-    "name": "arohcp-msi-nitey-1",
+    "name": "arohcp-msi-ntly-1",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpoidcnitey",
+  "oidcStorageAccountName": "arohcpoidcntly",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
@@ -364,7 +364,7 @@
     "imageTag": "v1.18.2"
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-nitey",
+  "regionRG": "hcp-underlay-ntly",
   "serviceKeyVault": {
     "assignNSP": true,
     "name": "aro-hcp-dev-svc-kv",
@@ -377,7 +377,7 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "arohcp-etcd-nitey",
+        "kvName": "arohcp-etcd-ntly",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -388,7 +388,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "nitey-svc",
+      "name": "ntly-svc",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -418,7 +418,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-nitey-svc"
+      "name": "nsp-ntly-svc"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -442,7 +442,7 @@
         "version": ""
       }
     },
-    "rg": "hcp-underlay-nitey-svc",
+    "rg": "hcp-underlay-ntly-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   }
 }
