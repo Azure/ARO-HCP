@@ -1,4 +1,5 @@
 param azureMonitoringWorkspaceId string
+param hcpAzureMonitoringWorkspaceId string = ''
 param azureMonitorWorkspaceLocation string
 param aksClusterName string
 param prometheusPrincipalId string
@@ -52,6 +53,45 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
   }
 }
 
+resource hcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (hcpAzureMonitoringWorkspaceId != '') {
+  name: 'HCP-${azureMonitorWorkspaceLocation}-${aksClusterName}'
+  location: azureMonitorWorkspaceLocation
+  kind: 'Linux'
+  properties: {
+    dataCollectionEndpointId: dce.id
+    dataFlows: [
+      {
+        destinations: [
+          'MonitoringAccount1'
+        ]
+        streams: [
+          'Microsoft-PrometheusMetrics'
+        ]
+      }
+    ]
+    dataSources: {
+      prometheusForwarder: [
+        {
+          name: 'PrometheusDataSource'
+          streams: [
+            'Microsoft-PrometheusMetrics'
+          ]
+          labelIncludeFilter: {}
+        }
+      ]
+    }
+    description: 'DCR for Azure Monitor Metrics Profile (Managed Prometheus)'
+    destinations: {
+      monitoringAccounts: [
+        {
+          accountResourceId: hcpAzureMonitoringWorkspaceId
+          name: 'MonitoringAccount1'
+        }
+      ]
+    }
+  }
+}
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-03-01' existing = {
   name: aksClusterName
 }
@@ -78,4 +118,20 @@ resource monitoringMetricsPublisher 'Microsoft.Authorization/roleAssignments@202
   }
 }
 
+resource hcpMonitoringMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (hcpAzureMonitoringWorkspaceId != '') {
+  name: guid('hcp', aksClusterName)
+  scope: hcpDcr
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '3913510d-42f4-4e42-8a64-420c390055eb'
+    )
+    principalId: prometheusPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 output dcePromUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
+output hcpDcePromUrl string = hcpAzureMonitoringWorkspaceId != ''
+  ? '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${hcpDcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
+  : ''

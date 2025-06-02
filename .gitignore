@@ -17,3 +17,4 @@ tooling/bin
 tooling/image-sync/config.yml
 **/venv
 **/__pycache__
+**/charts/*.tgz
