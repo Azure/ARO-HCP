@@ -263,9 +263,8 @@ defaults:
     softDelete: true
     private: true
 clouds:
-  public:
+  dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
-    # the following vars need approprivate overrides:
     defaults:
       # DNS
       dns:

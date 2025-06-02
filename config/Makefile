@@ -7,18 +7,18 @@
 REGION=southwestus
 
 materialize:
-	@echo "Materializing public cloud int env of config/config.yaml"
+	@echo "Materializing dev cloud int env of config/config.yaml"
 	@REGION=$(REGION) ../templatize.sh dev > public-cloud-dev.json
-	@echo "Materializing public cloud cspr env of config/config.yaml"
+	@echo "Materializing dev cloud cspr env of config/config.yaml"
 	@REGION=$(REGION) ../templatize.sh cspr > public-cloud-cspr.json
-	@echo "Materializing ntly env of config/config.yaml"
+	@echo "Materializing dev cloud ntly env of config/config.yaml"
 	@REGION=$(REGION) ../templatize.sh ntly > public-cloud-ntly.json
-	@echo "Materializing public cloud personal dev env of config/config.yaml"
+	@echo "Materializing dev cloud personal dev env of config/config.yaml"
 	@USER=tst REGION=$(REGION) ../templatize.sh pers > public-cloud-pers.json
 	@echo "Materializing public cloud int env of config/config.msft.yaml"
-	@CONFIG_FILE=../config/config.msft.yaml REGION=$(REGION) ../templatize.sh int > public-cloud-msft-int.json
+	@CONFIG_FILE=../config/config.msft.yaml REGION=$(REGION) ../templatize.sh int -c public > public-cloud-msft-int.json
 	@echo "Materializing public cloud stg env of config/config.msft.yaml"
-	@CONFIG_FILE=../config/config.msft.yaml REGION=$(REGION) ../templatize.sh stg > public-cloud-msft-stg.json
+	@CONFIG_FILE=../config/config.msft.yaml REGION=$(REGION) ../templatize.sh stg -c public > public-cloud-msft-stg.json
 .PHONY: materialize
 
 detect-change: materialize

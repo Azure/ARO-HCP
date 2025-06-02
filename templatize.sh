@@ -3,7 +3,7 @@
 PROJECT_ROOT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
 # Default values
-CLOUD="${CLOUD:-public}"
+CLOUD="${CLOUD:-dev}"
 REGION="${REGION:-westus3}"
 CXSTAMP="${CXSTAMP:-1}"
 EXTRA_ARGS=""
@@ -21,7 +21,7 @@ usage() {
     echo "  -d          Dry run"
     echo "  -i          Set the input file same as second arg"
     echo "  -o          Set the output file same as third arg"
-    echo "  -c          Set the cloud (default: public)"
+    echo "  -c          Set the cloud (default: dev)"
     echo "  -r          Set the region (default: westus3)"
     echo "  -x          Set the cxstamp (default: 1)"
     echo "  -e          Extra args for config interpolation"
