@@ -28,8 +28,8 @@ Configuration properties are embedded into a layered structure within the config
 ### Layers
 
 - **Default**: This is the base layer of the configuration. It should contain options that apply to most clouds, environments, and regions.
-- **Cloud**: This layer holds overrides relevant to a specific Azure cloud, such as `public` or `fairfax`.
-- **Environments**: This layer provides overrides for a specific deployment environment within a cloud. Examples include `dev`, `personal-dev`, `integration`, `stage`, and `production`.
+- **Cloud**: This layer holds overrides relevant to a specific Azure cloud, such as `public` or `fairfax`. There is a dedicated cloud named `dev` that can be used to dev purposes in the public cloud. The main purpose of `dev` is to keep `public` cloud settings clean and free of development-related overrides.
+- **Environments**: This layer provides overrides for a specific deployment environment within a cloud. Examples include `dev`, `pers`, `integration`, `stage`, and `production`.
 - **Region**: This layer holds overrides for a specific region within a deployment environment, allowing for fine-tuned configuration adjustments.
 
 ### Base Structure
@@ -191,8 +191,8 @@ By enforcing a schema, configuration files remain predictable and can be automat
 - **[config.yaml](../config/config.yaml)** - Contains the configuration for the Red Hat development environments.
   - **dev**: integrated DEV environment - the first environment where all services are deployed together.
   - **cspr**: CS PR environment - a dedicated environment for testing Cluster Service PRs.
-  - **personal-dev**: personal DEV environment - used by developers to create new personal ARO HCP instances.
-  - **personal-perscale**: personal perfscale environment - used by the perfscale team to create new ARO HCP instances with production grade management cluster settings
+  - **pers**: personal DEV environment - used by developers to create new personal ARO HCP instances.
+  - **perf**: personal perfscale environment - used by the perfscale team to create new ARO HCP instances with production grade management cluster settings
 - **[config.msft.yaml](../config/config.msft.yaml)** - Contains the configuration for the Microsoft deployment environments.
   - **int**: MSIT INT environment - a dedicated environment for testing EV2 deployments and MISE.
 
@@ -215,7 +215,7 @@ Propagation of configuration changes varies depending on the environment:
 
 - **[config.yaml](../config/config.yaml)**:
   - Only the **dev** and **cspr** environments are automatically reconciled with new changes for configuration, infrastructure, and service deployments.
-  - **personal-dev** are fully controlled by developers. If there are relevant changes, notify developers so they can apply updates manually.
+  - personal development environments (**pers**) are fully controlled by developers. If there are relevant changes, notify developers so they can apply updates manually.
 
 - **[config.msft.yaml](../config/config.msft.yaml)**:
   - Propagation is **not automated**.

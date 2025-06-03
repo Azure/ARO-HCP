@@ -3,7 +3,7 @@
 PROJECT_ROOT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
 # Default values
-CLOUD="${CLOUD:-public}"
+CLOUD="${CLOUD:-dev}"
 REGION="${REGION:-westus3}"
 CXSTAMP="${CXSTAMP:-1}"
 EXTRA_ARGS=""
@@ -21,7 +21,7 @@ usage() {
     echo "  -d          Dry run"
     echo "  -i          Set the input file same as second arg"
     echo "  -o          Set the output file same as third arg"
-    echo "  -c          Set the cloud (default: public)"
+    echo "  -c          Set the cloud (default: dev)"
     echo "  -r          Set the region (default: westus3)"
     echo "  -x          Set the cxstamp (default: 1)"
     echo "  -e          Extra args for config interpolation"
@@ -96,13 +96,13 @@ if [ -z "$REGION_SHORT" ]; then
     echo "Failed to get region short name for region: $REGION" >&2
 fi
 
-if [ "$DEPLOY_ENV" == "personal-dev" ]; then
+if [ "$DEPLOY_ENV" == "pers" ]; then
     REGION_STAMP="${REGION_SHORT}${USER:0:4}"
-elif [ "$DEPLOY_ENV" == "nightly" ]; then
-    REGION_STAMP="nightly"
-elif [ "$DEPLOY_ENV" == "personal-perfscale" ]; then
+elif [ "$DEPLOY_ENV" == "ntly" ]; then
+    REGION_STAMP="ntly"
+elif [ "$DEPLOY_ENV" == "perf" ]; then
     REGION_STAMP="${REGION_SHORT}p${USER:0:4}"
-elif [ "$DEPLOY_ENV" == "dev" ] || [ "$DEPLOY_ENV" == "cs-pr" ]; then
+elif [ "$DEPLOY_ENV" == "dev" ] || [ "$DEPLOY_ENV" == "cspr" ]; then
     CLEAN_DEPLOY_ENV=$(echo "${DEPLOY_ENV}" | tr -cd '[:alnum:]')
     REGION_STAMP="${CLEAN_DEPLOY_ENV}"
 else

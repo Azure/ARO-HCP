@@ -195,16 +195,16 @@ In addition, some shared ARO HCP instances are continuously reconciled on each c
 
 The custom pipeline runner can be found in [tooling/templatize](tooling/templatize).
 
-To manually run a pipeline you can use the `templatize.sh` script, e.g. to deploy `my-pipeline.yaml` with the `personal-dev` environment architetype in the `public` cloud, run
+To manually run a pipeline you can use the `templatize.sh` script, e.g. to deploy `my-pipeline.yaml` with the `pers` environment architetype in the `dev` cloud (which is basically `public` cloud - see [configuration documentation](configuration.md)), run
 
 ```sh
-./templatize.sh personal-dev -p my-pipeline.yaml -P run -c public
+./templatize.sh pers -p my-pipeline.yaml -P run -c dev
 ```
 
 The pipeline runner supports a dry-run mode that allows you to simulate the execution of a pipeline without actually deploying any resources. This is useful for verifying the correctness of the pipeline file and the expected behavior of the steps. Add the `-d` option to the `templatize.sh` command to enable dry-run mode:
 
 ```sh
-./templatize.sh personal-dev -p my-pipeline.yaml -P run -c public -d
+./templatize.sh pers -p my-pipeline.yaml -P run -c dev -d
 ```
 
 > [!IMPORTANT]

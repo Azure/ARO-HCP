@@ -9,6 +9,7 @@ ignore:
 - 'istio/deploy/templates/istio-shared-configmap.yml'
 - 'cluster-service/deploy/templates/cs-keyvault.secret.yaml'
 - 'cluster-service/deploy/templates/deployment.yaml'
+- 'observability/prometheus/deploy/templates/prometheus.yaml'
 rules:
   brackets: enable
   colons: enable

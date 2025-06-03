@@ -29,7 +29,7 @@ func DefaultOptions() *RawOptions {
 
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
-	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax)")
+	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax, dev)")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
 	return nil
 }
@@ -42,7 +42,7 @@ type RawOptions struct {
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
-	validClouds := sets.NewString("public", "fairfax")
+	validClouds := sets.NewString("public", "fairfax", "dev")
 	if !validClouds.Has(o.Cloud) {
 		return nil, fmt.Errorf("invalid cloud %s, must be one of %v", o.Cloud, validClouds.List())
 	}

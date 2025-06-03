@@ -15,6 +15,11 @@
 package api
 
 import (
+	"fmt"
+	"net/http"
+
+	validator "github.com/go-playground/validator/v10"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -131,4 +136,111 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 			},
 		},
 	}
+}
+
+func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	// XXX For now, "stable" is the only accepted value. In the future, we may
+	//     allow unlocking other channel groups through Azure Feature Exposure
+	//     Control (AFEC) flags or some other mechanism.
+	if cluster.Properties.Version.ChannelGroup != "stable" {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInvalidRequestContent,
+			Message: "Channel group must be 'stable'",
+			Target:  "properties.version.channelGroup",
+		})
+	}
+
+	return errorDetails
+}
+
+func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities() []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is
+	// being declared under Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.
+	if cluster.Identity.UserAssignedIdentities != nil {
+		// Initiate the map that will have the number occurence of ConstrolPlaneOperators fields.
+		controlPlaneOpOccurrences := make(map[string]int)
+		// Generate a Map of Resource IDs of ControlplaneOperators MI, disregard the DataPlaneOperators.
+		for _, operatorResourceID := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+			controlPlaneOpOccurrences[operatorResourceID]++
+		}
+		// variable to hold serviceManagedIdentity
+		smiResourceID := cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
+
+		for operatorName, resourceID := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+			_, ok := cluster.Identity.UserAssignedIdentities[resourceID]
+			if !ok {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code: arm.CloudErrorCodeInvalidRequestContent,
+					Message: fmt.Sprintf(
+						"Identity %s is not assigned to this resource",
+						resourceID),
+					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+				})
+			} else if controlPlaneOpOccurrences[resourceID] > 1 {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code: arm.CloudErrorCodeInvalidRequestContent,
+					Message: fmt.Sprintf(
+						"Identity %s is used multiple times", resourceID),
+					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+				})
+			}
+		}
+
+		if smiResourceID != "" {
+			_, ok := cluster.Identity.UserAssignedIdentities[smiResourceID]
+			if !ok {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code: arm.CloudErrorCodeInvalidRequestContent,
+					Message: fmt.Sprintf(
+						"Identity %s is not assigned to this resource",
+						smiResourceID),
+					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				})
+			}
+			// Making sure serviceManagedIdentity is not already assigned to controlPlaneOperators.
+			if _, ok := controlPlaneOpOccurrences[smiResourceID]; ok {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code: arm.CloudErrorCodeInvalidRequestContent,
+					Message: fmt.Sprintf(
+						"Identity %s is used multiple times", smiResourceID),
+					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				})
+			}
+		}
+
+		for resourceID := range cluster.Identity.UserAssignedIdentities {
+			if _, ok := controlPlaneOpOccurrences[resourceID]; !ok {
+				if smiResourceID != resourceID {
+					errorDetails = append(errorDetails, arm.CloudErrorBody{
+						Code: arm.CloudErrorCodeInvalidRequestContent,
+						Message: fmt.Sprintf(
+							"Identity %s is assigned to this resource but not used",
+							resourceID),
+						Target: "identity.userAssignedIdentities",
+					})
+				}
+			}
+		}
+	}
+
+	return errorDetails
+}
+
+func (cluster *HCPOpenShiftCluster) Validate(validate *validator.Validate, request *http.Request) []arm.CloudErrorBody {
+	errorDetails := ValidateRequest(validate, request, cluster)
+
+	// Proceed with complex, multi-field validation only if single-field
+	// validation has passed. This avoids running further checks on data
+	// we already know to be invalid and prevents the response body from
+	// becoming overwhelming.
+	if len(errorDetails) == 0 {
+		errorDetails = append(errorDetails, cluster.validateVersion()...)
+		errorDetails = append(errorDetails, cluster.validateUserAssignedIdentities()...)
+	}
+
+	return errorDetails
 }

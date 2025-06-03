@@ -12,17 +12,15 @@ var userAccessAdminRole = '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
 var roleAssignmentsToCreate = [
   {
     roleId: contributorRole
-    scope: subscription()
   }
   {
     roleId: userAccessAdminRole
-    scope: subscription()
   }
 ]
 resource roleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
   for ra in roleAssignmentsToCreate: {
     name: guid(automationAccountName, automationAccountManagedIdentityId, ra.roleId)
-    scope: ra.scope
+    scope: subscription()
     properties: {
       principalId: automationAccountManagedIdentityId
       principalType: 'ServicePrincipal'

@@ -26,10 +26,10 @@ To access the service and management cluster of CS PR, make sure you have an act
 
   ```sh
   # service cluster
-  DEPLOY_ENV=cs-pr make infra.svc.aks.kubeconfig
-  export KUBECONFIG=$(DEPLOY_ENV=cs-pr make infra.svc.aks.kubeconfigfile)
+  DEPLOY_ENV=cspr make infra.svc.aks.kubeconfig
+  export KUBECONFIG=$(DEPLOY_ENV=cspr make infra.svc.aks.kubeconfigfile)
 
   # management cluster
-  DEPLOY_ENV=cs-pr make infra.mgmt.aks.kubeconfig
-  export KUBECONFIG=$(DEPLOY_ENV=cs-pr make infra.mgmt.aks.kubeconfigfile)
+  DEPLOY_ENV=cspr make infra.mgmt.aks.kubeconfig
+  export KUBECONFIG=$(DEPLOY_ENV=cspr make infra.mgmt.aks.kubeconfigfile)
   ```

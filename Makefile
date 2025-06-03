@@ -6,7 +6,8 @@ SHELL = /bin/bash
 GOTAGS?='containers_image_openpgp'
 LINT_GOTAGS?='${GOTAGS},E2Etests'
 TOOLS_BIN_DIR := tooling/bin
-DEPLOY_ENV ?= personal-dev
+DEPLOY_ENV ?= pers
+CLOUD ?= dev
 
 .DEFAULT_GOAL := all
 
@@ -177,21 +178,21 @@ services_svc_pipelines = istio acrpull backend frontend cluster-service maestro.
 services_mgmt_pipelines = hypershiftoperator maestro.agent acm
 %.deploy_pipeline:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c public
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c $(CLOUD)
 
 %.dry_run:
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c public -d
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c $(CLOUD) -d
 
 svc.deployall: $(addsuffix .deploy_pipeline, $(services_svc_pipelines)) $(addsuffix .deploy, $(services_svc))
 mgmt.deployall: $(addsuffix .deploy, $(services_mgmt)) $(addsuffix .deploy_pipeline, $(services_mgmt_pipelines))
 deployall: svc.deployall mgmt.deployall
 
 acrpull.mgmt.deploy:
-	./templatize.sh $(DEPLOY_ENV) -p ./acrpull/pipeline.yaml -s deploy-mgmt -P run -c public
+	./templatize.sh $(DEPLOY_ENV) -p ./acrpull/pipeline.yaml -s deploy-mgmt -P run -c $(CLOUD)
 
 acrpull.mgmt.dry_run:
-	./templatize.sh $(DEPLOY_ENV) -p ./acrpull/pipeline.yaml -s deploy-mgmt -P run -c public -d
+	./templatize.sh $(DEPLOY_ENV) -p ./acrpull/pipeline.yaml -s deploy-mgmt -P run -c $(CLOUD) -d
 
 listall:
 	@echo svc: ${services_svc}

@@ -204,7 +204,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
-    tracing: # NOTE: Currently only enabled for personal-dev.
+    tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""
     environment: arohcpdev
@@ -228,7 +228,7 @@ defaults:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/component-sync
         digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
-      repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/app-sre/backplane-api
+      repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/package-operator/remote-phase-manager,quay.io/app-sre/backplane-api
       secrets: 'quay.io:quay-io-bearer'
       pullSecretName: component-sync-pull-secret
     ocMirror:
@@ -263,9 +263,8 @@ defaults:
     softDelete: true
     private: true
 clouds:
-  public:
+  dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
-    # the following vars need approprivate overrides:
     defaults:
       # DNS
       dns:
@@ -414,7 +413,8 @@ clouds:
       oidcZoneRedundantMode: Auto
       # Metrics
       monitoring:
-        workspaceName: 'arohcp-{{ .ctx.regionShort }}'
+        svcWorkspaceName: 'arohcp-{{ .ctx.regionShort }}'
+        hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.regionShort }}'
         grafanaName: 'arohcp-dev'
         grafanaMajorVersion: '11'
         grafanaZoneRedundantMode: Disabled
@@ -458,7 +458,7 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-      cs-pr:
+      cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
           # Service Key Vault
@@ -504,7 +504,7 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-      nightly:
+      ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
           # Cluster Service
@@ -528,7 +528,7 @@ clouds:
           # MC
           mgmt:
             applyKubeletFixes: false
-      personal-dev:
+      pers:
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
@@ -572,7 +572,7 @@ clouds:
           svc:
             jaeger:
               deploy: true
-      personal-perfscale:
+      perf:
         defaults:
           # Service Key Vault
           serviceKeyVault:

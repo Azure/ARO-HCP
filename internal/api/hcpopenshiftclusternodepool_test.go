@@ -17,6 +17,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 	"testing"
 
@@ -76,7 +77,7 @@ func TestNodePoolRequiredForPut(t *testing.T) {
 	}
 }
 
-func TestNodePoolValidateTags(t *testing.T) {
+func TestNodePoolValidate(t *testing.T) {
 	const maxQualifiedNameLength = 63
 	var value string
 
@@ -110,6 +111,10 @@ func TestNodePoolValidateTags(t *testing.T) {
 		tweaks       *HCPOpenShiftClusterNodePool
 		expectErrors []arm.CloudErrorBody
 	}{
+		{
+			name:   "Minimum valid node pool",
+			tweaks: &HCPOpenShiftClusterNodePool{},
+		},
 		{
 			name: "Bad openshift_version",
 			tweaks: &HCPOpenShiftClusterNodePool{
@@ -265,15 +270,56 @@ func TestNodePoolValidateTags(t *testing.T) {
 				},
 			},
 		},
+
+		//--------------------------------
+		// Complex multi-field validation
+		//--------------------------------
+
+		{
+			name: "Node pool with inconsistent channel group",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Version: NodePoolVersionProfile{
+						ID:           "openshift-v4.99.0",
+						ChannelGroup: "freshmeat",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Node pool channel group 'freshmeat' must be the same as control plane channel group 'stable'",
+					Target:  "properties.version.channelGroup",
+				},
+			},
+		},
+		{
+			name: "Node pool with invalid subnet ID",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Platform: NodePoolPlatformProfile{
+						SubnetID: path.Join(TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "otherVirtualNetwork", "subnets"),
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: fmt.Sprintf("Subnet '%s' must belong to the same VNet as the parent cluster VNet '%s'",
+						path.Join(TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "otherVirtualNetwork", "subnets"),
+						path.Join(TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "testVirtualNetwork")),
+					Target: "properties.platform.subnetId",
+				},
+			},
+		},
 	}
 
 	validate := NewTestValidator()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			cluster := MinimumValidClusterTestCase()
 			resource := NodePoolTestCase(t, tt.tweaks)
 
-			actualErrors := ValidateRequest(validate, nil, resource)
+			actualErrors := resource.Validate(validate, nil, cluster)
 
 			// from hcpopenshiftcluster_test.go
 			diff := compareErrors(tt.expectErrors, actualErrors)

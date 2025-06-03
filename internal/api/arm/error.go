@@ -78,6 +78,26 @@ type CloudErrorBody struct {
 	Details []CloudErrorBody `json:"details,omitempty"`
 }
 
+// NewCloudErrorBodyFromSlice converts a CloudErrorBody slice to a single CloudErrorBody.
+// If there is only one item in the provided slice, that item is returned directly. If
+// there are multiple items in the provided slice, a CloudErrorBody is returned with the
+// code "MultipleErrorsOccurred", the multipleErrorsMessage, and the Details field set to
+// the provided slice. If the provided slice is empty, the function returns nil.
+func NewCloudErrorBodyFromSlice(errors []CloudErrorBody, multipleErrorsMessage string) *CloudErrorBody {
+	switch len(errors) {
+	case 0:
+		return nil
+	case 1:
+		return &errors[0]
+	default:
+		return &CloudErrorBody{
+			Code:    CloudErrorCodeMultipleErrorsOccurred,
+			Message: multipleErrorsMessage,
+			Details: errors,
+		}
+	}
+}
+
 func (body *CloudErrorBody) String() string {
 	out := fmt.Sprintf("%s: ", body.Code)
 	if len(body.Target) > 0 {
@@ -146,6 +166,19 @@ func NewConflictError(resourceID *azcorearm.ResourceID, format string, a ...inte
 // WriteConflictError writes a conflict error to the given ResponseWriter
 func WriteConflictError(w http.ResponseWriter, resourceID *azcorearm.ResourceID, format string, a ...interface{}) {
 	WriteCloudError(w, NewConflictError(resourceID, format, a...))
+}
+
+// NewContentValidationError creates a CloudError from a slice of validation errors.
+// For convenience, if the slice is empty then NewContentValidationError returns nil.
+func NewContentValidationError(errors []CloudErrorBody) *CloudError {
+	if len(errors) == 0 {
+		return nil
+	}
+
+	return &CloudError{
+		StatusCode:     http.StatusBadRequest,
+		CloudErrorBody: NewCloudErrorBodyFromSlice(errors, "Content validation failed on multiple fields"),
+	}
 }
 
 // NewResourceNotFoundError creates a CloudError for a nonexistent resource error

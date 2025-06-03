@@ -20,6 +20,75 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewCloudErrorBodyFromSlice(t *testing.T) {
+	const multipleErrorsMessage = "Multiple errors occurred"
+
+	tests := []struct {
+		name     string
+		errors   []CloudErrorBody
+		expected *CloudErrorBody
+	}{
+		{
+			name:     "No errors",
+			errors:   []CloudErrorBody{},
+			expected: nil,
+		},
+		{
+			name: "Single error",
+			errors: []CloudErrorBody{
+				{
+					Code:    "code",
+					Message: "message",
+					Target:  "target",
+				},
+			},
+			expected: &CloudErrorBody{
+				Code:    "code",
+				Message: "message",
+				Target:  "target",
+			},
+		},
+		{
+			name: "Multiple errors",
+			errors: []CloudErrorBody{
+				{
+					Code:    "code1",
+					Message: "message1",
+					Target:  "target1",
+				},
+				{
+					Code:    "code2",
+					Message: "message2",
+					Target:  "target2",
+				},
+			},
+			expected: &CloudErrorBody{
+				Code:    CloudErrorCodeMultipleErrorsOccurred,
+				Message: multipleErrorsMessage,
+				Target:  "",
+				Details: []CloudErrorBody{
+					{
+						Code:    "code1",
+						Message: "message1",
+						Target:  "target1",
+					},
+					{
+						Code:    "code2",
+						Message: "message2",
+						Target:  "target2",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, NewCloudErrorBodyFromSlice(test.errors, multipleErrorsMessage))
+		})
+	}
+}
+
 func TestCloudErrorBody_String(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -67,6 +136,7 @@ func TestCloudErrorBody_String(t *testing.T) {
 			expected: "code: target: message Details: innercode: innertarget: innermessage, innercode2: innertarget2: innermessage2",
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expected, test.body.String())

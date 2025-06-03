@@ -1,0 +1,120 @@
+# ARO-HCP kube-prometheus-stack overrides, review upstream values.yaml for more options.
+kube-prometheus-stack:
+  ## Provide a name to substitute for the full names of resources
+  ##
+  fullnameOverride: "prometheus"
+  ## Install Prometheus Operator CRDs
+  ##
+  crds:
+    enabled: true
+    ## The CRD upgrade job mitigates the limitation of helm not being able to upgrade CRDs.
+    ## The job will apply the CRDs to the cluster before the operator is deployed, using helm hooks.
+    ## It deploy a corresponding clusterrole, clusterrolebinding and serviceaccount to apply the CRDs.
+    ## This feature is in preview, off by default and may change in the future.
+    upgradeJob:
+      enabled: false
+      forceConflicts: false
+      image:
+        busybox:
+          registry: docker.io
+          repository: busybox
+          tag: "latest"
+          sha: ""
+          pullPolicy: IfNotPresent
+        kubectl:
+          registry: registry.k8s.io
+          repository: kubectl
+          tag: "" # defaults to the Kubernetes version
+          sha: ""
+          pullPolicy: IfNotPresent
+  global:
+    rbac:
+      create: true
+  ## Configuration for alertmanager
+  ## ref: https://prometheus.io/docs/alerting/alertmanager/
+  ##
+  alertmanager:
+    enabled: false # Disabled for now.
+  grafana:
+    enabled: false
+  # Azure Managed Prometheus will scrape or expose these metrics
+  coreDns:
+    enabled: false
+  kubeDns:
+    enabled: false
+  nodeExporter:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubelet:
+    enabled: false
+  kubeApiServer:
+    enabled: false
+  kubeStateMetrics:
+    enabled: false
+  prometheusOperator:
+    enabled: true
+    ## Use '{{ template "kube-prometheus-stack.fullname" . }}-operator' by default
+    fullnameOverride: ""
+    ## Define Log Format
+    # Use logfmt (default) or json logging
+    # logFormat: logfmt
+
+    ## Decrease log verbosity to errors only
+    # logLevel: info
+
+    ## Prometheus-operator image
+    ##
+    image:
+      registry: mcr.microsoft.com/oss/v2
+      repository: prometheus/prometheus-operator
+    ## Prometheus-config-reloader
+    ##
+    prometheusConfigReloader:
+      image:
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-config-reloader
+      # resource config for prometheusConfigReloader
+      resources: {}
+      # requests:
+      #   cpu: 200m
+      #   memory: 50Mi
+      # limits:
+      #   cpu: 200m
+      #   memory: 50Mi
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: aro-hcp.azure.com/role
+              operator: In
+              values:
+              - "infra"
+    tolerations:
+    - key: "infra"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  ## Deploy a Prometheus instance
+  ##
+  prometheus:
+    enabled: false ## deployed via templates/prometheus.yaml
+  ## Setting to true produces cleaner resource names, but requires a data migration because the name of the persistent volume changes. Therefore this should only be set once on initial installation.
+  ##
+  cleanPrometheusOperatorObjectNames: true
+  ## Extra manifests to deploy as an array
+  extraManifests: []
+  # - apiVersion: v1
+  #   kind: ConfigMap
+  #   metadata:
+  #   labels:
+  #     name: prometheus-extra
+  #   data:
+  #     extra-data: "value"
