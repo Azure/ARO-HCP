@@ -23,6 +23,9 @@ EXISTING_DATA_SOURCE_URL=$(az grafana data-source list --name ${GRAFANA_NAME} \
     --resource-group ${GRAFANA_RG} --subscription ${GRAFANA_SUBSCRIPTION_ID} \
     --query "[?contains(name, '${MONITOR_DATA_SOURCE}')].url | [0]" -o tsv)
 
+# wait for inflight updates to finish
+az resource wait --updated --ids "${GRAFANA_RESOURCE_ID}"
+
 # In dev resource groups are purged which causes data sources to become out of sync in the Azure Grafana Instance.
 # If prometheus urls don't match then delete the integration to cleanup the data source.
 if [[ -n "${EXISTING_DATA_SOURCE_URL}" && ${EXISTING_DATA_SOURCE_URL} != ${PROM_QUERY_URL} ]];
