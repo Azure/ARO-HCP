@@ -26,14 +26,4 @@ deploy:
 	--set pullBinding.scope='repository:*:pull' \
 	--set imagePrefixOverrides=${PKO_IMAGE_PREFIX_OVERRIDES}
 
-image:
-	cd $$(mktemp -d) && \
-	git clone https://github.com/package-operator/package-operator.git && \
-	cd package-operator && \
-	git checkout ${PKO_IMAGE_TAG} && \
-	IMAGE_REGISTRY=${ARO_HCP_IMAGE_REGISTRY}/package-operator \
-	./do CI:RegistryLoginAndReleaseOnlyImages -u 00000000-0000-0000-0000-000000000000 \
-	-p $$(az acr login -n ${ARO_HCP_IMAGE_REGISTRY} --expose-token | jq -r '.accessToken') \
-	${ARO_HCP_IMAGE_REGISTRY}
-
 .PHONY: deploy
