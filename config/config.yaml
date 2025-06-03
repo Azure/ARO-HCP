@@ -198,6 +198,7 @@ defaults:
   pko:
     image: arohcpsvcdev.azurecr.io/package-operator/package-operator-package
     imageManager: arohcpsvcdev.azurecr.io/package-operator/package-operator-manager
+    imagePrefixOverrides: quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator
     imageTag: v1.18.2
   # Cluster Service
   clustersService:

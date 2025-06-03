@@ -1,6 +1,7 @@
 pkoImage: ""
 pkoImageManager: ""
 pkoImageTag: ""
+pkoImagePrefixOverrides: ""
 pullBinding:
   registry: ""
   scope: ""

@@ -23,7 +23,8 @@ deploy:
 	--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
-	--set pullBinding.scope='repository:*:pull'
+	--set pullBinding.scope='repository:*:pull' \
+	--set imagePrefixOverrides=${PKO_IMAGE_PREFIX_OVERRIDES}
 
 image:
 	cd $$(mktemp -d) && \
