@@ -35,6 +35,9 @@ defaults:
     subscription: hcp-global
     globalMSIName: "global-ev2-identity"
     safeDnsIntAppObjectId: "" # intentionally blank - only required in INT
+    nsp:
+      name: nsp-global
+      accessMode: 'Learning'
     keyVault:
       name: 'arohcp{{ .ctx.environment }}-global' # [globally-unique]
       private: false
