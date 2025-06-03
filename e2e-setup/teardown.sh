@@ -14,4 +14,4 @@ source env.defaults
 #    as any other resource in the resource group (unles this is done in dev
 #    enviroment).
 
-az group delete --name "${CUSTOMER_RG_NAME}" --location "${LOCATION}"
+az group delete --name "${CUSTOMER_RG_NAME}"
