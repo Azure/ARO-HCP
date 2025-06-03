@@ -28,7 +28,7 @@ Configuration properties are embedded into a layered structure within the config
 ### Layers
 
 - **Default**: This is the base layer of the configuration. It should contain options that apply to most clouds, environments, and regions.
-- **Cloud**: This layer holds overrides relevant to a specific Azure cloud, such as `public` or `fairfax`.
+- **Cloud**: This layer holds overrides relevant to a specific Azure cloud, such as `public` or `fairfax`. There is a dedicated cloud named `dev` that can be used to dev purposes in the public cloud. The main purpose of `dev` is to keep `public` cloud settings clean and free of development-related overrides.
 - **Environments**: This layer provides overrides for a specific deployment environment within a cloud. Examples include `dev`, `pers`, `integration`, `stage`, and `production`.
 - **Region**: This layer holds overrides for a specific region within a deployment environment, allowing for fine-tuned configuration adjustments.
 
