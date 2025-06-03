@@ -252,7 +252,8 @@
         }
       },
       "required": [
-        "repository"
+        "repository",
+        "digest"
       ]
     },
     "keyColonValueCSV": {
@@ -871,7 +872,8 @@
           "type": "object",
           "properties": {
             "consumerName": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 128
             },
             "loglevel": {
               "type": "integer"
@@ -983,25 +985,6 @@
         "image",
         "postgres",
         "restrictIstioIngress"
-      ]
-    },
-    "mce": {
-      "type": "object",
-      "properties": {
-        "clcStateMetrics": {
-          "type": "object",
-          "properties": {
-            "imageDigest": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "imageDigest"
-          ]
-        }
-      },
-      "required": [
-        "clcStateMetrics"
       ]
     },
     "mgmt": {
@@ -1342,7 +1325,6 @@
     "maestro",
     "mgmt",
     "mgmtKeyVault",
-    "mce",
     "monitoring",
     "msiKeyVault",
     "oidcStorageAccountName",

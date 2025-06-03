@@ -34,7 +34,7 @@
   "backplaneAPI": {
     "image": {
       "digest": "sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6",
-      "registry": "arohcpsvcdev.azurecr.io",
+      "registry": "quay.io",
       "repository": "app-sre/backplane-api"
     }
   },
@@ -82,7 +82,7 @@
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cs-ussw1tst",
+      "name": "arohcppers-dbcs-ussw1tst",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -92,7 +92,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "arohcp-cx-ussw1tst-1",
+    "name": "ah-pers-cx-ussw1tst-999",
     "private": false,
     "softDelete": false
   },
@@ -119,7 +119,7 @@
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-ussw1tst",
+      "name": "arohcppers-rp-ussw1tst",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -205,7 +205,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-ussw1tst-mgmt-1",
+      "consumerName": "hcp-underlay-ussw1tst-mgmt-999",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -219,7 +219,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-maestro-ussw1tst",
+      "name": "arohcppers-maestro-ussw1tst",
       "private": false
     },
     "image": {
@@ -231,7 +231,7 @@
       "databaseName": "maestro",
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-maestro-ussw1tst",
+      "name": "arohcppers-dbmaestro-ussw1tst",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -248,17 +248,12 @@
       "mqttClientName": "maestro-server-ussw1tst"
     }
   },
-  "mce": {
-    "clcStateMetrics": {
-      "imageDigest": "bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7"
-    }
-  },
   "mgmt": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "enableSwiftV2": true,
       "etcd": {
-        "kvName": "arohcp-etcd-ussw1tst-1",
+        "kvName": "ah-pers-me-ussw1tst-999",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -269,7 +264,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "ussw1tst-mgmt-1",
+      "name": "ussw1tst-mgmt-999",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -293,9 +288,14 @@
     "jaeger": {
       "deploy": false
     },
+    "logs": {
+      "configVersion": "",
+      "namespace": "HCPCustomerLogs",
+      "san": ""
+    },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1tst-mgmt-1"
+      "name": "nsp-ussw1tst-mgmt-999"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -319,11 +319,11 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-ussw1tst-mgmt-1",
+    "rg": "hcp-underlay-ussw1tst-mgmt-999",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "arohcp-mgmt-ussw1tst-1",
+    "name": "ah-pers-mgm-ussw1tst-999",
     "private": false,
     "softDelete": false
   },
@@ -356,11 +356,11 @@
     "svcWorkspaceName": "arohcp-ussw1tst"
   },
   "msiKeyVault": {
-    "name": "arohcp-msi-ussw1tst-1",
+    "name": "ah-pers-msi-ussw1tst-999",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpoidcussw1tst",
+  "oidcStorageAccountName": "arohcppersoidcussw1tst",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
@@ -382,11 +382,11 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "arohcp-etcd-ussw1tst",
+        "kvName": "ah-pers-se-ussw1tst-1",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
-        "azCount": 1,
+        "azCount": 3,
         "maxCount": 3,
         "minCount": 1,
         "osDiskSizeGB": 32,
@@ -416,13 +416,18 @@
     "istio": {
       "ingressGatewayIPAddressIPTags": "",
       "ingressGatewayIPAddressName": "aro-hcp-istio-ingress",
-      "istioctlVersion": "1.23.1",
+      "istioctlVersion": "1.24.1",
       "tag": "prod-stable",
       "targetVersion": "asm-1-25",
       "versions": "asm-1-25"
     },
     "jaeger": {
       "deploy": true
+    },
+    "logs": {
+      "configVersion": "",
+      "namespace": "HCPServiceLogs",
+      "san": ""
     },
     "nsp": {
       "accessMode": "Learning",

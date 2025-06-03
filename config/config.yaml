@@ -1,29 +1,63 @@
 $schema: config.schema.json
+#
+#   A B O U T   N A M I N G
+#
+# For Azure resource names that need to be unique within a cloud, use {{ .ctx }} variables to ensure uniqueness, e.g.
+# - for global, regional and SC naming use {{ .ctx.regionShort }} or {{ .ctx.region }}
+# - for MGMT naming additionally use {{ .ctx.stamp }}
+#
+# We have different requirements for naming uniqueness for Azure resources
+#
+# - [globally-unique] - a resource needs to be unique within the Azure cloud.
+#   This is a technical requirement of Azure for certain resource types
+# - [env-unique] - a resource needs to be unique within an ARO HCP environment,
+#   so accross all regions of ARO HCP in the same environment.
+#   An environment unique names does not need to be unique within the Azure cloud
+#
+# To implement names, we leverate static strings combined with the {{ .ctx }} variables, e.g.
+# - {{ .ctx.regionShort }} length: 2-4 / starts with a character, may end with a digit
+# - {{ .ctx.region }} very long, up to 20 characters / starts with a character, may end with a digit
+# - {{ .ctx.stamp }} used for for uniqueness for MGMT stamps within a region / digits only
 defaults:
-  region: '{{ .ctx.region  }}'
-  regionRG: hcp-underlay-{{ .ctx.regionShort }}
+  #
+  # All defaults in this section need to be environment and region agnostic.
+  #
+  region: "{{ .ctx.region  }}"
+  regionRG: "{{ .ctx.region }}-shared-resources"
+  # Global scope settings
   global:
-    rg: global
-    subscription: ARO Hosted Control Planes (EA Subscription 1)
-    region: westus3
-    globalMSIName: "global-rollout-identity"
     safeDnsIntAppObjectId: "" # intentionally left empty
-    secretsToSyncDir: "dev/arohcpdev-global"
+    secretsToSyncDir: "none"
     nsp:
       name: nsp-global
       accessMode: 'Learning'
     keyVault:
-      name: arohcpdev-global
+      name: 'arohcp{{ .ctx.environment }}-global' # [globally-unique]
       private: false
       softDelete: true
+  # ACR
+  acr:
+    svc:
+      name: 'arohcpsvc{{ .ctx.environment }}' # [globally-unique]
+      zoneRedundantMode: Enabled
+    ocp:
+      name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
+      zoneRedundantMode: Enabled
   # ACR Pull
   acrPull:
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
-      digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+  # Backplane API
+  backplaneAPI:
+    image:
+      registry: quay.io
+      repository: app-sre/backplane-api
   # Hypershift
   hypershift:
+    image:
+      registry: quay.io
+      repository: acm-d/rhtap-hypershift-operator
     namespace: hypershift
     additionalInstallArg: ''
   # Log settings
@@ -39,41 +73,57 @@ defaults:
       subscriptions: []
     loganalytics:
       enable: false
-  # Geneva Actions
-  genevaActions:
-    serviceTag: GenevaActionsNonProd
+  # Monitoring
   monitoring:
-    devAlertingEmails: "aro-hcp-service-lifecycle-team@redhat.com"
+    grafanaName: "arohcp-{{ .ctx.environment }}"
+    svcWorkspaceName: 'arohcp-{{ .ctx.regionShort }}'
+    hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.regionShort }}'
+    devAlertingEmails: ""
     sev1ActionGroupIDs: ""
     sev2ActionGroupIDs: ""
     sev3ActionGroupIDs: ""
     sev4ActionGroupIDs: ""
   # SVC cluster specifics
   svc:
-    subscription: ARO Hosted Control Planes (EA Subscription 1)
-    rg: hcp-underlay-{{ .ctx.regionShort }}-svc
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
-      accessMode: 'Learning'
     istio:
-      istioctlVersion: "1.23.1"
+      istioctlVersion: "1.24.1"
       tag: "prod-stable"
-      targetVersion: "asm-1-25"
-      versions: "asm-1-25"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     aks:
-      name: "{{ .ctx.regionShort }}-svc"
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
       kubernetesVersion: 1.31.8
       networkDataplane: "cilium"
       networkPolicy: "cilium"
+      systemAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 32
+      userAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 32
+        azCount: 3
+      infraAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 32
+        azCount: 3
       etcd:
-        kvName: arohcp-etcd-{{ .ctx.regionShort }}
+        kvName: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: ""
+    logs:
+      namespace: HCPServiceLogs
+      san: ""
+      configVersion: ""
     prometheus:
       namespace: prometheus
       namespaceLabel: ""
@@ -90,17 +140,13 @@ defaults:
           digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         version: ""
         replicas: 2
-        shards: 1
+        shards: 2
   # MGMT cluster specifics
   mgmt:
-    subscription: ARO Hosted Control Planes (EA Subscription 1)
-    rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     applyKubeletFixes: true
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
-      accessMode: 'Learning'
     aks:
-      name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -108,10 +154,28 @@ defaults:
       networkDataplane: "azure"
       networkPolicy: "azure"
       etcd:
-        kvName: arohcp-etcd-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
+        kvName: "ah-{{ .ctx.environment }}-me-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
         kvSoftDelete: true
+      systemAgentPool:
+        vmSize: 'Standard_E8s_v3'
+        osDiskSizeGB: 128
+        minCount: 1
+      userAgentPool:
+        vmSize: 'Standard_D16s_v3'
+        osDiskSizeGB: 128
+        minCount: 1
+      infraAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D2s_v3'
+        osDiskSizeGB: 32
+        azCount: 3
       clusterOutboundIPAddressIPTags: ""
       enableSwiftV2: true
+    logs:
+      namespace: HCPCustomerLogs
+      san: ""
+      configVersion: ""
     prometheus:
       namespace: prometheus
       namespaceLabel: network.openshift.io/policy-group=monitoring
@@ -119,35 +183,38 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         version: "v2.55.1-3"
         replicas: 2
-        shards: 1
+        shards: 2
   # Backend
   backend:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: arohcpbackend
     tracing:
       address: ""
       exporter: ""
   # Frontend
   frontend:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: arohcpfrontend
     tracing:
       address: ""
       exporter: ""
     cosmosDB:
       deploy: true
       disableLocalAuth: true
-      name: arohcp-rp-{{ .ctx.regionShort }}
+      name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
       private: true
       zoneRedundantMode: 'Auto'
     cert:
-      name: frontend-cert-{{ .ctx.regionShort }}
-      issuer: Self
+      name: frontend-cert
   # Mise
   mise:
     deploy: false
@@ -162,14 +229,14 @@ defaults:
   # Maestro
   maestro:
     server:
-      mqttClientName: maestro-server
+      mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
       loglevel: 4
       managedIdentityName: maestro-server
       k8s:
         namespace: maestro
         serviceAccountName: maestro
     agent:
-      consumerName: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
+      consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       loglevel: 4
       sidecar:
         image:
@@ -177,13 +244,11 @@ defaults:
           repository: azurelinux/base/nginx
           digest: sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83
     eventGrid:
-      name: arohcp-maestro-{{ .ctx.regionShort }}
+      name: "arohcp{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
       private: false
-    certDomain: selfsigned.maestro.keyvault.azure.com
-    certIssuer: Self
     postgres:
-      name: arohcp-maestro-{{ .ctx.regionShort }}
+      name: "arohcp{{ .ctx.environment }}-dbmaestro-{{ .ctx.regionShort }}" # [globally-unique]
       serverVersion: '15'
       serverStorageSizeGB: 32
       deploy: true
@@ -192,9 +257,11 @@ defaults:
       databaseName: maestro
       zoneRedundantMode: 'Auto'
     restrictIstioIngress: true
+    certDomain: ""
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+  # PKO
   pko:
     image: arohcpsvcdev.azurecr.io/package-operator/package-operator-package
     imageManager: arohcpsvcdev.azurecr.io/package-operator/package-operator-manager
@@ -208,9 +275,9 @@ defaults:
     tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""
-    environment: arohcpdev
+    environment: "arohcp{{ .ctx.environment }}"
     postgres:
-      name: arohcp-cs-{{ .ctx.regionShort }}
+      name: "arohcp{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
@@ -224,49 +291,64 @@ defaults:
     environmentName: aro-hcp-image-sync
     outboundServiceTags: ""
     componentSync:
-      enabled: true
+      enabled: false
+      repositories: ""
+      secrets: ""
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/component-sync
-        digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
-      repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/package-operator/remote-phase-manager,quay.io/app-sre/backplane-api
-      secrets: 'quay.io:quay-io-bearer'
+        digest: ""
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
       pullSecretName: ocmirror-pull-secret
-  # MCE
-  mce:
-    clcStateMetrics:
-      imageDigest: bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7
+  # Mock Managed Identities - not relevant for most MSFT envs
+  miMockClientId: ""
+  miMockPrincipalId: ""
+  miMockCertName: ""
+  armHelperClientId: ""
+  armHelperFPAPrincipalId: ""
+  armHelperCertName: ""
+  # OIDC
+  oidcStorageAccountName: "arohcp{{ .ctx.environment }}oidc{{ .ctx.regionShort }}" # [globally-unique]
+  oidcZoneRedundantMode: Auto
+  # Service Key Vault
   serviceKeyVault:
-    name: arohcp-svc-{{ .ctx.regionShort }}
-    rg: hcp-underlay-{{ .ctx.regionShort }}
-    region: '{{ .ctx.region  }}'
-    softDelete: true
-    private: true
+    name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
+    rg: "{{ .ctx.region }}-shared-resources"
+    region: "{{ .ctx.region  }}"
+    softDelete: false
+    private: false
     assignNSP: true
   # Management Cluster KV
   cxKeyVault:
-    name: arohcp-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: true
-    private: true
+    name: "ah-{{ .ctx.environment }}-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
+    softDelete: false
+    private: false
   msiKeyVault:
-    name: arohcp-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: true
-    private: true
+    name: "ah-{{ .ctx.environment }}-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
+    softDelete: false
+    private: false
   mgmtKeyVault:
-    name: arohcp-mgmt-{{ .ctx.regionShort }}-{{ .ctx.stamp }}
-    softDelete: true
-    private: true
+    name: "ah-{{ .ctx.environment }}-mgm-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
+    softDelete: false
+    private: false
 clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      regionRG: hcp-underlay-{{ .ctx.regionShort }}
+      global:
+        rg: global
+        subscription: ARO Hosted Control Planes (EA Subscription 1)
+        region: westus3
+        globalMSIName: global-rollout-identity
+        secretsToSyncDir: "dev/arohcpdev-global"
+        keyVault:
+          name: arohcpdev-global
       # DNS
       dns:
         baseDnsZoneRG: global
@@ -288,12 +370,22 @@ clouds:
       armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
       armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
       armHelperCertName: armHelperCert2
+      # Geneva Actions
+      genevaActions:
+        serviceTag: GenevaActionsNonProd
       # Maestro
       maestro:
+        certDomain: selfsigned.maestro.keyvault.azure.com
+        certIssuer: Self
         image:
           digest: sha256:71788add6afc26829ef75432714fa3052c7dbc1d62d0002ff4c736a8038c18f4
+      # ACR Pull
+      acrPull:
+        image:
+          digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
       # Cluster Service
       clustersService:
+        environment: "arohcpdev"
         image:
           digest: sha256:7d6981f42a7bdfc1d75298918afbcc7fb698f4f67800538ab7d38ebddb284917
         azureOperatorsManagedIdentities:
@@ -318,105 +410,101 @@ clouds:
       # Hypershift Operator
       hypershift:
         image:
-          registry: quay.io
-          repository: acm-d/rhtap-hypershift-operator
           digest: sha256:0e6706e3bbc058a65f34dad7ccf048e56b1f32ca610c6f39f085ddb8bb1169ef
       # Backplane API
       backplaneAPI:
         image:
-          registry: arohcpsvcdev.azurecr.io
-          repository: app-sre/backplane-api
           digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
       # Frontend
       frontend:
+        cert:
+          name: frontend-cert-{{ .ctx.regionShort }}
+          issuer: Self
         image:
-          registry: arohcpsvcdev.azurecr.io
-          repository: arohcpfrontend
           digest: '' # if empty uses commit sha of repo
       # Backend
       backend:
         image:
-          registry: arohcpsvcdev.azurecr.io
-          repository: arohcpbackend
           digest: '' # if empty uses commit sha of repo
+      # Image Sync
+      imageSync:
+        componentSync:
+          enabled: true
+          repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/package-operator/remote-phase-manager,quay.io/app-sre/backplane-api
+          secrets: 'quay.io:quay-io-bearer'
+          image:
+            digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
+        ocMirror:
+          image:
+            digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
         rg: 'global'
         region: 'westus3'
-        private: false
-      # Management Cluster KVs
-      cxKeyVault:
-        softDelete: false
-        private: false
-      msiKeyVault:
-        softDelete: false
-        private: false
-      mgmtKeyVault:
-        softDelete: false
-        private: false
+        softDelete: true
       # disable soft delete on etcd KVs in DEV
       svc:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
+        rg: hcp-underlay-{{ .ctx.regionShort }}-svc
+        nsp:
+          accessMode: 'Learning'
+        istio:
+          targetVersion: "asm-1-25"
+          versions: "asm-1-25"
         aks:
+          name: "{{ .ctx.regionShort }}-svc"
           etcd:
             kvSoftDelete: false
-          systemAgentPool:
-            minCount: 1
-            maxCount: 3
-            vmSize: 'Standard_D2s_v3'
-            osDiskSizeGB: 32
-          userAgentPool:
-            minCount: 1
-            maxCount: 3
-            vmSize: 'Standard_D2s_v3'
-            osDiskSizeGB: 32
-            azCount: 3
-          infraAgentPool:
-            minCount: 1
-            maxCount: 3
-            vmSize: 'Standard_D2s_v3'
-            osDiskSizeGB: 32
-            azCount: 1
+        prometheus:
+          prometheusOperator:
+            image:
+              digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+          prometheusSpec:
+            image:
+              digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+            shards: 1
       mgmt:
+        subscription: ARO Hosted Control Planes (EA Subscription 1)
+        rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
         aks:
+          name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
           # MGMTM AKS nodepools - big enough for 2 HCPs
           systemAgentPool:
-            minCount: 1
             maxCount: 4
             vmSize: 'Standard_D2s_v3'
             osDiskSizeGB: 32
           userAgentPool:
-            minCount: 1
             maxCount: 6
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
             azCount: 3
           infraAgentPool:
-            minCount: 1
-            maxCount: 3
-            vmSize: 'Standard_D2s_v3'
-            osDiskSizeGB: 32
             azCount: 1
           etcd:
             kvSoftDelete: false
-        subscription: ARO Hosted Control Planes (EA Subscription 1)
-      # Shared ACRs
+        nsp:
+          accessMode: 'Learning'
+        prometheus:
+          prometheusOperator:
+            image:
+              digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+          prometheusSpec:
+            image:
+              digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+            shards: 1
+      # ACRs
       acr:
         svc:
-          name: arohcpsvcdev
+          name: 'arohcpsvcdev' # [globally-unique]
           zoneRedundantMode: Disabled
         ocp:
-          name: arohcpocpdev
+          name: 'arohcpocpdev' # [globally-unique]
           zoneRedundantMode: Disabled
-      # OIDC
-      oidcStorageAccountName: arohcpoidc{{ .ctx.regionShort }}
-      oidcZoneRedundantMode: Auto
       # Metrics
       monitoring:
-        svcWorkspaceName: 'arohcp-{{ .ctx.regionShort }}'
-        hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.regionShort }}'
-        grafanaName: 'arohcp-dev'
+        grafanaName: arohcp-dev
+        devAlertingEmails: "aro-hcp-service-lifecycle-team@redhat.com"
         grafanaMajorVersion: '11'
         grafanaZoneRedundantMode: Disabled
         grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
@@ -433,7 +521,6 @@ clouds:
           mgmt:
             aks:
               systemAgentPool:
-                minCount: 1
                 maxCount: 4
                 vmSize: 'Standard_E8s_v3'
                 osDiskSizeGB: 128
@@ -447,10 +534,6 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
-          # Maestro
-          maestro:
-            server:
-              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
           # Frontend
           frontend:
             cosmosDB:
@@ -492,8 +575,6 @@ clouds:
           # Maestro
           maestro:
             restrictIstioIngress: false
-            server:
-              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-cs'
           # Frontend
           frontend:
             cosmosDB:
@@ -513,8 +594,6 @@ clouds:
           maestro:
             postgres:
               deploy: false
-            server:
-              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
           # Frontend
           frontend:
             cosmosDB:
@@ -543,8 +622,6 @@ clouds:
           maestro:
             postgres:
               deploy: false
-            server:
-              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
           # Backend
           backend:
             tracing:
@@ -577,12 +654,10 @@ clouds:
           mgmt:
             aks:
               systemAgentPool:
-                minCount: 1
                 maxCount: 4
                 vmSize: 'Standard_E8s_v3'
                 osDiskSizeGB: 128
               userAgentPool:
-                minCount: 1
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128

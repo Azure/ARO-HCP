@@ -33,6 +33,7 @@
   },
   "backplaneAPI": {
     "image": {
+      "digest": "sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6",
       "registry": "quay.io",
       "repository": "app-sre/backplane-api"
     }
@@ -91,7 +92,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "arohcpint-cx-ussw1-1",
+    "name": "ah-int-cx-ussw1-999",
     "private": false,
     "softDelete": false
   },
@@ -142,6 +143,10 @@
       "private": false,
       "softDelete": true
     },
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-global"
+    },
     "region": "uksouth",
     "rg": "global-shared-resources",
     "safeDnsIntAppObjectId": "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc",
@@ -161,7 +166,7 @@
     "componentSync": {
       "enabled": false,
       "image": {
-        "digest": "sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f",
+        "digest": "",
         "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/component-sync"
       },
@@ -202,7 +207,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-ussw1-mgmt-1",
+      "consumerName": "hcp-underlay-ussw1-mgmt-999",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -242,12 +247,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server"
-    }
-  },
-  "mce": {
-    "clcStateMetrics": {
-      "imageDigest": "bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7"
+      "mqttClientName": "maestro-server-ussw1"
     }
   },
   "mgmt": {
@@ -255,7 +255,7 @@
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "enableSwiftV2": true,
       "etcd": {
-        "kvName": "arohcpint-etcd-ussw1-1",
+        "kvName": "ah-int-me-ussw1-999",
         "kvSoftDelete": true
       },
       "infraAgentPool": {
@@ -266,7 +266,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "southwestus-mgmt-1",
+      "name": "southwestus-mgmt-999",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -294,7 +294,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1-mgmt"
+      "name": "nsp-ussw1-mgmt-999"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -318,11 +318,11 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-southwestus-mgmt-1",
-    "subscription": "hcp-int-mgmt-southwestus-1"
+    "rg": "hcp-underlay-southwestus-mgmt-999",
+    "subscription": "hcp-int-mgmt-southwestus-999"
   },
   "mgmtKeyVault": {
-    "name": "arohcpint-mgmt-ussw1-1",
+    "name": "ah-int-mgm-ussw1-999",
     "private": false,
     "softDelete": false
   },
@@ -337,7 +337,8 @@
     "firstPartyAppId": "5bc505bc-50ef-4be9-9a82-2ed7973f1c37",
     "image": {
       "digest": "sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b",
-      "repository": "mise"
+      "repository": "",
+      "repostiroy": "mise"
     },
     "tenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d"
   },
@@ -355,12 +356,18 @@
     "svcWorkspaceName": "arohcp-ussw1"
   },
   "msiKeyVault": {
-    "name": "arohcpint-msi-ussw1-1",
+    "name": "ah-int-msi-ussw1-999",
     "private": false,
     "softDelete": false
   },
   "oidcStorageAccountName": "arohcpintoidcussw1",
   "oidcZoneRedundantMode": "Auto",
+  "pko": {
+    "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
+    "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
+    "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator",
+    "imageTag": "v1.18.2"
+  },
   "region": "southwestus",
   "regionRG": "southwestus-shared-resources",
   "releaseApprover": {
@@ -372,14 +379,14 @@
     "name": "arohcpint-svc-ussw1",
     "private": false,
     "region": "southwestus",
-    "rg": "hcp-underlay-southwestus-svc",
+    "rg": "southwestus-shared-resources",
     "softDelete": false
   },
   "svc": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "etcd": {
-        "kvName": "arohcpint-etcd-ussw1",
+        "kvName": "ah-int-se-ussw1-1",
         "kvSoftDelete": true
       },
       "infraAgentPool": {
@@ -445,7 +452,7 @@
           "repository": "prometheus/prometheus"
         },
         "replicas": 2,
-        "shards": 1,
+        "shards": 2,
         "version": ""
       }
     },
