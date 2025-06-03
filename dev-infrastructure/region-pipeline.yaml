@@ -107,4 +107,4 @@ resourceGroups:
         step: region-output
         name: hcpAzureMonitoringWorkspaceId
     dependsOn:
-    - region-output
+    - add-svc-grafana-datasource
