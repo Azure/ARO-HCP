@@ -89,7 +89,7 @@ defaults:
   # SVC cluster specifics
   svc:
     subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
-    rg: "hcp-underlay-{{ .ctx.region }}-svc"
+    rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
     istio:
@@ -98,6 +98,7 @@ defaults:
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     aks:
+      name: "{{ .ctx.environment }}-{{ .ctx.region }}-svc-1" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -149,11 +150,12 @@ defaults:
   # MGMT cluster specifics
   mgmt:
     subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
-    rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
+    rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     aks:
+      name: "{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -452,14 +454,12 @@ clouds:
       # disable soft delete on etcd KVs in DEV
       svc:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
-        rg: hcp-underlay-{{ .ctx.regionShort }}-svc
         nsp:
           accessMode: 'Learning'
         istio:
           targetVersion: "asm-1-25"
           versions: "asm-1-25"
         aks:
-          name: "{{ .ctx.regionShort }}-svc"
           etcd:
             kvSoftDelete: false
         prometheus:
@@ -472,9 +472,7 @@ clouds:
             shards: 1
       mgmt:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
-        rg: hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
         aks:
-          name: "{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
           # MGMTM AKS nodepools - big enough for 2 HCPs
           systemAgentPool:
             maxCount: 4
@@ -595,7 +593,7 @@ clouds:
               deploy: false
           # DNS
           dns:
-            regionalSubdomain: '{{ .ctx.regionShort }}'
+            regionalSubdomain: '{{ .ctx.regionShort }}-ntly'
           # Maestro
           maestro:
             postgres:
@@ -643,11 +641,17 @@ clouds:
               exporter: "otlp"
           # MC
           mgmt:
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             jaeger:
               deploy: false
             applyKubeletFixes: false
           # SVC
           svc:
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             jaeger:
               deploy: true
       perf:
@@ -657,8 +661,15 @@ clouds:
             assignNSP: false
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
-          mgmt:
+          # SVC
+          svc:
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+          mgmt:
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
               systemAgentPool:
                 maxCount: 4
                 vmSize: 'Standard_E8s_v3'

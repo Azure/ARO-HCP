@@ -92,7 +92,7 @@ defaults:
   # SVC cluster specifics
   svc:
     subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
-    rg: "hcp-underlay-{{ .ctx.region }}-svc"
+    rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
     istio:
@@ -101,6 +101,7 @@ defaults:
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     aks:
+      name: "{{ .ctx.environment }}-{{ .ctx.region }}-svc-1" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -152,11 +153,12 @@ defaults:
   # MGMT cluster specifics
   mgmt:
     subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
-    rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
+    rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
     aks:
+      name: "{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
@@ -404,12 +406,8 @@ clouds:
       svc:
         logs:
           san: "svc.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
-        aks:
-          name: "{{ .ctx.region }}-svc-1" # [env-unique]
       # MC cluster settings
       mgmt:
-        aks:
-          name: "{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
         logs:
           san: "mgmt.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
       # Image Sync

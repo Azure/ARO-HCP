@@ -264,7 +264,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "ussw1tst-mgmt-999",
+      "name": "pers-ussw1tst-mgmt-999",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -319,7 +319,7 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-ussw1tst-mgmt-999",
+    "rg": "hcp-underlay-pers-ussw1tst-mgmt-999",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
@@ -393,7 +393,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "ussw1tst-svc",
+      "name": "pers-ussw1tst-svc",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -455,7 +455,7 @@
         "version": ""
       }
     },
-    "rg": "hcp-underlay-ussw1tst-svc",
+    "rg": "hcp-underlay-pers-ussw1tst-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   }
 }

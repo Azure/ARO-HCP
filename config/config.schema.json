@@ -86,6 +86,11 @@
       },
       "additionalProperties": false
     },
+    "resourceGroupName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 90
+    },
     "keyVault": {
       "type": "object",
       "properties": {
@@ -328,7 +333,7 @@
       "type": "object",
       "properties": {
         "baseDnsZoneRG": {
-          "type": "string",
+          "$ref": "#/definitions/resourceGroupName",
           "description": "The Azure RG that holds the parent DNS zones"
         },
         "cxParentZoneName": {
@@ -681,7 +686,7 @@
           "$ref": "#/definitions/nsp"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"
@@ -1000,7 +1005,7 @@
           "$ref": "#/definitions/nsp"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"
@@ -1173,7 +1178,7 @@
       "type": "string"
     },
     "regionRG": {
-      "type": "string"
+      "$ref": "#/definitions/resourceGroupName"
     },
     "serviceKeyVault": {
       "type": "object",
@@ -1188,7 +1193,7 @@
           "type": "string"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "softDelete": {
           "type": "boolean"
@@ -1213,7 +1218,7 @@
           "$ref": "#/definitions/aksConfig"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"

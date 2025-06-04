@@ -60,12 +60,8 @@ clouds:
       svc:
         logs:
           san: "svc.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
-        aks:
-          name: "{{ .ctx.region }}-svc-1" # [env-unique]
       # MC cluster settings
       mgmt:
-        aks:
-          name: "{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
         logs:
           san: "mgmt.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
       # Image Sync

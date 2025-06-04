@@ -266,7 +266,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "southwestus-mgmt-999",
+      "name": "int-southwestus-mgmt-999",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -318,7 +318,7 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-southwestus-mgmt-999",
+    "rg": "hcp-underlay-int-southwestus-mgmt-999",
     "subscription": "hcp-int-mgmt-southwestus-999"
   },
   "mgmtKeyVault": {
@@ -397,7 +397,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "southwestus-svc-1",
+      "name": "int-southwestus-svc-1",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -456,7 +456,7 @@
         "version": ""
       }
     },
-    "rg": "hcp-underlay-southwestus-svc",
+    "rg": "hcp-underlay-int-southwestus-svc",
     "subscription": "hcp-int-svc-southwestus"
   }
 }
