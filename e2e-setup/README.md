@@ -134,6 +134,14 @@ stderr on lines starting with `+ ` prefix. The setup scripts and
 
 ## Usage
 
+### Requirements
+
+- Recent version of GNU Bash, GNU Make and GNU Coreutils (if you use macOS,
+  you will need to install more recent versions of these tools)
+- [jq](https://jqlang.github.io/jq/)
+- [Azure CLI](https://github.com/Azure/azure-cli)
+- [curl](https://curl.se)
+
 ### Assumptions
 
 You have:
