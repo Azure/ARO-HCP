@@ -39,6 +39,10 @@ const (
 	operationTimeToLive = 604800 // 7 days
 )
 
+// ErrAmbiguousResult occurs when a database query intended
+// to yield a single item unexpectedly yields multiple items.
+var ErrAmbiguousResult = errors.New("ambiguous result")
+
 func IsResponseError(err error, statusCode int) bool {
 	var responseError *azcore.ResponseError
 	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
@@ -228,13 +232,14 @@ func (d *cosmosDBClient) NewTransaction(pk azcosmos.PartitionKey) DBTransaction 
 }
 
 func (d *cosmosDBClient) getBillingID(ctx context.Context, resourceID *azcorearm.ResourceID) (string, error) {
+	var billingID string
+
 	pk := NewPartitionKey(resourceID.SubscriptionID)
 
 	// Resource ID alone does not uniquely identify a billing document, but
 	// resource ID AND the absence of a deletion timestamp should be unique.
 	const query = "SELECT c.id FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND NOT IS_DEFINED(c.deletionTime)"
 	opt := azcosmos.QueryOptions{
-		PageSizeHint: 1,
 		QueryParameters: []azcosmos.QueryParameter{
 			{
 				Name:  "@resourceId",
@@ -254,20 +259,29 @@ func (d *cosmosDBClient) getBillingID(ctx context.Context, resourceID *azcorearm
 		for _, item := range queryResponse.Items {
 			var result map[string]string
 
+			if billingID != "" {
+				return "", ErrAmbiguousResult
+			}
+
 			err = json.Unmarshal(item, &result)
 			if err != nil {
 				return "", fmt.Errorf("failed to unmarshal Billing container item for '%s': %w", resourceID, err)
 			}
 
+			// Let the pager finish to ensure we get a single result.
 			if id, ok := result["id"]; ok {
-				return id, nil
+				billingID = id
 			}
 		}
 	}
 
-	// Fabricate a "404 Not Found" ResponseError to wrap.
-	err := &azcore.ResponseError{StatusCode: http.StatusNotFound}
-	return "", fmt.Errorf("failed to read Billing container item for '%s': %w", resourceID, err)
+	if billingID == "" {
+		// Fabricate a "404 Not Found" ResponseError to wrap.
+		err := &azcore.ResponseError{StatusCode: http.StatusNotFound}
+		return "", fmt.Errorf("failed to read Billing container item for '%s': %w", resourceID, err)
+	}
+
+	return billingID, nil
 }
 
 func (d *cosmosDBClient) CreateBillingDoc(ctx context.Context, doc *BillingDocument) error {
@@ -307,11 +321,12 @@ func (d *cosmosDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcore
 }
 
 func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*typedDocument, *ResourceDocument, error) {
+	var responseItem []byte
+
 	pk := NewPartitionKey(resourceID.SubscriptionID)
 
 	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true) AND STRINGEQUALS(c.properties.resourceId, @resourceId, true)"
 	opt := azcosmos.QueryOptions{
-		PageSizeHint: 1,
 		QueryParameters: []azcosmos.QueryParameter{
 			{
 				Name:  "@resourceType",
@@ -333,18 +348,27 @@ func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorea
 		}
 
 		for _, item := range queryResponse.Items {
-			typedDoc, innerDoc, err := typedDocumentUnmarshal[ResourceDocument](item)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", resourceID, err)
+			// Let the pager finish to ensure we get a single result.
+			if responseItem == nil {
+				responseItem = item
+			} else {
+				return nil, nil, ErrAmbiguousResult
 			}
-
-			return typedDoc, innerDoc, nil
 		}
 	}
 
-	// Fabricate a "404 Not Found" ResponseError to wrap.
-	err := &azcore.ResponseError{StatusCode: http.StatusNotFound}
-	return nil, nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, err)
+	if responseItem == nil {
+		// Fabricate a "404 Not Found" ResponseError to wrap.
+		err := &azcore.ResponseError{StatusCode: http.StatusNotFound}
+		return nil, nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, err)
+	}
+
+	typedDoc, innerDoc, err := typedDocumentUnmarshal[ResourceDocument](responseItem)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", resourceID, err)
+	}
+
+	return typedDoc, innerDoc, nil
 }
 
 func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error) {
