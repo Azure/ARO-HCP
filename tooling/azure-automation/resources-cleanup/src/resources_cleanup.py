@@ -212,6 +212,7 @@ def get_subscription_id():
         )
 
 def main():
+    print("All arguments:", sys.argv)
     subscription_id = sys.argv[1]
     if not subscription_id:
         raise ValueError("Subscription ID not found in automation variables or environment variables")

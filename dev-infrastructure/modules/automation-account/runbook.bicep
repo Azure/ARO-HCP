@@ -79,7 +79,7 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
 
 var baseArguments = '-ResourceGroupName ${resourceGroup().name} -AutomationAccountName ${automationAccountName} -RunbookName ${accountRunbook.name} -ScheduleName ${runbookSchedule.name}'
 var arguments = (subscriptionId != '' && managedIdentityId != '')
-  ? '${baseArguments} -SubscriptionId ${subscriptionId} -ManagedIdentityId ${managedIdentityId}'
+  ? '${baseArguments} -ManagedIdentityId ${managedIdentityId} -SubscriptionId ${subscriptionId}'
   : baseArguments
 
 // Link Schedule to Runbook
