@@ -4,12 +4,16 @@ metadata:
   name: package-operator-bootstrap
   namespace: package-operator-system
 spec:
-  # delete right after completion
-  ttlSecondsAfterFinished: 0
+  # delete 90seconds after completion, so helm can finish succesfully
+  ttlSecondsAfterFinished: 90
   # set deadline to 30min
   activeDeadlineSeconds: 1800
   template:
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       restartPolicy: OnFailure
       serviceAccountName: package-operator
       containers:
@@ -22,6 +26,8 @@ spec:
           value: ''
         - name: PKO_CONFIG
           value: ''
+        - name: PKO_IMAGE_PREFIX_OVERRIDES
+          value: '{{ .Values.pkoImagePrefixOverrides }}'
         - name: PKO_NAMESPACE
           valueFrom:
             fieldRef:
@@ -34,4 +40,9 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.serviceAccountName
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
   backoffLimit: 3

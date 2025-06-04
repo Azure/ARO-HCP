@@ -24,3 +24,5 @@ resourceGroups:
       configRef: pko.imageTag
     - name: RESOURCEGROUP
       configRef: mgmt.rg
+    - name: PKO_IMAGE_PREFIX_OVERRIDES
+      configRef: pko.imagePrefixOverrides

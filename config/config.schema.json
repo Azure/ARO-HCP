@@ -370,13 +370,17 @@
         },
         "imageTag": {
           "type": "string"
+        },
+        "imagePrefixOverrides": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "imageManager",
-        "imageTag"
+        "imageTag",
+        "imagePrefixOverrides"
       ]
     },
     "clustersService": {
