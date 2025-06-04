@@ -1,0 +1,13 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: backplane-sre-placement-binding
+  namespace: open-cluster-management
+placementRef:
+  name: backplane-sre-placement
+  kind: Placement
+  apiGroup: cluster.open-cluster-management.io
+subjects:
+  - name: backplane-sre-policy
+    kind: Policy
+    apiGroup: policy.open-cluster-management.io
