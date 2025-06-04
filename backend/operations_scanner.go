@@ -141,6 +141,9 @@ type OperationsScanner struct {
 	subscriptionChannel chan string
 	subscriptionWorkers sync.WaitGroup
 
+	// Allow overriding timestamps for testing.
+	newTimestamp func() time.Time
+
 	leaderGauge            prometheus.Gauge
 	workerGauge            prometheus.Gauge
 	operationsCount        *prometheus.CounterVec
@@ -158,6 +161,7 @@ func NewOperationsScanner(location string, dbClient database.DBClient, ocmConnec
 		clusterService:     ocm.ClusterServiceClient{Conn: ocmConnection},
 		notificationClient: http.DefaultClient,
 		subscriptions:      make([]string, 0),
+		newTimestamp:       func() time.Time { return time.Now().UTC() },
 
 		leaderGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
 			prometheus.GaugeOpts{
@@ -754,7 +758,7 @@ func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op opera
 	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
 
 	patchOperations.SetCondition(condition)
-	patchOperations.SetLastTransitionTime(time.Now().UTC())
+	patchOperations.SetLastTransitionTime(s.newTimestamp())
 	patchOperations.SetStatus(opStatus)
 	if opError != nil {
 		patchOperations.SetError(opError)
@@ -879,7 +883,7 @@ func (s *OperationsScanner) createBillingDocument(ctx context.Context, op operat
 func (s *OperationsScanner) markBillingDocumentDeleted(ctx context.Context, op operation) error {
 	var patchOperations database.BillingDocumentPatchOperations
 
-	patchOperations.SetDeletionTime(time.Now().UTC())
+	patchOperations.SetDeletionTime(s.newTimestamp())
 
 	err := s.dbClient.PatchBillingDoc(ctx, op.doc.ExternalID, patchOperations)
 	if err == nil {

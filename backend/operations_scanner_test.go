@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -95,6 +96,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			scanner := &OperationsScanner{
 				dbClient:           mockDBClient,
 				notificationClient: server.Client(),
+				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
 
 			operationDoc := database.NewOperationDocument(database.OperationRequestDelete, resourceID, internalID)
@@ -256,6 +258,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			scanner := &OperationsScanner{
 				dbClient:           mockDBClient,
 				notificationClient: server.Client(),
+				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
 
 			operationDoc := database.NewOperationDocument(database.OperationRequestCreate, resourceID, internalID)
