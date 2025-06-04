@@ -409,6 +409,8 @@ clouds:
         environment: "arohcpdev"
         image:
           digest: sha256:5830e8c95beba213e3f2aa885fd55171fdf601993966f1ac0a36784ba6eb5ba2
+        # NOTE: The role names must not include commas(,) in the name as the roleName field
+        # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
           clusterApiAzure:
             roleName: Azure Red Hat OpenShift Cluster API Role - Dev
