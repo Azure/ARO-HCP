@@ -28,6 +28,9 @@ defaults:
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
     secretsToSyncDir: "none"
+    subscription: hcp-global
+    rg: global-shared-resources
+    globalMSIName: global-ev2-identity
     nsp:
       name: nsp-global
       accessMode: 'Learning'
@@ -85,6 +88,7 @@ defaults:
     sev4ActionGroupIDs: ""
   # SVC cluster specifics
   svc:
+    subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
     istio:
@@ -143,6 +147,7 @@ defaults:
         shards: 2
   # MGMT cluster specifics
   mgmt:
+    subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
     applyKubeletFixes: true
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}

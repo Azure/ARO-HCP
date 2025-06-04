@@ -31,6 +31,9 @@ defaults:
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
     secretsToSyncDir: "none"
+    subscription: hcp-global
+    rg: global-shared-resources
+    globalMSIName: global-ev2-identity
     nsp:
       name: nsp-global
       accessMode: 'Learning'
@@ -88,6 +91,7 @@ defaults:
     sev4ActionGroupIDs: ""
   # SVC cluster specifics
   svc:
+    subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
     istio:
@@ -146,6 +150,7 @@ defaults:
         shards: 2
   # MGMT cluster specifics
   mgmt:
+    subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
     applyKubeletFixes: true
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
@@ -347,10 +352,7 @@ clouds:
         name: TM-AzureRedHatOpenShift-HCP-Leads
       # Global
       global:
-        subscription: hcp-global
-        rg: global-shared-resources
         region: uksouth
-        globalMSIName: global-ev2-identity
         secretsToSyncDir: 'msft-{{ .ctx.environment }}/arohcp{{ .ctx.environment }}-global'
       # DNS
       dns:
@@ -398,7 +400,6 @@ clouds:
             issuer: OneCertV2-PrivateCA
       # SVC cluster settings
       svc:
-        subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
         rg: "hcp-underlay-{{ .ctx.region }}-svc"
         logs:
           san: "svc.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
@@ -406,7 +407,6 @@ clouds:
           name: "{{ .ctx.region }}-svc-1" # [env-unique]
       # MC cluster settings
       mgmt:
-        subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
         rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
         aks:
           name: "{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
