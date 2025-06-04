@@ -1,0 +1,9 @@
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: backplane-sre-placement
+  namespace: open-cluster-management
+spec:
+  clusterSelector:
+    matchLabels:
+      cluster-role: management
