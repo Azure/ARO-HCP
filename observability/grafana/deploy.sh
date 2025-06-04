@@ -1,3 +1,3 @@
 #!/bin/bash
 
-python grafana.py
+python3 grafana.py
