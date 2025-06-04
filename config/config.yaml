@@ -89,6 +89,7 @@ defaults:
   # SVC cluster specifics
   svc:
     subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
+    rg: "hcp-underlay-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
     istio:
@@ -148,6 +149,7 @@ defaults:
   # MGMT cluster specifics
   mgmt:
     subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
+    rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}

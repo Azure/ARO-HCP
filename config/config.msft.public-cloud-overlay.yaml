@@ -58,14 +58,12 @@ clouds:
             issuer: OneCertV2-PrivateCA
       # SVC cluster settings
       svc:
-        rg: "hcp-underlay-{{ .ctx.region }}-svc"
         logs:
           san: "svc.geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
         aks:
           name: "{{ .ctx.region }}-svc-1" # [env-unique]
       # MC cluster settings
       mgmt:
-        rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
         aks:
           name: "{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
         logs:
