@@ -217,7 +217,7 @@ defaults:
       private: true
       zoneRedundantMode: 'Auto'
     cert:
-      name: frontend-cert
+      name: frontend-cert-{{ .ctx.regionShort }}
   # Mise
   mise:
     deploy: false
