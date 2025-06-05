@@ -362,14 +362,11 @@
     "pko": {
       "type": "object",
       "properties": {
-        "image": {
-          "type": "string"
+        "imagePackage": {
+          "$ref": "#/definitions/containerImage"
         },
         "imageManager": {
-          "type": "string"
-        },
-        "imageTag": {
-          "type": "string"
+          "$ref": "#/definitions/containerImage"
         },
         "imagePrefixOverrides": {
           "type": "string"
@@ -377,9 +374,8 @@
       },
       "additionalProperties": false,
       "required": [
-        "image",
+        "imagePackage",
         "imageManager",
-        "imageTag",
         "imagePrefixOverrides"
       ]
     },

@@ -16,12 +16,18 @@ resourceGroups:
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name
-    - name: PKO_IMAGE
-      configRef: pko.image
-    - name: PKO_IMAGE_MANAGER
-      configRef: pko.imageManager
-    - name: PKO_IMAGE_TAG
-      configRef: pko.imageTag
+    - name: PKO_IMAGEPACKAGE_REGISTRY
+      configRef: pko.imagePackage.registry
+    - name: PKO_IMAGEPACKAGE_REPOSITORY
+      configRef: pko.imagePackage.repository
+    - name: PKO_IMAGEPACKAGE_DIGEST
+      configRef: pko.imagePackage.digest
+    - name: PKO_IMAGEMANAGER_REGISTRY
+      configRef: pko.imageManager.registry
+    - name: PKO_IMAGEMANAGER_REPOSITORY
+      configRef: pko.imageManager.repository
+    - name: PKO_IMAGEMANAGER_DIGEST
+      configRef: pko.imageManager.digest
     - name: RESOURCEGROUP
       configRef: mgmt.rg
     - name: PKO_IMAGE_PREFIX_OVERRIDES
