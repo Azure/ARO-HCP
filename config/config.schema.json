@@ -31,6 +31,7 @@
     },
     "tracing": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "address": {
           "type": "string",
@@ -163,6 +164,7 @@
     },
     "aksConfig": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string",
@@ -245,6 +247,7 @@
     },
     "containerImage": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "registry": {
           "type": "string"
@@ -283,6 +286,7 @@
     },
     "prometheus": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "namespace": {
           "type": "string"
@@ -292,6 +296,7 @@
         },
         "prometheusOperator": {
           "type:": "object",
+          "additionalProperties": false,
           "properties": {
             "image": {
               "$ref": "#/definitions/containerImage"
@@ -303,6 +308,7 @@
         },
         "prometheusSpec": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "image": {
               "$ref": "#/definitions/containerImage"
@@ -421,6 +427,7 @@
         },
         "postgres": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "deploy": {
               "type": "boolean"
@@ -511,6 +518,7 @@
     },
     "extraVars": {
       "type": "object",
+      "additionalProperties": true,
       "properties": {},
       "required": []
     },
@@ -679,6 +687,7 @@
     },
     "global": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "nsp": {
           "$ref": "#/definitions/nsp"
@@ -886,6 +895,7 @@
             },
             "sidecar": {
               "type:": "object",
+              "additionalProperties": false,
               "properties": {
                 "image": {
                   "$ref": "#/definitions/containerImage"
