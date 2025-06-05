@@ -431,6 +431,9 @@ var operatorMirrorJobConfiguration = [
                   {
                     name: 'multicluster-engine.v2.8.1'
                   }
+                  {
+                    name: 'multicluster-engine.v2.8.2'
+                  }
                 ]
               }
               {
