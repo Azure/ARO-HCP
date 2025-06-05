@@ -35,7 +35,6 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
@@ -43,7 +42,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
-	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 
 type Frontend struct {
@@ -538,7 +536,6 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 	}
-	tracing.SetClusterAttributes(trace.SpanFromContext(ctx), csCluster)
 
 	transaction := f.dbClient.NewTransaction(pk)
 

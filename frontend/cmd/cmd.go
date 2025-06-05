@@ -37,7 +37,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -183,22 +182,22 @@ func (opts *FrontendOpts) Run() error {
 		return err
 	}
 
-	csClient := ocm.ClusterServiceClient{
-		Conn:                       conn,
-		ProvisionerNoOpProvision:   opts.clusterServiceNoopDeprovision,
-		ProvisionerNoOpDeprovision: opts.clusterServiceNoopDeprovision,
-	}
-
-	if opts.clusterServiceProvisionShard != "" {
-		csClient.ProvisionShardID = api.Ptr(opts.clusterServiceProvisionShard)
-	}
+	csClient := ocm.NewClusterServiceClientWithTracing(
+		ocm.NewClusterServiceClient(
+			conn,
+			opts.clusterServiceProvisionShard,
+			opts.clusterServiceNoopDeprovision,
+			opts.clusterServiceNoopDeprovision,
+		),
+		util.TracerName,
+	)
 
 	if len(opts.location) == 0 {
 		return errors.New("location is required")
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, opts.location, &csClient)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, opts.location, csClient)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
