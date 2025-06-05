@@ -147,6 +147,7 @@ func TestNodePoolStructTagMap(t *testing.T) {
 		"Properties.Platform.ManagedResourceGroup":               api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.SubnetID":                           api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.VMSize":                             api.VisibilityRead | api.VisibilityCreate,
+		"Properties.Platform.EnableEncryptionAtHost":             api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.DiskSizeGiB":                        api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.DiskStorageAccountType":             api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.AvailabilityZone":                   api.VisibilityRead | api.VisibilityCreate,

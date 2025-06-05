@@ -57,6 +57,7 @@ type NodePoolVersionProfile struct {
 type NodePoolPlatformProfile struct {
 	SubnetID               string                 `json:"subnetId,omitempty"               validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
 	VMSize                 string                 `json:"vmSize,omitempty"                 validate:"required_for_put"`
+	EnableEncryptionAtHost bool                   `json:"enableEncryptionAtHost"`
 	DiskSizeGiB            int32                  `json:"diskSizeGiB,omitempty"            validate:"min=1"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"omitempty,enum_diskstorageaccounttype"`
 	AvailabilityZone       string                 `json:"availabilityZone,omitempty"`
