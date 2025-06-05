@@ -28,25 +28,34 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
-func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemplateFile string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
+func modeFromString(mode string) armresources.DeploymentMode {
+	switch mode {
+	case "Complete":
+		return armresources.DeploymentModeComplete
+	default:
+		return armresources.DeploymentModeIncremental
+	}
+}
+
+func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemplateFile, deploymentMode string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
 	template, params, err := transformParameters(ctx, cfg, inputs, bicepParameterTemplateFile)
 	if err != nil {
 		return nil, err
 	}
 	return &armresources.DeploymentWhatIfProperties{
-		Mode:       to.Ptr(armresources.DeploymentModeIncremental),
+		Mode:       to.Ptr(modeFromString(deploymentMode)),
 		Template:   template,
 		Parameters: params,
 	}, nil
 }
 
-func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFile string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentProperties, error) {
+func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFile, deploymentMode string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentProperties, error) {
 	template, params, err := transformParameters(ctx, cfg, inputs, bicepParameterTemplateFile)
 	if err != nil {
 		return nil, err
 	}
 	return &armresources.DeploymentProperties{
-		Mode:       to.Ptr(armresources.DeploymentModeIncremental),
+		Mode:       to.Ptr(modeFromString(deploymentMode)),
 		Template:   template,
 		Parameters: params,
 	}, nil
