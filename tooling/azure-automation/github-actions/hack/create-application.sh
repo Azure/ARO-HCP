@@ -23,6 +23,7 @@ az role assignment create --assignee "${OBJ_ID}" --role "Role Based Access Contr
 az role assignment create --assignee "${OBJ_ID}" --role "Grafana Admin" --scope /subscriptions/${SUBSCRIPTION}
 az role assignment create --assignee "${OBJ_ID}" --role "Key Vault Secrets Officer" --scope /subscriptions/${SUBSCRIPTION}
 az role assignment create --assignee "${OBJ_ID}" --role "Key Vault Certificates Officer" --scope /subscriptions/${SUBSCRIPTION}
+az role assignment create --assignee "${OBJ_ID}" --role "Key Vault Crypto Officer" --scope /subscriptions/${SUBSCRIPTION}
 
 az ad app federated-credential create --id "${APP_ID}" --parameters \
 '{
