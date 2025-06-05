@@ -328,9 +328,7 @@ model NodePoolProperties {
   /** Representation of a autoscaling in a node pool. */
   autoScaling?: NodePoolAutoScaling;
 
-  /** K8s labels to propagate to the NodePool Nodes
-   * The good example of the label is `node-role.kubernetes.io/master: ""`
-   */
+  /** K8s labels to propagate to the NodePool Nodes */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
@@ -379,7 +377,9 @@ model Taint {
 
 /** Label represents the k8s label */
 model Label {
-  /** The key of the label */
+  /** The key of the label
+   * @example node-role.kubernetes.io/master
+   */
   key?: string;
 
   /** The value of the label */

@@ -338,7 +338,7 @@ type NodePoolProperties struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	// K8s labels to propagate to the NodePool Nodes
 	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
@@ -359,7 +359,7 @@ type NodePoolPropertiesUpdate struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	// K8s labels to propagate to the NodePool Nodes
 	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
