@@ -82,7 +82,7 @@
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpntly-dbcs-ntly",
+      "name": "arohcpntly-dbcs-ussw1",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -92,7 +92,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "ah-ntly-cx-ntly-999",
+    "name": "ah-ntly-cx-ussw1-999",
     "private": false,
     "softDelete": false
   },
@@ -101,7 +101,7 @@
     "cxParentZoneDelegation": false,
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
-    "regionalSubdomain": "ntly-ntly",
+    "regionalSubdomain": "ussw1-ntly",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
@@ -114,12 +114,12 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-ntly-ntly"
+      "name": "frontend-cert-ntly-ussw1"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcpntly-rp-ntly",
+      "name": "arohcpntly-rp-ussw1",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -205,7 +205,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-ntly-mgmt-999",
+      "consumerName": "hcp-underlay-ussw1-mgmt-999",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -219,7 +219,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcpntly-maestro-ntly",
+      "name": "arohcpntly-maestro-ussw1",
       "private": false
     },
     "image": {
@@ -231,7 +231,7 @@
       "databaseName": "maestro",
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpntly-dbmaestro-ntly",
+      "name": "arohcpntly-dbmaestro-ussw1",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -245,7 +245,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-ntly"
+      "mqttClientName": "maestro-server-ussw1"
     }
   },
   "mgmt": {
@@ -253,7 +253,7 @@
       "clusterOutboundIPAddressIPTags": "",
       "enableSwiftV2": true,
       "etcd": {
-        "kvName": "ah-ntly-me-ntly-999",
+        "kvName": "ah-ntly-me-ussw1-999",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -292,7 +292,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ntly-mgmt-999"
+      "name": "nsp-ussw1-mgmt-999"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -320,7 +320,7 @@
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "ah-ntly-mg-ntly-999",
+    "name": "ah-ntly-mg-ussw1-999",
     "private": false,
     "softDelete": false
   },
@@ -345,19 +345,19 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-ntly-ntly",
+    "hcpWorkspaceName": "arohcp-hcp-ntly-ussw1",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-ntly-ntly"
+    "svcWorkspaceName": "arohcp-ntly-ussw1"
   },
   "msiKeyVault": {
-    "name": "ah-ntly-mi-ntly-999",
+    "name": "ah-ntly-mi-ussw1-999",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpntlyoidcntly",
+  "oidcStorageAccountName": "arohcpntlyoidcussw1",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
@@ -366,7 +366,7 @@
     "imageTag": "v1.18.2"
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-ntly",
+  "regionRG": "hcp-underlay-ntly-ussw1",
   "serviceKeyVault": {
     "assignNSP": true,
     "name": "aro-hcp-dev-svc-kv",
@@ -379,7 +379,7 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "ah-ntly-se-ntly-1",
+        "kvName": "ah-ntly-se-ussw1-1",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -425,7 +425,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ntly-svc"
+      "name": "nsp-ussw1-svc"
     },
     "prometheus": {
       "namespace": "prometheus",

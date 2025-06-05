@@ -350,7 +350,7 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
-      regionRG: hcp-underlay-{{ .ctx.regionShort }}
+      regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       global:
         rg: global
         subscription: ARO Hosted Control Planes (EA Subscription 1)

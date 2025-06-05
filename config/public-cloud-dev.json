@@ -366,7 +366,7 @@
     "imageTag": "v1.18.2"
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-ussw1",
+  "regionRG": "hcp-underlay-dev-ussw1",
   "serviceKeyVault": {
     "assignNSP": true,
     "name": "aro-hcp-dev-svc-kv",
