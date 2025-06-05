@@ -20,6 +20,7 @@ OBJ_ID=$(az ad sp create --id $APP_ID | jq -r '.id')
 # Create role assignment and federate credentials
 az role assignment create --assignee "${OBJ_ID}" --role Contributor --scope /subscriptions/${SUBSCRIPTION}
 az role assignment create --assignee "${OBJ_ID}" --role "Role Based Access Control Administrator" --scope /subscriptions/${SUBSCRIPTION}
+az role assignment create --assignee "${OBJ_ID}" --role "User Access Administrator" --scope /subscriptions/${SUBSCRIPTION}
 az role assignment create --assignee "${OBJ_ID}" --role "Grafana Admin" --scope /subscriptions/${SUBSCRIPTION}
 az role assignment create --assignee "${OBJ_ID}" --role "Key Vault Secrets Officer" --scope /subscriptions/${SUBSCRIPTION}
 az role assignment create --assignee "${OBJ_ID}" --role "Key Vault Certificates Officer" --scope /subscriptions/${SUBSCRIPTION}
