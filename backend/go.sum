@@ -12,6 +12,10 @@ github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.3.0 h1:RGcdpSElvcXCwxydI0
 github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.3.0/go.mod h1:YwUyrNUtcZcibA99JcfCP6UUp95VVQKO2MJfBzgJDwA=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 h1:FPKJS1T+clwv+OLGt13a8UjqeRuh0O4SJ3lUriThc+4=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1/go.mod h1:j2chePtV91HrC22tGoRX3sGY42uF13WzmmV80/OdVAA=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 h1:Dd+RhdJn0OTtVGaeDLZpcumkIVCtA/3/Fo42+eoYvVM=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0/go.mod h1:5kakwfW5CjC9KK+Q4wjXAg+ShuIm2mBMua0ZFj2C8PE=
+github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0 h1:RTTsXUJWn0jumeX62Mb153wYXykqnrzYBYDeHp0kiuk=
+github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0/go.mod h1:k4MMjrPHIEK+umaMGk1GNLgjEybJZ9mHSRDZ+sDFv3Y=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJTmL004Abzc5wDB5VtZG2PJk5ndYDgVacGqfirKxjM=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 h1:oygO0locgZJe7PpYPXT5A29ZkwJaPqcva7BVeemZOZs=
@@ -191,6 +195,8 @@ go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 h1:sbiXRND
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0/go.mod h1:69uWxva0WgAA/4bu2Yy70SLDBwZXuQ6PbBpbsa5iZrQ=
 go.opentelemetry.io/otel v1.35.0 h1:xKWKPxrxB6OtMCbmMY021CqC45J+3Onta9MqjhnusiQ=
 go.opentelemetry.io/otel v1.35.0/go.mod h1:UEqy8Zp11hpkUrL73gSlELM0DupHoiq72dR+Zqel/+Y=
+go.opentelemetry.io/otel/exporters/jaeger v1.16.0 h1:YhxxmXZ011C0aDZKoNw+juVWAmEfv/0W2XBOv9aHTaA=
+go.opentelemetry.io/otel/exporters/jaeger v1.16.0/go.mod h1:grYbBo/5afWlPpdPZYhyn78Bk04hnvxn2+hvxQhKIQM=
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.11.0 h1:HMUytBT3uGhPKYY/u/G5MR9itrlSO2SMOsSD3Tk3k7A=
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.11.0/go.mod h1:hdDXsiNLmdW/9BF2jQpnHHlhFajpWCEYfM6e5m2OAZg=
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.11.0 h1:C/Wi2F8wEmbxJ9Kuzw/nhP+Z9XaHYMkyDmXy6yR2cjw=

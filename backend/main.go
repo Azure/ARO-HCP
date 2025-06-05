@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/rest"
@@ -44,6 +45,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -163,7 +165,8 @@ func Run(cmd *cobra.Command, args []string) error {
 		argCosmosName,
 		azcore.ClientOptions{
 			// FIXME Cloud should be determined by other means.
-			Cloud: cloud.AzurePublic,
+			Cloud:           cloud.AzurePublic,
+			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
 		},
 	)
 	if err != nil {
