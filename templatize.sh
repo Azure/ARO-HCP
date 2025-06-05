@@ -102,9 +102,6 @@ elif [ "$DEPLOY_ENV" == "ntly" ]; then
     REGION_STAMP="ntly"
 elif [ "$DEPLOY_ENV" == "perf" ]; then
     REGION_STAMP="${REGION_SHORT}p${USER:0:4}"
-elif [ "$DEPLOY_ENV" == "dev" ] || [ "$DEPLOY_ENV" == "cspr" ]; then
-    CLEAN_DEPLOY_ENV=$(echo "${DEPLOY_ENV}" | tr -cd '[:alnum:]')
-    REGION_STAMP="${CLEAN_DEPLOY_ENV}"
 else
     REGION_STAMP=${REGION_SHORT}
 fi

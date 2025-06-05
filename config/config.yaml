@@ -80,8 +80,8 @@ defaults:
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
-    svcWorkspaceName: 'arohcp-{{ .ctx.regionShort }}'
-    hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.regionShort }}'
+    svcWorkspaceName: 'arohcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
+    hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
     devAlertingEmails: ""
     sev1ActionGroupIDs: ""
     sev2ActionGroupIDs: ""
@@ -224,7 +224,7 @@ defaults:
       private: true
       zoneRedundantMode: 'Auto'
     cert:
-      name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.region }}
+      name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Mise
   mise:
     deploy: false

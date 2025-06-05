@@ -114,7 +114,7 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-pers-southwestus"
+      "name": "frontend-cert-pers-ussw1test"
     },
     "cosmosDB": {
       "deploy": true,
@@ -348,12 +348,12 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-ussw1test",
+    "hcpWorkspaceName": "arohcp-hcp-pers-ussw1test",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-ussw1test"
+    "svcWorkspaceName": "arohcp-pers-ussw1test"
   },
   "msiKeyVault": {
     "name": "ah-pers-mi-ussw1test-999",

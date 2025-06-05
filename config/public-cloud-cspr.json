@@ -82,7 +82,7 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpcspr-dbcs-cspr",
+      "name": "arohcpcspr-dbcs-ussw1",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -92,7 +92,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "ah-cspr-cx-cspr-999",
+    "name": "ah-cspr-cx-ussw1-999",
     "private": false,
     "softDelete": false
   },
@@ -114,12 +114,12 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-cspr-southwestus"
+      "name": "frontend-cert-cspr-ussw1"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcpcspr-rp-cspr",
+      "name": "arohcpcspr-rp-ussw1",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -205,7 +205,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-cspr-mgmt-999",
+      "consumerName": "hcp-underlay-ussw1-mgmt-999",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -219,7 +219,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcpcspr-maestro-cspr",
+      "name": "arohcpcspr-maestro-ussw1",
       "private": false
     },
     "image": {
@@ -231,7 +231,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpcspr-dbmaestro-cspr",
+      "name": "arohcpcspr-dbmaestro-ussw1",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -245,7 +245,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-cspr"
+      "mqttClientName": "maestro-server-ussw1"
     }
   },
   "mgmt": {
@@ -253,7 +253,7 @@
       "clusterOutboundIPAddressIPTags": "",
       "enableSwiftV2": true,
       "etcd": {
-        "kvName": "ah-cspr-me-cspr-999",
+        "kvName": "ah-cspr-me-ussw1-999",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -292,7 +292,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-cspr-mgmt-999"
+      "name": "nsp-ussw1-mgmt-999"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -320,7 +320,7 @@
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "ah-cspr-mg-cspr-999",
+    "name": "ah-cspr-mg-ussw1-999",
     "private": false,
     "softDelete": false
   },
@@ -345,19 +345,19 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-cspr",
+    "hcpWorkspaceName": "arohcp-hcp-cspr-ussw1",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-cspr"
+    "svcWorkspaceName": "arohcp-cspr-ussw1"
   },
   "msiKeyVault": {
-    "name": "ah-cspr-mi-cspr-999",
+    "name": "ah-cspr-mi-ussw1-999",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpcsproidccspr",
+  "oidcStorageAccountName": "arohcpcsproidcussw1",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
@@ -366,7 +366,7 @@
     "imageTag": "v1.18.2"
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-cspr",
+  "regionRG": "hcp-underlay-ussw1",
   "serviceKeyVault": {
     "assignNSP": false,
     "name": "aro-hcp-dev-svc-kv",
@@ -379,7 +379,7 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "ah-cspr-se-cspr-1",
+        "kvName": "ah-cspr-se-ussw1-1",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -425,7 +425,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-cspr-svc"
+      "name": "nsp-ussw1-svc"
     },
     "prometheus": {
       "namespace": "prometheus",

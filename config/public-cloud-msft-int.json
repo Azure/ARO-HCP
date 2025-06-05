@@ -114,7 +114,7 @@
   "frontend": {
     "cert": {
       "issuer": "OneCertV2-PublicCA",
-      "name": "frontend-cert-int-southwestus"
+      "name": "frontend-cert-int-ussw1"
     },
     "cosmosDB": {
       "deploy": true,
@@ -348,12 +348,12 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-int",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-ussw1",
+    "hcpWorkspaceName": "arohcp-hcp-int-ussw1",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-ussw1"
+    "svcWorkspaceName": "arohcp-int-ussw1"
   },
   "msiKeyVault": {
     "name": "ah-int-mi-ussw1-999",
