@@ -34,7 +34,7 @@
   "backplaneAPI": {
     "image": {
       "digest": "sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6",
-      "registry": "arohcpsvcdev.azurecr.io",
+      "registry": "quay.io",
       "repository": "app-sre/backplane-api"
     }
   },
@@ -82,7 +82,7 @@
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cs-ussw1tst",
+      "name": "arohcp-pers-dbcs-ussw1test",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -92,7 +92,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "arohcp-cx-ussw1tst-1",
+    "name": "ah-pers-cx-ussw1test-999",
     "private": false,
     "softDelete": false
   },
@@ -101,7 +101,7 @@
     "cxParentZoneDelegation": false,
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
-    "regionalSubdomain": "ussw1tst",
+    "regionalSubdomain": "ussw1test",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "extraVars": {},
@@ -114,12 +114,12 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-ussw1tst"
+      "name": "frontend-cert-pers-ussw1test"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcp-rp-ussw1tst",
+      "name": "arohcppers-rp-ussw1test",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -205,7 +205,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-ussw1tst-mgmt-1",
+      "consumerName": "hcp-underlay-ussw1test-mgmt-999",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -219,7 +219,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-maestro-ussw1tst",
+      "name": "arohcp-pers-maestro-ussw1test",
       "private": false
     },
     "image": {
@@ -231,7 +231,7 @@
       "databaseName": "maestro",
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-maestro-ussw1tst",
+      "name": "arohcp-pers-dbmaestro-ussw1test",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -245,16 +245,11 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-ussw1tst",
+      "mqttClientName": "maestro-server-ussw1test",
       "tracing": {
         "address": "http://ingest.observability:4318",
         "exporter": "otlp"
       }
-    }
-  },
-  "mce": {
-    "clcStateMetrics": {
-      "imageDigest": "bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7"
     }
   },
   "mgmt": {
@@ -262,7 +257,7 @@
       "clusterOutboundIPAddressIPTags": "",
       "enableSwiftV2": true,
       "etcd": {
-        "kvName": "arohcp-etcd-ussw1tst-1",
+        "kvName": "ah-pers-me-ussw1test-999",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -273,7 +268,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "ussw1tst-mgmt-1",
+      "name": "pers-ussw1test-mgmt-999",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -297,9 +292,14 @@
     "jaeger": {
       "deploy": false
     },
+    "logs": {
+      "configVersion": "",
+      "namespace": "HCPCustomerLogs",
+      "san": ""
+    },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1tst-mgmt-1"
+      "name": "nsp-ussw1test-mgmt-999"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -323,11 +323,11 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-ussw1tst-mgmt-1",
+    "rg": "hcp-underlay-pers-ussw1test-mgmt-999",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "arohcp-mgmt-ussw1tst-1",
+    "name": "ah-pers-mg-ussw1test-999",
     "private": false,
     "softDelete": false
   },
@@ -352,19 +352,19 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-ussw1tst",
+    "hcpWorkspaceName": "arohcp-hcp-pers-ussw1test",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-ussw1tst"
+    "svcWorkspaceName": "arohcp-pers-ussw1test"
   },
   "msiKeyVault": {
-    "name": "arohcp-msi-ussw1tst-1",
+    "name": "ah-pers-mi-ussw1test-999",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpoidcussw1tst",
+  "oidcStorageAccountName": "arohcppersoidcussw1test",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "imageManager": {
@@ -380,7 +380,7 @@
     "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator"
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-ussw1tst",
+  "regionRG": "hcp-underlay-pers-ussw1test",
   "serviceKeyVault": {
     "assignNSP": false,
     "name": "aro-hcp-dev-svc-kv",
@@ -393,18 +393,18 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "arohcp-etcd-ussw1tst",
+        "kvName": "ah-pers-se-ussw1test-1",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
-        "azCount": 1,
+        "azCount": 3,
         "maxCount": 3,
         "minCount": 1,
         "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "ussw1tst-svc",
+      "name": "pers-ussw1test-svc",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -427,7 +427,7 @@
     "istio": {
       "ingressGatewayIPAddressIPTags": "",
       "ingressGatewayIPAddressName": "aro-hcp-istio-ingress",
-      "istioctlVersion": "1.23.1",
+      "istioctlVersion": "1.24.1",
       "tag": "prod-stable",
       "targetVersion": "asm-1-25",
       "versions": "asm-1-25"
@@ -435,9 +435,14 @@
     "jaeger": {
       "deploy": true
     },
+    "logs": {
+      "configVersion": "",
+      "namespace": "HCPServiceLogs",
+      "san": ""
+    },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1tst-svc"
+      "name": "nsp-ussw1test-svc"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -461,7 +466,7 @@
         "version": ""
       }
     },
-    "rg": "hcp-underlay-ussw1tst-svc",
+    "rg": "hcp-underlay-pers-ussw1test-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   }
 }

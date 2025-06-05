@@ -86,6 +86,11 @@
       },
       "additionalProperties": false
     },
+    "resourceGroupName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 90
+    },
     "keyVault": {
       "type": "object",
       "properties": {
@@ -252,7 +257,8 @@
         }
       },
       "required": [
-        "repository"
+        "repository",
+        "digest"
       ]
     },
     "keyColonValueCSV": {
@@ -327,7 +333,7 @@
       "type": "object",
       "properties": {
         "baseDnsZoneRG": {
-          "type": "string",
+          "$ref": "#/definitions/resourceGroupName",
           "description": "The Azure RG that holds the parent DNS zones"
         },
         "cxParentZoneName": {
@@ -605,7 +611,9 @@
           "type": "object",
           "properties": {
             "name": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 127,
+              "pattern": "^[a-zA-Z0-9-]+$"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -676,7 +684,7 @@
           "$ref": "#/definitions/nsp"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"
@@ -870,7 +878,8 @@
           "type": "object",
           "properties": {
             "consumerName": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 128
             },
             "loglevel": {
               "type": "integer"
@@ -984,25 +993,6 @@
         "restrictIstioIngress"
       ]
     },
-    "mce": {
-      "type": "object",
-      "properties": {
-        "clcStateMetrics": {
-          "type": "object",
-          "properties": {
-            "imageDigest": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "imageDigest"
-          ]
-        }
-      },
-      "required": [
-        "clcStateMetrics"
-      ]
-    },
     "mgmt": {
       "type": "object",
       "properties": {
@@ -1016,7 +1006,7 @@
           "$ref": "#/definitions/nsp"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"
@@ -1189,7 +1179,7 @@
       "type": "string"
     },
     "regionRG": {
-      "type": "string"
+      "$ref": "#/definitions/resourceGroupName"
     },
     "serviceKeyVault": {
       "type": "object",
@@ -1204,7 +1194,7 @@
           "type": "string"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "softDelete": {
           "type": "boolean"
@@ -1229,7 +1219,7 @@
           "$ref": "#/definitions/aksConfig"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"
@@ -1341,7 +1331,6 @@
     "maestro",
     "mgmt",
     "mgmtKeyVault",
-    "mce",
     "monitoring",
     "msiKeyVault",
     "oidcStorageAccountName",
