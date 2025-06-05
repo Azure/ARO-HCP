@@ -18,6 +18,7 @@ $schema: config.schema.json
 #   An environment unique names does not need to be unique within the Azure cloud
 #
 # To implement names, we leverate static strings combined with the {{ .ctx }} variables, e.g.
+# - {{ .ctx.environment }} length: 1-4 / starts with a character, may end with a digit
 # - {{ .ctx.regionShort }} length: 2-4 / starts with a character, may end with a digit
 # - {{ .ctx.region }} very long, up to 20 characters / starts with a character, may end with a digit
 # - {{ .ctx.stamp }} used for for uniqueness for MGMT stamps within a region / digits only
@@ -226,7 +227,7 @@ defaults:
       private: true
       zoneRedundantMode: 'Auto'
     cert:
-      name: frontend-cert-{{ .ctx.regionShort }}
+      name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Mise
   mise:
     deploy: false
