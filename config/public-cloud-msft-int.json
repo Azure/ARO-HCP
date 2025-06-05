@@ -276,6 +276,7 @@
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
+        "azCount": 3,
         "maxCount": 4,
         "minCount": 1,
         "osDiskSizeGB": 128,

@@ -132,6 +132,7 @@ clouds:
               systemAgentPool:
                 minCount: 1
                 maxCount: 4
+                azCount: 3
               userAgentPool:
                 minCount: 1
                 maxCount: 12
