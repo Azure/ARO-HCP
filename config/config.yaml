@@ -613,6 +613,9 @@ clouds:
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
+          monitoring:
+            svcWorkspaceName: 'aro-hcp-{{ .ctx.regionShort }}'
+            hcpWorkspaceName: 'aro-hcp-hcp-{{ .ctx.regionShort }}'
           # Cluster Service
           clustersService:
             postgres:
@@ -629,9 +632,13 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+          serviceKeyVault:
+            assignNSP: false
           # MC
           mgmt:
             applyKubeletFixes: false
+          svc:
+            subscription: ARO HCP nightly service (EA Subscription)
       pers:
         # this is the personal DEV environment
         defaults:
