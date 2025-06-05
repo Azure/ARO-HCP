@@ -17,13 +17,16 @@ deploy:
 			--query tenantId -o tsv) && \
 	${HELM_CMD} package-operator ./deploy \
 	--namespace ${NAMESPACE} \
-	--set pkoImage=${PKO_IMAGE} \
-	--set pkoImageManager=${PKO_IMAGE_MANAGER} \
-	--set pkoImageTag=${PKO_IMAGE_TAG} \
 	--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
 	--set pullBinding.scope='repository:*:pull' \
-	--set imagePrefixOverrides=${PKO_IMAGE_PREFIX_OVERRIDES}
+	--set imagePrefixOverrides=${PKO_IMAGE_PREFIX_OVERRIDES} \
+	--set pkoImagePackageRegistry=${PKO_IMAGEPACKAGE_REGISTRY} \
+	--set pkoImagePackageRepository=${PKO_IMAGEPACKAGE_REPOSITORY} \
+	--set pkoImagePackageDigest=${PKO_IMAGEPACKAGE_DIGEST} \
+	--set pkoImageManagerRegistry=${PKO_IMAGEMANAGER_REGISTRY} \
+	--set pkoImageManagerRepository=${PKO_IMAGEMANAGER_REPOSITORY} \
+	--set pkoImageManagerDigest=${PKO_IMAGEMANAGER_DIGEST}
 
 .PHONY: deploy

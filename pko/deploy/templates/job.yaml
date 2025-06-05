@@ -18,8 +18,8 @@ spec:
       serviceAccountName: package-operator
       containers:
       - name: package-operator
-        image: "{{ .Values.pkoImageManager }}:{{ .Values.pkoImageTag }}"
-        args: ["-self-bootstrap={{ .Values.pkoImage }}:{{ .Values.pkoImageTag }}"]
+        image: "{{ .Values.pkoImageManagerRegistry }}/{{ .Values.pkoImageManagerRepository }}@{{ .Values.pkoImageManagerDigest }}"
+        args: ["-self-bootstrap={{ .Values.pkoImagePackageRegistry }}/{{ .Values.pkoImagePackageRepository }}@{{ .Values.pkoImagePackageDigest }}"]
         imagePullPolicy: Always
         env:
         - name: PKO_REGISTRY_HOST_OVERRIDES

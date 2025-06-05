@@ -360,10 +360,17 @@
   "oidcStorageAccountName": "arohcpoidcntly",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
-    "image": "arohcpsvcdev.azurecr.io/package-operator/package-operator-package",
-    "imageManager": "arohcpsvcdev.azurecr.io/package-operator/package-operator-manager",
-    "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator",
-    "imageTag": "v1.18.2"
+    "imageManager": {
+      "digest": "sha256:04b280a2dfcd89c433db32106e0f9a80b978c2513b979865df7a66dc67617e90",
+      "registry": "arohcpsvcdev.azurecr.io",
+      "repository": "package-operator/package-operator-manager"
+    },
+    "imagePackage": {
+      "digest": "sha256:a541ddb20875264f1995c38b1dd66de052547c2a861001b3b49c2a56b7e06e0d",
+      "registry": "arohcpsvcdev.azurecr.io",
+      "repository": "package-operator/package-operator-package"
+    },
+    "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator"
   },
   "region": "southwestus",
   "regionRG": "hcp-underlay-ntly",
