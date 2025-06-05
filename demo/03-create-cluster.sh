@@ -164,7 +164,6 @@ main() {
     "file-csi-driver"
     "image-registry"
     "cloud-network-config"
-    "kms"
   )
 
   # data plane operator names required for OCP 4.18.
