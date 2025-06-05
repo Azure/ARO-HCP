@@ -660,9 +660,13 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+          serviceKeyVault:
+            assignNSP: false
           # MC
           mgmt:
             applyKubeletFixes: false
+          svc:
+            subscription: ARO HCP nightly service (EA Subscription)
       pers:
         # this is the personal DEV environment
         defaults:

@@ -388,12 +388,12 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-ntly-ussw1",
+    "hcpWorkspaceName": "aro-hcp-hcp-ussw1",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-ntly-ussw1"
+    "svcWorkspaceName": "aro-hcp-ussw1"
   },
   "msiKeyVault": {
     "name": "ah-ntly-mi-ussw1-999",
@@ -422,7 +422,7 @@
   "region": "southwestus",
   "regionRG": "hcp-underlay-ntly-ussw1",
   "serviceKeyVault": {
-    "assignNSP": true,
+    "assignNSP": false,
     "name": "aro-hcp-dev-svc-kv",
     "private": false,
     "region": "westus3",
@@ -504,7 +504,6 @@
       }
     },
     "rg": "hcp-underlay-ntly-southwestus-svc",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
-  },
-  "tenantId": ""
+    "subscription": "ARO HCP nightly service (EA Subscription)"
+  }
 }
