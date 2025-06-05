@@ -1026,7 +1026,7 @@
     },
     "Effect": {
       "type": "string",
-      "description": "The taint effect the same as in K8s",
+      "description": "The taint effect the same as in Kubernetes",
       "enum": [
         "NoSchedule",
         "PreferNoSchedule",
@@ -1208,7 +1208,7 @@
     },
     "Label": {
       "type": "object",
-      "description": "Label represents the k8s label",
+      "description": "Label represents the Kubernetes label",
       "properties": {
         "key": {
           "type": "string",
@@ -1470,7 +1470,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "K8s labels to propagate to the NodePool Nodes",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -1526,7 +1526,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "K8s labels to propagate to the NodePool Nodes",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes",
           "items": {
             "$ref": "#/definitions/Label"
           },

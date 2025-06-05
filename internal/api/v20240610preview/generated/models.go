@@ -214,7 +214,7 @@ type HcpOpenShiftClusterUpdate struct {
 	Type *string
 }
 
-// Label represents the k8s label
+// Label represents the Kubernetes label
 type Label struct {
 	// The key of the label
 	Key *string
@@ -338,7 +338,7 @@ type NodePoolProperties struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// K8s labels to propagate to the NodePool Nodes
+	// Kubernetes labels to propagate to the NodePool Nodes
 	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
@@ -359,7 +359,7 @@ type NodePoolPropertiesUpdate struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// K8s labels to propagate to the NodePool Nodes
+	// Kubernetes labels to propagate to the NodePool Nodes
 	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
