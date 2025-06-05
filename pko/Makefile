@@ -23,9 +23,10 @@ deploy:
 	--set pullBinding.scope='repository:*:pull' \
 	--set imagePrefixOverrides=${PKO_IMAGE_PREFIX_OVERRIDES} \
 	--set pkoImagePackageRegistry=${PKO_IMAGEPACKAGE_REGISTRY} \
-    --set pkoImagePackageRepository=${PKO_IMAGEPACKAGE_REPOSITORY} \
+	--set pkoImagePackageRepository=${PKO_IMAGEPACKAGE_REPOSITORY} \
 	--set pkoImagePackageDigest=${PKO_IMAGEPACKAGE_DIGEST} \
-    --set pkoImageManagerRegistry=${PKO_IMAGEMANAGER_REGISTRY} \
-    --set pkoImageManagerRepository=${PKO_IMAGEMANAGER_REPOSITORY} \
-    --set pkoImageManagerDigest=${PKO_IMAGEMANAGER_DIGEST}
+	--set pkoImageManagerRegistry=${PKO_IMAGEMANAGER_REGISTRY} \
+	--set pkoImageManagerRepository=${PKO_IMAGEMANAGER_REPOSITORY} \
+	--set pkoImageManagerDigest=${PKO_IMAGEMANAGER_DIGEST}
+
 .PHONY: deploy
