@@ -22,12 +22,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 
 // CheckForProvisioningStateConflict returns a "409 Conflict" error response if the
@@ -238,7 +236,6 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			logger.Error(err.Error())
 			return nil, CSErrorToCloudError(err, resourceID)
 		}
-		tracing.SetClusterAttributes(trace.SpanFromContext(ctx), csCluster)
 
 		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
 		if err != nil {

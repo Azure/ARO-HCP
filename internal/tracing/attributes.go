@@ -104,6 +104,14 @@ const (
 	// ClusterStateKey is the span's attribute Key reporting the internal cluster state.
 	// The key needs to be kept in sync with the key used by the Clusters Service.
 	ClusterStateKey = attribute.Key("cs.cluster.state")
+
+	// NodePoolIDKey is the span's attribute Key reporting the internal node pool identifier.
+	// The key needs to be kept in sync with the key used by the Clusters Service.
+	NodePoolIDKey = attribute.Key("cs.nodepool.id")
+
+	// NodePoolStateKey is the span's attribute Key reporting the internal cluster state.
+	// The key needs to be kept in sync with the key used by the Clusters Service.
+	NodePoolStateKey = attribute.Key("cs.nodepool.state")
 )
 
 // SetClusterAttributes sets attributes on the span to identify the cluster.
@@ -114,6 +122,27 @@ func SetClusterAttributes(span trace.Span, cluster *arohcpv1alpha1.Cluster) {
 		v, present := cluster.GetState()
 		return string(v), present
 	})
+}
+
+// SetClusterAttributes sets attributes on the span to identify the cluster status.
+func SetClusterStatusAttributes(span trace.Span, clusterStatus *arohcpv1alpha1.ClusterStatus) {
+	addAttributeIfPresent(span, ClusterIDKey, clusterStatus.GetID)
+	addAttributeIfPresent(span, ClusterStateKey, func() (string, bool) {
+		v, present := clusterStatus.GetState()
+		return string(v), present
+	})
+}
+
+// SetNodePoolAttributes sets attributes on the span to identify the node pool.
+func SetNodePoolAttributes(span trace.Span, nodePool *arohcpv1alpha1.NodePool) {
+	addAttributeIfPresent(span, NodePoolIDKey, nodePool.GetID)
+	addAttributeIfPresent(span, NodePoolStateKey, nodePool.Status().State().GetNodePoolStateValue)
+}
+
+// SetNodePoolStatusAttributes sets attributes on the span to identify the node pool status.
+func SetNodePoolStatusAttributes(span trace.Span, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) {
+	addAttributeIfPresent(span, NodePoolIDKey, nodePoolStatus.GetID)
+	addAttributeIfPresent(span, NodePoolStateKey, nodePoolStatus.State().GetNodePoolStateValue)
 }
 
 func addAttributeIfPresent(span trace.Span, key attribute.Key, getter func() (string, bool)) {
