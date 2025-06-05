@@ -82,7 +82,7 @@
     "postgres": {
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcppers-dbcs-ussw1test",
+      "name": "arohcp-pers-dbcs-ussw1test",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -219,7 +219,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcppers-maestro-ussw1test",
+      "name": "arohcp-pers-maestro-ussw1test",
       "private": false
     },
     "image": {
@@ -231,7 +231,7 @@
       "databaseName": "maestro",
       "deploy": false,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcppers-dbmaestro-ussw1test",
+      "name": "arohcp-pers-dbmaestro-ussw1test",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",

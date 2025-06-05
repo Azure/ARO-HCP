@@ -257,11 +257,11 @@ defaults:
           repository: azurelinux/base/nginx
           digest: sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83
     eventGrid:
-      name: "arohcp{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
+      name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
       private: false
     postgres:
-      name: "arohcp{{ .ctx.environment }}-dbmaestro-{{ .ctx.regionShort }}" # [globally-unique]
+      name: "arohcp-{{ .ctx.environment }}-dbmaestro-{{ .ctx.regionShort }}" # [globally-unique]
       serverVersion: '15'
       serverStorageSizeGB: 32
       deploy: true
@@ -290,7 +290,7 @@ defaults:
       exporter: ""
     environment: "arohcp{{ .ctx.environment }}"
     postgres:
-      name: "arohcp{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
+      name: "arohcp-{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
