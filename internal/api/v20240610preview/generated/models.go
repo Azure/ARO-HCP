@@ -323,6 +323,10 @@ type NodePoolPlatformProfile struct {
 	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *DiskStorageAccountType
 
+	// Whether to enable host based OS and data drive encryption.
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
+	EnableEncryptionAtHost *bool
+
 	// The Azure resource ID of the worker subnet
 	SubnetID *string
 }

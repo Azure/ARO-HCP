@@ -1374,6 +1374,11 @@
           "type": "string",
           "description": "The VM size according to the documentation:\n- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes"
         },
+        "enableEncryptionAtHost": {
+          "type": "boolean",
+          "description": "Whether to enable host based OS and data drive encryption.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data",
+          "default": false
+        },
         "diskSizeGiB": {
           "type": "integer",
           "format": "int32",

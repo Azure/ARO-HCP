@@ -867,6 +867,7 @@ func (n NodePoolPlatformProfile) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "availabilityZone", n.AvailabilityZone)
 	populate(objectMap, "diskSizeGiB", n.DiskSizeGiB)
 	populate(objectMap, "diskStorageAccountType", n.DiskStorageAccountType)
+	populate(objectMap, "enableEncryptionAtHost", n.EnableEncryptionAtHost)
 	populate(objectMap, "subnetId", n.SubnetID)
 	populate(objectMap, "vmSize", n.VMSize)
 	return json.Marshal(objectMap)
@@ -889,6 +890,9 @@ func (n *NodePoolPlatformProfile) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "diskStorageAccountType":
 			err = unpopulate(val, "DiskStorageAccountType", &n.DiskStorageAccountType)
+			delete(rawMsg, key)
+		case "enableEncryptionAtHost":
+			err = unpopulate(val, "EnableEncryptionAtHost", &n.EnableEncryptionAtHost)
 			delete(rawMsg, key)
 		case "subnetId":
 			err = unpopulate(val, "SubnetID", &n.SubnetID)
