@@ -8,7 +8,7 @@ The E2E test suite will work in every environment of the ARO-HCP project. Its ma
 
 The client expects a subscription to be already registered. To assign the client to a specific subscription, set its ID in the environment variable **CUSTOMER_SUBSCRIPTION**. If not set, the default all-zero subscription will be used.
 
-Test cases expect resource group name, where cluster resources (vnet, managed identity, ...) are located, to be set in the environment variable **CUSTOMER_RG_NAME**.
+The E2E Test Suite requires a JSON setup file with a deterministic structure. The suite expects the path to this JSON file in the **SETUP_FILEPATH** environment variable. This JSON file is created by the ARO HCP E2E Setup code and contains all the necessary values for testing.
 
 To distinguish E2E test suite from unit tests, initial ginkgo file *e2e_test.go* has a build tag **E2Etests**. The build tag has to be explicitly set when running (or building) the E2E test suite.
 
@@ -16,12 +16,12 @@ To distinguish E2E test suite from unit tests, initial ginkgo file *e2e_test.go*
 
 1. Login with AZ CLI
 2. Port-forward RP running on SC: `kubectl port-forward -n aro-hcp svc/aro-hcp-frontend 8443:8443`
-3. Export environment variables LOCAL_DEVELOPMENT, CUSTOMER_SUBSCRIPTION and CUSTOMER_RG_NAME
+3. Export environment variables LOCAL_DEVELOPMENT, CUSTOMER_SUBSCRIPTION and SETUP_FILEPATH
 
 ```bash
 export LOCAL_DEVELOPMENT=true
 export CUSTOMER_SUBSCRIPTION=<subscriptionId>
-export CUSTOMER_RG_NAME=<resourceGroupName>
+export SETUP_FILEPATH=<filepath>
 ```
 
 4. Run test suite with command
