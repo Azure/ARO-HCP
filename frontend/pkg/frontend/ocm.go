@@ -257,7 +257,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		MultiAZ(csMultiAzEnabled).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
-		Version(cmv1.NewVersion().
+		Version(arohcpv1alpha1.NewVersion().
 			ID(hcpCluster.Properties.Version.ID).
 			ChannelGroup(hcpCluster.Properties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
