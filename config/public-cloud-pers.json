@@ -114,7 +114,7 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-pers-ussw1test"
+      "name": "frontend-cert-pers-southwestus"
     },
     "cosmosDB": {
       "deploy": true,

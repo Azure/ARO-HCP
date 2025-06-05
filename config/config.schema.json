@@ -615,7 +615,9 @@
           "type": "object",
           "properties": {
             "name": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 127,
+              "pattern": "^[a-zA-Z0-9-]+$"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"

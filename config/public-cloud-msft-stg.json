@@ -114,7 +114,7 @@
   "frontend": {
     "cert": {
       "issuer": "OneCertV2-PublicCA",
-      "name": "frontend-cert-stg-ussw1"
+      "name": "frontend-cert-stg-southwestus"
     },
     "cosmosDB": {
       "deploy": true,
