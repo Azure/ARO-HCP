@@ -338,8 +338,7 @@
     "firstPartyAppId": "7f4a113a-c61d-412a-bea1-85dee5baf4a8",
     "image": {
       "digest": "sha256:d56506305ea64f368c920e5e4bce6ee44415d4133559a548b82a81bbd1828f9b",
-      "repository": "",
-      "repostiroy": "mise"
+      "repository": "mise"
     },
     "tenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d"
   },

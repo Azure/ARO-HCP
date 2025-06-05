@@ -78,7 +78,7 @@ clouds:
         armAppId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
         tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
         image:
-          repostiroy: mise
+          repository: mise
       # FPA certificate settings
       firstPartyAppCertificate:
         issuer: OneCertV2-PrivateCA
