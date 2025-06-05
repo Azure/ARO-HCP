@@ -319,7 +319,7 @@
     "subscription": "hcp-stg-mgmt-southwestus-999"
   },
   "mgmtKeyVault": {
-    "name": "ah-stg-mgm-ussw1-999",
+    "name": "ah-stg-mg-ussw1-999",
     "private": false,
     "softDelete": false
   },
@@ -353,7 +353,7 @@
     "svcWorkspaceName": "arohcp-ussw1"
   },
   "msiKeyVault": {
-    "name": "ah-stg-msi-ussw1-999",
+    "name": "ah-stg-mi-ussw1-999",
     "private": false,
     "softDelete": false
   },

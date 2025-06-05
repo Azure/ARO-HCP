@@ -21,7 +21,7 @@ materialize: prepare-msft-config
 	@echo "Materializing dev cloud ntly env of config/config.yaml"
 	@REGION=$(REGION) ../templatize.sh ntly -x $(STAMP) > public-cloud-ntly.json
 	@echo "Materializing dev cloud personal dev env of config/config.yaml"
-	@USER=tst REGION=$(REGION) ../templatize.sh pers -x $(STAMP) > public-cloud-pers.json
+	@USER=test REGION=$(REGION) ../templatize.sh pers -x $(STAMP) > public-cloud-pers.json
 	@echo "Materializing public cloud int env of config/config.msft.yaml"
 	@CONFIG_FILE=../config/config.msft.yaml REGION=$(REGION) ../templatize.sh int -c public -x $(STAMP) > public-cloud-msft-int.json
 	@echo "Materializing public cloud stg env of config/config.msft.yaml"

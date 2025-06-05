@@ -320,7 +320,7 @@
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "ah-cspr-mgm-cspr-999",
+    "name": "ah-cspr-mg-cspr-999",
     "private": false,
     "softDelete": false
   },
@@ -353,7 +353,7 @@
     "svcWorkspaceName": "arohcp-cspr"
   },
   "msiKeyVault": {
-    "name": "ah-cspr-msi-cspr-999",
+    "name": "ah-cspr-mi-cspr-999",
     "private": false,
     "softDelete": false
   },

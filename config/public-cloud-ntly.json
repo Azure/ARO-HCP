@@ -320,7 +320,7 @@
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "ah-ntly-mgm-ntly-999",
+    "name": "ah-ntly-mg-ntly-999",
     "private": false,
     "softDelete": false
   },
@@ -353,7 +353,7 @@
     "svcWorkspaceName": "arohcp-ntly"
   },
   "msiKeyVault": {
-    "name": "ah-ntly-msi-ntly-999",
+    "name": "ah-ntly-mi-ntly-999",
     "private": false,
     "softDelete": false
   },

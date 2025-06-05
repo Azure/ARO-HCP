@@ -320,7 +320,7 @@
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "ah-dev-mgm-dev-999",
+    "name": "ah-dev-mg-dev-999",
     "private": false,
     "softDelete": false
   },
@@ -353,7 +353,7 @@
     "svcWorkspaceName": "arohcp-dev"
   },
   "msiKeyVault": {
-    "name": "ah-dev-msi-dev-999",
+    "name": "ah-dev-mi-dev-999",
     "private": false,
     "softDelete": false
   },

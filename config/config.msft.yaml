@@ -342,11 +342,11 @@ defaults:
     softDelete: false
     private: false
   msiKeyVault:
-    name: "ah-{{ .ctx.environment }}-msi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
+    name: "ah-{{ .ctx.environment }}-mi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
   mgmtKeyVault:
-    name: "ah-{{ .ctx.environment }}-mgm-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
+    name: "ah-{{ .ctx.environment }}-mg-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
 clouds:
