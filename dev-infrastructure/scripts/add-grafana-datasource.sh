@@ -22,7 +22,7 @@ EXISTING_DATA_SOURCE_URL=$(az grafana data-source list --name ${GRAFANA_NAME} \
     --query "[?contains(name, '${MONITOR_DATA_SOURCE}')].url | [0]" -o tsv)
 
 # wait for inflight updates to finish
-az resource wait --updated --created --ids "${GRAFANA_RESOURCE_ID}"
+az resource wait --custom "properties.provisioningState=='Succeeded'" --ids "${GRAFANA_RESOURCE_ID}"
 
 # In dev resource groups are purged which causes data sources to become out of sync in the Azure Grafana Instance.
 # If prometheus urls don't match then delete the integration to cleanup the data source.
@@ -31,7 +31,7 @@ then
     echo "Removing ${MONITOR_NAME} integration from ${GRAFANA_NAME}"
     MONITOR_UPDATES=$(echo "${MONITORS}" | jq --arg id "${MONITOR_ID}" 'map(select(.azureMonitorWorkspaceResourceId != $id))')
     az resource update --ids ${GRAFANA_RESOURCE_ID} --set properties.grafanaIntegrations.azureMonitorWorkspaceIntegrations="${MONITOR_UPDATES}"
-    az resource wait --updated --created --ids "${GRAFANA_RESOURCE_ID}"
+    az resource wait --custom "properties.provisioningState=='Succeeded'" --ids "${GRAFANA_RESOURCE_ID}"
 fi
 
 # add the azure monitor workspace to grafana if it is not already integrated
@@ -40,5 +40,5 @@ if [[ ${IS_INTEGRATED} == "false" ]];
 then
     MONITOR_UPDATES=$(echo "${MONITORS}" | jq --arg id "${MONITOR_ID}" '. + [{"azureMonitorWorkspaceResourceId": $id}]')
     az resource update --ids "${GRAFANA_RESOURCE_ID}" --set properties.grafanaIntegrations.azureMonitorWorkspaceIntegrations="${MONITOR_UPDATES}"
-    az resource wait --updated --created --ids "${GRAFANA_RESOURCE_ID}"
+    az resource wait --custom "properties.provisioningState=='Succeeded'" --ids "${GRAFANA_RESOURCE_ID}"
 fi
