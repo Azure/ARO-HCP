@@ -4,11 +4,11 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 ## Table of Contents
 
-1. **[High Level Architecture](high-level-architecture.md)**
+### 1. [High Level Architecture](high-level-architecture.md)
    - System overview, scopes and key components
    - Major services and how they interact
 
-2. **Environments**
+### 2. Environments
    - [Overview](environments.md)
      - Overview of different deployment environments and Azure tenants
      - Key differences and capabilities of each environment
@@ -22,12 +22,12 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - MSFT deployment environments
      - [MSIT INT](msit-int.md)
 
-3. **[Configuration Management](configuration.md)**
+### 3. [Configuration Management](configuration.md)
    - Overview and override structures
    - Configuration schema
    - Guidelines and limitations
 
-4. **Deployment Concept**
+### 4. Deployment Concept
    - [Pipelines concept](pipeline-concept.md)
    - [Service deployment concept](service-deployment-concept.md)
    - Deployment artifacts
@@ -35,7 +35,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
      - [Helm Charts](service-deployment-concept.md#helm-chart)
      - [Container images](images.md)
 
-5. **Deploying ARO HCP**
+### 5. Deploying ARO HCP
    - [Pipelines](pipelines.md)
       - documents existing pipelines
    - [EV2 Deployment](ev2-deployment.md)
@@ -44,11 +44,11 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
    - [Secret Syncronization](secret-sync.md)
       - documents tools/processes to sync secrets
 
-6. **Observability**
+### 6. Observability
    - [Grafana Dashboards](grafana-dashboards.md)
    - [Prometheus Rules](prometheus-rules.md)
 
-7. **Operations**
+### 7. Operations
    - [High Level HCP Creation Flow](ops/hcp-cluster-creation-flow.md)
 
-8. **[Terminology](terminology.md)**
+### 8. [Terminology](terminology.md)
