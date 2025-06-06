@@ -498,6 +498,7 @@ clouds:
             azCount: 1
           etcd:
             kvSoftDelete: false
+          enableSwiftV2: false
         nsp:
           accessMode: 'Learning'
         prometheus:
@@ -530,6 +531,7 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
+          regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           logs:
             loganalytics:
               enable: true
@@ -564,6 +566,7 @@ clouds:
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
+          regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false

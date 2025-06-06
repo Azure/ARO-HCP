@@ -255,7 +255,7 @@
   "mgmt": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
-      "enableSwiftV2": true,
+      "enableSwiftV2": false,
       "etcd": {
         "kvName": "ah-cspr-me-ussw1-999",
         "kvSoftDelete": false
@@ -377,7 +377,7 @@
     "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator"
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-cspr-ussw1",
+  "regionRG": "hcp-underlay-cspr-southwestus",
   "serviceKeyVault": {
     "assignNSP": false,
     "name": "aro-hcp-dev-svc-kv",
