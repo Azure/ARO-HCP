@@ -232,6 +232,9 @@ defaults:
       k8s:
         namespace: maestro
         serviceAccountName: maestro
+      tracing:
+        address: ""
+        exporter: ""
     agent:
       consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       loglevel: 4

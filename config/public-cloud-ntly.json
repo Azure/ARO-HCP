@@ -245,7 +245,11 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-ntly"
+      "mqttClientName": "maestro-server-ntly",
+      "tracing": {
+        "address": "",
+        "exporter": ""
+      }
     }
   },
   "mce": {
