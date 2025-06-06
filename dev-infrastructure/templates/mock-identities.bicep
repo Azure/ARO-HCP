@@ -10,6 +10,30 @@ param keyVaultName string
 @description('Global resource group name')
 param globalResourceGroupName string = 'global'
 
+@description('The name of the first party identity role')
+param firstPartyRoleName string = 'dev-first-party-mock'
+
+@description('The name of the first party certificate')
+param firstPartyCertName string = 'firstPartyCert2'
+
+@description('The DNS of the first party certificate, used for subject and DNS names.')
+param firstPartyCertDns string = 'firstparty.hcp.osadev.cloud'
+
+@description('The name of the msi mock identity role')
+param msiMockRoleName string = 'dev-msi-mock'
+
+@description('The name of the msi mock certificate')
+param msiMockCertName string = 'msiMockCert2'
+
+@description('The DNS of the msi mock certificate, used for subject and DNS names.')
+param msiMockCertDns string = 'msimock.hcp.osadev.cloud'
+
+@description('The name of the arm helper mock certificate')
+param armHelperCertName string = 'armHelperCert2'
+
+@description('The DNS of the arm helper mock certificate, used for subject and DNS names.')
+param armHelperCertDns string = 'armhelper.hcp.osadev.cloud'
+
 //
 // F I R S T   P A R T Y   I D E N T I T Y
 //
@@ -20,18 +44,18 @@ module firstPartyIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     location: location
     keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
-    certName: 'firstPartyCert2'
-    subjectName: 'CN=firstparty.hcp.osadev.cloud'
+    certName: firstPartyCertName
+    subjectName: 'CN=${firstPartyCertDns}'
     issuerName: 'Self'
-    dnsNames: ['firstparty.hcp.osadev.cloud']
+    dnsNames: [firstPartyCertDns]
     validityInMonths: 120
   }
 }
 
 resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
-  name: guid(subscription().id, 'dev-first-party-mock')
+  name: guid(subscription().id, firstPartyRoleName)
   properties: {
-    roleName: 'dev-first-party-mock'
+    roleName: firstPartyRoleName
     description: 'ARO HCP Dev Role for mock 1p service principal'
     type: 'CustomRole'
     permissions: [
@@ -61,9 +85,9 @@ module armHelperIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     location: location
     keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
-    certName: 'armHelperCert2'
-    subjectName: 'CN=armhelper.hcp.osadev.cloud'
-    dnsNames: ['armhelper.hcp.osadev.cloud']
+    certName: armHelperCertName
+    subjectName: 'CN=${armHelperCertDns}'
+    dnsNames: [armHelperCertDns]
     issuerName: 'Self'
     validityInMonths: 120
   }
@@ -79,18 +103,18 @@ module msiRPMockIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     location: location
     keyVaultManagedIdentityId: aroDevopsMsiId
     keyVaultName: keyVaultName
-    certName: 'msiMockCert2'
-    subjectName: 'CN=msimock.hcp.osadev.cloud'
-    dnsNames: ['msimock.hcp.osadev.cloud']
+    certName: msiMockCertName
+    subjectName: 'CN=${msiMockCertDns}'
+    dnsNames: [msiMockCertDns]
     issuerName: 'Self'
     validityInMonths: 120
   }
 }
 
 resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
-  name: guid(subscription().id, 'dev-msi-mock')
+  name: guid(subscription().id, msiMockRoleName)
   properties: {
-    roleName: 'dev-msi-mock'
+    roleName: msiMockRoleName
     description: 'ARO HCP Dev Role for MSI mock principal'
     type: 'CustomRole'
     permissions: [

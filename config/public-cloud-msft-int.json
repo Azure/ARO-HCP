@@ -16,9 +16,9 @@
       "repository": "aks/msi-acrpull"
     }
   },
-  "armHelperCertName": "armHelperCert2",
-  "armHelperClientId": "3331e670-0804-48e8-a086-6241671ddc93",
-  "armHelperFPAPrincipalId": "47f69502-0065-4d9a-b19b-d403e183d2f4",
+  "armHelperCertName": "intArmHelperCert",
+  "armHelperClientId": "356c7253-24f3-4dc5-b4e1-498c73331cf4",
+  "armHelperFPAPrincipalId": "d663e08c-31a0-488a-8ecb-03af4fce5e83",
   "aroDevopsMsiId": "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity",
   "backend": {
     "image": {
@@ -33,6 +33,7 @@
   },
   "backplaneAPI": {
     "image": {
+      "digest": "sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6",
       "registry": "quay.io",
       "repository": "app-sre/backplane-api"
     }
@@ -81,7 +82,7 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpint-csdb-ussw1",
+      "name": "arohcp-int-dbcs-ussw1",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -91,7 +92,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "arohcpint-cx-ussw1-1",
+    "name": "ah-int-cx-ussw1-999",
     "private": false,
     "softDelete": false
   },
@@ -107,13 +108,13 @@
   "firstPartyAppCertificate": {
     "issuer": "OneCertV2-PrivateCA",
     "manage": false,
-    "name": "firstPartyCert2"
+    "name": "intFirstPartyCert"
   },
-  "firstPartyAppClientId": "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
+  "firstPartyAppClientId": "b8c3986a-6f66-4905-a935-03763eb9fbb3",
   "frontend": {
     "cert": {
       "issuer": "OneCertV2-PublicCA",
-      "name": "frontend-cert"
+      "name": "frontend-cert-int-ussw1"
     },
     "cosmosDB": {
       "deploy": true,
@@ -142,6 +143,10 @@
       "private": false,
       "softDelete": true
     },
+    "nsp": {
+      "accessMode": "Learning",
+      "name": "nsp-global"
+    },
     "region": "uksouth",
     "rg": "global-shared-resources",
     "safeDnsIntAppObjectId": "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc",
@@ -151,7 +156,7 @@
   "hypershift": {
     "additionalInstallArg": "",
     "image": {
-      "digest": "sha256:607dcc3e795a1fb8e7647aa6ccf5b19dbfba8b4387f8eac9e304b33265a80d05",
+      "digest": "sha256:930a2851e0ed5144901eabdb1247096fea527231a990ea764b27754b766ef821",
       "registry": "quay.io",
       "repository": "acm-d/rhtap-hypershift-operator"
     },
@@ -161,7 +166,7 @@
     "componentSync": {
       "enabled": false,
       "image": {
-        "digest": "sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f",
+        "digest": "",
         "registry": "arohcpsvcdev.azurecr.io",
         "repository": "image-sync/component-sync"
       },
@@ -202,7 +207,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-ussw1-mgmt-1",
+      "consumerName": "hcp-underlay-ussw1-mgmt-999",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -216,7 +221,7 @@
     "certIssuer": "OneCertV2-PrivateCA",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcpint-maestro-ussw1",
+      "name": "arohcp-int-maestro-ussw1",
       "private": false
     },
     "image": {
@@ -228,7 +233,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcpint-maestrodb-ussw1",
+      "name": "arohcp-int-dbmaestro-ussw1",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -242,16 +247,11 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server",
+      "mqttClientName": "maestro-server-ussw1",
       "tracing": {
         "address": "",
         "exporter": ""
       }
-    }
-  },
-  "mce": {
-    "clcStateMetrics": {
-      "imageDigest": "bf5bb514e4d8af5e38317c3727d4cd9f90c22b293fe3e2367f9f0e179e0ee0c7"
     }
   },
   "mgmt": {
@@ -259,23 +259,24 @@
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "enableSwiftV2": true,
       "etcd": {
-        "kvName": "arohcpint-etcd-ussw1-1",
+        "kvName": "ah-int-me-ussw1-999",
         "kvSoftDelete": true
       },
       "infraAgentPool": {
         "azCount": 3,
         "maxCount": 3,
         "minCount": 1,
-        "osDiskSizeGB": 128,
+        "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "southwestus-mgmt-1",
+      "name": "int-southwestus-mgmt-999",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
+        "azCount": 3,
         "maxCount": 4,
         "minCount": 1,
         "osDiskSizeGB": 128,
@@ -298,7 +299,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1-mgmt"
+      "name": "nsp-ussw1-mgmt-999"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -322,17 +323,17 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-southwestus-mgmt-1",
-    "subscription": "hcp-int-mgmt-southwestus-1"
+    "rg": "hcp-underlay-int-southwestus-mgmt-999",
+    "subscription": "hcp-int-mgmt-southwestus-999"
   },
   "mgmtKeyVault": {
-    "name": "arohcpint-mgmt-ussw1-1",
+    "name": "ah-int-mg-ussw1-999",
     "private": false,
     "softDelete": false
   },
-  "miMockCertName": "msiMockCert2",
-  "miMockClientId": "e8723db7-9b9e-46a4-9f7d-64d75c3534f0",
-  "miMockPrincipalId": "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96",
+  "miMockCertName": "intMsiMockCert",
+  "miMockClientId": "f2e4769e-d3c2-498d-92b9-3e6d24cd2d7a",
+  "miMockPrincipalId": "a5c120f7-50c3-4cf6-84b4-57517f60630d",
   "mise": {
     "armAppId": "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7",
     "armInstance": "https://management.azure.com",
@@ -351,20 +352,33 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-int",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-ussw1",
+    "hcpWorkspaceName": "arohcp-hcp-int-ussw1",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-ussw1"
+    "svcWorkspaceName": "arohcp-int-ussw1"
   },
   "msiKeyVault": {
-    "name": "arohcpint-msi-ussw1-1",
+    "name": "ah-int-mi-ussw1-999",
     "private": false,
     "softDelete": false
   },
   "oidcStorageAccountName": "arohcpintoidcussw1",
   "oidcZoneRedundantMode": "Auto",
+  "pko": {
+    "imageManager": {
+      "digest": "sha256:04b280a2dfcd89c433db32106e0f9a80b978c2513b979865df7a66dc67617e90",
+      "registry": "arohcpsvcdev.azurecr.io",
+      "repository": "package-operator/package-operator-manager"
+    },
+    "imagePackage": {
+      "digest": "sha256:a541ddb20875264f1995c38b1dd66de052547c2a861001b3b49c2a56b7e06e0d",
+      "registry": "arohcpsvcdev.azurecr.io",
+      "repository": "package-operator/package-operator-package"
+    },
+    "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator"
+  },
   "region": "southwestus",
   "regionRG": "southwestus-shared-resources",
   "releaseApprover": {
@@ -376,25 +390,25 @@
     "name": "arohcpint-svc-ussw1",
     "private": false,
     "region": "southwestus",
-    "rg": "hcp-underlay-southwestus-svc",
+    "rg": "southwestus-shared-resources",
     "softDelete": false
   },
   "svc": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "etcd": {
-        "kvName": "arohcpint-etcd-ussw1",
+        "kvName": "ah-int-se-ussw1-1",
         "kvSoftDelete": true
       },
       "infraAgentPool": {
         "azCount": 3,
         "maxCount": 3,
         "minCount": 1,
-        "osDiskSizeGB": 128,
+        "osDiskSizeGB": 32,
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "southwestus-svc-1",
+      "name": "int-southwestus-svc-1",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -449,11 +463,11 @@
           "repository": "prometheus/prometheus"
         },
         "replicas": 2,
-        "shards": 1,
+        "shards": 2,
         "version": ""
       }
     },
-    "rg": "hcp-underlay-southwestus-svc",
+    "rg": "hcp-underlay-int-southwestus-svc",
     "subscription": "hcp-int-svc-southwestus"
   }
 }

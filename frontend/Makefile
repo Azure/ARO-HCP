@@ -14,7 +14,7 @@ info:
 	@echo "COMMIT: ${CURRENT_COMMIT}"
 
 run:
-	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
+	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	./aro-hcp-frontend --location ${LOCATION} \
 		--clusters-service-url http://localhost:8000 \
 		--cosmos-name ${DB_NAME} \
@@ -60,7 +60,7 @@ deploy:
 			--query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId \
 			--output tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${RESOURCEGROUP} --query documentEndpoint -o tsv) && \
+	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	kubectl create namespace mise --dry-run=client -o json | kubectl apply -f - && \

@@ -31,6 +31,7 @@
     },
     "tracing": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "address": {
           "type": "string",
@@ -85,6 +86,11 @@
         }
       },
       "additionalProperties": false
+    },
+    "resourceGroupName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 90
     },
     "keyVault": {
       "type": "object",
@@ -158,6 +164,7 @@
     },
     "aksConfig": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string",
@@ -240,6 +247,7 @@
     },
     "containerImage": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "registry": {
           "type": "string"
@@ -252,7 +260,8 @@
         }
       },
       "required": [
-        "repository"
+        "repository",
+        "digest"
       ]
     },
     "keyColonValueCSV": {
@@ -277,6 +286,7 @@
     },
     "prometheus": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "namespace": {
           "type": "string"
@@ -286,6 +296,7 @@
         },
         "prometheusOperator": {
           "type:": "object",
+          "additionalProperties": false,
           "properties": {
             "image": {
               "$ref": "#/definitions/containerImage"
@@ -297,6 +308,7 @@
         },
         "prometheusSpec": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "image": {
               "$ref": "#/definitions/containerImage"
@@ -327,7 +339,7 @@
       "type": "object",
       "properties": {
         "baseDnsZoneRG": {
-          "type": "string",
+          "$ref": "#/definitions/resourceGroupName",
           "description": "The Azure RG that holds the parent DNS zones"
         },
         "cxParentZoneName": {
@@ -415,6 +427,7 @@
         },
         "postgres": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "deploy": {
               "type": "boolean"
@@ -505,6 +518,7 @@
     },
     "extraVars": {
       "type": "object",
+      "additionalProperties": true,
       "properties": {},
       "required": []
     },
@@ -605,7 +619,9 @@
           "type": "object",
           "properties": {
             "name": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 127,
+              "pattern": "^[a-zA-Z0-9-]+$"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -671,12 +687,13 @@
     },
     "global": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "nsp": {
           "$ref": "#/definitions/nsp"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"
@@ -870,13 +887,15 @@
           "type": "object",
           "properties": {
             "consumerName": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 128
             },
             "loglevel": {
               "type": "integer"
             },
             "sidecar": {
               "type:": "object",
+              "additionalProperties": false,
               "properties": {
                 "image": {
                   "$ref": "#/definitions/containerImage"
@@ -984,25 +1003,6 @@
         "restrictIstioIngress"
       ]
     },
-    "mce": {
-      "type": "object",
-      "properties": {
-        "clcStateMetrics": {
-          "type": "object",
-          "properties": {
-            "imageDigest": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "imageDigest"
-          ]
-        }
-      },
-      "required": [
-        "clcStateMetrics"
-      ]
-    },
     "mgmt": {
       "type": "object",
       "properties": {
@@ -1016,7 +1016,7 @@
           "$ref": "#/definitions/nsp"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"
@@ -1189,7 +1189,7 @@
       "type": "string"
     },
     "regionRG": {
-      "type": "string"
+      "$ref": "#/definitions/resourceGroupName"
     },
     "serviceKeyVault": {
       "type": "object",
@@ -1204,7 +1204,7 @@
           "type": "string"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "softDelete": {
           "type": "boolean"
@@ -1229,7 +1229,7 @@
           "$ref": "#/definitions/aksConfig"
         },
         "rg": {
-          "type": "string"
+          "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
           "type": "string"
@@ -1341,7 +1341,6 @@
     "maestro",
     "mgmt",
     "mgmtKeyVault",
-    "mce",
     "monitoring",
     "msiKeyVault",
     "oidcStorageAccountName",

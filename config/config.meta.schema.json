@@ -1,0 +1,81 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Generated schema for Root",
+    "type": "object",
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "description": "The schema version of the configuration file"
+        },
+        "defaults": {
+            "$ref": "#/definitions/configProperty"
+        },
+        "clouds": {
+            "type": "object",
+            "description": "A map of clouds and their configuration",
+            "patternProperties": {
+                "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$": {
+                    "type": "object",
+                    "description": "A cloud configuration",
+                    "properties": {
+                        "defaults": {
+                            "$ref": "#/definitions/configProperty"
+                        },
+                        "environments": {
+                            "type": "object",
+                            "description": "A map of environments and their configuration",
+                            "patternProperties": {
+                                "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$": {
+                                    "type": "object",
+                                    "description": "An environment configuration",
+                                    "properties": {
+                                        "defaults": {
+                                            "$ref": "#/definitions/configProperty"
+                                        },
+                                        "regions": {
+                                            "type": "object",
+                                            "description": "A map of region configurations",
+                                            "patternProperties": {
+                                                "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$": {
+                                                    "$ref": "#/definitions/configProperty"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false,
+    "definitions": {
+        "configProperty": {
+            "type": "object",
+            "description": "A configuration property with a name and value",
+            "patternProperties": {
+                "^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$": {
+                "anyOf": [
+                    { "type": "string" },
+                    { "type": "integer" },
+                    { "type": "boolean" },
+                    {
+                        "type": "array",
+                        "description": "We should try to get rid of arrays or support them throughout the stack.",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    { "$ref": "#/definitions/configProperty" }
+                ]
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

@@ -35,6 +35,9 @@ param dnsServiceIP string = '10.130.0.10'
 // Passed Params and Overrides
 param location string
 
+@description('The regional resource group')
+param regionalResourceGroup string
+
 @description('List of Availability Zones to use for the AKS cluster')
 param locationAvailabilityZones array
 var locationHasAvailabilityZones = length(locationAvailabilityZones) > 0
@@ -295,6 +298,7 @@ resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssign
 
 module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (deployIstio) {
   name: istioIngressGatewayIPAddressName
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     name: istioIngressGatewayIPAddressName
     ipTags: istioIngressGatewayIPAddressIPTagsArray
@@ -309,9 +313,10 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
   }
 }
 
-var aksClusterOutboundIPAddressName = 'aro-hcp-cluster-egress'
+var aksClusterOutboundIPAddressName = '${aksClusterName}-outbound-ip'
 module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = {
   name: aksClusterOutboundIPAddressName
+  scope: resourceGroup(regionalResourceGroup)
   params: {
     name: aksClusterOutboundIPAddressName
     ipTags: aksClusterOutboundIPAddressIPTagsArray
@@ -463,7 +468,11 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         outboundIPs: {
           publicIPs: [
             {
-              id: resourceId('Microsoft.Network/publicIPAddresses', aksClusterOutboundIPAddressName)
+              id: resourceId(
+                regionalResourceGroup,
+                'Microsoft.Network/publicIPAddresses',
+                aksClusterOutboundIPAddressName
+              )
             }
           ]
         }
