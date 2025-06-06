@@ -56,10 +56,10 @@ The process described in the previous section takes a lot of time. In case you w
 
 | Command           | Description                                                                                                     |
 | :---------------- | :-------------------------------------------------------------------------------------------------------------- |
-| make infra.all    | Deploiys or updates a full environment with regional, service and management infrastructure resources           |
-| make infra.region | Deploiys or updates the regional resources like eventgrid, DNS zones etc                                        |
-| make infra.svc    | Deploiys or updates the service cluster including the supporting infrastructure for the services (postgres, KV) |
-| make infra.mgmt   | Deploiys or updates the management cluster including the supporting infrastructure for the services (KVs)       |
+| make infra.all    | Deploys or updates a full environment with regional, service and management infrastructure resources           |
+| make infra.region | Deploys or updates the regional resources like eventgrid, DNS zones etc                                        |
+| make infra.svc    | Deploys or updates the service cluster including the supporting infrastructure for the services (postgres, KV) |
+| make infra.mgmt   | Deploys or updates the management cluster including the supporting infrastructure for the services (KVs)       |
 
 ### Services Commands
 
