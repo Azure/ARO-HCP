@@ -108,7 +108,7 @@ func listOperationLabelValues() iter.Seq[string] {
 func (o *operation) setSpanAttributes(span trace.Span) {
 	// Operation attributes.
 	span.SetAttributes(
-		tracing.OperationIDKey.String(string(o.id)),
+		tracing.OperationIDKey.String(o.id),
 		tracing.OperationTypeKey.String(string(o.doc.Request)),
 		tracing.OperationStatusKey.String(string(o.doc.Status)),
 	)

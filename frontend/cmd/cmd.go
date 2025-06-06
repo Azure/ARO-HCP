@@ -45,6 +45,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/version"
 )
 
+const tracerName = "github.com/Azure/ARO-HCP/frontend"
+
 type FrontendOpts struct {
 	clustersServiceURL            string
 	clusterServiceProvisionShard  string
@@ -155,6 +157,11 @@ func (opts *FrontendOpts) Run() error {
 	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
 	if err != nil {
 		return fmt.Errorf("failed to create the database client: %w", err)
+	}
+
+	dbClient, err = database.NewDBClientWithInstrumentation(dbClient, tracerName)
+	if err != nil {
+		return fmt.Errorf("failed to instrument the database client: %w", err)
 	}
 
 	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", opts.port))
