@@ -92,8 +92,19 @@ Example:
 
 This file is used by E2E tests to:
 
-- identify the cluster to be used for testing
-- understand what configuration was used during the setup
+- Identify the cluster and related resources to be used for testing
+  (name of customer resource group of the cluster, name of it's vnet,
+  name of the cluster ...),
+- Understand what configuration was used during the setup from high level
+  perspective (provided in `e2e_setup` section with configuration name and
+  tags) as well as azure resource details used when a cluster or a node pool
+  is created (provided in `armdata` sections).
+
+Note that this means that `armdata` sections are provided only when a setup
+actually creates given resource. On the other hand a cluster name is provided
+even when a cluster is not actually created during the setup (this information
+can be used by E2E tests as a hint what name to use when creating a temporary
+cluster during the test itself).
 
 ### ARO Helper Scripts
 

@@ -16,7 +16,9 @@ SETUP_FILENAME="${CLUSTER_NAME}.e2e-setup.json"
     "name": "infra-only-demo",
     "tags": ["customer-infra-only"]
   },
-  "cluster": {},
+  "cluster": {
+    "name": "${CLUSTER_NAME}"
+  },
   "nodepools": []
 }
 EOF
