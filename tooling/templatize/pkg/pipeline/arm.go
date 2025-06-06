@@ -194,7 +194,7 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, step.Parameters, cfg, inputValues)
+	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, step.Parameters, step.DeploymentMode, cfg, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
@@ -268,7 +268,7 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, cfg, inputValues)
+	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, step.DeploymentMode, cfg, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
