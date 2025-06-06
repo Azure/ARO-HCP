@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,7 +129,7 @@ func TestCreateNodePool(t *testing.T) {
 			mockCSClient.EXPECT().
 				GetCluster(gomock.Any(), clusterDoc.InternalID).
 				Return(arohcpv1alpha1.NewCluster().
-					Version(cmv1.NewVersion().ChannelGroup("stable")).
+					Version(arohcpv1alpha1.NewVersion().ChannelGroup("stable")).
 					Build())
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().

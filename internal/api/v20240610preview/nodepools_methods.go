@@ -129,6 +129,9 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 	if p.AvailabilityZone != nil {
 		out.AvailabilityZone = *p.AvailabilityZone
 	}
+	if p.EnableEncryptionAtHost != nil {
+		out.EnableEncryptionAtHost = *p.EnableEncryptionAtHost
+	}
 	if p.DiskSizeGiB != nil {
 		out.DiskSizeGiB = *p.DiskSizeGiB
 	}
@@ -185,6 +188,7 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 	return &generated.NodePoolPlatformProfile{
 		VMSize:                 api.Ptr(from.VMSize),
 		AvailabilityZone:       api.Ptr(from.AvailabilityZone),
+		EnableEncryptionAtHost: api.Ptr(from.EnableEncryptionAtHost),
 		DiskSizeGiB:            api.Ptr(from.DiskSizeGiB),
 		DiskStorageAccountType: api.Ptr(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
 		SubnetID:               api.Ptr(from.SubnetID),

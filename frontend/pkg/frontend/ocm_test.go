@@ -269,7 +269,7 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 				ID("aro")).
 			Region(cmv1.NewCloudRegion().
 				ID("test")).
-			Version(cmv1.NewVersion().
+			Version(arohcpv1alpha1.NewVersion().
 				ID("").
 				ChannelGroup(""))
 	}

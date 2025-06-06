@@ -1026,7 +1026,7 @@
     },
     "Effect": {
       "type": "string",
-      "description": "The taint effect the same as in K8s",
+      "description": "The taint effect the same as in Kubernetes",
       "enum": [
         "NoSchedule",
         "PreferNoSchedule",
@@ -1208,7 +1208,7 @@
     },
     "Label": {
       "type": "object",
-      "description": "Label represents the k8s label",
+      "description": "Label represents the Kubernetes label",
       "properties": {
         "key": {
           "type": "string",
@@ -1374,6 +1374,11 @@
           "type": "string",
           "description": "The VM size according to the documentation:\n- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes"
         },
+        "enableEncryptionAtHost": {
+          "type": "boolean",
+          "description": "Whether to enable host based OS and data drive encryption.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data",
+          "default": false
+        },
         "diskSizeGiB": {
           "type": "integer",
           "format": "int32",
@@ -1470,7 +1475,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -1526,7 +1531,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes",
           "items": {
             "$ref": "#/definitions/Label"
           },

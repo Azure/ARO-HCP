@@ -227,10 +227,7 @@ func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 	// of a Version. Clients are responsible for dereferencing links, so
 	// we will do that now and rebuild the NodePool with a full Version.
 	if nodePool.Version().Link() {
-		// XXX arohcpv1alpha1.NodePool currently returns a link to a
-		//     v1.Version instead of an arohcpv1alpha1.Version. This
-		//     will change at some point.
-		versionClient := cmv1.NewVersionClient(csc.Conn, nodePool.Version().HREF())
+		versionClient := arohcpv1alpha1.NewVersionClient(csc.Conn, nodePool.Version().HREF())
 
 		versionGetResponse, err := versionClient.Get().SendContext(ctx)
 		if err != nil {
@@ -241,13 +238,7 @@ func (csc *ClusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 			return nil, fmt.Errorf("empty version response body")
 		}
 
-		// XXX Convert the v1.Version to a arohcpv1alpha1.Version.
-		//     Just cherry-pick the fields the RP actually needs
-		//     since this code is only temporary.
-		versionBuilder := arohcpv1alpha1.NewVersion().
-			AvailableUpgrades(version.AvailableUpgrades()...).
-			ChannelGroup(version.ChannelGroup()).
-			ID(version.ID())
+		versionBuilder := arohcpv1alpha1.NewVersion().Copy(version)
 
 		nodePool, err = arohcpv1alpha1.NewNodePool().Copy(nodePool).Version(versionBuilder).Build()
 		if err != nil {

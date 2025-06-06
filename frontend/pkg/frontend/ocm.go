@@ -38,6 +38,11 @@ const (
 	csHypershifEnabled bool   = true
 	csMultiAzEnabled   bool   = true
 	csCCSEnabled       bool   = true
+
+	// The OCM SDK does not provide these constants.
+
+	azureNodePoolEncryptionAtHostDisabled string = "disabled"
+	azureNodePoolEncryptionAtHostEnabled  string = "enabled"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -106,6 +111,18 @@ func convertClusterCapabilitiesToRP(in *arohcpv1alpha1.Cluster) api.ClusterCapab
 func convertClusterCapabilitiesToCSBuilder(in api.ClusterCapabilitiesProfile) *arohcpv1alpha1.ClusterCapabilitiesBuilder {
 	return arohcpv1alpha1.NewClusterCapabilities().
 		Disabled(convertDisabledCapabilitiesToCS(in.Disabled)...)
+}
+
+func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
+	var state string
+
+	if in.EnableEncryptionAtHost {
+		state = azureNodePoolEncryptionAtHostEnabled
+	} else {
+		state = azureNodePoolEncryptionAtHostDisabled
+	}
+
+	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
@@ -257,7 +274,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		MultiAZ(csMultiAzEnabled).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
-		Version(cmv1.NewVersion().
+		Version(arohcpv1alpha1.NewVersion().
 			ID(hcpCluster.Properties.Version.ID).
 			ChannelGroup(hcpCluster.Properties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
@@ -341,9 +358,10 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 			Platform: api.NodePoolPlatformProfile{
 				SubnetID:               np.Subnet(),
 				VMSize:                 np.AzureNodePool().VMSize(),
+				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == azureNodePoolEncryptionAtHostEnabled,
+				DiskSizeGiB:            int32(np.AzureNodePool().OSDiskSizeGibibytes()),
 				DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OSDiskStorageAccountType()),
 				AvailabilityZone:       np.AvailabilityZone(),
-				DiskSizeGiB:            int32(np.AzureNodePool().OSDiskSizeGibibytes()),
 			},
 			AutoRepair: np.AutoRepair(),
 			Labels:     np.Labels(),
@@ -390,6 +408,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
 				ResourceName(nodePool.Name).
 				VMSize(nodePool.Properties.Platform.VMSize).
+				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
 				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.DiskSizeGiB)).
 				OSDiskStorageAccountType(string(nodePool.Properties.Platform.DiskStorageAccountType))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).

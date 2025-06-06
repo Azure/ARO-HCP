@@ -328,9 +328,7 @@ model NodePoolProperties {
   /** Representation of a autoscaling in a node pool. */
   autoScaling?: NodePoolAutoScaling;
 
-  /** K8s labels to propagate to the NodePool Nodes
-   * The good example of the label is `node-role.kubernetes.io/master: ""`
-   */
+  /** Kubernetes labels to propagate to the NodePool Nodes */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
@@ -341,7 +339,7 @@ model NodePoolProperties {
   taints?: Taint[];
 }
 
-/** The taint effect the same as in K8s */
+/** The taint effect the same as in Kubernetes */
 union Effect {
   string,
 
@@ -377,9 +375,11 @@ model Taint {
   effect?: Effect;
 }
 
-/** Label represents the k8s label */
+/** Label represents the Kubernetes label */
 model Label {
-  /** The key of the label */
+  /** The key of the label
+   * @example node-role.kubernetes.io/master
+   */
   key?: string;
 
   /** The value of the label */
@@ -409,6 +409,11 @@ model NodePoolPlatformProfile {
   /** The VM size according to the documentation:
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
   vmSize: string;
+
+  /** Whether to enable host based OS and data drive encryption.
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
+   */
+  enableEncryptionAtHost?: boolean = false;
 
   /** The OS disk size in GiB */
   diskSizeGiB?: int32 = 64;
