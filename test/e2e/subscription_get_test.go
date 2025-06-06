@@ -17,7 +17,8 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"os"
+
+	//"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,6 +28,13 @@ import (
 )
 
 var _ = Describe("Check if Subscriptions for HCPOpenShiftCluster are registered using HTTP GET requests to RP", func() {
+
+	//	var (
+	//		API_PROTO = "http"
+	//		API_HOST = "localhost"
+	//		API_PORT = "6443"
+	//		API_PATH = "/subscriptions/%s?api-version=2.0"
+	//	)
 
 	Context("Negative", func() {
 		It("Sending GET request for unregistered subscription fails with 404 SubscriptionNotFound", labels.Medium, labels.Negative, func(ctx context.Context) {
@@ -56,11 +64,11 @@ var _ = Describe("Check if Subscriptions for HCPOpenShiftCluster are registered 
 	})
 	Context("Positive", func() {
 		It("Sends get request for a valid subscription succeeds with 200 Registered", labels.Medium, labels.Positive, func(ctx context.Context) {
-			customerSubscriptionID := os.Getenv("CUSTOMER_SUBSCRIPTION")
+			//customerSubscriptionID := os.Getenv("CUSTOMER_SUBSCRIPTION")
 			By("Sending a GET request for the valid, registred subscription ID")
 			HTTPClientConfig := HTTPRequest.HTTPRequestConfig{
 				Method: "GET",
-				URL:    fmt.Sprintf("http://localhost:8443/subscriptions/%s?api-version=2.0", customerSubscriptionID),
+				URL:    fmt.Sprintf("http://localhost:8443/subscriptions/%s?api-version=2.0", subscriptionID),
 			}
 			response, err := HTTPRequest.PerformHTTPRequest(HTTPClientConfig)
 			Expect(err).To(BeNil())
