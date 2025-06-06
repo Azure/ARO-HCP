@@ -255,7 +255,7 @@
   "mgmt": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
-      "enableSwiftV2": true,
+      "enableSwiftV2": false,
       "etcd": {
         "kvName": "ah-dev-me-ussw1-999",
         "kvSoftDelete": false

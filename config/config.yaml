@@ -498,6 +498,7 @@ clouds:
             azCount: 1
           etcd:
             kvSoftDelete: false
+          enableSwiftV2: false
         nsp:
           accessMode: 'Learning'
         prometheus:
