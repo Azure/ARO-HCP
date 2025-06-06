@@ -2,7 +2,7 @@
 
 
 if [ -z "${CUSTOMER_RG_NAME:-}" ]; then
-    export CUSTOMER_RG_NAME="$USER-net-rg"
+    export CUSTOMER_RG_NAME="$USER-net-rg-03"
 fi
 export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
@@ -15,7 +15,7 @@ export TENANT_ID=$(az account show --query tenantId -o tsv)
 if [ -z "${CLUSTER_NAME:-}" ]; then
     export CLUSTER_NAME="$USER"
 fi
-MANAGED_RESOURCE_GROUP="$CLUSTER_NAME-rg"
+MANAGED_RESOURCE_GROUP="$CLUSTER_NAME-rg-03"
 
 if [ -z "${NP_NAME:-}" ]; then
     export NP_NAME="np-1"
