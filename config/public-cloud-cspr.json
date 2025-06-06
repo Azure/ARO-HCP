@@ -377,7 +377,7 @@
     "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator"
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-cspr-ussw1",
+  "regionRG": "hcp-underlay-cspr-southwestus",
   "serviceKeyVault": {
     "assignNSP": false,
     "name": "aro-hcp-dev-svc-kv",
