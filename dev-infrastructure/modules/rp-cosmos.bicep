@@ -17,6 +17,7 @@ var containers = [
   }
   {
     name: 'Billing'
+    partitionKeyPaths: ['/subscriptionId']
   }
   {
     name: 'Locks'
