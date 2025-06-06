@@ -1,0 +1,61 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: backplane-sre-policy
+  namespace: open-cluster-management
+  annotations:
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: backplane-sre-rbac
+      spec:
+        remediationAction: enforce
+        pruneObjectBehavior: DeleteIfCreated
+        evaluationInterval:
+          compliant: 1m
+          noncompliant: 30s
+        object-templates:
+        - complianceType: MustHave
+          objectDefinition:
+            kind: ClusterRole
+            apiVersion: rbac.authorization.k8s.io/v1
+            metadata:
+              name: backplane-sre-readonly
+            rules:
+              - apiGroups: [""]
+                resources: ["pods", "services", "endpoints", "configmaps", "secrets", "namespaces", "nodes"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: ["apps"]
+                resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: ["batch"]
+                resources: ["jobs", "cronjobs"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: ["policy", "rbac.authorization.k8s.io"]
+                resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: ["*"]
+                resources: ["events", "persistentvolumes", "persistentvolumeclaims", "networkpolicies", "ingresses"]
+                verbs: ["get", "list", "watch"]
+        - complianceType: MustHave
+          objectDefinition:
+            kind: ClusterRoleBinding
+            apiVersion: rbac.authorization.k8s.io/v1
+            metadata:
+              name: backplane-sre-readonly-binding
+            roleRef:
+              kind: ClusterRole
+              name: backplane-sre-readonly
+              apiGroup: rbac.authorization.k8s.io
+            subjects:
+              - kind: Group
+                name: aro:platform:backplane-sre
+                apiGroup: rbac.authorization.k8s.io
