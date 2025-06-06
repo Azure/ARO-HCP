@@ -24,9 +24,13 @@ clean:
 .PHONY: clean
 
 image:
-	pushd .. && git archive --output backend/archive.tar.gz HEAD && popd
-	docker build --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} -f "./Dockerfile" -t ${ARO_HCP_BACKEND_IMAGE}:${CURRENT_COMMIT} .
-	rm -f archive.tar.gz
+	@bash -c "set -e; pushd .. > /dev/null; \
+	          trap 'rm --force image-environment && popd > /dev/null' EXIT; \
+	          cp ${ENV_VARS_FILE} image-environment; \
+	          docker build . --file backend/Dockerfile \
+	                         --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} \
+	                         --build-arg PLATFORM=linux/amd64 \
+	                         --tag ${ARO_HCP_BACKEND_IMAGE}:${CURRENT_COMMIT}"
 .PHONY: image
 
 push: image
