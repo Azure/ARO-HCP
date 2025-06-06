@@ -16,8 +16,11 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"strings"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	validator "github.com/go-playground/validator/v10"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -99,8 +102,8 @@ type OperatorsAuthenticationProfile struct {
 // OpenShift operators using user-assigned managed identities.
 // Visibility for the entire struct is "read create".
 type UserAssignedIdentitiesProfile struct {
-	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
-	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 }
 
@@ -155,75 +158,243 @@ func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 	return errorDetails
 }
 
-func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities() []arm.CloudErrorBody {
+func (cluster *HCPOpenShiftCluster) validateNetworkCIDRs() []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+	var podCIDR, serviceCIDR, machineCIDR *net.IPNet
+
+	// Populated CIDR fields have already passed syntax validation so parsing
+	// should not fail. If parsing does fail then skip validating that field.
+
+	_, podCIDR, _ = net.ParseCIDR(cluster.Properties.Network.PodCIDR)
+	_, serviceCIDR, _ = net.ParseCIDR(cluster.Properties.Network.ServiceCIDR)
+	_, machineCIDR, _ = net.ParseCIDR(cluster.Properties.Network.MachineCIDR)
+
+	// Just check for overlapping subnets. Defer subnet limits to Cluster Service.
+
+	intersect := func(n1, n2 *net.IPNet) bool {
+		if n1 == nil || n2 == nil {
+			return false
+		}
+
+		return n2.Contains(n1.IP) || n1.Contains(n2.IP)
+	}
+
+	if intersect(machineCIDR, serviceCIDR) {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code: arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf(
+				"Machine CIDR '%s' and service CIDR '%s' overlap",
+				cluster.Properties.Network.MachineCIDR,
+				cluster.Properties.Network.ServiceCIDR),
+			Target: "properties.network",
+		})
+	}
+
+	if intersect(machineCIDR, podCIDR) {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code: arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf(
+				"Machine CIDR '%s' and pod CIDR '%s' overlap",
+				cluster.Properties.Network.MachineCIDR,
+				cluster.Properties.Network.PodCIDR),
+			Target: "properties.network",
+		})
+	}
+
+	if intersect(serviceCIDR, podCIDR) {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code: arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf(
+				"Service CIDR '%s' and pod CIDR '%s' overlap",
+				cluster.Properties.Network.ServiceCIDR,
+				cluster.Properties.Network.PodCIDR),
+			Target: "properties.network",
+		})
+	}
+
+	return errorDetails
+}
+
+func (cluster *HCPOpenShiftCluster) validateManagedResourceGroup(clusterResourceID *azcorearm.ResourceID) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
-	// Idea is to check every identity mentioned in the Identity.UserAssignedIdentities is
-	// being declared under Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.
-	if cluster.Identity.UserAssignedIdentities != nil {
-		// Initiate the map that will have the number occurence of ConstrolPlaneOperators fields.
-		controlPlaneOpOccurrences := make(map[string]int)
-		// Generate a Map of Resource IDs of ControlplaneOperators MI, disregard the DataPlaneOperators.
-		for _, operatorResourceID := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-			controlPlaneOpOccurrences[operatorResourceID]++
-		}
-		// variable to hold serviceManagedIdentity
-		smiResourceID := cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
+	if strings.EqualFold(cluster.Properties.Platform.ManagedResourceGroup, clusterResourceID.ResourceGroupName) {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInvalidRequestContent,
+			Message: "Managed resource group name must not be the cluster's resource group name",
+			Target:  "properties.platform.managedResourceGroup",
+		})
+	}
 
-		for operatorName, resourceID := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-			_, ok := cluster.Identity.UserAssignedIdentities[resourceID]
-			if !ok {
+	return errorDetails
+}
+
+func (cluster *HCPOpenShiftCluster) validateSubnetID(clusterResourceID *azcorearm.ResourceID) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	// Subnet ID has already passed syntax validation so parsing should
+	// not fail. If parsing does somehow fail then skip the validation.
+
+	subnetResourceID, err := azcorearm.ParseResourceID(cluster.Properties.Platform.SubnetID)
+	if err != nil {
+		return nil
+	}
+
+	if !strings.EqualFold(subnetResourceID.SubscriptionID, clusterResourceID.SubscriptionID) {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code: arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf(
+				"Subnet '%s' must be in the same Azure subscription as the cluster",
+				cluster.Properties.Platform.SubnetID),
+			Target: "properties.platform.subnetId",
+		})
+	}
+
+	if cluster.Properties.Platform.ManagedResourceGroup != "" {
+		if strings.EqualFold(subnetResourceID.ResourceGroupName, cluster.Properties.Platform.ManagedResourceGroup) {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code: arm.CloudErrorCodeInvalidRequestContent,
+				Message: fmt.Sprintf(
+					"Subnet '%s' cannot be in the managed resource group '%s'",
+					cluster.Properties.Platform.SubnetID,
+					cluster.Properties.Platform.ManagedResourceGroup),
+				Target: "properties.platform.subnetId",
+			})
+		}
+	}
+
+	return errorDetails
+}
+
+func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentity(clusterResourceID *azcorearm.ResourceID, identity, target string) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	// Managed identity has already passed syntax validation so parsing should
+	// not fail. If parsing does somehow fail then skip the validation.
+
+	identityResourceID, err := azcorearm.ParseResourceID(identity)
+	if err != nil {
+		return nil
+	}
+
+	if !strings.EqualFold(identityResourceID.SubscriptionID, clusterResourceID.SubscriptionID) {
+		errorDetails = append(errorDetails, arm.CloudErrorBody{
+			Code: arm.CloudErrorCodeInvalidRequestContent,
+			Message: fmt.Sprintf(
+				"Identity '%s' must be in the same Azure subscription as the cluster",
+				identity),
+			Target: target,
+		})
+	}
+
+	if cluster.Properties.Platform.ManagedResourceGroup != "" {
+		if strings.EqualFold(identityResourceID.ResourceGroupName, cluster.Properties.Platform.ManagedResourceGroup) {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code: arm.CloudErrorCodeInvalidRequestContent,
+				Message: fmt.Sprintf(
+					"Identity '%s' cannot be in the managed resource group '%s'",
+					identity,
+					cluster.Properties.Platform.ManagedResourceGroup),
+				Target: target,
+			})
+		}
+	}
+
+	return errorDetails
+}
+
+func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResourceID *azcorearm.ResourceID) []arm.CloudErrorBody {
+	const baseTarget = "properties.platform.operatorsAuthentication.userAssignedIdentities"
+	var errorDetails []arm.CloudErrorBody
+
+	serviceManagedIdentity := cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
+
+	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		errorDetails = append(errorDetails, cluster.validateUserAssignedIdentity(
+			clusterResourceID, operatorIdentity,
+			fmt.Sprintf("%s.controlPlaneOperators[%s]", baseTarget, operatorName))...)
+	}
+	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		errorDetails = append(errorDetails, cluster.validateUserAssignedIdentity(
+			clusterResourceID, operatorIdentity,
+			fmt.Sprintf("%s.dataPlaneOperators[%s]", baseTarget, operatorName))...)
+	}
+	if serviceManagedIdentity != "" {
+		errorDetails = append(errorDetails, cluster.validateUserAssignedIdentity(
+			clusterResourceID, serviceManagedIdentity,
+			fmt.Sprintf("%s.serviceManagedIdentity", baseTarget))...)
+	}
+
+	// Verify that every key in Identity.UserAssignedIdentities is referenced
+	// exactly once by either ControlPlaneOperators or ServiceManagedIdentity.
+
+	userAssignedIdentities := make(map[string]int)
+	for key := range cluster.Identity.UserAssignedIdentities {
+		// Resource IDs are case-insensitive. Don't assume they
+		// have consistent casing, even within the same resource.
+		userAssignedIdentities[strings.ToLower(key)] = 0
+	}
+
+	tallyIdentity := func(identity, target string) {
+		key := strings.ToLower(identity)
+		if _, ok := userAssignedIdentities[key]; ok {
+			userAssignedIdentities[key]++
+		} else {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code: arm.CloudErrorCodeInvalidRequestContent,
+				Message: fmt.Sprintf(
+					"Identity '%s' is not assigned to this resource",
+					identity),
+				Target: target,
+			})
+		}
+	}
+
+	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		tallyIdentity(operatorIdentity, baseTarget+fmt.Sprintf(".controlPlaneOperators[%s]", operatorName))
+	}
+
+	if serviceManagedIdentity != "" {
+		tallyIdentity(serviceManagedIdentity, baseTarget+".serviceManagedIdentity")
+	}
+
+	for identity := range cluster.Identity.UserAssignedIdentities {
+		key := strings.ToLower(identity)
+		if tally, ok := userAssignedIdentities[key]; ok {
+			switch tally {
+			case 0:
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
-						"Identity %s is not assigned to this resource",
-						resourceID),
-					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+						"Identity '%s' is assigned to this resource but not used",
+						identity),
+					Target: "identity.userAssignedIdentities",
 				})
-			} else if controlPlaneOpOccurrences[resourceID] > 1 {
+			case 1:
+				// Valid: Identity is referenced once.
+			default:
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
-						"Identity %s is used multiple times", resourceID),
-					Target: fmt.Sprintf("properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[%s]", operatorName),
+						"Identity '%s' is used multiple times",
+						identity),
+					Target: baseTarget,
 				})
 			}
 		}
+	}
 
-		if smiResourceID != "" {
-			_, ok := cluster.Identity.UserAssignedIdentities[smiResourceID]
-			if !ok {
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						"Identity %s is not assigned to this resource",
-						smiResourceID),
-					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
-				})
-			}
-			// Making sure serviceManagedIdentity is not already assigned to controlPlaneOperators.
-			if _, ok := controlPlaneOpOccurrences[smiResourceID]; ok {
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						"Identity %s is used multiple times", smiResourceID),
-					Target: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
-				})
-			}
-		}
-
-		for resourceID := range cluster.Identity.UserAssignedIdentities {
-			if _, ok := controlPlaneOpOccurrences[resourceID]; !ok {
-				if smiResourceID != resourceID {
-					errorDetails = append(errorDetails, arm.CloudErrorBody{
-						Code: arm.CloudErrorCodeInvalidRequestContent,
-						Message: fmt.Sprintf(
-							"Identity %s is assigned to this resource but not used",
-							resourceID),
-						Target: "identity.userAssignedIdentities",
-					})
-				}
-			}
+	// Data-plane operator identities must not be assigned to this resource.
+	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		key := strings.ToLower(operatorIdentity)
+		if _, ok := userAssignedIdentities[key]; ok {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code: arm.CloudErrorCodeInvalidRequestContent,
+				Message: fmt.Sprintf(
+					"Data plane operator '%s' cannot use identity assigned to this resource",
+					operatorName),
+				Target: baseTarget + fmt.Sprintf(".dataPlaneOperators[%s]", operatorName),
+			})
 		}
 	}
 
@@ -238,8 +409,22 @@ func (cluster *HCPOpenShiftCluster) Validate(validate *validator.Validate, reque
 	// we already know to be invalid and prevents the response body from
 	// becoming overwhelming.
 	if len(errorDetails) == 0 {
+		var clusterResourceID *azcorearm.ResourceID
+
+		// This should never fail under normal operating conditions,
+		// but there may be unit test cases where this is incomplete.
+		if request != nil && request.URL != nil {
+			clusterResourceID, _ = azcorearm.ParseResourceID(request.URL.Path)
+		}
+
 		errorDetails = append(errorDetails, cluster.validateVersion()...)
-		errorDetails = append(errorDetails, cluster.validateUserAssignedIdentities()...)
+		errorDetails = append(errorDetails, cluster.validateNetworkCIDRs()...)
+
+		if clusterResourceID != nil {
+			errorDetails = append(errorDetails, cluster.validateManagedResourceGroup(clusterResourceID)...)
+			errorDetails = append(errorDetails, cluster.validateSubnetID(clusterResourceID)...)
+			errorDetails = append(errorDetails, cluster.validateUserAssignedIdentities(clusterResourceID)...)
+		}
 	}
 
 	return errorDetails

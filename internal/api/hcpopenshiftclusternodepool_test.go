@@ -297,15 +297,15 @@ func TestNodePoolValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
 					Platform: NodePoolPlatformProfile{
-						SubnetID: path.Join(TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "otherVirtualNetwork", "subnets"),
+						SubnetID: path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "otherVirtualNetwork", "subnets", TestSubnetName),
 					},
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: fmt.Sprintf("Subnet '%s' must belong to the same VNet as the parent cluster VNet '%s'",
-						path.Join(TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "otherVirtualNetwork", "subnets"),
-						path.Join(TestGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "testVirtualNetwork")),
+						path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", "otherVirtualNetwork", "subnets", TestSubnetName),
+						TestVirtualNetworkResourceID),
 					Target: "properties.platform.subnetId",
 				},
 			},
@@ -325,6 +325,10 @@ func TestNodePoolValidate(t *testing.T) {
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {
 				t.Fatalf("Expected error mismatch:\n%s", diff)
+			}
+
+			for _, e := range actualErrors {
+				AssertJSONPath[HCPOpenShiftClusterNodePool](t, e.Target)
 			}
 		})
 	}

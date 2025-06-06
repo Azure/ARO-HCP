@@ -74,7 +74,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
-	operationID, err := azcorearm.ParseResourceID("/subscriptions/" + api.TestSubscriptionID + "/providers/" + api.ProviderNamespace + "/locations/oz/" + api.OperationStatusResourceTypeName + "/operationID")
+	operationID, err := azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/oz/" + api.OperationStatusResourceTypeName + "/operationID")
 	require.NoError(t, err)
 
 	for _, tt := range tests {
@@ -235,7 +235,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
-	operationID, err := azcorearm.ParseResourceID("/subscriptions/" + api.TestSubscriptionID + "/providers/" + api.ProviderNamespace + "/locations/oz/" + api.OperationStatusResourceTypeName + "/operationID")
+	operationID, err := azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/oz/" + api.OperationStatusResourceTypeName + "/operationID")
 	require.NoError(t, err)
 
 	for _, tt := range tests {
