@@ -11,8 +11,6 @@ GRAFANA_SUBSCRIPTION_ID=${ADDR[2]}
 GRAFANA_RG=${ADDR[4]}
 GRAFANA_NAME=${ADDR[8]}
 read -ra ADDR <<< "$MONITOR_ID"
-MONITOR_DATA_SOURCE_SUBSCRIPTION_ID=${ADDR[2]}
-MONITOR_RG=${ADDR[4]}
 MONITOR_NAME=${ADDR[8]}
 IFS=' '
 
@@ -31,7 +29,7 @@ az resource wait --updated --created --ids "${GRAFANA_RESOURCE_ID}"
 if [[ -n "${EXISTING_DATA_SOURCE_URL}" && ${EXISTING_DATA_SOURCE_URL} != ${PROM_QUERY_URL} ]];
 then
     echo "Removing ${MONITOR_NAME} integration from ${GRAFANA_NAME}"
-    MONITOR_UPDATES=$(echo "${MONITORS}" | jq --arg id "${MONITOR_ID}" 'map(select(.azureMonitorWorkspaceResourceId != $id))')#
+    MONITOR_UPDATES=$(echo "${MONITORS}" | jq --arg id "${MONITOR_ID}" 'map(select(.azureMonitorWorkspaceResourceId != $id))')
     az resource update --ids ${GRAFANA_RESOURCE_ID} --set properties.grafanaIntegrations.azureMonitorWorkspaceIntegrations="${MONITOR_UPDATES}"
     az resource wait --updated --created --ids "${GRAFANA_RESOURCE_ID}"
 fi
