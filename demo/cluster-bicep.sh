@@ -14,4 +14,10 @@ az deployment group create \
     clusterName=${CLUSTER_NAME} \
     location=${LOCATION} \
     managedResourceGroupName=${MANAGED_RESOURCE_GROUP}
-  --debug
+
+az deployment group create \
+  --name 'aro-hcp-node-pool' --resource-group ${CUSTOMER_RG_NAME} \
+  --template-file bicep/nodepool.bicep \
+  --parameters \
+    clusterName=${CLUSTER_NAME} \
+    location=${LOCATION} --debug
