@@ -22,8 +22,8 @@ import (
 
 func newHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
 	return &generated.HcpOpenShiftClusterAdminCredential{
-		ExpirationTimestamp: api.Ptr(from.ExpirationTimestamp),
-		Kubeconfig:          api.Ptr(from.Kubeconfig),
+		ExpirationTimestamp: api.PtrOrNil(from.ExpirationTimestamp),
+		Kubeconfig:          api.PtrOrNil(from.Kubeconfig),
 	}
 }
 

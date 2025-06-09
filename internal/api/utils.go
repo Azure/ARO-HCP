@@ -16,6 +16,7 @@ package api
 
 import (
 	"iter"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -28,6 +29,30 @@ const (
 
 // Ptr returns a pointer to p.
 func Ptr[T any](p T) *T {
+	return &p
+}
+
+// Copied from Go's src/encoding/json/encode.go
+func isEmptyValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64,
+		reflect.Interface, reflect.Pointer:
+		return v.IsZero()
+	}
+	return false
+}
+
+// PtrOrNil returns a pointer to p or nil if p is an empty value as
+// would be determined by the "omitempty" option in json.Marshal.
+func PtrOrNil[T any](p T) *T {
+	if isEmptyValue(reflect.ValueOf(p)) {
+		return nil
+	}
 	return &p
 }
 
