@@ -16,7 +16,9 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"os"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -24,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/test/util/environment"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 )
 
@@ -31,21 +34,22 @@ var (
 	clients        *api.ClientFactory
 	subscriptionID string
 	e2eSetup       integration.SetupModel
+	endpointUrl    string
 )
 
-func prepareDevelopmentConf() azcore.ClientOptions {
+func prepareEnvironmentConf(endpoint string) azcore.ClientOptions {
 	c := cloud.Configuration{
 		ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
 		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 			cloud.ResourceManager: {
 				Audience: "https://management.core.windows.net/",
-				Endpoint: "http://localhost:8443",
+				Endpoint: endpoint,
 			},
 		},
 	}
 	opts := azcore.ClientOptions{
 		Cloud:                           c,
-		InsecureAllowCredentialWithHTTP: true,
+		InsecureAllowCredentialWithHTTP: environment.Development.CompareUrl(endpoint),
 	}
 
 	return opts
@@ -56,6 +60,7 @@ func setup(ctx context.Context) error {
 		found bool
 		creds azcore.TokenCredential
 		err   error
+		opts  azcore.ClientOptions
 	)
 
 	if subscriptionID, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
@@ -65,9 +70,12 @@ func setup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	endpointUrl = environment.Environment(strings.ToLower(os.Getenv("ENV"))).Url()
+	if endpointUrl == "" {
+		return errors.New("Unsupported or empty testing environment")
+	}
 
-	opts := prepareDevelopmentConf()
-
+	opts = prepareEnvironmentConf(endpointUrl)
 	envOptions := &azidentity.EnvironmentCredentialOptions{
 		ClientOptions: opts,
 	}
