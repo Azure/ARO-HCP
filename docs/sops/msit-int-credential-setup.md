@@ -52,7 +52,7 @@ This environment is unique because the first-party, MSI mock, and ARM helper cre
    ```bash
    az login --use-device-code
    ```
-1. Activate PIM role `Key Vault Administrator` in `"Azure Red Hat OpenShift v4.x - HCP"`
+1. From your MSFT managed device, open the Azure Portal and use PIM (Privileged Identity Management) > My Roles > Azure Resources to activate the `Key Vault Administrator` role in subscription `Azure Red Hat OpenShift v4.x - HCP`.
 1. **Upload certificates to the MSIT INT Key Vault**
 
    ```bash
