@@ -38,6 +38,10 @@ func TestNodePoolRequiredForPut(t *testing.T) {
 			resource: &HCPOpenShiftClusterNodePool{},
 			expectErrors: []arm.CloudErrorBody{
 				{
+					Message: "Missing required field 'location'",
+					Target:  "location",
+				},
+				{
 					Message: "Missing required field 'properties'",
 					Target:  "properties",
 				},
@@ -47,6 +51,10 @@ func TestNodePoolRequiredForPut(t *testing.T) {
 			name:     "Default node pool",
 			resource: NewDefaultHCPOpenShiftClusterNodePool(),
 			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Missing required field 'location'",
+					Target:  "location",
+				},
 				{
 					Message: "Missing required field 'vmSize'",
 					Target:  "properties.platform.vmSize",

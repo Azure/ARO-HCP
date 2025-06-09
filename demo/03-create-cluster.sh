@@ -205,12 +205,14 @@ main() {
   create_azure_managed_identities_for_cluster
 
   jq \
+    --arg location "$LOCATION" \
     --arg managed_rg "$MANAGED_RESOURCE_GROUP" \
     --arg subnet_id "$SUBNET_ID" \
     --arg nsg_id "$NSG_ID" \
     --argjson uamis_json_map "$UAMIS_JSON_MAP" \
     --argjson identity_uamis_json_map "$IDENTITY_UAMIS_JSON_MAP" \
     '
+      .location = $location |
       .properties.platform.managedResourceGroup = $managed_rg |
       .properties.platform.subnetId = $subnet_id |
       .properties.platform.networkSecurityGroupId = $nsg_id |

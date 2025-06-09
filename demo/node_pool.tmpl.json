@@ -1,4 +1,5 @@
 {
+  "location": "$location",
   "properties": {
     "version": {
       "id": "openshift-v4.18.1",
