@@ -51,6 +51,10 @@ func TestClusterRequiredForPut(t *testing.T) {
 			resource: &HCPOpenShiftCluster{},
 			expectErrors: []arm.CloudErrorBody{
 				{
+					Message: "Missing required field 'location'",
+					Target:  "location",
+				},
+				{
 					Message: "Missing required field 'properties'",
 					Target:  "properties",
 				},
@@ -60,6 +64,10 @@ func TestClusterRequiredForPut(t *testing.T) {
 			name:     "Default cluster",
 			resource: NewDefaultHCPOpenShiftCluster(),
 			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Missing required field 'location'",
+					Target:  "location",
+				},
 				{
 					Message: "Missing required field 'subnetId'",
 					Target:  "properties.platform.subnetId",

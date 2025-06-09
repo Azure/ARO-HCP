@@ -33,6 +33,7 @@ import (
 // The definitions in this file are meant for unit tests.
 
 const (
+	TestLocation                 = "westus3"
 	TestAPIVersion               = "2024-06-10-preview"
 	TestTenantID                 = "00000000-0000-0000-0000-000000000000"
 	TestSubscriptionID           = "11111111-1111-1111-1111-111111111111"
@@ -97,6 +98,7 @@ func NewTestUserAssignedIdentity(name string) string {
 
 func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource := NewDefaultHCPOpenShiftCluster()
+	resource.Location = TestLocation
 	resource.Properties.Platform.SubnetID = TestSubnetResourceID
 	resource.Properties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
 	return resource
@@ -110,6 +112,7 @@ func ClusterTestCase(t *testing.T, tweaks *HCPOpenShiftCluster) *HCPOpenShiftClu
 
 func MinimumValidNodePoolTestCase() *HCPOpenShiftClusterNodePool {
 	resource := NewDefaultHCPOpenShiftClusterNodePool()
+	resource.Location = TestLocation
 	resource.Properties.Platform.VMSize = "Standard_D8s_v3"
 	return resource
 }
