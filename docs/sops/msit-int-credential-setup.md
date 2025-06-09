@@ -2,6 +2,15 @@
 
 This document provides instructions for setting up **first-party**, **MSI mock**, and **ARM helper** credentials for the MSIT INT environment.
 
+## Prerequisites
+### ARO SRE Team - INT (EA Subscription 3)
+#### IAM
+- Key Vault Administrator
+- Contributor
+#### Cloud infrastructure
+- Global Resource group
+- Key Vault in global resource group
+
 ## Overview
 
 This environment is unique because the first-party, MSI mock, and ARM helper credentials exist outside the MSIT subscription. Therefore, some manual steps are required to configure the environment.
@@ -22,6 +31,20 @@ This environment is unique because the first-party, MSI mock, and ARM helper cre
 
 1. **Update configuration**
    If new AAD apps were created, update `config.msft.yaml` with the new values. See [https://github.com/Azure/ARO-HCP/pull/1712](https://github.com/Azure/ARO-HCP/pull/1712) for an example.
+   ```
+    firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
+    firstPartyAppCertificate:
+      name: firstPartyCert2
+      manage: false # we have the cert from RH for int
+    # Mock Managed Identities Service Princiapl - from RH Tenant
+    miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+    miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
+    miMockCertName: msiMockCert2
+    # ARM Helper - from RH Tenant
+    armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
+    armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
+    armHelperCertName: armHelperCert2
+   ```
 
 1. **Move the certificate bundles to the MSIT INT Key Vault**
 
