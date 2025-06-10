@@ -11,6 +11,7 @@ PROMPT_TO_CONFIRM = "--confirm-with-what-if"
 endif
 
 PERSIST ?= false
+NPROC ?= $(shell command -v nproc > /dev/null 2>&1 && nproc || echo 4)
 
 MGMT_KUBECONFIG_FILE ?= ${HOME}/.kube/${MGMT_RESOURCEGROUP}.kubeconfig
 SVC_KUBECONFIG_FILE ?= ${HOME}/.kube/${SVC_RESOURCEGROUP}.kubeconfig
@@ -31,15 +32,21 @@ templates := $(wildcard ./templates/*.bicep)
 modules := $(shell find ./modules -name "*.bicep")
 parameters := $(filter-out $(wildcard ./templates/*.tmpl.bicepparam),$(wildcard ./templates/*.bicepparam))
 
-fmt: $(templates:.bicep=.bicep.fmt) $(modules:.bicep=.bicep.fmt) $(parameters:.bicepparam=.biceparam.fmt)
+_fmt: $(templates:.bicep=.bicep.fmt) $(modules:.bicep=.bicep.fmt) $(parameters:.bicepparam=.biceparam.fmt)
+fmt:
+	@echo "Running make fmt in parallel across $(NPROC) cores"
+	@$(MAKE) -j$(NPROC) _fmt
 
-lint: $(templates:.bicep=.bicep.lint) $(modules:.bicep=.bicep.lint) $(parameters:.bicepparam=.biceparam.lint)
+_lint: $(templates:.bicep=.bicep.lint) $(modules:.bicep=.bicep.lint) $(parameters:.bicepparam=.biceparam.lint)
+lint:
+	@echo "Running make lint in parallel across $(NPROC) cores"
+	@$(MAKE) -j$(NPROC) _lint
 
 %.bicep.fmt %.bicepparam.fmt:
-	az bicep format --file $(basename $@)
+	@AZURE_BICEP_CHECK_VERSION=False az bicep format --file $(basename $@) 2>&1 | awk 'NF'
 
 %.bicep.lint %.bicepparam.lint:
-	az bicep lint --file $(basename $@)
+	@AZURE_BICEP_CHECK_VERSION=False az bicep lint --file $(basename $@) 2>&1 | awk 'NF'
 
 feature-registration: # hardcoded to eastus as this is a subscription deployment, not a resource group
 	@az deployment sub create \
