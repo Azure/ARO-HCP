@@ -8,7 +8,7 @@ go.work* @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-sch
 /dev-infrastructure/modules/rp-cosmos.bicep @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3
 /image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521
 /api/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25
-/demo/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
+/demo/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @tony-schndr
 /frontend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
 /backend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
 /internal/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
