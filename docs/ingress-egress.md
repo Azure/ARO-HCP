@@ -4,8 +4,6 @@ This document provides an overview of ingress and egress configurations specific
 
 ## Ingress
 
-Ingress is documented separately for service and management clusters, as the mechanisms and responsibilities differ: service cluster ingress is based on Istio, while management cluster ingress is provisioned directly by the Hypershift operator.
-
 ### Service Cluster Ingress
 
 This section describes how ingress traffic targeting ARO HCP services—such as the RP frontend, and eventually the Admin API and Backplane—is handled on service clusters. A shared Istio ingress gateway is deployed per service cluster to expose these components securely via a dedicated public IP.
