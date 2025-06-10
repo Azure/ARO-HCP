@@ -3,6 +3,14 @@ on:
   pull_request:
     branches:
     - 'main'
+    paths:
+    - '**/*.go'
+    - '**/go.mod'
+    - '**/go.sum'
+    - '**/go.work'
+    - '**/go.work.sum'
+    - '**/Makefile'
+    - '**/.golangci.{yml,yaml}'
 jobs:
   test:
     permissions:
