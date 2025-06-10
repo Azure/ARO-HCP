@@ -119,21 +119,6 @@ create_azure_managed_identities_for_cluster() {
   echo "user-assigned identity ${uami_name} created"
 }
 
-arm_x_ms_identity_url_header() {
-  # Requests directly against the frontend
-  # need to send a X-Ms-Identity-Url HTTP
-  # header, which simulates what ARM performs.
-  # By default we set a dummy value, which is
-  # enough in the environments where a real
-  # Managed Identities Data Plane does not
-  # exist like in the development or integration
-  # environments. The default can be overwritten
-  # by providing the environment variable
-  # ARM_X_MS_IDENTITY_URL when running the script.
-  : ${ARM_X_MS_IDENTITY_URL:="https://dummyhost.identity.azure.net"}
-  echo "X-Ms-Identity-Url: ${ARM_X_MS_IDENTITY_URL}"
-}
-
 main() {
   NSG_ID=$(az network nsg list --resource-group ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" --output tsv)
   SUBNET_ID=$(az network vnet subnet show --resource-group ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id --output tsv)
@@ -220,9 +205,7 @@ main() {
       .identity.userAssignedIdentities = $identity_uamis_json_map
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
-  (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl --silent --show-error --include --request PUT "localhost:8443${CLUSTER_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}" \
-    --header @- \
-    --json @${CLUSTER_FILE}
+  rp_put_request "${CLUSTER_RESOURCE_ID}" "@${CLUSTER_FILE}"
 }
 
 # Call to the `main` function in the script

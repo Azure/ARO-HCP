@@ -20,6 +20,4 @@ jq \
     .properties.platform.subnetId = $subnet_id
   ' "${NODEPOOL_TMPL_FILE}" > ${NODEPOOL_FILE}
 
-(arm_system_data_header; correlation_headers) | curl --silent --show-error --include --request PUT "localhost:8443${NODE_POOL_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}" \
-  --header @- \
-  --json @${NODEPOOL_FILE}
+rp_put_request "${NODE_POOL_RESOURCE_ID}" "@${NODEPOOL_FILE}"

@@ -10,5 +10,6 @@ source env_vars
 if az_account_is_int; then
     az provider register --namespace "Microsoft.RedHatOpenShift"
 else
+    # Don't use rp_put_request here because the API version is unique.
     correlation_headers | curl --silent --show-error --include --header @- --request PUT "localhost:8443${SUBSCRIPTION_RESOURCE_ID}?api-version=2.0" --json "{\"state\":\"Registered\", \"registrationDate\": \"now\", \"properties\": { \"tenantId\": \"${TENANT_ID}\"}}"
 fi
