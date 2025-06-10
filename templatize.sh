@@ -4,7 +4,7 @@ PROJECT_ROOT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
 # Default values
 CLOUD="${CLOUD:-dev}"
-REGION="${REGION:-westus3}"
+REGION="${REGION:-eastus1}"
 CXSTAMP="${CXSTAMP:-1}"
 EXTRA_ARGS=""
 PIPELINE_MODE="inspect"

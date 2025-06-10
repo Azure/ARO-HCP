@@ -1,6 +1,7 @@
 name: ARO HCP Environment Infrastructure Continuous Deployment
 env:
   DEPLOY_ENV: ${{ inputs.deploy_env }}
+  REGION: ${{ inputs.region }}
   SKIP_CONFIRM: true
   PERSIST: true
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -13,6 +14,10 @@ on:
     inputs:
       deploy_env:
         description: 'The deploy environment to use for service deployments'
+        required: true
+        type: string
+      region:
+        description: 'The region to deploy the service components in'
         required: true
         type: string
       deploy_cs_pr_check_deps:

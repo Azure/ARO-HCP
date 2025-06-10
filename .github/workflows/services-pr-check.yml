@@ -1,6 +1,7 @@
 name: ARO HCP Service PR Check
 env:
   DEPLOY_ENV: dev
+  REGION: westus3
   SKIP_CONFIRM: true
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
