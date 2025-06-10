@@ -285,10 +285,15 @@ func (s *OperationsScanner) Run(ctx context.Context, logger *slog.Logger) {
 		go func() {
 			defer s.subscriptionWorkers.Done()
 			for subscriptionID := range s.subscriptionChannel {
+				ctx, span := startRootSpan(ctx, "processOperations")
+				span.SetAttributes(tracing.SubscriptionIDKey.String(subscriptionID))
+
 				subscriptionLogger := logger.With("subscription_id", subscriptionID)
 				s.withSubscriptionLock(ctx, subscriptionLogger, subscriptionID, func(ctx context.Context) {
 					s.processOperations(ctx, subscriptionID, subscriptionLogger)
 				})
+
+				span.End()
 			}
 		}()
 	}
@@ -405,10 +410,7 @@ func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *sl
 
 // processOperations processes all operations in a single Azure subscription.
 func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionID string, logger *slog.Logger) {
-	ctx, span := startRootSpan(ctx, "processOperations")
-	defer span.End()
 	defer s.updateOperationMetrics(processOperationsLabel)()
-	span.SetAttributes(tracing.SubscriptionIDKey.String(subscriptionID))
 
 	pk := database.NewPartitionKey(subscriptionID)
 
@@ -431,6 +433,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 				),
 			})
 	}
+	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(tracing.ProcessedItemsKey.Int(n))
 
 	err := iterator.GetError()
@@ -659,9 +662,11 @@ loop:
 // be canceled.
 func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, logger *slog.Logger, subscriptionID string, fn func(ctx context.Context)) {
 	timeout := s.lockClient.GetDefaultTimeToLive()
+	span := trace.SpanFromContext(ctx)
 	lock, err := s.lockClient.AcquireLock(ctx, subscriptionID, &timeout)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to acquire lock: %v", err))
+		span.RecordError(err)
 		return
 	}
 
@@ -675,6 +680,7 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, logger *sl
 			// Failure here is non-fatal but still log the error.
 			// The lock's TTL ensures it will be released eventually.
 			logger.Warn(fmt.Sprintf("Failed to release lock: %v", nonFatalErr))
+			span.RecordError(nonFatalErr)
 		}
 	}
 }
