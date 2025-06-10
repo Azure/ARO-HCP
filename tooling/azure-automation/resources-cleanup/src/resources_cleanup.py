@@ -212,12 +212,18 @@ def get_subscription_id():
         )
 
 def main():
+    print("All arguments:", sys.argv)
+    # Azure Automation passes parameters as raw values without their names
+    # sys.argv[0] is the script path
+    # sys.argv[1] is the subscription ID
+    # sys.argv[2] is the managed identity ID
     subscription_id = sys.argv[1]
+    client_id = sys.argv[2]
     if not subscription_id:
         raise ValueError("Subscription ID not found in automation variables or environment variables")
 
     resource_client = ResourceManagementClient(
-        credential=ManagedIdentityCredential(client_id=sys.argv[2]),
+        credential=ManagedIdentityCredential(client_id),
         subscription_id=subscription_id,
         api_version=DEFAULT_API_VERSION
     )

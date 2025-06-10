@@ -4,6 +4,12 @@ param location string = resourceGroup().location
 @description('Name of the Automation account to be created')
 param automationAccountName string = 'hcp-dev-automation'
 
+@description('The start time for the nightly schedule')
+param dailyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T06:00:00Z'
+
+@description('The start time for the nightly schedule')
+param ntlyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
+
 module automationAccount '../modules/automation-account/account.bicep' = {
   name: 'hcp-dev-automation'
   params: {
@@ -79,7 +85,8 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
       ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
       path: 'tooling/azure-automation/resources-cleanup/src/resources_cleanup.py'
     }
-    scheduleName: 'nightly-schedule'
+    scheduleName: 'daily-schedule'
+    startTime: dailyScheduleStartTime
     subscriptionId: subscription().subscriptionId
     managedIdentityId: automationAccount.outputs.automationAccountManagedIdentityId
   }
@@ -99,6 +106,7 @@ module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
       path: 'tooling/azure-automation/resources-cleanup/src/clean-orphaned-role-assignments.ps1'
     }
     scheduleName: 'nightly-schedule'
+    startTime: ntlyScheduleStartTime
     subscriptionId: subscription().subscriptionId
     managedIdentityId: automationAccount.outputs.automationAccountManagedIdentityId
   }

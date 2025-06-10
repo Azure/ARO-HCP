@@ -57,7 +57,7 @@ $output = @{
 try {
     Write-Verbose "PowerShell Version: $($PSVersionTable.PSVersion)"
     Write-Verbose "Loaded Az Modules: $(Get-Module Az.* | Select-Object Name, Version | Format-Table -AutoSize | Out-String)"
-    
+
     Write-Verbose @"
 Parameters:
     Automation Account: $AutomationAccountName
@@ -107,7 +107,7 @@ Parameters:
         ErrorAction           = 'Stop'
     }
     # Add optional parameters if provided
-    $jobParameters = @{}
+    $jobParameters = [ordered]@{}  # Use ordered dictionary to maintain parameter order
     if ($SubscriptionId) { $jobParameters['SubscriptionId'] = $SubscriptionId }
     if ($ManagedIdentityId) { $jobParameters['ManagedIdentityId'] = $ManagedIdentityId }
 
@@ -116,7 +116,7 @@ Parameters:
     }
     # Register the new schedule.
     Write-Verbose "Registering new schedule '$ScheduleName' for runbook '$RunbookName'..."
-    $job = Register-AzAutomationScheduledRunbook @registrationArgs 
+    $job = Register-AzAutomationScheduledRunbook @registrationArgs
 
     $output.success = $true
     $output.message = "Successfully registered '$RunbookName' to schedule '$ScheduleName' (JobScheduleId: $($jobSchedule.JobScheduleId))"
