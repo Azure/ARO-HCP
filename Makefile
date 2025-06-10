@@ -60,7 +60,7 @@ tidy: $(MODULES:/...=.tidy)
 %.tidy:
 	cd $(basename $@) && go mod tidy
 
-all-tidy: tidy fmt yamlfmt licenses
+all-tidy: tidy fmt licenses
 	go work sync
 
 mega-lint:
@@ -68,7 +68,7 @@ mega-lint:
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
-		oxsecurity/megalinter:v8 
+		oxsecurity/megalinter:v8
 .PHONY: mega-lint
 
 #
