@@ -388,6 +388,28 @@
         "regionalSubdomain"
       ]
     },
+    "acm": {
+      "type": "object",
+      "properties": {
+        "mce": {
+          "type": "object",
+          "properties": {
+            "pauseReconciliation": {
+              "type": "boolean",
+              "description": "Pause reconciliation of ACM MCE resources like CRDs and deployments."
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "pauseReconciliation"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mce"
+      ]
+    },
     "pko": {
       "type": "object",
       "properties": {
