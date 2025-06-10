@@ -32,7 +32,10 @@ flowchart TD
     style AdminAPI fill:#fff3e0,stroke-dasharray: 5 5
 ```
 
-ARO HCP service clusters expose selected control plane services through a shared Istio ingress gateway. This gateway acts as the central entry point for external traffic targeting these services. This ingress gateway is deployed into the `aks-istio-ingress` namespace and is currently responsible only for exposing the RP frontend API. In the future, the same gateway will also serve the Backplane and Admin API, and the structure of the associated Helm chart will be re-evaluated accordingly.
+ARO HCP service clusters expose selected control plane services through a shared Istio ingress gateway. This gateway acts as the central entry point for external traffic targeting these services. This ingress gateway is deployed into the `aks-istio-ingress` namespace and is currently responsible only for exposing the RP frontend API. In the future, the gateway will also serve the Backplane and Admin API.
+
+> [!NOTE]
+> The ingress gateway is currently managed by the RP frontend Helm chart. Once multiple services are exposed via Istio, this might need to be refactored.
 
 Ingress traffic is routed through a `Service` of type `LoadBalancer`, backed by a public IP address provisioned during cluster setup using Azure Bicep scripts. This IP is not dynamically assigned by AKS but drawn from a registered pool via IP service tags. DNS records are managed for this IP, specifically for the RP frontend hostname.
 
