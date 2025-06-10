@@ -382,17 +382,13 @@
         },
         "remotePhaseManager": {
           "$ref": "#/definitions/containerImage"
-        },
-        "imagePrefixOverrides": {
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "imagePackage",
         "imageManager",
-        "remotePhaseManager",
-        "imagePrefixOverrides"
+        "remotePhaseManager"
       ]
     },
     "clustersService": {

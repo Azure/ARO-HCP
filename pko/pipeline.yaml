@@ -76,6 +76,10 @@ resourceGroups:
       variables:
       - name: DRY_RUN
         value: "true"
+    dependsOn:
+    - mirror-image-package
+    - mirror-image-manager
+    - mirror-image-remotephase-manager
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name
@@ -93,5 +97,3 @@ resourceGroups:
       configRef: pko.imageManager.digest
     - name: RESOURCEGROUP
       configRef: mgmt.rg
-    - name: PKO_IMAGE_PREFIX_OVERRIDES
-      configRef: pko.imagePrefixOverrides
