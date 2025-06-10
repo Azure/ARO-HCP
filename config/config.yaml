@@ -473,6 +473,8 @@ clouds:
         aks:
           etcd:
             kvSoftDelete: false
+          infraAgentPool:
+            azCount: 1
         prometheus:
           prometheusOperator:
             image:

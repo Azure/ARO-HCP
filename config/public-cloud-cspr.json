@@ -394,7 +394,7 @@
         "kvSoftDelete": false
       },
       "infraAgentPool": {
-        "azCount": 3,
+        "azCount": 1,
         "maxCount": 3,
         "minCount": 1,
         "osDiskSizeGB": 32,
