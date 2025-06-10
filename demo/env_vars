@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Defined here because it's used here.
+az_account_is_int() {
+    return $(test "$(az account show --query name --output tsv)" = "ARO SRE Team - INT (EA Subscription 3)")
+}
 
 if [ -z "${CUSTOMER_RG_NAME:-}" ]; then
     export CUSTOMER_RG_NAME="$USER-net-rg"
@@ -8,7 +12,11 @@ export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
 if [ -z "${LOCATION:-}" ]; then
-    export LOCATION="westus3"
+    if az_account_is_int; then
+        export LOCATION="uksouth"
+    else
+        export LOCATION="westus3"
+    fi
 fi
 export SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 export TENANT_ID=$(az account show --query tenantId -o tsv)
