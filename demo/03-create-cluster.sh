@@ -103,42 +103,27 @@ create_azure_managed_identities_for_cluster() {
   for uami_name in "${CONTROL_PLANE_IDENTITIES_UAMIS_NAMES[@]}"
   do
     echo "creating azure user-assigned identity ${uami_name} in resource group ${CUSTOMER_RG_NAME}"
-    az identity create -n "${uami_name}" -g "${CUSTOMER_RG_NAME}"
+    az identity create --name "${uami_name}" --resource-group "${CUSTOMER_RG_NAME}"
     echo "user-assigned identity ${uami_name} created"
   done
 
   for uami_name in "${DATA_PLANE_IDENTITIES_UAMIS_NAMES[@]}"
   do
     echo "creating azure user-assigned identity ${uami_name} in resource group ${CUSTOMER_RG_NAME}"
-    az identity create -n "${uami_name}" -g "${CUSTOMER_RG_NAME}"
+    az identity create --name "${uami_name}" --resource-group "${CUSTOMER_RG_NAME}"
     echo "user-assigned identity ${uami_name} created"
   done
 
   echo "creating azure user-assigned identity ${service_managed_identity_uami_name} in resource group ${CUSTOMER_RG_NAME}"
-  az identity create -n ${service_managed_identity_uami_name} -g ${CUSTOMER_RG_NAME}
+  az identity create --name "${service_managed_identity_uami_name}" --resource-group "${CUSTOMER_RG_NAME}"
   echo "user-assigned identity ${uami_name} created"
 }
 
-arm_x_ms_identity_url_header() {
-  # Requests directly against the frontend
-  # need to send a X-Ms-Identity-Url HTTP
-  # header, which simulates what ARM performs.
-  # By default we set a dummy value, which is
-  # enough in the environments where a real
-  # Managed Identities Data Plane does not
-  # exist like in the development or integration
-  # environments. The default can be overwritten
-  # by providing the environment variable
-  # ARM_X_MS_IDENTITY_URL when running the script.
-  : ${ARM_X_MS_IDENTITY_URL:="https://dummyhost.identity.azure.net"}
-  echo "X-Ms-Identity-Url: ${ARM_X_MS_IDENTITY_URL}"
-}
-
 main() {
-  NSG_ID=$(az network nsg list -g ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" -o tsv)
-  SUBNET_ID=$(az network vnet subnet show -g ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id -o tsv)
+  NSG_ID=$(az network nsg list --resource-group ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" --output tsv)
+  SUBNET_ID=$(az network vnet subnet show --resource-group ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id --output tsv)
 
-  UAMIS_RESOURCE_IDS_PREFIX="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
+  UAMIS_RESOURCE_IDS_PREFIX="${RESOURCE_GROUP_RESOURCE_ID}/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
 
   # A suffix that will be appended to all the
   # user-assigned managed identities names that
@@ -220,9 +205,7 @@ main() {
       .identity.userAssignedIdentities = $identity_uamis_json_map
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
-  (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl -sSi -X PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
-    --header @- \
-    --json @${CLUSTER_FILE}
+  rp_put_request "${CLUSTER_RESOURCE_ID}" "@${CLUSTER_FILE}"
 }
 
 # Call to the `main` function in the script

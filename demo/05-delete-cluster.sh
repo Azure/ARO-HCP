@@ -8,7 +8,7 @@ source env_vars
 source "$(dirname "$0")"/common.sh
 
 get_existing_cluster_payload() {
-  EXISTING_CLUSTER_PAYLOAD=$(curl -sS "${FRONTEND_HOST}:${FRONTEND_PORT}${CLUSTER_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}")
+  EXISTING_CLUSTER_PAYLOAD=$(rp_get_request "${CLUSTER_RESOURCE_ID}")
 }
 
 delete_managed_identities_from_cluster() {
@@ -40,7 +40,7 @@ delete_managed_identities_from_cluster() {
 
 delete_cluster() {
   echo "deleting cluster ${CLUSTER_RESOURCE_ID}"
-  correlation_headers | curl -sSi -H @- -X DELETE "${FRONTEND_HOST}:${FRONTEND_PORT}${CLUSTER_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}"
+  rp_delete_request "${CLUSTER_RESOURCE_ID}"
   if [ "${WAIT_FOR_CLUSTER_DELETION}" -eq "0" ]; then
     echo "wait for cluster deletion disabled. Continuing"
     return
@@ -49,7 +49,7 @@ delete_cluster() {
   echo "waiting for cluster to be fully deleted ..."
   SLEEP_DURATION_SECONDS=10
   while true ; do
-    CLUSTER_GET_RESP=$(curl -sS "${FRONTEND_HOST}:${FRONTEND_PORT}${CLUSTER_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}")
+    CLUSTER_GET_RESP=$(rp_get_request ${CLUSTER_RESOURCE_ID})
     CLUSTER_GET_RESP_PAYLOAD=$(echo ${CLUSTER_GET_RESP} | jq -r .)
     if [ "$?" -ne "0" ]; then
       echo "HTTP GET ${CLUSTER_RESOURCE_ID} returned invalid json:"
@@ -83,8 +83,6 @@ delete_cluster() {
 }
 
 main() {
-  CLUSTER_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}"
-  FRONTEND_API_VERSION_QUERY_PARAM="api-version=2024-06-10-preview"
   FRONTEND_HOST="localhost"
   FRONTEND_PORT="8443"
 

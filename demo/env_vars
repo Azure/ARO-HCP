@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Defined here because it's used here.
+az_account_is_int() {
+    return $(test "$(az account show --query name --output tsv)" = "ARO SRE Team - INT (EA Subscription 3)")
+}
 
 if [ -z "${CUSTOMER_RG_NAME:-}" ]; then
     export CUSTOMER_RG_NAME="$USER-net-rg-03"
@@ -8,10 +12,14 @@ export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
 if [ -z "${LOCATION:-}" ]; then
-    export LOCATION="westus3"
+    if az_account_is_int; then
+        export LOCATION="uksouth"
+    else
+        export LOCATION="westus3"
+    fi
 fi
-export SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-export TENANT_ID=$(az account show --query tenantId -o tsv)
+export SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+export TENANT_ID=$(az account show --query tenantId --output tsv)
 if [ -z "${CLUSTER_NAME:-}" ]; then
     export CLUSTER_NAME="$USER"
 fi
@@ -20,3 +28,9 @@ MANAGED_RESOURCE_GROUP="$CLUSTER_NAME-rg-03"
 if [ -z "${NP_NAME:-}" ]; then
     export NP_NAME="np-1"
 fi
+
+export SUBSCRIPTION_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}"
+export RESOURCE_GROUP_RESOURCE_ID="${SUBSCRIPTION_RESOURCE_ID}/resourceGroups/${CUSTOMER_RG_NAME}"
+export CLUSTER_RESOURCE_ID="${RESOURCE_GROUP_RESOURCE_ID}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/${CLUSTER_NAME}"
+export NODE_POOL_RESOURCE_ID="${CLUSTER_RESOURCE_ID}/nodePools/${NP_NAME}"
+export FRONTEND_API_VERSION_QUERY_PARAM="api-version=2024-06-10-preview"
