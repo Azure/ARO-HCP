@@ -18,8 +18,8 @@ if [ -z "${LOCATION:-}" ]; then
         export LOCATION="westus3"
     fi
 fi
-export SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-export TENANT_ID=$(az account show --query tenantId -o tsv)
+export SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+export TENANT_ID=$(az account show --query tenantId --output tsv)
 if [ -z "${CLUSTER_NAME:-}" ]; then
     export CLUSTER_NAME="$USER"
 fi

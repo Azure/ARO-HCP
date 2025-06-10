@@ -103,19 +103,19 @@ create_azure_managed_identities_for_cluster() {
   for uami_name in "${CONTROL_PLANE_IDENTITIES_UAMIS_NAMES[@]}"
   do
     echo "creating azure user-assigned identity ${uami_name} in resource group ${CUSTOMER_RG_NAME}"
-    az identity create -n "${uami_name}" -g "${CUSTOMER_RG_NAME}"
+    az identity create --name "${uami_name}" --resource-group "${CUSTOMER_RG_NAME}"
     echo "user-assigned identity ${uami_name} created"
   done
 
   for uami_name in "${DATA_PLANE_IDENTITIES_UAMIS_NAMES[@]}"
   do
     echo "creating azure user-assigned identity ${uami_name} in resource group ${CUSTOMER_RG_NAME}"
-    az identity create -n "${uami_name}" -g "${CUSTOMER_RG_NAME}"
+    az identity create --name "${uami_name}" --resource-group "${CUSTOMER_RG_NAME}"
     echo "user-assigned identity ${uami_name} created"
   done
 
   echo "creating azure user-assigned identity ${service_managed_identity_uami_name} in resource group ${CUSTOMER_RG_NAME}"
-  az identity create -n ${service_managed_identity_uami_name} -g ${CUSTOMER_RG_NAME}
+  az identity create --name "${service_managed_identity_uami_name}" --resource-group "${CUSTOMER_RG_NAME}"
   echo "user-assigned identity ${uami_name} created"
 }
 
@@ -135,8 +135,8 @@ arm_x_ms_identity_url_header() {
 }
 
 main() {
-  NSG_ID=$(az network nsg list -g ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" -o tsv)
-  SUBNET_ID=$(az network vnet subnet show -g ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id -o tsv)
+  NSG_ID=$(az network nsg list --resource-group ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" --output tsv)
+  SUBNET_ID=$(az network vnet subnet show --resource-group ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id --output tsv)
 
   UAMIS_RESOURCE_IDS_PREFIX="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
 
@@ -220,7 +220,7 @@ main() {
       .identity.userAssignedIdentities = $identity_uamis_json_map
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
-  (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl -sSi -X PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
+  (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl --silent --show-error --include --request PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
     --header @- \
     --json @${CLUSTER_FILE}
 }
