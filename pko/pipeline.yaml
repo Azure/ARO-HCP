@@ -2,6 +2,69 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.PKO
 rolloutName: RP PKO Rollout
 resourceGroups:
+- name: '{{ .global.rg  }}'
+  subscription: '{{ .global.subscription  }}'
+  steps:
+  - name: mirror-image-package
+    action: Shell
+    command: ../image-sync/on-demand/sync.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: TARGET_ACR
+      configRef: 'acr.svc.name'
+    - name: SOURCE_REGISTRY
+      configRef: pko.imagePackage.registry
+    - name: REPOSITORY
+      configRef: pko.imagePackage.repository
+    - name: DIGEST
+      configRef: pko.imagePackage.digest
+    - name: PULL_SECRET_KV
+      configRef: global.keyVault.name
+    - name: PULL_SECRET
+      configRef: imageSync.componentSync.pullSecretName
+  - name: mirror-image-manager
+    action: Shell
+    command: ../image-sync/on-demand/sync.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: TARGET_ACR
+      configRef: 'acr.svc.name'
+    - name: SOURCE_REGISTRY
+      configRef: pko.imageManager.registry
+    - name: REPOSITORY
+      configRef: pko.imageManager.repository
+    - name: DIGEST
+      configRef: pko.imageManager.digest
+    - name: PULL_SECRET_KV
+      configRef: global.keyVault.name
+    - name: PULL_SECRET
+      configRef: imageSync.componentSync.pullSecretName
+  - name: mirror-image-remotephase-manager
+    action: Shell
+    command: ../image-sync/on-demand/sync.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: TARGET_ACR
+      configRef: 'acr.svc.name'
+    - name: SOURCE_REGISTRY
+      configRef: pko.remotePhaseManager.registry
+    - name: REPOSITORY
+      configRef: pko.remotePhaseManager.repository
+    - name: DIGEST
+      configRef: pko.remotePhaseManager.digest
+    - name: PULL_SECRET_KV
+      configRef: global.keyVault.name
+    - name: PULL_SECRET
+      configRef: imageSync.componentSync.pullSecretName
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:

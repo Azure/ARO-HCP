@@ -287,6 +287,10 @@ defaults:
       registry: arohcpsvcdev.azurecr.io
       repository: package-operator/package-operator-manager
       digest: sha256:04b280a2dfcd89c433db32106e0f9a80b978c2513b979865df7a66dc67617e90
+    remotePhaseManager:
+      registry: arohcpsvcdev.azurecr.io
+      repository: package-operator/remote-phase-manager
+      digest: sha256:d7b2b75f86fa153cde44202fbef760e5787bf16065e7dda4a8fdabc8df17d8a7
     imagePrefixOverrides: quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator
   # Cluster Service
   clustersService:

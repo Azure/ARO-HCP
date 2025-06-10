@@ -374,7 +374,12 @@
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "package-operator/package-operator-package"
     },
-    "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator"
+    "imagePrefixOverrides": "quay.io/package-operator=arohcpsvcdev.azurecr.io/package-operator",
+    "remotePhaseManager": {
+      "digest": "sha256:d7b2b75f86fa153cde44202fbef760e5787bf16065e7dda4a8fdabc8df17d8a7",
+      "registry": "arohcpsvcdev.azurecr.io",
+      "repository": "package-operator/remote-phase-manager"
+    }
   },
   "region": "southwestus",
   "regionRG": "hcp-underlay-dev-southwestus",

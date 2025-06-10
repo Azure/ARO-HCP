@@ -380,6 +380,9 @@
         "imageManager": {
           "$ref": "#/definitions/containerImage"
         },
+        "remotePhaseManager": {
+          "$ref": "#/definitions/containerImage"
+        },
         "imagePrefixOverrides": {
           "type": "string"
         }
@@ -388,6 +391,7 @@
       "required": [
         "imagePackage",
         "imageManager",
+        "remotePhaseManager",
         "imagePrefixOverrides"
       ]
     },
