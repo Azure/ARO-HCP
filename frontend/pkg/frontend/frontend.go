@@ -177,6 +177,13 @@ func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 	f.healthGauge.Set(0.0)
 }
 
+func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
+	// This is strictly for development environments to help discover
+	// the frontend's Azure region when port forwarding with kubectl.
+	// e.g. LOCATION=$(curl http://localhost:8443/location)
+	_, _ = writer.Write([]byte(f.location))
+}
+
 func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
