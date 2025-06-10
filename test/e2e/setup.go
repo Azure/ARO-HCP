@@ -72,7 +72,7 @@ func setup(ctx context.Context) error {
 	}
 	endpointUrl = environment.Environment(strings.ToLower(os.Getenv("ENV"))).Url()
 	if endpointUrl == "" {
-		return errors.New("Unsupported or empty testing environment")
+		return errors.New("unsupported or empty testing environment")
 	}
 
 	opts = prepareEnvironmentConf(endpointUrl)
