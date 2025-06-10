@@ -178,20 +178,20 @@ type NodePoolAutoScaling struct {
 
 func newNodePoolVersionProfile(from *api.NodePoolVersionProfile) *generated.NodePoolVersionProfile {
 	return &generated.NodePoolVersionProfile{
-		ID:                api.Ptr(from.ID),
-		ChannelGroup:      api.Ptr(from.ChannelGroup),
+		ID:                api.PtrOrNil(from.ID),
+		ChannelGroup:      api.PtrOrNil(from.ChannelGroup),
 		AvailableUpgrades: api.StringSliceToStringPtrSlice(from.AvailableUpgrades),
 	}
 }
 
 func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.NodePoolPlatformProfile {
 	return &generated.NodePoolPlatformProfile{
-		VMSize:                 api.Ptr(from.VMSize),
-		AvailabilityZone:       api.Ptr(from.AvailabilityZone),
-		EnableEncryptionAtHost: api.Ptr(from.EnableEncryptionAtHost),
-		DiskSizeGiB:            api.Ptr(from.DiskSizeGiB),
-		DiskStorageAccountType: api.Ptr(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
-		SubnetID:               api.Ptr(from.SubnetID),
+		VMSize:                 api.PtrOrNil(from.VMSize),
+		AvailabilityZone:       api.PtrOrNil(from.AvailabilityZone),
+		EnableEncryptionAtHost: api.PtrOrNil(from.EnableEncryptionAtHost),
+		DiskSizeGiB:            api.PtrOrNil(from.DiskSizeGiB),
+		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
+		SubnetID:               api.PtrOrNil(from.SubnetID),
 	}
 }
 
@@ -200,8 +200,8 @@ func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) *generated.NodePoolAu
 
 	if from != nil {
 		autoScaling = &generated.NodePoolAutoScaling{
-			Max: api.Ptr(from.Max),
-			Min: api.Ptr(from.Min),
+			Max: api.PtrOrNil(from.Max),
+			Min: api.PtrOrNil(from.Min),
 		}
 	}
 
@@ -215,19 +215,19 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 
 	out := &NodePool{
 		generated.NodePool{
-			ID:       api.Ptr(from.ID),
-			Name:     api.Ptr(from.Name),
-			Type:     api.Ptr(from.Type),
-			Location: api.Ptr(from.Location),
+			ID:       api.PtrOrNil(from.ID),
+			Name:     api.PtrOrNil(from.Name),
+			Type:     api.PtrOrNil(from.Type),
+			Location: api.PtrOrNil(from.Location),
 			Tags:     api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.NodePoolProperties{
-				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Platform:          newNodePoolPlatformProfile(&from.Properties.Platform),
 				Version:           newNodePoolVersionProfile(&from.Properties.Version),
-				AutoRepair:        api.Ptr(from.Properties.AutoRepair),
+				AutoRepair:        api.PtrOrNil(from.Properties.AutoRepair),
 				AutoScaling:       newNodePoolAutoScaling(from.Properties.AutoScaling),
 				Labels:            []*generated.Label{},
-				Replicas:          api.Ptr(from.Properties.Replicas),
+				Replicas:          api.PtrOrNil(from.Properties.Replicas),
 				Taints:            []*generated.Taint{},
 			},
 		},
@@ -235,27 +235,27 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 
 	if from.SystemData != nil {
 		out.SystemData = &generated.SystemData{
-			CreatedBy:          api.Ptr(from.SystemData.CreatedBy),
-			CreatedByType:      api.Ptr(generated.CreatedByType(from.SystemData.CreatedByType)),
+			CreatedBy:          api.PtrOrNil(from.SystemData.CreatedBy),
+			CreatedByType:      api.PtrOrNil(generated.CreatedByType(from.SystemData.CreatedByType)),
 			CreatedAt:          from.SystemData.CreatedAt,
-			LastModifiedBy:     api.Ptr(from.SystemData.LastModifiedBy),
-			LastModifiedByType: api.Ptr(generated.CreatedByType(from.SystemData.LastModifiedByType)),
+			LastModifiedBy:     api.PtrOrNil(from.SystemData.LastModifiedBy),
+			LastModifiedByType: api.PtrOrNil(generated.CreatedByType(from.SystemData.LastModifiedByType)),
 			LastModifiedAt:     from.SystemData.LastModifiedAt,
 		}
 	}
 
 	for k, v := range from.Properties.Labels {
 		out.Properties.Labels = append(out.Properties.Labels, &generated.Label{
-			Key:   api.Ptr(k),
-			Value: api.Ptr(v),
+			Key:   api.PtrOrNil(k),
+			Value: api.PtrOrNil(v),
 		})
 	}
 
 	for _, t := range from.Properties.Taints {
 		out.Properties.Taints = append(out.Properties.Taints, &generated.Taint{
-			Effect: api.Ptr(generated.Effect(t.Effect)),
-			Key:    api.Ptr(t.Key),
-			Value:  api.Ptr(t.Value),
+			Effect: api.PtrOrNil(generated.Effect(t.Effect)),
+			Key:    api.PtrOrNil(t.Key),
+			Value:  api.PtrOrNil(t.Value),
 		})
 	}
 

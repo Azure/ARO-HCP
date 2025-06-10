@@ -28,50 +28,50 @@ type HcpOpenShiftCluster struct {
 
 func newVersionProfile(from *api.VersionProfile) *generated.VersionProfile {
 	return &generated.VersionProfile{
-		ID:                api.Ptr(from.ID),
-		ChannelGroup:      api.Ptr(from.ChannelGroup),
+		ID:                api.PtrOrNil(from.ID),
+		ChannelGroup:      api.PtrOrNil(from.ChannelGroup),
 		AvailableUpgrades: api.StringSliceToStringPtrSlice(from.AvailableUpgrades),
 	}
 }
 
 func newDNSProfile(from *api.DNSProfile) *generated.DNSProfile {
 	return &generated.DNSProfile{
-		BaseDomain:       api.Ptr(from.BaseDomain),
-		BaseDomainPrefix: api.Ptr(from.BaseDomainPrefix),
+		BaseDomain:       api.PtrOrNil(from.BaseDomain),
+		BaseDomainPrefix: api.PtrOrNil(from.BaseDomainPrefix),
 	}
 }
 
 func newNetworkProfile(from *api.NetworkProfile) *generated.NetworkProfile {
 	return &generated.NetworkProfile{
-		NetworkType: api.Ptr(generated.NetworkType(from.NetworkType)),
-		PodCidr:     api.Ptr(from.PodCIDR),
-		ServiceCidr: api.Ptr(from.ServiceCIDR),
-		MachineCidr: api.Ptr(from.MachineCIDR),
-		HostPrefix:  api.Ptr(from.HostPrefix),
+		NetworkType: api.PtrOrNil(generated.NetworkType(from.NetworkType)),
+		PodCidr:     api.PtrOrNil(from.PodCIDR),
+		ServiceCidr: api.PtrOrNil(from.ServiceCIDR),
+		MachineCidr: api.PtrOrNil(from.MachineCIDR),
+		HostPrefix:  api.PtrOrNil(from.HostPrefix),
 	}
 }
 
 func newConsoleProfile(from *api.ConsoleProfile) *generated.ConsoleProfile {
 	return &generated.ConsoleProfile{
-		URL: api.Ptr(from.URL),
+		URL: api.PtrOrNil(from.URL),
 	}
 }
 
 func newAPIProfile(from *api.APIProfile) *generated.APIProfile {
 	return &generated.APIProfile{
-		URL:        api.Ptr(from.URL),
-		Visibility: api.Ptr(generated.Visibility(from.Visibility)),
+		URL:        api.PtrOrNil(from.URL),
+		Visibility: api.PtrOrNil(generated.Visibility(from.Visibility)),
 	}
 }
 
 func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
 	return &generated.PlatformProfile{
-		ManagedResourceGroup:    api.Ptr(from.ManagedResourceGroup),
-		SubnetID:                api.Ptr(from.SubnetID),
-		OutboundType:            api.Ptr(generated.OutboundType(from.OutboundType)),
-		NetworkSecurityGroupID:  api.Ptr(from.NetworkSecurityGroupID),
+		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
+		SubnetID:                api.PtrOrNil(from.SubnetID),
+		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
+		NetworkSecurityGroupID:  api.PtrOrNil(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: newOperatorsAuthenticationProfile(&from.OperatorsAuthentication),
-		IssuerURL:               api.Ptr(from.IssuerURL),
+		IssuerURL:               api.PtrOrNil(from.IssuerURL),
 	}
 }
 
@@ -85,7 +85,7 @@ func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) *
 	return &generated.UserAssignedIdentitiesProfile{
 		ControlPlaneOperators:  api.StringMapToStringPtrMap(from.ControlPlaneOperators),
 		DataPlaneOperators:     api.StringMapToStringPtrMap(from.DataPlaneOperators),
-		ServiceManagedIdentity: api.Ptr(from.ServiceManagedIdentity),
+		ServiceManagedIdentity: api.PtrOrNil(from.ServiceManagedIdentity),
 	}
 }
 
@@ -95,7 +95,7 @@ func newClusterCapabilitiesProfile(from *api.ClusterCapabilitiesProfile) *genera
 	}
 
 	for index, item := range from.Disabled {
-		out.Disabled[index] = api.Ptr(generated.OptionalClusterCapability(item))
+		out.Disabled[index] = api.PtrOrNil(generated.OptionalClusterCapability(item))
 	}
 
 	return out
@@ -108,20 +108,20 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 
 	out := &HcpOpenShiftCluster{
 		generated.HcpOpenShiftCluster{
-			ID:       api.Ptr(from.ID),
-			Name:     api.Ptr(from.Name),
-			Type:     api.Ptr(from.Type),
-			Location: api.Ptr(from.Location),
+			ID:       api.PtrOrNil(from.ID),
+			Name:     api.PtrOrNil(from.Name),
+			Type:     api.PtrOrNil(from.Type),
+			Location: api.PtrOrNil(from.Location),
 			Tags:     api.StringMapToStringPtrMap(from.Tags),
 			Identity: &generated.ManagedServiceIdentity{
-				Type:        api.Ptr(generated.ManagedServiceIdentityType(from.Identity.Type)),
-				PrincipalID: api.Ptr(from.Identity.PrincipalID),
-				TenantID:    api.Ptr(from.Identity.TenantID),
+				Type:        api.PtrOrNil(generated.ManagedServiceIdentityType(from.Identity.Type)),
+				PrincipalID: api.PtrOrNil(from.Identity.PrincipalID),
+				TenantID:    api.PtrOrNil(from.Identity.TenantID),
 				//as UserAssignedIdentities is of a different type so using convertUserAssignedIdentities instead of StringMapToStringPtrMap
 				UserAssignedIdentities: convertUserAssignedIdentities(from.Identity.UserAssignedIdentities),
 			},
 			Properties: &generated.HcpOpenShiftClusterProperties{
-				ProvisioningState: api.Ptr(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Version:           newVersionProfile(&from.Properties.Version),
 				DNS:               newDNSProfile(&from.Properties.DNS),
 				Network:           newNetworkProfile(&from.Properties.Network),
@@ -135,11 +135,11 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 
 	if from.SystemData != nil {
 		out.SystemData = &generated.SystemData{
-			CreatedBy:          api.Ptr(from.SystemData.CreatedBy),
-			CreatedByType:      api.Ptr(generated.CreatedByType(from.SystemData.CreatedByType)),
+			CreatedBy:          api.PtrOrNil(from.SystemData.CreatedBy),
+			CreatedByType:      api.PtrOrNil(generated.CreatedByType(from.SystemData.CreatedByType)),
 			CreatedAt:          from.SystemData.CreatedAt,
-			LastModifiedBy:     api.Ptr(from.SystemData.LastModifiedBy),
-			LastModifiedByType: api.Ptr(generated.CreatedByType(from.SystemData.LastModifiedByType)),
+			LastModifiedBy:     api.PtrOrNil(from.SystemData.LastModifiedBy),
+			LastModifiedByType: api.PtrOrNil(generated.CreatedByType(from.SystemData.LastModifiedByType)),
 			LastModifiedAt:     from.SystemData.LastModifiedAt,
 		}
 	}
