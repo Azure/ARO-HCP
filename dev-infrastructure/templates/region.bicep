@@ -243,7 +243,6 @@ module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   }
 }
 
-
 module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   name: 'hcpAlerts'
   params: {
@@ -254,4 +253,3 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
     allSev4ActionGroups: actionGroups.outputs.allSev4ActionGroups
   }
 }
-
