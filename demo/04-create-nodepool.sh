@@ -20,6 +20,6 @@ jq \
     .properties.platform.subnetId = $subnet_id
   ' "${NODEPOOL_TMPL_FILE}" > ${NODEPOOL_FILE}
 
-(arm_system_data_header; correlation_headers) | curl --silent --show-error --include --request PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}/nodePools/${NP_NAME}?api-version=2024-06-10-preview" \
+(arm_system_data_header; correlation_headers) | curl --silent --show-error --include --request PUT "localhost:8443${NODE_POOL_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}" \
   --header @- \
   --json @${NODEPOOL_FILE}

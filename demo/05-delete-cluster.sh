@@ -83,8 +83,6 @@ delete_cluster() {
 }
 
 main() {
-  CLUSTER_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}"
-  FRONTEND_API_VERSION_QUERY_PARAM="api-version=2024-06-10-preview"
   FRONTEND_HOST="localhost"
   FRONTEND_PORT="8443"
 

@@ -138,7 +138,7 @@ main() {
   NSG_ID=$(az network nsg list --resource-group ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" --output tsv)
   SUBNET_ID=$(az network vnet subnet show --resource-group ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id --output tsv)
 
-  UAMIS_RESOURCE_IDS_PREFIX="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
+  UAMIS_RESOURCE_IDS_PREFIX="${RESOURCE_GROUP_RESOURCE_ID}/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
 
   # A suffix that will be appended to all the
   # user-assigned managed identities names that
@@ -220,7 +220,7 @@ main() {
       .identity.userAssignedIdentities = $identity_uamis_json_map
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
-  (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl --silent --show-error --include --request PUT "localhost:8443/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CUSTOMER_RG_NAME}/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/${CLUSTER_NAME}?api-version=2024-06-10-preview" \
+  (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl --silent --show-error --include --request PUT "localhost:8443${CLUSTER_RESOURCE_ID}?${FRONTEND_API_VERSION_QUERY_PARAM}" \
     --header @- \
     --json @${CLUSTER_FILE}
 }
