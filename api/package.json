@@ -17,6 +17,6 @@
   },
   "devDependencies": {
     "@typespec/compiler": "^0.67.1",
-    "autorest": "^3.7.1"
+    "autorest": "^3.7.2"
   }
 }
