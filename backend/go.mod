@@ -17,7 +17,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0
 	go.uber.org/mock v0.5.2
 	golang.org/x/sync v0.14.0
-	k8s.io/client-go v0.32.3
+	k8s.io/client-go v0.33.1
 	k8s.io/klog/v2 v2.130.1
 )
 
@@ -48,7 +48,6 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/glog v1.2.4 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
