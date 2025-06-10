@@ -11,4 +11,6 @@ kubernetesControlPlane-prometheusRule:
 alerts: kubernetesControlPlane-prometheusRule
 	make -C ../tooling/prometheus-rules run
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability.yaml)
+	make -C ../tooling/prometheus-rules run-hcp
+	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-hcp.yaml)
 .PHONY: alerts

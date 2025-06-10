@@ -1,0 +1,4 @@
+prometheusRules:
+  rulesFolders: []
+  untestedRules: []
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep

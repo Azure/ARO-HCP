@@ -16,5 +16,10 @@ clean:
 
 .PHONY: clean
 
-run: 
+run:
 	go run ./...  --config-file ../../observability/observability.yaml
+.PHONY: run
+
+run-hcp:
+	go run ./...  --config-file ../../observability/observability-hcp.yaml
+.PHONY: run-hcp

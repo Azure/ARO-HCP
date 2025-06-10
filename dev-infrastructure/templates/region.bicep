@@ -242,3 +242,16 @@ module serviceAlerts '../modules/metrics/service-rules.bicep' = {
     allSev4ActionGroups: actionGroups.outputs.allSev4ActionGroups
   }
 }
+
+
+module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
+  name: 'hcpAlerts'
+  params: {
+    azureMonitoringWorkspaceId: svcMonitoring.outputs.monitorId
+    allSev1ActionGroups: actionGroups.outputs.allSev1ActionGroups
+    allSev2ActionGroups: actionGroups.outputs.allSev2ActionGroups
+    allSev3ActionGroups: actionGroups.outputs.allSev3ActionGroups
+    allSev4ActionGroups: actionGroups.outputs.allSev4ActionGroups
+  }
+}
+
