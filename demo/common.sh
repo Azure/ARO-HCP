@@ -1,11 +1,14 @@
 #!/bin/bash
 
 header() {
-    if az_account_is_int; then
-        echo -n "${1}=${2} "
-    else
-        echo "${1}: ${2}"
+    echo "${1}: ${2}"
+}
+
+authorization_header() {
+    if [ ! -v ACCESS_TOKEN ]; then
+        ACCESS_TOKEN=$(az account get-access-token --query accessToken --output tsv)
     fi
+    header Authorization "Bearer ${ACCESS_TOKEN}"
 }
 
 arm_system_data_header() {
@@ -13,18 +16,18 @@ arm_system_data_header() {
 }
 
 arm_x_ms_identity_url_header() {
-  # Requests directly against the frontend
-  # need to send a X-Ms-Identity-Url HTTP
-  # header, which simulates what ARM performs.
-  # By default we set a dummy value, which is
-  # enough in the environments where a real
-  # Managed Identities Data Plane does not
-  # exist like in the development or integration
-  # environments. The default can be overwritten
-  # by providing the environment variable
-  # ARM_X_MS_IDENTITY_URL when running the script.
-  : ${ARM_X_MS_IDENTITY_URL:="https://dummyhost.identity.azure.net"}
-  header X-Ms-Identity-Url "${ARM_X_MS_IDENTITY_URL}"
+    # Requests directly against the frontend
+    # need to send a X-Ms-Identity-Url HTTP
+    # header, which simulates what ARM performs.
+    # By default we set a dummy value, which is
+    # enough in the environments where a real
+    # Managed Identities Data Plane does not
+    # exist like in the development or integration
+    # environments. The default can be overwritten
+    # by providing the environment variable
+    # ARM_X_MS_IDENTITY_URL when running the script.
+    : ${ARM_X_MS_IDENTITY_URL:="https://dummyhost.identity.azure.net"}
+    header X-Ms-Identity-Url "${ARM_X_MS_IDENTITY_URL}"
 }
 
 correlation_headers() {
@@ -39,12 +42,16 @@ rp_get_request() {
     # Arguments:
     # $1 = Request URL path
     # $2 = (optional) API version
-    URL="${1}?api-version=${2:-${FRONTEND_API_VERSION}}"
-    if az_account_is_int; then
-        az rest --headers "$(correlation_headers)" --url "${URL}"
-    else
-        correlation_headers | curl --silent --show-error --header @- "localhost:8443${URL}"
-    fi
+    URL="${FRONTEND_HOST}${1}?api-version=${2:-${FRONTEND_API_VERSION}}"
+    case "${FRONTEND_HOST}" in
+        *localhost*)
+            HEADERS=$(correlation_headers)
+            ;;
+        *)
+            HEADERS=$(authorization_header)
+            ;;
+    esac
+    echo "${HEADERS}" | curl --silent --show-error --header @- "${URL}"
 }
 
 rp_put_request() {
@@ -52,22 +59,30 @@ rp_put_request() {
     # $1 = Request URL path
     # $2 = Request JSON body
     # $3 = (optional) API version
-    URL="${1}?api-version=${3:-${FRONTEND_API_VERSION}}"
-    if az_account_is_int; then
-        az rest --method put --headers "$(arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header)" --url "${URL}" --body "${2}"
-    else
-        (arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header) | curl --silent --show-error --include --header @- --request PUT "localhost:8443${URL}" --json "${2}"
-    fi
+    URL="${FRONTEND_HOST}${1}?api-version=${3:-${FRONTEND_API_VERSION}}"
+    case "${FRONTEND_HOST}" in
+        *localhost*)
+            HEADERS=$(arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header)
+            ;;
+        *)
+            HEADERS=$(authorization_header)
+            ;;
+    esac
+    echo "${HEADERS}" | curl --silent --show-error --include --header @- --request PUT "${URL}" --json "${2}"
 }
 
 rp_delete_request() {
     # Arguments:
     # $1 = Request URL path
     # $2 = (optional) API version
-    URL="${1}?api-version${2:-${FRONTEND_API_VERSION}}"
-    if az_account_is_int; then
-        az rest --method delete --headers "$(arm_system_data_header; correlation_headers)" --url "${URL}"
-    else
-        (arm_system_data_header; correlation_headers) | curl --silent --show-error --include --header @- --request DELETE "localhost:8443${URL}"
-    fi
+    URL="${FRONTEND_HOST}${1}?api-version=${2:-${FRONTEND_API_VERSION}}"
+    case "${FRONTEND_HOST}" in
+        *localhost*)
+            HEADERS=$(arm_system_data_header; correlation_headers)
+            ;;
+        *)
+            HEADERS=$(authorization_header)
+            ;;
+    esac
+    echo "${HEADERS}" | curl --silent --show-error --include --header @- --request DELETE "${URL}"
 }

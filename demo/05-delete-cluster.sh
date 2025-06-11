@@ -83,9 +83,6 @@ delete_cluster() {
 }
 
 main() {
-  FRONTEND_HOST="localhost"
-  FRONTEND_PORT="8443"
-
   EXISTING_CLUSTER_PAYLOAD=""
   get_existing_cluster_payload
   if [ -z "${EXISTING_CLUSTER_PAYLOAD}" ]; then

@@ -11,12 +11,20 @@ fi
 export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
+if az_account_is_int; then
+    export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
+else
+    export FRONTEND_HOST="http://localhost:8443"
+fi
 if [ -z "${LOCATION:-}" ]; then
-    if az_account_is_int; then
-        export LOCATION="uksouth"
-    else
-        export LOCATION=$(curl --silent http://localhost:8443/location)
-    fi
+    case "${FRONTEND_HOST}" in
+        *localhost*)
+            export LOCATION=$(curl --silent "${FRONTEND_HOST}/location")
+            ;;
+        *)
+            export LOCATION="uksouth"
+            ;;
+    esac
 fi
 export SUBSCRIPTION_ID=$(az account show --query id --output tsv)
 export TENANT_ID=$(az account show --query tenantId --output tsv)
