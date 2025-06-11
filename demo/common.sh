@@ -38,7 +38,8 @@ correlation_headers() {
 rp_get_request() {
     # Arguments:
     # $1 = Request URL path
-    URL="${1}?${FRONTEND_API_VERSION_QUERY_PARAM}"
+    # $2 = (optional) API version
+    URL="${1}?api-version=${2:-${FRONTEND_API_VERSION}}"
     if az_account_is_int; then
         az rest --headers "$(correlation_headers)" --url "${URL}"
     else
@@ -50,7 +51,8 @@ rp_put_request() {
     # Arguments:
     # $1 = Request URL path
     # $2 = Request JSON body
-    URL="${1}?${FRONTEND_API_VERSION_QUERY_PARAM}"
+    # $3 = (optional) API version
+    URL="${1}?api-version=${3:-${FRONTEND_API_VERSION}}"
     if az_account_is_int; then
         az rest --method put --headers "$(arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header)" --url "${URL}" --body "${2}"
     else
@@ -61,7 +63,8 @@ rp_put_request() {
 rp_delete_request() {
     # Arguments:
     # $1 = Request URL path
-    URL="${1}?${FRONTEND_API_VERSION_QUERY_PARAM}"
+    # $2 = (optional) API version
+    URL="${1}?api-version${2:-${FRONTEND_API_VERSION}}"
     if az_account_is_int; then
         az rest --method delete --headers "$(arm_system_data_header; correlation_headers)" --url "${URL}"
     else
