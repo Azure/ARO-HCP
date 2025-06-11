@@ -364,17 +364,17 @@
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "imageManager": {
-      "digest": "sha256:04b280a2dfcd89c433db32106e0f9a80b978c2513b979865df7a66dc67617e90",
+      "digest": "sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f",
       "registry": "quay.io",
       "repository": "package-operator/package-operator-manager"
     },
     "imagePackage": {
-      "digest": "sha256:a541ddb20875264f1995c38b1dd66de052547c2a861001b3b49c2a56b7e06e0d",
+      "digest": "sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795",
       "registry": "quay.io",
       "repository": "package-operator/package-operator-package"
     },
     "remotePhaseManager": {
-      "digest": "sha256:d7b2b75f86fa153cde44202fbef760e5787bf16065e7dda4a8fdabc8df17d8a7",
+      "digest": "sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e",
       "registry": "quay.io",
       "repository": "package-operator/remote-phase-manager"
     }
