@@ -15,7 +15,7 @@ if [ -z "${LOCATION:-}" ]; then
     if az_account_is_int; then
         export LOCATION="uksouth"
     else
-        export LOCATION="westus3"
+        export LOCATION=$(curl --silent http://localhost:8443/location)
     fi
 fi
 export SUBSCRIPTION_ID=$(az account show --query id --output tsv)
