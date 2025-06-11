@@ -162,7 +162,7 @@ clouds:
             cosmosDB:
               private: false
             image:
-              digest: sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3
+              digest: sha256:680dd7416f395de170fc099c0406653f213cfcc0ce137878ad86f20d8ccab54b
           # Mise
           mise:
             firstPartyAppId: 5bc505bc-50ef-4be9-9a82-2ed7973f1c37 # This is the aro-hcp-fp-int app in the MSIT Tenant.
@@ -278,7 +278,7 @@ clouds:
             cosmosDB:
               private: false
             image:
-              digest: sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3
+              digest: sha256:680dd7416f395de170fc099c0406653f213cfcc0ce137878ad86f20d8ccab54b
           # Mise
           mise:
             firstPartyAppId: 7f4a113a-c61d-412a-bea1-85dee5baf4a8

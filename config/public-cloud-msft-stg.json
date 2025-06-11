@@ -124,7 +124,7 @@
       "zoneRedundantMode": "Auto"
     },
     "image": {
-      "digest": "sha256:aa1ae769ca6318aab0c9fe6cb2772416430aa5adb69eb69623d6198e580e08c3",
+      "digest": "sha256:680dd7416f395de170fc099c0406653f213cfcc0ce137878ad86f20d8ccab54b",
       "registry": "arohcpsvcdev.azurecr.io",
       "repository": "arohcpfrontend"
     },
