@@ -380,15 +380,15 @@
         "imageManager": {
           "$ref": "#/definitions/containerImage"
         },
-        "imagePrefixOverrides": {
-          "type": "string"
+        "remotePhaseManager": {
+          "$ref": "#/definitions/containerImage"
         }
       },
       "additionalProperties": false,
       "required": [
         "imagePackage",
         "imageManager",
-        "imagePrefixOverrides"
+        "remotePhaseManager"
       ]
     },
     "clustersService": {
