@@ -43,18 +43,20 @@ var _ = Describe("Confirm nodepools are present on HCPCluster", func() {
 		clusterEnv = &e2eSetup.Cluster
 	})
 
-	It("Get each nodepool from cluster", labels.Medium, labels.Positive, func(ctx context.Context) {
-		if nodePools != nil {
-			nps := *nodePools
-			for np := range nps {
-				By("Send get request for nodepool")
-				clusterNodePool, err := NodePoolsClient.Get(ctx, customerEnv.CustomerRGName, clusterEnv.Name, nps[np].Name, nodePoolOptions)
-				Expect(err).To(BeNil())
-				Expect(clusterNodePool).ToNot(BeNil())
-				By("Check to see nodepool exists and is successfully provisioned")
-				Expect(string(*clusterNodePool.Name)).To(Equal(nps[np].Name))
-				Expect(string(*clusterNodePool.Properties.ProvisioningState)).To(Equal("Succeeded"))
+	Context("Positive", func() {
+		It("Get each nodepool from cluster", labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
+			if nodePools != nil {
+				nps := *nodePools
+				for np := range nps {
+					By("Send get request for nodepool")
+					clusterNodePool, err := NodePoolsClient.Get(ctx, customerEnv.CustomerRGName, clusterEnv.Name, nps[np].Name, nodePoolOptions)
+					Expect(err).To(BeNil())
+					Expect(clusterNodePool).ToNot(BeNil())
+					By("Check to see nodepool exists and is successfully provisioned")
+					Expect(string(*clusterNodePool.Name)).To(Equal(nps[np].Name))
+					Expect(string(*clusterNodePool.Properties.ProvisioningState)).To(Equal("Succeeded"))
+				}
 			}
-		}
+		})
 	})
 })
