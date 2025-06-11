@@ -28,10 +28,9 @@ deploy:
 		mce-config ${MCE_CONFIG_DIR} \
 		--namespace ${MCE_NS} \
 		--set global.registryOverride=${REGISTRY}
-	ifneq ($(DRY_RUN),true)
-		${HELM_UPGRADE}
-		@kubectl annotate mce multiclusterengine installer.multicluster.openshift.io/pause=${MCE_PAUSE_RECONCILIATION} --overwrite
-	endif
+ifneq ($(DRY_RUN),true)
+	kubectl annotate mce multiclusterengine installer.multicluster.openshift.io/pause=${MCE_PAUSE_RECONCILIATION} --overwrite
+endif
 	$(MAKE) deploy-policies
 
 deploy-policies:
