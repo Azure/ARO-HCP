@@ -1,11 +1,8 @@
 #!/bin/bash
+set -euo pipefail
 
 PROJECT_ROOT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
-# Default values
-CLOUD="${CLOUD:-dev}"
-REGION="${REGION:-westus3}"
-CXSTAMP="${CXSTAMP:-1}"
 EXTRA_ARGS=""
 PIPELINE_MODE="inspect"
 DRY_RUN=""
@@ -21,9 +18,9 @@ usage() {
     echo "  -d          Dry run"
     echo "  -i          Set the input file same as second arg"
     echo "  -o          Set the output file same as third arg"
-    echo "  -c          Set the cloud (default: dev)"
-    echo "  -r          Set the region (default: westus3)"
-    echo "  -x          Set the cxstamp (default: 1)"
+    echo "  -c          Set the cloud"
+    echo "  -r          Set the region"
+    echo "  -x          Set the cxstamp"
     echo "  -e          Extra args for config interpolation"
     echo "  -p          Pipeline to inspect"
     echo "  -s          Pipeline step to inspect"
@@ -35,9 +32,25 @@ if [ "$#" -lt 1 ]; then
     usage
 fi
 
-# Positional arguments
+# Extract deployment environment
 DEPLOY_ENV=$1
 shift
+
+# Extract defaults based on deployment environment
+DEPLOY_ENV_DEFAULTS=$( "${PROJECT_ROOT_DIR}/tooling/templatize/settings.sh" "${DEPLOY_ENV}" ".defaults" ) || {
+    echo "Failed to get deployment environment defaults from settings.sh" >&2
+    exit 1
+}
+if [ -z "${CLOUD+x}" ]; then
+    CLOUD=$(yq -r '.cloud' <<< "${DEPLOY_ENV_DEFAULTS}")
+fi
+if [ -z "${REGION+x}" ]; then
+    REGION=$(yq -r '.region' <<< "${DEPLOY_ENV_DEFAULTS}")
+fi
+if [ -z "${CXSTAMP+x}" ]; then
+    CXSTAMP=$(yq -r '.cxStamp' <<< "${DEPLOY_ENV_DEFAULTS}")
+fi
+REGION_STAMP_TEMPLATE=$(yq -r '.regionStampTemplate' <<< "${DEPLOY_ENV_DEFAULTS}")
 
 if [ "$#" -ge 1 ] && [[ ! "$1" =~ ^- ]]; then
     INPUT=$1
@@ -94,26 +107,22 @@ REGION_SHORT=$(
 )
 if [ -z "$REGION_SHORT" ]; then
     echo "Failed to get region short name for region: $REGION" >&2
+    exit 1
 fi
 
-if [ "$DEPLOY_ENV" == "pers" ]; then
-    REGION_STAMP="${REGION_SHORT}${USER:0:4}"
-elif [ "$DEPLOY_ENV" == "perf" ]; then
-    REGION_STAMP="${REGION_SHORT}p${USER:0:4}"
-else
-    REGION_STAMP=${REGION_SHORT}
-fi
+# Generate region stamp based by expanding the template from the defaults
+REGION_STAMP=$(eval "echo \"$REGION_STAMP_TEMPLATE\"")
 
-make -s -C ${PROJECT_ROOT_DIR}/tooling/templatize templatize
+make -s -C "${PROJECT_ROOT_DIR}/tooling/templatize" templatize
 TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize"
 
 PERSIST_FLAG=""
-if [ -z "$PERSIST" ] || [ "$PERSIST" == "false" ]; then
+if [ -z "${PERSIST+x}" ] || [ "${PERSIST+x}" == "false" ]; then
     PERSIST_FLAG="--no-persist-tag"
 fi
 
 CONFIG_FILE=${CONFIG_FILE:-${PROJECT_ROOT_DIR}/config/config.yaml}
-if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
+if [ -n "${INPUT+x}" ] && [ -n "${OUTPUT+x}" ]; then
     $TEMPLATIZE generate \
         --config-file=${CONFIG_FILE} \
         --cloud=${CLOUD} \
@@ -125,7 +134,7 @@ if [ -n "$INPUT" ] && [ -n "$OUTPUT" ]; then
         --output=${OUTPUT} \
         ${LOG_VERBOSITY_OPTION} \
         ${EXTRA_ARGS}
-elif [ $PIPELINE_MODE == "inspect" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
+elif [ $PIPELINE_MODE == "inspect" ] && [ -n "$PIPELINE" ] && [ -n "${PIPELINE_STEP+x}" ]; then
     $TEMPLATIZE pipeline inspect \
         --config-file=${CONFIG_FILE} \
         --cloud=${CLOUD} \
@@ -139,7 +148,7 @@ elif [ $PIPELINE_MODE == "inspect" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_ST
         --scope vars \
         ${LOG_VERBOSITY_OPTION} \
         --format makefile
-elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" ]; then
+elif [ $PIPELINE_MODE == "run" ] && [ -n "${PIPELINE+x}" ] && [ -n "${PIPELINE_STEP+x}" ]; then
     $TEMPLATIZE pipeline run \
         --config-file=${CONFIG_FILE} \
         --cloud=${CLOUD} \
@@ -152,7 +161,7 @@ elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ] && [ -n "$PIPELINE_STEP" 
         ${PERSIST_FLAG} \
         ${LOG_VERBOSITY_OPTION} \
         ${DRY_RUN}
-elif [ $PIPELINE_MODE == "run" ] && [ -n "$PIPELINE" ]; then
+elif [ $PIPELINE_MODE == "run" ] && [ -n "${PIPELINE+x}" ]; then
     $TEMPLATIZE pipeline run \
         --config-file=${CONFIG_FILE} \
         --cloud=${CLOUD} \

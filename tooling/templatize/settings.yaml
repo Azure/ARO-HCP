@@ -1,0 +1,63 @@
+environments:
+  # RH development environments
+  - name: dev
+    description: |
+      Integrated development environment.
+      Bringing it all together.
+      Used for Bicep and Helm PR checks.
+    defaults:
+      region: westus3
+      cloud: dev
+      cxStamp: 1
+      regionStampTemplate: "${REGION_SHORT}"
+  - name: cspr
+    description: |
+      clusters-service PR check environment.
+      Used for testing Cluster Service PRs from Jenkins.
+    defaults:
+      region: westus3
+      cloud: dev
+      cxStamp: 1
+      regionStampTemplate: "${REGION_SHORT}"
+  - name: pers
+    description: |
+      Used for personal development and testing.
+    defaults:
+      region: westus3
+      cloud: dev
+      cxStamp: 1
+      regionStampTemplate: "${REGION_SHORT}${USER:0:4}"
+  - name: perf
+    description: |
+      Used for performance testing.
+      High resource requirements.
+    defaults:
+      region: westus3
+      cloud: dev
+      cxStamp: 1
+      regionStampTemplate: "${REGION_SHORT}p${USER:0:4}"
+  - name: ntly
+    description: |
+      Used for nightly infrastructure rebuilds.
+    defaults:
+      region: westus3
+      cloud: dev
+      cxStamp: 1
+      regionStampTemplate: "${REGION_SHORT}"
+  # MSFT environments
+  - name: int
+    description: |
+      MSFT integration environment.
+    defaults:
+      region: uksouth
+      cloud: public
+      cxStamp: 1
+      regionStampTemplate: "${REGION_SHORT}"
+  - name: stg
+    description: |
+      MSFT stage environment.
+    defaults:
+      region: uksouth
+      cloud: public
+      cxStamp: 1
+      regionStampTemplate: "${REGION_SHORT}"
