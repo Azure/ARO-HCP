@@ -80,6 +80,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	// Unauthenticated routes
 	mux.HandleFunc("/", f.NotFound)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
+	mux.HandleFunc(MuxPattern(http.MethodGet, "location"), f.Location)
 
 	// List endpoints
 	postMuxMiddleware := NewMiddleware(
