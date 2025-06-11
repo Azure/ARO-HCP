@@ -349,12 +349,12 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "aro-hcp-hcp-ussw1",
+    "hcpWorkspaceName": "aro-hcp-ntly-hcp-ussw1",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "aro-hcp-ussw1"
+    "svcWorkspaceName": "aro-hcp-ntly-svc-ussw1"
   },
   "msiKeyVault": {
     "name": "ah-ntly-mi-ussw1-999",
@@ -381,14 +381,14 @@
     }
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-ntly-ussw1",
+  "regionRG": "southwestus-shared-resources",
   "serviceKeyVault": {
-    "assignNSP": false,
-    "name": "aro-hcp-dev-svc-kv",
+    "assignNSP": true,
+    "name": "arohcpntly-svc-ussw1",
     "private": false,
-    "region": "westus3",
-    "rg": "global",
-    "softDelete": true
+    "region": "southwestus",
+    "rg": "southwestus-shared-resources",
+    "softDelete": false
   },
   "svc": {
     "aks": {
