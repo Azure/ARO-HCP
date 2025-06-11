@@ -38,6 +38,61 @@ correlation_headers() {
     fi
 }
 
+async_operation_status() {
+    # Arguments:
+    # $1 = URL
+    # $2 = Headers
+    OUTPUT=$(echo "${2}" | curl --silent --header @- ${1})
+    STATUS=$(echo $OUTPUT | jq -r '.status')
+    echo "${OUTPUT}"
+    case ${STATUS} in
+        Succeeded | Failed | Canceled)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+# Export the function so "watch" can see it.
+export -f async_operation_status
+
+rp_request() {
+    # Arguments:
+    # $1 = HTTP method
+    # $2 = URL
+    # $3 = Headers
+    # $4 = (optional) JSON body
+    case ${1^^} in
+        GET)
+            CMD="curl --silent --show-error --header @- ${2}"
+            ;;
+        *)
+            CMD="curl --silent --show-error --include --header @- --request ${1} ${2}"
+            if [ $# -ge 4 ]; then
+                CMD+=" --json '${4}'"
+            fi
+            ;;
+    esac
+    OUTPUT=$(echo "${3}" | eval ${CMD} | tr --delete '\r')
+    ASYNC_STATUS_ENDPOINT=$(echo "${OUTPUT}" | awk 'tolower($1) ~ /^azure-asyncoperation:/ {print $2}')
+    ASYNC_RESULT_ENDPOINT=$(echo "${OUTPUT}" | awk 'tolower($1) ~ /^location:/ {print $2}')
+
+    # If a status endpoint header is present, watch the
+    # endpoint until the status reaches a terminal state.
+    if [ -n "${ASYNC_STATUS_ENDPOINT}" ]; then
+        watch --errexit --exec bash -c "async_operation_status \"${ASYNC_STATUS_ENDPOINT}\" \"${3}\" 2> /dev/null" || true
+        if [ -n "${ASYNC_RESULT_ENDPOINT}" ]; then
+            echo "${3}" | curl --silent --show-error --include --header @- "${ASYNC_RESULT_ENDPOINT}"
+        else
+            echo "${OUTPUT}"
+        fi
+    else
+        echo "${OUTPUT}"
+    fi
+}
+
 rp_get_request() {
     # Arguments:
     # $1 = Request URL path
@@ -51,7 +106,7 @@ rp_get_request() {
             HEADERS=$(authorization_header)
             ;;
     esac
-    echo "${HEADERS}" | curl --silent --show-error --header @- "${URL}"
+    rp_request GET "${URL}" "${HEADERS}"
 }
 
 rp_put_request() {
@@ -68,7 +123,7 @@ rp_put_request() {
             HEADERS=$(authorization_header)
             ;;
     esac
-    echo "${HEADERS}" | curl --silent --show-error --include --header @- --request PUT "${URL}" --json "${2}"
+    rp_request PUT "${URL}" "${HEADERS}" "${2}"
 }
 
 rp_delete_request() {
@@ -84,5 +139,5 @@ rp_delete_request() {
             HEADERS=$(authorization_header)
             ;;
     esac
-    echo "${HEADERS}" | curl --silent --show-error --include --header @- --request DELETE "${URL}"
+    rp_request DELETE "${URL}" "${HEADERS}"
 }
