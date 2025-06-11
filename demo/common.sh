@@ -68,6 +68,9 @@ rp_request() {
         GET)
             CMD="curl --silent --show-error --header @- ${2}"
             ;;
+        POST)
+            CMD="curl --silent --show-error --include --header @- --request ${1} ${2} --json ''"
+            ;;
         *)
             CMD="curl --silent --show-error --include --header @- --request ${1} ${2}"
             if [ $# -ge 4 ]; then
@@ -84,7 +87,17 @@ rp_request() {
     if [ -n "${ASYNC_STATUS_ENDPOINT}" ]; then
         watch --errexit --exec bash -c "async_operation_status \"${ASYNC_STATUS_ENDPOINT}\" \"${3}\" 2> /dev/null" || true
         if [ -n "${ASYNC_RESULT_ENDPOINT}" ]; then
-            echo "${3}" | curl --silent --show-error --include --header @- "${ASYNC_RESULT_ENDPOINT}"
+            FULL_RESULT=$(echo "${3}" | curl --silent --show-error --include --header @- "${ASYNC_RESULT_ENDPOINT}")
+            JSON_RESULT=$(echo "${FULL_RESULT}" | tr --delete '\r' | jq -Rs 'split("\n\n")[1] | fromjson?')
+
+            # If the response body is JSON, try to extract and write a kubeconfig file.
+            KUBECONFIG=$(echo "${JSON_RESULT}" | jq -r '.kubeconfig')
+            if [ -n "$KUBECONFIG" ]; then
+                echo "${KUBECONFIG}" > kubeconfig
+                echo "Wrote kubeconfig"
+            else
+                echo "${FULL_RESULT}"
+            fi
         else
             echo "${OUTPUT}"
         fi
@@ -140,4 +153,20 @@ rp_delete_request() {
             ;;
     esac
     rp_request DELETE "${URL}" "${HEADERS}"
+}
+
+rp_post_request() {
+    # Arguments:
+    # $1 = Request URL path
+    # $2 = (optional) API version
+    URL="${FRONTEND_HOST}${1}?api-version=${2:-${FRONTEND_API_VERSION}}"
+    case "${FRONTEND_HOST}" in
+        *localhost*)
+            HEADERS=$(arm_system_data_header; correlation_headers)
+            ;;
+        *)
+            HEADERS=$(authorization_header)
+            ;;
+    esac
+    rp_request POST "${URL}" "${HEADERS}"
 }
