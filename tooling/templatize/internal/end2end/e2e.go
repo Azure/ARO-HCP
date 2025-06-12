@@ -41,7 +41,6 @@ type E2E interface {
 	SetConfig(updates config.Configuration)
 	UseRandomRG() func() error
 	AddBicepTemplate(template, templateFileName, paramfile, paramfileName string)
-	AddStep(step types.Step, rg int)
 	SetOSArgs()
 	EnableDryRun()
 	Persist() error
@@ -66,7 +65,7 @@ type e2eImpl struct {
 
 var _ E2E = &e2eImpl{}
 
-func newE2E(tmpdir string) e2eImpl {
+func newE2E(tmpdir string, pipelineFilePath string) (*e2eImpl, error) {
 	imp := e2eImpl{
 		tmpdir: tmpdir,
 		schema: `{"type": "object"}`,
@@ -88,22 +87,22 @@ func newE2E(tmpdir string) e2eImpl {
 				},
 			},
 		},
-		pipeline: types.Pipeline{
-			ServiceGroup: "Microsoft.Azure.ARO.Test",
-			RolloutName:  "Test Rollout",
-			ResourceGroups: []*types.ResourceGroup{
-				{
-					Name:         "{{ .rg }}",
-					Subscription: "{{ .subscription }}",
-				},
-			},
-		},
 		rgName: defaultRgName,
 		biceps: []bicepTemplate{},
 	}
 
+	pipelineBytes, err := os.ReadFile(pipelineFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading test pipeline %s, %v", pipelineFilePath, err)
+	}
+
+	pipeline, err := types.NewPlainPipelineFromBytes("", pipelineBytes)
+	if err != nil {
+		return nil, fmt.Errorf("error loading pipeline %v", err)
+	}
+	imp.pipeline = *pipeline
 	imp.SetOSArgs()
-	return imp
+	return &imp, nil
 }
 
 func GenerateRandomRGName() string {
@@ -153,25 +152,6 @@ func (e *e2eImpl) SetOSArgs() {
 
 func (e *e2eImpl) EnableDryRun() {
 	os.Args = append(os.Args, "--dry-run")
-}
-
-func (e *e2eImpl) AddResourceGroup() {
-	numRgs := len(e.pipeline.ResourceGroups)
-	e.pipeline.ResourceGroups = append(e.pipeline.ResourceGroups, &types.ResourceGroup{
-		Name:         fmt.Sprintf("{{ .rg }}-%d", numRgs+1),
-		Subscription: "{{ .subscription }}",
-	},
-	)
-}
-
-func (e *e2eImpl) AddStep(step types.Step, rg int) {
-	// TODO: un-hack once https://github.com/Azure/ARO-Tools/pull/17 goes in
-	if shell, ok := step.(*types.ShellStep); ok {
-		shell.ShellIdentity = types.Variable{
-			Value: "fakedata",
-		}
-	}
-	e.pipeline.ResourceGroups[rg].Steps = append(e.pipeline.ResourceGroups[rg].Steps, step)
 }
 
 func (e *e2eImpl) SetConfig(updates config.Configuration) {

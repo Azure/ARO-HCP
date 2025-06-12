@@ -1,0 +1,9 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Test Rollout
+resourceGroups:
+- name: '{{ .rg }}'
+  subscription: '{{ .subscription }}'
+  steps:
+  - name: readInput
+    action: Shell
+    command: /bin/echo ${PWD} > env.txt

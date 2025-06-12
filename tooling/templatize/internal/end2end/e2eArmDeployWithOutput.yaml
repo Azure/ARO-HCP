@@ -1,0 +1,19 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Test Rollout
+resourceGroups:
+- name: '{{ .rg }}'
+  subscription: '{{ .subscription }}'
+  steps:
+  - name: createZone
+    action: ARM
+    template: test.bicep
+    parameters: test.bicepparm
+    deploymentLevel: ResourceGroup
+  - name: readInput
+    action: Shell
+    command: echo ${zoneName} > env.txt
+    variables:
+    - name: zoneName
+      input:
+        name: zoneName
+        step: createZone

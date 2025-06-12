@@ -22,16 +22,14 @@ import (
 	"testing"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 func persistAndRun(t *testing.T, e2eImpl E2E) {
@@ -52,14 +50,8 @@ func TestE2EMake(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(
-		types.NewShellStep("test", "make test").WithVariables(types.Variable{
-			Name:      "TEST_ENV",
-			ConfigRef: "test_env",
-		}),
-		0,
-	)
+	e2eImpl, err := newE2E(tmpDir, "e2eMake.yaml")
+	assert.NoError(t, err)
 
 	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"test_env": "test_env"}})
 
@@ -67,7 +59,7 @@ func TestE2EMake(t *testing.T) {
 test:
 	echo ${TEST_ENV} > env.txt
 `
-	persistAndRun(t, &e2eImpl)
+	persistAndRun(t, e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NoError(t, err)
@@ -81,12 +73,12 @@ func TestE2EKubernetes(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(types.NewShellStep("test", "kubectl get namespaces").WithAKSCluster("dev-westus3-svc-1"), 0)
+	e2eImpl, err := newE2E(tmpDir, "e2eKubernetes.yaml")
+	assert.NoError(t, err)
 
 	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"rg": "hcp-underlay-dev-westus3-svc"}})
 
-	persistAndRun(t, &e2eImpl)
+	persistAndRun(t, e2eImpl)
 }
 
 func TestE2EArmDeploy(t *testing.T) {
@@ -96,8 +88,9 @@ func TestE2EArmDeploy(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(types.NewARMStep("test", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
+	e2eImpl, err := newE2E(tmpDir, "e2eArmDeploy.yaml")
+	assert.NoError(t, err)
+
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
 		err := cleanup()
@@ -116,7 +109,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 `
 	e2eImpl.AddBicepTemplate(bicepFile, "test.bicep", paramFile, "test.bicepparm")
 
-	persistAndRun(t, &e2eImpl)
+	persistAndRun(t, e2eImpl)
 
 	// Todo move to e2e module, if needed more than once
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
@@ -141,14 +134,10 @@ func TestE2EShell(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
 	assert.NoError(t, err)
 
-	e2eImpl := newE2E(tmpDir)
+	e2eImpl, err := newE2E(tmpDir, "e2eShell.yaml")
+	assert.NoError(t, err)
 
-	e2eImpl.AddStep(
-		types.NewShellStep("readInput", "/bin/echo ${PWD} > env.txt"),
-		0,
-	)
-
-	persistAndRun(t, &e2eImpl)
+	persistAndRun(t, e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NoError(t, err)
@@ -162,21 +151,8 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-
-	e2eImpl.AddStep(types.NewARMStep("createZone", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
-
-	e2eImpl.AddStep(types.NewShellStep(
-		"readInput", "echo ${zoneName} > env.txt",
-	).WithVariables(
-		types.Variable{
-			Name: "zoneName",
-			Input: &types.Input{
-				Name: "zoneName",
-				Step: "createZone",
-			},
-		},
-	), 0)
+	e2eImpl, err := newE2E(tmpDir, "e2eArmDeployWithOutput.yaml")
+	assert.NoError(t, err)
 
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
@@ -192,7 +168,8 @@ using 'test.bicep'
 param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 `
 	e2eImpl.AddBicepTemplate(bicepFile, "test.bicep", paramFile, "test.bicepparm")
-	persistAndRun(t, &e2eImpl)
+
+	persistAndRun(t, e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NoError(t, err)
@@ -206,28 +183,8 @@ func TestE2EArmDeployWithStaticVariable(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-
-	e2eImpl.AddStep(types.NewARMStep(
-		"createZone", "test.bicep", "test.bicepparm", "ResourceGroup",
-	).WithVariables(
-		types.Variable{
-			Name:  "zoneName",
-			Value: "e2etestarmdeploy.foo.bar.example.com",
-		},
-	), 0)
-
-	e2eImpl.AddStep(types.NewShellStep(
-		"readInput", "echo ${zoneName} > env.txt",
-	).WithVariables(
-		types.Variable{
-			Name: "zoneName",
-			Input: &types.Input{
-				Name: "zoneName",
-				Step: "createZone",
-			},
-		},
-	), 0)
+	e2eImpl, err := newE2E(tmpDir, "e2eArmDeployWithStaticVariable.yaml")
+	assert.NoError(t, err)
 
 	cleanup := e2eImpl.UseRandomRG()
 	defer func() {
@@ -243,7 +200,8 @@ using 'test.bicep'
 param zoneName = '__zoneName__'
 `
 	e2eImpl.AddBicepTemplate(bicepFile, "test.bicep", paramFile, "test.bicepparm")
-	persistAndRun(t, &e2eImpl)
+
+	persistAndRun(t, e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NoError(t, err)
@@ -257,27 +215,8 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(types.NewARMStep("stepA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
-	e2eImpl.AddStep(types.NewARMStep("stepB", "testb.bicep", "testb.bicepparm", "ResourceGroup").WithVariables(types.Variable{
-		Name: "parameterB",
-		Input: &types.Input{
-			Name: "parameterA",
-			Step: "stepA",
-		},
-	}), 0)
-
-	e2eImpl.AddStep(types.NewShellStep(
-		"readInput", "echo ${end} > env.txt",
-	).WithVariables(
-		types.Variable{
-			Name: "end",
-			Input: &types.Input{
-				Name: "parameterC",
-				Step: "stepB",
-			},
-		},
-	), 0)
+	e2eImpl, err := newE2E(tmpDir, "e2eArmDeployWithOutputToArm.yaml")
+	assert.NoError(t, err)
 
 	e2eImpl.AddBicepTemplate(`
 param parameterA string
@@ -304,7 +243,8 @@ param parameterB = '< provided at runtime >'
 		err := cleanup()
 		assert.NoError(t, err)
 	}()
-	persistAndRun(t, &e2eImpl)
+
+	persistAndRun(t, e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NoError(t, err)
@@ -318,20 +258,8 @@ func TestE2EArmDeployWithOutputRGOverlap(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(types.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup"), 0)
-
-	e2eImpl.AddResourceGroup()
-
-	e2eImpl.AddStep(types.NewShellStep("readInput", "echo ${end} > env.txt").WithVariables(
-		types.Variable{
-			Name: "end",
-			Input: &types.Input{
-				Name: "parameterA",
-				Step: "parameterA",
-			},
-		},
-	), 1)
+	e2eImpl, err := newE2E(tmpDir, "e2eArmDeployWithOutputRGOverlap.yaml")
+	assert.NoError(t, err)
 
 	e2eImpl.AddBicepTemplate(`
 param parameterA string
@@ -347,7 +275,7 @@ param parameterA = 'Hello Bicep'`,
 		err := cleanup()
 		assert.NoError(t, err)
 	}()
-	persistAndRun(t, &e2eImpl)
+	persistAndRun(t, e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NoError(t, err)
@@ -361,8 +289,9 @@ func TestE2EArmDeploySubscriptionScope(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(types.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "Subscription"), 0)
+	e2eImpl, err := newE2E(tmpDir, "e2eArmDeploySubscriptionScope.yaml")
+	assert.NoError(t, err)
+
 	rgName := GenerateRandomRGName()
 	e2eImpl.AddBicepTemplate(fmt.Sprintf(`
 targetScope='subscription'
@@ -375,7 +304,7 @@ resource newRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 		"using 'testa.bicep'",
 		"testa.bicepparm")
 
-	persistAndRun(t, &e2eImpl)
+	persistAndRun(t, e2eImpl)
 
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	assert.NoError(t, err)
@@ -397,9 +326,8 @@ func TestE2EDryRun(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-
-	e2eImpl.AddStep(types.NewARMStep("output", "test.bicep", "test.bicepparm", "ResourceGroup"), 0)
+	e2eImpl, err := newE2E(tmpDir, "e2eDryRun.yaml")
+	assert.NoError(t, err)
 
 	bicepFile := `
 param zoneName string
@@ -415,7 +343,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 
 	e2eImpl.EnableDryRun()
 
-	persistAndRun(t, &e2eImpl)
+	persistAndRun(t, e2eImpl)
 
 	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	assert.NoError(t, err)
@@ -437,22 +365,8 @@ func TestE2EOutputOnly(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl := newE2E(tmpDir)
-	e2eImpl.AddStep(types.NewARMStep("parameterA", "testa.bicep", "testa.bicepparm", "ResourceGroup").WithOutputOnly(), 0)
-
-	e2eImpl.AddStep(types.NewShellStep(
-		"readInput", "echo ${end} > env.txt",
-	).WithVariables(
-		types.Variable{
-			Name: "end",
-			Input: &types.Input{
-				Name: "parameterA",
-				Step: "parameterA",
-			},
-		},
-	).WithDryRun(types.DryRun{
-		Command: "echo ${end} > env.txt"}),
-		0)
+	e2eImpl, err := newE2E(tmpDir, "e2eOutputOnly.yaml")
+	assert.NoError(t, err)
 
 	e2eImpl.AddBicepTemplate(`
 param parameterA string
@@ -465,10 +379,9 @@ param parameterA = 'Hello Bicep'`,
 
 	e2eImpl.EnableDryRun()
 
-	persistAndRun(t, &e2eImpl)
+	persistAndRun(t, e2eImpl)
 
 	io, err := os.ReadFile(tmpDir + "/env.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, string(io), "Hello Bicep\n")
-
 }

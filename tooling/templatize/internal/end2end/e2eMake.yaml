@@ -1,0 +1,12 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Test Rollout
+resourceGroups:
+- name: '{{ .rg }}'
+  subscription: '{{ .subscription }}'
+  steps:
+  - name: test
+    action: Shell
+    command: make test
+    variables:
+    - name: TEST_ENV
+      configRef: test_env
