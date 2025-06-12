@@ -134,7 +134,7 @@ if [ -n "${INPUT+x}" ] && [ -n "${OUTPUT+x}" ]; then
         --output=${OUTPUT} \
         ${LOG_VERBOSITY_OPTION} \
         ${EXTRA_ARGS}
-elif [ $PIPELINE_MODE == "inspect" ] && [ -n "$PIPELINE" ] && [ -n "${PIPELINE_STEP+x}" ]; then
+elif [ $PIPELINE_MODE == "inspect" ] && [ -n "${PIPELINE+x}" ] && [ -n "${PIPELINE_STEP+x}" ]; then
     $TEMPLATIZE pipeline inspect \
         --config-file=${CONFIG_FILE} \
         --cloud=${CLOUD} \
