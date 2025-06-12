@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"maps"
 	"testing"
@@ -61,7 +62,7 @@ func TestSubscriptionCollector(t *testing.T) {
 			ListAllSubscriptionDocs().
 			Return(mockIter).
 			Times(1)
-		collector.refresh(logger)
+		collector.refresh(context.Background(), logger)
 
 		assertMetrics(t, r, 5, `# HELP frontend_subscription_collector_failed_syncs_total Total number of failed syncs for the Subscription collector.
 # TYPE frontend_subscription_collector_failed_syncs_total counter
@@ -88,7 +89,7 @@ frontend_subscription_collector_last_sync 1
 			Return(mockIter).
 			Times(1)
 
-		collector.refresh(logger)
+		collector.refresh(context.Background(), logger)
 
 		assertMetrics(t, r, 5, `# HELP frontend_subscription_collector_failed_syncs_total Total number of failed syncs for the Subscription collector.
 # TYPE frontend_subscription_collector_failed_syncs_total counter
@@ -115,7 +116,7 @@ frontend_subscription_collector_last_sync 0
 			Return(mockIter).
 			Times(1)
 
-		collector.refresh(logger)
+		collector.refresh(context.Background(), logger)
 
 		assertMetrics(t, r, 7, `
 # HELP frontend_lifecycle_last_update_timestamp_seconds Reports the timestamp when the subscription has been updated for the last time.
