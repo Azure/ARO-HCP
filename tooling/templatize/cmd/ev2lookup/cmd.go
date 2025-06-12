@@ -12,39 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inspect
+package ev2lookup
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
-
-	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
-	output "github.com/Azure/ARO-HCP/tooling/templatize/internal/utils"
 )
 
 func NewCommand() (*cobra.Command, error) {
-	opts := options.DefaultRolloutOptions()
-
-	format := "json"
+	opts := DefaultLookupOptions()
 	cmd := &cobra.Command{
-		Use:           "inspect",
-		Short:         "Inspect defaulted service configuration for a region.",
+		Use:           "ev2lookup",
+		Short:         "Look up values from the Ev2 central configuration.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return dumpConfig(cmd.Context(), format, opts)
+			return lookup(cmd.Context(), opts)
 		},
 	}
-	if err := options.BindRolloutOptions(opts, cmd); err != nil {
+	if err := BindLookupOptions(opts, cmd); err != nil {
 		return nil, err
 	}
-	cmd.Flags().StringVar(&format, "format", format, "output format (json, yaml)")
 	return cmd, nil
 }
 
-func dumpConfig(ctx context.Context, format string, opts *options.RawRolloutOptions) error {
+func lookup(ctx context.Context, opts *RawLookupOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
 		return err
@@ -53,20 +46,5 @@ func dumpConfig(ctx context.Context, format string, opts *options.RawRolloutOpti
 	if err != nil {
 		return err
 	}
-
-	var dumpFunc func(interface{}) (string, error)
-	switch format {
-	case "json":
-		dumpFunc = output.PrettyPrintJSON
-	case "yaml":
-		dumpFunc = output.PrettyPrintYAML
-	default:
-		return fmt.Errorf("unsupported format: %s", format)
-	}
-	data, err := dumpFunc(completed.Config)
-	if err != nil {
-		return err
-	}
-	fmt.Println(data)
-	return nil
+	return completed.Lookup()
 }

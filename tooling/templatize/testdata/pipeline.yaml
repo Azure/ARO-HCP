@@ -9,6 +9,8 @@ resourceGroups:
     aksCluster: '{{ .aksName  }}'
     action: Shell
     command: make deploy
+    shellIdentity:
+      configRef: aroDevopsMsiId
     variables:
     - name: MAESTRO_IMAGE
       configRef: maestro_image
@@ -16,10 +18,16 @@ resourceGroups:
     aksCluster: '{{ .aksName  }}'
     action: Shell
     command: make deploy
+    shellIdentity:
+      configRef: aroDevopsMsiId
     dryRun:
       variables:
       - name: DRY_RUN
         value: "A very dry one"
+      - name: FROM_EV2_REGION
+        value: '{{ .availabilityZoneCount }}'
+      - name: FROM_EV2_CORE
+        value: '{{ .vaultDomainSuffix }}'
   {{- if .enableOptionalStep }}
   - name: optionalStep
     action: Shell

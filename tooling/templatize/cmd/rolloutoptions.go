@@ -17,6 +17,7 @@ package options
 import (
 	"fmt"
 
+	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -107,18 +108,29 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 		return nil, err
 	}
 
-	variables, err := completed.ConfigProvider.GetDeployEnvRegionConfiguration(
-		o.Cloud, o.DeployEnv, o.Region,
-		&config.ConfigReplacements{
-			RegionReplacement:      o.Region,
-			RegionShortReplacement: o.RegionShort,
-			StampReplacement:       o.Stamp,
-			CloudReplacement:       o.Cloud,
-			EnvironmentReplacement: o.DeployEnv,
-		},
-	)
+	// Ev2 config doesn't vary by environment, so we can use public prod for the standard content
+	ev2Cfg, err := ev2config.ResolveConfig("public", o.Region)
+	if err != nil {
+		return nil, fmt.Errorf("error loading embedded ev2 config: %v", err)
+	}
+
+	resolver, err := completed.ConfigProvider.GetResolver(&config.ConfigReplacements{
+		RegionReplacement:      o.Region,
+		RegionShortReplacement: o.RegionShort,
+		StampReplacement:       o.Stamp,
+		CloudReplacement:       o.Cloud,
+		EnvironmentReplacement: o.DeployEnv,
+		Ev2Config:              ev2Cfg,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config resolver: %w", err)
+	}
+	variables, err := resolver.GetRegionConfiguration(o.Region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get variables: %w", err)
+	}
+	if err := resolver.ValidateSchema(variables); err != nil {
+		return nil, fmt.Errorf("failed to validate region configuration: %w", err)
 	}
 	extraVars := make(map[string]interface{})
 	for k, v := range o.ExtraVars {
@@ -126,11 +138,16 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 	}
 	variables["extraVars"] = extraVars
 
+	cfg, ok := config.InterfaceToConfiguration(variables)
+	if !ok {
+		return nil, fmt.Errorf("invalid configuration")
+	}
+
 	return &RolloutOptions{
 		completedRolloutOptions: &completedRolloutOptions{
 			ValidatedRolloutOptions: o,
 			Options:                 completed,
-			Config:                  variables,
+			Config:                  cfg,
 		},
 	}, nil
 }

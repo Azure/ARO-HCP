@@ -25,6 +25,8 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
+    shellIdentity:
+      configRef: aroDevopsMsiId
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
@@ -85,3 +87,5 @@ resourceGroups:
       configRef: frontend.tracing.address
     - name: TRACING_EXPORTER
       configRef: frontend.tracing.exporter
+    shellIdentity:
+      configRef: aroDevopsMsiId

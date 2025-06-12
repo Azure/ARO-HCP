@@ -87,6 +87,8 @@ resourceGroups:
         name: azureMonitoringWorkspaceId
     dependsOn:
     - region-output
+    shellIdentity:
+      configRef: aroDevopsMsiId
 - name: '{{ .global.rg  }}'
   subscription: '{{ .global.subscription  }}'
   steps:
@@ -108,3 +110,5 @@ resourceGroups:
         name: hcpAzureMonitoringWorkspaceId
     dependsOn:
     - add-svc-grafana-datasource
+    shellIdentity:
+      configRef: aroDevopsMsiId

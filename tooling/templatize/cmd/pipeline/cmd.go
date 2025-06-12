@@ -24,9 +24,9 @@ import (
 func NewCommand() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:              "pipeline",
-		Short:            "pipeline",
-		Long:             "pipeline",
+		Short:            "Operate over pipelines in the local environment.",
 		SilenceUsage:     true,
+		SilenceErrors:    true,
 		TraverseChildren: true,
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,

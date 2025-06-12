@@ -17,11 +17,10 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"os"
 
-	"math/rand/v2"
-
-	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
@@ -166,6 +165,12 @@ func (e *e2eImpl) AddResourceGroup() {
 }
 
 func (e *e2eImpl) AddStep(step types.Step, rg int) {
+	// TODO: un-hack once https://github.com/Azure/ARO-Tools/pull/17 goes in
+	if shell, ok := step.(*types.ShellStep); ok {
+		shell.ShellIdentity = types.Variable{
+			Value: "fakedata",
+		}
+	}
 	e.pipeline.ResourceGroups[rg].Steps = append(e.pipeline.ResourceGroups[rg].Steps, step)
 }
 

@@ -37,6 +37,8 @@ resourceGroups:
         configRef: monitoring.grafanaName
       - name: GLOBAL_RESOURCEGROUP
         configRef: global.rg
+    shellIdentity:
+      configRef: aroDevopsMsiId
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
@@ -80,6 +82,8 @@ resourceGroups:
       configRef: global.secretsToSyncDir
     dependsOn:
     - global-infra
+    shellIdentity:
+      configRef: aroDevopsMsiId
   # mirror oc-mirror image
   - name: mirror-oc-mirror-image
     action: Shell
@@ -104,6 +108,8 @@ resourceGroups:
     dependsOn:
     - global-acrs
     - decrypt-and-ingest-secrets
+    shellIdentity:
+      configRef: aroDevopsMsiId
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM

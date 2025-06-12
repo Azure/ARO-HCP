@@ -25,6 +25,8 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
+    shellIdentity:
+      configRef: aroDevopsMsiId
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
   steps:
@@ -55,3 +57,5 @@ resourceGroups:
       configRef: hypershift.namespace
     - name: HO_ADDITIONAL_INSTALL_ARG
       configRef: hypershift.additionalInstallArg
+    shellIdentity:
+      configRef: aroDevopsMsiId

@@ -18,8 +18,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/yaml"
 )
 
 func LoadScaffoldTemplates(scaffoldDir string) ([]unstructured.Unstructured, error) {

@@ -16,3 +16,5 @@ resourceGroups:
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name
+    shellIdentity:
+      configRef: aroDevopsMsiId

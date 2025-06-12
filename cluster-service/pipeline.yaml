@@ -25,6 +25,8 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
+    shellIdentity:
+      configRef: aroDevopsMsiId
   - name: global-output
     action: ARM
     template: ../dev-infrastructure/templates/output-global.bicep
@@ -138,3 +140,5 @@ resourceGroups:
       configRef: msiKeyVault.name
     - name: TRACING_ADDRESS
       configRef: clustersService.tracing.address
+    shellIdentity:
+      configRef: aroDevopsMsiId

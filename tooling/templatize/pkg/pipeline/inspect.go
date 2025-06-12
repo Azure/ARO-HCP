@@ -90,11 +90,11 @@ func inspectVars(ctx context.Context, pipeline *types.Pipeline, s types.Step, op
 		}
 		inputs, err := aquireOutputChainingInputs(ctx, outputChainingDependenciesList, pipeline, options)
 		if err != nil {
-			return err
+			return fmt.Errorf("failure acquiring output-chaining inputs: %v", err)
 		}
 		envVars, err = mapStepVariables(step.Variables, options.Configuration, inputs)
 		if err != nil {
-			return err
+			return fmt.Errorf("failure mapping step variables: %v", err)
 		}
 	default:
 		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())

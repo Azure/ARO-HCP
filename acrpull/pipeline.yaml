@@ -9,6 +9,8 @@ resourceGroups:
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
     command: make deploy
+    shellIdentity:
+      configRef: aroDevopsMsiId
     dryRun:
       variables:
       - name: DRY_RUN
@@ -27,6 +29,8 @@ resourceGroups:
     aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
     command: make deploy
+    shellIdentity:
+      configRef: aroDevopsMsiId
     dryRun:
       variables:
       - name: DRY_RUN

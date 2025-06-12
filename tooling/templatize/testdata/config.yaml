@@ -15,8 +15,11 @@ defaults:
   parentZone: example.com
   childZone: child.example.com
   vaultBaseUrl: myvault.azure.com
+  vaultDomainSuffix: '{{ .ev2.keyVault.domainNameSuffix }}'
+  availabilityZoneCount: '{{ .ev2.availabilityZoneCount }}'
   provider: Self
   enableOptionalStep: false
+  aroDevopsMsiId: whatever
 clouds:
   fairfax:
     defaults:

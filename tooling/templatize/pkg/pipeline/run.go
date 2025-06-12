@@ -47,8 +47,8 @@ type Output interface {
 }
 
 type OutPutValue struct {
-	Type  string `yaml:"type"`
-	Value any    `yaml:"value"`
+	Type  string `json:"type"`
+	Value any    `json:"value"`
 }
 
 type ArmOutput map[string]any

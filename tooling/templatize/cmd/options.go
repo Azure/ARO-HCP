@@ -65,10 +65,9 @@ type ValidatedOptions struct {
 }
 
 func (o *ValidatedOptions) Complete() (*Options, error) {
-	configProvider := config.NewConfigProvider(o.ConfigFile)
-	err := configProvider.Validate(o.Cloud, o.DeployEnv)
+	configProvider, err := config.NewConfigProvider(o.ConfigFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate config: %w", err)
+		return nil, fmt.Errorf("failed to load service config: %v", err)
 	}
 
 	return &Options{
