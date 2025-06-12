@@ -6,24 +6,18 @@ resourceGroups:
   subscription: '{{ .global.subscription  }}'
   steps:
   - name: mirror-image
-    action: Shell
-    command: ../image-sync/on-demand/sync.sh
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: TARGET_ACR
+    action: ImageMirror
+    targetACR:
       configRef: 'acr.svc.name'
-    - name: SOURCE_REGISTRY
+    sourceRegistry:
       configRef: clustersService.image.registry
-    - name: REPOSITORY
+    repository:
       configRef: clustersService.image.repository
-    - name: DIGEST
+    digest:
       configRef: clustersService.image.digest
-    - name: PULL_SECRET_KV
+    pullSecretKeyVault:
       configRef: global.keyVault.name
-    - name: PULL_SECRET
+    pullSecretName:
       configRef: imageSync.componentSync.pullSecretName
     shellIdentity:
       configRef: aroDevopsMsiId

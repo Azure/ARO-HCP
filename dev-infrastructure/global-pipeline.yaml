@@ -86,24 +86,18 @@ resourceGroups:
       configRef: aroDevopsMsiId
   # mirror oc-mirror image
   - name: mirror-oc-mirror-image
-    action: Shell
-    command: ../image-sync/on-demand/sync.sh
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: TARGET_ACR
+    action: ImageMirror
+    targetACR:
       configRef: 'acr.svc.name'
-    - name: SOURCE_REGISTRY
+    sourceRegistry:
       configRef: imageSync.ocMirror.image.registry
-    - name: REPOSITORY
+    repository:
       configRef: imageSync.ocMirror.image.repository
-    - name: DIGEST
+    digest:
       configRef: imageSync.ocMirror.image.digest
-    - name: PULL_SECRET_KV
+    pullSecretKeyVault:
       configRef: global.keyVault.name
-    - name: PULL_SECRET
+    pullSecretName:
       configRef: imageSync.componentSync.pullSecretName
     dependsOn:
     - global-acrs
