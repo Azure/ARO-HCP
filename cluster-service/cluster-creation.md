@@ -8,7 +8,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
 * If running CS on the AKS cluster, port-forward the CS service to your local machine
 
     ```bash
-    kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service
+    kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
     ```
 
 * Otherwise start CS on your local machine
@@ -20,7 +20,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
 * Access your CS deployment locally
 
     ```bash
-    KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service
+    KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
     ```
 
   Alternative: if you run CS on your local machine, this step is not necessary.
@@ -215,7 +215,7 @@ Replace `resource-group`, `vnet-name`, `nsg-name` and `subnet-name` with any val
     }
     EOF
 
-    cat cluster-test.json | ocm post /api/clusters_mgmt/v1/clusters
+    cat cluster-test.json | ocm post /api/aro_hcp/v1alpha1/clusters
     ```
 
     You should now have a cluster in OCM. You can verify using `ocm list clusters` or `ocm get cluster CLUSTERID`
@@ -244,13 +244,13 @@ cat <<EOF > nodepool-test.json
 }
 EOF
 
-cat nodepool-test.json | ocm post /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools
+cat nodepool-test.json | ocm post /api/aro_hcp/v1alpha1/clusters/$CLUSTER_ID/node_pools
 ```
 
 You should now have a nodepool for your cluster in Cluster Service. You can verify using:
 
 ```bash
-ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools/$UID
+ocm get /api/aro_hcp/v1alpha1/clusters/$CLUSTER_ID/node_pools/$UID
 ```
 
 ### Cleaning up a Cluster
@@ -258,7 +258,7 @@ ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID/node_pools/$UID
 1. Delete the cluster
 
    ```bash
-   ocm delete /api/clusters_mgmt/v1/clusters/$CLUSTER_ID
+   ocm delete /api/aro_hcp/v1alpha1/clusters/$CLUSTER_ID
    ```
 
    > [!NOTE] Deleting it will also delete all of its associated node pools.
