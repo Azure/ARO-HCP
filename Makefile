@@ -42,6 +42,10 @@ lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES)
 .PHONY: lint
 
+lint-fix: $(GOLANGCI_LINT)
+	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES) --fix
+.PHONY: lint-fix
+
 fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
