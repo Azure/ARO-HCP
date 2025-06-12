@@ -134,11 +134,16 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 	}
 	variables["extraVars"] = extraVars
 
+	cfg, ok := config.InterfaceToConfiguration(variables)
+	if !ok {
+		return nil, fmt.Errorf("invalid configuration")
+	}
+
 	return &RolloutOptions{
 		completedRolloutOptions: &completedRolloutOptions{
 			ValidatedRolloutOptions: o,
 			Options:                 completed,
-			Config:                  variables,
+			Config:                  cfg,
 		},
 	}, nil
 }

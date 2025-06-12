@@ -122,9 +122,14 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	cfg, ok := config.InterfaceToConfiguration(variables)
+	if !ok {
+		return fmt.Errorf("invalid configuration")
+	}
 	_, err = pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
 		DryRun:                   o.DryRun,
-		Configuration:            variables,
+		Configuration:            cfg,
 		Region:                   rolloutOptions.Region,
 		Step:                     o.PipelineOptions.Step,
 		SubsciptionLookupFunc:    pipeline.LookupSubscriptionID,

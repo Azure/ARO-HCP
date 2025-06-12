@@ -145,6 +145,11 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	inspectOptions := pipeline.NewInspectOptions(variables, rolloutOptions.Region, o.PipelineOptions.Step, o.Scope, o.Format, o.OutputFile)
+
+	cfg, ok := config.InterfaceToConfiguration(variables)
+	if !ok {
+		return fmt.Errorf("invalid configuration")
+	}
+	inspectOptions := pipeline.NewInspectOptions(cfg, rolloutOptions.Region, o.PipelineOptions.Step, o.Scope, o.Format, o.OutputFile)
 	return pipeline.Inspect(o.PipelineOptions.Pipeline, ctx, inspectOptions)
 }
