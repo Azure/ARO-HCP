@@ -101,20 +101,17 @@ while getopts "c:dr:x:e:i:o:p:P:s:" opt; do
     esac
 done
 
-# Read region name from our sanitized serviceconfig.json and returns the region short name
-REGION_SHORT=$(
-    "${PROJECT_ROOT_DIR}/tooling/templatize/serviceconfig-get-region-short-name.sh" "${REGION}"
-)
-if [ -z "$REGION_SHORT" ]; then
-    echo "Failed to get region short name for region: $REGION" >&2
-    exit 1
+make -s -C ${PROJECT_ROOT_DIR}/tooling/templatize templatize
+TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize"
+
+# Read region name from the embedded ev2config and return the region short name
+if ! REGION_SHORT=$( $TEMPLATIZE ev2lookup --region "${REGION}" --path regionShortName ); then
+  echo "Failed to get region short name for region: $REGION" >&2
+  exit 1
 fi
 
 # Generate region stamp based by expanding the template from the defaults
 REGION_STAMP=$(eval "echo \"$REGION_STAMP_TEMPLATE\"")
-
-make -s -C "${PROJECT_ROOT_DIR}/tooling/templatize" templatize
-TEMPLATIZE="${PROJECT_ROOT_DIR}/tooling/templatize/templatize"
 
 PERSIST_FLAG=""
 if [ -z "${PERSIST+x}" ] || [ "${PERSIST+x}" == "false" ]; then
