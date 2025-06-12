@@ -21,7 +21,7 @@ import (
 
 	"math/rand/v2"
 
-	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 

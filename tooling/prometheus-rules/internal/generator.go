@@ -48,13 +48,13 @@ type Options struct {
 }
 
 type PrometheusRulesConfig struct {
-	RulesFolders  []string `yaml:"rulesFolders"`
-	UntestedRules []string `yaml:"untestedRules,omitempty"`
-	OutputBicep   string   `yaml:"outputBicep"`
+	RulesFolders  []string `json:"rulesFolders"`
+	UntestedRules []string `json:"untestedRules,omitempty"`
+	OutputBicep   string   `json:"outputBicep"`
 }
 
 type CliConfig struct {
-	PrometheusRules PrometheusRulesConfig `yaml:"prometheusRules"`
+	PrometheusRules PrometheusRulesConfig `json:"prometheusRules"`
 }
 
 func NewOptions() *Options {

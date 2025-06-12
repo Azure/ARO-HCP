@@ -22,7 +22,6 @@ require (
 	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
-	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/apimachinery v0.33.1
 	k8s.io/client-go v0.33.1
 	sigs.k8s.io/yaml v1.4.0

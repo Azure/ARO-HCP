@@ -17,7 +17,7 @@ package output
 import (
 	"encoding/json"
 
-	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/yaml"
 )
 
 func PrettyPrintJSON(v interface{}) (string, error) {
