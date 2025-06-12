@@ -29,9 +29,10 @@ func NewCommand() (*cobra.Command, error) {
 
 	format := "json"
 	cmd := &cobra.Command{
-		Use:   "inspect",
-		Short: "inspect",
-		Long:  "inspect",
+		Use:           "inspect",
+		Short:         "Inspect defaulted service configuration for a region.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return dumpConfig(cmd.Context(), format, opts)
 		},

@@ -48,9 +48,10 @@ var versionConstraints = []Version{
 func NewCommand() (*cobra.Command, error) {
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "run a pipeline.yaml file towards an Azure Resourcegroup / AKS cluster",
-		Long:  "run a pipeline.yaml file towards an Azure Resourcegroup / AKS cluster",
+		Use:           "run",
+		Short:         "Run a pipeline.yaml file towards an Azure Resourcegroup / AKS cluster.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runPipeline(cmd.Context(), opts)
 		},

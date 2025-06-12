@@ -23,9 +23,10 @@ import (
 func NewCommand() (*cobra.Command, error) {
 	opts := DefaultGenerationOptions()
 	cmd := &cobra.Command{
-		Use:   "generate",
-		Short: "generate",
-		Long:  "generate",
+		Use:           "generate",
+		Short:         "Apply service configuration to a template file.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return generate(cmd.Context(), opts)
 		},
