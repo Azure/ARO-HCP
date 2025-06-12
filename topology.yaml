@@ -29,6 +29,8 @@ services:
           intPipelineId: '382258'
           stgPipelineId: '412495'
           prodPipelineId: ''
+        pipeline: maestro/server/pipeline.yaml
+        purpose: Deploy the Maestro Server.
       - serviceGroup: Microsoft.Azure.ARO.HCP.ClusterService
         metadata:
           pipeline: cluster-service/pipeline.yaml
@@ -36,6 +38,8 @@ services:
           intPipelineId: '402943'
           stgPipelineId: '412487'
           prodPipelineId: ''
+        pipeline: cluster-service/pipeline.yaml
+        purpose: Deploy Cluster Service.
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Backend
         metadata:
           pipeline: backend/pipeline.yaml
@@ -43,6 +47,8 @@ services:
           intPipelineId: '398456'
           stgPipelineId: '412483'
           prodPipelineId: ''
+        pipeline: backend/pipeline.yaml
+        purpose: Deploy the RP Backend.
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Frontend
         metadata:
           pipeline: frontend/pipeline.yaml
@@ -50,12 +56,16 @@ services:
           intPipelineId: '398460'
           stgPipelineId: '412478'
           prodPipelineId: ''
+        pipeline: frontend/pipeline.yaml
+        purpose: Deploy the RP Frontend.
       metadata:
         pipeline: dev-infrastructure/svc-pipeline.yaml
         purpose: 'Deploy the service cluster and supporting infrastructure.'
         intPipelineId: '367765'
         stgPipelineId: '410646'
         prodPipelineId: ''
+      pipeline: dev-infrastructure/svc-pipeline.yaml
+      purpose: Deploy the service cluster and supporting infrastructure.
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
       children:
       - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
@@ -65,6 +75,8 @@ services:
           intPipelineId: '402939'
           stgPipelineId: '414075'
           prodPipelineId: ''
+        pipeline: acm/pipeline.yaml
+        purpose: Deploy Advanced Cluster Management and Multi-Cluster Engine.
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
         metadata:
           pipeline: hypershiftoperator/pipeline.yaml
@@ -72,6 +84,8 @@ services:
           intPipelineId: '402934'
           stgPipelineId: '414071'
           prodPipelineId: ''
+        pipeline: hypershiftoperator/pipeline.yaml
+        purpose: Deploy the HyperShift operator.
       - serviceGroup: Microsoft.Azure.ARO.HCP.PKO
         metadata:
           pipeline: pko/pipeline.yaml
@@ -79,6 +93,8 @@ services:
           intPipelineId: ''
           stgPipelineId: ''
           prodPipelineId: ''
+        pipeline: pko/pipeline.yaml
+        purpose: Deploy the Package Operator.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
         metadata:
           pipeline: maestro/agent/pipeline.yaml
@@ -86,21 +102,29 @@ services:
           intPipelineId: '388100'
           stgPipelineId: '412491'
           prodPipelineId: ''
+        pipeline: maestro/agent/pipeline.yaml
+        purpose: Deploy the Maestro Agent and register it with the MQTT stream.
       metadata:
         pipeline: dev-infrastructure/mgmt-pipeline.yaml
         purpose: 'Deploy a management cluster and backing infrastructure.'
         intPipelineId: '372877'
         stgPipelineId: '412495'
         prodPipelineId: ''
+      pipeline: dev-infrastructure/mgmt-pipeline.yaml
+      purpose: Deploy a management cluster and backing infrastructure.
     metadata:
       pipeline: dev-infrastructure/region-pipeline.yaml
       purpose: 'Deploy regional shared infrastructure.'
       intPipelineId: '381618'
       stgPipelineId: '410324'
       prodPipelineId: ''
+    pipeline: dev-infrastructure/region-pipeline.yaml
+    purpose: Deploy regional shared infrastructure.
   metadata:
     pipeline: dev-infrastructure/global-pipeline.yaml
     purpose: 'Deploy global shared infrastructure.'
     intPipelineId: '378908'
     stgPipelineId: '409617'
     prodPipelineId: ''
+  pipeline: dev-infrastructure/global-pipeline.yaml
+  purpose: Deploy global shared infrastructure.

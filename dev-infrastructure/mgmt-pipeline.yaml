@@ -181,7 +181,9 @@ resourceGroups:
       configRef: clustersService.environment
     dependsOn:
     - mgmt-cluster
-  # Install ACRpull
+    shellIdentity:
+      configRef: aroDevopsMsiId
+      # Install ACRpull
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
@@ -199,7 +201,9 @@ resourceGroups:
       configRef: acrPull.image.registry
     dependsOn:
     - prometheus
-  # Install cluster patches
+    shellIdentity:
+      configRef: aroDevopsMsiId
+      # Install cluster patches
   - name: mgmt-fixes
     aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
@@ -213,3 +217,5 @@ resourceGroups:
       configRef: mgmt.applyKubeletFixes
     dependsOn:
     - mgmt-cluster
+    shellIdentity:
+      configRef: aroDevopsMsiId

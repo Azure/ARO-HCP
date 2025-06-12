@@ -137,7 +137,9 @@ resourceGroups:
       configRef: svc.aks.name
     dependsOn:
     - svc
-  # configure istio
+    shellIdentity:
+      configRef: aroDevopsMsiId
+      # configure istio
   - name: istio-config
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
@@ -151,8 +153,10 @@ resourceGroups:
       configRef: svc.istio.versions
     dependsOn:
     - prometheus
-  # - updates workload to use istio on version svc.istio.targetVersion
-  # - configures istio IP tag usage
+    shellIdentity:
+      configRef: aroDevopsMsiId
+      # - updates workload to use istio on version svc.istio.targetVersion
+      # - configures istio IP tag usage
   - name: istio-upgrade
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
@@ -170,7 +174,9 @@ resourceGroups:
       configRef: regionRG
     dependsOn:
     - istio-config
-  # Install ACRpull
+    shellIdentity:
+      configRef: aroDevopsMsiId
+      # Install ACRpull
   - name: acrpull
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
@@ -189,3 +195,5 @@ resourceGroups:
     dependsOn:
     - prometheus
     - svc
+    shellIdentity:
+      configRef: aroDevopsMsiId

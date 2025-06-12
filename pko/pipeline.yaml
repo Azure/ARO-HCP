@@ -25,6 +25,8 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
+    shellIdentity:
+      configRef: aroDevopsMsiId
   - name: mirror-image-manager
     action: Shell
     command: ../image-sync/on-demand/sync.sh
@@ -45,6 +47,8 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
+    shellIdentity:
+      configRef: aroDevopsMsiId
   - name: mirror-image-remotephase-manager
     action: Shell
     command: ../image-sync/on-demand/sync.sh
@@ -65,6 +69,8 @@ resourceGroups:
       configRef: global.keyVault.name
     - name: PULL_SECRET
       configRef: imageSync.componentSync.pullSecretName
+    shellIdentity:
+      configRef: aroDevopsMsiId
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
@@ -97,3 +103,5 @@ resourceGroups:
       configRef: pko.imageManager.digest
     - name: RESOURCEGROUP
       configRef: mgmt.rg
+    shellIdentity:
+      configRef: aroDevopsMsiId
