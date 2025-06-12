@@ -17,11 +17,9 @@ package ev2lookup
 import (
 	"fmt"
 
+	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/Azure/ARO-Tools/pkg/config"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 )
@@ -75,17 +73,14 @@ func (o *RawLookupOptions) Validate() (*ValidatedLookupOptions, error) {
 }
 
 func (o *ValidatedLookupOptions) Complete() (*LookupOptions, error) {
-	ev2Cfg, err := ev2config.Config()
+	ev2Cfg, err := ev2config.ResolveConfig("public", o.Region)
 	if err != nil {
 		return nil, fmt.Errorf("error loading embedded ev2 config: %v", err)
-	}
-	if !sets.New(ev2Cfg.GetRegions("public", "prod")...).Has(o.Region) {
-		return nil, fmt.Errorf("invalid region %q", o.Region)
 	}
 
 	return &LookupOptions{
 		completedLookupOptions: &completedLookupOptions{
-			Ev2Config: ev2Cfg.ResolveRegion("public", "prod", o.Region),
+			Ev2Config: ev2Cfg,
 			Path:      o.Path,
 		},
 	}, nil

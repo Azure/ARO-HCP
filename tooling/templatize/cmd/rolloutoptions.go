@@ -108,25 +108,29 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 		return nil, err
 	}
 
-	ev2Cfg, err := ev2config.Config()
+	// Ev2 config doesn't vary by environment, so we can use public prod for the standard content
+	ev2Cfg, err := ev2config.ResolveConfig("public", o.Region)
 	if err != nil {
 		return nil, fmt.Errorf("error loading embedded ev2 config: %v", err)
 	}
 
-	variables, err := completed.ConfigProvider.GetDeployEnvRegionConfiguration(
-		o.Cloud, o.DeployEnv, o.Region,
-		&config.ConfigReplacements{
-			RegionReplacement:      o.Region,
-			RegionShortReplacement: o.RegionShort,
-			StampReplacement:       o.Stamp,
-			CloudReplacement:       o.Cloud,
-			EnvironmentReplacement: o.DeployEnv,
-			// Ev2 config doesn't vary by environment, so we can use public prod for the standard content
-			Ev2Config: ev2Cfg.ResolveRegion("public", "prod", o.Region),
-		},
-	)
+	resolver, err := completed.ConfigProvider.GetResolver(&config.ConfigReplacements{
+		RegionReplacement:      o.Region,
+		RegionShortReplacement: o.RegionShort,
+		StampReplacement:       o.Stamp,
+		CloudReplacement:       o.Cloud,
+		EnvironmentReplacement: o.DeployEnv,
+		Ev2Config:              ev2Cfg,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config resolver: %w", err)
+	}
+	variables, err := resolver.GetRegionConfiguration(o.Region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get variables: %w", err)
+	}
+	if err := resolver.ValidateSchema(variables); err != nil {
+		return nil, fmt.Errorf("failed to validate region configuration: %w", err)
 	}
 	extraVars := make(map[string]interface{})
 	for k, v := range o.ExtraVars {

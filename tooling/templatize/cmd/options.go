@@ -17,7 +17,6 @@ package options
 import (
 	"fmt"
 
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -66,30 +65,14 @@ type ValidatedOptions struct {
 }
 
 func (o *ValidatedOptions) Complete() (*Options, error) {
-	configProvider := config.NewConfigProvider(o.ConfigFile)
-
-	ev2Cfg, err := ev2config.Config()
+	configProvider, err := config.NewConfigProvider(o.ConfigFile)
 	if err != nil {
-		return nil, fmt.Errorf("error loading embedded ev2 config: %v", err)
-	}
-
-	// use placeholder data to validate the shape of the config
-	err = configProvider.Validate(o.Cloud, o.DeployEnv, &config.ConfigReplacements{
-		RegionReplacement:      "uksouth",
-		RegionShortReplacement: "ln",
-		StampReplacement:       "1",
-		CloudReplacement:       "public",
-		EnvironmentReplacement: "prod",
-		Ev2Config:              ev2Cfg.ResolveRegion("public", "prod", "uksouth"),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate config: %w", err)
+		return nil, fmt.Errorf("failed to load service config: %v", err)
 	}
 
 	return &Options{
 		completedOptions: &completedOptions{
 			ConfigProvider: configProvider,
-			Ev2Config:      ev2Cfg,
 		},
 	}, nil
 }
@@ -97,7 +80,6 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 // completedGenerationOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
 	ConfigProvider config.ConfigProvider
-	Ev2Config      config.ConfigurationOverrides
 }
 
 type Options struct {
