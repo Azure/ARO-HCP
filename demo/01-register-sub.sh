@@ -7,9 +7,8 @@ set -o pipefail
 source "$(dirname "$0")"/common.sh
 source env_vars
 
-if az_account_is_int; then
+if is_int_testing_subscription; then
     az provider register --namespace "Microsoft.RedHatOpenShift"
 else
-    # Don't use rp_put_request here because the API version is unique.
-    correlation_headers | curl --silent --show-error --include --header @- --request PUT "localhost:8443${SUBSCRIPTION_RESOURCE_ID}?api-version=2.0" --json "{\"state\":\"Registered\", \"registrationDate\": \"now\", \"properties\": { \"tenantId\": \"${TENANT_ID}\"}}"
+    rp_put_request "${SUBSCRIPTION_RESOURCE_ID}" "{\"state\":\"Registered\", \"registrationDate\": \"now\", \"properties\": { \"tenantId\": \"${TENANT_ID}\"}}" "2.0"
 fi
