@@ -342,7 +342,7 @@ cs-current-user-pg-connect:
 .PHONY: cs-current-user-pg-connect
 
 cs-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(CS_PG_NAME) $(CS_MI_NAME) $(CS_NS_NAME) $(CS_SA_NAME)
+	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(CS_PG_NAME) $(CS_MI_NAME) $(CS_NS_NAME) $(CS_SA_NAME) $(SVC_RESOURCEGROUP)
 .PHONY: cs-miwi-pg-connect
 
 maestro-current-user-pg-connect:
@@ -350,7 +350,7 @@ maestro-current-user-pg-connect:
 .PHONY: maestro-current-user-pg-connect
 
 maestro-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
+	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro" $(SVC_RESOURCEGROUP)
 .PHONY: maestro-miwi-pg-connect
 
 #
