@@ -350,7 +350,7 @@ maestro-current-user-pg-connect:
 .PHONY: maestro-current-user-pg-connect
 
 maestro-miwi-pg-connect:
-	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro"
+	@scripts/cs-miwi-pg-connect.sh $(REGIONAL_RESOURCEGROUP) $(MAESTRO_PG_NAME) "maestro-server" "maestro" "maestro" $(SVC_RESOURCEGROUP)
 .PHONY: maestro-miwi-pg-connect
 
 #

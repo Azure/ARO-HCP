@@ -1,20 +1,20 @@
 #!/bin/bash
 
-RESOURCEGROUP=$1
+PG_RESOURCEGROUP=$1
 DB_SERVER_NAME_PREFIX=$2
 MANAGED_IDENTITY_NAME=$3
 NAMESPACE=$4
 SA_NAME=$5
-SVC_RESOURCEGROUP=$6
+MI_RESOURCEGROUP=$6
 
 # prep creds and configs
-PGHOST=$(az postgres flexible-server list --resource-group ${RESOURCEGROUP} --query "[?starts_with(name, '${DB_SERVER_NAME_PREFIX}')].fullyQualifiedDomainName" -o tsv)
+PGHOST=$(az postgres flexible-server list --resource-group "${PG_RESOURCEGROUP}" --query "[?starts_with(name, '${DB_SERVER_NAME_PREFIX}')].fullyQualifiedDomainName" -o tsv)
 AZURE_TENANT_ID=$(az account show -o json | jq .homeTenantId -r)
-AZURE_CLIENT_ID=$(az identity show -g ${SVC_RESOURCEGROUP} -n ${MANAGED_IDENTITY_NAME} --query clientId -o tsv)
+AZURE_CLIENT_ID=$(az identity show -g ${MI_RESOURCEGROUP} -n ${MANAGED_IDENTITY_NAME} --query clientId -o tsv)
 SA_TOKEN=$(kubectl create token ${SA_NAME} --namespace=${NAMESPACE} --audience api://AzureADTokenExchange)
 
 # az login with managed identity via SA token
-export AZURE_CONFIG_DIR="${HOME}/.azure-profile-cs-${RESOURCEGROUP}"
+export AZURE_CONFIG_DIR="${HOME}/.azure-profile-cs-${PG_RESOURCEGROUP}"
 rm -rf $AZURE_CONFIG_DIR
 az login --federated-token ${SA_TOKEN} --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID > /dev/null 2>&1
 
