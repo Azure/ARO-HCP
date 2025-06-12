@@ -96,7 +96,7 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs map[string]Output) (map[string]string, error) {
 	values, err := getInputValues(vars, cfg, inputs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	envVars := make(map[string]string)
 	for k, v := range values {
