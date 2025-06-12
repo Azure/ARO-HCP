@@ -17,6 +17,7 @@ package options
 import (
 	"fmt"
 
+	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -107,6 +108,11 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 		return nil, err
 	}
 
+	ev2Cfg, err := ev2config.Config()
+	if err != nil {
+		return nil, fmt.Errorf("error loading embedded ev2 config: %v", err)
+	}
+
 	variables, err := completed.ConfigProvider.GetDeployEnvRegionConfiguration(
 		o.Cloud, o.DeployEnv, o.Region,
 		&config.ConfigReplacements{
@@ -115,6 +121,8 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 			StampReplacement:       o.Stamp,
 			CloudReplacement:       o.Cloud,
 			EnvironmentReplacement: o.DeployEnv,
+			// Ev2 config doesn't vary by environment, so we can use public prod for the standard content
+			Ev2Config: ev2Cfg.ResolveRegion("public", "prod", o.Region),
 		},
 	)
 	if err != nil {

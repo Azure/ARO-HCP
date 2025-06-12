@@ -9,6 +9,8 @@ resourceGroups:
     aksCluster: 'aro-hcp-aks'
     action: Shell
     command: make deploy
+    shellIdentity:
+      configRef: aroDevopsMsiId
     variables:
     - name: MAESTRO_IMAGE
       configRef: maestro_image
@@ -16,10 +18,16 @@ resourceGroups:
     aksCluster: 'aro-hcp-aks'
     action: Shell
     command: make deploy
+    shellIdentity:
+      configRef: aroDevopsMsiId
     dryRun:
       variables:
       - name: DRY_RUN
         value: "A very dry one"
+      - name: FROM_EV2_REGION
+        value: '3'
+      - name: FROM_EV2_CORE
+        value: 'vault.azure.net'
   - name: svc
     action: ARM
     template: templates/svc-cluster.bicep

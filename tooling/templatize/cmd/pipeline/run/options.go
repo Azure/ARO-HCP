@@ -116,6 +116,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 			StampReplacement:       rolloutOptions.Stamp,
 			CloudReplacement:       rolloutOptions.Cloud,
 			EnvironmentReplacement: rolloutOptions.DeployEnv,
+			Ev2Config:              rolloutOptions.Options.Ev2Config.ResolveRegion("public", "prod", rolloutOptions.Region),
 		},
 	)
 	if err != nil {
