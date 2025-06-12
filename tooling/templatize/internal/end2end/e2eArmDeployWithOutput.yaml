@@ -12,6 +12,8 @@ resourceGroups:
   - name: readInput
     action: Shell
     command: echo ${zoneName} > env.txt
+    shellIdentity:
+      Value: "test"
     variables:
     - name: zoneName
       input:

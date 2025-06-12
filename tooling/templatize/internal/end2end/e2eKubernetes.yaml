@@ -8,3 +8,5 @@ resourceGroups:
     action: Shell
     aksCluster: dev-westus3-svc-1
     command: kubectl get namespaces
+    shellIdentity:
+      Value: "test"

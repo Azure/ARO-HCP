@@ -7,3 +7,5 @@ resourceGroups:
   - name: readInput
     action: Shell
     command: /bin/echo ${PWD} > env.txt
+    shellIdentity:
+      Value: "test"

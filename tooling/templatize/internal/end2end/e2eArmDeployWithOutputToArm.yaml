@@ -22,6 +22,8 @@ resourceGroups:
   - name: readInput
     action: Shell
     command: echo ${end} > env.txt
+    shellIdentity:
+      Value: "test"
     variables:
     - name: end
       input:
