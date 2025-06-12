@@ -40,7 +40,7 @@ environments:
     description: |
       Used for nightly infrastructure rebuilds.
     defaults:
-      region: westus3
+      region: uksouth
       cloud: dev
       cxStamp: 1
       regionStampTemplate: "${REGION_SHORT}"
