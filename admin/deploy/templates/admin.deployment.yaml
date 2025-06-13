@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aro-hcp-admin
+  namespace: '{{ .Release.namespace  }}'
+  labels:
+    app: aro-hcp-admin
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aro-hcp-admin
+  template:
+    metadata:
+      labels:
+        app: aro-hcp-admin
+    spec:
+      containers:
+        - name: aro-hcp-admin
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
+          args:
+            - "--location"
+            - "{{ .Values.configMap.location }}"
+          ports:
+            - containerPort: 8443
+              protocol: TCP
