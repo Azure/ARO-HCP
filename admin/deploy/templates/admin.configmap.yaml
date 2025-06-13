@@ -5,3 +5,4 @@ metadata:
   namespace: '{{ .Release.namespace  }}'
 data:
   LOCATION: '{{ .Values.configMap.location }}'
+  
