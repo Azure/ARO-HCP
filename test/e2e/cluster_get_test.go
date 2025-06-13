@@ -30,6 +30,7 @@ var _ = Describe("Get HCPOpenShiftCluster", func() {
 	var (
 		clustersClient *api.HcpOpenShiftClustersClient
 		customerEnv    *integration.CustomerEnv
+		clusterInfo    *integration.Cluster
 	)
 
 	BeforeEach(func() {
@@ -37,6 +38,16 @@ var _ = Describe("Get HCPOpenShiftCluster", func() {
 		clustersClient = clients.NewHcpOpenShiftClustersClient()
 		By("Preparing customer environment values")
 		customerEnv = &e2eSetup.CustomerEnv
+		clusterInfo = &e2eSetup.Cluster
+	})
+
+	Context("Positive", func() {
+		It("Confirms cluster has been created successfully", labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
+			By("Checking Provisioning state with RP")
+			out, err := clustersClient.Get(ctx, customerEnv.CustomerRGName, clusterInfo.Name, nil)
+			Expect(err).To(BeNil())
+			Expect(string(*out.Properties.ProvisioningState)).To(Equal(("Succeeded")))
+		})
 	})
 
 	Context("Negative", func() {
