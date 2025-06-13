@@ -1,0 +1,59 @@
+
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+    annotations:
+        policy.open-cluster-management.io/categories: CM Configuration Management
+        policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+        policy.open-cluster-management.io/standards: NIST SP 800-53
+    name: ingress-certificate-policy
+    namespace: '{{ .Release.Namespace }}'
+spec:
+    disabled: false
+    remediationAction: enforce
+    policy-templates:
+      - extraDependencies:
+        - apiVersion: policy.open-cluster-management.io/v1
+          compliance: Compliant
+          kind: Policy
+          name: ingress-certificate-check
+          namespace: '{{ .Release.Namespace }}'
+        objectDefinition:
+          apiVersion: policy.open-cluster-management.io/v1
+          kind: ConfigurationPolicy
+          metadata:
+              name: ingress-certificate-policy
+          spec:
+            evaluationInterval:
+              complaint: 10m
+              noncompliant: 10s
+            pruneObjectBehavior: None
+            remediationAction: enforce
+            severity: low
+            object-templates-raw: |
+              - complianceType: musthave
+                metadataComplianceType: musthave
+                objectDefinition:
+                  apiVersion: operator.openshift.io/v1
+                  kind: IngressController
+                  metadata:
+                    name: default
+                    namespace: openshift-ingress-operator
+                  spec:
+                    defaultCertificate:
+                      name: '{{`{{hub .ManagedClusterName hub}}`}}'
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: binding-ingress-certificate-policies
+  namespace: '{{ .Release.Namespace }}'
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: all-hosted-clusters
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: ingress-certificate-policy
