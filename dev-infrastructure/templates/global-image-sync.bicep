@@ -43,7 +43,6 @@ param ocMirrorEnabled bool
 @description('The name of the pull secret for the oc-mirror job')
 param ocpPullSecretName string
 
-
 resource kv 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: keyVaultName
 }
