@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-var _ = Describe("Confirm nodepools are present on HCPCluster", func() {
+var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 	var (
 		NodePoolsClient *api.NodePoolsClient
 		clusterEnv      *integration.Cluster
@@ -35,16 +35,16 @@ var _ = Describe("Confirm nodepools are present on HCPCluster", func() {
 	)
 
 	BeforeEach(func() {
-		By("Prepare HCPnodepool client")
+		By("Prepare HCPOpenshiftCluster nodepool client")
 		NodePoolsClient = clients.NewNodePoolsClient()
-		By("Preparing customer environment values")
+		By("Prepare customer environment values")
 		customerEnv = &e2eSetup.CustomerEnv
 		nodePools = &e2eSetup.Nodepools
 		clusterEnv = &e2eSetup.Cluster
 	})
 
 	Context("Positive", func() {
-		It("Get each nodepool from cluster", labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
+		It("Get each nodepool from HCPOpenShiftCluster", labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
 			if nodePools != nil {
 				nps := *nodePools
 				for np := range nps {
