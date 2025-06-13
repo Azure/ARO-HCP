@@ -41,3 +41,22 @@ detect-change: materialize
 		echo "No changes detected in the configuration files."; \
 	fi
 .PHONY: detect-change
+
+validate:
+	$(MAKE) -C ./../tooling/templatize templatize
+	./../tooling/templatize/templatize configuration validate --service-config-file ./config.msft.yaml \
+	                                                          --dev-settings-file ./../tooling/templatize/settings.yaml \
+	                                                          --digest-file ./msft.digests.yaml \
+	                                                          --output-dir ./rendered $(UPDATE)
+	./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
+	                                                          --dev-settings-file ./../tooling/templatize/settings.yaml \
+	                                                          --digest-file ./dev.digests.yaml \
+	                                                          --output-dir ./rendered $(UPDATE)
+	./../tooling/templatize/templatize configuration validate --service-config-file ./config.msft.yaml \
+	                                                          --digest-file ./msft.all.digests.yaml $(UPDATE)
+.PHONY: validate
+
+render:
+	rm -rf ./rendered
+	$(MAKE) validate UPDATE="--update"
+.PHONY: render
