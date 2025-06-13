@@ -345,9 +345,9 @@
   },
   "monitoring": {
     "devAlertingEmails": "aro-hcp-service-lifecycle-team@redhat.com",
-    "grafanaAdminGroupPrincipalId": "6b6d3adf-8476-4727-9812-20ffdef2b85c",
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
+    "grafanaRoles": "6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin",
     "grafanaZoneRedundantMode": "Disabled",
     "hcpWorkspaceName": "arohcp-hcp-ntly-ussw1",
     "sev1ActionGroupIDs": "",

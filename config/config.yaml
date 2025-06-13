@@ -80,6 +80,9 @@ defaults:
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
+    # Format: Multiline string using '>-' YAML block scalar
+    #   One item per line, formatted as: UUID/PrincipalType/RoleName
+    grafanaRoles: >-
     svcWorkspaceName: 'arohcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
     hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
     devAlertingEmails: ""
@@ -530,7 +533,8 @@ clouds:
         devAlertingEmails: "aro-hcp-service-lifecycle-team@redhat.com"
         grafanaMajorVersion: '11'
         grafanaZoneRedundantMode: Disabled
-        grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
+        grafanaRoles: >-
+          6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
       # DEVOPS MSI
       aroDevopsMsiId: '/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity'
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'

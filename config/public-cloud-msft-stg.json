@@ -344,9 +344,9 @@
   },
   "monitoring": {
     "devAlertingEmails": "",
-    "grafanaAdminGroupPrincipalId": "",
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-stg",
+    "grafanaRoles": "",
     "grafanaZoneRedundantMode": "Disabled",
     "hcpWorkspaceName": "arohcp-hcp-stg-ussw1",
     "sev1ActionGroupIDs": "",

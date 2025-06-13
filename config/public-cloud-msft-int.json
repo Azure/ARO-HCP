@@ -348,9 +348,9 @@
   },
   "monitoring": {
     "devAlertingEmails": "",
-    "grafanaAdminGroupPrincipalId": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe",
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-int",
+    "grafanaRoles": "2fdb57d4-3fd3-415d-b604-1d0e37a188fe/Group/Admin",
     "grafanaZoneRedundantMode": "Disabled",
     "hcpWorkspaceName": "arohcp-hcp-int-ussw1",
     "sev1ActionGroupIDs": "",

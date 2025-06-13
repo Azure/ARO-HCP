@@ -411,7 +411,11 @@ var _locationAvailabilityZones = {
 }
 
 @export()
-func csvToArray(inputString string) array => inputString == '' ? [] : split(inputString, ',')
+func splitOrEmptyArray(inputString string, delimiter string) array =>
+  inputString == '' ? [] : split(inputString, delimiter)
+
+@export()
+func csvToArray(inputString string) array => splitOrEmptyArray(inputString, ',')
 
 @export()
 func arrayToCSV(inputArray array) string => join(inputArray, ',')
