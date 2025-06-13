@@ -41,31 +41,31 @@
   "clustersService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
-        "roleName": "Azure Red Hat OpenShift Cloud Controller Manager - Dev"
+        "roleNames": "Azure Red Hat OpenShift Cloud Controller Manager - Dev"
       },
       "cloudNetworkConfig": {
-        "roleName": "Azure Red Hat OpenShift Network Operator - Dev"
+        "roleNames": "Azure Red Hat OpenShift Network Operator - Dev"
       },
       "clusterApiAzure": {
-        "roleName": "Azure Red Hat OpenShift Cluster API Role - Dev"
+        "roleNames": "Azure Red Hat OpenShift Cluster API Role - Dev"
       },
       "controlPlane": {
-        "roleName": "Azure Red Hat OpenShift Control Plane Operator Role - Dev"
+        "roleNames": "Azure Red Hat OpenShift Control Plane Operator Role - Dev"
       },
       "diskCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift Disk Storage Operator - Dev"
+        "roleNames": "Azure Red Hat OpenShift Disk Storage Operator - Dev"
       },
       "fileCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift File Storage Operator - Dev"
+        "roleNames": "Azure Red Hat OpenShift File Storage Operator - Dev"
       },
       "imageRegistry": {
-        "roleName": "Azure Red Hat OpenShift Image Registry Operator - Dev"
+        "roleNames": "Azure Red Hat OpenShift Image Registry Operator - Dev"
       },
       "ingress": {
-        "roleName": "Azure Red Hat OpenShift Cluster Ingress Operator - Dev"
+        "roleNames": "Azure Red Hat OpenShift Cluster Ingress Operator - Dev"
       },
       "kms": {
-        "roleName": "Azure Red Hat OpenShift KMS Plugin - Dev"
+        "roleNames": "Azure Red Hat OpenShift KMS Plugin - Dev"
       }
     },
     "environment": "arohcpdev",

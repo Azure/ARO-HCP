@@ -1,6 +1,6 @@
 #!/bin/bash 
 
-# The 'roleName' field in the ../config/config.yaml file is a comma separated list of role names.
+# The 'roleNames' field in the ../config/config.yaml file is a comma separated list of role names.
 # This script separates them and generates `--set` flags for the `helm deploy` command.
 # Please note that since here, the role names are being separated by commas, the role name itself
 # cannot have a comma in it's name.
