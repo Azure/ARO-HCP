@@ -1,7 +1,5 @@
 import {
   csvToArray
-  determineZoneRedundancy
-  determineZoneRedundancyForRegion
   getLocationAvailabilityZonesCSV
   parseIPServiceTag
 } from '../modules/common.bicep'

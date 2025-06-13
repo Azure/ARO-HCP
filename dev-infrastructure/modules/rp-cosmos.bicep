@@ -10,13 +10,20 @@ param userAssignedMIs array
 param private bool
 
 // Local Params
-var containers = [
+type Container = {
+  name: string
+  defaultTtl: int
+  partitionKeyPaths: array
+}
+var containers Container[] = [
   {
     name: 'Resources'
-    defaultTtl: -1 // enable ttl on items
+    defaultTtl: -1 // On, no default expiration
+    partitionKeyPaths: ['/partitionKey']
   }
   {
     name: 'Billing'
+    defaultTtl: -1 // On, no default expiration
     partitionKeyPaths: ['/subscriptionId']
   }
   {
@@ -95,7 +102,7 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
     properties: {
       resource: {
         id: c.name
-        defaultTtl: c.?defaultTtl ?? -1 // no expiration
+        defaultTtl: c.defaultTtl
         indexingPolicy: {
           indexingMode: 'consistent'
           automatic: true
@@ -111,7 +118,7 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
           ]
         }
         partitionKey: {
-          paths: c.?partitionKeyPaths ?? ['/partitionKey']
+          paths: c.partitionKeyPaths
           kind: 'Hash'
           version: 2
         }
