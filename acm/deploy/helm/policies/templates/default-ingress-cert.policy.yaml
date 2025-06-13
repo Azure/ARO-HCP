@@ -1,0 +1,79 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+  name: default-ingress-config
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  disabled: false
+  remediationAction: enforce
+  dependencies:
+  - apiVersion: policy.open-cluster-management.io/v1
+    compliance: Compliant
+    kind: Policy
+    name: ingress-controller-check
+    namespace: '{{ .Release.Namespace }}'
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: default-ingress-cert
+        spec:
+          evaluationInterval:
+            compliant: "10m"
+            noncompliant: "10s"
+          object-templates:
+            - complianceType: MustHave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                data: '{{`{{hub copySecretData "open-cluster-management-policies" (printf "default-ingress-tls-cert-%s" .ManagedClusterName) hub}}`}}'
+                type: kubernetes.io/tls
+                metadata:
+                  name: cluster-ingress-cert
+                  namespace: openshift-ingress
+          pruneObjectBehavior: DeleteIfCreated
+          remediationAction: enforce
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: default-ingress-config
+        spec:
+          evaluationInterval:
+            complaint: "10m"
+            noncompliant: "10s"
+          object-templates-raw: |
+            - complianceType: musthave
+              metadataComplianceType: musthave
+              objectDefinition:
+                apiVersion: operator.openshift.io/v1
+                kind: IngressController
+                metadata:
+                  name: default
+                  namespace: openshift-ingress-operator
+                spec:
+                  defaultCertificate:
+                    name: cluster-ingress-cert
+          pruneObjectBehavior: None
+          remediationAction: enforce
+          severity: low
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: default-ingress-cert
+  namespace: '{{ .Release.Namespace }}'
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: all-hosted-clusters
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: default-ingress-config
