@@ -340,6 +340,8 @@ defaults:
   imageSync:
     environmentName: aro-hcp-image-sync
     outboundServiceTags: ""
+    ondemandSync:
+      pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
       image:

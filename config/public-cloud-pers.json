@@ -208,6 +208,9 @@
       },
       "pullSecretName": "ocmirror-pull-secret"
     },
+    "ondemandSync": {
+      "pullSecretName": "component-sync-pull-secret"
+    },
     "outboundServiceTags": ""
   },
   "kusto": {
