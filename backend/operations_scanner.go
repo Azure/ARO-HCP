@@ -122,19 +122,13 @@ func (o *operation) setSpanAttributes(span trace.Span) {
 			tracing.ResourceTypeKey.String(o.doc.ExternalID.ResourceType.Type),
 		)
 	}
-
-	switch o.doc.InternalID.Kind() {
-	case arohcpv1alpha1.ClusterKind:
-		span.SetAttributes(tracing.ClusterIDKey.String(o.doc.InternalID.ID()))
-		// TODO(simonpasquier): add node pool attribute when available
-	}
 }
 
 type OperationsScanner struct {
 	location            string
 	dbClient            database.DBClient
 	lockClient          *database.LockClient
-	clusterService      ocm.ClusterServiceClient
+	clusterService      ocm.ClusterServiceClientSpec
 	notificationClient  *http.Client
 	subscriptionsLock   sync.Mutex
 	subscriptions       []string
@@ -155,10 +149,18 @@ type OperationsScanner struct {
 
 func NewOperationsScanner(location string, dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
 	s := &OperationsScanner{
-		location:           location,
-		dbClient:           dbClient,
-		lockClient:         dbClient.GetLockClient(),
-		clusterService:     ocm.ClusterServiceClient{Conn: ocmConnection},
+		location:   location,
+		dbClient:   dbClient,
+		lockClient: dbClient.GetLockClient(),
+		clusterService: ocm.NewClusterServiceClientWithTracing(
+			ocm.NewClusterServiceClient(
+				ocmConnection,
+				"",
+				false,
+				false,
+			),
+			tracerName,
+		),
 		notificationClient: http.DefaultClient,
 		subscriptions:      make([]string, 0),
 		newTimestamp:       func() time.Time { return time.Now().UTC() },
