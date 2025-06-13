@@ -43,28 +43,28 @@ func persistAndRun(t *testing.T, e2eImpl E2E) {
 	assert.NoError(t, err)
 }
 
-// func TestE2EMake(t *testing.T) {
-// 	// if !shouldRunE2E() {
-// 	// 	t.Skip("Skipping end-to-end tests")
-// 	// }
+func TestE2EMake(t *testing.T) {
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
 
-// 	tmpDir := t.TempDir()
+	tmpDir := t.TempDir()
 
-// 	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eMake.yaml")
-// 	assert.NoError(t, err)
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eMake.yaml")
+	assert.NoError(t, err)
 
-// 	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"test_env": "test_env"}})
+	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"test_env": "test_env"}})
 
-// 	e2eImpl.makefile = `
-// test:
-// 	echo ${TEST_ENV} > env.txt
-// `
-// 	persistAndRun(t, e2eImpl)
+	e2eImpl.makefile = `
+test:
+	echo ${TEST_ENV} > env.txt
+`
+	persistAndRun(t, e2eImpl)
 
-// 	io, err := os.ReadFile(tmpDir + "/env.txt")
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, string(io), "test_env\n")
-// }
+	io, err := os.ReadFile(tmpDir + "/env.txt")
+	assert.NoError(t, err)
+	assert.Equal(t, string(io), "test_env\n")
+}
 
 func TestE2EKubernetes(t *testing.T) {
 	if !shouldRunE2E() {

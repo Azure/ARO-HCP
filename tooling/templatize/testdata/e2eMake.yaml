@@ -8,6 +8,8 @@ resourceGroups:
   - name: test
     action: Shell
     command: make test
+    shellIdentity:
+      Value: "test"
     variables:
     - name: TEST_ENV
       configRef: test_env
