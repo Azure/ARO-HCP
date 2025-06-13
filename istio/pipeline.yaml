@@ -16,3 +16,5 @@ resourceGroups:
     variables:
     - name: ISTIO_VERSIONS
       configRef: svc.istio.versions
+    shellIdentity:
+      configRef: aroDevopsMsiId
