@@ -20,13 +20,13 @@
     "operatorConfig": {
       "type": "object",
       "properties": {
-        "roleName": {
+        "roleNames": {
           "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
-        "roleName"
+        "roleNames"
       ]
     },
     "tracing": {

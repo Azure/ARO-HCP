@@ -41,31 +41,31 @@
   "clustersService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
-        "roleName": "Azure Red Hat OpenShift Cloud Controller Manager"
+        "roleNames": "Azure Red Hat OpenShift Cloud Controller Manager"
       },
       "cloudNetworkConfig": {
-        "roleName": "Azure Red Hat OpenShift Network Operator"
+        "roleNames": "Azure Red Hat OpenShift Network Operator"
       },
       "clusterApiAzure": {
-        "roleName": "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider"
+        "roleNames": "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider"
       },
       "controlPlane": {
-        "roleName": "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator"
+        "roleNames": "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator"
       },
       "diskCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift Disk Storage Operator"
+        "roleNames": "Azure Red Hat OpenShift Disk Storage Operator"
       },
       "fileCsiDriver": {
-        "roleName": "Azure Red Hat OpenShift File Storage Operator"
+        "roleNames": "Azure Red Hat OpenShift File Storage Operator"
       },
       "imageRegistry": {
-        "roleName": "Azure Red Hat OpenShift Image Registry Operator"
+        "roleNames": "Azure Red Hat OpenShift Image Registry Operator"
       },
       "ingress": {
-        "roleName": "Azure Red Hat OpenShift Cluster Ingress Operator"
+        "roleNames": "Azure Red Hat OpenShift Cluster Ingress Operator"
       },
       "kms": {
-        "roleName": "Key Vault Crypto User"
+        "roleNames": "Key Vault Crypto User"
       }
     },
     "environment": "arohcpint",

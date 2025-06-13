@@ -409,25 +409,27 @@ clouds:
         environment: "arohcpdev"
         image:
           digest: sha256:5830e8c95beba213e3f2aa885fd55171fdf601993966f1ac0a36784ba6eb5ba2
+        # NOTE: The role names must not include commas(,) in the name as the roleNames field
+        # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
           clusterApiAzure:
-            roleName: Azure Red Hat OpenShift Cluster API Role - Dev
+            roleNames: Azure Red Hat OpenShift Cluster API Role - Dev
           controlPlane:
-            roleName: Azure Red Hat OpenShift Control Plane Operator Role - Dev
+            roleNames: Azure Red Hat OpenShift Control Plane Operator Role - Dev
           cloudControllerManager:
-            roleName: Azure Red Hat OpenShift Cloud Controller Manager - Dev
+            roleNames: Azure Red Hat OpenShift Cloud Controller Manager - Dev
           ingress:
-            roleName: Azure Red Hat OpenShift Cluster Ingress Operator - Dev
+            roleNames: Azure Red Hat OpenShift Cluster Ingress Operator - Dev
           diskCsiDriver:
-            roleName: Azure Red Hat OpenShift Disk Storage Operator - Dev
+            roleNames: Azure Red Hat OpenShift Disk Storage Operator - Dev
           fileCsiDriver:
-            roleName: Azure Red Hat OpenShift File Storage Operator - Dev
+            roleNames: Azure Red Hat OpenShift File Storage Operator - Dev
           imageRegistry:
-            roleName: Azure Red Hat OpenShift Image Registry Operator - Dev
+            roleNames: Azure Red Hat OpenShift Image Registry Operator - Dev
           cloudNetworkConfig:
-            roleName: Azure Red Hat OpenShift Network Operator - Dev
+            roleNames: Azure Red Hat OpenShift Network Operator - Dev
           kms:
-            roleName: Azure Red Hat OpenShift KMS Plugin - Dev
+            roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
       # Hypershift Operator
       hypershift:
         image:

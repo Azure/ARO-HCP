@@ -388,25 +388,27 @@ clouds:
       clustersService:
         azureOperatorsManagedIdentities:
           # newly configured ARO-HCP builtin roles:
+          # NOTE: The role names must not include commas(,) in the name as the roleNames field
+          # here is a comma separated list of role definition names.
           clusterApiAzure:
-            roleName: Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
+            roleNames: Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
           controlPlane:
-            roleName: Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
+            roleNames: Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
           # Classic roles:
           cloudControllerManager:
-            roleName: Azure Red Hat OpenShift Cloud Controller Manager
+            roleNames: Azure Red Hat OpenShift Cloud Controller Manager
           ingress:
-            roleName: Azure Red Hat OpenShift Cluster Ingress Operator
+            roleNames: Azure Red Hat OpenShift Cluster Ingress Operator
           diskCsiDriver:
-            roleName: Azure Red Hat OpenShift Disk Storage Operator
+            roleNames: Azure Red Hat OpenShift Disk Storage Operator
           fileCsiDriver:
-            roleName: Azure Red Hat OpenShift File Storage Operator
+            roleNames: Azure Red Hat OpenShift File Storage Operator
           imageRegistry:
-            roleName: Azure Red Hat OpenShift Image Registry Operator
+            roleNames: Azure Red Hat OpenShift Image Registry Operator
           cloudNetworkConfig:
-            roleName: Azure Red Hat OpenShift Network Operator
+            roleNames: Azure Red Hat OpenShift Network Operator
           kms:
-            roleName: Key Vault Crypto User
+            roleNames: Key Vault Crypto User
       # Logs
       logs:
         mdsd:
