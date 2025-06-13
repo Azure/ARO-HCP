@@ -30,8 +30,8 @@ param grafanaName string
 @description('The Grafana major version')
 param grafanaMajorVersion string
 
-@description('The admin group principal ID to use Grafana')
-param grafanaAdminGroupPrincipalId string
+@description('List of grafana role assignments as a space-separated list of items in the format of "principalId/principalType/role"')
+param grafanaRoles string
 
 @description('The zone redundant mode of Grafana')
 param grafanaZoneRedundantMode string
@@ -180,8 +180,8 @@ module grafana '../modules/grafana/instance.bicep' = {
     location: location
     grafanaName: grafanaName
     grafanaMajorVersion: grafanaMajorVersion
-    grafanaAdminGroupPrincipalId: grafanaAdminGroupPrincipalId
     grafanaManagerPrincipalId: globalMSI.properties.principalId
+    grafanaRoles: grafanaRoles
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
     azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
   }
