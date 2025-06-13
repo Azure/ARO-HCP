@@ -17,12 +17,12 @@ package validate
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
@@ -132,15 +132,21 @@ func (o *ValidatedValidationOptions) Complete() (*ValidationOptions, error) {
 }
 
 func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Context) error {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create logger: %w", err)
+	}
 	ev2Context, err := ev2config.AllContexts()
 	if err != nil {
 		return fmt.Errorf("failed to load ev2 contexts: %w", err)
 	}
 	group, _ := errgroup.WithContext(ctx)
 	for cloud, environments := range opts.Config.AllContexts() {
-		slog.Info("Validating cloud.", "cloud", cloud)
+		cloudLogger := logger.WithValues("cloud", cloud)
+		cloudLogger.Info("Validating cloud.", "cloud", cloud)
 		for environment := range environments {
-			slog.Info("Validating environment.", "cloud", cloud, "environment", environment)
+			envLogger := cloudLogger.WithValues("environment", environment)
+			envLogger.Info("Validating environment.")
 			var regions []string
 			if opts.DevMode {
 				regions = []string{opts.DevRegion}
@@ -148,7 +154,8 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 				regions = ev2Context[cloud]
 			}
 			for _, region := range regions {
-				slog.Info("Validating region.", "cloud", cloud, "environment", environment, "region", region)
+				regionLogger := envLogger.WithValues("region", region)
+				regionLogger.Info("Validating region.")
 				prefix := fmt.Sprintf("config[%s][%s][%s]:", cloud, environment, region)
 				ev2Cloud := cloud
 				if opts.DevMode {
@@ -199,7 +206,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 				}
 
 				for _, service := range opts.Topology.Services {
-					if err := handleService(prefix, group, opts.TopologyDir, service, cfg); err != nil {
+					if err := handleService(regionLogger, prefix, group, opts.TopologyDir, service, cfg); err != nil {
 						return err
 					}
 				}
@@ -209,7 +216,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 	return group.Wait()
 }
 
-func handleService(context string, group *errgroup.Group, baseDir string, service topology.Service, cfg config.Configuration) error {
+func handleService(logger logr.Logger, context string, group *errgroup.Group, baseDir string, service topology.Service, cfg config.Configuration) error {
 	group.Go(func() error {
 		pipelinePath := service.PipelinePath
 		if pipelinePath == "" {
@@ -382,11 +389,11 @@ func handleService(context string, group *errgroup.Group, baseDir string, servic
 				}
 			}
 		}
-		slog.Info("Validated service.", "service", service.ServiceGroup)
+		logger.Info("Validated service.", "service", service.ServiceGroup)
 		return nil
 	})
 	for _, child := range service.Children {
-		if err := handleService(context, group, baseDir, child, cfg); err != nil {
+		if err := handleService(logger, context, group, baseDir, child, cfg); err != nil {
 			return err
 		}
 	}
