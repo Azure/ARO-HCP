@@ -1,1 +1,7 @@
 imageRegistry: ""
+serviceAccountName: multicluster-engine-operator
+pullBinding:
+  registry: ""
+  scope: ""
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""
