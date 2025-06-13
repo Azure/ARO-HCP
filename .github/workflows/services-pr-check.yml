@@ -81,9 +81,6 @@ jobs:
     #- name: 'Dry Run Backplane API'
     #  run: |
     #    make backplane-api.dry_run
-    - name: 'Dry Run ACR Pull'
-      run: |
-        make acrpull.dry_run
   mgmt_cluster_pr_check:
     permissions:
       id-token: 'write'
@@ -115,9 +112,6 @@ jobs:
     - name: 'Install helm diff'
       run: |
         helm plugin install https://github.com/databus23/helm-diff
-    - name: 'Dry Run ACR Pull on MGMT'
-      run: |
-        make acrpull.mgmt.dry_run
     - name: 'Dry Run HypershiftOperator'
       run: |
         make hypershiftoperator.dry_run

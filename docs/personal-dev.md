@@ -68,7 +68,6 @@ The process described in the previous section takes a lot of time. In case you w
 | make deployall                          | Deploys or updates all service to the service and management cluster                                     |
 | make svc.deployall                      | Deploys or updates all services to the service cluster                                                   |
 | make mgmt.deployall                     | Deploys or updates all services to the management clusters                                               |
-| make istio.deploy_pipeline              | Deploys or updates the istio configuration on the service cluster                                        |
 | make backend.deploy_pipeline            | Deploys or updates the RP backend on the service cluster                                                 |
 | make frontend.deploy_pipeline           | Deploys or updates the RP frontend on the service cluster                                                |
 | make cluster-service.deploy_pipeline    | Deploys or updates CS on the service cluster                                                             |
