@@ -1,0 +1,11 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Test Rollout
+resourceGroups:
+- name: '{{ .rg }}'
+  subscription: '{{ .subscription }}'
+  steps:
+  - name: parameterA
+    action: ARM
+    template: testa.bicep
+    parameters: testa.bicepparm
+    deploymentLevel: Subscription

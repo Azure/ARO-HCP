@@ -1,0 +1,24 @@
+serviceGroup: Microsoft.Azure.ARO.Test
+rolloutName: Test Rollout
+resourceGroups:
+- name: '{{ .rg }}'
+  subscription: '{{ .subscription }}'
+  steps:
+  - name: parameterA
+    action: ARM
+    template: testa.bicep
+    parameters: testa.bicepparm
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: readInput
+    action: Shell
+    command: echo ${end} > env.txt
+    shellIdentity:
+      Value: "test"
+    variables:
+    - name: end
+      input:
+        name: parameterA
+        step: parameterA
+    dryRun:
+      command: echo ${end} > env.txt
