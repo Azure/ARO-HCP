@@ -13,8 +13,8 @@ param keyVaultSoftDelete = {{ .global.keyVault.softDelete }}
 
 param grafanaName = '{{ .monitoring.grafanaName }}'
 param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
-param grafanaAdminGroupPrincipalId = '{{ .monitoring.grafanaAdminGroupPrincipalId }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'
+param grafanaRoles = '{{ .monitoring.grafanaRoles }}'
 
 param globalNSPName = '{{ .global.nsp.name }}'
 param globalNSPAccessMode = '{{ .global.nsp.accessMode }}'
