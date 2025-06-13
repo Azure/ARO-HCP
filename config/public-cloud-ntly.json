@@ -360,7 +360,7 @@
       }
     },
     "rg": "hcp-underlay-ntly-southwestus-mgmt-999",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
+    "subscription": "ARO HCP nightly management (EA Subscription)"
   },
   "mgmtKeyVault": {
     "name": "ah-ntly-mg-ussw1-999",

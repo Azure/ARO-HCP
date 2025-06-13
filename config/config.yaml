@@ -671,6 +671,7 @@ clouds:
               zoneRedundantMode: 'Disabled'
           # MC
           mgmt:
+            subscription: ARO HCP nightly management (EA Subscription)
             applyKubeletFixes: false
           svc:
             subscription: ARO HCP nightly service (EA Subscription)
