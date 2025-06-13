@@ -764,6 +764,19 @@
         "outboundServiceTags": {
           "$ref": "#/definitions/keyColonValueCSV"
         },
+        "ondemandSync": {
+          "type": "object",
+          "properties": {
+            "pullSecretName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "pullSecretName"
+          ]
+
+        },
         "ocMirror": {
           "type": "object",
           "properties": {

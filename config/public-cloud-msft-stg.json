@@ -173,6 +173,9 @@
       },
       "pullSecretName": "ocmirror-pull-secret"
     },
+    "ondemandSync": {
+      "pullSecretName": "component-sync-pull-secret"
+    },
     "outboundServiceTags": "FirstPartyUsage:/Unprivileged"
   },
   "kvCertOfficerPrincipalId": "ce4e50ef-1059-4b6f-a53a-53001d517513",
