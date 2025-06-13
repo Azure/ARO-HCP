@@ -50,7 +50,7 @@ func persistAndRun(t *testing.T, e2eImpl E2E) {
 
 // 	tmpDir := t.TempDir()
 
-// 	e2eImpl, err := newE2E(tmpDir, "e2eMake.yaml")
+// 	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eMake.yaml")
 // 	assert.NoError(t, err)
 
 // 	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"test_env": "test_env"}})
@@ -73,7 +73,7 @@ func TestE2EKubernetes(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eKubernetes.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eKubernetes.yaml")
 	assert.NoError(t, err)
 
 	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"rg": "hcp-underlay-dev-westus3-svc"}})
@@ -88,7 +88,7 @@ func TestE2EArmDeploy(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eArmDeploy.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eArmDeploy.yaml")
 	assert.NoError(t, err)
 
 	cleanup := e2eImpl.UseRandomRG()
@@ -134,7 +134,7 @@ func TestE2EShell(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
 	assert.NoError(t, err)
 
-	e2eImpl, err := newE2E(tmpDir, "e2eShell.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eShell.yaml")
 	assert.NoError(t, err)
 
 	persistAndRun(t, e2eImpl)
@@ -151,7 +151,7 @@ func TestE2EArmDeployWithOutput(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eArmDeployWithOutput.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eArmDeployWithOutput.yaml")
 	assert.NoError(t, err)
 
 	cleanup := e2eImpl.UseRandomRG()
@@ -183,7 +183,7 @@ func TestE2EArmDeployWithStaticVariable(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eArmDeployWithStaticVariable.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eArmDeployWithStaticVariable.yaml")
 	assert.NoError(t, err)
 
 	cleanup := e2eImpl.UseRandomRG()
@@ -215,7 +215,7 @@ func TestE2EArmDeployWithOutputToArm(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eArmDeployWithOutputToArm.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eArmDeployWithOutputToArm.yaml")
 	assert.NoError(t, err)
 
 	e2eImpl.AddBicepTemplate(`
@@ -258,7 +258,7 @@ func TestE2EArmDeployWithOutputRGOverlap(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eArmDeployWithOutputRGOverlap.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eArmDeployWithOutputRGOverlap.yaml")
 	assert.NoError(t, err)
 
 	e2eImpl.AddBicepTemplate(`
@@ -289,7 +289,7 @@ func TestE2EArmDeploySubscriptionScope(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eArmDeploySubscriptionScope.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eArmDeploySubscriptionScope.yaml")
 	assert.NoError(t, err)
 
 	rgName := GenerateRandomRGName()
@@ -326,7 +326,7 @@ func TestE2EDryRun(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eDryRun.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eDryRun.yaml")
 	assert.NoError(t, err)
 
 	bicepFile := `
@@ -365,7 +365,7 @@ func TestE2EOutputOnly(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	e2eImpl, err := newE2E(tmpDir, "e2eOutputOnly.yaml")
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eOutputOnly.yaml")
 	assert.NoError(t, err)
 
 	e2eImpl.AddBicepTemplate(`
