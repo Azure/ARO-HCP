@@ -1,7 +1,5 @@
 import {
   csvToArray
-  determineZoneRedundancy
-  determineZoneRedundancyForRegion
   getLocationAvailabilityZonesCSV
   parseIPServiceTag
 } from '../modules/common.bicep'
@@ -36,21 +34,6 @@ param ocpAcrName string
 @description('Name of the keyvault where the pull secret is stored')
 param keyVaultName string
 
-@description('The name of the pull secret for the component sync job')
-param componentSyncPullSecretName string
-
-@description('The image to use for the component sync job')
-param componentSyncImage string
-
-@description('Defines if the component sync job should be enabled')
-param componentSyncEnabed bool
-
-@description('A CSV of the repositories to sync')
-param repositoriesToSync string
-
-@description('The number of tags to sync per image in the repo list')
-param numberOfTags int = 10
-
 @description('The image to use for the oc-mirror job')
 param ocMirrorImage string
 
@@ -60,31 +43,6 @@ param ocMirrorEnabled bool
 @description('The name of the pull secret for the oc-mirror job')
 param ocpPullSecretName string
 
-@description('Secret configuration to pass into component sync')
-#disable-next-line secure-secrets-in-params // Doesn't contain a secret
-param componentSyncSecrets string
-
-var csSecrets = [
-  for secret in csvToArray(componentSyncSecrets): {
-    registry: split(secret, ':')[0]
-    secret: split(secret, ':')[1]
-  }
-]
-
-var bearerSecrets = [for css in csSecrets: '${css.secret}']
-
-var secretsFolder = '/etc/containers'
-
-var secretWithFolderPrefix = [
-  for css in csSecrets: {
-    registry: css.registry
-    secretFile: '/auth/${css.secret}'
-  }
-]
-
-var secretVar = {
-  secrets: secretWithFolderPrefix
-}
 
 resource kv 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: keyVaultName
@@ -249,7 +207,7 @@ module acrPushPullPermissions '../modules/acr/acr-permissions.bicep' = [
 ]
 
 module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' = [
-  for secretName in union([componentSyncPullSecretName, ocpPullSecretName], bearerSecrets): {
+  for secretName in [ocpPullSecretName]: {
     name: guid(imageSyncManagedIdentity, location, keyVaultName, secretName, 'secret-user')
     params: {
       keyVaultName: keyVaultName
@@ -262,140 +220,6 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
     ]
   }
 ]
-
-//
-// Component sync job
-//
-
-var componentSyncJobName = 'component-sync'
-
-var componentSecretsArray = [
-  for bearerSecretName in bearerSecrets: {
-    name: bearerSecretName
-    keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${bearerSecretName}'
-    identity: uami.id
-  }
-]
-
-var componentSecretVolumesArray = [
-  for bearerSecretName in bearerSecrets: {
-    name: bearerSecretName
-    storageType: 'Secret'
-    secrets: [
-      { secretRef: bearerSecretName }
-    ]
-  }
-]
-
-var componentSecretVolumeMountsArray = [
-  for bearerSecretName in bearerSecrets: {
-    volumeName: bearerSecretName
-    mountPath: '/tmp/secrets/${bearerSecretName}'
-  }
-]
-
-resource componentSyncJob 'Microsoft.App/jobs@2024-03-01' = if (componentSyncEnabed) {
-  name: componentSyncJobName
-  location: location
-
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${uami.id}': {}
-    }
-  }
-
-  properties: {
-    environmentId: containerAppEnvironment.id
-    configuration: {
-      eventTriggerConfig: {}
-      triggerType: 'Schedule'
-      scheduleTriggerConfig: {
-        cronExpression: '*/5 * * * *'
-        parallelism: 1
-      }
-      replicaTimeout: 60 * 60
-      registries: [
-        {
-          identity: uami.id
-          server: '${svcAcrName}${environment().suffixes.acrLoginServer}'
-        }
-      ]
-      secrets: union(
-        [
-          {
-            name: 'pull-secrets'
-            keyVaultUrl: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${componentSyncPullSecretName}'
-            identity: uami.id
-          }
-        ],
-        componentSecretsArray
-      )
-    }
-    template: {
-      containers: [
-        {
-          name: componentSyncJobName
-          image: componentSyncImage
-          volumeMounts: [
-            { volumeName: 'pull-secrets-updated', mountPath: '/auth' }
-          ]
-          env: [
-            { name: 'NUMBER_OF_TAGS', value: '${numberOfTags}' }
-            { name: 'REPOSITORIES', value: repositoriesToSync }
-            { name: 'ACR_TARGET_REGISTRY', value: '${svcAcrName}${environment().suffixes.acrLoginServer}' }
-            { name: 'TENANT_ID', value: tenant().tenantId }
-            { name: 'DOCKER_CONFIG', value: '/auth' }
-            { name: 'MANAGED_IDENTITY_CLIENT_ID', value: uami.properties.clientId }
-            { name: 'SECRETS', value: string(secretVar) }
-          ]
-        }
-      ]
-      initContainers: [
-        {
-          name: 'decodesecrets'
-          image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
-          command: [
-            '/bin/sh'
-          ]
-          args: [
-            '-c'
-            'cat /tmp/secret-orig/pull-secrets |base64 -d > /etc/containers/config.json && cd /tmp/secrets; for file in $(find . -type f); do export fn=$(basename $file); cat $file | base64 -d > ${secretsFolder}/$fn; done;'
-          ]
-          volumeMounts: union(
-            [
-              { volumeName: 'pull-secrets-updated', mountPath: '/etc/containers' }
-              { volumeName: 'pull-secrets', mountPath: '/tmp/secret-orig' }
-            ],
-            componentSecretVolumeMountsArray
-          )
-        }
-      ]
-      volumes: union(
-        [
-          {
-            name: 'pull-secrets-updated'
-            storageType: 'EmptyDir'
-          }
-          {
-            name: 'pull-secrets'
-            storageType: 'Secret'
-            secrets: [
-              { secretRef: 'pull-secrets' }
-            ]
-          }
-        ],
-        componentSecretVolumesArray
-      )
-    }
-  }
-  dependsOn: [
-    kv
-    acrPushPullPermissions
-    ocpAcrPrivateEndpoint
-    svcAcrPrivateEndpoint
-  ]
-}
 
 //
 //  O P E R A T O R   M I R R O R   J O B

@@ -340,15 +340,6 @@ defaults:
   imageSync:
     environmentName: aro-hcp-image-sync
     outboundServiceTags: ""
-    componentSync:
-      enabled: false
-      repositories: ""
-      secrets: ""
-      image:
-        registry: arohcpsvcdev.azurecr.io
-        repository: image-sync/component-sync
-        digest: ""
-      pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
       image:
@@ -481,12 +472,6 @@ clouds:
           digest: '' # if empty uses commit sha of repo
       # Image Sync
       imageSync:
-        componentSync:
-          enabled: true
-          repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/package-operator/remote-phase-manager,quay.io/app-sre/backplane-api
-          secrets: 'quay.io:quay-io-bearer'
-          image:
-            digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
         ocMirror:
           image:
             digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
