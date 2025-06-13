@@ -13,7 +13,7 @@ go.work* @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-sch
 /backend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
 /internal/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler
 /tooling/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
-/config/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
+/config/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov @mbarnes @SudoBrendan @JameelB @miguelsorianod
 /metrics/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @stevekuznetsov
 /cluster-service/ @machi1990 @zgalor @miguelsorianod @JameelB
 /observability/tracing/ @frzifus @simonpasquier @dinhxuanvu @mbarnes
