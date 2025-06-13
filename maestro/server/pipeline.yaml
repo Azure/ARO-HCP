@@ -24,7 +24,7 @@ resourceGroups:
     - name: PULL_SECRET_KV
       configRef: global.keyVault.name
     - name: PULL_SECRET
-      configRef: imageSync.componentSync.pullSecretName
+      configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       configRef: aroDevopsMsiId
 - name: '{{ .svc.rg  }}'
