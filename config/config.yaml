@@ -57,6 +57,34 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/backplane-api
+  tenantId: ""
+  ev2:
+    assistedId:
+      certificate: ""
+      applicationId: ""
+  geneva:
+    principalId: ""
+    resourceContributor: ""
+    metrics:
+      cluster:
+        account: AzureRedHatOpenShiftCluster
+      rp:
+        account: AzureRedHatOpenShiftRP
+    logs:
+      administrators:
+        alias: AME\WEINONGW
+        securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+      typeName: ""
+      environment: "Test"
+      cluster:
+        accountName: AROClusterLogs
+        accountCert: ""
+      rp:
+        accountName: ARORPLogs
+        accountCert: ""
+  kusto:
+    resourceGroup: ""
+    cluster: ""
   # Hypershift
   hypershift:
     image:
