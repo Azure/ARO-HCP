@@ -218,13 +218,9 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 
 func handleService(logger logr.Logger, context string, group *errgroup.Group, baseDir string, service topology.Service, cfg config.Configuration) error {
 	group.Go(func() error {
-		pipelinePath := service.PipelinePath
-		if pipelinePath == "" {
-			pipelinePath = service.Metadata["pipeline"]
-		}
-		pipeline, err := types.NewPipelineFromFile(filepath.Join(baseDir, pipelinePath), cfg)
+		pipeline, err := types.NewPipelineFromFile(filepath.Join(baseDir, service.PipelinePath), cfg)
 		if err != nil {
-			return fmt.Errorf("%s: %s: failed to parse pipeline %s: %w", context, service.ServiceGroup, pipelinePath, err)
+			return fmt.Errorf("%s: %s: failed to parse pipeline %s: %w", context, service.ServiceGroup, service.PipelinePath, err)
 		}
 
 		type variableRef struct {
