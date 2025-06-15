@@ -38,6 +38,7 @@
       "repository": "app-sre/backplane-api"
     }
   },
+  "cloud": "Public",
   "clustersService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
@@ -104,6 +105,12 @@
     "regionalSubdomain": "southwestus-cs",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
+  "ev2": {
+    "assistedId": {
+      "applicationId": "",
+      "certificate": ""
+    }
+  },
   "extraVars": {},
   "firstPartyAppCertificate": {
     "issuer": "Self",
@@ -132,6 +139,34 @@
       "address": "",
       "exporter": ""
     }
+  },
+  "geneva": {
+    "logs": {
+      "administrators": {
+        "alias": "AME\\WEINONGW",
+        "securityGroup": "AME\\TM-AzureRedHatOpenShift-Leads"
+      },
+      "cluster": {
+        "accountCert": "",
+        "accountName": "AROClusterLogs"
+      },
+      "environment": "Test",
+      "rp": {
+        "accountCert": "",
+        "accountName": "ARORPLogs"
+      },
+      "typeName": ""
+    },
+    "metrics": {
+      "cluster": {
+        "account": "AzureRedHatOpenShiftCluster"
+      },
+      "rp": {
+        "account": "AzureRedHatOpenShiftRP"
+      }
+    },
+    "principalId": "",
+    "resourceContributor": ""
   },
   "genevaActions": {
     "serviceTag": "GenevaActionsNonProd"
@@ -185,6 +220,10 @@
       "pullSecretName": "ocmirror-pull-secret"
     },
     "outboundServiceTags": ""
+  },
+  "kusto": {
+    "cluster": "",
+    "resourceGroup": ""
   },
   "kvCertOfficerPrincipalId": "c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb",
   "logs": {
@@ -466,5 +505,6 @@
     },
     "rg": "hcp-underlay-cspr-southwestus-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
-  }
+  },
+  "tenantId": ""
 }

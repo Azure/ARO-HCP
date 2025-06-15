@@ -38,6 +38,7 @@
       "repository": "app-sre/backplane-api"
     }
   },
+  "cloud": "Public",
   "clustersService": {
     "azureOperatorsManagedIdentities": {
       "cloudControllerManager": {
@@ -104,6 +105,12 @@
     "regionalSubdomain": "southwestusstaging",
     "svcParentZoneName": "aro-hcp.azure.com"
   },
+  "ev2": {
+    "assistedId": {
+      "applicationId": "931fc462-30d1-4f16-b028-6032147e9a78",
+      "certificate": "https://aro-ev2-admin-prod-kv.vault.azure.net/secrets/aro-ev2-admin-prod-cert"
+    }
+  },
   "extraVars": {},
   "firstPartyAppCertificate": {
     "issuer": "OneCertV2-PrivateCA",
@@ -132,6 +139,34 @@
       "address": "",
       "exporter": ""
     }
+  },
+  "geneva": {
+    "logs": {
+      "administrators": {
+        "alias": "AME\\WEINONGW",
+        "securityGroup": "AME\\TM-AzureRedHatOpenShift-Leads"
+      },
+      "cluster": {
+        "accountCert": "https://aro-geneva-public-prod.vault.azure.net/secrets/aroclusterlogs-admin",
+        "accountName": "AROClusterLogs"
+      },
+      "environment": "DiagnosticsProd",
+      "rp": {
+        "accountCert": "https://aro-geneva-public-prod.vault.azure.net/secrets/arorplogs-admin",
+        "accountName": "ARORPLogs"
+      },
+      "typeName": "Microsoft.Geneva.Logs/ConfigureLogsAccount"
+    },
+    "metrics": {
+      "cluster": {
+        "account": "AzureRedHatOpenShiftCluster"
+      },
+      "rp": {
+        "account": "AzureRedHatOpenShiftRP"
+      }
+    },
+    "principalId": "92f388ee-7cfe-4aa2-95da-95fd8522f6b4",
+    "resourceContributor": "2a79f82f-7cc2-46d1-9b2e-1fda89c71bab"
   },
   "genevaActions": {
     "serviceTag": "GenevaActions"
@@ -185,6 +220,10 @@
       "pullSecretName": "ocmirror-pull-secret"
     },
     "outboundServiceTags": "FirstPartyUsage:/Unprivileged"
+  },
+  "kusto": {
+    "cluster": "",
+    "resourceGroup": ""
   },
   "kvCertOfficerPrincipalId": "ce4e50ef-1059-4b6f-a53a-53001d517513",
   "logs": {
@@ -469,5 +508,6 @@
     },
     "rg": "hcp-underlay-stg-southwestus-svc",
     "subscription": "hcp-stg-svc-southwestus"
-  }
+  },
+  "tenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d"
 }
