@@ -46,12 +46,8 @@ func writeDetails(entrypoints []topology.Entrypoint, service topology.Service, i
 		summary.WriteString("  ")
 	}
 	summary.WriteString(fmt.Sprintf("- %s", service.ServiceGroup))
-	if pipeline, ok := service.Metadata["pipeline"]; ok {
-		summary.WriteString(fmt.Sprintf(" ([ref](https://github.com/Azure/ARO-HCP/tree/main/%s))", pipeline))
-	}
-	if purpose, ok := service.Metadata["purpose"]; ok {
-		summary.WriteString(fmt.Sprintf(": %s", purpose))
-	}
+	summary.WriteString(fmt.Sprintf(" ([ref](https://github.com/Azure/ARO-HCP/tree/main/%s))", service.PipelinePath))
+	summary.WriteString(fmt.Sprintf(": %s", service.Purpose))
 	if links, ok := formatPipelineLinks(service.Metadata); ok {
 		summary.WriteString(" " + links)
 	}

@@ -331,6 +331,12 @@
     "aroDevopsMsiId": {
       "type": "string"
     },
+    "tenantId": {
+      "type": "string"
+    },
+    "cloud": {
+      "type": "string"
+    },
     "kvCertOfficerPrincipalId": {
       "type": "string",
       "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
@@ -640,6 +646,181 @@
         "cosmosDB",
         "cert",
         "tracing"
+      ]
+    },
+    "ev2": {
+      "type": "object",
+      "properties": {
+        "assistedId": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "certificate": {
+              "type": "string"
+            },
+            "applicationId": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "assistedId"
+      ]
+    },
+    "geneva": {
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string"
+        },
+        "resourceContributor": {
+          "type": "string"
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cluster": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "account": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "account"
+              ]
+            },
+            "rp": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "account": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "account"
+              ]
+            }
+          },
+          "required": [
+            "cluster",
+            "rp"
+          ]
+        },
+        "logs": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "administrators": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "alias": {
+                  "type": "string"
+                },
+                "securityGroup": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "alias",
+                "securityGroup"
+              ]
+            },
+            "typeName": {
+              "type": "string"
+            },
+            "environment": {
+              "type": "string",
+              "enum": [
+                "DiagnosticsProd",
+                "BillingProd",
+                "FirstPartyProd",
+                "ExternalProd",
+                "CaFairfax",
+                "CaMooncake",
+                "UsNat",
+                "UsSec",
+                "Test",
+                "Stage",
+                "Canary"
+              ]
+            },
+            "cluster": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "accountName": {
+                  "type": "string",
+                  "minLength": 6,
+                  "maxLength": 32,
+                  "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
+                },
+                "accountCert": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "accountName",
+                "accountCert"
+              ]
+            },
+            "rp": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "accountName": {
+                  "type": "string",
+                  "minLength": 6,
+                  "maxLength": 32,
+                  "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
+                },
+                "accountCert": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "accountName",
+                "accountCert"
+              ]
+            }
+          },
+          "required": [
+            "administrators",
+            "typeName",
+            "environment",
+            "cluster",
+            "rp"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "principalId",
+        "resourceContributor",
+        "metrics",
+        "logs"
+      ]
+    },
+    "kusto": {
+      "type": "object",
+      "properties": {
+        "resourceGroup": {
+          "type": "string"
+        },
+        "cluster": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resourceGroup",
+        "cluster"
       ]
     },
     "genevaActions": {

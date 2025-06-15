@@ -24,6 +24,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration"
+
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/ev2lookup"
 
 	"github.com/dusted-go/logging/prettylog"
@@ -64,6 +66,7 @@ func main() {
 		inspect.NewCommand,
 		pipeline.NewCommand,
 		ev2lookup.NewCommand,
+		configuration.NewCommand,
 	}
 	for _, newCmd := range commands {
 		c, err := newCmd()
