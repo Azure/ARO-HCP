@@ -38,7 +38,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "The name of the environment to render to.")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "The name of the region to render to.")
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "Output file to render to. Set to '-' for stdout.")
-	cmd.Flags().StringVar(&opts.Ev2Region, "ev2-region", opts.Ev2Region, "Region to use for Ev2 configuration, useful for dev mode rendering.")
+	cmd.Flags().StringVar(&opts.Ev2Cloud, "ev2-cloud", opts.Ev2Cloud, "Cloud to use for Ev2 configuration, useful for dev mode rendering.")
 
 	for _, flag := range []string{
 		"service-config-file",
@@ -56,7 +56,7 @@ type RawOptions struct {
 	Cloud             string
 	Environment       string
 	Region            string
-	Ev2Region         string
+	Ev2Cloud          string
 	Output            string
 }
 
@@ -76,7 +76,7 @@ type completedOptions struct {
 	Cloud       string
 	Environment string
 	Region      string
-	Ev2Region   string
+	Ev2Cloud    string
 	Output      io.WriteCloser
 }
 
@@ -126,18 +126,13 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 		output = file
 	}
 
-	ev2Region := o.Region
-	if o.Ev2Region != "" {
-		ev2Region = o.Ev2Region
-	}
-
 	return &Options{
 		completedOptions: &completedOptions{
 			Config:      c,
 			Cloud:       o.Cloud,
 			Environment: o.Environment,
 			Region:      o.Region,
-			Ev2Region:   ev2Region,
+			Ev2Cloud:    o.Ev2Cloud,
 			Output:      output,
 		},
 	}, nil
@@ -145,10 +140,10 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 
 func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 	ev2Cloud := opts.Cloud
-	if opts.Ev2Region != opts.Region {
-		ev2Cloud = "public"
+	if opts.Ev2Cloud != "" {
+		ev2Cloud = opts.Ev2Cloud
 	}
-	ev2Cfg, err := ev2config.ResolveConfig(ev2Cloud, opts.Ev2Region)
+	ev2Cfg, err := ev2config.ResolveConfig(ev2Cloud, opts.Region)
 	if err != nil {
 		return fmt.Errorf("failed to get ev2 config: %w", err)
 	}

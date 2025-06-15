@@ -406,6 +406,22 @@ func renderDiff(
 	logger = logger.WithValues("cloud", cloud, "environment", environment, "region", region)
 	dir := filepath.Dir(serviceConfigFile)
 
+	currentConfig := configPath(outputDir, cloud, environment, region)
+	previousConfig := configPath(scratchDir, cloud, environment, region)
+	if err := os.MkdirAll(filepath.Dir(previousConfig), os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create directory for previous config: %w", err)
+	}
+	// In case we are rendering to a file in the git tree, make a copy of the current output to do a diff
+	// with later.
+	currentConfigCopy := configPath(scratchDir, cloud, environment, region) + ".bak"
+	rawCurrentConfig, err := os.ReadFile(currentConfig)
+	if err != nil {
+		return fmt.Errorf("failed to read current config: %w", err)
+	}
+	if err := os.WriteFile(currentConfigCopy, rawCurrentConfig, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to write current config copy: %w", err)
+	}
+
 	// First, we need to find the upstream ref from which the previous digest was written, to
 	// use it as a reference point from which we will generate the previous version of the config
 	// and provide the user a diff.
@@ -451,6 +467,7 @@ func renderDiff(
 	if err != nil {
 		return fmt.Errorf("failed to resolve merge base: %w", err)
 	}
+	mergeBase = strings.TrimSpace(mergeBase)
 
 	// Now that we have the merge-base, we need to get a copy of that config file - but first, we need to
 	// clean up the working state of the repo so we don't clobber anything. We start by stashing anything
@@ -468,7 +485,7 @@ func renderDiff(
 
 	// With a clean slate, we can check out the reference version of the config file.
 	configFile := filepath.Base(serviceConfigFile)
-	if _, err := command(ctx, dir, "git", "checkout", strings.TrimSpace(mergeBase), "--", configFile); err != nil {
+	if _, err := command(ctx, dir, "git", "checkout", mergeBase, "--", configFile); err != nil {
 		return fmt.Errorf("failed to reset service config file to the merge base: %w", err)
 	}
 
@@ -480,17 +497,16 @@ func renderDiff(
 	}()
 
 	// Now we can finally render the previous version of the config.
-	currentConfig := configPath(outputDir, cloud, environment, region)
-	previousConfig := configPath(scratchDir, cloud, environment, region)
-	if err := os.MkdirAll(filepath.Dir(previousConfig), os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directory for previous config: %w", err)
+	ev2Cloud := cloud
+	if useEv2PublicCloud {
+		ev2Cloud = "public"
 	}
 	opts := render.RawOptions{
 		ServiceConfigFile: serviceConfigFile,
 		Cloud:             cloud,
 		Environment:       environment,
 		Region:            region,
-		Ev2Region:         region,
+		Ev2Cloud:          ev2Cloud,
 		Output:            previousConfig,
 	}
 	validated, err := opts.Validate()
@@ -505,15 +521,15 @@ func renderDiff(
 		return fmt.Errorf("failed to render previous service config: %w", err)
 	}
 
-	diffCmd := exec.CommandContext(ctx, "diff", previousConfig, currentConfig)
+	diffCmd := exec.CommandContext(ctx, "diff", previousConfig, currentConfigCopy)
 	diff, err := diffCmd.CombinedOutput()
 	var exitErr *exec.ExitError
 	isExitErr := err != nil && errors.As(err, &exitErr)
 	isUnexpectedErr := exitErr != nil && exitErr.ExitCode() != 1 // diff exit code other than 1 is some error, not a diff
-	if !isExitErr || isUnexpectedErr {
+	if err != nil && (!isExitErr || isUnexpectedErr) {
 		return fmt.Errorf("failed to run diff: %w; output: %s", err, string(diff))
 	}
-	logger.Info("Rendered diff for previous config.", "commit", mergeBase)
+	logger.Info("Rendering diff for previous config.", "commit", mergeBase)
 	if _, err := fmt.Println(string(diff)); err != nil {
 		return fmt.Errorf("failed to print diff: %w", err)
 	}

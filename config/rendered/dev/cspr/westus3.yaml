@@ -76,6 +76,10 @@ dns:
   parentZoneName: osadev.cloud
   regionalSubdomain: westus3-cs
   svcParentZoneName: hcpsvc.osadev.cloud
+ev2:
+  assistedId:
+    applicationId: ""
+    certificate: ""
 firstPartyAppCertificate:
   issuer: Self
   manage: false
@@ -98,6 +102,26 @@ frontend:
   tracing:
     address: ""
     exporter: ""
+geneva:
+  logs:
+    administrators:
+      alias: AME\WEINONGW
+      securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+    cluster:
+      accountCert: ""
+      accountName: AROClusterLogs
+    environment: Test
+    rp:
+      accountCert: ""
+      accountName: ARORPLogs
+    typeName: ""
+  metrics:
+    cluster:
+      account: AzureRedHatOpenShiftCluster
+    rp:
+      account: AzureRedHatOpenShiftRP
+  principalId: ""
+  resourceContributor: ""
 genevaActions:
   serviceTag: GenevaActionsNonProd
 global:
@@ -140,6 +164,9 @@ imageSync:
       repository: image-sync/oc-mirror
     pullSecretName: ocmirror-pull-secret
   outboundServiceTags: ""
+kusto:
+  cluster: ""
+  resourceGroup: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 logs:
   loganalytics:
@@ -370,3 +397,4 @@ svc:
       version: ""
   rg: hcp-underlay-cspr-westus3-svc
   subscription: ARO Hosted Control Planes (EA Subscription 1)
+tenantId: ""

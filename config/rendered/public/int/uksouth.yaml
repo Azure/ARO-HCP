@@ -76,6 +76,10 @@ dns:
   parentZoneName: azure-test.net
   regionalSubdomain: uksouth
   svcParentZoneName: aro-hcp.azure-test.net
+ev2:
+  assistedId:
+    applicationId: 0cfe7b03-3a43-4f68-84a0-2a4d9227d5ee
+    certificate: https://aro-ev2-admin-int-kv.vault.azure.net/secrets/aro-ev2-admin-int-cert
 firstPartyAppCertificate:
   issuer: OneCertV2-PrivateCA
   manage: false
@@ -98,6 +102,26 @@ frontend:
   tracing:
     address: ""
     exporter: ""
+geneva:
+  logs:
+    administrators:
+      alias: AME\WEINONGW
+      securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+    cluster:
+      accountCert: https://aro-geneva-public-int.vault.azure.net/secrets/aroclusterlogs-admin
+      accountName: AROClusterLogs
+    environment: Test
+    rp:
+      accountCert: https://aro-geneva-public-int.vault.azure.net/secrets/arorplogs-admin
+      accountName: ARORPLogs
+    typeName: Microsoft.Geneva.Logs/ConfigureLogsTestAccount
+  metrics:
+    cluster:
+      account: AzureRedHatOpenShiftCluster
+    rp:
+      account: AzureRedHatOpenShiftRP
+  principalId: 3c2f3efc-0197-4fd5-b566-0e3f07a17f0c
+  resourceContributor: 9f15f5f5-77bd-413a-aa88-4b9c68b1e7bc
 genevaActions:
   serviceTag: GenevaActionsNonProd
 global:
@@ -140,6 +164,9 @@ imageSync:
       repository: image-sync/oc-mirror
     pullSecretName: ocmirror-pull-secret
   outboundServiceTags: FirstPartyUsage:/Unprivileged
+kusto:
+  cluster: aroINT
+  resourceGroup: aro-kusto-public-int-us
 kvCertOfficerPrincipalId: 32af88de-a61c-4f71-b709-50538598c4f2
 logs:
   loganalytics:
@@ -375,3 +402,4 @@ svc:
       version: ""
   rg: hcp-underlay-int-uksouth-svc
   subscription: hcp-int-svc-uksouth
+tenantId: 72f988bf-86f1-41af-91ab-2d7cd011db47
