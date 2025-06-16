@@ -28,7 +28,16 @@ jobs:
         git fetch origin ${{ github.ref }}
         git checkout FETCH_HEAD
         export MERGE_BASE_REF=$( git merge-base HEAD ${{ github.base_ref }} )
-        make validate-config
+        if !make validate-config; then
+          echo "##################################################################"
+          echo "##                                                              ##"
+          echo "##   If you intended to change the service configuration, run   ##"
+          echo "##       make -C config/ render                                 ##"
+          echo "##   and check in the result.                                   ##"
+          echo "##                                                              ##"
+          echo "##################################################################"
+          exit 1
+        fi
     - name: 'Validate configurations and pipelines'
       run: make validate-config-pipelines
     - name: 'Fail if there is uncommited change'
