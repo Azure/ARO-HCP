@@ -233,6 +233,7 @@ mgmt:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
+      azCount: 1
       maxCount: 4
       minCount: 1
       osDiskSizeGB: 128
@@ -347,6 +348,7 @@ svc:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
+      azCount: 1
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
