@@ -35,10 +35,17 @@ func TestInspectVars(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			caseStep: types.NewShellStep("step", "echo hello").WithVariables(types.Variable{
-				Name:      "FOO",
-				ConfigRef: "foo",
-			}),
+			caseStep: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					Action: "Shell",
+					Name:   "step",
+				},
+				Command: "echo hello",
+				Variables: []types.Variable{{
+					Name:      "FOO",
+					ConfigRef: "foo",
+				}},
+			},
 			options: &InspectOptions{
 				Configuration: config.Configuration{
 					"foo": "bar",
@@ -49,10 +56,17 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name: "makefile",
-			caseStep: types.NewShellStep("step", "echo hello").WithVariables(types.Variable{
-				Name:      "FOO",
-				ConfigRef: "foo",
-			}),
+			caseStep: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					Action: "Shell",
+					Name:   "step",
+				},
+				Command: "echo hello",
+				Variables: []types.Variable{{
+					Name:      "FOO",
+					ConfigRef: "foo",
+				}},
+			},
 			options: &InspectOptions{
 				Configuration: config.Configuration{
 					"foo": "bar",
@@ -62,16 +76,30 @@ func TestInspectVars(t *testing.T) {
 			expected: "FOO ?= bar\n",
 		},
 		{
-			name:     "failed action",
-			caseStep: types.NewARMStep("step", "test.bicep", "test.bicepparam", "ResourceGroup"),
-			options:  &InspectOptions{},
-			err:      "inspecting step variables not implemented for action type ARM",
+			name: "failed action",
+			caseStep: &types.ARMStep{
+				StepMeta: types.StepMeta{
+					Name:   "step",
+					Action: "ARM",
+				},
+				Template:        "test.bicep",
+				Parameters:      "test.bicepparam",
+				DeploymentLevel: "ResourceGroup",
+			},
+			options: &InspectOptions{},
+			err:     "inspecting step variables not implemented for action type ARM",
 		},
 		{
-			name:     "failed format",
-			caseStep: types.NewShellStep("step", "echo hello"),
-			options:  &InspectOptions{Format: "unknown"},
-			err:      "unknown output format \"unknown\"",
+			name: "failed format",
+			caseStep: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					Action: "Shell",
+					Name:   "step",
+				},
+				Command: "echo hello",
+			},
+			options: &InspectOptions{Format: "unknown"},
+			err:     "unknown output format \"unknown\"",
 		},
 	}
 
@@ -94,7 +122,13 @@ func TestInspect(t *testing.T) {
 	p := types.Pipeline{
 		ResourceGroups: []*types.ResourceGroup{{
 			Steps: []types.Step{
-				types.NewShellStep("step1", "echo hello"),
+				&types.ShellStep{
+					StepMeta: types.StepMeta{
+						Action: "Shell",
+						Name:   "step1",
+					},
+					Command: "echo hello",
+				},
 			},
 		},
 		},
@@ -116,8 +150,13 @@ func TestInspectWrongScope(t *testing.T) {
 	p := types.Pipeline{
 		ResourceGroups: []*types.ResourceGroup{{
 			Steps: []types.Step{
-				types.NewShellStep("step1", "echo hello"),
-			},
+				&types.ShellStep{
+					StepMeta: types.StepMeta{
+						Action: "Shell",
+						Name:   "step1",
+					},
+					Command: "echo hello",
+				}},
 		},
 		},
 	}
