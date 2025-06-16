@@ -505,5 +505,6 @@
     },
     "rg": "hcp-underlay-ntly-southwestus-svc",
     "subscription": "ARO HCP nightly service (EA Subscription)"
-  }
+  },
+  "tenantId": ""
 }
