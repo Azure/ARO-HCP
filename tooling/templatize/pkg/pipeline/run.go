@@ -222,7 +222,7 @@ func getInputValues(configuredVariables []types.Variable, cfg config.Configurati
 			}
 			values[i.Name] = value
 		} else {
-			values[i.Name] = i.Value
+			values[i.Name] = i.Value.Value
 		}
 	}
 	return values, nil

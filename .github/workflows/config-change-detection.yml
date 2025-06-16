@@ -16,10 +16,31 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
-        fetch-depth: 1
-    - name: 'Fail if there is uncommited change'
+        fetch-depth: '20'
+    - name: 'Validate configurations'
       run: |
-        cd config/
-        make detect-change
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+        set -o xtrace
+
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+        git fetch origin ${{ github.ref }}
+        git checkout FETCH_HEAD
+        export MERGE_BASE_REF=$( git merge-base HEAD ${{ github.base_ref }} )
+        if !make validate-config; then
+          echo "##################################################################"
+          echo "##                                                              ##"
+          echo "##   If you intended to change the service configuration, run   ##"
+          echo "##       make -C config/ materialize                            ##"
+          echo "##   and check in the result.                                   ##"
+          echo "##                                                              ##"
+          echo "##################################################################"
+          exit 1
+        fi
     - name: 'Validate configurations and pipelines'
       run: make validate-config-pipelines
+    - name: 'Fail if there is uncommited change'
+      run: |-
+        cd config/
+        make detect-change

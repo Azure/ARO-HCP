@@ -28,6 +28,7 @@ defaults:
   #
   region: "{{ .ctx.region  }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
+  cloud: "{{ .ev2.cloudName }}"
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
@@ -60,6 +61,34 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/backplane-api
+  tenantId: ""
+  ev2:
+    assistedId:
+      certificate: ""
+      applicationId: ""
+  geneva:
+    principalId: ""
+    resourceContributor: ""
+    metrics:
+      cluster:
+        account: AzureRedHatOpenShiftCluster
+      rp:
+        account: AzureRedHatOpenShiftRP
+    logs:
+      administrators:
+        alias: AME\WEINONGW
+        securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+      typeName: ""
+      environment: "Test"
+      cluster:
+        accountName: AROClusterLogs
+        accountCert: ""
+      rp:
+        accountName: ARORPLogs
+        accountCert: ""
+  kusto:
+    resourceGroup: ""
+    cluster: ""
   # Hypershift
   hypershift:
     image:
@@ -363,6 +392,24 @@ defaults:
 clouds:
   public:
     defaults:
+      tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
+      ev2:
+        assistedId:
+          certificate: https://aro-ev2-admin-prod-kv.vault.azure.net/secrets/aro-ev2-admin-prod-cert
+          applicationId: 931fc462-30d1-4f16-b028-6032147e9a78
+      geneva:
+        principalId: 92f388ee-7cfe-4aa2-95da-95fd8522f6b4 # TODO: input chaining
+        resourceContributor: 2a79f82f-7cc2-46d1-9b2e-1fda89c71bab # TODO: input chaining
+        logs:
+          typeName: Microsoft.Geneva.Logs/ConfigureLogsAccount
+          environment: DiagnosticsProd
+          cluster:
+            accountCert: 'https://aro-geneva-public-prod.vault.azure.net/secrets/aroclusterlogs-admin' # TODO: input chaining
+          rp:
+            accountCert: 'https://aro-geneva-public-prod.vault.azure.net/secrets/arorplogs-admin' # TODO: input chaining
+      kusto:
+        resourceGroup: ""
+        cluster: ""
       releaseApprover:
         id: feca6a27-8f05-4abe-b9e4-e1185f5833ab
         name: TM-AzureRedHatOpenShift-HCP-Leads
@@ -447,6 +494,24 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+          tenantId: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          ev2:
+            assistedId:
+              certificate: https://aro-ev2-admin-int-kv.vault.azure.net/secrets/aro-ev2-admin-int-cert
+              applicationId: 0cfe7b03-3a43-4f68-84a0-2a4d9227d5ee
+          geneva:
+            principalId: 3c2f3efc-0197-4fd5-b566-0e3f07a17f0c # TODO: input chaining
+            resourceContributor: 9f15f5f5-77bd-413a-aa88-4b9c68b1e7bc # TODO: input chaining
+            logs:
+              typeName: Microsoft.Geneva.Logs/ConfigureLogsTestAccount
+              environment: Test
+              cluster:
+                accountCert: 'https://aro-geneva-public-int.vault.azure.net/secrets/aroclusterlogs-admin' # TODO: input chaining
+              rp:
+                accountCert: 'https://aro-geneva-public-int.vault.azure.net/secrets/arorplogs-admin' # TODO: input chaining
+          kusto:
+            resourceGroup: aro-kusto-public-int-us
+            cluster: aroINT
           # Region for global resources in INT is uksouth
           global:
             safeDnsIntAppObjectId: "c54b6bce-1cd3-4d37-bebe-aa22f4ce4fbc"

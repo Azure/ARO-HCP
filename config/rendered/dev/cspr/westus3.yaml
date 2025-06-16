@@ -1,0 +1,401 @@
+acr:
+  ocp:
+    name: arohcpocpdev
+    zoneRedundantMode: Disabled
+  svc:
+    name: arohcpsvcdev
+    zoneRedundantMode: Disabled
+acrPull:
+  image:
+    digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0
+    registry: mcr.microsoft.com
+    repository: aks/msi-acrpull
+armHelperCertName: armHelperCert2
+armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
+armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
+aroDevopsMsiId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity
+backend:
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: arohcpbackend
+  tracing:
+    address: ""
+    exporter: ""
+backplaneAPI:
+  image:
+    digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
+    registry: quay.io
+    repository: app-sre/backplane-api
+cloud: Public
+clustersService:
+  azureOperatorsManagedIdentities:
+    cloudControllerManager:
+      roleNames: Azure Red Hat OpenShift Cloud Controller Manager - Dev
+    cloudNetworkConfig:
+      roleNames: Azure Red Hat OpenShift Network Operator - Dev
+    clusterApiAzure:
+      roleNames: Azure Red Hat OpenShift Cluster API Role - Dev
+    controlPlane:
+      roleNames: Azure Red Hat OpenShift Control Plane Operator Role - Dev
+    diskCsiDriver:
+      roleNames: Azure Red Hat OpenShift Disk Storage Operator - Dev
+    fileCsiDriver:
+      roleNames: Azure Red Hat OpenShift File Storage Operator - Dev
+    imageRegistry:
+      roleNames: Azure Red Hat OpenShift Image Registry Operator - Dev
+    ingress:
+      roleNames: Azure Red Hat OpenShift Cluster Ingress Operator - Dev
+    kms:
+      roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
+  environment: arohcpdev
+  image:
+    digest: sha256:aac9226ea3c3712918a04b125e4ef765c8bc8e6968c0e3db05c6e662aa497282
+    registry: quay.io
+    repository: app-sre/uhc-clusters-service
+  k8s:
+    namespace: clusters-service
+    serviceAccountName: clusters-service
+  managedIdentityName: clusters-service
+  postgres:
+    deploy: true
+    minTLSVersion: TLSV1.2
+    name: arohcp-cspr-dbcs-usw3
+    private: false
+    zoneRedundantMode: Auto
+  tracing:
+    address: ""
+    exporter: ""
+cxKeyVault:
+  name: ah-cspr-cx-usw3-1
+  private: false
+  softDelete: false
+dns:
+  baseDnsZoneRG: global
+  cxParentZoneDelegation: false
+  cxParentZoneName: hcp.osadev.cloud
+  parentZoneName: osadev.cloud
+  regionalSubdomain: westus3-cs
+  svcParentZoneName: hcpsvc.osadev.cloud
+ev2:
+  assistedId:
+    applicationId: ""
+    certificate: ""
+firstPartyAppCertificate:
+  issuer: Self
+  manage: false
+  name: firstPartyCert2
+firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
+frontend:
+  cert:
+    issuer: Self
+    name: frontend-cert-cspr-usw3
+  cosmosDB:
+    deploy: true
+    disableLocalAuth: true
+    name: arohcpcspr-rp-usw3
+    private: false
+    zoneRedundantMode: Disabled
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: arohcpfrontend
+  tracing:
+    address: ""
+    exporter: ""
+geneva:
+  logs:
+    administrators:
+      alias: AME\WEINONGW
+      securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+    cluster:
+      accountCert: ""
+      accountName: AROClusterLogs
+    environment: Test
+    rp:
+      accountCert: ""
+      accountName: ARORPLogs
+    typeName: ""
+  metrics:
+    cluster:
+      account: AzureRedHatOpenShiftCluster
+    rp:
+      account: AzureRedHatOpenShiftRP
+  principalId: ""
+  resourceContributor: ""
+genevaActions:
+  serviceTag: GenevaActionsNonProd
+global:
+  globalMSIName: global-rollout-identity
+  keyVault:
+    name: arohcpdev-global
+    private: false
+    softDelete: true
+  nsp:
+    accessMode: Learning
+    name: nsp-global
+  region: westus3
+  rg: global
+  safeDnsIntAppObjectId: ""
+  secretsToSyncDir: dev/arohcpdev-global
+  subscription: ARO Hosted Control Planes (EA Subscription 1)
+hypershift:
+  additionalInstallArg: ""
+  image:
+    digest: sha256:607dcc3e795a1fb8e7647aa6ccf5b19dbfba8b4387f8eac9e304b33265a80d05
+    registry: quay.io
+    repository: acm-d/rhtap-hypershift-operator
+  namespace: hypershift
+imageSync:
+  componentSync:
+    enabled: true
+    image:
+      digest: sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f
+      registry: arohcpsvcdev.azurecr.io
+      repository: image-sync/component-sync
+    pullSecretName: component-sync-pull-secret
+    repositories: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/package-operator/remote-phase-manager,quay.io/app-sre/backplane-api
+    secrets: quay.io:quay-io-bearer
+  environmentName: aro-hcp-image-sync
+  ocMirror:
+    enabled: true
+    image:
+      digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
+      registry: arohcpsvcdev.azurecr.io
+      repository: image-sync/oc-mirror
+    pullSecretName: ocmirror-pull-secret
+  outboundServiceTags: ""
+kusto:
+  cluster: ""
+  resourceGroup: ""
+kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
+logs:
+  loganalytics:
+    enable: true
+  mdsd:
+    cert:
+      issuer: ""
+      name: ""
+      type: ""
+    msiName: logs-mdsd
+    namespace: logs
+    serviceAccountName: genevabit-aggregator
+    subscriptions: []
+maestro:
+  agent:
+    consumerName: hcp-underlay-usw3-mgmt-1
+    loglevel: 4
+    sidecar:
+      image:
+        digest: sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83
+        registry: mcr.microsoft.com
+        repository: azurelinux/base/nginx
+  certDomain: selfsigned.maestro.keyvault.azure.com
+  certIssuer: Self
+  eventGrid:
+    maxClientSessionsPerAuthName: 6
+    name: arohcp-cspr-maestro-usw3
+    private: false
+  image:
+    digest: sha256:00e0aa8746725c257b370bdd530ef961eb9b88f8c583d2c848b99264d073d5f3
+    registry: quay.io
+    repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+  postgres:
+    databaseName: maestro
+    deploy: true
+    minTLSVersion: TLSV1.2
+    name: arohcp-cspr-dbmaestro-usw3
+    private: false
+    serverStorageSizeGB: 32
+    serverVersion: "15"
+    zoneRedundantMode: Auto
+  restrictIstioIngress: false
+  server:
+    k8s:
+      namespace: maestro
+      serviceAccountName: maestro
+    loglevel: 4
+    managedIdentityName: maestro-server
+    mqttClientName: maestro-server-usw3
+    tracing:
+      address: ""
+      exporter: ""
+mgmt:
+  aks:
+    clusterOutboundIPAddressIPTags: ""
+    enableSwiftV2: false
+    etcd:
+      kvName: ah-cspr-me-usw3-1
+      kvSoftDelete: false
+    infraAgentPool:
+      azCount: 1
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 32
+      vmSize: Standard_D2s_v3
+    kubernetesVersion: 1.31.8
+    name: cspr-westus3-mgmt-1
+    networkDataplane: azure
+    networkPolicy: azure
+    podSubnetPrefix: 10.128.64.0/18
+    subnetPrefix: 10.128.8.0/21
+    systemAgentPool:
+      maxCount: 4
+      minCount: 1
+      osDiskSizeGB: 128
+      vmSize: Standard_E8s_v3
+    userAgentPool:
+      azCount: 3
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 128
+      vmSize: Standard_D16s_v3
+    vnetAddressPrefix: 10.128.0.0/14
+  applyKubeletFixes: true
+  logs:
+    configVersion: ""
+    namespace: HCPCustomerLogs
+    san: ""
+  nsp:
+    accessMode: Learning
+    name: nsp-usw3-mgmt-1
+  prometheus:
+    namespace: prometheus
+    namespaceLabel: network.openshift.io/policy-group=monitoring
+    prometheusOperator:
+      image:
+        digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-operator
+      version: ""
+    prometheusSpec:
+      image:
+        digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus
+      replicas: 2
+      shards: 1
+      version: v2.55.1-3
+  rg: hcp-underlay-cspr-westus3-mgmt-1
+  subscription: ARO Hosted Control Planes (EA Subscription 1)
+mgmtKeyVault:
+  name: ah-cspr-mg-usw3-1
+  private: false
+  softDelete: false
+miMockCertName: msiMockCert2
+miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
+mise:
+  armAppId: ""
+  armInstance: ""
+  azureAdInstance: ""
+  deploy: false
+  firstPartyAppId: ""
+  image:
+    digest: ""
+    repository: ""
+  tenantId: ""
+monitoring:
+  devAlertingEmails: aro-hcp-service-lifecycle-team@redhat.com
+  grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
+  grafanaMajorVersion: "11"
+  grafanaName: arohcp-dev
+  grafanaZoneRedundantMode: Disabled
+  hcpWorkspaceName: arohcp-hcp-cspr-usw3
+  sev1ActionGroupIDs: ""
+  sev2ActionGroupIDs: ""
+  sev3ActionGroupIDs: ""
+  sev4ActionGroupIDs: ""
+  svcWorkspaceName: arohcp-cspr-usw3
+msiKeyVault:
+  name: ah-cspr-mi-usw3-1
+  private: false
+  softDelete: false
+oidcStorageAccountName: arohcpcsproidcusw3
+oidcZoneRedundantMode: Auto
+pko:
+  imageManager:
+    digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f
+    registry: quay.io
+    repository: package-operator/package-operator-manager
+  imagePackage:
+    digest: sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795
+    registry: quay.io
+    repository: package-operator/package-operator-package
+  remotePhaseManager:
+    digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
+    registry: quay.io
+    repository: package-operator/remote-phase-manager
+region: westus3
+regionRG: hcp-underlay-cspr-westus3
+serviceKeyVault:
+  assignNSP: false
+  name: aro-hcp-dev-svc-kv
+  private: false
+  region: westus3
+  rg: global
+  softDelete: true
+svc:
+  aks:
+    clusterOutboundIPAddressIPTags: ""
+    etcd:
+      kvName: ah-cspr-se-usw3-1
+      kvSoftDelete: false
+    infraAgentPool:
+      azCount: 1
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 32
+      vmSize: Standard_D2s_v3
+    kubernetesVersion: 1.31.8
+    name: cspr-westus3-svc-1
+    networkDataplane: cilium
+    networkPolicy: cilium
+    podSubnetPrefix: 10.128.64.0/18
+    subnetPrefix: 10.128.8.0/21
+    systemAgentPool:
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 32
+      vmSize: Standard_D2s_v3
+    userAgentPool:
+      azCount: 3
+      maxCount: 12
+      minCount: 2
+      osDiskSizeGB: 32
+      vmSize: Standard_D2s_v3
+    vnetAddressPrefix: 10.128.0.0/14
+  istio:
+    ingressGatewayIPAddressIPTags: ""
+    ingressGatewayIPAddressName: aro-hcp-istio-ingress
+    istioctlVersion: 1.24.1
+    tag: prod-stable
+    targetVersion: asm-1-25
+    versions: asm-1-25
+  logs:
+    configVersion: ""
+    namespace: HCPServiceLogs
+    san: ""
+  nsp:
+    accessMode: Learning
+    name: nsp-usw3-svc
+  prometheus:
+    namespace: prometheus
+    namespaceLabel: ""
+    prometheusOperator:
+      image:
+        digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-operator
+      version: ""
+    prometheusSpec:
+      image:
+        digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus
+      replicas: 2
+      shards: 1
+      version: ""
+  rg: hcp-underlay-cspr-westus3-svc
+  subscription: ARO Hosted Control Planes (EA Subscription 1)
+tenantId: ""

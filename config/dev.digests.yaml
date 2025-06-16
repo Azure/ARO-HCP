@@ -1,0 +1,12 @@
+clouds:
+  dev:
+    environments:
+      cspr:
+        regions:
+          westus3: 88f8c9df3b9c81a2c2d54b5264e121b0e57aa5107b7b1c0a6df87c7ef1780868
+      dev:
+        regions:
+          westus3: dede8ca4eeabd016c2daa5b90fed500b7167c4f9ede386b95b52a7415aeb9314
+      ntly:
+        regions:
+          uksouth: eae21c2a273fbb6aaca3779ad23e0f84f45da8542d334b6a136f8cc4ed5d369a
