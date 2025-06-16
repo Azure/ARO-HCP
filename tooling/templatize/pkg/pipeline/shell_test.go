@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -65,8 +66,10 @@ func TestCreateCommand(t *testing.T) {
 				DryRun: types.DryRun{
 					Variables: []types.Variable{
 						{
-							Name:  "DRY_RUN",
-							Value: "true",
+							Name: "DRY_RUN",
+							Value: types.Value{
+								Value: "true",
+							},
 						},
 					},
 				},
@@ -83,8 +86,10 @@ func TestCreateCommand(t *testing.T) {
 				DryRun: types.DryRun{
 					Variables: []types.Variable{
 						{
-							Name:      "DRY_RUN",
-							ConfigRef: "test",
+							Name: "DRY_RUN",
+							Value: types.Value{
+								ConfigRef: "test",
+							},
 						},
 					},
 				},
@@ -115,7 +120,7 @@ func TestCreateCommand(t *testing.T) {
 			maps.Copy(tc.envVars, dryRunVars)
 
 			cmd, skipCommand := createCommand(ctx, tc.step.Command, dryRun, tc.envVars)
-			assert.Equal(t, skipCommand, tc.skipCommand)
+			assert.Empty(t, cmp.Diff(skipCommand, tc.skipCommand))
 			if !tc.skipCommand {
 				assert.Equal(t, strings.Join(cmd.Args, " "), fmt.Sprintf("/bin/bash -c %s", tc.expectedScript))
 			}
@@ -144,8 +149,10 @@ func TestMapStepVariables(t *testing.T) {
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
-						Name:      "BAZ",
-						ConfigRef: "FOO",
+						Name: "BAZ",
+						Value: types.Value{
+							ConfigRef: "FOO",
+						},
 					},
 				},
 			},
@@ -159,7 +166,9 @@ func TestMapStepVariables(t *testing.T) {
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
-						ConfigRef: "FOO",
+						Value: types.Value{
+							ConfigRef: "FOO",
+						},
 					},
 				},
 			},
@@ -173,8 +182,10 @@ func TestMapStepVariables(t *testing.T) {
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
-						Name:      "BAZ",
-						ConfigRef: "FOO",
+						Name: "BAZ",
+						Value: types.Value{
+							ConfigRef: "FOO",
+						},
 					},
 				},
 			},
@@ -188,8 +199,10 @@ func TestMapStepVariables(t *testing.T) {
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
-						Name:  "BAZ",
-						Value: "bar",
+						Name: "BAZ",
+						Value: types.Value{
+							Value: "bar",
+						},
 					},
 				},
 			},
@@ -204,9 +217,11 @@ func TestMapStepVariables(t *testing.T) {
 				Variables: []types.Variable{
 					{
 						Name: "BAZ",
-						Input: &types.Input{
-							Name: "output1",
-							Step: "step1",
+						Value: types.Value{
+							Input: &types.Input{
+								Name: "output1",
+								Step: "step1",
+							},
 						},
 					},
 				},
@@ -230,9 +245,11 @@ func TestMapStepVariables(t *testing.T) {
 				Variables: []types.Variable{
 					{
 						Name: "BAZ",
-						Input: &types.Input{
-							Name: "output1",
-							Step: "step1",
+						Value: types.Value{
+							Input: &types.Input{
+								Name: "output1",
+								Step: "step1",
+							},
 						},
 					},
 				},
@@ -246,9 +263,11 @@ func TestMapStepVariables(t *testing.T) {
 				Variables: []types.Variable{
 					{
 						Name: "BAZ",
-						Input: &types.Input{
-							Name: "output1",
-							Step: "step1",
+						Value: types.Value{
+							Input: &types.Input{
+								Name: "output1",
+								Step: "step1",
+							},
 						},
 					},
 				},
@@ -272,7 +291,7 @@ func TestMapStepVariables(t *testing.T) {
 				assert.Error(t, err, tc.err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, envVars, tc.expected)
+				assert.Empty(t, cmp.Diff(envVars, tc.expected))
 			}
 		})
 	}

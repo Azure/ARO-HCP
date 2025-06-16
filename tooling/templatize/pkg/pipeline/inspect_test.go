@@ -42,8 +42,10 @@ func TestInspectVars(t *testing.T) {
 				},
 				Command: "echo hello",
 				Variables: []types.Variable{{
-					Name:      "FOO",
-					ConfigRef: "foo",
+					Name: "FOO",
+					Value: types.Value{
+						ConfigRef: "foo",
+					},
 				}},
 			},
 			options: &InspectOptions{
@@ -63,8 +65,10 @@ func TestInspectVars(t *testing.T) {
 				},
 				Command: "echo hello",
 				Variables: []types.Variable{{
-					Name:      "FOO",
-					ConfigRef: "foo",
+					Name: "FOO",
+					Value: types.Value{
+						ConfigRef: "foo",
+					},
 				}},
 			},
 			options: &InspectOptions{

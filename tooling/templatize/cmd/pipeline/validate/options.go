@@ -224,7 +224,7 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 		}
 
 		type variableRef struct {
-			variable types.Variable
+			variable types.Value
 			ref      string
 		}
 		var variables []variableRef
@@ -238,7 +238,7 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 					}
 					for k, variable := range specificStep.Variables {
 						variables = append(variables, variableRef{
-							variable: variable,
+							variable: variable.Value,
 							ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].variables[%d]", i, j, k),
 						})
 					}
@@ -253,7 +253,7 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 					}
 					for k, variable := range specificStep.Variables {
 						variables = append(variables, variableRef{
-							variable: variable,
+							variable: variable.Value,
 							ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].variables[%d]", i, j, k),
 						})
 					}

@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -142,9 +143,11 @@ func TestAddInputVars(t *testing.T) {
 			stepVariables: []types.Variable{
 				{
 					Name: "input1",
-					Input: &types.Input{
-						Name: "output1",
-						Step: "step1",
+					Value: types.Value{
+						Input: &types.Input{
+							Name: "output1",
+							Step: "step1",
+						},
 					},
 				},
 			},
@@ -163,9 +166,11 @@ func TestAddInputVars(t *testing.T) {
 			stepVariables: []types.Variable{
 				{
 					Name: "input1",
-					Input: &types.Input{
-						Name: "output1",
-						Step: "missingstep",
+					Value: types.Value{
+						Input: &types.Input{
+							Name: "output1",
+							Step: "missingstep",
+						},
 					},
 				},
 			},
@@ -184,9 +189,11 @@ func TestAddInputVars(t *testing.T) {
 			stepVariables: []types.Variable{
 				{
 					Name: "input1",
-					Input: &types.Input{
-						Name: "missingvar",
-						Step: "step1",
+					Value: types.Value{
+						Input: &types.Input{
+							Name: "missingvar",
+							Step: "step1",
+						},
 					},
 				},
 			},
@@ -196,8 +203,10 @@ func TestAddInputVars(t *testing.T) {
 			name: "value",
 			stepVariables: []types.Variable{
 				{
-					Name:  "input1",
-					Value: "bar",
+					Name: "input1",
+					Value: types.Value{
+						Value: "bar",
+					},
 				},
 			},
 			expected: map[string]any{"input1": "bar"},
@@ -211,8 +220,10 @@ func TestAddInputVars(t *testing.T) {
 			},
 			stepVariables: []types.Variable{
 				{
-					Name:      "input1",
-					ConfigRef: "some.config",
+					Name: "input1",
+					Value: types.Value{
+						ConfigRef: "some.config",
+					},
 				},
 			},
 			expected: map[string]any{"input1": "bar"},
@@ -226,8 +237,10 @@ func TestAddInputVars(t *testing.T) {
 			},
 			stepVariables: []types.Variable{
 				{
-					Name:      "input1",
-					ConfigRef: "some.missing",
+					Name: "input1",
+					Value: types.Value{
+						ConfigRef: "some.missing",
+					},
 				},
 			},
 			err: "failed to lookup config reference some.missing for input1",
@@ -241,7 +254,7 @@ func TestAddInputVars(t *testing.T) {
 				assert.Error(t, err, tc.err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, result, tc.expected)
+				assert.Empty(t, cmp.Diff(tc.expected, result))
 			}
 		})
 	}
