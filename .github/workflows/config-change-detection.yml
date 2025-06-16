@@ -21,5 +21,7 @@ jobs:
       run: |
         cd config/
         make detect-change
+    - name: 'Validate configurations'
+      run: make validate-config
     - name: 'Validate configurations and pipelines'
       run: make validate-config-pipelines
