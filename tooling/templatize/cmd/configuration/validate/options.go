@@ -490,7 +490,7 @@ func renderDiff(
 
 	// Since we've stashed, we need to un-stash before we're done.
 	defer func() {
-		if _, err := command(ctx, dir, "git", "stash", "pop"); err != nil {
+		if _, err := command(ctx, dir, "git", "stash", "pop"); err != nil && !strings.Contains(err.Error(), "No stash entries found") {
 			logger.Error(err, "failed to pop stash")
 		}
 	}()
