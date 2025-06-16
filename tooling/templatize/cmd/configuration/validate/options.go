@@ -432,42 +432,54 @@ func renderDiff(
 	// It's possible that the user has updated their digests in multiple commits on one branch,
 	// but that seems not highly likely, so we will assume handling that case is not necessary
 	// and use the merge-base between the working branch and the upstream as the reference point.
-	var upstreamRef string
+	//
+	// n.b. in GitHub Actions CI, we're in some non-standard git state and are better off consuming
+	// the upstream ref directly
+	var mergeBase string
+	if value, set := os.LookupEnv("MERGE_BASE_REF"); set && value != "" {
+		mergeBase = value
+	} else {
+		var upstreamRef string
 
-	// check to see if the branch has an upstream set, if so, prefer this
-	upstream, err := command(ctx, dir, "git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
-	if err != nil && !strings.Contains(err.Error(), "fatal: no upstream configured for branch") {
-		return fmt.Errorf("failed to resolve upstream: %w", err)
-	}
-	upstreamRef = strings.TrimSpace(upstream)
-
-	if upstreamRef == "" {
-		// if no upstream set, make a guess based on the remotes and where 99% of merges go
-		remotes, err := command(ctx, dir, "git", "remote")
-		if err != nil {
-			return fmt.Errorf("failed to get git remotes: %w", err)
+		// check to see if the branch has an upstream set, if so, prefer this
+		upstream, err := command(ctx, dir, "git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+		if err != nil && !strings.Contains(err.Error(), "fatal: no upstream configured for branch") {
+			return fmt.Errorf("failed to resolve upstream: %w", err)
 		}
-		for _, remoteName := range strings.Split(remotes, "\n") {
-			remoteUrl, err := command(ctx, dir, "git", "remote", "get-url", strings.TrimSpace(remoteName))
+		upstreamRef = strings.TrimSpace(upstream)
+
+		if upstreamRef == "" {
+			// if no upstream set, make a guess based on the remotes and where 99% of merges go
+			remotes, err := command(ctx, dir, "git", "remote")
 			if err != nil {
-				return fmt.Errorf("failed to get git remote URL: %w", err)
+				return fmt.Errorf("failed to get git remotes: %w", err)
 			}
-			if strings.TrimSpace(remoteUrl) == centralRemoteUrl {
-				upstreamRef = strings.TrimSpace(remoteName) + "/main"
-				break
+			for _, remoteName := range strings.Split(remotes, "\n") {
+				remoteUrl, err := command(ctx, dir, "git", "remote", "get-url", strings.TrimSpace(remoteName))
+				if err != nil {
+					return fmt.Errorf("failed to get git remote URL: %w", err)
+				}
+				if strings.TrimSpace(remoteUrl) == centralRemoteUrl {
+					upstreamRef = strings.TrimSpace(remoteName) + "/main"
+					break
+				}
 			}
 		}
-	}
 
-	if upstreamRef == "" {
-		return fmt.Errorf("failed to determine upstream branch - no upstream configured and no remote matches %s", centralRemoteUrl)
-	}
+		if upstreamRef == "" {
+			return fmt.Errorf("failed to determine upstream branch - no upstream configured and no remote matches %s", centralRemoteUrl)
+		}
 
-	mergeBase, err := command(ctx, dir, "git", "merge-base", "HEAD", upstreamRef)
-	if err != nil {
-		return fmt.Errorf("failed to resolve merge base: %w", err)
+		mergeBaseFromGit, err := command(ctx, dir, "git", "merge-base", "HEAD", upstreamRef)
+		if err != nil {
+			return fmt.Errorf("failed to resolve merge base: %w", err)
+		}
+		mergeBase = strings.TrimSpace(mergeBaseFromGit)
 	}
 	mergeBase = strings.TrimSpace(mergeBase)
+	if mergeBase == "" {
+		return fmt.Errorf("failed to determine merge base")
+	}
 
 	// Now that we have the merge-base, we need to get a copy of that config file - but first, we need to
 	// clean up the working state of the repo so we don't clobber anything. We start by stashing anything
