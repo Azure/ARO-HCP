@@ -13,7 +13,7 @@ prepare-msft-config:
 	yq '. | .clouds = (load("config.msft.public-cloud-overlay.yaml") | .clouds)' config.yaml >> config.msft.yaml
 
 
-materialize: prepare-msft-config
+materialize: render
 	@echo "Materializing dev cloud int env of config/config.yaml"
 	@REGION=$(REGION) ../templatize.sh dev -x $(STAMP) > public-cloud-dev.json
 	@echo "Materializing dev cloud cspr env of config/config.yaml"
@@ -56,7 +56,7 @@ validate:
 	                                                          --digest-file ./msft.all.digests.yaml $(UPDATE)
 .PHONY: validate
 
-render:
+render: prepare-msft-config
 	rm -rf ./rendered
 	$(MAKE) validate UPDATE="--update"
 .PHONY: render

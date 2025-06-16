@@ -32,7 +32,7 @@ jobs:
           echo "##################################################################"
           echo "##                                                              ##"
           echo "##   If you intended to change the service configuration, run   ##"
-          echo "##       make -C config/ render                                 ##"
+          echo "##       make -C config/ materialize                            ##"
           echo "##   and check in the result.                                   ##"
           echo "##                                                              ##"
           echo "##################################################################"
