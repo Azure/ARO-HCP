@@ -58,14 +58,28 @@ while true; do
   ./arocurl.sh GET "${AZURE_PATH}" > "${TMP_FILE}"
   TS=$(date +%s)
   TS_STR=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00" --date="@${TS}")
+  # test validity of the response
+  ERROR=$(jq --raw-output ".error" "${TMP_FILE}")
+  # shellcheck disable=SC2181
+  if [[ $? -ne 0 ]]; then
+    echo "error: invalid json data in the response" >&2
+    exit 1
+  fi
+  if [[ "${ERROR}" != "null" ]]; then
+    echo "${ERROR}" >&2
+    exit 1
+  fi
   STATE=$(jq --raw-output "${STATUS_QUERY}" "${TMP_FILE}")
-  if [[ "${STATE}" = "${TARGET_STATE}" ]]; then
+  if [[ "${STATE}" = "null" ]]; then
+    echo "Value of ${STATUS_QUERY} is missing" >&2
+    exit 1
+  elif [[ "${STATE}" = "${TARGET_STATE}" ]]; then
     echo "${TS_STR} $AZURE_PATH reached ${TARGET_STATE}"
     break
   fi
   if [[ "${TS}" -gt $(("${TS_START}" + "${MAX_TIME}")) ]]; then
-    echo "${TS_STR} $AZURE_PATH in ${STATE} after ${MAX_TIME} seconds"
-    echo timeout
+    echo "${TS_STR} $AZURE_PATH in ${STATE} after ${MAX_TIME} seconds" >&2
+    echo "error: timeout" >&2
     exit 1
   fi
   echo "${TS_STR} $AZURE_PATH is in ${STATE}, waiting for ${TARGET_STATE}"
