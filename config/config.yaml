@@ -631,6 +631,15 @@ clouds:
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
+          regionRG: "{{ .ctx.region }}-shared-resources"
+          serviceKeyVault:
+            name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
+            rg: "{{ .ctx.region }}-shared-resources"
+            region: "{{ .ctx.region }}"
+            softDelete: false
+          monitoring:
+            svcWorkspaceName: 'aro-hcp-ntly-svc-{{ .ctx.regionShort }}'
+            hcpWorkspaceName: 'aro-hcp-ntly-hcp-{{ .ctx.regionShort }}'
           # Cluster Service
           clustersService:
             postgres:
@@ -649,7 +658,10 @@ clouds:
               zoneRedundantMode: 'Disabled'
           # MC
           mgmt:
+            subscription: ARO HCP nightly management (EA Subscription)
             applyKubeletFixes: false
+          svc:
+            subscription: ARO HCP nightly service (EA Subscription)
       pers:
         # this is the personal DEV environment
         defaults:

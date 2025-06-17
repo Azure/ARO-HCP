@@ -277,7 +277,7 @@ mgmt:
       shards: 1
       version: v2.55.1-3
   rg: hcp-underlay-ntly-uksouth-mgmt-1
-  subscription: ARO Hosted Control Planes (EA Subscription 1)
+  subscription: ARO HCP nightly management (EA Subscription)
 mgmtKeyVault:
   name: ah-ntly-mg-ln-1
   private: false
@@ -301,12 +301,12 @@ monitoring:
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: arohcp-hcp-ntly-ln
+  hcpWorkspaceName: aro-hcp-ntly-hcp-ln
   sev1ActionGroupIDs: ""
   sev2ActionGroupIDs: ""
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
-  svcWorkspaceName: arohcp-ntly-ln
+  svcWorkspaceName: aro-hcp-ntly-svc-ln
 msiKeyVault:
   name: ah-ntly-mi-ln-1
   private: false
@@ -327,14 +327,14 @@ pko:
     registry: quay.io
     repository: package-operator/remote-phase-manager
 region: uksouth
-regionRG: hcp-underlay-ntly-ln
+regionRG: uksouth-shared-resources
 serviceKeyVault:
   assignNSP: true
-  name: aro-hcp-dev-svc-kv
+  name: arohcpntly-svc-ln
   private: false
-  region: westus3
-  rg: global
-  softDelete: true
+  region: uksouth
+  rg: uksouth-shared-resources
+  softDelete: false
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
@@ -397,5 +397,5 @@ svc:
       shards: 1
       version: ""
   rg: hcp-underlay-ntly-uksouth-svc
-  subscription: ARO Hosted Control Planes (EA Subscription 1)
+  subscription: ARO HCP nightly service (EA Subscription)
 tenantId: ""

@@ -352,7 +352,7 @@
       }
     },
     "rg": "hcp-underlay-ntly-southwestus-mgmt-999",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
+    "subscription": "ARO HCP nightly management (EA Subscription)"
   },
   "mgmtKeyVault": {
     "name": "ah-ntly-mg-ussw1-999",
@@ -380,12 +380,12 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-ntly-ussw1",
+    "hcpWorkspaceName": "aro-hcp-ntly-hcp-ussw1",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-ntly-ussw1"
+    "svcWorkspaceName": "aro-hcp-ntly-svc-ussw1"
   },
   "msiKeyVault": {
     "name": "ah-ntly-mi-ussw1-999",
@@ -412,14 +412,14 @@
     }
   },
   "region": "southwestus",
-  "regionRG": "hcp-underlay-ntly-ussw1",
+  "regionRG": "southwestus-shared-resources",
   "serviceKeyVault": {
     "assignNSP": true,
-    "name": "aro-hcp-dev-svc-kv",
+    "name": "arohcpntly-svc-ussw1",
     "private": false,
-    "region": "westus3",
-    "rg": "global",
-    "softDelete": true
+    "region": "southwestus",
+    "rg": "southwestus-shared-resources",
+    "softDelete": false
   },
   "svc": {
     "aks": {
@@ -496,7 +496,7 @@
       }
     },
     "rg": "hcp-underlay-ntly-southwestus-svc",
-    "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
+    "subscription": "ARO HCP nightly service (EA Subscription)"
   },
   "tenantId": ""
 }
