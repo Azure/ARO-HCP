@@ -25,6 +25,7 @@ import (
 
 func Markdown(topo topology.Topology, into io.WriteCloser) error {
 	if _, err := into.Write([]byte(`# Pipeline Documentation
+
 The tree of pipelines making up the ARO HCP service are documented here from the topology configuration.
 
 `)); err != nil {

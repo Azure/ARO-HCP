@@ -88,7 +88,7 @@
 - **Abbreviation**: ADO
 - **References**:
   - [Docs](https://learn.microsoft.com/en-us/azure/devops/)
-  - [ARO HCP ADO Pipelines](https://msazure.visualstudio.com/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Chcp)
+  - [ARO HCP ADO Pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp)
 
 ### EV2
 
