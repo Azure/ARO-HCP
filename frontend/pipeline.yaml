@@ -18,7 +18,7 @@ resourceGroups:
     pullSecretKeyVault:
       configRef: global.keyVault.name
     pullSecretName:
-      configRef: imageSync.componentSync.pullSecretName
+      configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       configRef: aroDevopsMsiId
 - name: '{{ .svc.rg  }}'

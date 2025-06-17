@@ -198,17 +198,6 @@
     "namespace": "hypershift"
   },
   "imageSync": {
-    "componentSync": {
-      "enabled": false,
-      "image": {
-        "digest": "",
-        "registry": "arohcpsvcdev.azurecr.io",
-        "repository": "image-sync/component-sync"
-      },
-      "pullSecretName": "component-sync-pull-secret",
-      "repositories": "",
-      "secrets": ""
-    },
     "environmentName": "aro-hcp-image-sync",
     "ocMirror": {
       "enabled": true,
@@ -218,6 +207,9 @@
         "repository": "image-sync/oc-mirror"
       },
       "pullSecretName": "ocmirror-pull-secret"
+    },
+    "ondemandSync": {
+      "pullSecretName": "component-sync-pull-secret"
     },
     "outboundServiceTags": "FirstPartyUsage:/Unprivileged"
   },

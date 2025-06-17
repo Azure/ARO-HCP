@@ -198,17 +198,6 @@
     "namespace": "hypershift"
   },
   "imageSync": {
-    "componentSync": {
-      "enabled": true,
-      "image": {
-        "digest": "sha256:d838c4910bc53a5583dd501ed7e3ab08aa7c08b45b5997c90764c65ceef01a8f",
-        "registry": "arohcpsvcdev.azurecr.io",
-        "repository": "image-sync/component-sync"
-      },
-      "pullSecretName": "component-sync-pull-secret",
-      "repositories": "quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro,quay.io/acm-d/rhtap-hypershift-operator,quay.io/app-sre/uhc-clusters-service,quay.io/package-operator/package-operator-package,quay.io/package-operator/package-operator-manager,quay.io/package-operator/remote-phase-manager,quay.io/app-sre/backplane-api",
-      "secrets": "quay.io:quay-io-bearer"
-    },
     "environmentName": "aro-hcp-image-sync",
     "ocMirror": {
       "enabled": true,
@@ -218,6 +207,9 @@
         "repository": "image-sync/oc-mirror"
       },
       "pullSecretName": "ocmirror-pull-secret"
+    },
+    "ondemandSync": {
+      "pullSecretName": "component-sync-pull-secret"
     },
     "outboundServiceTags": ""
   },

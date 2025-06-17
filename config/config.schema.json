@@ -945,33 +945,18 @@
         "outboundServiceTags": {
           "$ref": "#/definitions/keyColonValueCSV"
         },
-        "componentSync": {
+        "ondemandSync": {
           "type": "object",
           "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "image": {
-              "$ref": "#/definitions/containerImage"
-            },
-            "repositories": {
-              "type": "string"
-            },
-            "secrets": {
-              "$ref": "#/definitions/keyColonValueCSV"
-            },
             "pullSecretName": {
               "type": "string"
             }
           },
           "additionalProperties": false,
           "required": [
-            "enabled",
-            "image",
-            "repositories",
-            "secrets",
             "pullSecretName"
           ]
+
         },
         "ocMirror": {
           "type": "object",
@@ -998,7 +983,6 @@
       "required": [
         "environmentName",
         "outboundServiceTags",
-        "componentSync",
         "ocMirror"
       ]
     },

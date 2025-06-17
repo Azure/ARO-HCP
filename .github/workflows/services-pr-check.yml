@@ -27,7 +27,6 @@ on:
     - 'acm/**'
     - 'hypershiftoperator/**'
     - 'image-sync/**/'
-    - 'tooling/image-sync/**'
     - 'tooling/templatize/**'
     - 'config/*'
     types:

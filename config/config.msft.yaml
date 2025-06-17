@@ -343,14 +343,7 @@ defaults:
   imageSync:
     environmentName: aro-hcp-image-sync
     outboundServiceTags: ""
-    componentSync:
-      enabled: false
-      repositories: ""
-      secrets: ""
-      image:
-        registry: arohcpsvcdev.azurecr.io
-        repository: image-sync/component-sync
-        digest: ""
+    ondemandSync:
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
