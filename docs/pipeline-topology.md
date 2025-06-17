@@ -25,7 +25,7 @@ Service groups also carry semantic meaning within EV2. They define ownership bou
 Core idea: provide a way to trigger a pipeline an all its child pipelines, allowing for a single entry point to deploy a service and its dependencies.
 
 > [!NOTE]
-> Entrypoints are not currently used in practice but are included for future extensibility. Ignore them while managing the topolocy file.
+> Entrypoints are not currently used in practice but are included for future extensibility. Ignore them while managing the topology file.
 
 ## How to Use and Extend the Topology
 
