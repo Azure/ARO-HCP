@@ -12,7 +12,7 @@ This document describes the deployment process of ARO HCP instances into Microso
 
 Deployments of ARO HCP instances into Microsoft tenants are managed through a combination of Azure DevOps (ADO) pipelines and [EV2](terminology.md#ev2). Different aspects of an ARO HCP instance, such as infrastructure and services, are deployed by distinct [ADO pipelines](pipelines.md).
 
-Such ADO pipelines consume [Bicep templates](bicep.md), [Helm charts](service-deployment-concept.md#helm-chart), [configuration data](configuration.md), [scripts](pipeline-concept.md#shell-step) and [pipeline.yaml](pipeline-concept.md) definitions from the [ARO HCP repository](https://github.com/Azure/ARO-HCP). These inputs are processed using [custom tools](https://msazure.visualstudio.com/AzureRedHatOpenShift/_git/hcp?path=/ev2/main.go) to generate EV2 artifacts, which define the necessary deployment steps and configurations.
+Such ADO pipelines consume [Bicep templates](bicep.md), [Helm charts](service-deployment-concept.md#helm-chart), [configuration data](configuration.md), [scripts](pipeline-concept.md#shell-step) and [pipeline.yaml](pipeline-concept.md) definitions from the [ARO HCP repository](https://github.com/Azure/ARO-HCP). These inputs are processed using [custom tools](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/tooling) to generate EV2 artifacts, which define the necessary deployment steps and configurations.
 
 Once the EV2 artifacts are generated, the ADO pipeline uploads them to EV2. EV2 orchestrates the rollout across multiple regions following the [Safe Deployment Practices](terminology.md#safe-deployment-practices), ensuring a controlled, secure and structured deployment flow into all ARO HCP relevant Azure regions.
 
@@ -23,13 +23,13 @@ config:
 ---
 flowchart LR
  subgraph github_aro_hcp["GitHub ARO HCP"]
-        pipeline_yaml["ABC-pipeline.yaml"]
+        pipeline_yaml["pipeline.yaml"]
         bicep["Bicep"]
         helm_charts["Helm Charts"]
         config["config.yaml"]
   end
- subgraph ado_hcp["ADO HCP"]
-        ado_pipeline[".pipelines/ABC.$ENV.yaml"]
+ subgraph ado_hcp["ADO sdp-pipelines"]
+        ado_pipeline[".pipelines/$ENV/$SERVICEGROUP.yaml"]
         ev2ra_gen["EV2RA Generator"]
         ev2ra_artifacts["EV2RA Artifacts"]
   end
@@ -55,29 +55,18 @@ flowchart LR
 
 ## Create a New ADO Pipeline for EV2 Deployments
 
-To run a pipeline.yaml file within EV2 we leverage ADO pipelines. Each [pipeline.yaml](pipeline-concept.md) file / target [deployment environment](environments.md#aro-hcp-environment-overview) combination is represented by a dedicated ADO pipeline.
+The creation of ADO pipelines for pipeline.yaml is automated based on metadata found in [topology.yaml](../topology.yaml).
 
-The ARO HCP ADO pipelines are defined as YAML files stored in the [HCP ADO repository](https://msazure.visualstudio.com/AzureRedHatOpenShift/_git/hcp?path=/.pipelines).
+* [update the topology file to include a new pipeline.yaml](pipeline-topology.md)
+* [generate and register the ADO pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/README.md)
 
-1. **Use an existing pipeline as a template** – Find a similar pipeline and modify it to suit your needs. This typically involves adjusting the referenced `pipeline.yaml`.
-2. **Submit a pull request (PR)** – Once the modifications are complete, submit a PR with the updated pipeline.
-3. **Get the PR merged** – Wait for approval and merging of your PR.
-4. **Request pipeline registration** – After the PR is merged, request the MSFT team to register the new pipeline within ADO.
-
-The ADO pipeline will eventually show up [here](https://msazure.visualstudio.com/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Chcp). Make sure to maintain the [pipeline inventory](pipelines.md#pipeline-inventory).
-
-> [!IMPORTANT]
-> We need more documentation on how to create the ADO pipeline files, how to control aspects of EV2 and SDP, how to target different environments, ...
+The ADO pipeline will eventually show up under the [pipelines secion of sdp-pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp).
 
 ## Execute an ADO pipeline
 
 * Go to the respective pipeline in ADO
-  * find the links [here](pipelines.md#pipeline-inventory) or ...
-  * ... have a look at the [pipelines in ADO](https://msazure.visualstudio.com/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Chcp)
+  * find the pipeline by name in the [ADO pipeline overview for ARO HCP](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp)
 * Click on `Run Pipeline`
-* You can customize sources for the pipeline run
-  * The pipeline itself is stored in the `HCP` ADO repostitory - if you want to test some changes on the ADO pipeline itself, pick the respective branch from `Branch/tag`
-  * The `pipeline.yaml` is stored in the `ARO-HCP` repository - if you want to test changes on a `pipeline.yaml`, Helm charts, scripts or bicep templates, pick the respective branch under `Resource > Azure/ARO-HCP`. Please note that this works only for INT deployments, but not for deployments to higher environments where only the main branch can be used.
 
 Once the ADO pipeline is running, you can observe the progress in the EV2 portal. You can either
 

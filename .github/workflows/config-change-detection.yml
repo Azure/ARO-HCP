@@ -40,6 +40,10 @@ jobs:
         fi
     - name: 'Validate configurations and pipelines'
       run: make validate-config-pipelines
+    - name: 'Generate Pipeline Inventory'
+      run: |
+        cd docs/
+        make pipelines.md
     - name: 'Fail if there is uncommited change'
       run: |-
         cd config/

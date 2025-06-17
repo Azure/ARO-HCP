@@ -18,14 +18,15 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/Azure/ARO-Tools/pkg/topology"
 )
 
 func Markdown(topo topology.Topology, into io.WriteCloser) error {
 	if _, err := into.Write([]byte(`# Pipeline Documentation
+
 The tree of pipelines making up the ARO HCP service are documented here from the topology configuration.
+[ADO Pipeline Overview](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp)
 
 `)); err != nil {
 		return err
@@ -48,18 +49,12 @@ func writeDetails(entrypoints []topology.Entrypoint, service topology.Service, i
 	summary.WriteString(fmt.Sprintf("- %s", service.ServiceGroup))
 	summary.WriteString(fmt.Sprintf(" ([ref](https://github.com/Azure/ARO-HCP/tree/main/%s))", service.PipelinePath))
 	summary.WriteString(fmt.Sprintf(": %s", service.Purpose))
-	if links, ok := formatPipelineLinks(service.Metadata); ok {
-		summary.WriteString(" " + links)
-	}
 
 	for _, entrypoint := range entrypoints {
 		if entrypoint.Identifier == service.ServiceGroup {
 			reference := ""
 			if name, ok := entrypoint.Metadata["name"]; ok {
 				reference += name
-			}
-			if links, ok := formatPipelineLinks(entrypoint.Metadata); ok {
-				reference += " " + links
 			}
 			if reference != "" {
 				summary.WriteString(fmt.Sprintf(" (%s)", reference))
@@ -79,21 +74,4 @@ func writeDetails(entrypoints []topology.Entrypoint, service topology.Service, i
 		}
 	}
 	return nil
-}
-
-func formatPipelineLinks(metadata map[string]string) (string, bool) {
-	var pipelines []string
-	for acronym, key := range map[string]string{
-		"INT":  "intPipelineId",
-		"STG":  "stgPipelineId",
-		"PROD": "prodPipelineId",
-	} {
-		if link, ok := metadata[key]; ok && link != "" {
-			pipelines = append(pipelines, fmt.Sprintf("[%s](https://msazure.visualstudio.com/AzureRedHatOpenShift/_build?definitionId=%s)", acronym, link))
-		}
-	}
-	if len(pipelines) > 0 {
-		return fmt.Sprintf("[%s]", strings.Join(pipelines, ", ")), true
-	}
-	return "", false
 }
