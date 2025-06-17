@@ -78,9 +78,6 @@ jobs:
     - name: 'Dry Run Maestro Server'
       run: |
         make maestro.server.dry_run
-    #- name: 'Dry Run Backplane API'
-    #  run: |
-    #    make backplane-api.dry_run
   mgmt_cluster_pr_check:
     permissions:
       id-token: 'write'
