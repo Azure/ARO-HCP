@@ -249,6 +249,7 @@ func ValidateServiceConfig(
 	currentDigests := Digests{
 		Clouds: map[string]CloudDigests{},
 	}
+	var jsonSchemaPath string
 	for cloud, environments := range contexts {
 		if _, ok := currentDigests.Clouds[cloud]; !ok {
 			currentDigests.Clouds[cloud] = CloudDigests{
@@ -307,6 +308,12 @@ func ValidateServiceConfig(
 					return fmt.Errorf("%s: invalid configuration", prefix)
 				}
 
+				var schemaResolutionErr error
+				jsonSchemaPath, schemaResolutionErr = resolver.SchemaPath()
+				if schemaResolutionErr != nil {
+					return fmt.Errorf("%s failed to get schema path: %w", prefix, schemaResolutionErr)
+				}
+
 				if err := resolver.ValidateSchema(cfg); err != nil {
 					return fmt.Errorf("%s resolved region config was invalid: %w", prefix, err)
 				}
@@ -352,7 +359,8 @@ func ValidateServiceConfig(
 						if err := renderDiff(
 							ctx,
 							cloud, environment, region, useEv2PublicCloud,
-							serviceConfigFile, centralRemoteUrl, outputDir, scratchDir,
+							serviceConfigFile, jsonSchemaPath,
+							centralRemoteUrl, outputDir, scratchDir,
 						); err != nil {
 							logger.WithValues("cloud", cloud, "environment", environment, "region", region).Error(err, "Failed to render diff.")
 						}
@@ -396,6 +404,7 @@ func renderDiff(
 	cloud, environment, region string,
 	useEv2PublicCloud bool,
 	serviceConfigFile string,
+	jsonSchemaFile string,
 	centralRemoteUrl string,
 	outputDir, scratchDir string,
 ) error {
@@ -497,13 +506,14 @@ func renderDiff(
 
 	// With a clean slate, we can check out the reference version of the config file.
 	configFile := filepath.Base(serviceConfigFile)
-	if _, err := command(ctx, dir, "git", "checkout", mergeBase, "--", configFile); err != nil {
+	schemaFile := filepath.Base(jsonSchemaFile)
+	if _, err := command(ctx, dir, "git", "checkout", mergeBase, "--", configFile, schemaFile); err != nil {
 		return fmt.Errorf("failed to reset service config file to the merge base: %w", err)
 	}
 
 	// Since we've edited the config file, we need to reset it before we exit.
 	defer func() {
-		if _, err := command(ctx, dir, "git", "checkout", "HEAD", "--", configFile); err != nil {
+		if _, err := command(ctx, dir, "git", "checkout", "HEAD", "--", configFile, schemaFile); err != nil {
 			logger.Error(err, "failed to unstage service config file")
 		}
 	}()
