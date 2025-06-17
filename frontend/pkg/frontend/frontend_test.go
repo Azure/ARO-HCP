@@ -440,7 +440,7 @@ func TestDeploymentPreflight(t *testing.T) {
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
-						"vmSize": "Standard_D8s_v3",
+						"vmSize": "Standard_D2s_v3",
 					},
 				},
 			},

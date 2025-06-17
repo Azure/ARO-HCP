@@ -133,7 +133,7 @@ func ClusterTestCase(t *testing.T, tweaks *HCPOpenShiftCluster) *HCPOpenShiftClu
 func MinimumValidNodePoolTestCase() *HCPOpenShiftClusterNodePool {
 	resource := NewDefaultHCPOpenShiftClusterNodePool()
 	resource.Location = TestLocation
-	resource.Properties.Platform.VMSize = "Standard_D8s_v3"
+	resource.Properties.Platform.VMSize = "Standard_D2s_v3"
 	return resource
 }
 
