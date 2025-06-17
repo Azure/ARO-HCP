@@ -68,7 +68,7 @@ Pipelines should be placed according to **execution dependency**, not just owner
 
 ## Tooling and Automation
 
-When the topolocy file changes, two processes need to be triggered (currently manually) to ensure the new data is reflected in the ARO HCP deployment system:
+When the topology file changes, two processes need to be triggered (currently manually) to ensure the new data is reflected in the ARO HCP deployment system:
 
 * **Documentation Generator**: The ARO-HCP repository includes a tool at `tooling/pipeline-documentation` which renders the topology into human-readable form at [/docs/pipeline.md](../docs/pipelines.md). This serves as a reference for engineering and service lifecycle teams.
 
