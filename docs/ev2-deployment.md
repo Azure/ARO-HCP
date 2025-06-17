@@ -65,8 +65,7 @@ The ADO pipeline will eventually show up under the [pipelines secion of sdp-pipe
 ## Execute an ADO pipeline
 
 * Go to the respective pipeline in ADO
-  * find the links [here](pipelines.md) or ...
-  * ... have a look at the [pipelines in ADO](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp)
+  * find the pipeline by name in the [ADO pipeline overview for ARO HCP](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp)
 * Click on `Run Pipeline`
 
 Once the ADO pipeline is running, you can observe the progress in the EV2 portal. You can either

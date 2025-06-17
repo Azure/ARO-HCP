@@ -22,7 +22,7 @@ Service groups also carry semantic meaning within EV2. They define ownership bou
 
 ### Entrypoints
 
-Core idea: provide a way to trigger a pipeline an all its child pipelines, allowing for a single entry point to deploy a service and its dependencies.
+Core idea: provide a way to trigger a pipeline and all its child pipelines, allowing for a single entry point to deploy a service and its dependencies. An entrypoint is an approved starting point for pipeline traversal.
 
 > [!NOTE]
 > Entrypoints are not currently used in practice but are included for future extensibility. Ignore them while managing the topology file.
@@ -52,16 +52,11 @@ Each new pipeline must be added with a dedicated `serviceGroup`. To define a new
 
 ```yaml
 serviceGroup: Microsoft.Azure.ARO.HCP.<uniqueSuffix>
-metadata:
-  intPipelineId: ''
-  stgPipelineId: ''
-  prodPipelineId: ''
 pipelinePath: relative/path/to/pipeline.yaml
 purpose: Short description of the pipeline's role
 ```
 
-* Use a meaningful, unique suffix to extend the required prefix `Microsoft.Azure.ARO.HCP.`
-* During onboarding, leave the pipeline ID fields empty—they will be updated later when ADO pipelines are created.
+Use a meaningful, unique suffix to extend the required prefix `Microsoft.Azure.ARO.HCP.`
 
 ### Review Process
 

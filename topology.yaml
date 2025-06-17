@@ -23,84 +23,36 @@ services:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
       children:
       - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
-        metadata:
-          intPipelineId: '423086'
-          stgPipelineId: '423075'
-          prodPipelineId: ''
         pipelinePath: maestro/server/pipeline.yaml
         purpose: Deploy the Maestro Server.
       - serviceGroup: Microsoft.Azure.ARO.HCP.ClusterService
-        metadata:
-          intPipelineId: '423071'
-          stgPipelineId: '423087'
-          prodPipelineId: ''
         pipelinePath: cluster-service/pipeline.yaml
         purpose: Deploy Cluster Service.
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Backend
-        metadata:
-          intPipelineId: '423089'
-          stgPipelineId: '423066'
-          prodPipelineId: ''
         pipelinePath: backend/pipeline.yaml
         purpose: Deploy the RP Backend.
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Frontend
-        metadata:
-          intPipelineId: '423065'
-          stgPipelineId: '423070'
-          prodPipelineId: ''
         pipelinePath: frontend/pipeline.yaml
         purpose: Deploy the RP Frontend.
-      metadata:
-        intPipelineId: '423068'
-        stgPipelineId: '423079'
-        prodPipelineId: ''
       pipelinePath: dev-infrastructure/svc-pipeline.yaml
       purpose: Deploy the service cluster and supporting infrastructure.
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
       children:
       - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
-        metadata:
-          intPipelineId: '423080'
-          stgPipelineId: '423076'
-          prodPipelineId: ''
         pipelinePath: acm/pipeline.yaml
         purpose: Deploy Advanced Cluster Management and Multi-Cluster Engine.
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
-        metadata:
-          intPipelineId: '423069'
-          stgPipelineId: '423082'
-          prodPipelineId: ''
         pipelinePath: hypershiftoperator/pipeline.yaml
         purpose: Deploy the HyperShift operator.
       - serviceGroup: Microsoft.Azure.ARO.HCP.PKO
-        metadata:
-          intPipelineId: '423085'
-          stgPipelineId: '423081'
-          prodPipelineId: ''
         pipelinePath: pko/pipeline.yaml
         purpose: Deploy the Package Operator.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
-        metadata:
-          intPipelineId: '423078'
-          stgPipelineId: '423073'
-          prodPipelineId: ''
         pipelinePath: maestro/agent/pipeline.yaml
         purpose: Deploy the Maestro Agent and register it with the MQTT stream.
-      metadata:
-        intPipelineId: '423074'
-        stgPipelineId: '423084'
-        prodPipelineId: ''
       pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
       purpose: Deploy a management cluster and backing infrastructure.
-    metadata:
-      intPipelineId: '423077'
-      stgPipelineId: '423064'
-      prodPipelineId: ''
     pipelinePath: dev-infrastructure/region-pipeline.yaml
     purpose: Deploy regional shared infrastructure.
-  metadata:
-    intPipelineId: '423072'
-    stgPipelineId: '423083'
-    prodPipelineId: ''
   pipelinePath: dev-infrastructure/global-pipeline.yaml
   purpose: Deploy global shared infrastructure.
