@@ -112,7 +112,7 @@ func CreateNodePool() error {
 				// VMSize should match configs/cloud-resources/instance-types.yaml
 				// and configs/cloud-resource-constraints/instance-type-constraints.yaml
 				// in CS config files.
-				VMSize:                 "Standard_D8s_v3",
+				VMSize:                 "Standard_D2s_v3",
 				DiskStorageAccountType: "StandardSSD_LRS",
 			},
 			Replicas: 2,
