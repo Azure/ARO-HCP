@@ -4,8 +4,6 @@
 
 The [pipeline topology](../topology.yaml) is a file that describes the dependencies between pipelines and their respective scope in the ARO HCP platform. It establishes a top-down tree where each child pipeline depends on its parent pipeline to prepare the infrastructure and services required for it to succeed. This hierarchical model helps coordinate complex region buildouts.
 
-The file also defines explicit entrypoints representing architectural scopes (e.g., Global, Region, Service Cluster), allowing tools and teams to reason about the deployment graph from specific perspectives.
-
 The topology is maintained collaboratively by all ARO HCP teams, with each team responsible for adding or updating pipeline entries relevant to their components.
 
 ## Concepts
@@ -18,17 +16,20 @@ Currently, there is no automated mechanism that enforces pipeline execution orde
 
 ### Services and Service Groups
 
-Pipelines relate to a service group, which is a unique identifier required in the EV2 deployment system. It serves as a namespace to group resources created by a pipeline. It maps directly to one `pipeline.yaml` file and is used to group service artifacts and rollouts within the EV2 portal. In ARO HCP, all service group identifiers must begin with `Microsoft.Azure.ARO.HCP.`.
+Pipelines relate to a service group, which is a unique identifier required in the EV2 deployment system. It serves as a namespace to group resources created by a pipeline. It maps directly to one `pipeline.yaml` file and is used to group service artifacts and rollouts within the [EV2 portal](https://ra.ev2portal.azure.net/). In ARO HCP, all service group identifiers must begin with `Microsoft.Azure.ARO.HCP.`.
 
 Service groups also carry semantic meaning within EV2. They define ownership boundaries and are linked to service tree entries, making it clear who maintains each portion of the system. Ownership and service tree metadata is not maintained in the topology file but is managed by the processes defined in the [sdp-pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines) tooling.
 
 ### Entrypoints
 
-Entrypoints serve as anchor points for tools to interpret or visualize the topology. They can point to any node in the tree but are currently not used in practice. Each entrypoint includes metadata like a display name and a link to relevant architectural documentation.
+Core idea: provide a way to trigger a pipeline an all its child pipelines, allowing for a single entry point to deploy a service and its dependencies.
+
+> [!NOTE]
+> Entrypoints are not currently used in practice but are included for future extensibility. Ignore them while managing the topolocy file.
 
 ## How to Use and Extend the Topology
 
-New `pipeline.yaml` files need to be added to the `topology.yaml` file in the ARO HCP repository so that they can be rolled out via ADO and EV2. For that, a new entry underneath `services` must be created, following the guidelines below.
+New `pipeline.yaml` file references need to be added to the `topology.yaml` file to make them deployable via ADO and EV2. A new entry within `services` must be created, following the guidelines below.
 
 ### Placement Guidelines
 
