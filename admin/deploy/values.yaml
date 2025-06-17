@@ -1,5 +1,4 @@
-image:
-  repository: ""
-  tag: ""
+deployment:
+  imageName: ""
 configMap:
   location: ""
