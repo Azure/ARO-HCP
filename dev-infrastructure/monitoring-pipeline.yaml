@@ -1,0 +1,36 @@
+#
+# Purpose: Manage monitoring resources for ARO HCP shared by SC and MC
+# Managed Resources:
+# * Azure Monitor Metrics resources for services
+# * Azure Monitor Metrics resources for hosted control planes
+# * Action Groups & Prometheus alerting rules
+#
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
+rolloutName: Monitoring Rollout
+resourceGroups:
+- name: '{{ .regionRG  }}'
+  subscription: '{{ .svc.subscription  }}'
+  steps:
+  - name: region-output
+    action: ARM
+    template: templates/output-region.bicep
+    parameters: configurations/output-region.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: monitoring
+    action: ARM
+    template: templates/monitoring.bicep
+    parameters: configurations/monitoring.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: azureMonitoringWorkspaceId
+      input:
+        step: region-output
+        name: azureMonitoringWorkspaceId
+    - name: hcpAzureMonitoringWorkspaceId
+      input:
+        step: region-output
+        name: hcpAzureMonitoringWorkspaceId
+    dependsOn:
+    - region-output

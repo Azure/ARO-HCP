@@ -1,24 +1,3 @@
-configurations/mgmt-cluster.bicepparam
-configurations/mgmt-infra.bicepparam
-configurations/mgmt-nsp.bicepparam
-configurations/svc-cluster.bicepparam
-configurations/svc-infra.bicepparam
-configurations/region.bicepparam
-configurations/metrics.bicepparam
-configurations/acr-svc.bicepparam
-configurations/acr-ocp.bicepparam
-configurations/image-sync.bicepparam
-configurations/dev-role-assignments.bicepparam
-configurations/cs-integ-msi.bicepparam
-configurations/output-region.bicepparam
-configurations/output-global.bicepparam
-configurations/output-svc.bicepparam
-configurations/mock-identities.bicepparam
-configurations/global-acr.bicepparam
-configurations/global-infra.bicepparam
-configurations/global-image-sync.bicepparam
-configurations/output-global.bicepparam
-configurations/output-svc.bicepparam
 config.mk
 
 istio-*
