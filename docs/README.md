@@ -46,9 +46,9 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 ### Deployment Concept
 
-- [Pipelines concept](pipeline-concept.md)
+- [Pipelines Concept](pipeline-concept.md)
 - [Pipeline Topology](pipeline-topology.md)
-- [Service deployment concept](service-deployment-concept.md)
+- [Service Deployment Concept](service-deployment-concept.md)
 - Deployment artifacts
   - [Azure infrastructure Bicep templates](bicep.md)
   - [Helm Charts](service-deployment-concept.md#helm-chart)
@@ -69,8 +69,11 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [Grafana Dashboards](grafana-dashboards.md)
 - [Prometheus Rules](prometheus-rules.md)
 
-### Operations
+### Guides and Operations
 
+- [Introduce a new Service to ARO HCP](introduce-new-services.md)
+  - Guidance on how to introduce new services into the ARO HCP architecture and deployment concept
 - [High Level HCP Creation Flow](ops/hcp-cluster-creation-flow.md)
+  - Walkthrough of an HCP cluster creation process through all the service layers of ARO HCP
 
 ### [Terminology](terminology.md)
