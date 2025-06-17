@@ -15,17 +15,17 @@ prepare-msft-config:
 
 materialize: render
 	@echo "Materializing dev cloud int env of config/config.yaml"
-	@REGION=$(REGION) ../templatize.sh dev -x $(STAMP) > public-cloud-dev.json
+	@../templatize.sh dev -x $(STAMP) > public-cloud-dev.json
 	@echo "Materializing dev cloud cspr env of config/config.yaml"
-	@REGION=$(REGION) ../templatize.sh cspr -x $(STAMP) > public-cloud-cspr.json
+	@../templatize.sh cspr -x $(STAMP) > public-cloud-cspr.json
 	@echo "Materializing dev cloud ntly env of config/config.yaml"
-	@REGION=$(REGION) ../templatize.sh ntly -x $(STAMP) > public-cloud-ntly.json
+	@../templatize.sh ntly -x $(STAMP) > public-cloud-ntly.json
 	@echo "Materializing dev cloud personal dev env of config/config.yaml"
-	@USER=test REGION=$(REGION) ../templatize.sh pers -x $(STAMP) > public-cloud-pers.json
+	@USER=test ../templatize.sh pers -x $(STAMP) > public-cloud-pers.json
 	@echo "Materializing public cloud int env of config/config.msft.yaml"
-	@CONFIG_FILE=../config/config.msft.yaml REGION=$(REGION) ../templatize.sh int -c public -x $(STAMP) > public-cloud-msft-int.json
+	@CONFIG_FILE=../config/config.msft.yaml ../templatize.sh int -c public -x $(STAMP) > public-cloud-msft-int.json
 	@echo "Materializing public cloud stg env of config/config.msft.yaml"
-	@CONFIG_FILE=../config/config.msft.yaml REGION=$(REGION) ../templatize.sh stg -c public -x $(STAMP) > public-cloud-msft-stg.json
+	@CONFIG_FILE=../config/config.msft.yaml ../templatize.sh stg -c public -x $(STAMP) > public-cloud-msft-stg.json
 .PHONY: materialize
 
 detect-change: materialize

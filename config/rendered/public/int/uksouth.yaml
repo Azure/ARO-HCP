@@ -147,15 +147,6 @@ hypershift:
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
 imageSync:
-  componentSync:
-    enabled: false
-    image:
-      digest: ""
-      registry: arohcpsvcdev.azurecr.io
-      repository: image-sync/component-sync
-    pullSecretName: component-sync-pull-secret
-    repositories: ""
-    secrets: ""
   environmentName: aro-hcp-image-sync
   ocMirror:
     enabled: true
@@ -164,6 +155,8 @@ imageSync:
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     pullSecretName: ocmirror-pull-secret
+  ondemandSync:
+    pullSecretName: component-sync-pull-secret
   outboundServiceTags: FirstPartyUsage:/Unprivileged
 kusto:
   cluster: aroINT

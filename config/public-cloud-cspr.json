@@ -83,7 +83,7 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cspr-dbcs-ussw1",
+      "name": "arohcp-cspr-dbcs-usw3",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -93,7 +93,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "ah-cspr-cx-ussw1-999",
+    "name": "ah-cspr-cx-usw3-999",
     "private": false,
     "softDelete": false
   },
@@ -102,7 +102,7 @@
     "cxParentZoneDelegation": false,
     "cxParentZoneName": "hcp.osadev.cloud",
     "parentZoneName": "osadev.cloud",
-    "regionalSubdomain": "southwestus-cs",
+    "regionalSubdomain": "westus3-cs",
     "svcParentZoneName": "hcpsvc.osadev.cloud"
   },
   "ev2": {
@@ -121,12 +121,12 @@
   "frontend": {
     "cert": {
       "issuer": "Self",
-      "name": "frontend-cert-cspr-ussw1"
+      "name": "frontend-cert-cspr-usw3"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcpcspr-rp-ussw1",
+      "name": "arohcpcspr-rp-usw3",
       "private": false,
       "zoneRedundantMode": "Disabled"
     },
@@ -236,7 +236,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-ussw1-mgmt-999",
+      "consumerName": "hcp-underlay-usw3-mgmt-999",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -250,7 +250,7 @@
     "certIssuer": "Self",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-cspr-maestro-ussw1",
+      "name": "arohcp-cspr-maestro-usw3",
       "private": false
     },
     "image": {
@@ -262,7 +262,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-cspr-dbmaestro-ussw1",
+      "name": "arohcp-cspr-dbmaestro-usw3",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -276,7 +276,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-ussw1",
+      "mqttClientName": "maestro-server-usw3",
       "tracing": {
         "address": "",
         "exporter": ""
@@ -288,7 +288,7 @@
       "clusterOutboundIPAddressIPTags": "",
       "enableSwiftV2": false,
       "etcd": {
-        "kvName": "ah-cspr-me-ussw1-999",
+        "kvName": "ah-cspr-me-usw3-999",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -299,7 +299,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "cspr-southwestus-mgmt-999",
+      "name": "cspr-westus3-mgmt-999",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -327,7 +327,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1-mgmt-999"
+      "name": "nsp-usw3-mgmt-999"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -351,11 +351,11 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-cspr-southwestus-mgmt-999",
+    "rg": "hcp-underlay-cspr-westus3-mgmt-999",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "mgmtKeyVault": {
-    "name": "ah-cspr-mg-ussw1-999",
+    "name": "ah-cspr-mg-usw3-999",
     "private": false,
     "softDelete": false
   },
@@ -380,19 +380,19 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-dev",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-cspr-ussw1",
+    "hcpWorkspaceName": "arohcp-hcp-cspr-usw3",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-cspr-ussw1"
+    "svcWorkspaceName": "arohcp-cspr-usw3"
   },
   "msiKeyVault": {
-    "name": "ah-cspr-mi-ussw1-999",
+    "name": "ah-cspr-mi-usw3-999",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpcsproidcussw1",
+  "oidcStorageAccountName": "arohcpcsproidcusw3",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "imageManager": {
@@ -411,8 +411,8 @@
       "repository": "package-operator/remote-phase-manager"
     }
   },
-  "region": "southwestus",
-  "regionRG": "hcp-underlay-cspr-southwestus",
+  "region": "westus3",
+  "regionRG": "hcp-underlay-cspr-westus3",
   "serviceKeyVault": {
     "assignNSP": false,
     "name": "aro-hcp-dev-svc-kv",
@@ -425,7 +425,7 @@
     "aks": {
       "clusterOutboundIPAddressIPTags": "",
       "etcd": {
-        "kvName": "ah-cspr-se-ussw1-1",
+        "kvName": "ah-cspr-se-usw3-1",
         "kvSoftDelete": false
       },
       "infraAgentPool": {
@@ -436,7 +436,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "cspr-southwestus-svc-1",
+      "name": "cspr-westus3-svc-1",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -471,7 +471,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1-svc"
+      "name": "nsp-usw3-svc"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -495,7 +495,7 @@
         "version": ""
       }
     },
-    "rg": "hcp-underlay-cspr-southwestus-svc",
+    "rg": "hcp-underlay-cspr-westus3-svc",
     "subscription": "ARO Hosted Control Planes (EA Subscription 1)"
   },
   "tenantId": ""
