@@ -43,7 +43,7 @@ jobs:
     - name: 'Generate Pipeline Inventory'
       run: |
         cd docs/
-        make pipeline.md
+        make pipelines.md
     - name: 'Fail if there is uncommited change'
       run: |-
         cd config/
