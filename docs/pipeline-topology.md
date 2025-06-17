@@ -56,7 +56,7 @@ metadata:
   intPipelineId: ''
   stgPipelineId: ''
   prodPipelineId: ''
-pipeline: relative/path/to/pipeline.yaml
+pipelinePath: relative/path/to/pipeline.yaml
 purpose: Short description of the pipeline's role
 ```
 
