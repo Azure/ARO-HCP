@@ -83,7 +83,7 @@
     "postgres": {
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-int-dbcs-ussw1",
+      "name": "arohcp-int-dbcs-ln",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -93,7 +93,7 @@
     }
   },
   "cxKeyVault": {
-    "name": "ah-int-cx-ussw1-999",
+    "name": "ah-int-cx-ln-999",
     "private": false,
     "softDelete": false
   },
@@ -102,7 +102,7 @@
     "cxParentZoneDelegation": true,
     "cxParentZoneName": "aroapp-hcp.azure-test.net",
     "parentZoneName": "azure-test.net",
-    "regionalSubdomain": "southwestus",
+    "regionalSubdomain": "uksouth",
     "svcParentZoneName": "aro-hcp.azure-test.net"
   },
   "ev2": {
@@ -121,12 +121,12 @@
   "frontend": {
     "cert": {
       "issuer": "OneCertV2-PublicCA",
-      "name": "frontend-cert-int-ussw1"
+      "name": "frontend-cert-int-ln"
     },
     "cosmosDB": {
       "deploy": true,
       "disableLocalAuth": true,
-      "name": "arohcpint-rp-ussw1",
+      "name": "arohcpint-rp-ln",
       "private": false,
       "zoneRedundantMode": "Auto"
     },
@@ -238,7 +238,7 @@
   },
   "maestro": {
     "agent": {
-      "consumerName": "hcp-underlay-ussw1-mgmt-999",
+      "consumerName": "hcp-underlay-ln-mgmt-999",
       "loglevel": 4,
       "sidecar": {
         "image": {
@@ -252,7 +252,7 @@
     "certIssuer": "OneCertV2-PrivateCA",
     "eventGrid": {
       "maxClientSessionsPerAuthName": 6,
-      "name": "arohcp-int-maestro-ussw1",
+      "name": "arohcp-int-maestro-ln",
       "private": false
     },
     "image": {
@@ -264,7 +264,7 @@
       "databaseName": "maestro",
       "deploy": true,
       "minTLSVersion": "TLSV1.2",
-      "name": "arohcp-int-dbmaestro-ussw1",
+      "name": "arohcp-int-dbmaestro-ln",
       "private": false,
       "serverStorageSizeGB": 32,
       "serverVersion": "15",
@@ -278,7 +278,7 @@
       },
       "loglevel": 4,
       "managedIdentityName": "maestro-server",
-      "mqttClientName": "maestro-server-ussw1",
+      "mqttClientName": "maestro-server-ln",
       "tracing": {
         "address": "",
         "exporter": ""
@@ -290,7 +290,7 @@
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "enableSwiftV2": true,
       "etcd": {
-        "kvName": "ah-int-me-ussw1-999",
+        "kvName": "ah-int-me-ln-999",
         "kvSoftDelete": true
       },
       "infraAgentPool": {
@@ -301,7 +301,7 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "int-southwestus-mgmt-999",
+      "name": "int-uksouth-mgmt-999",
       "networkDataplane": "azure",
       "networkPolicy": "azure",
       "podSubnetPrefix": "10.128.64.0/18",
@@ -330,7 +330,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1-mgmt-999"
+      "name": "nsp-ln-mgmt-999"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -354,11 +354,11 @@
         "version": "v2.55.1-3"
       }
     },
-    "rg": "hcp-underlay-int-southwestus-mgmt-999",
-    "subscription": "hcp-int-mgmt-southwestus-999"
+    "rg": "hcp-underlay-int-uksouth-mgmt-999",
+    "subscription": "hcp-int-mgmt-uksouth-999"
   },
   "mgmtKeyVault": {
-    "name": "ah-int-mg-ussw1-999",
+    "name": "ah-int-mg-ln-999",
     "private": false,
     "softDelete": false
   },
@@ -383,19 +383,19 @@
     "grafanaMajorVersion": "11",
     "grafanaName": "arohcp-int",
     "grafanaZoneRedundantMode": "Disabled",
-    "hcpWorkspaceName": "arohcp-hcp-int-ussw1",
+    "hcpWorkspaceName": "arohcp-hcp-int-ln",
     "sev1ActionGroupIDs": "",
     "sev2ActionGroupIDs": "",
     "sev3ActionGroupIDs": "",
     "sev4ActionGroupIDs": "",
-    "svcWorkspaceName": "arohcp-int-ussw1"
+    "svcWorkspaceName": "arohcp-int-ln"
   },
   "msiKeyVault": {
-    "name": "ah-int-mi-ussw1-999",
+    "name": "ah-int-mi-ln-999",
     "private": false,
     "softDelete": false
   },
-  "oidcStorageAccountName": "arohcpintoidcussw1",
+  "oidcStorageAccountName": "arohcpintoidcln",
   "oidcZoneRedundantMode": "Auto",
   "pko": {
     "imageManager": {
@@ -414,25 +414,25 @@
       "repository": "package-operator/remote-phase-manager"
     }
   },
-  "region": "southwestus",
-  "regionRG": "southwestus-shared-resources",
+  "region": "uksouth",
+  "regionRG": "uksouth-shared-resources",
   "releaseApprover": {
     "id": "feca6a27-8f05-4abe-b9e4-e1185f5833ab",
     "name": "TM-AzureRedHatOpenShift-HCP-Leads"
   },
   "serviceKeyVault": {
     "assignNSP": true,
-    "name": "arohcpint-svc-ussw1",
+    "name": "arohcpint-svc-ln",
     "private": false,
-    "region": "southwestus",
-    "rg": "southwestus-shared-resources",
+    "region": "uksouth",
+    "rg": "uksouth-shared-resources",
     "softDelete": false
   },
   "svc": {
     "aks": {
       "clusterOutboundIPAddressIPTags": "FirstPartyUsage:/NonProd",
       "etcd": {
-        "kvName": "ah-int-se-ussw1-1",
+        "kvName": "ah-int-se-ln-1",
         "kvSoftDelete": true
       },
       "infraAgentPool": {
@@ -443,12 +443,13 @@
         "vmSize": "Standard_D2s_v3"
       },
       "kubernetesVersion": "1.31.8",
-      "name": "int-southwestus-svc-1",
+      "name": "int-uksouth-svc-1",
       "networkDataplane": "cilium",
       "networkPolicy": "cilium",
       "podSubnetPrefix": "10.128.64.0/18",
       "subnetPrefix": "10.128.8.0/21",
       "systemAgentPool": {
+        "azCount": 3,
         "maxCount": 3,
         "minCount": 1,
         "osDiskSizeGB": 32,
@@ -478,7 +479,7 @@
     },
     "nsp": {
       "accessMode": "Learning",
-      "name": "nsp-ussw1-svc"
+      "name": "nsp-ln-svc"
     },
     "prometheus": {
       "namespace": "prometheus",
@@ -502,8 +503,8 @@
         "version": ""
       }
     },
-    "rg": "hcp-underlay-int-southwestus-svc",
-    "subscription": "hcp-int-svc-southwestus"
+    "rg": "hcp-underlay-int-uksouth-svc",
+    "subscription": "hcp-int-svc-uksouth"
   },
   "tenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47"
 }

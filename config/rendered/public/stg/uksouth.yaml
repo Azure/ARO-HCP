@@ -147,15 +147,6 @@ hypershift:
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
 imageSync:
-  componentSync:
-    enabled: false
-    image:
-      digest: ""
-      registry: arohcpsvcdev.azurecr.io
-      repository: image-sync/component-sync
-    pullSecretName: component-sync-pull-secret
-    repositories: ""
-    secrets: ""
   environmentName: aro-hcp-image-sync
   ocMirror:
     enabled: true
@@ -164,6 +155,8 @@ imageSync:
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     pullSecretName: ocmirror-pull-secret
+  ondemandSync:
+    pullSecretName: component-sync-pull-secret
   outboundServiceTags: FirstPartyUsage:/Unprivileged
 kusto:
   cluster: ""
@@ -240,11 +233,13 @@ mgmt:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
+      azCount: 3
       maxCount: 4
       minCount: 1
       osDiskSizeGB: 128
       vmSize: Standard_E8s_v3
     userAgentPool:
+      azCount: 3
       maxCount: 12
       minCount: 1
       osDiskSizeGB: 128
@@ -356,6 +351,7 @@ svc:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
+      azCount: 3
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
