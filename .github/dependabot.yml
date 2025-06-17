@@ -18,7 +18,6 @@ updates:
   - '/frontend'
   - '/backend'
   - '/internal'
-  - '/tooling/image-sync'
   - '/tooling/mcerepkg'
   - '/tooling/prometheus-rules'
   - '/tooling/templatize'
@@ -37,6 +36,5 @@ updates:
   directories:
   - '/frontend'
   - '/backend'
-  - '/tooling/image-sync'
   schedule:
     interval: 'weekly'
