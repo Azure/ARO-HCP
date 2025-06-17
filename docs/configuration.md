@@ -111,6 +111,7 @@ To prevent repetitive declarations of such values, templating can be used within
   - The ARO-Tools repository provides a subset of the real EV2 central configuration as an [additional region agnostic configuration layer](https://github.com/Azure/ARO-Tools/blob/main/pkg/config/ev2config/config.yaml) which works also in RH DEV environment deployments.
   - Variable paths are prefixed with `ev2.` to avoid conflicts with other configuration variables, e.g. `ev2.availabilityZoneCount`
   - Refer to the ARO-Tools [configuration README](https://github.com/Azure/ARO-Tools/blob/main/pkg/config/ev2config/README.md) to learn more about supported EV2 variables and how to add additional ones.
+  - EV2 variables can be used for tooling scripts by looking them up with `tooling/templatize/templatize ev2lookup`.
 
 Using these variables, configuration files can remain mostly **region-agnostic**, avoiding almost all regional overrides.
 
