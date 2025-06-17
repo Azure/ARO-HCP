@@ -107,6 +107,10 @@ To prevent repetitive declarations of such values, templating can be used within
 - **`ctx.stamp`**: The numerical value to enumerate the instances of management clusters.
   - Relates to the [EV2 stamp](terminology.md#ev2-stamp).
   - Usually starts with 1
+- **`ev2.${ev2 central config config variable}$`**: Additional variables provided by the EV2 central configuration
+  - The ARO-Tools repository provides a subset of the real EV2 central configuration as an [additional region agnostic configuration layer](https://github.com/Azure/ARO-Tools/blob/main/pkg/config/ev2config/config.yaml) which works also in RH DEV environment deployments.
+  - Variable paths are prefixed with `ev2.` to avoid conflicts with other configuration variables, e.g. `ev2.availabilityZoneCount`
+  - Refer to the ARO-Tools [configuration README](https://github.com/Azure/ARO-Tools/blob/main/pkg/config/ev2config/README.md) to learn more about supported EV2 variables and how to add additional ones.
 
 Using these variables, configuration files can remain mostly **region-agnostic**, avoiding almost all regional overrides.
 
