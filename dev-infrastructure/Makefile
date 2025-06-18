@@ -230,7 +230,10 @@ svc.dev-role-assignments:
 		--parameters principalID=${PRINCIPAL_ID}
 .PHONY: svc.dev-role-assignments
 
-svc.clean:
+svc.clean-nsp-associations:
+	./scripts/delete-nsp.sh $(SVC_RESOURCEGROUP)
+
+svc.clean: svc.clean-nsp-associations
 	@if [ "$$(az group exists --name $(SVC_RESOURCEGROUP) --output json)" = "true" ]; then \
 		echo "Will delete Azure resource group $(SVC_RESOURCEGROUP)"; \
 		az group delete -g $(SVC_RESOURCEGROUP); \
@@ -265,7 +268,10 @@ mgmt.what-if:
 	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run -c $(CLOUD) -d
 .PHONY: mgmt.what-if
 
-mgmt.clean:
+mgmt.clean-nsp-associations:
+	./scripts/delete-nsp.sh $(MGMT_RESOURCEGROUP)
+
+mgmt.clean: mgmt.clean-nsp-associations
 	@if [ "$$(az group exists --name $(MGMT_RESOURCEGROUP) --output json)" = "true" ]; then \
 		echo "Will delete Azure resource group $(MGMT_RESOURCEGROUP)"; \
 		az group delete -g $(MGMT_RESOURCEGROUP); \
