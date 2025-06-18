@@ -192,12 +192,6 @@ svc.deployall: $(ORAS) $(addsuffix .deploy_pipeline, $(services_svc_pipelines)) 
 mgmt.deployall: $(ORAS) $(addsuffix .deploy, $(services_mgmt)) $(addsuffix .deploy_pipeline, $(services_mgmt_pipelines))
 deployall: $(ORAS) svc.deployall mgmt.deployall
 
-acrpull.mgmt.deploy:
-	./templatize.sh $(DEPLOY_ENV) -p ./acrpull/pipeline.yaml -s deploy-mgmt -P run -c $(CLOUD)
-
-acrpull.mgmt.dry_run:
-	./templatize.sh $(DEPLOY_ENV) -p ./acrpull/pipeline.yaml -s deploy-mgmt -P run -c $(CLOUD) -d
-
 listall:
 	@echo svc: ${services_svc}
 	@echo mgmt: ${services_mgmt}
