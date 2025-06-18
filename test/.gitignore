@@ -1,1 +1,2 @@
-*.e2e-setup.json
+e2e.test
+*e2e-setup.json
