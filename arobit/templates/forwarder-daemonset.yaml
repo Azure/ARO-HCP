@@ -1,0 +1,209 @@
+{{- if .Values.forwarder.enabled }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "arobit.name" . }}-forwarder
+  {{- if .Values.forwarder.annotations }}
+  annotations: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.annotations "context" $) | nindent 4 }}
+  {{- end }}
+  labels: {{- include "arobit.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
+    app: {{ include "arobit.name" . }}-forwarder
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  updateStrategy: {{- toYaml .Values.forwarder.updateStrategy | nindent 4 }}
+  template:
+    metadata:
+      labels: {{- include "arobit.labels" . | nindent 8 }}
+        app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app: {{ include "arobit.name" . }}-forwarder
+        {{- if .Values.forwarder.podLabels }}
+        {{- include "arobit.tplValue" (dict "value" .Values.forwarder.podLabels "context" $) | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/forwarder-configmap.yaml") . | sha256sum }}
+        {{- if .Values.forwarder.podAnnotations }}
+        {{- include "arobit.tplValue" (dict "value" .Values.forwarder.podAnnotations "context" $) | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ template "arobit.forwarder.serviceAccountName" . }}
+      priorityClassName: {{ .Values.forwarder.priorityClassName | quote }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:  {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      {{- if .Values.forwarder.affinity }}
+      affinity: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.affinity "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.forwarder.nodeSelector }}
+      nodeSelector: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.forwarder.tolerations }}
+      tolerations: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.forwarder.securityContext.enabled }}
+      securityContext: {{- omit .Values.forwarder.securityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      shareProcessNamespace: true
+      {{- if .Values.aggregator.kvagent.enabled }}
+      initContainers:
+        - name: kvagent
+          image: {{ .Values.aggregator.kvagent.image.repository }}:{{ .Values.aggregator.kvagent.image.tag }}
+          imagePullPolicy: {{ .Values.aggregator.kvagent.image.pullPolicy }}
+          {{- if .Values.aggregator.kvagent.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.aggregator.kvagent.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          env:
+            {{- range $key,$value := .Values.aggregator.kvagent.env }}
+            - name: {{ $key | upper | quote }}
+              value: {{ $value | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: sp-host
+              mountPath: /host/
+              readOnly: true
+            - name: cacrt-host
+              mountPath: /etc/ssl/certs/ca-certificates.crt
+              readOnly: true
+            - name: geneva-certs
+              mountPath: {{ .Values.aggregator.kvagent.env.SECRETS_FOLDER }}/certs_keys/
+          resources: {{- toYaml .Values.aggregator.kvagent.resources | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: fluentbit
+          image: {{ .Values.forwarder.fluentbit.image.repository }}:{{ .Values.forwarder.fluentbit.image.tag }}
+          imagePullPolicy: {{ .Values.forwarder.fluentbit.image.pullPolicy }}
+          command:
+            - /fluent-bit/bin/fluent-bit
+          args:
+            - -c
+            - /forwarder/etc/fluent-bit.conf
+          ports:
+            {{- if .Values.forwarder.fluentbit.containerPorts }}
+            {{- toYaml .Values.forwarder.fluentbit.containerPorts | nindent 12 }}
+            {{- end }}
+          {{- if .Values.forwarder.fluentbit.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: {{ .Values.forwarder.fluentbit.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.forwarder.fluentbit.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.forwarder.fluentbit.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.forwarder.fluentbit.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.forwarder.fluentbit.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.forwarder.fluentbit.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: {{ .Values.forwarder.fluentbit.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.forwarder.fluentbit.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.forwarder.fluentbit.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.forwarder.fluentbit.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.forwarder.fluentbit.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.forwarder.fluentbit.resources }}
+          resources: {{- toYaml .Values.forwarder.fluentbit.resources | nindent 12 }}
+          {{- end }}
+          {{- if .Values.forwarder.fluentbit.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.forwarder.fluentbit.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{ end }}
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: flb-config
+              mountPath: /forwarder/etc
+              readOnly: true
+        {{- if .Values.forwarder.mdsd }}
+        - name: mdsd
+          image: {{ .Values.aggregator.mdsd.image.repository }}:{{ .Values.aggregator.mdsd.image.tag }}
+          imagePullPolicy: {{ .Values.aggregator.mdsd.image.pullPolicy }}
+          command: {{- toYaml .Values.aggregator.mdsd.command | nindent 12 }}
+          args: {{- toYaml .Values.aggregator.mdsd.args | nindent 12 }}
+          ports:
+            {{- if .Values.aggregator.mdsd.containerPorts }}
+            {{- toYaml .Values.aggregator.mdsd.containerPorts | nindent 12 }}
+            {{- end }}
+          env:
+            {{- range $key,$value := .Values.aggregator.mdsd.env }}
+            - name: {{ $key | upper | quote }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.aggregator.mdsd.lifecycle }}
+          lifecycle: {{- toYaml .Values.aggregator.mdsd.lifecycle | nindent 12 }}
+          {{- end }}
+          {{- if .Values.aggregator.mdsd.resources }}
+          resources: {{- toYaml .Values.aggregator.mdsd.resources | nindent 12 }}
+          {{- end }}
+          {{- if .Values.aggregator.mdsd.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.aggregator.mdsd.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{ end }}
+          volumeMounts:
+            - name: mdsd-run
+              mountPath: /var/run/mdsd/
+            {{- if ne .Values.aggregator.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
+            - name: mdsd-logs
+              mountPath: /geneva/geneva_logs/
+            {{- end }}
+            - name: cacrt-host
+              mountPath: /etc/ssl/certs/ca-certificates.crt
+              readOnly: true
+            - mountPath: /geneva/geneva_auth/
+              name: geneva-certs
+              readOnly: true
+        {{- end }}
+      volumes:
+        - name: sp-host
+          hostPath:
+            type: Directory
+            path: /etc/kubernetes/
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: cacrt-host
+          hostPath:
+            type: File
+            path: /etc/ssl/certs/ca-certificates.crt
+        - name: geneva-certs
+          {{- if .Values.aggregator.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "arobit.name" . }}-aggregator-secretprovider
+            {{- if .Values.aggregator.secretProvider.useNodePublishSecret }}
+            nodePublishSecretRef:
+              name: {{ include "arobit.name" . }}-aggregator-kv-creds
+            {{- end }}
+          {{- else if .Values.aggregator.kvagent.enabled }}
+          emptyDir:
+            medium: Memory
+          {{- else }}
+          secret:
+            secretName: {{ include "arobit.name" . }}-aggregator
+          {{- end }}
+        - name: mdsd-run
+          emptyDir: {}
+        {{- if ne .Values.aggregator.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
+        - name: mdsd-logs
+          emptyDir: {}
+        {{- end }}
+        - name: flb-config
+          configMap:
+            name: {{ include "arobit.name" . }}-forwarder
+            defaultMode: 0755
+{{- end }}

@@ -1,0 +1,5 @@
+apiVersion: v2
+description: Fluent bit forwarder and aggregator for Geneva
+name: arobit
+type: application
+version: 0.0.1
