@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: admin-config
-  namespace: '{{ .Release.namespace  }}'
-data:
-  LOCATION: '{{ .Values.configMap.location }}'

@@ -21,7 +21,7 @@ spec:
           imagePullPolicy: Always
           args:
             - "--location"
-            - "{{ .Values.configMap.location }}"
+            - "{{ .Values.location }}"
           ports:
             - containerPort: 8443
               protocol: TCP

@@ -1,4 +1,3 @@
 deployment:
   imageName: ""
-configMap:
-  location: ""
+location: ""
