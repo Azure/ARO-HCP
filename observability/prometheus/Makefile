@@ -13,12 +13,16 @@ else
   TOPOLOGY_KEY := "failure-domain.beta.kubernetes.io/zone"
 endif
 
+deploy.svc:
+	$(MAKE) deploy PIPELINE=../../dev-infrastructure/svc-pipeline.yaml PIPELINE_STEP=prometheus
+
 deploy: pull-chart
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
 	@${LABEL_NAMESPACE_CMD}
-	PROMETHEUS_RW_ENDPOINT=$(shell az deployment group show -n metrics-infra -g ${RESOURCE_GROUP} --query properties.outputs.dcePromUrl.value -o tsv) && \
-	HCP_PROMETHEUS_RW_ENDPOINT=$(shell az deployment group show -n metrics-infra -g ${RESOURCE_GROUP} --query properties.outputs.hcpDcePromUrl.value -o tsv) && \
-	PROMETHEUS_WI_IDENTITY_CLIENT_ID=$(shell az deployment group show -n cluster -g ${RESOURCE_GROUP} --query properties.outputs.userAssignedIdentities.value -o json | jq -r '.[] | select(.uamiName=="prometheus") | .uamiClientID') && \
+	DCE_METRICS_INGESTION_URL=$(shell az monitor data-collection endpoint list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='aks'].metricsIngestion.endpoint" -o tsv) && \
+	SERVICE_DCR_IMMUTABLE_ID=$(shell az monitor data-collection rule list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='services'].immutableId" -o tsv) && \
+	HCP_DCR_IMMUTABLE_ID=$(shell az monitor data-collection rule list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='hcp'].immutableId" -o tsv) && \
+	PROMETHEUS_WI_IDENTITY_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n prometheus --query clientId -o tsv) && \
 	${HELM_CMD} arohcp-monitor deploy/ \
 		--version ${CHART_VERSION} \
 		--namespace ${NAMESPACE} \
@@ -39,8 +43,8 @@ deploy: pull-chart
 		--set prometheus.prometheusSpec.shards=${PROMETHEUS_SPEC_SHARDS} \
 		--set prometheus.prometheusSpec.replicas=${PROMETHEUS_SPEC_REPLICAS} \
 		--set prometheusSpec.externalLabels.cluster=${CLUSTER_NAME} \
-		--set prometheusSpec.remoteWriteUrl=$${PROMETHEUS_RW_ENDPOINT} \
-		--set prometheusSpec.hcpRemoteWriteUrl=$${HCP_PROMETHEUS_RW_ENDPOINT} \
+		--set prometheusSpec.remoteWriteUrl="$${DCE_METRICS_INGESTION_URL}/dataCollectionRules/$${SERVICE_DCR_IMMUTABLE_ID}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24" \
+		$(if $(HCP_DCR_IMMUTABLE_ID),--set prometheusSpec.hcpRemoteWriteUrl="$${DCE_METRICS_INGESTION_URL}/dataCollectionRules/$${HCP_DCR_IMMUTABLE_ID}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24") \
 		--set prometheusSpec.topologyKey=${TOPOLOGY_KEY} \
 		--set prometheusSpec.maximumStartupDurationSeconds=360 \
 		--set environment=${CS_ENVIRONMENT}

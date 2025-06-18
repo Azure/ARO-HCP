@@ -357,7 +357,7 @@ clouds:
           # Grafana
           monitoring:
             # EV2 currently only allows service principal role assignment, so leave it empty for now
-            grafanaRoles: >-
+            grafanaRoles: ""
           # Global MSI
           aroDevopsMsiId: '/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
