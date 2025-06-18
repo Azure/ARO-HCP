@@ -1,0 +1,741 @@
+## Global Docker image parameters
+##
+# imagePullSecrets:
+#   - linuxgeneva-microsoft
+forwarder:
+  ## Enable forwarder daemonset
+  ##
+  enabled: true
+  dynamicConfig: false
+  ## Specifies whether mdsd should enabled
+  ##
+  mdsd: false
+  ## K8s Security Context for forwarder pods
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+  ##
+  securityContext:
+    enabled: true
+    runAsUser: 65532
+    runAsGroup: 65532
+  ## Set up update strategy.
+  ## ref: https://kubernetes.io/docs/tasks/manage-daemon/update-daemon-set/#daemonset-update-strategy
+  ## Example:
+  # updateStrategy:
+  #  type: RollingUpdate
+  #  rollingUpdate:
+  #    maxSurge: 25%
+  #    maxUnavailable: 25%
+  updateStrategy:
+    type: RollingUpdate
+  ## Set Priority Class Name to allow priority control over other pods
+  ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
+  ##
+  priorityClassName: ""
+  ## Node labels for pod assignment
+  ## ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+  ## Tolerations for pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  ##
+  tolerations: []
+  ## Affinity for pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  ##
+  affinity: {}
+  ## Annotations for the forwarder
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  ##
+  annotations: {}
+  ## Pod annotations
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  ##
+  podAnnotations: {}
+  ## Extra labels to add to Pod
+  podLabels: {}
+  ## Pods Service Account
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+  serviceAccount:
+    ## Specifies whether a ServiceAccount should be created
+    ##
+    create: true
+    ## The name of the ServiceAccount to use.
+
+    ## If not set and create is true, a name is generated using the template
+    # name:
+    ## Annotations for the Service Account (evaluated as a template)
+    ##
+    annotations: {}
+  ## Role Based Access
+  ## ref: https://kubernetes.io/docs/admin/authorization/rbac/
+  ##
+  rbac:
+    create: true
+  ## Service parameters
+  ##
+  service:
+    ## Service ports
+    ##
+    ports:
+      http:
+        port: 2020
+        targetPort: http
+        protocol: TCP
+      otlp-http:
+        port: 4318
+        targetPort: otlp-http
+        protocol: TCP
+    ## Provide any additional annotations which may be required
+    ##
+    annotations: {}
+  fluentbit:
+    ## Fluent Bit image version
+    ##
+    image:
+      repository: mcr.microsoft.com/oss/fluent/fluent-bit
+      tag: 2.1.8
+      pullPolicy: IfNotPresent
+    ## forwarder fluentbit container ports
+    ##
+    containerPorts:
+    - name: http
+      containerPort: 2020
+      protocol: TCP
+    - name: otlp-http
+      containerPort: 4318
+      protocol: TCP
+    ## K8s Security Context for fluent bit container
+    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+    containerSecurityContext:
+      enabled: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      runAsUser: 0
+      runAsGroup: 0
+      capabilities:
+        drop: ['ALL']
+      # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
+    # readOnlyRootFilesystem: true
+
+    ## The configMap that contains the configuration files for fluent-bit
+    ##
+    configMap:
+      service.conf: "[SERVICE]\n    Flush                     1\n    Log_Level                 info\n    Parsers_File              /fluent-bit/etc/parsers.conf\n    Parsers_File              /forwarder/etc/parsers_custom.conf\n    Plugins_File              /fluent-bit/etc/plugins.conf\n    HTTP_Server               On\n    storage.path              /var/log/flb-storage/\n    # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.\n    # (default: 128)\n    storage.max_chunks_up     256\n    # This option configure a hint of maximum value of memory to use when processing the backlog data.\n    # (default: 5M)\n    storage.backlog.mem_limit 256M\n    storage.metrics           on\n    # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy. \n    Health_Check              On\n    HC_Errors_Count           5\n    HC_Retry_Failure_Count    5\n    HC_Period                 60\n"
+      parsers_custom.conf: |
+        # Previously, docker parser would parse the container log as record["log"].
+        # With the default cri parser, the container log will be parsed as record["message"].
+        # For backward compat with docker implementation, use the following parser.
+        [PARSER]
+            Name        cri-o
+            Format      regex
+            Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+            Time_Key    time
+            Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+            Time_Keep   On
+      input.conf: |
+        [INPUT]
+            Name              tail
+            Alias             tail.container
+            Tag               kubernetes.*
+            Path              /var/log/containers/*.log
+            Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
+            # For kubernetes version < 1.19.x, use 'docker' parser instead:
+            # Parser            docker
+            # Docker_Mode       On
+            Parser            cri-o
+            DB                /var/log/flb-tail.db
+            DB.sync           normal
+            DB.locking        true
+            # The interval of refreshing the list of watched files in seconds.
+            # (default: 60)
+            Refresh_Interval  15
+            # For new discovered files on start (without a database offset/position), read the content from the head of the file.
+            # (default: off)
+            Read_from_Head    On
+            # Set the initial buffer size to read files data. This value is used to increase buffer size.
+            # (default: 32K)
+            Buffer_Chunk_Size 1M
+            # Set the limit of the buffer size per monitored file. When a buffer needs to be increased (e.g: very long lines),
+            # this value is used to restrict how much the memory buffer can grow.
+            # (default: Buffer_Chunk_Size)
+            Buffer_Max_Size   4M
+            # When a monitored file reach it buffer capacity due to a very long line (Buffer_Max_Size), the default behavior is to stop monitoring that file.
+            # Skip_Long_Lines alter that behavior and instruct Fluent Bit to skip long lines and continue processing other lines that fits into the buffer size.
+            # (default: Off)
+            Skip_Long_Lines   On
+            # Set a limit of memory that Tail plugin can use when appending data to the Engine.
+            # If the limit is reach, it will be paused; when the data is flushed it resumes.
+            Mem_Buf_Limit     512M
+            storage.type      filesystem
+            # The new threaded mechanism allows input plugins to run in a separate thread which helps to desaturate the main pipeline
+            Threaded          On
+
+        [INPUT]
+            Name            fluentbit_metrics
+            Alias           metrics.fluentbit
+            Tag             metrics.fluentbit
+            scrape_interval 15
+
+        [INPUT]
+            Name   opentelemetry
+            Alias  otlp
+            Listen 0.0.0.0
+            Port   4318
+      filter.conf: |
+        [FILTER]
+            Name   lua
+            Alias  lua.reassemble_cri
+            Match  kubernetes.var.log.containers.*
+            script /forwarder/etc/reassemble_cri.lua
+            call   reassemble_cri
+
+        [FILTER]
+            Name                kubernetes
+            Alias               filter.kubernetes
+            Match               kubernetes.var.log.containers.*
+            Kube_Tag_Prefix     kubernetes.var.log.containers.
+            Annotations         Off
+            K8S-Logging.Exclude On
+      output.conf: |
+        [OUTPUT]
+            Name       opentelemetry
+            Match      *
+            Host       ingest.observability
+            Port       4318
+            Traces_uri /v1/traces
+
+        [OUTPUT]
+            Name  prometheus_exporter
+            Alias exporter.fluentbit
+            Match metrics.fluentbit
+            Host  0.0.0.0
+            Port  2020
+      reassemble_cri.lua: |
+        local reassemble_state = {}
+        function reassemble_cri(tag, timestamp, record)
+          local reassemble_key = tag
+          -- if partial line, accumulate
+          if record.logtag == 'P' then
+            reassemble_state[reassemble_key] = (reassemble_state[reassemble_key] or "") .. (record.log or "")
+            return -1, 0, 0
+          end
+          -- otherwise, it's a full line, concatenate with accumulated partial lines if any
+          record.log = (reassemble_state[reassemble_key] or "") .. (record.log or "")
+          reassemble_state[reassemble_key] = nil
+          return 1, timestamp, record
+        end
+    ## forwarder containers' liveness and readiness probes
+    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes)
+    ##
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 15
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 6
+      successThreshold: 1
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 15
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 6
+      successThreshold: 1
+    ## fluentbit resource requests and limits
+    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+    ##
+    resources:
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      limits: {}
+      requests: {}
+  exporter:
+    ## storage exporter image version
+    ##
+    image:
+      repository: quay.io/prometheuscommunity/json-exporter
+      tag: v0.6.0
+      pullPolicy: IfNotPresent
+    ## exporter container ports
+    ##
+    containerPorts:
+    - name: exporter
+      containerPort: 7979
+      protocol: TCP
+    ## The exporter configuration
+    ## ref: https://github.com/prometheus-community/json_exporter
+    ##
+    configMap:
+      config.yml: |
+        modules:
+          default:
+            metrics:
+              - name: fluentbit_storage_layer
+                type: object
+                path: '{.storage_layer}'
+                help: The total number of chunks in the filesystem storage
+                values:
+                  fs_chunks_up: '{.chunks.fs_chunks_up}'
+                  fs_chunks_down: '{.chunks.fs_chunks_down}'
+    ## resource requests and limits
+    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+    ##
+    resources:
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      limits: {}
+      requests: {}
+aggregator:
+  ## Number of aggregator replicas
+  ##
+  replicaCount: 1
+  ## Autoscale using KEDA: https://keda.sh/
+  ## Do not enable both KEDA and HPA
+  keda:
+    enabled: false
+    # minReplicas: 3
+  # maxReplicas: 30
+  # triggers:
+  #   - type: cpu
+  #     metricType: Utilization
+  #     metadata:
+  #       value: "60"
+  #   - type: memory
+  #     metricType: Utilization
+  #     metadata:
+  #       value: "60"
+  # behavior: {}
+
+  ## K8s Security Context for aggregator pods
+  ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+  ##
+  securityContext:
+    enabled: true
+    runAsUser: 65532
+    runAsGroup: 65532
+  ## Set up update strategy.
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+  ## Example:
+  # strategy:
+  #  type: RollingUpdate
+  #  rollingUpdate:
+  #    maxSurge: 25%
+  #    maxUnavailable: 25%
+  strategy:
+    type: RollingUpdate
+  ## Set the maximum time in seconds for a deployment to make progress before it is considered to be failed.
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#progress-deadline-seconds
+  ##
+  progressDeadlineSeconds: 600
+  ## Set the duration in seconds the pod needs to terminate gracefully
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
+  ##
+  # default (30s) + prehook's sleep time (60s) = 90s
+  terminationGracePeriodSeconds: 90
+  ## Set Priority Class Name to allow priority control over other pods
+  ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
+  ##
+  priorityClassName: ""
+  ## Node labels for pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+  ## Tolerations for pod assignment
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  ##
+  tolerations: []
+  ## Affinity for pod assignment
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  ##
+  affinity: {}
+  ## Annotations for the aggregator
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  ##
+  annotations: {}
+  ## Pod annotations
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  ##
+  podAnnotations: {}
+  ## Extra labels to add to Pod
+  podLabels: {}
+  ## Pods Service Account
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+  serviceAccount:
+    ## Specifies whether a ServiceAccount should be created
+    ##
+    create: true
+    ## The name of the ServiceAccount to use.
+
+    ## If not set and create is true, a name is generated using the template
+    # name:
+    ## Annotations for the Service Account (evaluated as a template)
+    ##
+    annotations: {}
+  ## Service parameters
+  ##
+  service:
+    ## Service ports
+    ##
+    ports:
+      http:
+        port: 2020
+        targetPort: http
+        protocol: TCP
+      forward:
+        port: 24224
+        targetPort: forward
+        protocol: TCP
+    ## Provide any additional annotations which may be required
+    ##
+    annotations: {}
+  # mode: createSecretProvider - Creates csi secret provider if enabled is set to true
+  secretProvider:
+    enabled: false
+    usePodIdentity: false
+    useMsi: false
+    labels: {}
+    useNodePublishSecret: true
+    useWorkloadIdentity: false
+    # clientSecret: ""
+    # cloudEnvFileName: ""
+    # cloudName: ""
+    # gcsCertSecret: ""
+    # keyVault: ""
+    # tenantId: ""
+    # msiClientId: ""
+  ## ref: https://github.com/Hexadite/acs-keyvault-agent
+  ##
+  kvagent:
+    ## Specifies whether to use keyvaultagent to pull geneva certificates from the keyvault
+    ##
+    enabled: false
+    ## image version
+    ##
+    image:
+      repository: linuxgeneva-microsoft.azurecr.io/acskeyvaultagent
+      tag: mariner_20230727.1
+      pullPolicy: IfNotPresent
+    ## K8s Security Context for fluent bit container
+    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+    containerSecurityContext:
+      # Required to access /host/azure.json
+      enabled: true
+      runAsUser: 0
+      runAsGroup: 0
+    ## Environment variables for kvagent to the Geneva certificate from the Azure keyvault
+    ## Must override these environment variables:
+    ## - SECRETS_KEYS
+    ## - VAULT_BASE_URL
+    ##
+    env:
+      AUTO_DETECT_AAD_TENANT: "false"
+      AZURE_AUTHORITY_SERVER: "https://login.microsoftonline.com/"
+      DOWNLOAD_CA_CERTIFICATES: "false"
+      REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
+      SECRETS_FOLDER: "/geneva-secret"
+      SECRETS_KEYS: "eegenevaplayground--pfx::mdm-cert.pem:mdm-key.pem;eegenevaplayground--pfx::gcscert.pem:gcskey.pem"
+      SERVICE_PRINCIPLE_FILE_PATH: "/host/azure.json"
+      USE_MSI: "false"
+      VAULT_BASE_URL: "https://aireesharedsecrets.vault.azure.net/"
+      VAULT_RESOURCE_NAME: "https://vault.azure.net"
+    ## resource requests and limits
+    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+    ##
+    resources:
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      limits: {}
+      requests: {}
+  fluentbit:
+    ## Fluent Bit image version
+    ##
+    image:
+      repository: mcr.microsoft.com/oss/fluent/fluent-bit
+      tag: 2.1.8
+      pullPolicy: IfNotPresent
+    ## aggregator fluenbit container ports
+    ##
+    containerPorts:
+    - name: http
+      containerPort: 2020
+      protocol: TCP
+    - name: forward
+      containerPort: 24224
+      protocol: TCP
+    ## K8s Security Context for fluent-bit aggregator containers
+    ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+    containerSecurityContext:
+      enabled: false
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ['ALL']
+      # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
+    # readOnlyRootFilesystem: true
+
+    ## The configMap that contains the configuration files for fluent-bit
+    ##
+    configMap:
+      service.conf: "[SERVICE]\n    Flush                  1\n    Log_Level              info\n    Parsers_File           /fluent-bit/etc/parsers.conf\n    Plugins_File           /fluent-bit/etc/plugins.conf\n    HTTP_Server            On\n    # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy. \n    Health_Check           On\n    HC_Errors_Count        5\n    HC_Retry_Failure_Count 5\n    HC_Period              60\n"
+      input.conf: |
+        [INPUT]
+            Name              forward
+            Alias             input.forward
+            Listen            0.0.0.0
+            Port              24224
+            # By default, the buffer to store the incoming Forward messages, do not allocate the maximum memory allowed,
+            # instead it allocate memory when is required. The rounds of allocations are set by Buffer_Chunk_Size.
+            # (default: 32KB)
+            Buffer_Chunk_Size 1M
+            # Specify the maximum buffer memory size used to receive a Forward message.
+            # (default: Buffer_Chunk_Size)
+            Buffer_Max_Size   16M
+            Mem_Buf_Limit     512M
+
+        [INPUT]
+            Name            fluentbit_metrics
+            Alias           metrics.fluentbit
+            Tag             metrics.fluentbit
+            scrape_interval 15
+      filter.conf: |
+        [FILTER]
+            Name   lua
+            Alias  lua.modify_record
+            Match  kubernetes.*
+            script /aggregator/etc/modify_record.lua
+            call   modify_record
+
+        [FILTER]
+            Name         parser
+            Alias        parser.json
+            Match        kubernetes.*
+            Parser       json
+            Key_Name     log
+            Reserve_Data On
+
+        [FILTER]
+            Name       record_modifier
+            Alias      remove_key.logtag
+            Match      kubernetes.*
+            Remove_key logtag
+
+        # Rename the event key from "log" to "message" if needed
+        # [FILTER]
+        #     Name      modify
+        #     Alias     rename_key.log
+        #     Match     kubernetes.*
+        #     Condition Key_exists log
+        #     Rename    log message
+      output.conf: |
+        # If test is enabled, forward logs to a file instead
+        # [OUTPUT]
+        #     Name  file
+        #     Match *
+        #     Path  /test/var/
+        #     File  output.log
+        [OUTPUT]
+            Name  forward
+            Alias forward.mdsd
+            Match kubernetes.*
+            Host  127.0.0.1
+            Port  5001
+            Tag   kubernetes
+
+        [OUTPUT]
+            Name  prometheus_exporter
+            Alias exporter.fluentbit
+            Match metrics.fluentbit
+            Host  0.0.0.0
+            Port  2020
+      modify_record.lua: |
+        function modify_record(tag, timestamp, record)
+          new_record = record
+          if record["log"] ~= nil then
+            new_record["log"] = record["log"]:gsub('\x1b%[%d+m', '')
+          end
+          return 2, timestamp, new_record
+        end
+    ## aggregator containers' liveness and readiness probes
+    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes)
+    ##
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 15
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 6
+      successThreshold: 1
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 15
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 6
+      successThreshold: 1
+    ## fluentbit resource requests and limits
+    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+    ##
+    resources:
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      limits: {}
+      requests: {}
+  mdsd:
+    ## mdsd image version
+    ##
+    image:
+      repository: linuxgeneva-microsoft.azurecr.io/genevamdsd
+      tag: recommended
+      pullPolicy: IfNotPresent
+    ## TODO: when using distroless image, use args instead of command
+    command:
+    - /start_mdsd.sh
+    args: []
+    #   - "-p"
+
+    #   - "$(MDSD_PORT)"
+    #   - "-f"
+    #   - "$(FLUENTD_PORT)"
+    #   - "$(MDSD_LOG_OPTIONS)"
+    #   - "$(GCS_AUTOMATIC_CONFIG_RUNTIME)"
+    #   - "$(MDSD_DEBUG_LOG_FLAGS)"
+    ## aggregator mdsd container ports
+    ##
+    containerPorts: []
+    ## K8s Security Context for fluent-bit aggregator containers
+    ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+    containerSecurityContext:
+      enabled: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      runAsUser: 0
+      runAsGroup: 0
+      capabilities:
+        add: []
+        drop: []
+      # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
+    # readOnlyRootFilesystem: true
+
+    ## Environment variables for mdsd
+    ## ref: https://dev.azure.com/msazure/One/_git/Compute-Runtime-Tux-GenevaContainers?_a=preview&path=%2FDockerRunDocumentation_mdsd.md&version=GBmaster
+    ## Must override these environment variables:
+    ## - MONITORING_CONFIG_VERSION
+    ## - MONITORING_GCS_ENVIRONMENT
+    ## - MONITORING_GCS_ACCOUNT
+    ## - MONITORING_GCS_REGION
+    ## - MONITORING_GCS_NAMESPACE
+    ##
+    env:
+      DOCKER_LOGGING: "true"
+      FLUENTD_PORT: "5001"
+      GCS_AUTOMATIC_CONFIGURATION: "1"
+      GCS_AUTOMATIC_CONFIG_RUNTIME: "-A"
+      MDSD_COMPRESSION_ALGORITHM: "lz4"
+      MDSD_COMPRESSION_LEVEL: "4"
+      MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED: "true"
+      MDSD_DEBUG_LOG_FLAGS: "-T 0x00"
+      MDSD_LOG_OPTIONS: "-D"
+      MDSD_BACKPRESSURE_MONITOR_FREQ_SEC: "5"
+      # MDSD will limit its memory usage to this threshold (in MB)
+
+      MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB: "1000"
+      MDSD_MSGPACK_ARRAY_SIZE_ITEMS: "10480000"
+      MDSD_MSGPACK_MAP_SIZE_ITEMS: "10480000"
+      MDSD_MSGPACK_NESTING_LEVEL: "10"
+      MDSD_MSGPACK_SEND_ACK: "0"
+      MDSD_MSGPACK_SORT_COLUMNS: "1"
+      MDSD_PORT: "0"
+      MDSD_TCMALLOC_RELEASE_FREQ_SEC: "1"
+      MDSD_USE_LOCAL_PERSISTENCY: "false"
+      MONITORING_CONFIG_VERSION: "3.2"
+      MONITORING_GCS_CERT_CERTFILE: "/geneva/geneva_auth/gcscert.pem"
+      MONITORING_GCS_CERT_KEYFILE: "/geneva/geneva_auth/gcskey.pem"
+      MONITORING_GCS_ENVIRONMENT: "Test"
+      MONITORING_GCS_ACCOUNT: "AKSGenevaSample"
+      MONITORING_GCS_REGION: "westus2"
+      MONITORING_GCS_NAMESPACE: "AKSGenevaSample"
+      MONITORING_GCS_EXACT_VERSION: "false"
+      MONITORING_MAX_EVENT_RATE: "100000"
+    ## Secret for geneva certificate when kvagent is disabled
+    ##
+    secret:
+      gcsKey: ""
+      gcsCert: ""
+      base64Encode: true
+    ## Settings for Csi Secret Provider
+    # See https://eng.ms/docs/products/geneva/collect/authentication/keyvaultgetupdatedcert for more details
+    # MDSD_AKV_CERTIFICATE_STORE_PATH: "/geneva/geneva_auth"
+    # MONITORING_GCS_AUTH_ID_TYPE: "AuthKeyvault"
+    # MONITORING_GCS_AUTH_ID: ""
+    ## Container lifecycle
+    ##
+    lifecycle:
+      # Allow the duration time to expire, so that mdsd could flush the buffer
+      # Set this value according to the event duration in the Geneva config
+      preStop:
+        exec:
+          command:
+          - "/bin/sleep"
+          - "60"
+      # Workaround to delay starting the test container 
+    # postStart:
+    #   exec:
+    #     command:
+    #       - "/bin/sleep"
+    #       - "30"
+
+    ## mdsd resource requests and limits
+    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+    ##
+    resources:
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      limits: {}
+      requests: {}
+  test:
+    enabled: false
+    ## Fluentd image version
+
+    ##
+    image:
+      repository: linuxgeneva-microsoft.azurecr.io/genevafluentd_td-agent
+      tag: recommended
+      pullPolicy: IfNotPresent
+    ## The configMap that contains the configuration files for fluentd
+    ## Some of these codes are inspired (taken) from https://knplabs.com/en/blog/how2tips-how-to-test-fluentd-config
+    ##
+    configMap:
+      start: |
+        #!/opt/td-agent/bin/ruby
+        require './tests'
+      helper.rb: "require 'json'\nmodule Helper\n  private\n  def run_case(emitted, expected)\n    emit_log(emitted)\n    wait = wait_for_output(5)\n    if wait == false && expected != nil\n      raise \"Nothing has been written to the log file.\"\n    elsif wait == false && expected == nil\n      return\n    end\n    actual = fetch_output().pop\n    actual = yield actual if block_given?\n    actual[\"record\"] = actual[\"record\"].select {|key, value| expected[\"record\"].include?(key) }\n    assert_equal(expected, actual)\n  end\n  def emit_log(emitted)\n    tag = if emitted.key?(\"tag\") then emitted[\"tag\"] else \"docker.CONTAINER-NAME\" end\n    formatted = if emitted.key?(\"record\") then JSON.generate(emitted[\"record\"]).gsub(\"'\", \"\\\\\\\\'\") else \"empty\" end\n    `echo '#{formatted}' | /opt/td-agent/bin/fluent-cat #{tag}`\n  end\n  def fetch_output()\n    @outfile.readlines.map do |line|\n      parse_line(line)\n    end\n  end\n  def parse_line(line)\n    tag, time, text = line.match(/(^.+):\\s+\\[(\\d+\\.\\d+),\\s+(.+)\\]/).captures\n    return {\"tag\" => tag, \"record\" => JSON.parse(text)}\n  end            \n  def wait_for_output(delay)\n    i = 0\n    while i < delay do\n      sleep 1\n      i += 1\n      return true unless outfile_empty?\n    end\n    return false\n  end\n  def outfile_empty?()\n    File.stat(@outpath).size == 0\n  end\n  def cleanup_record(record, fields)\n    fields.each { |field| record.delete(field) }\n    return record\n  end\nend\n"
+      tests.rb: "require 'test/unit'\nrequire './helper'\nclass TestCase < Test::Unit::TestCase\n  include Helper\n  def setup\n    @outpath = \"/test/var/test-output.log\"\n    @outfile = File::open(@outpath, File::RDWR|File::TRUNC|File::CREAT)\n    File.chmod(0666, @outpath)\n  end     \n  def teardown\n    @outfile.close\n  end      \n  def test_sample_plain_stdout\n    emitted = {\n      \"tag\" => \"kubernetes.my_ns\",\n      \"record\" => {\"log\" => \"hello world\"}\n    }\n    expected = {\n      \"tag\" => \"kubernetes.my_ns\",\n      \"record\" => {\"log\" => \"hello world\"}\n    }\n    run_case(emitted, expected)\n  end\n  def test_sample_json_stdout\n    emitted = {\n      \"tag\" => \"kubernetes.my_ns\",\n      \"record\" => {\"log\" => JSON.generate({\"foo\" => \"bar\"})}\n    }\n    expected = {\n      \"tag\" => \"kubernetes.my_ns\",\n      \"record\" => {\"foo\" => \"bar\"}\n    }\n    run_case(emitted, expected)\n  end\nend\n"
+    ## test containers' startup probe
+    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes)
+    ##
+    startupProbe:
+      initialDelaySeconds: 120
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 12
+      successThreshold: 1
+    ## test resource requests and limits
+    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+    ##
+    resources:
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      limits: {}
+      requests: {}
