@@ -9,6 +9,9 @@ var dcrName = take('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 
 
 resource dce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = {
   name: dceName
+  tags: {
+    purpose: 'aks'
+  }
   location: azureMonitorWorkspaceLocation
   kind: 'Linux'
   properties: {}
@@ -18,6 +21,9 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
   name: dcrName
   location: azureMonitorWorkspaceLocation
   kind: 'Linux'
+  tags: {
+    purpose: 'services'
+  }
   properties: {
     dataCollectionEndpointId: dce.id
     dataFlows: [
@@ -57,6 +63,9 @@ resource hcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (hcpAzu
   name: 'HCP-${azureMonitorWorkspaceLocation}-${aksClusterName}'
   location: azureMonitorWorkspaceLocation
   kind: 'Linux'
+  tags: {
+    purpose: 'hcp'
+  }
   properties: {
     dataCollectionEndpointId: dce.id
     dataFlows: [
@@ -130,8 +139,3 @@ resource hcpMonitoringMetricsPublisher 'Microsoft.Authorization/roleAssignments@
     principalType: 'ServicePrincipal'
   }
 }
-
-output dcePromUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
-output hcpDcePromUrl string = hcpAzureMonitoringWorkspaceId != ''
-  ? '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${hcpDcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
-  : ''

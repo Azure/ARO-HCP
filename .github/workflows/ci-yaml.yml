@@ -28,5 +28,6 @@ jobs:
         then
           echo "there are some modified files, rerun 'make yamlfmt' to update them and check the changes in"
           git status
+          git diff
           exit 1
         fi
