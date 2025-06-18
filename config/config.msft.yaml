@@ -112,6 +112,9 @@ defaults:
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
+    # Format: Multiline string using '>-' YAML block scalar
+    #   One item per line, formatted as: UUID/PrincipalType/RoleName
+    grafanaRoles: ""
     svcWorkspaceName: 'arohcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
     hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
     devAlertingEmails: ""
@@ -624,7 +627,8 @@ clouds:
           armHelperCertName: intArmHelperCert
           # Grafana
           monitoring:
-            grafanaAdminGroupPrincipalId: "2fdb57d4-3fd3-415d-b604-1d0e37a188fe" # Azure Red Hat OpenShift MSFT Engineering.
+            grafanaRoles: >-
+              2fdb57d4-3fd3-415d-b604-1d0e37a188fe/Group/Admin
           # Global MSI
           aroDevopsMsiId: "/subscriptions/5299e6b7-b23b-46c8-8277-dc1147807117/resourcegroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity"
           # Cert Officer used for KV signer registration
@@ -742,7 +746,8 @@ clouds:
             manage: true
           # Grafana
           monitoring:
-            grafanaAdminGroupPrincipalId: '' # EV2 currently only allows service principal role assignment, so leave it empty for now
+            # EV2 currently only allows service principal role assignment, so leave it empty for now
+            grafanaRoles: ""
           # Global MSI
           aroDevopsMsiId: '/subscriptions/9a53d80e-dae0-4c8a-af90-30575d253127/resourceGroups/global-shared-resources/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-ev2-identity'
           # Cert Officer used for KV signer registration
