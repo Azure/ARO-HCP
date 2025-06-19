@@ -971,6 +971,33 @@
         }
       ]
     },
+    "ClusterAutoscalingConfig": {
+      "type": "object",
+      "description": "Cluster autoscaling configuration",
+      "properties": {
+        "maxNodesTotal": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum allowable number of nodes"
+        },
+        "maxPodGracePeriod": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum seconds to wait for graceful pod termination before scaling down a NodePool."
+        },
+        "maxNodeProvisionTime": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum time to wait for node provisioning before considering the provisioning to be unsuccessful."
+        },
+        "maxpodPriorityThreshold": {
+          "type": "integer",
+          "format": "int32",
+          "description": "This enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,\nbut only run when there are spare resources available.See the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption",
+          "minimum": 0
+        }
+      }
+    },
     "ClusterCapabilitiesProfile": {
       "type": "object",
       "description": "Cluster capabilities configuration.",
@@ -1158,6 +1185,14 @@
         },
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
+          "description": "Azure platform configuration",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "autoscaling": {
+          "$ref": "#/definitions/ClusterAutoscalingConfig",
           "description": "Azure platform configuration",
           "x-ms-mutability": [
             "read",
