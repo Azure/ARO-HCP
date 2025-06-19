@@ -71,6 +71,13 @@ type ClaimProfileUpdate struct {
 	PrefixPolicy *string
 }
 
+// ClusterCapabilitiesProfile - Cluster capabilities configuration.
+type ClusterCapabilitiesProfile struct {
+	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
+	// available in the future. Clients should expect to handle additional values.
+	Disabled []*OptionalClusterCapability
+}
+
 type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string

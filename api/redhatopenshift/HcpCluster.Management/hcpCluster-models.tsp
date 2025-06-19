@@ -89,6 +89,29 @@ model HcpOpenShiftClusterProperties {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   externalAuthConfig?: ExternalAuthConfig;
+
+  /** Configure cluter capabilities. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  capabilities?: ClusterCapabilitiesProfile;
+}
+
+/** Cluster capabilities configuration. */
+model ClusterCapabilitiesProfile {
+  /**
+   * Immutable list of disabled capabilities. May only contain "ImageRegistry" at
+   * this time. Additional capabilities may be available in the future. Clients
+   * should expect to handle additional values.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  disabled?: OptionalClusterCapability[];
+}
+
+/** Cluster capabilities that can be disabled. */
+union OptionalClusterCapability {
+  string,
+
+  /** Enables the OpenShift internal image registry. */
+  ImageRegistry: "ImageRegistry",
 }
 
 /** The resource provisioning state. */
