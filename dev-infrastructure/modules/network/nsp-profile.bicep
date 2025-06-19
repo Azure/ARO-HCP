@@ -22,7 +22,7 @@ param serviceTags array = []
 @description('Array of Subscription ids that will be allowd to access NSP')
 param subscriptions array = []
 
-var subscriptionObjects = [for s in subscriptions: { 'id': s }]
+var subscriptionObjects = [for s in subscriptions: { id: s }]
 
 resource nsp 'Microsoft.Network/networkSecurityPerimeters@2024-06-01-preview' existing = {
   name: nspName
