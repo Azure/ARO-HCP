@@ -195,6 +195,10 @@ model ApiProfile {
   /** The internet visibility of the OpenShift API server */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   visibility?: Visibility = "public";
+
+  /** The IP ranges authorized to access the Kubernetes API server. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  authorizedIpRanges?: string[];
 }
 
 /** The internet visibility of the OpenShift API server */

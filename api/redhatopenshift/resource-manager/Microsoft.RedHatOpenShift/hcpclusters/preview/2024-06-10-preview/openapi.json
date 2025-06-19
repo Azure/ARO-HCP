@@ -924,6 +924,17 @@
             "read",
             "create"
           ]
+        },
+        "authorizedIpRanges": {
+          "type": "array",
+          "description": "The IP ranges authorized to access the Kubernetes API server.",
+          "items": {
+            "type": "string"
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
