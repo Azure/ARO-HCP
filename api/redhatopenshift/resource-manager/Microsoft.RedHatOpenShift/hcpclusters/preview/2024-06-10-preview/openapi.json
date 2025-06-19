@@ -1326,6 +1326,23 @@
         }
       }
     },
+    "ClusterCapabilitiesProfile": {
+      "type": "object",
+      "description": "Cluster capabilities configuration.",
+      "properties": {
+        "disabled": {
+          "type": "array",
+          "description": "Immutable list of disabled capabilities. May only contain \"ImageRegistry\" at\nthis time. Additional capabilities may be available in the future. Clients\nshould expect to handle additional values.",
+          "items": {
+            "$ref": "#/definitions/OptionalClusterCapability"
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      }
+    },
     "ConsoleProfile": {
       "type": "object",
       "description": "Configuration of the cluster web console",
@@ -1791,6 +1808,14 @@
             "read",
             "create"
           ]
+        },
+        "capabilities": {
+          "$ref": "#/definitions/ClusterCapabilitiesProfile",
+          "description": "Configure cluter capabilities.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
@@ -2246,6 +2271,24 @@
       "required": [
         "userAssignedIdentities"
       ]
+    },
+    "OptionalClusterCapability": {
+      "type": "string",
+      "description": "Cluster capabilities that can be disabled.",
+      "enum": [
+        "ImageRegistry"
+      ],
+      "x-ms-enum": {
+        "name": "OptionalClusterCapability",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "ImageRegistry",
+            "value": "ImageRegistry",
+            "description": "Enables the OpenShift internal image registry."
+          }
+        ]
+      }
     },
     "PlatformProfile": {
       "type": "object",
