@@ -14,11 +14,6 @@ echo "source /usr/share/bash-completion/completions/git" >> ~/.bashrc
 
 cd api && npm ci
 
-# Install azure/oav for validation of openapi and swagger example generation
-# https://github.com/Azure/oav
-# TODO: if we need to, we should move this out of here and into `api/package.json`
-npm install -g oav@3.3.4
-
 # Setup the welcome screen
 echo "cat .devcontainer/motd" >> ~/.bashrc
 echo "cat .devcontainer/motd" >> ~/.zshrc
