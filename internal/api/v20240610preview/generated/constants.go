@@ -8,7 +8,7 @@
 package generated
 
 const (
-	moduleName    = "undefined"
+	moduleName = "undefined"
 	moduleVersion = "v0.0.1"
 )
 
@@ -21,7 +21,7 @@ const (
 
 // PossibleActionTypeValues returns the possible values for the ActionType const type.
 func PossibleActionTypeValues() []ActionType {
-	return []ActionType{
+	return []ActionType{	
 		ActionTypeInternal,
 	}
 }
@@ -30,15 +30,15 @@ func PossibleActionTypeValues() []ActionType {
 type CreatedByType string
 
 const (
-	CreatedByTypeApplication     CreatedByType = "Application"
-	CreatedByTypeKey             CreatedByType = "Key"
+	CreatedByTypeApplication CreatedByType = "Application"
+	CreatedByTypeKey CreatedByType = "Key"
 	CreatedByTypeManagedIdentity CreatedByType = "ManagedIdentity"
-	CreatedByTypeUser            CreatedByType = "User"
+	CreatedByTypeUser CreatedByType = "User"
 )
 
 // PossibleCreatedByTypeValues returns the possible values for the CreatedByType const type.
 func PossibleCreatedByTypeValues() []CreatedByType {
-	return []CreatedByType{
+	return []CreatedByType{	
 		CreatedByTypeApplication,
 		CreatedByTypeKey,
 		CreatedByTypeManagedIdentity,
@@ -61,14 +61,14 @@ const (
 
 // PossibleDiskStorageAccountTypeValues returns the possible values for the DiskStorageAccountType const type.
 func PossibleDiskStorageAccountTypeValues() []DiskStorageAccountType {
-	return []DiskStorageAccountType{
+	return []DiskStorageAccountType{	
 		DiskStorageAccountTypePremiumLRS,
 		DiskStorageAccountTypeStandardLRS,
 		DiskStorageAccountTypeStandardSSDLRS,
 	}
 }
 
-// Effect - The taint effect the same as in Kubernetes
+// Effect - The taint effect the same as in K8s
 type Effect string
 
 const (
@@ -82,10 +82,46 @@ const (
 
 // PossibleEffectValues returns the possible values for the Effect const type.
 func PossibleEffectValues() []Effect {
-	return []Effect{
+	return []Effect{	
 		EffectNoExecute,
 		EffectNoSchedule,
 		EffectPreferNoSchedule,
+	}
+}
+
+// ExternalAuthProvisioningState - The resource provisioning state.
+type ExternalAuthProvisioningState string
+
+const (
+	// ExternalAuthProvisioningStateAccepted - Non-terminal state indicating the resource has been accepted
+	ExternalAuthProvisioningStateAccepted ExternalAuthProvisioningState = "Accepted"
+	// ExternalAuthProvisioningStateAwaitingSecret - Non-terminal state indicating the resource is awaiting secret
+	ExternalAuthProvisioningStateAwaitingSecret ExternalAuthProvisioningState = "AwaitingSecret"
+	// ExternalAuthProvisioningStateCanceled - Resource creation was canceled.
+	ExternalAuthProvisioningStateCanceled ExternalAuthProvisioningState = "Canceled"
+	// ExternalAuthProvisioningStateDeleting - Non-terminal state indicating the resource is deleting
+	ExternalAuthProvisioningStateDeleting ExternalAuthProvisioningState = "Deleting"
+	// ExternalAuthProvisioningStateFailed - Resource creation failed.
+	ExternalAuthProvisioningStateFailed ExternalAuthProvisioningState = "Failed"
+	// ExternalAuthProvisioningStateProvisioning - Non-terminal state indicating the resource is provisioning
+	ExternalAuthProvisioningStateProvisioning ExternalAuthProvisioningState = "Provisioning"
+	// ExternalAuthProvisioningStateSucceeded - Resource has been created.
+	ExternalAuthProvisioningStateSucceeded ExternalAuthProvisioningState = "Succeeded"
+	// ExternalAuthProvisioningStateUpdating - Non-terminal state indicating the resource is updating
+	ExternalAuthProvisioningStateUpdating ExternalAuthProvisioningState = "Updating"
+)
+
+// PossibleExternalAuthProvisioningStateValues returns the possible values for the ExternalAuthProvisioningState const type.
+func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningState {
+	return []ExternalAuthProvisioningState{	
+		ExternalAuthProvisioningStateAccepted,
+		ExternalAuthProvisioningStateAwaitingSecret,
+		ExternalAuthProvisioningStateCanceled,
+		ExternalAuthProvisioningStateDeleting,
+		ExternalAuthProvisioningStateFailed,
+		ExternalAuthProvisioningStateProvisioning,
+		ExternalAuthProvisioningStateSucceeded,
+		ExternalAuthProvisioningStateUpdating,
 	}
 }
 
@@ -93,15 +129,15 @@ func PossibleEffectValues() []Effect {
 type ManagedServiceIdentityType string
 
 const (
-	ManagedServiceIdentityTypeNone                       ManagedServiceIdentityType = "None"
-	ManagedServiceIdentityTypeSystemAssigned             ManagedServiceIdentityType = "SystemAssigned"
+	ManagedServiceIdentityTypeNone ManagedServiceIdentityType = "None"
+	ManagedServiceIdentityTypeSystemAssigned ManagedServiceIdentityType = "SystemAssigned"
 	ManagedServiceIdentityTypeSystemAssignedUserAssigned ManagedServiceIdentityType = "SystemAssigned,UserAssigned"
-	ManagedServiceIdentityTypeUserAssigned               ManagedServiceIdentityType = "UserAssigned"
+	ManagedServiceIdentityTypeUserAssigned ManagedServiceIdentityType = "UserAssigned"
 )
 
 // PossibleManagedServiceIdentityTypeValues returns the possible values for the ManagedServiceIdentityType const type.
 func PossibleManagedServiceIdentityTypeValues() []ManagedServiceIdentityType {
-	return []ManagedServiceIdentityType{
+	return []ManagedServiceIdentityType{	
 		ManagedServiceIdentityTypeNone,
 		ManagedServiceIdentityTypeSystemAssigned,
 		ManagedServiceIdentityTypeSystemAssignedUserAssigned,
@@ -121,24 +157,9 @@ const (
 
 // PossibleNetworkTypeValues returns the possible values for the NetworkType const type.
 func PossibleNetworkTypeValues() []NetworkType {
-	return []NetworkType{
+	return []NetworkType{	
 		NetworkTypeOVNKubernetes,
 		NetworkTypeOther,
-	}
-}
-
-// OptionalClusterCapability - Cluster capabilities that can be disabled.
-type OptionalClusterCapability string
-
-const (
-	// OptionalClusterCapabilityImageRegistry - Enables the OpenShift internal image registry.
-	OptionalClusterCapabilityImageRegistry OptionalClusterCapability = "ImageRegistry"
-)
-
-// PossibleOptionalClusterCapabilityValues returns the possible values for the OptionalClusterCapability const type.
-func PossibleOptionalClusterCapabilityValues() []OptionalClusterCapability {
-	return []OptionalClusterCapability{
-		OptionalClusterCapabilityImageRegistry,
 	}
 }
 
@@ -147,14 +168,14 @@ func PossibleOptionalClusterCapabilityValues() []OptionalClusterCapability {
 type Origin string
 
 const (
-	OriginSystem     Origin = "system"
-	OriginUser       Origin = "user"
+	OriginSystem Origin = "system"
+	OriginUser Origin = "user"
 	OriginUserSystem Origin = "user,system"
 )
 
 // PossibleOriginValues returns the possible values for the Origin const type.
 func PossibleOriginValues() []Origin {
-	return []Origin{
+	return []Origin{	
 		OriginSystem,
 		OriginUser,
 		OriginUserSystem,
@@ -171,7 +192,7 @@ const (
 
 // PossibleOutboundTypeValues returns the possible values for the OutboundType const type.
 func PossibleOutboundTypeValues() []OutboundType {
-	return []OutboundType{
+	return []OutboundType{	
 		OutboundTypeLoadBalancer,
 	}
 }
@@ -198,7 +219,7 @@ const (
 
 // PossibleProvisioningStateValues returns the possible values for the ProvisioningState const type.
 func PossibleProvisioningStateValues() []ProvisioningState {
-	return []ProvisioningState{
+	return []ProvisioningState{	
 		ProvisioningStateAccepted,
 		ProvisioningStateCanceled,
 		ProvisioningStateDeleting,
@@ -221,8 +242,9 @@ const (
 
 // PossibleVisibilityValues returns the possible values for the Visibility const type.
 func PossibleVisibilityValues() []Visibility {
-	return []Visibility{
+	return []Visibility{	
 		VisibilityPrivate,
 		VisibilityPublic,
 	}
 }
+
