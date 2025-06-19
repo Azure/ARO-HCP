@@ -11,18 +11,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"net/http"
+	"net/url"
+	"regexp"
+
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"net/http"
-	"net/url"
-	"regexp"
+
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 // ExternalAuthProfilesServer is a fake server for instances of the generated.ExternalAuthProfilesClient type.
-type ExternalAuthProfilesServer struct{
+type ExternalAuthProfilesServer struct {
 	// BeginCreateOrUpdate is the fake for method ExternalAuthProfilesClient.BeginCreateOrUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusCreated
 	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, resource generated.ExternalAuthProfile, options *generated.ExternalAuthProfilesClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[generated.ExternalAuthProfilesClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
@@ -42,7 +44,6 @@ type ExternalAuthProfilesServer struct{
 	// BeginUpdate is the fake for method ExternalAuthProfilesClient.BeginUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusAccepted
 	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, properties generated.ExternalAuthProfileUpdate, options *generated.ExternalAuthProfilesClientBeginUpdateOptions) (resp azfake.PollerResponder[generated.ExternalAuthProfilesClientUpdateResponse], errResp azfake.ErrorResponder)
-
 }
 
 // NewExternalAuthProfilesServerTransport creates a new instance of ExternalAuthProfilesServerTransport with the provided implementation.
@@ -50,22 +51,22 @@ type ExternalAuthProfilesServer struct{
 // azcore.ClientOptions.Transporter field in the client's constructor parameters.
 func NewExternalAuthProfilesServerTransport(srv *ExternalAuthProfilesServer) *ExternalAuthProfilesServerTransport {
 	return &ExternalAuthProfilesServerTransport{
-		srv: srv,
-		beginCreateOrUpdate: newTracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientCreateOrUpdateResponse]](),
-		beginDelete: newTracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientDeleteResponse]](),
+		srv:                  srv,
+		beginCreateOrUpdate:  newTracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientCreateOrUpdateResponse]](),
+		beginDelete:          newTracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientDeleteResponse]](),
 		newListByParentPager: newTracker[azfake.PagerResponder[generated.ExternalAuthProfilesClientListByParentResponse]](),
-		beginUpdate: newTracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientUpdateResponse]](),
+		beginUpdate:          newTracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientUpdateResponse]](),
 	}
 }
 
 // ExternalAuthProfilesServerTransport connects instances of generated.ExternalAuthProfilesClient to instances of ExternalAuthProfilesServer.
 // Don't use this type directly, use NewExternalAuthProfilesServerTransport instead.
 type ExternalAuthProfilesServerTransport struct {
-	srv *ExternalAuthProfilesServer
-	beginCreateOrUpdate *tracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientCreateOrUpdateResponse]]
-	beginDelete *tracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientDeleteResponse]]
+	srv                  *ExternalAuthProfilesServer
+	beginCreateOrUpdate  *tracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientCreateOrUpdateResponse]]
+	beginDelete          *tracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientDeleteResponse]]
 	newListByParentPager *tracker[azfake.PagerResponder[generated.ExternalAuthProfilesClientListByParentResponse]]
-	beginUpdate *tracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientUpdateResponse]]
+	beginUpdate          *tracker[azfake.PollerResponder[generated.ExternalAuthProfilesClientUpdateResponse]]
 }
 
 // Do implements the policy.Transporter interface for ExternalAuthProfilesServerTransport.
@@ -107,32 +108,32 @@ func (e *ExternalAuthProfilesServerTransport) dispatchBeginCreateOrUpdate(req *h
 	}
 	beginCreateOrUpdate := e.beginCreateOrUpdate.get(req)
 	if beginCreateOrUpdate == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/externalAuthProfiles/(?P<externalAuthProfileName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 4 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	body, err := server.UnmarshalRequestAsJSON[generated.ExternalAuthProfile](req)
-	if err != nil {
-		return nil, err
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	externalAuthProfileNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("externalAuthProfileName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := e.srv.BeginCreateOrUpdate(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, externalAuthProfileNameParam, body, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/externalAuthProfiles/(?P<externalAuthProfileName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 4 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		body, err := server.UnmarshalRequestAsJSON[generated.ExternalAuthProfile](req)
+		if err != nil {
+			return nil, err
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		externalAuthProfileNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("externalAuthProfileName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := e.srv.BeginCreateOrUpdate(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, externalAuthProfileNameParam, body, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
 		beginCreateOrUpdate = &respr
 		e.beginCreateOrUpdate.add(req, beginCreateOrUpdate)
 	}
@@ -159,28 +160,28 @@ func (e *ExternalAuthProfilesServerTransport) dispatchBeginDelete(req *http.Requ
 	}
 	beginDelete := e.beginDelete.get(req)
 	if beginDelete == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/externalAuthProfiles/(?P<externalAuthProfileName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 4 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	externalAuthProfileNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("externalAuthProfileName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := e.srv.BeginDelete(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, externalAuthProfileNameParam, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/externalAuthProfiles/(?P<externalAuthProfileName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 4 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		externalAuthProfileNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("externalAuthProfileName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := e.srv.BeginDelete(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, externalAuthProfileNameParam, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
 		beginDelete = &respr
 		e.beginDelete.add(req, beginDelete)
 	}
@@ -244,21 +245,21 @@ func (e *ExternalAuthProfilesServerTransport) dispatchNewListByParentPager(req *
 	}
 	newListByParentPager := e.newListByParentPager.get(req)
 	if newListByParentPager == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/externalAuthProfiles`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-resp := e.srv.NewListByParentPager(resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/externalAuthProfiles`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 3 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		resp := e.srv.NewListByParentPager(resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
 		newListByParentPager = &resp
 		e.newListByParentPager.add(req, newListByParentPager)
 		server.PagerResponderInjectNextLinks(newListByParentPager, req, func(page *generated.ExternalAuthProfilesClientListByParentResponse, createLink func() string) {
@@ -285,32 +286,32 @@ func (e *ExternalAuthProfilesServerTransport) dispatchBeginUpdate(req *http.Requ
 	}
 	beginUpdate := e.beginUpdate.get(req)
 	if beginUpdate == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/externalAuthProfiles/(?P<externalAuthProfileName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 4 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	body, err := server.UnmarshalRequestAsJSON[generated.ExternalAuthProfileUpdate](req)
-	if err != nil {
-		return nil, err
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	externalAuthProfileNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("externalAuthProfileName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := e.srv.BeginUpdate(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, externalAuthProfileNameParam, body, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/externalAuthProfiles/(?P<externalAuthProfileName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 4 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		body, err := server.UnmarshalRequestAsJSON[generated.ExternalAuthProfileUpdate](req)
+		if err != nil {
+			return nil, err
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		externalAuthProfileNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("externalAuthProfileName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := e.srv.BeginUpdate(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, externalAuthProfileNameParam, body, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
 		beginUpdate = &respr
 		e.beginUpdate.add(req, beginUpdate)
 	}
@@ -330,4 +331,3 @@ func (e *ExternalAuthProfilesServerTransport) dispatchBeginUpdate(req *http.Requ
 
 	return resp, nil
 }
-

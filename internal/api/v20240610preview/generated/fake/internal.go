@@ -8,11 +8,11 @@
 package fake
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"net/http"
 	"sync"
-)
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
+)
 
 type nonRetriableError struct {
 	error
@@ -39,7 +39,7 @@ func newTracker[T any]() *tracker[T] {
 
 type tracker[T any] struct {
 	items map[string]*T
-	mu sync.Mutex
+	mu    sync.Mutex
 }
 
 func (p *tracker[T]) get(req *http.Request) *T {

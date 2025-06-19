@@ -7,19 +7,16 @@
 
 package generated
 
-
-
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"reflect"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
-
-
 
 // Azure reports time in UTC but it doesn't include the 'Z' time zone suffix in some cases.
 var tzOffsetRegex = regexp.MustCompile(`(?:Z|z|\+|-)(?:\d+:\d+)*"*$`)
@@ -62,7 +59,7 @@ func (t *dateTimeRFC3339) UnmarshalJSON(data []byte) error {
 	return t.Parse(layout, string(data))
 }
 
-func (t *dateTimeRFC3339) UnmarshalText(data []byte) (error) {
+func (t *dateTimeRFC3339) UnmarshalText(data []byte) error {
 	tzOffset := tzOffsetRegex.Match(data)
 	hasT := strings.Contains(string(data), "T") || strings.Contains(string(data), "t")
 	var layout string
@@ -87,7 +84,6 @@ func (t *dateTimeRFC3339) Parse(layout, value string) error {
 func (t dateTimeRFC3339) String() string {
 	return time.Time(t).Format(time.RFC3339Nano)
 }
-
 
 func populateDateTimeRFC3339(m map[string]any, k string, t *time.Time) {
 	if t == nil {

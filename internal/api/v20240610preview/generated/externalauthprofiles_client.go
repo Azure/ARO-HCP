@@ -10,19 +10,20 @@ package generated
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/url"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"net/http"
-	"net/url"
-	"strings"
 )
 
 // ExternalAuthProfilesClient contains the methods for the ExternalAuthProfiles group.
 // Don't use this type directly, use NewExternalAuthProfilesClient() instead.
 type ExternalAuthProfilesClient struct {
-	internal *arm.Client
+	internal       *arm.Client
 	subscriptionID string
 }
 
@@ -37,7 +38,7 @@ func NewExternalAuthProfilesClient(subscriptionID string, credential azcore.Toke
 	}
 	client := &ExternalAuthProfilesClient{
 		subscriptionID: subscriptionID,
-	internal: cl,
+		internal:       cl,
 	}
 	return client, nil
 }
@@ -60,7 +61,7 @@ func (client *ExternalAuthProfilesClient) BeginCreateOrUpdate(ctx context.Contex
 		}
 		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[ExternalAuthProfilesClientCreateOrUpdateResponse]{
 			FinalStateVia: runtime.FinalStateViaAzureAsyncOp,
-			Tracer: client.internal.Tracer(),
+			Tracer:        client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
@@ -123,8 +124,8 @@ func (client *ExternalAuthProfilesClient) createOrUpdateCreateRequest(ctx contex
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, resource); err != nil {
-	return nil, err
-}
+		return nil, err
+	}
 	return req, nil
 }
 
@@ -145,7 +146,7 @@ func (client *ExternalAuthProfilesClient) BeginDelete(ctx context.Context, resou
 		}
 		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[ExternalAuthProfilesClientDeleteResponse]{
 			FinalStateVia: runtime.FinalStateViaLocation,
-			Tracer: client.internal.Tracer(),
+			Tracer:        client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
@@ -287,13 +288,13 @@ func (client *ExternalAuthProfilesClient) getHandleResponse(resp *http.Response)
 //   - hcpOpenShiftClusterName - The name of the HcpOpenShiftCluster
 //   - options - ExternalAuthProfilesClientListByParentOptions contains the optional parameters for the ExternalAuthProfilesClient.NewListByParentPager
 //     method.
-func (client *ExternalAuthProfilesClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *ExternalAuthProfilesClientListByParentOptions) (*runtime.Pager[ExternalAuthProfilesClientListByParentResponse]) {
+func (client *ExternalAuthProfilesClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *ExternalAuthProfilesClientListByParentOptions) *runtime.Pager[ExternalAuthProfilesClientListByParentResponse] {
 	return runtime.NewPager(runtime.PagingHandler[ExternalAuthProfilesClientListByParentResponse]{
 		More: func(page ExternalAuthProfilesClientListByParentResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
 		Fetcher: func(ctx context.Context, page *ExternalAuthProfilesClientListByParentResponse) (ExternalAuthProfilesClientListByParentResponse, error) {
-		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "ExternalAuthProfilesClient.NewListByParentPager")
+			ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "ExternalAuthProfilesClient.NewListByParentPager")
 			nextLink := ""
 			if page != nil {
 				nextLink = *page.NextLink
@@ -305,7 +306,7 @@ func (client *ExternalAuthProfilesClient) NewListByParentPager(resourceGroupName
 				return ExternalAuthProfilesClientListByParentResponse{}, err
 			}
 			return client.listByParentHandleResponse(resp)
-			},
+		},
 		Tracer: client.internal.Tracer(),
 	})
 }
@@ -363,7 +364,7 @@ func (client *ExternalAuthProfilesClient) BeginUpdate(ctx context.Context, resou
 		}
 		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[ExternalAuthProfilesClientUpdateResponse]{
 			FinalStateVia: runtime.FinalStateViaLocation,
-			Tracer: client.internal.Tracer(),
+			Tracer:        client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
@@ -426,8 +427,7 @@ func (client *ExternalAuthProfilesClient) updateCreateRequest(ctx context.Contex
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, properties); err != nil {
-	return nil, err
-}
+		return nil, err
+	}
 	return req, nil
 }
-
