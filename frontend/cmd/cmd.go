@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -45,6 +46,8 @@ import (
 )
 
 type FrontendOpts struct {
+	auditNoop bool
+
 	clustersServiceURL            string
 	clusterServiceProvisionShard  string
 	clusterServiceNoopProvision   bool
@@ -79,6 +82,7 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
+	rootCmd.Flags().BoolVar(&opts.auditNoop, "audit-noop", false, "Use noop logger for audit logging, for development purpose only")
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
 	rootCmd.Flags().StringVar(&opts.location, "location", os.Getenv("LOCATION"), "Azure location")
@@ -123,6 +127,11 @@ func (opts *FrontendOpts) Run() error {
 
 	logger := util.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version.CommitSHA))
+
+	auditClient, err := audit.NewOtelAuditClient(1000, opts.auditNoop)
+	if err != nil {
+		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
+	}
 
 	// Initialize the global OpenTelemetry tracer.
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
@@ -197,7 +206,7 @@ func (opts *FrontendOpts) Run() error {
 	}
 	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, opts.location, csClient)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, opts.location, csClient, auditClient)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
