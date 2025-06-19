@@ -10,20 +10,21 @@ package fake
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"net/http"
+
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"net/http"
+
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 // OperationsServer is a fake server for instances of the generated.OperationsClient type.
-type OperationsServer struct{
+type OperationsServer struct {
 	// NewListPager is the fake for method OperationsClient.NewListPager
 	// HTTP status codes to indicate success: http.StatusOK
 	NewListPager func(options *generated.OperationsClientListOptions) (resp azfake.PagerResponder[generated.OperationsClientListResponse])
-
 }
 
 // NewOperationsServerTransport creates a new instance of OperationsServerTransport with the provided implementation.
@@ -31,7 +32,7 @@ type OperationsServer struct{
 // azcore.ClientOptions.Transporter field in the client's constructor parameters.
 func NewOperationsServerTransport(srv *OperationsServer) *OperationsServerTransport {
 	return &OperationsServerTransport{
-		srv: srv,
+		srv:          srv,
 		newListPager: newTracker[azfake.PagerResponder[generated.OperationsClientListResponse]](),
 	}
 }
@@ -39,7 +40,7 @@ func NewOperationsServerTransport(srv *OperationsServer) *OperationsServerTransp
 // OperationsServerTransport connects instances of generated.OperationsClient to instances of OperationsServer.
 // Don't use this type directly, use NewOperationsServerTransport instead.
 type OperationsServerTransport struct {
-	srv *OperationsServer
+	srv          *OperationsServer
 	newListPager *tracker[azfake.PagerResponder[generated.OperationsClientListResponse]]
 }
 
@@ -74,7 +75,7 @@ func (o *OperationsServerTransport) dispatchNewListPager(req *http.Request) (*ht
 	}
 	newListPager := o.newListPager.get(req)
 	if newListPager == nil {
-resp := o.srv.NewListPager(nil)
+		resp := o.srv.NewListPager(nil)
 		newListPager = &resp
 		o.newListPager.add(req, newListPager)
 		server.PagerResponderInjectNextLinks(newListPager, req, func(page *generated.OperationsClientListResponse, createLink func() string) {
@@ -94,4 +95,3 @@ resp := o.srv.NewListPager(nil)
 	}
 	return resp, nil
 }
-
