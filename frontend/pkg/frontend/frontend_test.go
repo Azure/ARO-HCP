@@ -40,6 +40,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -57,6 +58,12 @@ func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 	return resourceID
+}
+
+func newNoopAuditClient(t *testing.T) *audit.AuditClient {
+	c, err := audit.NewOtelAuditClient(0, true)
+	require.NoError(t, err)
+	return c
 }
 
 func equalResourceID(expectResourceID *azcorearm.ResourceID) gomock.Matcher {
@@ -111,6 +118,7 @@ func TestReadiness(t *testing.T) {
 				mockDBClient,
 				"",
 				nil,
+				newNoopAuditClient(t),
 			)
 			f.ready.Store(test.ready)
 
@@ -167,6 +175,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				mockDBClient,
 				"",
 				nil,
+				newNoopAuditClient(t),
 			)
 
 			// ArmSubscriptionGet.
@@ -299,6 +308,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				mockDBClient,
 				"",
 				nil,
+				newNoopAuditClient(t),
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -491,6 +501,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				mockDBClient,
 				"",
 				nil,
+				newNoopAuditClient(t),
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -607,6 +618,7 @@ func TestRequestAdminCredential(t *testing.T) {
 				mockDBClient,
 				"",
 				mockCSClient,
+				newNoopAuditClient(t),
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -765,6 +777,7 @@ func TestRevokeCredentials(t *testing.T) {
 				mockDBClient,
 				"",
 				mockCSClient,
+				newNoopAuditClient(t),
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware

@@ -115,6 +115,7 @@ func TestCreateNodePool(t *testing.T) {
 				mockDBClient,
 				"",
 				mockCSClient,
+				newNoopAuditClient(t),
 			)
 
 			requestHeader := make(http.Header)

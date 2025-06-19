@@ -1,0 +1,81 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package frontend
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/microsoft/go-otel-audit/audit/msgs"
+)
+
+type AuditResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+// MiddlewareAudit writes audit messages upon receiving a request.
+func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	ctx := r.Context()
+	logger := LoggerFromContext(ctx)
+	auditClient := AuditClientFromContext(ctx)
+
+	var msg msgs.Msg
+
+	if auditClient == nil {
+		logger.Error("empty audit client, skipping audit")
+	} else {
+		msg = audit.CreateOtelAuditMsg(logger, r)
+		correlationData := arm.NewCorrelationData(r)
+		msg.Record.CallerIdentities = getCallerIdentitesMap(correlationData)
+	}
+
+	next(w, r)
+
+	statusCode := w.(*AuditResponseWriter).statusCode
+	if statusCode >= http.StatusBadRequest {
+		msg.Record.OperationResult = msgs.Failure
+		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", statusCode)
+
+	}
+
+	auditClient.Send(ctx, msg)
+}
+
+// used for otelaudit via "github.com/microsoft/go-otel-audit/audit/msgs"
+func getCallerIdentitesMap(correlationData *arm.CorrelationData) map[msgs.CallerIdentityType][]msgs.CallerIdentityEntry {
+	caller := make(map[msgs.CallerIdentityType][]msgs.CallerIdentityEntry)
+	if correlationData.ClientPrincipalName != "" {
+		caller[msgs.UPN] = []msgs.CallerIdentityEntry{
+			{
+				Identity:    correlationData.ClientPrincipalName,
+				Description: "client principal name",
+			},
+		}
+	}
+
+	if correlationData.ClientRequestID != "" {
+		caller[msgs.CIOther] = []msgs.CallerIdentityEntry{
+			{
+				Identity:    correlationData.ClientRequestID,
+				Description: "client request CorrelationID",
+			},
+		}
+	}
+
+	return caller
+}

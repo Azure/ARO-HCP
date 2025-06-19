@@ -30,4 +30,5 @@ const (
 	HeaderNameReturnClientRequestID = "X-Ms-Return-Client-Request-Id"
 	HeaderNameARMResourceSystemData = "X-Ms-Arm-Resource-System-Data"
 	HeaderNameIdentityURL           = "X-Ms-Identity-Url"
+	HeaderClientPrincipalName       = "X-Ms-Client-Principal-Name"
 )
