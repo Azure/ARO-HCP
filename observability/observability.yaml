@@ -1,5 +1,6 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - ../frontend/alerts/frontend-prometheusRule.yaml
   untestedRules:
   - ../observability/alerts/kubernetesControlPlane-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
@@ -18,3 +19,5 @@ grafana-dashboards:
     path: infra-dashboards
   - name: Frontend
     path: ../frontend/grafana-dashboards
+  - name: Backend
+    path: ../backend/grafana-dashboards
