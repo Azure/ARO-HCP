@@ -40,6 +40,20 @@ model NodePool is TrackedResource<NodePoolProperties> {
   ...ManagedServiceIdentityProperty;
 }
 
+// The ExternalAuthProfile needs to be TrackedResource for the following reasons:
+// - allow ExternalAuthProfile to be tracked in the portal
+// - deleted when resource group is deleted
+// - allow cascade delete
+// more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
+@parentResource(HcpOpenShiftCluster)
+model ExternalAuthProfile is TrackedResource<ExternalAuthProfileProperties> {
+  ...ResourceNameParameter<
+    ExternalAuthProfile,
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+  >;
+  ...ManagedServiceIdentityProperty;
+}
+
 /** HCP cluster properties */
 model HcpOpenShiftClusterProperties {
   /** The status of the last operation. */
@@ -70,28 +84,11 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
 
-  /** Configure cluter capabilities. */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  capabilities?: ClusterCapabilitiesProfile;
-}
-
-/** Cluster capabilities configuration. */
-model ClusterCapabilitiesProfile {
-  /**
-   * Immutable list of disabled capabilities. May only contain "ImageRegistry" at
-   * this time. Additional capabilities may be available in the future. Clients
-   * should expect to handle additional values.
+  /** Configuration to override the openshift-oauth-apiserver inside cluster
+   *  This changes user login into the cluster to external provider
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  disabled?: OptionalClusterCapability[];
-}
-
-/** Cluster capabilities that can be disabled. */
-union OptionalClusterCapability {
-  string,
-
-  /** Enables the OpenShift internal image registry. */
-  ImageRegistry: "ImageRegistry",
+  externalAuthConfig?: ExternalAuthConfig;
 }
 
 /** The resource provisioning state. */
@@ -111,6 +108,16 @@ union ProvisioningState {
 
   /** Non-terminal state indicating the resource is updating */
   "Updating",
+}
+
+/** The resource provisioning state. */
+@lroStatus
+union ExternalAuthProvisioningState {
+  string,
+  ProvisioningState,
+
+  /** Non-terminal state indicating the resource is awaiting secret */
+  "AwaitingSecret",
 }
 
 /** Versions represents an OpenShift version. */
@@ -227,11 +234,23 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   operatorsAuthentication: OperatorsAuthenticationProfile;
 
-  /** URL for the OIDC provider to be used for authentication
+  /** URL for the OIDC provider to be used for Auth
    * to authenticate against user Azure cloud account
    */
   @visibility(Lifecycle.Read)
   issuerUrl: url;
+}
+
+/** External Auth configuration profile */
+model ExternalAuthConfig {
+  /** This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster */
+  @visibility(Lifecycle.Create, Lifecycle.Read)
+  enabled?: boolean = false;
+
+  /** This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service */
+  @visibility(Lifecycle.Read)
+  @OpenAPI.extension("x-ms-identifiers", ["issuer", "clients", "claim"])
+  externalAuthProfile: ExternalAuthProfile;
 }
 
 scalar SubnetResourceId
@@ -257,14 +276,14 @@ union OutboundType {
 }
 
 /** The configuration that the operators of the cluster have to authenticate to Azure. */
-model OperatorsAuthenticationProfile {
+model OperatorsAuthProfile {
   /** Represents the information related to Azure User-Assigned managed identities needed
-   * to perform Operators authentication based on Azure User-Assigned Managed Identities */
+   * to perform Operators Auth based on Azure User-Assigned Managed Identities */
   userAssignedIdentities: UserAssignedIdentitiesProfile;
 }
 
 /** Represents the information related to Azure User-Assigned managed identities needed
- * to perform Operators authentication based on Azure User-Assigned Managed Identities */
+ * to perform Operators Auth based on Azure User-Assigned Managed Identities */
 model UserAssignedIdentitiesProfile {
   /** The set of Azure User-Assigned Managed Identities leveraged for the Control Plane
    * operators of the cluster. The set of required managed identities is dependent on the
@@ -331,7 +350,9 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
-  /** Kubernetes labels to propagate to the NodePool Nodes */
+  /** K8s labels to propagate to the NodePool Nodes
+   * The good example of the label is `node-role.kubernetes.io/master: ""`
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
@@ -342,7 +363,7 @@ model NodePoolProperties {
   taints?: Taint[];
 }
 
-/** The taint effect the same as in Kubernetes */
+/** The taint effect the same as in K8s */
 union Effect {
   string,
 
@@ -378,7 +399,7 @@ model Taint {
   effect: Effect;
 }
 
-/** Label represents the Kubernetes label */
+/** Label represents the k8s label */
 model Label {
   /** The key of the label
    * @example node-role.kubernetes.io/master
@@ -489,5 +510,103 @@ model HcpOpenShiftClusterAdminCredential {
 /*
  * =======================================
  *   End HCP cluster credentials
+ * =======================================
+ */
+
+/*
+ * =======================================
+ *  ExternalAuth resources
+ * =======================================
+ */
+
+/** External Auth profile */
+model ExternalAuthProfileProperties {
+  /** Provisioning state */
+  @visibility(Lifecycle.Read)
+  provisioningState?: ExternalAuthProvisioningState;
+
+  /** Token Issuer profile */
+  issuer: TokenIssuerProfile;
+
+  /** External Auth clients */
+  clients: ExternalAuthClientProfile[];
+
+  /** External Auth claim */
+  claim: ExternalAuthClaimProfile;
+}
+
+/** Token issuer profile */
+model TokenIssuerProfile {
+  /** The URL of the token issuer */
+  url: url;
+
+  /** The audience of the token issuer */
+  audiences: string[];
+
+  /** The issuer of the token */
+  ca?: string;
+}
+
+/** External Auth client profile */
+model ExternalAuthClientProfile {
+  /** External Auth client component */
+  component: ExternalAuthClientComponentProfile;
+
+  /** external Auth client id */
+  id: string;
+}
+
+/** External Auth component profile */
+model ExternalAuthClientComponentProfile {
+  /** The name of the external Auth client */
+  name: string;
+
+  /** The namespace of the external Auth client */
+  AuthClientNamespace: string;
+}
+
+/** External Auth claim profile */
+model ExternalAuthClaimProfile {
+  /** The claim mappings */
+  mappings: TokenClaimMappingsProfile;
+
+  /** The claim validation rules */
+  @OpenAPI.extension("x-ms-identifiers", ["claim", "requiredValue"])
+  validationRules: TokenClaimValidationRuleProfile[];
+}
+
+/** External Auth claim mappings profile */
+model TokenClaimMappingsProfile {
+  /** The claim mappings username */
+  username?: ClaimProfile;
+
+  /** The claim mappings groups */
+  groups?: ClaimProfile;
+}
+
+/** External Auth claim profile */
+model ClaimProfile {
+  /** Claim name of the external profile */
+  claim: string;
+
+  /** Prefix for the claim external profile */
+  prefix: string;
+
+  /** Prefix policy */
+  prefixPolicy: string;
+}
+
+/** External Auth claim validation rule */
+model TokenClaimValidationRuleProfile {
+  /** Claim name for the validation profile */
+  claim: string;
+
+  /** Required value */
+  requiredValue: string;
+}
+
+/*
+ * =======================================
+ *  End ExternalAuth resources
  * =======================================
  */
