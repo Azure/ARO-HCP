@@ -253,7 +253,7 @@ model PlatformProfile {
   networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
   /** The configuration that the operators of the cluster have to authenticate to Azure */
-  operatorsAuth: OperatorsAuthProfile;
+  operatorsAuthentication: OperatorsAuthenticationProfile;
 
   /** URL for the OIDC provider to be used for Auth
    * to authenticate against user Azure cloud account
@@ -297,7 +297,7 @@ union OutboundType {
 }
 
 /** The configuration that the operators of the cluster have to authenticate to Azure. */
-model OperatorsAuthProfile {
+model OperatorsAuthenticationProfile {
   /** Represents the information related to Azure User-Assigned managed identities needed
    * to perform Operators Auth based on Azure User-Assigned Managed Identities */
   userAssignedIdentities: UserAssignedIdentitiesProfile;
@@ -451,6 +451,11 @@ model NodePoolPlatformProfile {
   /** The VM size according to the documentation:
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
   vmSize: string;
+
+  /** Whether to enable host based OS and data drive encryption.
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
+   */
+  enableEncryptionAtHost?: boolean = false;
 
   /** The OS disk size in GiB */
   diskSizeGiB?: int32 = 64;

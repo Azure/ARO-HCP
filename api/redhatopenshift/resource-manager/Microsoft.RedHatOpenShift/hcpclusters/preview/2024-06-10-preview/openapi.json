@@ -2019,6 +2019,11 @@
           "type": "string",
           "description": "The VM size according to the documentation:\n- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes"
         },
+        "enableEncryptionAtHost": {
+          "type": "boolean",
+          "description": "Whether to enable host based OS and data drive encryption.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data",
+          "default": false
+        },
         "diskSizeGiB": {
           "type": "integer",
           "format": "int32",
@@ -2259,7 +2264,7 @@
         "availableUpgrades"
       ]
     },
-    "OperatorsAuthProfile": {
+    "OperatorsAuthenticationProfile": {
       "type": "object",
       "description": "The configuration that the operators of the cluster have to authenticate to Azure.",
       "properties": {
@@ -2325,8 +2330,8 @@
           "$ref": "#/definitions/NetworkSecurityGroupResourceId",
           "description": "ResourceId for the network security group attached to the cluster subnet"
         },
-        "operatorsAuth": {
-          "$ref": "#/definitions/OperatorsAuthProfile",
+        "operatorsAuthentication": {
+          "$ref": "#/definitions/OperatorsAuthenticationProfile",
           "description": "The configuration that the operators of the cluster have to authenticate to Azure"
         },
         "issuerUrl": {
@@ -2339,7 +2344,7 @@
       "required": [
         "subnetId",
         "networkSecurityGroupId",
-        "operatorsAuth",
+        "operatorsAuthentication",
         "issuerUrl"
       ]
     },
