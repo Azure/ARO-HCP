@@ -249,7 +249,7 @@ model ExternalAuthConfig {
 
   /** This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service */
   @visibility(Lifecycle.Read)
-  @OpenAPI.extension("x-ms-identifiers", ["issuer", "clients", "claim"])
+  @OpenAPI.extension("x-ms-identifiers", #["issuer", "clients", "claim"])
   externalAuthProfile: ExternalAuthProfile;
 }
 
@@ -562,7 +562,7 @@ model ExternalAuthClientComponentProfile {
   name: string;
 
   /** The namespace of the external Auth client */
-  AuthClientNamespace: string;
+  authClientNamespace: string;
 }
 
 /** External Auth claim profile */
@@ -571,7 +571,7 @@ model ExternalAuthClaimProfile {
   mappings: TokenClaimMappingsProfile;
 
   /** The claim validation rules */
-  @OpenAPI.extension("x-ms-identifiers", ["claim", "requiredValue"])
+  @OpenAPI.extension("x-ms-identifiers", #["claim", "requiredValue"])
   validationRules: TokenClaimValidationRuleProfile[];
 }
 
