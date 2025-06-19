@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -48,6 +49,8 @@ func (c contextKey) String() string {
 		return "originalPath"
 	case contextKeyBody:
 		return "body"
+	case contextKeyAuditLogger:
+		return "auditLogger"
 	case contextKeyLogger:
 		return "logger"
 	case contextKeyVersion:
@@ -70,6 +73,7 @@ const (
 	// Keys for request-scoped data in http.Request contexts
 	contextKeyOriginalPath contextKey = iota
 	contextKeyBody
+	contextKeyAuditLogger
 	contextKeyLogger
 	contextKeyVersion
 	contextKeyDBClient
@@ -109,6 +113,23 @@ func BodyFromContext(ctx context.Context) ([]byte, error) {
 		return body, err
 	}
 	return body, nil
+}
+
+func ContextWithAuditClient(ctx context.Context, auditClient audit.Client) context.Context {
+	return context.WithValue(ctx, contextKeyAuditLogger, auditClient)
+}
+
+func AuditClientFromContext(ctx context.Context) audit.Client {
+	auditClient, ok := ctx.Value(contextKeyAuditLogger).(audit.Client)
+	if !ok {
+		err := &ContextError{
+			got: auditClient,
+			key: contextKeyLogger,
+		}
+		util.DefaultLogger().Error(err.Error())
+		return nil
+	}
+	return auditClient
 }
 
 func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context {
