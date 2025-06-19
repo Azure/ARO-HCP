@@ -111,6 +111,10 @@ infra.mgmt.aks.kubeconfigfile:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfigfile
 .PHONY: infra.mgmt.aks.kubeconfigfile
 
+infra.monitoring:
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make monitoring
+.PHONY: infra.monitoring
+
 infra.all:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make infra
 .PHONY: infra.all

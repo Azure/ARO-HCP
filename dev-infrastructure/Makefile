@@ -293,6 +293,18 @@ mgmt.solo:
 	../templatize.sh $(DEPLOY_ENV) -p mgmt-solo-pipeline.yaml -P run -c $(CLOUD)
 .PHONY: mgmt.solo
 
+#
+# Monitoring
+#
+
+monitoring:
+	../templatize.sh $(DEPLOY_ENV) -p monitoring-pipeline.yaml -P run -c $(CLOUD)
+.PHONY: monitoring
+
+monitoring.what-if:
+	../templatize.sh $(DEPLOY_ENV) -p monitoring-pipeline.yaml -P run -c $(CLOUD) -d
+.PHONY: monitoring.what-if
+
 # ACR DEV customizations
 
 acr: acr-svc-cfg acr-ocp-cfg
@@ -403,10 +415,10 @@ operator-roles.what-if:
 # Common
 #
 
-what-if: global.what-if acr.what-if region.what-if svc.what-if mgmt.what-if operator-roles.what-if automation-account.what-if
+what-if: global.what-if acr.what-if region.what-if svc.what-if mgmt.what-if monitoring.what-if operator-roles.what-if automation-account.what-if
 .PHONY: what-if
 
-infra: region svc.init mgmt.init
+infra: region svc.init mgmt.init monitoring
 .PHONY: infra
 
 clean: svc.clean mgmt.clean region.clean
