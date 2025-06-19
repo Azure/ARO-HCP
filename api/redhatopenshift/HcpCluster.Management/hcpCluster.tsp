@@ -53,7 +53,10 @@ interface NodePools {
 interface ExternalAuthProfiles {
   get is ArmResourceRead<ExternalAuthProfile>;
   createOrUpdate is ArmResourceCreateOrReplaceAsync<ExternalAuthProfile>;
-  update is ArmResourcePatchAsync<ExternalAuthProfile, ExternalAuthProfileProperties>;
+  update is ArmResourcePatchAsync<
+    ExternalAuthProfile,
+    ExternalAuthProfileProperties
+  >;
   delete is ArmResourceDeleteWithoutOkAsync<ExternalAuthProfile>;
   listByParent is ArmResourceListByParent<ExternalAuthProfile>;
 }
