@@ -7,6 +7,38 @@
 
 package generated
 
+// ExternalAuthProfilesClientBeginCreateOrUpdateOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginCreateOrUpdate
+// method.
+type ExternalAuthProfilesClientBeginCreateOrUpdateOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// ExternalAuthProfilesClientBeginDeleteOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginDelete
+// method.
+type ExternalAuthProfilesClientBeginDeleteOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// ExternalAuthProfilesClientBeginUpdateOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginUpdate
+// method.
+type ExternalAuthProfilesClientBeginUpdateOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// ExternalAuthProfilesClientGetOptions contains the optional parameters for the ExternalAuthProfilesClient.Get method.
+type ExternalAuthProfilesClientGetOptions struct {
+	// placeholder for future optional parameters
+}
+
+// ExternalAuthProfilesClientListByParentOptions contains the optional parameters for the ExternalAuthProfilesClient.NewListByParentPager
+// method.
+type ExternalAuthProfilesClientListByParentOptions struct {
+	// placeholder for future optional parameters
+}
+
 // HcpOpenShiftClustersClientBeginCreateOrUpdateOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginCreateOrUpdate
 // method.
 type HcpOpenShiftClustersClientBeginCreateOrUpdateOptions struct {
@@ -103,3 +135,4 @@ type NodePoolsClientListByParentOptions struct {
 type OperationsClientListOptions struct {
 	// placeholder for future optional parameters
 }
+

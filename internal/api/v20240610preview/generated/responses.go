@@ -7,6 +7,35 @@
 
 package generated
 
+// ExternalAuthProfilesClientCreateOrUpdateResponse contains the response from method ExternalAuthProfilesClient.BeginCreateOrUpdate.
+type ExternalAuthProfilesClientCreateOrUpdateResponse struct {
+	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	ExternalAuthProfile
+}
+
+// ExternalAuthProfilesClientDeleteResponse contains the response from method ExternalAuthProfilesClient.BeginDelete.
+type ExternalAuthProfilesClientDeleteResponse struct {
+	// placeholder for future response values
+}
+
+// ExternalAuthProfilesClientGetResponse contains the response from method ExternalAuthProfilesClient.Get.
+type ExternalAuthProfilesClientGetResponse struct {
+	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	ExternalAuthProfile
+}
+
+// ExternalAuthProfilesClientListByParentResponse contains the response from method ExternalAuthProfilesClient.NewListByParentPager.
+type ExternalAuthProfilesClientListByParentResponse struct {
+	// The response of a ExternalAuthProfile list operation.
+	ExternalAuthProfileListResult
+}
+
+// ExternalAuthProfilesClientUpdateResponse contains the response from method ExternalAuthProfilesClient.BeginUpdate.
+type ExternalAuthProfilesClientUpdateResponse struct {
+	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
+	ExternalAuthProfile
+}
+
 // HcpOpenShiftClustersClientCreateOrUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginCreateOrUpdate.
 type HcpOpenShiftClustersClientCreateOrUpdateResponse struct {
 	// HCP cluster resource
@@ -99,3 +128,4 @@ type OperationsClientListResponse struct {
 	// A list of REST API operations supported by an Azure Resource Provider. It contains an URL link to get the next set of results.
 	OperationListResult
 }
+

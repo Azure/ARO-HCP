@@ -19,68 +19,68 @@ import (
 	"strings"
 )
 
-// NodePoolsClient contains the methods for the NodePools group.
-// Don't use this type directly, use NewNodePoolsClient() instead.
-type NodePoolsClient struct {
+// ExternalAuthProfilesClient contains the methods for the ExternalAuthProfiles group.
+// Don't use this type directly, use NewExternalAuthProfilesClient() instead.
+type ExternalAuthProfilesClient struct {
 	internal *arm.Client
 	subscriptionID string
 }
 
-// NewNodePoolsClient creates a new instance of NodePoolsClient with the specified values.
+// NewExternalAuthProfilesClient creates a new instance of ExternalAuthProfilesClient with the specified values.
 //   - subscriptionID - The ID of the target subscription. The value must be an UUID.
 //   - credential - used to authorize requests. Usually a credential from azidentity.
 //   - options - pass nil to accept the default values.
-func NewNodePoolsClient(subscriptionID string, credential azcore.TokenCredential, options *arm.ClientOptions) (*NodePoolsClient, error) {
+func NewExternalAuthProfilesClient(subscriptionID string, credential azcore.TokenCredential, options *arm.ClientOptions) (*ExternalAuthProfilesClient, error) {
 	cl, err := arm.NewClient(moduleName, moduleVersion, credential, options)
 	if err != nil {
 		return nil, err
 	}
-	client := &NodePoolsClient{
+	client := &ExternalAuthProfilesClient{
 		subscriptionID: subscriptionID,
 	internal: cl,
 	}
 	return client, nil
 }
 
-// BeginCreateOrUpdate - Create a NodePool
+// BeginCreateOrUpdate - Create a ExternalAuthProfile
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - The name of the HcpOpenShiftCluster
-//   - nodePoolName - The name of the NodePool
+//   - externalAuthProfileName - The name of the ExternalAuthProfile
 //   - resource - Resource create parameters.
-//   - options - NodePoolsClientBeginCreateOrUpdateOptions contains the optional parameters for the NodePoolsClient.BeginCreateOrUpdate
+//   - options - ExternalAuthProfilesClientBeginCreateOrUpdateOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginCreateOrUpdate
 //     method.
-func (client *NodePoolsClient) BeginCreateOrUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, resource NodePool, options *NodePoolsClientBeginCreateOrUpdateOptions) (*runtime.Poller[NodePoolsClientCreateOrUpdateResponse], error) {
+func (client *ExternalAuthProfilesClient) BeginCreateOrUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, resource ExternalAuthProfile, options *ExternalAuthProfilesClientBeginCreateOrUpdateOptions) (*runtime.Poller[ExternalAuthProfilesClientCreateOrUpdateResponse], error) {
 	if options == nil || options.ResumeToken == "" {
-		resp, err := client.createOrUpdate(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, resource, options)
+		resp, err := client.createOrUpdate(ctx, resourceGroupName, hcpOpenShiftClusterName, externalAuthProfileName, resource, options)
 		if err != nil {
 			return nil, err
 		}
-		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[NodePoolsClientCreateOrUpdateResponse]{
+		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[ExternalAuthProfilesClientCreateOrUpdateResponse]{
 			FinalStateVia: runtime.FinalStateViaAzureAsyncOp,
 			Tracer: client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
-		return runtime.NewPollerFromResumeToken(options.ResumeToken, client.internal.Pipeline(), &runtime.NewPollerFromResumeTokenOptions[NodePoolsClientCreateOrUpdateResponse]{
+		return runtime.NewPollerFromResumeToken(options.ResumeToken, client.internal.Pipeline(), &runtime.NewPollerFromResumeTokenOptions[ExternalAuthProfilesClientCreateOrUpdateResponse]{
 			Tracer: client.internal.Tracer(),
 		})
 	}
 }
 
-// CreateOrUpdate - Create a NodePool
+// CreateOrUpdate - Create a ExternalAuthProfile
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
-func (client *NodePoolsClient) createOrUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, resource NodePool, options *NodePoolsClientBeginCreateOrUpdateOptions) (*http.Response, error) {
+func (client *ExternalAuthProfilesClient) createOrUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, resource ExternalAuthProfile, options *ExternalAuthProfilesClientBeginCreateOrUpdateOptions) (*http.Response, error) {
 	var err error
-	const operationName = "NodePoolsClient.BeginCreateOrUpdate"
+	const operationName = "ExternalAuthProfilesClient.BeginCreateOrUpdate"
 	ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, operationName)
 	ctx, endSpan := runtime.StartSpan(ctx, operationName, client.internal.Tracer(), nil)
 	defer func() { endSpan(err) }()
-	req, err := client.createOrUpdateCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, resource, options)
+	req, err := client.createOrUpdateCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, externalAuthProfileName, resource, options)
 	if err != nil {
 		return nil, err
 	}
@@ -96,8 +96,8 @@ func (client *NodePoolsClient) createOrUpdate(ctx context.Context, resourceGroup
 }
 
 // createOrUpdateCreateRequest creates the CreateOrUpdate request.
-func (client *NodePoolsClient) createOrUpdateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, resource NodePool, options *NodePoolsClientBeginCreateOrUpdateOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
+func (client *ExternalAuthProfilesClient) createOrUpdateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, resource ExternalAuthProfile, options *ExternalAuthProfilesClientBeginCreateOrUpdateOptions) (*policy.Request, error) {
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuthProfiles/{externalAuthProfileName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -110,10 +110,10 @@ func (client *NodePoolsClient) createOrUpdateCreateRequest(ctx context.Context, 
 		return nil, errors.New("parameter hcpOpenShiftClusterName cannot be empty")
 	}
 	urlPath = strings.ReplaceAll(urlPath, "{hcpOpenShiftClusterName}", url.PathEscape(hcpOpenShiftClusterName))
-	if nodePoolName == "" {
-		return nil, errors.New("parameter nodePoolName cannot be empty")
+	if externalAuthProfileName == "" {
+		return nil, errors.New("parameter externalAuthProfileName cannot be empty")
 	}
-	urlPath = strings.ReplaceAll(urlPath, "{nodePoolName}", url.PathEscape(nodePoolName))
+	urlPath = strings.ReplaceAll(urlPath, "{externalAuthProfileName}", url.PathEscape(externalAuthProfileName))
 	req, err := runtime.NewRequest(ctx, http.MethodPut, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	if err != nil {
 		return nil, err
@@ -128,43 +128,44 @@ func (client *NodePoolsClient) createOrUpdateCreateRequest(ctx context.Context, 
 	return req, nil
 }
 
-// BeginDelete - Delete a NodePool
+// BeginDelete - Delete a ExternalAuthProfile
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - The name of the HcpOpenShiftCluster
-//   - nodePoolName - The name of the NodePool
-//   - options - NodePoolsClientBeginDeleteOptions contains the optional parameters for the NodePoolsClient.BeginDelete method.
-func (client *NodePoolsClient) BeginDelete(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientBeginDeleteOptions) (*runtime.Poller[NodePoolsClientDeleteResponse], error) {
+//   - externalAuthProfileName - The name of the ExternalAuthProfile
+//   - options - ExternalAuthProfilesClientBeginDeleteOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginDelete
+//     method.
+func (client *ExternalAuthProfilesClient) BeginDelete(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, options *ExternalAuthProfilesClientBeginDeleteOptions) (*runtime.Poller[ExternalAuthProfilesClientDeleteResponse], error) {
 	if options == nil || options.ResumeToken == "" {
-		resp, err := client.deleteOperation(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, options)
+		resp, err := client.deleteOperation(ctx, resourceGroupName, hcpOpenShiftClusterName, externalAuthProfileName, options)
 		if err != nil {
 			return nil, err
 		}
-		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[NodePoolsClientDeleteResponse]{
+		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[ExternalAuthProfilesClientDeleteResponse]{
 			FinalStateVia: runtime.FinalStateViaLocation,
 			Tracer: client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
-		return runtime.NewPollerFromResumeToken(options.ResumeToken, client.internal.Pipeline(), &runtime.NewPollerFromResumeTokenOptions[NodePoolsClientDeleteResponse]{
+		return runtime.NewPollerFromResumeToken(options.ResumeToken, client.internal.Pipeline(), &runtime.NewPollerFromResumeTokenOptions[ExternalAuthProfilesClientDeleteResponse]{
 			Tracer: client.internal.Tracer(),
 		})
 	}
 }
 
-// Delete - Delete a NodePool
+// Delete - Delete a ExternalAuthProfile
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
-func (client *NodePoolsClient) deleteOperation(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientBeginDeleteOptions) (*http.Response, error) {
+func (client *ExternalAuthProfilesClient) deleteOperation(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, options *ExternalAuthProfilesClientBeginDeleteOptions) (*http.Response, error) {
 	var err error
-	const operationName = "NodePoolsClient.BeginDelete"
+	const operationName = "ExternalAuthProfilesClient.BeginDelete"
 	ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, operationName)
 	ctx, endSpan := runtime.StartSpan(ctx, operationName, client.internal.Tracer(), nil)
 	defer func() { endSpan(err) }()
-	req, err := client.deleteCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, options)
+	req, err := client.deleteCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, externalAuthProfileName, options)
 	if err != nil {
 		return nil, err
 	}
@@ -180,8 +181,8 @@ func (client *NodePoolsClient) deleteOperation(ctx context.Context, resourceGrou
 }
 
 // deleteCreateRequest creates the Delete request.
-func (client *NodePoolsClient) deleteCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientBeginDeleteOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
+func (client *ExternalAuthProfilesClient) deleteCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, options *ExternalAuthProfilesClientBeginDeleteOptions) (*policy.Request, error) {
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuthProfiles/{externalAuthProfileName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -194,10 +195,10 @@ func (client *NodePoolsClient) deleteCreateRequest(ctx context.Context, resource
 		return nil, errors.New("parameter hcpOpenShiftClusterName cannot be empty")
 	}
 	urlPath = strings.ReplaceAll(urlPath, "{hcpOpenShiftClusterName}", url.PathEscape(hcpOpenShiftClusterName))
-	if nodePoolName == "" {
-		return nil, errors.New("parameter nodePoolName cannot be empty")
+	if externalAuthProfileName == "" {
+		return nil, errors.New("parameter externalAuthProfileName cannot be empty")
 	}
-	urlPath = strings.ReplaceAll(urlPath, "{nodePoolName}", url.PathEscape(nodePoolName))
+	urlPath = strings.ReplaceAll(urlPath, "{externalAuthProfileName}", url.PathEscape(externalAuthProfileName))
 	req, err := runtime.NewRequest(ctx, http.MethodDelete, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	if err != nil {
 		return nil, err
@@ -209,39 +210,40 @@ func (client *NodePoolsClient) deleteCreateRequest(ctx context.Context, resource
 	return req, nil
 }
 
-// Get - Get a NodePool
+// Get - Get a ExternalAuthProfile
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - The name of the HcpOpenShiftCluster
-//   - nodePoolName - The name of the NodePool
-//   - options - NodePoolsClientGetOptions contains the optional parameters for the NodePoolsClient.Get method.
-func (client *NodePoolsClient) Get(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientGetOptions) (NodePoolsClientGetResponse, error) {
+//   - externalAuthProfileName - The name of the ExternalAuthProfile
+//   - options - ExternalAuthProfilesClientGetOptions contains the optional parameters for the ExternalAuthProfilesClient.Get
+//     method.
+func (client *ExternalAuthProfilesClient) Get(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, options *ExternalAuthProfilesClientGetOptions) (ExternalAuthProfilesClientGetResponse, error) {
 	var err error
-	const operationName = "NodePoolsClient.Get"
+	const operationName = "ExternalAuthProfilesClient.Get"
 	ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, operationName)
 	ctx, endSpan := runtime.StartSpan(ctx, operationName, client.internal.Tracer(), nil)
 	defer func() { endSpan(err) }()
-	req, err := client.getCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, options)
+	req, err := client.getCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, externalAuthProfileName, options)
 	if err != nil {
-		return NodePoolsClientGetResponse{}, err
+		return ExternalAuthProfilesClientGetResponse{}, err
 	}
 	httpResp, err := client.internal.Pipeline().Do(req)
 	if err != nil {
-		return NodePoolsClientGetResponse{}, err
+		return ExternalAuthProfilesClientGetResponse{}, err
 	}
 	if !runtime.HasStatusCode(httpResp, http.StatusOK) {
 		err = runtime.NewResponseError(httpResp)
-		return NodePoolsClientGetResponse{}, err
+		return ExternalAuthProfilesClientGetResponse{}, err
 	}
 	resp, err := client.getHandleResponse(httpResp)
 	return resp, err
 }
 
 // getCreateRequest creates the Get request.
-func (client *NodePoolsClient) getCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, options *NodePoolsClientGetOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
+func (client *ExternalAuthProfilesClient) getCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, options *ExternalAuthProfilesClientGetOptions) (*policy.Request, error) {
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuthProfiles/{externalAuthProfileName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -254,10 +256,10 @@ func (client *NodePoolsClient) getCreateRequest(ctx context.Context, resourceGro
 		return nil, errors.New("parameter hcpOpenShiftClusterName cannot be empty")
 	}
 	urlPath = strings.ReplaceAll(urlPath, "{hcpOpenShiftClusterName}", url.PathEscape(hcpOpenShiftClusterName))
-	if nodePoolName == "" {
-		return nil, errors.New("parameter nodePoolName cannot be empty")
+	if externalAuthProfileName == "" {
+		return nil, errors.New("parameter externalAuthProfileName cannot be empty")
 	}
-	urlPath = strings.ReplaceAll(urlPath, "{nodePoolName}", url.PathEscape(nodePoolName))
+	urlPath = strings.ReplaceAll(urlPath, "{externalAuthProfileName}", url.PathEscape(externalAuthProfileName))
 	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	if err != nil {
 		return nil, err
@@ -270,28 +272,28 @@ func (client *NodePoolsClient) getCreateRequest(ctx context.Context, resourceGro
 }
 
 // getHandleResponse handles the Get response.
-func (client *NodePoolsClient) getHandleResponse(resp *http.Response) (NodePoolsClientGetResponse, error) {
-	result := NodePoolsClientGetResponse{}
-	if err := runtime.UnmarshalAsJSON(resp, &result.NodePool); err != nil {
-		return NodePoolsClientGetResponse{}, err
+func (client *ExternalAuthProfilesClient) getHandleResponse(resp *http.Response) (ExternalAuthProfilesClientGetResponse, error) {
+	result := ExternalAuthProfilesClientGetResponse{}
+	if err := runtime.UnmarshalAsJSON(resp, &result.ExternalAuthProfile); err != nil {
+		return ExternalAuthProfilesClientGetResponse{}, err
 	}
 	return result, nil
 }
 
-// NewListByParentPager - List NodePool resources by HcpOpenShiftCluster
+// NewListByParentPager - List ExternalAuthProfile resources by HcpOpenShiftCluster
 //
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - The name of the HcpOpenShiftCluster
-//   - options - NodePoolsClientListByParentOptions contains the optional parameters for the NodePoolsClient.NewListByParentPager
+//   - options - ExternalAuthProfilesClientListByParentOptions contains the optional parameters for the ExternalAuthProfilesClient.NewListByParentPager
 //     method.
-func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) (*runtime.Pager[NodePoolsClientListByParentResponse]) {
-	return runtime.NewPager(runtime.PagingHandler[NodePoolsClientListByParentResponse]{
-		More: func(page NodePoolsClientListByParentResponse) bool {
+func (client *ExternalAuthProfilesClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *ExternalAuthProfilesClientListByParentOptions) (*runtime.Pager[ExternalAuthProfilesClientListByParentResponse]) {
+	return runtime.NewPager(runtime.PagingHandler[ExternalAuthProfilesClientListByParentResponse]{
+		More: func(page ExternalAuthProfilesClientListByParentResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
-		Fetcher: func(ctx context.Context, page *NodePoolsClientListByParentResponse) (NodePoolsClientListByParentResponse, error) {
-		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "NodePoolsClient.NewListByParentPager")
+		Fetcher: func(ctx context.Context, page *ExternalAuthProfilesClientListByParentResponse) (ExternalAuthProfilesClientListByParentResponse, error) {
+		ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, "ExternalAuthProfilesClient.NewListByParentPager")
 			nextLink := ""
 			if page != nil {
 				nextLink = *page.NextLink
@@ -300,7 +302,7 @@ func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hc
 				return client.listByParentCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, options)
 			}, nil)
 			if err != nil {
-				return NodePoolsClientListByParentResponse{}, err
+				return ExternalAuthProfilesClientListByParentResponse{}, err
 			}
 			return client.listByParentHandleResponse(resp)
 			},
@@ -309,8 +311,8 @@ func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hc
 }
 
 // listByParentCreateRequest creates the ListByParent request.
-func (client *NodePoolsClient) listByParentCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools"
+func (client *ExternalAuthProfilesClient) listByParentCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, options *ExternalAuthProfilesClientListByParentOptions) (*policy.Request, error) {
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuthProfiles"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -335,52 +337,53 @@ func (client *NodePoolsClient) listByParentCreateRequest(ctx context.Context, re
 }
 
 // listByParentHandleResponse handles the ListByParent response.
-func (client *NodePoolsClient) listByParentHandleResponse(resp *http.Response) (NodePoolsClientListByParentResponse, error) {
-	result := NodePoolsClientListByParentResponse{}
-	if err := runtime.UnmarshalAsJSON(resp, &result.NodePoolListResult); err != nil {
-		return NodePoolsClientListByParentResponse{}, err
+func (client *ExternalAuthProfilesClient) listByParentHandleResponse(resp *http.Response) (ExternalAuthProfilesClientListByParentResponse, error) {
+	result := ExternalAuthProfilesClientListByParentResponse{}
+	if err := runtime.UnmarshalAsJSON(resp, &result.ExternalAuthProfileListResult); err != nil {
+		return ExternalAuthProfilesClientListByParentResponse{}, err
 	}
 	return result, nil
 }
 
-// BeginUpdate - Update a NodePool
+// BeginUpdate - Update a ExternalAuthProfile
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - hcpOpenShiftClusterName - The name of the HcpOpenShiftCluster
-//   - nodePoolName - The name of the NodePool
+//   - externalAuthProfileName - The name of the ExternalAuthProfile
 //   - properties - The resource properties to be updated.
-//   - options - NodePoolsClientBeginUpdateOptions contains the optional parameters for the NodePoolsClient.BeginUpdate method.
-func (client *NodePoolsClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties NodePoolUpdate, options *NodePoolsClientBeginUpdateOptions) (*runtime.Poller[NodePoolsClientUpdateResponse], error) {
+//   - options - ExternalAuthProfilesClientBeginUpdateOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginUpdate
+//     method.
+func (client *ExternalAuthProfilesClient) BeginUpdate(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, properties ExternalAuthProfileUpdate, options *ExternalAuthProfilesClientBeginUpdateOptions) (*runtime.Poller[ExternalAuthProfilesClientUpdateResponse], error) {
 	if options == nil || options.ResumeToken == "" {
-		resp, err := client.update(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, properties, options)
+		resp, err := client.update(ctx, resourceGroupName, hcpOpenShiftClusterName, externalAuthProfileName, properties, options)
 		if err != nil {
 			return nil, err
 		}
-		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[NodePoolsClientUpdateResponse]{
+		poller, err := runtime.NewPoller(resp, client.internal.Pipeline(), &runtime.NewPollerOptions[ExternalAuthProfilesClientUpdateResponse]{
 			FinalStateVia: runtime.FinalStateViaLocation,
 			Tracer: client.internal.Tracer(),
 		})
 		return poller, err
 	} else {
-		return runtime.NewPollerFromResumeToken(options.ResumeToken, client.internal.Pipeline(), &runtime.NewPollerFromResumeTokenOptions[NodePoolsClientUpdateResponse]{
+		return runtime.NewPollerFromResumeToken(options.ResumeToken, client.internal.Pipeline(), &runtime.NewPollerFromResumeTokenOptions[ExternalAuthProfilesClientUpdateResponse]{
 			Tracer: client.internal.Tracer(),
 		})
 	}
 }
 
-// Update - Update a NodePool
+// Update - Update a ExternalAuthProfile
 // If the operation fails it returns an *azcore.ResponseError type.
 //
 // Generated from API version 2024-06-10-preview
-func (client *NodePoolsClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties NodePoolUpdate, options *NodePoolsClientBeginUpdateOptions) (*http.Response, error) {
+func (client *ExternalAuthProfilesClient) update(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, properties ExternalAuthProfileUpdate, options *ExternalAuthProfilesClientBeginUpdateOptions) (*http.Response, error) {
 	var err error
-	const operationName = "NodePoolsClient.BeginUpdate"
+	const operationName = "ExternalAuthProfilesClient.BeginUpdate"
 	ctx = context.WithValue(ctx, runtime.CtxAPINameKey{}, operationName)
 	ctx, endSpan := runtime.StartSpan(ctx, operationName, client.internal.Tracer(), nil)
 	defer func() { endSpan(err) }()
-	req, err := client.updateCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, nodePoolName, properties, options)
+	req, err := client.updateCreateRequest(ctx, resourceGroupName, hcpOpenShiftClusterName, externalAuthProfileName, properties, options)
 	if err != nil {
 		return nil, err
 	}
@@ -396,8 +399,8 @@ func (client *NodePoolsClient) update(ctx context.Context, resourceGroupName str
 }
 
 // updateCreateRequest creates the Update request.
-func (client *NodePoolsClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, nodePoolName string, properties NodePoolUpdate, options *NodePoolsClientBeginUpdateOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools/{nodePoolName}"
+func (client *ExternalAuthProfilesClient) updateCreateRequest(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, externalAuthProfileName string, properties ExternalAuthProfileUpdate, options *ExternalAuthProfilesClientBeginUpdateOptions) (*policy.Request, error) {
+	urlPath := "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuthProfiles/{externalAuthProfileName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -410,10 +413,10 @@ func (client *NodePoolsClient) updateCreateRequest(ctx context.Context, resource
 		return nil, errors.New("parameter hcpOpenShiftClusterName cannot be empty")
 	}
 	urlPath = strings.ReplaceAll(urlPath, "{hcpOpenShiftClusterName}", url.PathEscape(hcpOpenShiftClusterName))
-	if nodePoolName == "" {
-		return nil, errors.New("parameter nodePoolName cannot be empty")
+	if externalAuthProfileName == "" {
+		return nil, errors.New("parameter externalAuthProfileName cannot be empty")
 	}
-	urlPath = strings.ReplaceAll(urlPath, "{nodePoolName}", url.PathEscape(nodePoolName))
+	urlPath = strings.ReplaceAll(urlPath, "{externalAuthProfileName}", url.PathEscape(externalAuthProfileName))
 	req, err := runtime.NewRequest(ctx, http.MethodPatch, runtime.JoinPaths(client.internal.Endpoint(), urlPath))
 	if err != nil {
 		return nil, err
