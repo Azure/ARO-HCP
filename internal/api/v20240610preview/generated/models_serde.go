@@ -1452,6 +1452,7 @@ func (n NodePoolPlatformProfile) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "availabilityZone", n.AvailabilityZone)
 	populate(objectMap, "diskSizeGiB", n.DiskSizeGiB)
 	populate(objectMap, "diskStorageAccountType", n.DiskStorageAccountType)
+	populate(objectMap, "enableEncryptionAtHost", n.EnableEncryptionAtHost)
 	populate(objectMap, "subnetId", n.SubnetID)
 	populate(objectMap, "vmSize", n.VMSize)
 	return json.Marshal(objectMap)
@@ -1474,6 +1475,9 @@ func (n *NodePoolPlatformProfile) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "diskStorageAccountType":
 			err = unpopulate(val, "DiskStorageAccountType", &n.DiskStorageAccountType)
+			delete(rawMsg, key)
+		case "enableEncryptionAtHost":
+			err = unpopulate(val, "EnableEncryptionAtHost", &n.EnableEncryptionAtHost)
 			delete(rawMsg, key)
 		case "subnetId":
 			err = unpopulate(val, "SubnetID", &n.SubnetID)
@@ -1801,15 +1805,15 @@ func (o *OperationListResult) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaller interface for type OperatorsAuthProfile.
-func (o OperatorsAuthProfile) MarshalJSON() ([]byte, error) {
+// MarshalJSON implements the json.Marshaller interface for type OperatorsAuthenticationProfile.
+func (o OperatorsAuthenticationProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "userAssignedIdentities", o.UserAssignedIdentities)
 	return json.Marshal(objectMap)
 }
 
-// UnmarshalJSON implements the json.Unmarshaller interface for type OperatorsAuthProfile.
-func (o *OperatorsAuthProfile) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON implements the json.Unmarshaller interface for type OperatorsAuthenticationProfile.
+func (o *OperatorsAuthenticationProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", o, err)
@@ -1865,7 +1869,7 @@ func (p PlatformProfile) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "issuerUrl", p.IssuerURL)
 	populate(objectMap, "managedResourceGroup", p.ManagedResourceGroup)
 	populate(objectMap, "networkSecurityGroupId", p.NetworkSecurityGroupID)
-	populate(objectMap, "operatorsAuth", p.OperatorsAuth)
+	populate(objectMap, "operatorsAuthentication", p.OperatorsAuthentication)
 	populate(objectMap, "outboundType", p.OutboundType)
 	populate(objectMap, "subnetId", p.SubnetID)
 	return json.Marshal(objectMap)
@@ -1889,8 +1893,8 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 		case "networkSecurityGroupId":
 			err = unpopulate(val, "NetworkSecurityGroupID", &p.NetworkSecurityGroupID)
 			delete(rawMsg, key)
-		case "operatorsAuth":
-			err = unpopulate(val, "OperatorsAuth", &p.OperatorsAuth)
+		case "operatorsAuthentication":
+			err = unpopulate(val, "OperatorsAuthentication", &p.OperatorsAuthentication)
 			delete(rawMsg, key)
 		case "outboundType":
 			err = unpopulate(val, "OutboundType", &p.OutboundType)

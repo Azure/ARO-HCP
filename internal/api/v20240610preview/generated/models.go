@@ -526,6 +526,10 @@ type NodePoolPlatformProfile struct {
 	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *DiskStorageAccountType
 
+	// Whether to enable host based OS and data drive encryption.
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
+	EnableEncryptionAtHost *bool
+
 	// The Azure resource ID of the worker subnet
 	SubnetID *string
 }
@@ -657,8 +661,8 @@ type OperationListResult struct {
 	Value []*Operation
 }
 
-// OperatorsAuthProfile - The configuration that the operators of the cluster have to authenticate to Azure.
-type OperatorsAuthProfile struct {
+// OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
+type OperatorsAuthenticationProfile struct {
 	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators Auth
 	// based on Azure User-Assigned Managed Identities
 	UserAssignedIdentities *UserAssignedIdentitiesProfile
@@ -677,7 +681,7 @@ type PlatformProfile struct {
 	NetworkSecurityGroupID *string
 
 	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
-	OperatorsAuth *OperatorsAuthProfile
+	OperatorsAuthentication *OperatorsAuthenticationProfile
 
 	// REQUIRED; The Azure resource ID of the worker subnet
 	SubnetID *string

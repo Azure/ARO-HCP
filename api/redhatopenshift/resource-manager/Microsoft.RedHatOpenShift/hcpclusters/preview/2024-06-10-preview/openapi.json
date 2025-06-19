@@ -2211,6 +2211,11 @@
             "create"
           ]
         },
+        "enableEncryptionAtHost": {
+          "type": "boolean",
+          "description": "Whether to enable host based OS and data drive encryption.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data",
+          "default": false
+        },
         "diskSizeGiB": {
           "type": "integer",
           "format": "int32",
@@ -2472,7 +2477,7 @@
         }
       }
     },
-    "OperatorsAuthProfile": {
+    "OperatorsAuthenticationProfile": {
       "type": "object",
       "description": "The configuration that the operators of the cluster have to authenticate to Azure.",
       "properties": {
@@ -2583,7 +2588,7 @@
       "required": [
         "subnetId",
         "networkSecurityGroupId",
-        "operatorsAuth",
+        "operatorsAuthentication",
         "issuerUrl"
       ]
     },
