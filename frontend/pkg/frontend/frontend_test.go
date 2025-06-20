@@ -418,12 +418,12 @@ func TestDeploymentPreflight(t *testing.T) {
 						"visibility": "invisible",
 					},
 					"platform": map[string]any{
-						// 2 missing required fields
+						// 1 missing required fields
 					},
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
-			expectErrors: 4,
+			expectErrors: 3,
 		},
 		{
 			name: "Well-formed node pool resource returns no error",

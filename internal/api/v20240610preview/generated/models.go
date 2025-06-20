@@ -467,9 +467,6 @@ type OperatorsAuthenticationProfile struct {
 
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
-	// REQUIRED; ResourceId for the network security group attached to the cluster subnet
-	NetworkSecurityGroupID *string
-
 	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfile
 
@@ -478,6 +475,9 @@ type PlatformProfile struct {
 
 	// Resource group to put cluster resources
 	ManagedResourceGroup *string
+
+	// ResourceId for the network security group attached to the cluster subnet
+	NetworkSecurityGroupID *string
 
 	// The core outgoing configuration
 	OutboundType *OutboundType
