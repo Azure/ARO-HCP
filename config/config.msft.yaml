@@ -112,8 +112,11 @@ defaults:
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
-    # Format: Multiline string using '>-' YAML block scalar
+    # Format:
+    #   Multiline string using '>-' YAML block scalar
     #   One item per line, formatted as: UUID/PrincipalType/RoleName
+    # Our yaml formatter does not allow >- when there is no value, so remember
+    # to chage "" to >- when you add a value.
     grafanaRoles: ""
     svcWorkspaceName: 'arohcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
     hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
