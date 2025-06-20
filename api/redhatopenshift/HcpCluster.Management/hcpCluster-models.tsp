@@ -456,6 +456,33 @@ model NodePoolAutoScaling {
   @minValue(0)
   max?: int32;
 }
+/** Encryption support disabled by default */
+model Encryption {
+  /** Encryption support disabled by default */
+  infrastructureEncryption?: "enabled" | "disabled" | string = "disabled";
+
+  /** Encryption support disabled by default */
+  customerManagedKeyEncryption?: CustomerManagedKeyEncryption;
+}
+/** Enable customer Managed encryption */
+model CustomerManagedKeyEncryption {
+  /** Enable customer Managed encryption */
+  keyEncryptionKeyIdentity: KeyEncryptionKeyIdentity;
+
+  /** Enable customer Managed encryption */
+  keyEncryptionKeyUrl: string;
+}
+/** Enable Encryption Key Identity assignment */
+model KeyEncryptionKeyIdentity {
+  /** Enable Encryption Key Identity assignment */
+  identityType: "systemAssignedIdentity" | "userAssignedIdentity" | string;
+
+  /** user  Identity assignment */
+  userAssignedIdentityResourceId?: UserAssignedIdentityResourceId;
+
+  /** Federated ClientId Identity assignment */
+  federatedClientId?: string;
+}
 
 /*
  * =======================================
