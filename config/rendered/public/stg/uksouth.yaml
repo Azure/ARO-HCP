@@ -291,9 +291,9 @@ mise:
   tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
 monitoring:
   devAlertingEmails: ""
-  grafanaAdminGroupPrincipalId: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-stg
+  grafanaRoles: ""
   grafanaZoneRedundantMode: Disabled
   hcpWorkspaceName: arohcp-hcp-stg-ln
   sev1ActionGroupIDs: ""
