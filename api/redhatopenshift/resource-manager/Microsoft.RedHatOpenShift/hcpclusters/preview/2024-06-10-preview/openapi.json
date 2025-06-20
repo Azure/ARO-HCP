@@ -50,6 +50,9 @@
     },
     {
       "name": "HcpOpenShiftVersions"
+    },
+    {
+      "name": "HcpOperatorIdentityRoleSets"
     }
   ],
   "paths": {
@@ -89,6 +92,85 @@
         },
         "x-ms-pageable": {
           "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenShift/hcpOperatorIdentityRoleSets": {
+      "get": {
+        "operationId": "HcpOperatorIdentityRoleSets_List",
+        "tags": [
+          "HcpOperatorIdentityRoleSets"
+        ],
+        "description": "List HcpOperatorIdentityRoleSet resources by location",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/LocationParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOperatorIdentityRoleSetListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenShift/hcpOperatorIdentityRoleSets/{hcpOperatorIdentityRoleSetName}": {
+      "get": {
+        "operationId": "HcpOperatorIdentityRoleSets_Get",
+        "tags": [
+          "HcpOperatorIdentityRoleSets"
+        ],
+        "description": "Get a HcpOperatorIdentityRoleSet",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/LocationParameter"
+          },
+          {
+            "name": "hcpOperatorIdentityRoleSetName",
+            "in": "path",
+            "description": "The OpenShift minor version these identities are required for.",
+            "required": true,
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOperatorIdentityRoleSet"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
         }
       }
     },
@@ -1381,6 +1463,68 @@
         "endOfLifeTimestamp"
       ]
     },
+    "HcpOperatorIdentityRoleSet": {
+      "type": "object",
+      "description": "HcpOperatorIdentityRoles represents a location based representation of\nthe required platform workload identities and their required roles for a given\nOpenShift version",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/HcpOperatorIdentityRoleSetProperties",
+          "description": "The resource-specific properties for this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ProxyResource"
+        }
+      ]
+    },
+    "HcpOperatorIdentityRoleSetListResult": {
+      "type": "object",
+      "description": "The response of a HcpOperatorIdentityRoleSet list operation.",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The HcpOperatorIdentityRoleSet items on this page",
+          "items": {
+            "$ref": "#/definitions/HcpOperatorIdentityRoleSet"
+          }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "HcpOperatorIdentityRoleSetProperties": {
+      "type": "object",
+      "description": "HCP Operator Identity Roles properties",
+      "properties": {
+        "controlPlaneOperators": {
+          "type": "array",
+          "description": "The role definitions required for the User-Assigned managed identities used\nby Control Plane operators on a cluster.",
+          "items": {
+            "$ref": "#/definitions/OperatorIdentityRoles"
+          },
+          "x-ms-identifiers": []
+        },
+        "dataPlaneOperators": {
+          "type": "array",
+          "description": "The role definitions required for the User-Assigned managed identities used\nby Data Plane operators on a cluster.",
+          "items": {
+            "$ref": "#/definitions/OperatorIdentityRoles"
+          },
+          "x-ms-identifiers": []
+        }
+      },
+      "required": [
+        "controlPlaneOperators",
+        "dataPlaneOperators"
+      ]
+    },
     "Label": {
       "type": "object",
       "description": "Label represents the Kubernetes label",
@@ -1830,6 +1974,33 @@
         }
       }
     },
+    "OperatorIdentityRoles": {
+      "type": "object",
+      "description": "Role definitions for a specific operator",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the operator"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether or not the operator is required for installation"
+        },
+        "roleDefinitions": {
+          "type": "array",
+          "description": "The role definitions required to be assigned to the identity assumed by this operator",
+          "items": {
+            "$ref": "#/definitions/RoleDefinition"
+          },
+          "x-ms-identifiers": []
+        }
+      },
+      "required": [
+        "name",
+        "required",
+        "roleDefinitions"
+      ]
+    },
     "OperatorsAuthenticationProfile": {
       "type": "object",
       "description": "The configuration that the operators of the cluster have to authenticate to Azure.",
@@ -2014,6 +2185,24 @@
         ]
       },
       "readOnly": true
+    },
+    "RoleDefinition": {
+      "type": "object",
+      "description": "A single role definition required by a given operator",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the required role definition"
+        },
+        "resourceId": {
+          "type": "string",
+          "description": "The resource ID of the role definition"
+        }
+      },
+      "required": [
+        "name",
+        "resourceId"
+      ]
     },
     "SubnetResourceId": {
       "type": "string",
