@@ -59,6 +59,18 @@ type HcpOpenShiftClustersClientListBySubscriptionOptions struct {
 	// placeholder for future optional parameters
 }
 
+// HcpOperatorIdentityRoleSetsClientGetOptions contains the optional parameters for the HcpOperatorIdentityRoleSetsClient.Get
+// method.
+type HcpOperatorIdentityRoleSetsClientGetOptions struct {
+	// placeholder for future optional parameters
+}
+
+// HcpOperatorIdentityRoleSetsClientListOptions contains the optional parameters for the HcpOperatorIdentityRoleSetsClient.NewListPager
+// method.
+type HcpOperatorIdentityRoleSetsClientListOptions struct {
+	// placeholder for future optional parameters
+}
+
 // NodePoolsClientBeginCreateOrUpdateOptions contains the optional parameters for the NodePoolsClient.BeginCreateOrUpdate
 // method.
 type NodePoolsClientBeginCreateOrUpdateOptions struct {
