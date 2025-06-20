@@ -453,8 +453,10 @@ union DiskStorageAccountType {
 union ArchitectureType {
   string,
 
-  x86_64: "x86_64",
+  /** Support for x86_64 or amd64 */
+  amd64: "amd64",
 
+  /** Support for arm64 */
   arm64: "arm64",
 }
 

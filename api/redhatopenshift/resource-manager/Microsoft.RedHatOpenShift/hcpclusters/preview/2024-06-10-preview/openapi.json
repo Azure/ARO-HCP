@@ -930,6 +930,30 @@
         "url"
       ]
     },
+    "ArchitectureType": {
+      "type": "string",
+      "description": "Supported Nodepool Architectures",
+      "enum": [
+        "amd64",
+        "arm64"
+      ],
+      "x-ms-enum": {
+        "name": "ArchitectureType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "amd64",
+            "value": "amd64",
+            "description": "Support for x86_64 or amd64"
+          },
+          {
+            "name": "arm64",
+            "value": "arm64",
+            "description": "Support for arm64"
+          }
+        ]
+      }
+    },
     "Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate": {
       "type": "object",
       "description": "Managed service identity (system assigned and/or user assigned identities)",
@@ -1373,6 +1397,10 @@
         "vmSize": {
           "type": "string",
           "description": "The VM size according to the documentation:\n- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes"
+        },
+        "arch": {
+          "$ref": "#/definitions/ArchitectureType",
+          "description": "The Architecture for the  Nodepool"
         },
         "enableEncryptionAtHost": {
           "type": "boolean",
