@@ -41,10 +41,21 @@ model OperatorIdentityRoles {
   name: string;
 
   /** Whether or not the operator is required for installation */
-  required: boolean;
+  required: OperatorIdentityRequired;
 
   /** The role definitions required to be assigned to the identity assumed by this operator */
   roleDefinitions: RoleDefinition[];
+}
+
+/** Indicates if the identity is required */
+union OperatorIdentityRequired {
+  string,
+
+  /** Indicates the identity is always required. */
+  "Always",
+
+  /** Indicates the identity is only required when a functionality that leverages the operator is enabled. */
+  "OnEnablement",
 }
 
 /** A single role definition required by a given operator */
