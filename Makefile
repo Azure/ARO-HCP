@@ -7,7 +7,6 @@ GOTAGS?='containers_image_openpgp'
 LINT_GOTAGS?='${GOTAGS},E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
-CLOUD ?= dev
 
 .DEFAULT_GOAL := all
 
@@ -186,11 +185,11 @@ services_svc_pipelines = backend frontend cluster-service maestro.server observa
 services_mgmt_pipelines = hypershiftoperator maestro.agent acm
 %.deploy_pipeline: $(ORAS)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c $(CLOUD)
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run
 
 %.dry_run: $(ORAS)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c $(CLOUD) -d
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -d
 
 svc.deployall: $(ORAS) $(addsuffix .deploy_pipeline, $(services_svc_pipelines)) $(addsuffix .deploy, $(services_svc))
 mgmt.deployall: $(ORAS) $(addsuffix .deploy, $(services_mgmt)) $(addsuffix .deploy_pipeline, $(services_mgmt_pipelines))

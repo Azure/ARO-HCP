@@ -179,7 +179,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 				prefix := fmt.Sprintf("config[%s][%s][%s]:", cloud, environment, region)
 				ev2Cloud := cloud
 				if opts.DevMode {
-					ev2Cloud = "public"
+					ev2Cloud = "public" // TODO: load from settings
 				}
 				ev2Cfg, err := ev2config.ResolveConfig(ev2Cloud, region)
 				if err != nil {

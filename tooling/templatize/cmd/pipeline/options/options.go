@@ -15,6 +15,7 @@
 package options
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -81,8 +82,8 @@ type PipelineOptions struct {
 	*completedPipelineOptions
 }
 
-func (o *RawPipelineOptions) Validate() (*ValidatedPipelineOptions, error) {
-	validatedRolloutOptions, err := o.RolloutOptions.Validate()
+func (o *RawPipelineOptions) Validate(ctx context.Context) (*ValidatedPipelineOptions, error) {
+	validatedRolloutOptions, err := o.RolloutOptions.Validate(ctx)
 	if err != nil {
 		return nil, err
 	}

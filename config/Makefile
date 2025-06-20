@@ -10,18 +10,6 @@ prepare-msft-config:
 
 
 materialize: render
-	@echo "Materializing dev cloud int env of config/config.yaml"
-	@../templatize.sh dev -x $(STAMP) > public-cloud-dev.json
-	@echo "Materializing dev cloud cspr env of config/config.yaml"
-	@../templatize.sh cspr -x $(STAMP) > public-cloud-cspr.json
-	@echo "Materializing dev cloud ntly env of config/config.yaml"
-	@../templatize.sh ntly -x $(STAMP) > public-cloud-ntly.json
-	@echo "Materializing dev cloud personal dev env of config/config.yaml"
-	@USER=test ../templatize.sh pers -x $(STAMP) > public-cloud-pers.json
-	@echo "Materializing public cloud int env of config/config.msft.yaml"
-	@CONFIG_FILE=../config/config.msft.yaml ../templatize.sh int -c public -x $(STAMP) > public-cloud-msft-int.json
-	@echo "Materializing public cloud stg env of config/config.msft.yaml"
-	@CONFIG_FILE=../config/config.msft.yaml ../templatize.sh stg -c public -x $(STAMP) > public-cloud-msft-stg.json
 .PHONY: materialize
 
 detect-change: materialize
@@ -40,14 +28,14 @@ detect-change: materialize
 
 validate:
 	$(MAKE) -C ./../tooling/templatize templatize
-	./../tooling/templatize/templatize configuration validate --service-config-file ./config.msft.yaml \
-	                                                          --dev-settings-file ./../tooling/templatize/settings.yaml \
-	                                                          --digest-file ./msft.digests.yaml \
-	                                                          --output-dir ./rendered $(UPDATE)
-	./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
-	                                                          --dev-settings-file ./../tooling/templatize/settings.yaml \
-	                                                          --digest-file ./dev.digests.yaml \
-	                                                          --output-dir ./rendered $(UPDATE)
+	USER='test' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.msft.yaml \
+	                                                                      --dev-settings-file ./../tooling/templatize/settings.yaml \
+	                                                                      --digest-file ./msft.digests.yaml \
+	                                                                      --output-dir ./rendered $(UPDATE)
+	USER='test' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
+	                                                                      --dev-settings-file ./../tooling/templatize/settings.yaml \
+	                                                                      --digest-file ./dev.digests.yaml \
+	                                                                      --output-dir ./rendered $(UPDATE)
 	./../tooling/templatize/templatize configuration validate --service-config-file ./config.msft.yaml \
 	                                                          --digest-file ./msft.all.digests.yaml $(UPDATE)
 .PHONY: validate

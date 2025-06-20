@@ -21,10 +21,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-Tools/pkg/config"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/options"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -83,8 +80,8 @@ type InspectOptions struct {
 	*completedInspectOptions
 }
 
-func (o *RawInspectOptions) Validate() (*ValidatedInspectOptions, error) {
-	validatedPipelineOptions, err := o.PipelineOptions.Validate()
+func (o *RawInspectOptions) Validate(ctx context.Context) (*ValidatedInspectOptions, error) {
+	validatedPipelineOptions, err := o.PipelineOptions.Validate(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -129,37 +126,15 @@ func (o *ValidatedInspectOptions) Complete() (*InspectOptions, error) {
 }
 
 func (o *InspectOptions) RunInspect(ctx context.Context) error {
-	rolloutOptions := o.PipelineOptions.RolloutOptions
-
-	// Ev2 config doesn't vary by environment, so we can use public prod for the standard content
-	ev2Cfg, err := ev2config.ResolveConfig("public", rolloutOptions.Region)
-	if err != nil {
-		return fmt.Errorf("error loading embedded ev2 config: %v", err)
-	}
-
-	resolver, err := rolloutOptions.Options.ConfigProvider.GetResolver(&config.ConfigReplacements{
-		RegionReplacement:      rolloutOptions.Region,
-		RegionShortReplacement: rolloutOptions.RegionShort,
-		StampReplacement:       rolloutOptions.Stamp,
-		CloudReplacement:       rolloutOptions.Cloud,
-		EnvironmentReplacement: rolloutOptions.DeployEnv,
-		Ev2Config:              ev2Cfg,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to get config resolver: %w", err)
-	}
-	variables, err := resolver.GetRegionConfiguration(rolloutOptions.Region)
-	if err != nil {
-		return fmt.Errorf("failed to get region configuration: %w", err)
-	}
-	if err := resolver.ValidateSchema(variables); err != nil {
-		return fmt.Errorf("failed to validate region configuration: %w", err)
-	}
-
-	cfg, ok := config.InterfaceToConfiguration(variables)
-	if !ok {
-		return fmt.Errorf("invalid configuration")
-	}
-	inspectOptions := pipeline.NewInspectOptions(cfg, rolloutOptions.Region, o.PipelineOptions.Step, o.Scope, o.Format, o.OutputFile)
-	return pipeline.Inspect(o.PipelineOptions.Pipeline, ctx, inspectOptions)
+	return pipeline.Inspect(
+		o.PipelineOptions.Pipeline, ctx, &pipeline.InspectOptions{
+			Scope:          o.Scope,
+			ScopeFunctions: pipeline.NewStepInspectScopes(),
+			Format:         o.Format,
+			Step:           o.PipelineOptions.Step,
+			Region:         o.PipelineOptions.RolloutOptions.Region,
+			Configuration:  o.PipelineOptions.RolloutOptions.Config,
+			OutputFile:     o.OutputFile,
+		},
+	)
 }

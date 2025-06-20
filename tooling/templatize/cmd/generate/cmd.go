@@ -38,7 +38,7 @@ func NewCommand() (*cobra.Command, error) {
 }
 
 func generate(ctx context.Context, opts *RawGenerationOptions) error {
-	validated, err := opts.Validate()
+	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
 	}

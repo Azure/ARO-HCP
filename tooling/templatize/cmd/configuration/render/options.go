@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
@@ -28,6 +29,7 @@ import (
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
+		Stamp:  1,
 		Output: "-",
 	}
 }
@@ -39,6 +41,8 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "The name of the region to render to.")
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "Output file to render to. Set to '-' for stdout.")
 	cmd.Flags().StringVar(&opts.Ev2Cloud, "ev2-cloud", opts.Ev2Cloud, "Cloud to use for Ev2 configuration, useful for dev mode rendering.")
+	cmd.Flags().StringVar(&opts.RegionShortSuffix, "region-short-suffix", opts.RegionShortSuffix, "Suffix to use for region short-name, useful for dev mode rendering.")
+	cmd.Flags().IntVar(&opts.Stamp, "stamp", opts.Stamp, "Stamp value to use, useful for dev mode rendering.")
 
 	for _, flag := range []string{
 		"service-config-file",
@@ -57,6 +61,8 @@ type RawOptions struct {
 	Environment       string
 	Region            string
 	Ev2Cloud          string
+	RegionShortSuffix string
+	Stamp             int
 	Output            string
 }
 
@@ -72,12 +78,14 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Config      config.ConfigProvider
-	Cloud       string
-	Environment string
-	Region      string
-	Ev2Cloud    string
-	Output      io.WriteCloser
+	Config            config.ConfigProvider
+	Cloud             string
+	Environment       string
+	Region            string
+	Ev2Cloud          string
+	RegionShortSuffix string
+	Stamp             int
+	Output            io.WriteCloser
 }
 
 type Options struct {
@@ -128,12 +136,14 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
-			Config:      c,
-			Cloud:       o.Cloud,
-			Environment: o.Environment,
-			Region:      o.Region,
-			Ev2Cloud:    o.Ev2Cloud,
-			Output:      output,
+			Config:            c,
+			Cloud:             o.Cloud,
+			Environment:       o.Environment,
+			Region:            o.Region,
+			Ev2Cloud:          o.Ev2Cloud,
+			RegionShortSuffix: o.RegionShortSuffix,
+			Stamp:             o.Stamp,
+			Output:            output,
 		},
 	}, nil
 }
@@ -151,7 +161,7 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 		RegionReplacement:      opts.Region,
 		CloudReplacement:       opts.Cloud,
 		EnvironmentReplacement: opts.Environment,
-		StampReplacement:       "1",
+		StampReplacement:       strconv.Itoa(opts.Stamp),
 		Ev2Config:              ev2Cfg,
 	}
 	for key, into := range map[string]*string{
@@ -166,6 +176,9 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 			return fmt.Errorf("%q is not a string", key)
 		}
 		*into = str
+	}
+	if opts.RegionShortSuffix != "" {
+		replacements.RegionShortReplacement += opts.RegionShortSuffix
 	}
 
 	resolver, err := opts.Config.GetResolver(replacements)

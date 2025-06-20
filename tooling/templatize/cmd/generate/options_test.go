@@ -30,9 +30,9 @@ func TestRawOptions(t *testing.T) {
 	tmpdir := t.TempDir()
 	opts := &RawGenerationOptions{
 		RolloutOptions: &options.RawRolloutOptions{
-			Region:      "uksouth",
-			RegionShort: "abcde",
-			Stamp:       "fghij",
+			Region:            "uksouth",
+			RegionShortSuffix: "abcde",
+			Stamp:             "fghij",
 			BaseOptions: &options.RawOptions{
 				ConfigFile: "../../testdata/config.yaml",
 				Cloud:      "public",

@@ -15,10 +15,14 @@
 package options
 
 import (
+	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 )
@@ -37,33 +41,38 @@ func NewRolloutOptions(config config.Configuration) *RolloutOptions {
 	}
 }
 
-func EV2RolloutOptions() *RawRolloutOptions {
-	return &RawRolloutOptions{
-		Region:      "$location()",
-		RegionShort: "$(regionShort)",
-		Stamp:       "$stamp()",
-	}
-}
-
 func BindRolloutOptions(opts *RawRolloutOptions, cmd *cobra.Command) error {
 	err := BindOptions(opts.BaseOptions, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to bind options: %w", err)
 	}
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "resources location")
-	cmd.Flags().StringVar(&opts.RegionShort, "region-short", opts.RegionShort, "short region string")
+	cmd.Flags().StringVar(&opts.RegionShortSuffix, "region-short-suffix", opts.RegionShortSuffix, "suffix to add to short region name, if any")
 	cmd.Flags().StringVar(&opts.Stamp, "stamp", opts.Stamp, "stamp")
 	cmd.Flags().StringToStringVar(&opts.ExtraVars, "extra-args", opts.ExtraVars, "Extra arguments to be used config templating")
+	cmd.Flags().StringVar(&opts.DevSettingsFile, "dev-settings-file", opts.DevSettingsFile, "File to load environment details from.")
+	cmd.Flags().StringVar(&opts.DevEnvironment, "dev-environment", opts.DevEnvironment, "Name of the developer environment to use.")
+
+	for _, flag := range []string{
+		"dev-settings-file",
+	} {
+		if err := cmd.MarkFlagFilename(flag); err != nil {
+			return fmt.Errorf("failed to mark flag %q as a file: %w", flag, err)
+		}
+	}
 	return nil
 }
 
 // RawRolloutOptions holds input values.
 type RawRolloutOptions struct {
-	Region      string
-	RegionShort string
-	Stamp       string
-	ExtraVars   map[string]string
-	BaseOptions *RawOptions
+	Region            string
+	RegionShortSuffix string
+	Stamp             string
+	ExtraVars         map[string]string
+	BaseOptions       *RawOptions
+
+	DevSettingsFile string
+	DevEnvironment  string
 }
 
 // validatedRolloutOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -88,7 +97,43 @@ type RolloutOptions struct {
 	*completedRolloutOptions
 }
 
-func (o *RawRolloutOptions) Validate() (*ValidatedRolloutOptions, error) {
+func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOptions, error) {
+	if o.DevEnvironment != "" && o.DevSettingsFile == "" {
+		return nil, fmt.Errorf("developer environment %s chosen, but not --dev-settings-file provided", o.DevEnvironment)
+	}
+	if o.DevEnvironment != "" && o.DevSettingsFile != "" {
+		for name, value := range map[string]string{
+			"environment":       o.BaseOptions.DeployEnv,
+			"region":            o.Region,
+			"region short-name": o.RegionShortSuffix,
+			"stamp":             o.Stamp,
+		} {
+			if value != "" {
+				return nil, fmt.Errorf("%s cannot be provided explicitly when using settings file", name)
+			}
+		}
+
+		if o.BaseOptions.Cloud == "" {
+			return nil, fmt.Errorf("provide the cloud for dev environment %s with --cloud", o.DevEnvironment)
+		}
+
+		devSettings, err := settings.Load(o.DevSettingsFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load developer settings: %w", err)
+		}
+
+		env, err := devSettings.Resolve(ctx, o.BaseOptions.Cloud, o.DevEnvironment)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve developer environment %s: %w", o.DevEnvironment, err)
+		}
+		o.BaseOptions.Cloud = env.Cloud
+		o.BaseOptions.Ev2Cloud = env.Ev2Cloud
+		o.BaseOptions.DeployEnv = env.Environment
+		o.Region = env.Region
+		o.RegionShortSuffix = env.RegionShortSuffix
+		o.Stamp = strconv.Itoa(env.Stamp)
+	}
+
 	validatedBaseOptions, err := o.BaseOptions.Validate()
 	if err != nil {
 		return nil, err
@@ -108,15 +153,26 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 		return nil, err
 	}
 
-	// Ev2 config doesn't vary by environment, so we can use public prod for the standard content
-	ev2Cfg, err := ev2config.ResolveConfig("public", o.Region)
+	if o.Ev2Cloud == "" {
+		o.Ev2Cloud = o.Cloud
+	}
+	ev2Cfg, err := ev2config.ResolveConfig(o.Ev2Cloud, o.Region)
 	if err != nil {
 		return nil, fmt.Errorf("error loading embedded ev2 config: %v", err)
 	}
 
+	rawRegionShort, present := ev2Cfg.GetByPath("regionShortName")
+	if !present {
+		return nil, fmt.Errorf("regionShortName not found for ev2Config[%s][%s]", o.Ev2Cloud, o.Region)
+	}
+	regionShort, isString := rawRegionShort.(string)
+	if !isString {
+		return nil, fmt.Errorf("regionShortName is %T, not string for ev2Config[%s][%s]", rawRegionShort, o.Ev2Cloud, o.Region)
+	}
+
 	resolver, err := completed.ConfigProvider.GetResolver(&config.ConfigReplacements{
 		RegionReplacement:      o.Region,
-		RegionShortReplacement: o.RegionShort,
+		RegionShortReplacement: regionShort + o.RegionShortSuffix,
 		StampReplacement:       o.Stamp,
 		CloudReplacement:       o.Cloud,
 		EnvironmentReplacement: o.DeployEnv,
