@@ -42,19 +42,6 @@ type InspectOptions struct {
 	OutputFile     io.Writer
 }
 
-// NewInspectOptions creates a new PipelineInspectOptions struct
-func NewInspectOptions(cfg config.Configuration, region, step, scope, format string, outputFile io.Writer) *InspectOptions {
-	return &InspectOptions{
-		Scope:          scope,
-		Format:         format,
-		Step:           step,
-		Region:         region,
-		Configuration:  cfg,
-		ScopeFunctions: NewStepInspectScopes(),
-		OutputFile:     outputFile,
-	}
-}
-
 func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) error {
 	for _, rg := range p.ResourceGroups {
 		for _, step := range rg.Steps {

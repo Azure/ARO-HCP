@@ -29,6 +29,7 @@ jobs:
         git checkout FETCH_HEAD
         export MERGE_BASE_REF=$( git merge-base HEAD ${{ github.base_ref }} )
         if ! make validate-config; then
+          set +o xtrace
           echo "##################################################################"
           echo "##                                                              ##"
           echo "##   If you intended to change the service configuration, run   ##"

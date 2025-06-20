@@ -20,17 +20,17 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/spf13/cobra"
-
-	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 )
 
 func DefaultLookupOptions() *RawLookupOptions {
 	return &RawLookupOptions{
+		Cloud:  "public",
 		Region: "uksouth",
 	}
 }
 
 func BindLookupOptions(opts *RawLookupOptions, cmd *cobra.Command) error {
+	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "Cloud name to do lookup in.")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Region name to do lookup in.")
 	cmd.Flags().StringVar(&opts.Path, "path", opts.Path, "JSONPath expression to look up.")
 	return nil
@@ -38,6 +38,7 @@ func BindLookupOptions(opts *RawLookupOptions, cmd *cobra.Command) error {
 
 // RawLookupOptions holds input values.
 type RawLookupOptions struct {
+	Cloud  string
 	Region string
 	Path   string
 }
@@ -45,7 +46,6 @@ type RawLookupOptions struct {
 // validatedLookupOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
 type validatedLookupOptions struct {
 	*RawLookupOptions
-	*options.ValidatedRolloutOptions
 }
 
 type ValidatedLookupOptions struct {
@@ -73,7 +73,7 @@ func (o *RawLookupOptions) Validate() (*ValidatedLookupOptions, error) {
 }
 
 func (o *ValidatedLookupOptions) Complete() (*LookupOptions, error) {
-	ev2Cfg, err := ev2config.ResolveConfig("public", o.Region)
+	ev2Cfg, err := ev2config.ResolveConfig(o.Cloud, o.Region)
 	if err != nil {
 		return nil, fmt.Errorf("error loading embedded ev2 config: %v", err)
 	}
