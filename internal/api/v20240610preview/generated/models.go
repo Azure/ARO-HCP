@@ -47,6 +47,30 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
+// ClaimProfile - External Auth claim profile
+type ClaimProfile struct {
+	// REQUIRED; Claim name of the external profile
+	Claim *string
+
+	// REQUIRED; Prefix for the claim external profile
+	Prefix *string
+
+	// REQUIRED; Prefix policy
+	PrefixPolicy *string
+}
+
+// ClaimProfileUpdate - External Auth claim profile
+type ClaimProfileUpdate struct {
+	// Claim name of the external profile
+	Claim *string
+
+	// Prefix for the claim external profile
+	Prefix *string
+
+	// Prefix policy
+	PrefixPolicy *string
+}
+
 // ClusterCapabilitiesProfile - Cluster capabilities configuration.
 type ClusterCapabilitiesProfile struct {
 	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
@@ -112,6 +136,139 @@ type ErrorResponse struct {
 	Error *ErrorDetail
 }
 
+// ExternalAuthClaimProfile - External Auth claim profile
+type ExternalAuthClaimProfile struct {
+	// REQUIRED; The claim mappings
+	Mappings *TokenClaimMappingsProfile
+
+	// REQUIRED; The claim validation rules
+	ValidationRules []*TokenClaimValidationRuleProfile
+}
+
+// ExternalAuthClaimProfileUpdate - External Auth claim profile
+type ExternalAuthClaimProfileUpdate struct {
+	// The claim mappings
+	Mappings *TokenClaimMappingsProfileUpdate
+
+	// The claim validation rules
+	ValidationRules []*TokenClaimValidationRuleProfile
+}
+
+// ExternalAuthClientComponentProfile - External Auth component profile
+type ExternalAuthClientComponentProfile struct {
+	// REQUIRED; The namespace of the external Auth client
+	AuthClientNamespace *string
+
+	// REQUIRED; The name of the external Auth client
+	Name *string
+}
+
+// ExternalAuthClientProfile - External Auth client profile
+type ExternalAuthClientProfile struct {
+	// REQUIRED; External Auth client component
+	Component *ExternalAuthClientComponentProfile
+
+	// REQUIRED; external Auth client id
+	ID *string
+}
+
+// ExternalAuthConfig - External Auth configuration profile
+type ExternalAuthConfig struct {
+	// READ-ONLY; This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service
+	ExternalAuthProfile *ExternalAuthProfile
+
+	// This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster
+	Enabled *bool
+}
+
+// ExternalAuthProfile - Concrete tracked resource types can be created by aliasing this type using a specific property type.
+type ExternalAuthProfile struct {
+	// REQUIRED; The geo-location where the resource lives
+	Location *string
+
+	// The managed service identities assigned to this resource.
+	Identity *ManagedServiceIdentity
+
+	// The resource-specific properties for this resource.
+	Properties *ExternalAuthProfileProperties
+
+	// Resource tags.
+	Tags map[string]*string
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
+// ExternalAuthProfileListResult - The response of a ExternalAuthProfile list operation.
+type ExternalAuthProfileListResult struct {
+	// REQUIRED; The ExternalAuthProfile items on this page
+	Value []*ExternalAuthProfile
+
+	// The link to the next page of items
+	NextLink *string
+}
+
+// ExternalAuthProfileProperties - External Auth profile
+type ExternalAuthProfileProperties struct {
+	// REQUIRED; External Auth claim
+	Claim *ExternalAuthClaimProfile
+
+	// REQUIRED; External Auth clients
+	Clients []*ExternalAuthClientProfile
+
+	// REQUIRED; Token Issuer profile
+	Issuer *TokenIssuerProfile
+
+	// READ-ONLY; Provisioning state
+	ProvisioningState *ExternalAuthProvisioningState
+}
+
+// ExternalAuthProfilePropertiesUpdate - External Auth profile
+type ExternalAuthProfilePropertiesUpdate struct {
+	// External Auth claim
+	Claim *ExternalAuthClaimProfileUpdate
+
+	// External Auth clients
+	Clients []*ExternalAuthClientProfile
+
+	// Token Issuer profile
+	Issuer *TokenIssuerProfileUpdate
+}
+
+// ExternalAuthProfileUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property
+// type.
+type ExternalAuthProfileUpdate struct {
+	// The managed service identities assigned to this resource.
+	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
+
+	// The resource-specific properties for this resource.
+	Properties *ExternalAuthProfilePropertiesUpdate
+
+	// Resource tags.
+	Tags map[string]*string
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
 // HcpOpenShiftCluster - HCP cluster resource
 type HcpOpenShiftCluster struct {
 	// REQUIRED; The geo-location where the resource lives
@@ -168,6 +325,10 @@ type HcpOpenShiftClusterProperties struct {
 	// Cluster DNS configuration
 	DNS *DNSProfile
 
+	// Configuration to override the openshift-oauth-apiserver inside cluster This changes user login into the cluster to external
+	// provider
+	ExternalAuthConfig *ExternalAuthConfig
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
@@ -214,7 +375,7 @@ type HcpOpenShiftClusterUpdate struct {
 	Type *string
 }
 
-// Label represents the Kubernetes label
+// Label represents the k8s label
 type Label struct {
 	// The key of the label
 	Key *string
@@ -342,7 +503,7 @@ type NodePoolProperties struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes
+	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
 	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
@@ -363,7 +524,7 @@ type NodePoolPropertiesUpdate struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes
+	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
 	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
@@ -460,7 +621,7 @@ type OperationListResult struct {
 
 // OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
 type OperatorsAuthenticationProfile struct {
-	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
+	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators Auth
 	// based on Azure User-Assigned Managed Identities
 	UserAssignedIdentities *UserAssignedIdentitiesProfile
 }
@@ -482,7 +643,7 @@ type PlatformProfile struct {
 	// The core outgoing configuration
 	OutboundType *OutboundType
 
-	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
+	// READ-ONLY; URL for the OIDC provider to be used for Auth to authenticate against user Azure cloud account
 	IssuerURL *string
 }
 
@@ -534,6 +695,57 @@ type Taint struct {
 	Value *string
 }
 
+// TokenClaimMappingsProfile - External Auth claim mappings profile
+type TokenClaimMappingsProfile struct {
+	// The claim mappings groups
+	Groups *ClaimProfile
+
+	// The claim mappings username
+	Username *ClaimProfile
+}
+
+// TokenClaimMappingsProfileUpdate - External Auth claim mappings profile
+type TokenClaimMappingsProfileUpdate struct {
+	// The claim mappings groups
+	Groups *ClaimProfileUpdate
+
+	// The claim mappings username
+	Username *ClaimProfileUpdate
+}
+
+// TokenClaimValidationRuleProfile - External Auth claim validation rule
+type TokenClaimValidationRuleProfile struct {
+	// REQUIRED; Claim name for the validation profile
+	Claim *string
+
+	// REQUIRED; Required value
+	RequiredValue *string
+}
+
+// TokenIssuerProfile - Token issuer profile
+type TokenIssuerProfile struct {
+	// REQUIRED; The audience of the token issuer
+	Audiences []*string
+
+	// REQUIRED; The URL of the token issuer
+	URL *string
+
+	// The issuer of the token
+	Ca *string
+}
+
+// TokenIssuerProfileUpdate - Token issuer profile
+type TokenIssuerProfileUpdate struct {
+	// The audience of the token issuer
+	Audiences []*string
+
+	// The issuer of the token
+	Ca *string
+
+	// The URL of the token issuer
+	URL *string
+}
+
 // TrackedResource - The resource model definition for an Azure Resource Manager tracked top level resource which has 'tags'
 // and a 'location'
 type TrackedResource struct {
@@ -557,7 +769,7 @@ type TrackedResource struct {
 }
 
 // UserAssignedIdentitiesProfile - Represents the information related to Azure User-Assigned managed identities needed to
-// perform Operators authentication based on Azure User-Assigned Managed Identities
+// perform Operators Auth based on Azure User-Assigned Managed Identities
 type UserAssignedIdentitiesProfile struct {
 	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The
 	// set of required managed identities is dependent on the Cluster's OpenShift version.
