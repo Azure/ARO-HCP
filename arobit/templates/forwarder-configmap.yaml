@@ -1,0 +1,24 @@
+{{- if .Values.forwarder.enabled -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arobit.name" . }}-forwarder
+  labels: {{- include "arobit.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  fluent-bit.conf: |
+    @INCLUDE /forwarder/etc/service.conf
+    
+    @INCLUDE /forwarder/etc/input.conf
+    
+    @INCLUDE /forwarder/etc/filter.conf
+    
+    @INCLUDE /forwarder/etc/output.conf
+
+{{- range $key, $value := .Values.forwarder.fluentbit.configMap }}
+  {{ $key }}: |
+{{ $value | default "{}" | indent 4 }}
+{{- end }}
+{{- end -}}
