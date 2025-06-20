@@ -1974,6 +1974,30 @@
         }
       }
     },
+    "OperatorIdentityRequired": {
+      "type": "string",
+      "description": "Indicates if the identity is required",
+      "enum": [
+        "Always",
+        "OnEnablement"
+      ],
+      "x-ms-enum": {
+        "name": "OperatorIdentityRequired",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Always",
+            "value": "Always",
+            "description": "Indicates the identity is always required."
+          },
+          {
+            "name": "OnEnablement",
+            "value": "OnEnablement",
+            "description": "Indicates the identity is only required when a functionality that leverages the operator is enabled."
+          }
+        ]
+      }
+    },
     "OperatorIdentityRoles": {
       "type": "object",
       "description": "Role definitions for a specific operator",
@@ -1983,7 +2007,7 @@
           "description": "Name of the operator"
         },
         "required": {
-          "type": "boolean",
+          "$ref": "#/definitions/OperatorIdentityRequired",
           "description": "Whether or not the operator is required for installation"
         },
         "roleDefinitions": {

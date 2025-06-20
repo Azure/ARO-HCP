@@ -543,7 +543,7 @@ type OperatorIdentityRoles struct {
 	Name *string
 
 	// REQUIRED; Whether or not the operator is required for installation
-	Required *bool
+	Required *OperatorIdentityRequired
 
 	// REQUIRED; The role definitions required to be assigned to the identity assumed by this operator
 	RoleDefinitions []*RoleDefinition
