@@ -31,6 +31,7 @@ model HcpOpenShiftCluster is TrackedResource<HcpOpenShiftClusterProperties> {
 // - deleted when resource group is deleted
 // - allow cascade delete
 // more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
+
 @parentResource(HcpOpenShiftCluster)
 model NodePool is TrackedResource<NodePoolProperties> {
   ...ResourceNameParameter<
@@ -353,6 +354,41 @@ union Effect {
   NoExecute: "NoExecute",
 }
 
+/** Disk encryption settings */
+model Encryption {
+  /**
+   * Infrastructure-level encryption setting. Default is "disabled".
+   */
+  infrastructureEncryption?: "enabled" | "disabled" | string = "disabled";
+
+  /**
+   * Optional Customer-managed key (CMK) encryption settings.
+   * If not provided, disks use platform-managed keys.
+   */
+  customerManagedKeyEncryption?: CustomerManagedKeyEncryption;
+}
+
+/** Settings for customer-managed key encryption */
+model CustomerManagedKeyEncryption {
+  /** Identity used to access the customer-managed key. */
+  keyEncryptionKeyIdentity: KeyEncryptionKeyIdentity;
+
+  /** URL of the customer-managed key in Azure Key Vault. */
+  keyEncryptionKeyUrl: string;
+}
+
+/** Identity used to access the key vault */
+model KeyEncryptionKeyIdentity {
+  /** Type of identity used to access the Key Vault. */
+  identityType: "systemAssignedIdentity" | "userAssignedIdentity" | string;
+
+  /** Resource ID of the user-assigned managed identity, if used. */
+  userAssignedIdentityResourceId?: UserAssignedIdentityResourceId;
+
+  /** Optional federated client ID for multi-tenant identity scenarios. */
+  federatedClientId?: string;
+}
+
 /** Taint is controlling the node taint and its effects */
 model Taint {
   /** The key of the taint
@@ -428,6 +464,9 @@ model NodePoolPlatformProfile {
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
   availabilityZone?: string;
+
+  /** Optional disk encryption settings for OS and data disks */
+  encryption?: Encryption;
 }
 
 /** Supported Azure storage account types
