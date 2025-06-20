@@ -1698,7 +1698,6 @@
       },
       "required": [
         "subnetId",
-        "networkSecurityGroupId",
         "operatorsAuthentication",
         "issuerUrl"
       ]

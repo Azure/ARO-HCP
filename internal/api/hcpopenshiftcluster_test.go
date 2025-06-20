@@ -72,10 +72,6 @@ func TestClusterRequiredForPut(t *testing.T) {
 					Message: "Missing required field 'subnetId'",
 					Target:  "properties.platform.subnetId",
 				},
-				{
-					Message: "Missing required field 'networkSecurityGroupId'",
-					Target:  "properties.platform.networkSecurityGroupId",
-				},
 			},
 		},
 		{
