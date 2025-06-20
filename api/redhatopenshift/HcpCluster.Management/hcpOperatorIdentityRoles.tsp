@@ -16,7 +16,7 @@ model HcpOperatorIdentityRoleSet
   is ProxyResource<HcpOperatorIdentityRoleSetProperties> {
   ...ResourceNameParameter<
     HcpOperatorIdentityRoleSet,
-    NamePattern = "^\\d+\\.\\d+"
+    NamePattern = "^[a-zA-Z0-9-\\.]{3,24}$"
   >;
 }
 @@doc(HcpOperatorIdentityRoleSet.name,

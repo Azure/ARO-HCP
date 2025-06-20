@@ -155,7 +155,7 @@
             "description": "The OpenShift minor version these identities are required for.",
             "required": true,
             "type": "string",
-            "pattern": "^\\d+\\.\\d+"
+            "pattern": "^[a-zA-Z0-9-\\.]{3,24}$"
           }
         ],
         "responses": {
