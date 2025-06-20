@@ -410,6 +410,9 @@ model NodePoolPlatformProfile {
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
   vmSize: string;
 
+  /** The Architecture for the  Nodepool */
+  arch?: ArchitectureType;
+
   /** Whether to enable host based OS and data drive encryption.
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
    */
@@ -444,6 +447,15 @@ union DiskStorageAccountType {
 
   /** Standard HDD with Locally Redundant Storage (LRS) */
   Standard_LRS: "Standard_LRS",
+}
+
+/** Supported Nodepool Architectures */
+union ArchitectureType {
+  string,
+
+  x86_64: "x86_64",
+
+  arm64: "arm64",
 }
 
 /** Node pool autoscaling */
