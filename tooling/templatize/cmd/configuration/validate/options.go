@@ -452,7 +452,9 @@ func renderDiff(
 
 		// check to see if the branch has an upstream set, if so, prefer this
 		upstream, err := command(ctx, dir, "git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
-		if err != nil && !strings.Contains(err.Error(), "fatal: no upstream configured for branch") {
+		if err != nil &&
+			!strings.Contains(err.Error(), "fatal: no upstream configured for branch") &&
+			!strings.Contains(err.Error(), "fatal: HEAD does not point to a branch") {
 			return fmt.Errorf("failed to resolve upstream: %w", err)
 		}
 		upstreamRef = strings.TrimSpace(upstream)
