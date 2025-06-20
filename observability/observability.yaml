@@ -18,3 +18,5 @@ grafana-dashboards:
     path: infra-dashboards
   - name: Frontend
     path: ../frontend/grafana-dashboards
+  - name: Backend
+    path: ../backend/grafana-dashboards
