@@ -22,6 +22,9 @@
     },
 
     "features": {
+        "ghcr.io/devcontainers/features/go:1": {
+            "version": "1.24.4" // Replace with your desired Go version
+        },
         "ghcr.io/devcontainers/features/node:1": {
             "version": "latest"
         },
