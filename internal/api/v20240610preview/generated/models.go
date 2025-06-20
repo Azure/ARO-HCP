@@ -47,6 +47,23 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
+// ClusterAutoscalingConfig - Cluster autoscaling configuration
+type ClusterAutoscalingConfig struct {
+	// The maximum time to wait for node provisioning before considering the provisioning to be unsuccessful.
+	MaxNodeProvisionTime *int32
+
+	// The maximum allowable number of nodes
+	MaxNodesTotal *int32
+
+	// The maximum seconds to wait for graceful pod termination before scaling down a NodePool.
+	MaxPodGracePeriod *int32
+
+	// This enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only run when there
+	// are spare resources available.See the following for more details:
+	// https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
+	MaxpodPriorityThreshold *int32
+}
+
 // ClusterCapabilitiesProfile - Cluster capabilities configuration.
 type ClusterCapabilitiesProfile struct {
 	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
@@ -161,6 +178,9 @@ type HcpOpenShiftClusterListResult struct {
 type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
+
+	// Azure platform configuration
+	Autoscaling *ClusterAutoscalingConfig
 
 	// Configure cluter capabilities.
 	Capabilities *ClusterCapabilitiesProfile
