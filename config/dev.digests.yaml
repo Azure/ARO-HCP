@@ -10,3 +10,9 @@ clouds:
       ntly:
         regions:
           uksouth: 2e75eaa202eb21cd9c42bd3a51eaa9fd7064bd5bfd1c85d107705f947d50afe2
+      perf:
+        regions:
+          westus3: 98f7abfb4c6c79418a7518fe97589399516c99ba665f27619800be40b07482b7
+      pers:
+        regions:
+          westus3: 67b37c25fd7f0c41585282591a33e3557e5af00847f1c3a4b13c69464ca0c7bd
