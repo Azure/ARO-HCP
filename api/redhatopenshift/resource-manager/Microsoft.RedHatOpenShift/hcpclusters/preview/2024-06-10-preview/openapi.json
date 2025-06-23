@@ -124,6 +124,11 @@
             }
           }
         },
+        "x-ms-examples": {
+          "HcpOperatorIdentityRoleSets_List_MaximumSet": {
+            "$ref": "./examples/HcpOperatorIdentityRoleSets_List_MaximumSet_Gen.json"
+          }
+        },
         "x-ms-pageable": {
           "nextLinkName": "nextLink"
         }
@@ -167,6 +172,11 @@
             "schema": {
               "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
             }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOperatorIdentityRoleSets_Get_MaximumSet": {
+            "$ref": "./examples/HcpOperatorIdentityRoleSets_Get_MaximumSet_Gen.json"
           }
         }
       }
