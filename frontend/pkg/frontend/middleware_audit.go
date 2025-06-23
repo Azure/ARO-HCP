@@ -18,9 +18,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/microsoft/go-otel-audit/audit/msgs"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
-	"github.com/microsoft/go-otel-audit/audit/msgs"
 )
 
 type AuditResponseWriter struct {
