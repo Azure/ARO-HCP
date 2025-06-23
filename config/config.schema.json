@@ -1008,6 +1008,34 @@
         "image"
       ]
     },
+    "secretSyncController": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "type": "string"
+            },
+            "serviceAccountName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "namespace",
+            "serviceAccountName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
     "maestro": {
       "type": "object",
       "properties": {
@@ -1515,6 +1543,7 @@
     "hypershift",
     "imageSync",
     "acrPull",
+    "secretSyncController",
     "maestro",
     "mgmt",
     "mgmtKeyVault",

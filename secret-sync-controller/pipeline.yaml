@@ -1,0 +1,49 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
+rolloutName: Secret Sync Controller Rollout
+resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription }}'
+  steps:
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: secretSyncController.image.registry
+    repository:
+      configRef: secretSyncController.image.repository
+    digest:
+      configRef: secretSyncController.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      configRef: aroDevopsMsiId
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
+  steps:
+  - name: deploy
+    aksCluster: '{{ .mgmt.aks.name  }}'
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    dependsOn:
+    - mirror-image
+    variables:
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    - name: IMAGE_DIGEST
+      configRef: secretSyncController.image.digest
+    - name: IMAGE_REPOSITORY
+      configRef: secretSyncController.image.repository
+    - name: NAMESPACE
+      configRef: secretSyncController.k8s.namespace
+    - name: SA_NAME
+      configRef: secretSyncController.k8s.serviceAccountName
+    shellIdentity:
+      configRef: aroDevopsMsiId
