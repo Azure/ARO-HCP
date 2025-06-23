@@ -47,6 +47,9 @@
     },
     {
       "name": "NodePools"
+    },
+    {
+      "name": "HcpOpenShiftVersions"
     }
   ],
   "paths": {
@@ -125,6 +128,95 @@
         },
         "x-ms-pageable": {
           "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOpenShiftVersions": {
+      "get": {
+        "operationId": "HcpOpenShiftVersions_List",
+        "tags": [
+          "HcpOpenShiftVersions"
+        ],
+        "description": "List HcpOpenShiftVersion resources by SubscriptionLocationResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/LocationParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftVersionListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOpenShiftVersions_List_MaximumSet": {
+            "$ref": "./examples/HcpOpenShiftVersions_List_MaximumSet_Gen.json"
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOpenShiftVersions/{hcpOpenShiftVersionName}": {
+      "get": {
+        "operationId": "HcpOpenShiftVersions_Get",
+        "tags": [
+          "HcpOpenShiftVersions"
+        ],
+        "description": "Get a HcpOpenShiftVersion",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/LocationParameter"
+          },
+          {
+            "name": "hcpOpenShiftVersionName",
+            "in": "path",
+            "description": "The name of the HcpOpenShiftVersion",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9-\\.]{3,24}$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOpenShiftVersion"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOpenShiftVersions_Get_MaximumSet": {
+            "$ref": "./examples/HcpOpenShiftVersions_Get_MaximumSet_Gen.json"
+          }
         }
       }
     },
@@ -1227,6 +1319,66 @@
         {
           "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
         }
+      ]
+    },
+    "HcpOpenShiftVersion": {
+      "type": "object",
+      "description": "HcpOpenShiftVersion represents a location based available HCP OpenShift version",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/HcpOpenShiftVersionProperties",
+          "description": "The resource-specific properties for this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ProxyResource"
+        }
+      ]
+    },
+    "HcpOpenShiftVersionListResult": {
+      "type": "object",
+      "description": "The response of a HcpOpenShiftVersion list operation.",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The HcpOpenShiftVersion items on this page",
+          "items": {
+            "$ref": "#/definitions/HcpOpenShiftVersion"
+          }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "HcpOpenShiftVersionProperties": {
+      "type": "object",
+      "description": "HcpOpenShiftVersionProperties contains details of an available HCP Openshift version",
+      "properties": {
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the group where this version belongs."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Enabled indicates if this version can be used to create clusters."
+        },
+        "endOfLifeTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "EndOfLifeTimestamp is the date and time when this version will reach End of Life."
+        }
+      },
+      "required": [
+        "channelGroup",
+        "enabled",
+        "endOfLifeTimestamp"
       ]
     },
     "Label": {

@@ -217,6 +217,45 @@ type HcpOpenShiftClusterUpdate struct {
 	Type *string
 }
 
+// HcpOpenShiftVersion represents a location based available HCP OpenShift version
+type HcpOpenShiftVersion struct {
+	// The resource-specific properties for this resource.
+	Properties *HcpOpenShiftVersionProperties
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
+// HcpOpenShiftVersionListResult - The response of a HcpOpenShiftVersion list operation.
+type HcpOpenShiftVersionListResult struct {
+	// REQUIRED; The HcpOpenShiftVersion items on this page
+	Value []*HcpOpenShiftVersion
+
+	// The link to the next page of items
+	NextLink *string
+}
+
+// HcpOpenShiftVersionProperties contains details of an available HCP Openshift version
+type HcpOpenShiftVersionProperties struct {
+	// REQUIRED; ChannelGroup is the name of the group where this version belongs.
+	ChannelGroup *string
+
+	// REQUIRED; Enabled indicates if this version can be used to create clusters.
+	Enabled *bool
+
+	// REQUIRED; EndOfLifeTimestamp is the date and time when this version will reach End of Life.
+	EndOfLifeTimestamp *time.Time
+}
+
 // Label represents the Kubernetes label
 type Label struct {
 	// REQUIRED; The key of the label
@@ -500,6 +539,22 @@ type PlatformProfile struct {
 type PlatformProfileUpdate struct {
 	// The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
+}
+
+// ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
+// location
+type ProxyResource struct {
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
 }
 
 // Resource - Common fields that are returned in the response for all Azure Resource Manager resources

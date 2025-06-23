@@ -20,6 +20,7 @@ import (
 // ServerFactory is a fake server for instances of the generated.ClientFactory type.
 type ServerFactory struct {
 	HcpOpenShiftClustersServer HcpOpenShiftClustersServer
+	HcpOpenShiftVersionsServer HcpOpenShiftVersionsServer
 	NodePoolsServer            NodePoolsServer
 	OperationsServer           OperationsServer
 }
@@ -39,6 +40,7 @@ type ServerFactoryTransport struct {
 	srv                          *ServerFactory
 	trMu                         sync.Mutex
 	trHcpOpenShiftClustersServer *HcpOpenShiftClustersServerTransport
+	trHcpOpenShiftVersionsServer *HcpOpenShiftVersionsServerTransport
 	trNodePoolsServer            *NodePoolsServerTransport
 	trOperationsServer           *OperationsServerTransport
 }
@@ -61,6 +63,11 @@ func (s *ServerFactoryTransport) Do(req *http.Request) (*http.Response, error) {
 			return NewHcpOpenShiftClustersServerTransport(&s.srv.HcpOpenShiftClustersServer)
 		})
 		resp, err = s.trHcpOpenShiftClustersServer.Do(req)
+	case "HcpOpenShiftVersionsClient":
+		initServer(s, &s.trHcpOpenShiftVersionsServer, func() *HcpOpenShiftVersionsServerTransport {
+			return NewHcpOpenShiftVersionsServerTransport(&s.srv.HcpOpenShiftVersionsServer)
+		})
+		resp, err = s.trHcpOpenShiftVersionsServer.Do(req)
 	case "NodePoolsClient":
 		initServer(s, &s.trNodePoolsServer, func() *NodePoolsServerTransport { return NewNodePoolsServerTransport(&s.srv.NodePoolsServer) })
 		resp, err = s.trNodePoolsServer.Do(req)
