@@ -1,3 +1,5 @@
-deployment:
-  imageName: ""
+imageRegistry: ""
+imageRepository: ""
+imageDigest: ""
 location: ""
+namespace: ""
