@@ -16,6 +16,9 @@ package audit
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/microsoft/go-otel-audit/audit/msgs"
@@ -33,4 +36,15 @@ func TestEnsureDefaults(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, string(current))
+}
+
+func TestConnect(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+
+	f := strings.Split(testServer.URL, "/")
+	_, err := initializeOtelAuditClient(-1, f[2])
+	require.NoError(t, err)
+
+	_, err = initializeOtelAuditClient(-1, "127.0.0.1:12345")
+	require.Error(t, err, "error creating audit client dial tcp 127.0.0.1:12345: connect: connection refused")
 }

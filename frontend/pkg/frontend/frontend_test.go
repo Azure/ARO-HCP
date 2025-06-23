@@ -61,7 +61,7 @@ func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
 }
 
 func newNoopAuditClient(t *testing.T) *audit.AuditClient {
-	c, err := audit.NewOtelAuditClient(0, true)
+	c, err := audit.NewOtelAuditClient(0, "", true)
 	require.NoError(t, err)
 	return c
 }
