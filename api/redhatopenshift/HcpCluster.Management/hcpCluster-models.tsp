@@ -49,7 +49,7 @@ model NodePool is TrackedResource<NodePoolProperties> {
 model ExternalAuthProfile is TrackedResource<ExternalAuthProfileProperties> {
   ...ResourceNameParameter<
     ExternalAuthProfile,
-    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
   >;
   ...ManagedServiceIdentityProperty;
 }
