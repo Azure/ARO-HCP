@@ -52,7 +52,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - Deployment artifacts
   - [Azure infrastructure Bicep templates](bicep.md)
   - [Helm Charts](service-deployment-concept.md#helm-chart)
-  - [Container images](images.md)
+  - [ACRs and Container images](acrs-and-images.md)
 
 ### Deploying ARO HCP
 
