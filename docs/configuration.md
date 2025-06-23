@@ -134,24 +134,6 @@ defaults:
   - Key Vault names must be unique within an Azure cloud - this is an Azure restriction
   - management cluster names must be unique within a deployment environment - this is an architectural restriction
 
-## Materializing Configuration
-
-With multiple layers of overrides and templating in use, it can be difficult to determine the resulting configuration for a specific cloud/environment/region combination. To address this, tooling is available to materialize the configuration for a given deployment scenario.
-
-- For a quick way to inspect the public cloud configuration of `config/config.yaml`, use:
-
-  ```sh
-  ./templatize.sh $deployenv
-  ```
-
-- For more control specify a custom configuration file, cloud, and region as follows:
-
-  ```sh
-  CONFIG_FILE=path_to_config.yaml ./templatize.sh $deployenv -c $cloud -r $region
-  ```
-
-- PR checks require materialized configurations for well-known cloud/environment/region combinations to be present in pull requests. These well-known combinations are specified in the [config/Makefile](../config/Makefile) and represent important deployment targets for the project. Failing to run `make -C config materialize` and commit the result will cause the PR checks to fail.
-
 ## Using Configuration
 
 Configuration settings can be used in [pipeline files](pipeline-concept.md) and [bicepparam files](bicep.md) to customize service and infra deployments.

@@ -18,10 +18,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-Tools/pkg/config"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/options"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -75,8 +72,8 @@ type RunOptions struct {
 	*completedRunOptions
 }
 
-func (o *RawRunOptions) Validate() (*ValidatedRunOptions, error) {
-	validatedPipelineOptions, err := o.PipelineOptions.Validate()
+func (o *RawRunOptions) Validate(ctx context.Context) (*ValidatedRunOptions, error) {
+	validatedPipelineOptions, err := o.PipelineOptions.Validate(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -106,41 +103,10 @@ func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
 }
 
 func (o *RunOptions) RunPipeline(ctx context.Context) error {
-	rolloutOptions := o.PipelineOptions.RolloutOptions
-
-	// Ev2 config doesn't vary by environment, so we can use public prod for the standard content
-	ev2Cfg, err := ev2config.ResolveConfig("public", rolloutOptions.Region)
-	if err != nil {
-		return fmt.Errorf("error loading embedded ev2 config: %v", err)
-	}
-
-	resolver, err := rolloutOptions.Options.ConfigProvider.GetResolver(&config.ConfigReplacements{
-		RegionReplacement:      rolloutOptions.Region,
-		RegionShortReplacement: rolloutOptions.RegionShort,
-		StampReplacement:       rolloutOptions.Stamp,
-		CloudReplacement:       rolloutOptions.Cloud,
-		EnvironmentReplacement: rolloutOptions.DeployEnv,
-		Ev2Config:              ev2Cfg,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to get config resolver: %w", err)
-	}
-	variables, err := resolver.GetRegionConfiguration(rolloutOptions.Region)
-	if err != nil {
-		return fmt.Errorf("failed to get region configuration: %w", err)
-	}
-	if err := resolver.ValidateSchema(variables); err != nil {
-		return fmt.Errorf("failed to validate region configuration: %w", err)
-	}
-
-	cfg, ok := config.InterfaceToConfiguration(variables)
-	if !ok {
-		return fmt.Errorf("invalid configuration")
-	}
-	_, err = pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
+	_, err := pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
 		DryRun:                   o.DryRun,
-		Configuration:            cfg,
-		Region:                   rolloutOptions.Region,
+		Configuration:            o.PipelineOptions.RolloutOptions.Config,
+		Region:                   o.PipelineOptions.RolloutOptions.Region,
 		Step:                     o.PipelineOptions.Step,
 		SubsciptionLookupFunc:    pipeline.LookupSubscriptionID,
 		NoPersist:                o.NoPersist,
