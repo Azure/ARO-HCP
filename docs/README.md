@@ -73,6 +73,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 - [Introduce a new Service to ARO HCP](introduce-new-services.md)
   - Guidance on how to introduce new services into the ARO HCP architecture and deployment concept
+- [Bump Service Component Image Digests](ops/bump-image-digests.md)
+  - How to bump service component image digests in RH and MSFT environments
 - [High Level HCP Creation Flow](ops/hcp-cluster-creation-flow.md)
   - Walkthrough of an HCP cluster creation process through all the service layers of ARO HCP
 

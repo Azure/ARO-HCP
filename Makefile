@@ -206,7 +206,6 @@ list:
 validate-config-pipelines:
 	$(MAKE) -C tooling/templatize templatize
 	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.yaml --dev-mode --dev-region $(shell yq '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
-	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.msft.yaml $(DEV_MODE) $(ONLY_CHANGED)
 
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"

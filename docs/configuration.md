@@ -175,13 +175,14 @@ By enforcing a schema, configuration files remain predictable and can be automat
 
 ## Current Configuration Files
 
-- **[config.yaml](../config/config.yaml)** - Contains the configuration for the Red Hat development environments.
+- **[config.yaml](../config/config.yaml)** - Contains the baseline configuration for all ARO HCP environments and Red Hat development environment specific configuration under `clouds.dev`
   - **dev**: integrated DEV environment - the first environment where all services are deployed together.
   - **cspr**: CS PR environment - a dedicated environment for testing Cluster Service PRs.
   - **pers**: personal DEV environment - used by developers to create new personal ARO HCP instances.
   - **perf**: personal perfscale environment - used by the perfscale team to create new ARO HCP instances with production grade management cluster settings
-- **[config.msft.yaml](../config/config.msft.yaml)** - Contains the configuration for the Microsoft deployment environments.
+- **[ADO sdp-pipelines/hcp/config.msft.public-cloud-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.public-cloud-overlay.yaml)** - Contains the configuration overlay for the Microsoft deployment environments, adding MSFT specific settings to the baseline configuration.
   - **int**: MSIT INT environment - a dedicated environment for testing EV2 deployments and MISE.
+  - **stg**: MSFT STAGE environment - a dedicated environment for testing AME specific features before promoting to production.
 
 ## Update Configuration
 
@@ -204,6 +205,7 @@ Propagation of configuration changes varies depending on the environment:
   - Only the **dev** and **cspr** environments are automatically reconciled with new changes for configuration, infrastructure, and service deployments.
   - personal development environments (**pers**) are fully controlled by developers. If there are relevant changes, notify developers so they can apply updates manually.
 
-- **[config.msft.yaml](../config/config.msft.yaml)**:
+- **[ADO sdp-pipelines/hcp/config.msft.public-cloud-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.public-cloud-overlay.yaml)**:
+  - This file serves as a `clouds.public` override to the [ARO HCP baseline configuration](../config/config.yaml) for Microsoft environments.
   - Propagation is **not automated**.
-  - Refer to the [EV2 deployment documentation](ev2-deployment.md) for details on how to trigger a deployment.
+  - Refer to the [EV2 deployment documentation](ev2-deployment.md) for details on how to prepare and trigger a deployment.
