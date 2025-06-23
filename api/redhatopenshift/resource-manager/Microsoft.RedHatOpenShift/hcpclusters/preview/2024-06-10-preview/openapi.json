@@ -2255,6 +2255,15 @@
             "create"
           ]
         },
+        "proxy": {
+          "$ref": "#/definitions/ProxyProfile",
+          "description": "Cluster-wide proxy configuration",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "autoscaling": {
           "$ref": "#/definitions/ClusterAutoscalingProfile",
           "description": "Configure ClusterAutoscaling .",
@@ -2314,6 +2323,15 @@
         "platform": {
           "$ref": "#/definitions/PlatformProfileUpdate",
           "description": "Azure platform configuration",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "proxy": {
+          "$ref": "#/definitions/ProxyProfile",
+          "description": "Cluster-wide proxy configuration",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3239,6 +3257,34 @@
         ]
       },
       "readOnly": true
+    },
+    "ProxyProfile": {
+      "type": "object",
+      "description": "Cluster-wide proxy configuration",
+      "properties": {
+        "httpProxy": {
+          "type": "string",
+          "format": "uri",
+          "description": "The HTTP proxy server endpoint to use"
+        },
+        "httpsProxy": {
+          "type": "string",
+          "format": "uri",
+          "description": "The HTTPS proxy server endpoint to use"
+        },
+        "noProxy": {
+          "type": "array",
+          "description": "The endpoints that should not go through proxy",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trustedCa": {
+          "type": "string",
+          "description": "Alternative CA cert to use for connecting to proxy servers",
+          "x-ms-client-name": "trustedCA"
+        }
+      }
     },
     "RoleDefinition": {
       "type": "object",

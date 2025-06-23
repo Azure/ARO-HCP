@@ -80,6 +80,10 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
 
+  /** Cluster-wide proxy configuration */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  proxy?: ProxyProfile;
+
   /** Configure ClusterAutoscaling . */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoscaling?: ClusterAutoscalingProfile;
@@ -274,6 +278,22 @@ model PlatformProfile {
    */
   @visibility(Lifecycle.Read)
   issuerUrl: url;
+}
+
+/** Cluster-wide proxy configuration */
+model ProxyProfile {
+  /** The HTTP proxy server endpoint to use */
+  httpProxy?: url;
+
+  /** The HTTPS proxy server endpoint to use */
+  httpsProxy?: url;
+
+  /** The endpoints that should not go through proxy */
+  noProxy?: string[];
+
+  /** Alternative CA cert to use for connecting to proxy servers */
+  @clientName("trustedCA")
+  trustedCa?: string;
 }
 
 /** ClusterAutoscaling specifies auto-scaling behavior that
