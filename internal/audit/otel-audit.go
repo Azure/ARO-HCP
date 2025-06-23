@@ -47,7 +47,7 @@ func (c *AuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.Se
 
 func NewOtelAuditClient(auditLogQueueSize int, useNoop bool) (*AuditClient, error) {
 	if useNoop {
-		return initializeNoOpOtelAuditClient()
+		return initializeNoOPOtelAuditClient()
 	}
 
 	return initializeOtelAuditClient(auditLogQueueSize)
@@ -76,9 +76,9 @@ func initializeOtelAuditClient(auditLogQueueSize int) (*AuditClient, error) {
 	}, nil
 }
 
-// initializeNoOpOtelAuditClient creates a new no-op audit client.
+// initializeNoOPOtelAuditClient creates a new no-op audit client.
 // NoOP is a no-op connection to the remote audit server used during E2E testing or development environment.
-func initializeNoOpOtelAuditClient() (*AuditClient, error) {
+func initializeNoOPOtelAuditClient() (*AuditClient, error) {
 	c, err := audit.New(
 		func() (conn.Audit, error) {
 			return conn.NewNoOP(), nil
