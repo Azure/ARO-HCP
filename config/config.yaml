@@ -274,6 +274,13 @@ defaults:
     image:
       repository: ""
       digest: ""
+  # Admin
+  admin:
+    deploy: false
+    image:
+      repository: ""
+      digest: ""
+    location: ""
   # Maestro
   maestro:
     server:
