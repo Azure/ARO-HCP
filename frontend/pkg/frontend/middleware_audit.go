@@ -53,7 +53,9 @@ func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", responseWriter.statusCode)
 	}
 
-	auditClient.Send(ctx, msg)
+	if err := auditClient.Send(ctx, msg); err != nil {
+		logger.Error("error sending audit log", err)
+	}
 }
 
 // used for otelaudit via "github.com/microsoft/go-otel-audit/audit/msgs"
