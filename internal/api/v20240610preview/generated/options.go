@@ -59,6 +59,17 @@ type HcpOpenShiftClustersClientListBySubscriptionOptions struct {
 	// placeholder for future optional parameters
 }
 
+// HcpOpenShiftVersionsClientGetOptions contains the optional parameters for the HcpOpenShiftVersionsClient.Get method.
+type HcpOpenShiftVersionsClientGetOptions struct {
+	// placeholder for future optional parameters
+}
+
+// HcpOpenShiftVersionsClientListOptions contains the optional parameters for the HcpOpenShiftVersionsClient.NewListPager
+// method.
+type HcpOpenShiftVersionsClientListOptions struct {
+	// placeholder for future optional parameters
+}
+
 // NodePoolsClientBeginCreateOrUpdateOptions contains the optional parameters for the NodePoolsClient.BeginCreateOrUpdate
 // method.
 type NodePoolsClientBeginCreateOrUpdateOptions struct {
