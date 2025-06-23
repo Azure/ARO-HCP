@@ -171,6 +171,9 @@ type HcpOpenShiftClusterProperties struct {
 	// Cluster network configuration
 	Network *NetworkProfile
 
+	// Cluster-wide proxy configuration
+	Proxy *ProxyProfile
+
 	// Version of the control plane components
 	Version *VersionProfile
 
@@ -188,6 +191,9 @@ type HcpOpenShiftClusterProperties struct {
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Cluster DNS configuration
 	DNS *DNSProfile
+
+	// Cluster-wide proxy configuration
+	Proxy *ProxyProfile
 }
 
 // HcpOpenShiftClusterUpdate - HCP cluster resource
@@ -484,6 +490,21 @@ type PlatformProfile struct {
 
 	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
 	IssuerURL *string
+}
+
+// ProxyProfile - Cluster-wide proxy configuration
+type ProxyProfile struct {
+	// The HTTP proxy server endpoint to use
+	HTTPProxy *string
+
+	// The HTTPS proxy server endpoint to use
+	HTTPSProxy *string
+
+	// The endpoints that should not go through proxy
+	NoProxy []*string
+
+	// Alternative CA cert to use for connecting to proxy servers
+	TrustedCa *string
 }
 
 // Resource - Common fields that are returned in the response for all Azure Resource Manager resources
