@@ -1086,6 +1086,7 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "nodeDrainTimeoutMinutes", h.NodeDrainTimeoutMinutes)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
+	populate(objectMap, "proxy", h.Proxy)
 	populate(objectMap, "version", h.Version)
 	return json.Marshal(objectMap)
 }
@@ -1129,6 +1130,9 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		case "provisioningState":
 			err = unpopulate(val, "ProvisioningState", &h.ProvisioningState)
 			delete(rawMsg, key)
+		case "proxy":
+			err = unpopulate(val, "Proxy", &h.Proxy)
+			delete(rawMsg, key)
 		case "version":
 			err = unpopulate(val, "Version", &h.Version)
 			delete(rawMsg, key)
@@ -1148,6 +1152,7 @@ func (h HcpOpenShiftClusterPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "autoscaling", h.Autoscaling)
 	populate(objectMap, "nodeDrainTimeoutMinutes", h.NodeDrainTimeoutMinutes)
 	populate(objectMap, "platform", h.Platform)
+	populate(objectMap, "proxy", h.Proxy)
 	populate(objectMap, "version", h.Version)
 	return json.Marshal(objectMap)
 }
@@ -1169,6 +1174,9 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &h.Platform)
+			delete(rawMsg, key)
+		case "proxy":
+			err = unpopulate(val, "Proxy", &h.Proxy)
 			delete(rawMsg, key)
 		case "version":
 			err = unpopulate(val, "Version", &h.Version)
@@ -2329,6 +2337,47 @@ func (p *PlatformProfileUpdate) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "operatorsAuthentication":
 			err = unpopulate(val, "OperatorsAuthentication", &p.OperatorsAuthentication)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", p, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type ProxyProfile.
+func (p ProxyProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "httpProxy", p.HTTPProxy)
+	populate(objectMap, "httpsProxy", p.HTTPSProxy)
+	populate(objectMap, "noProxy", p.NoProxy)
+	populate(objectMap, "trustedCa", p.TrustedCa)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type ProxyProfile.
+func (p *ProxyProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", p, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "httpProxy":
+			err = unpopulate(val, "HTTPProxy", &p.HTTPProxy)
+			delete(rawMsg, key)
+		case "httpsProxy":
+			err = unpopulate(val, "HTTPSProxy", &p.HTTPSProxy)
+			delete(rawMsg, key)
+		case "noProxy":
+			err = unpopulate(val, "NoProxy", &p.NoProxy)
+			delete(rawMsg, key)
+		case "trustedCa":
+			err = unpopulate(val, "TrustedCa", &p.TrustedCa)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
