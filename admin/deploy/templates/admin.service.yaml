@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: aro-hcp-admin
-  namespace: '{{ .Release.namespace  }}'
+  namespace: '{{ .Values.namespace  }}'
   labels:
     app: aro-hcp-admin
 spec:

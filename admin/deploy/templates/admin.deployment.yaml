@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: aro-hcp-admin
-  namespace: '{{ .Release.namespace  }}'
+  namespace: '{{ .Values.namespace  }}'
   labels:
     app: aro-hcp-admin
 spec:
@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: aro-hcp-admin
-          image: "{{ .Values.deployment.imageName }}"
+          image: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}"
           imagePullPolicy: Always
           args:
             - "--location"
