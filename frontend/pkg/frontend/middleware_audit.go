@@ -47,11 +47,10 @@ func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 
 	next(w, r)
 
-	statusCode := w.(*AuditResponseWriter).statusCode
-	if statusCode >= http.StatusBadRequest {
+	responseWriter, ok := w.(*AuditResponseWriter)
+	if ok && responseWriter.statusCode >= http.StatusBadRequest {
 		msg.Record.OperationResult = msgs.Failure
-		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", statusCode)
-
+		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", responseWriter.statusCode)
 	}
 
 	auditClient.Send(ctx, msg)

@@ -46,7 +46,8 @@ import (
 )
 
 type FrontendOpts struct {
-	auditNoOp bool
+	auditNoOp    bool
+	auditTCPAddr string
 
 	clustersServiceURL            string
 	clusterServiceProvisionShard  string
@@ -83,6 +84,8 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	rootCmd.Flags().BoolVar(&opts.auditNoOp, "audit-noop", false, "Use no-op logger for audit logging, for development purpose only")
+	rootCmd.Flags().StringVar(&opts.auditTCPAddr, "audit-tcp-addr", "", "OTEL Address to send audit logging to")
+
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
 	rootCmd.Flags().StringVar(&opts.location, "location", os.Getenv("LOCATION"), "Azure location")
@@ -128,7 +131,7 @@ func (opts *FrontendOpts) Run() error {
 	logger := util.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version.CommitSHA))
 
-	auditClient, err := audit.NewOtelAuditClient(1000, opts.auditNoOp)
+	auditClient, err := audit.NewOtelAuditClient(1000, opts.auditTCPAddr, opts.auditNoOp)
 	if err != nil {
 		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
 	}
