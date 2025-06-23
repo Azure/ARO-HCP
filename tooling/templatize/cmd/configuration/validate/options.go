@@ -178,7 +178,7 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 				for _, region := range ev2Contexts[cloud] {
 					contexts[cloud][env] = append(contexts[cloud][env], RegionContext{
 						Region: region,
-						Stamp:  1,
+						Stamp:  999, // we want to validate that all of our names still work, even with large stamp numbers
 					})
 				}
 			}
