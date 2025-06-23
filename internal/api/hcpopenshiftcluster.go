@@ -42,6 +42,7 @@ type HCPOpenShiftClusterProperties struct {
 	Console           ConsoleProfile             `json:"console,omitempty"                       visibility:"read"`
 	API               APIProfile                 `json:"api,omitempty"`
 	Platform          PlatformProfile            `json:"platform,omitempty"                      visibility:"read create"`
+	Autoscaling       ClusterAutoscalingConfig   `json:"autoscaling,omitempty"                   visibility:"read create"`
 	Capabilities      ClusterCapabilitiesProfile `json:"capabilities,omitempty"                  visibility:"read create"`
 }
 
@@ -89,6 +90,16 @@ type PlatformProfile struct {
 	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"required_for_put,resource_id=Microsoft.Network/networkSecurityGroups"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
+}
+
+// Cluster autoscaling configuration
+// ClusterAutoscaling specifies auto-scaling behavior that
+// applies to all NodePools associated with a control plane.
+type ClusterAutoscalingConfig struct {
+	MaxNodesTotal           int32 `json:"maxNodesTotal,omitempty"`
+	MaxPodGracePeriod       int32 `json:"maxPodGracePeriod,omitempty"`
+	MaxNodeProvisionTime    int32 `json:"maxNodeProvisionTime,omitempty"`
+	MaxpodPriorityThreshold int32 `json:"maxpodPriorityThreshold,omitempty"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for
