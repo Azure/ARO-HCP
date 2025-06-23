@@ -867,6 +867,20 @@
         "tenantId"
       ]
     },
+    "admin": {
+      "properties": {
+        "deploy": {
+          "type": "boolean"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "location": {
+          "type":"string",
+          "description": ""
+        }
+      }
+    },
     "global": {
       "type": "object",
       "additionalProperties": false,
