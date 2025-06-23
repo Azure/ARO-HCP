@@ -18,6 +18,7 @@ usage() {
     echo "  -d          Dry run"
     echo "  -i          Set the input file same as second arg"
     echo "  -o          Set the output file same as third arg"
+    echo "  -r          Override the region for an environment"
     echo "  -e          Extra args for config interpolation"
     echo "  -p          Pipeline to inspect"
     echo "  -s          Pipeline step to inspect"
@@ -48,6 +49,9 @@ while getopts "c:dr:x:e:i:o:p:P:s:" opt; do
     case ${opt} in
         d)
             DRY_RUN="--dry-run"
+            ;;
+        r)
+            REGION=${OPTARG}
             ;;
         e)
             EXTRA_ARGS="--extra-args ${OPTARG}"
@@ -86,7 +90,7 @@ if [ -n "${INPUT+x}" ] && [ -n "${OUTPUT+x}" ]; then
     $TEMPLATIZE generate \
         --config-file="${CONFIG_FILE}" \
         --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
-        --dev-environment="${DEPLOY_ENV}" \
+        --dev-environment="${DEPLOY_ENV}" "${REGION:+"--region=${REGION}"}"\
         --input="${INPUT}" \
         --output="${OUTPUT}" \
         ${LOG_VERBOSITY_OPTION} \
@@ -95,7 +99,7 @@ elif [ $PIPELINE_MODE == "inspect" ] && [ -n "${PIPELINE+x}" ] && [ -n "${PIPELI
     $TEMPLATIZE pipeline inspect \
         --config-file="${CONFIG_FILE}" \
         --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
-        --dev-environment="${DEPLOY_ENV}" \
+        --dev-environment="${DEPLOY_ENV}" "${REGION:+"--region=${REGION}"}" \
         --pipeline-file="${PIPELINE}" \
         --step="${PIPELINE_STEP}" \
         --output="${OUTPUT}" \
@@ -106,7 +110,7 @@ elif [ $PIPELINE_MODE == "run" ] && [ -n "${PIPELINE+x}" ] && [ -n "${PIPELINE_S
     $TEMPLATIZE pipeline run \
         --config-file="${CONFIG_FILE}" \
         --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
-        --dev-environment="${DEPLOY_ENV}" \
+        --dev-environment="${DEPLOY_ENV}" "${REGION:+"--region=${REGION}"}" \
         --pipeline-file="${PIPELINE}" \
         --step="${PIPELINE_STEP}" \
         ${PERSIST_FLAG} \
@@ -116,7 +120,7 @@ elif [ $PIPELINE_MODE == "run" ] && [ -n "${PIPELINE+x}" ]; then
     $TEMPLATIZE pipeline run \
         --config-file="${CONFIG_FILE}" \
         --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
-        --dev-environment="${DEPLOY_ENV}" \
+        --dev-environment="${DEPLOY_ENV}" "${REGION:+"--region=${REGION}"}" \
         --pipeline-file="${PIPELINE}" \
         ${PERSIST_FLAG} \
         ${LOG_VERBOSITY_OPTION} \
@@ -125,7 +129,7 @@ else
     $TEMPLATIZE inspect \
         --config-file="${CONFIG_FILE}" \
         --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
-        --dev-environment="${DEPLOY_ENV}" \
+        --dev-environment="${DEPLOY_ENV}" "${REGION:+"--region=${REGION}"}" \
         ${LOG_VERBOSITY_OPTION} \
         ${EXTRA_ARGS}
 fi

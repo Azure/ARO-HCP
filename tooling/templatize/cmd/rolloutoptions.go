@@ -104,7 +104,6 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 	if o.DevEnvironment != "" && o.DevSettingsFile != "" {
 		for name, value := range map[string]string{
 			"environment":       o.BaseOptions.DeployEnv,
-			"region":            o.Region,
 			"region short-name": o.RegionShortSuffix,
 			"stamp":             o.Stamp,
 		} {
@@ -126,10 +125,14 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve developer environment %s: %w", o.DevEnvironment, err)
 		}
+		region := env.Region
+		if o.Region != "" {
+			region = o.Region
+		}
 		o.BaseOptions.Cloud = env.Cloud
 		o.BaseOptions.Ev2Cloud = env.Ev2Cloud
 		o.BaseOptions.DeployEnv = env.Environment
-		o.Region = env.Region
+		o.Region = region
 		o.RegionShortSuffix = env.RegionShortSuffix
 		o.Stamp = strconv.Itoa(env.Stamp)
 	}
