@@ -21,9 +21,12 @@ import (
 	"os"
 
 	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/go-logr/logr"
 )
 
-func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) (err error) {
+func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	tmpFile, err := os.CreateTemp("", "")
 	if err != nil {
 		return fmt.Errorf("error creating script temp file %w", err)
@@ -34,13 +37,17 @@ func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, option
 	}
 
 	defer func() {
-		err = os.Remove(tmpFile.Name())
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			logger.Info("error removing tempfile", "error", err.Error())
+		}
 	}()
 
 	_, err = tmpFile.Write(types.OnDemandSyncScript)
 	if err != nil {
 		// close file handle in error case
-		tmpFile.Close()
+		if err := tmpFile.Close(); err != nil {
+			logger.Info("error closing tempfile", "error", err.Error())
+		}
 		return fmt.Errorf("error writing script to temp file %w", err)
 	}
 
