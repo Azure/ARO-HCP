@@ -428,6 +428,9 @@ model NodePoolPlatformProfile {
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
   availabilityZone?: string;
+
+  /** Disk encryption settings for the OS and data disks */
+  encryption?: Encryption;
 }
 
 /** Supported Azure storage account types
@@ -456,35 +459,35 @@ model NodePoolAutoScaling {
   @minValue(0)
   max?: int32;
 }
-
-/** Encryption support disabled by default */
+/** Disk encryption settings for the OS and data disks */
 model Encryption {
-  /** Encryption support disabled by default */
+  /** Infrastructure-level encryption for the disks. Defaults to "disabled". */
   infrastructureEncryption?: "enabled" | "disabled" | string = "disabled";
 
-  /** Encryption support disabled by default */
+  /** Configuration for using a customer-managed key (CMK) for disk encryption. */
   customerManagedKeyEncryption?: CustomerManagedKeyEncryption;
 }
-/** Enable customer Managed encryption */
+
+/** Configuration for customer-managed disk encryption using Azure Key Vault. */
 model CustomerManagedKeyEncryption {
-  /** Enable customer Managed encryption */
+  /** Identity used to authenticate with the Azure Key Vault for CMK. */
   keyEncryptionKeyIdentity: KeyEncryptionKeyIdentity;
 
-  /** Enable customer Managed encryption */
+  /** The URL of the Key Vault key to use for encryption. */
   keyEncryptionKeyUrl: string;
 }
-/** Enable Encryption Key Identity assignment */
+
+/** Identity used to access Azure Key Vault for CMK. */
 model KeyEncryptionKeyIdentity {
-  /** Enable Encryption Key Identity assignment */
+  /** Type of identity used for accessing Key Vault (system or user assigned). */
   identityType: "systemAssignedIdentity" | "userAssignedIdentity" | string;
 
-  /** user  Identity assignment */
+  /** Optional: Resource ID of the user-assigned identity. */
   userAssignedIdentityResourceId?: UserAssignedIdentityResourceId;
 
-  /** Federated ClientId Identity assignment */
+  /** Optional: Client ID used for federated identity scenarios. */
   federatedClientId?: string;
 }
-
 /*
  * =======================================
  * End NodePool resources

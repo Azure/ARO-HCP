@@ -68,6 +68,15 @@ type ConsoleProfile struct {
 	URL *string
 }
 
+// CustomerManagedKeyEncryption - Configuration for customer-managed disk encryption using Azure Key Vault.
+type CustomerManagedKeyEncryption struct {
+	// REQUIRED; Identity used to authenticate with the Azure Key Vault for CMK.
+	KeyEncryptionKeyIdentity *KeyEncryptionKeyIdentity
+
+	// REQUIRED; The URL of the Key Vault key to use for encryption.
+	KeyEncryptionKeyURL *string
+}
+
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
 	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
@@ -76,6 +85,15 @@ type DNSProfile struct {
 
 	// READ-ONLY; BaseDomain is the base DNS domain of the cluster.
 	BaseDomain *string
+}
+
+// Encryption - Disk encryption settings for the OS and data disks
+type Encryption struct {
+	// Configuration for using a customer-managed key (CMK) for disk encryption.
+	CustomerManagedKeyEncryption *CustomerManagedKeyEncryption
+
+	// Infrastructure-level encryption for the disks. Defaults to "disabled".
+	InfrastructureEncryption *EncryptionInfrastructureEncryption
 }
 
 // ErrorAdditionalInfo - The resource management error additional info.
@@ -214,6 +232,18 @@ type HcpOpenShiftClusterUpdate struct {
 	Type *string
 }
 
+// KeyEncryptionKeyIdentity - Identity used to access Azure Key Vault for CMK.
+type KeyEncryptionKeyIdentity struct {
+	// REQUIRED; Type of identity used for accessing Key Vault (system or user assigned).
+	IdentityType *KeyEncryptionKeyIdentityType
+
+	// Optional: Client ID used for federated identity scenarios.
+	FederatedClientID *string
+
+	// Optional: Resource ID of the user-assigned identity.
+	UserAssignedIdentityResourceID *string
+}
+
 // Label represents the Kubernetes label
 type Label struct {
 	// The key of the label
@@ -326,6 +356,9 @@ type NodePoolPlatformProfile struct {
 	// Whether to enable host based OS and data drive encryption.
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
 	EnableEncryptionAtHost *bool
+
+	// Disk encryption settings for the OS and data disks
+	Encryption *Encryption
 
 	// The Azure resource ID of the worker subnet
 	SubnetID *string

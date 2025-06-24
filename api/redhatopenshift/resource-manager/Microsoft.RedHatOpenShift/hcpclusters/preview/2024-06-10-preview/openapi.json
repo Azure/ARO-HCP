@@ -82,12 +82,6 @@
           },
           "Operations_List_Minimum": {
             "$ref": "./examples/Operations_List_MinimumSet_Gen.json"
-          },
-          "Operations_List_MaximumSet_Gen": {
-            "$ref": "./examples/Operations_List_MaximumSet_Gen.json"
-          },
-          "Operations_List_MinimumSet_Gen": {
-            "$ref": "./examples/Operations_List_MinimumSet_Gen.json"
           }
         },
         "x-ms-pageable": {
@@ -126,9 +120,6 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_ListBySubscription": {
-            "$ref": "./examples/HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen.json"
-          },
-          "HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_ListBySubscription_MaximumSet_Gen.json"
           }
         },
@@ -171,9 +162,6 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_ListByResourceGroup": {
-            "$ref": "./examples/HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen.json"
-          },
-          "HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_ListByResourceGroup_MaximumSet_Gen.json"
           }
         },
@@ -224,9 +212,6 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_Get": {
-            "$ref": "./examples/HcpOpenShiftClusters_Get_MaximumSet_Gen.json"
-          },
-          "HcpOpenShiftClusters_Get_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_Get_MaximumSet_Gen.json"
           }
         }
@@ -298,9 +283,6 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_CreateOrUpdate": {
-            "$ref": "./examples/HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen.json"
-          },
-          "HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_CreateOrUpdate_MaximumSet_Gen.json"
           }
         },
@@ -374,9 +356,6 @@
         "x-ms-examples": {
           "HcpOpenShiftClusters_Update": {
             "$ref": "./examples/HcpOpenShiftClusters_Update_MaximumSet_Gen.json"
-          },
-          "HcpOpenShiftClusters_Update_MaximumSet_Gen": {
-            "$ref": "./examples/HcpOpenShiftClusters_Update_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -437,9 +416,6 @@
         "x-ms-examples": {
           "HcpOpenShiftClusters_Delete": {
             "$ref": "./examples/HcpOpenShiftClusters_Delete_MaximumSet_Gen.json"
-          },
-          "HcpOpenShiftClusters_Delete_MaximumSet_Gen": {
-            "$ref": "./examples/HcpOpenShiftClusters_Delete_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -490,9 +466,6 @@
         },
         "x-ms-examples": {
           "NodePools_ListByParent": {
-            "$ref": "./examples/NodePools_ListByParent_MaximumSet_Gen.json"
-          },
-          "NodePools_ListByParent_MaximumSet_Gen": {
             "$ref": "./examples/NodePools_ListByParent_MaximumSet_Gen.json"
           }
         },
@@ -551,9 +524,6 @@
         },
         "x-ms-examples": {
           "NodePools_Get": {
-            "$ref": "./examples/NodePools_Get_MaximumSet_Gen.json"
-          },
-          "NodePools_Get_MaximumSet_Gen": {
             "$ref": "./examples/NodePools_Get_MaximumSet_Gen.json"
           }
         }
@@ -633,9 +603,6 @@
         },
         "x-ms-examples": {
           "NodePools_CreateOrUpdate": {
-            "$ref": "./examples/NodePools_CreateOrUpdate_MaximumSet_Gen.json"
-          },
-          "NodePools_CreateOrUpdate_MaximumSet_Gen": {
             "$ref": "./examples/NodePools_CreateOrUpdate_MaximumSet_Gen.json"
           }
         },
@@ -717,9 +684,6 @@
         "x-ms-examples": {
           "NodePools_Update": {
             "$ref": "./examples/NodePools_Update_MaximumSet_Gen.json"
-          },
-          "NodePools_Update_MaximumSet_Gen": {
-            "$ref": "./examples/NodePools_Update_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -788,9 +752,6 @@
         "x-ms-examples": {
           "NodePools_Delete": {
             "$ref": "./examples/NodePools_Delete_MaximumSet_Gen.json"
-          },
-          "NodePools_Delete_MaximumSet_Gen": {
-            "$ref": "./examples/NodePools_Delete_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -856,9 +817,6 @@
         "x-ms-examples": {
           "HcpOpenShiftClusters_RequestAdminCredential_MaximumSet": {
             "$ref": "./examples/HcpOpenShiftClusters_RequestAdminCredential_MaximumSet_Gen.json"
-          },
-          "HcpOpenShiftClusters_RequestAdminCredential_MaximumSet_Gen": {
-            "$ref": "./examples/HcpOpenShiftClusters_RequestAdminCredential_MaximumSet_Gen.json"
           }
         },
         "x-ms-long-running-operation-options": {
@@ -917,9 +875,6 @@
         },
         "x-ms-examples": {
           "HcpOpenShiftClusters_RevokeCredentials_MaximumSet": {
-            "$ref": "./examples/HcpOpenShiftClusters_RevokeCredentials_MaximumSet_Gen.json"
-          },
-          "HcpOpenShiftClusters_RevokeCredentials_MaximumSet_Gen": {
             "$ref": "./examples/HcpOpenShiftClusters_RevokeCredentials_MaximumSet_Gen.json"
           }
         },
@@ -1048,6 +1003,24 @@
         "url"
       ]
     },
+    "CustomerManagedKeyEncryption": {
+      "type": "object",
+      "description": "Configuration for customer-managed disk encryption using Azure Key Vault.",
+      "properties": {
+        "keyEncryptionKeyIdentity": {
+          "$ref": "#/definitions/KeyEncryptionKeyIdentity",
+          "description": "Identity used to authenticate with the Azure Key Vault for CMK."
+        },
+        "keyEncryptionKeyUrl": {
+          "type": "string",
+          "description": "The URL of the Key Vault key to use for encryption."
+        }
+      },
+      "required": [
+        "keyEncryptionKeyIdentity",
+        "keyEncryptionKeyUrl"
+      ]
+    },
     "DnsProfile": {
       "type": "object",
       "description": "DNS contains the DNS settings of the cluster",
@@ -1097,6 +1070,28 @@
             "description": "NoExecute taint effect"
           }
         ]
+      }
+    },
+    "Encryption": {
+      "type": "object",
+      "description": "Disk encryption settings for the OS and data disks",
+      "properties": {
+        "infrastructureEncryption": {
+          "type": "string",
+          "description": "Infrastructure-level encryption for the disks. Defaults to \"disabled\".",
+          "default": "disabled",
+          "enum": [
+            "enabled",
+            "disabled"
+          ],
+          "x-ms-enum": {
+            "modelAsString": true
+          }
+        },
+        "customerManagedKeyEncryption": {
+          "$ref": "#/definitions/CustomerManagedKeyEncryption",
+          "description": "Configuration for using a customer-managed key (CMK) for disk encryption."
+        }
       }
     },
     "HcpOpenShiftCluster": {
@@ -1249,6 +1244,34 @@
         {
           "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
         }
+      ]
+    },
+    "KeyEncryptionKeyIdentity": {
+      "type": "object",
+      "description": "Identity used to access Azure Key Vault for CMK.",
+      "properties": {
+        "identityType": {
+          "type": "string",
+          "description": "Type of identity used for accessing Key Vault (system or user assigned).",
+          "enum": [
+            "systemAssignedIdentity",
+            "userAssignedIdentity"
+          ],
+          "x-ms-enum": {
+            "modelAsString": true
+          }
+        },
+        "userAssignedIdentityResourceId": {
+          "$ref": "#/definitions/UserAssignedIdentityResourceId",
+          "description": "Optional: Resource ID of the user-assigned identity."
+        },
+        "federatedClientId": {
+          "type": "string",
+          "description": "Optional: Client ID used for federated identity scenarios."
+        }
+      },
+      "required": [
+        "identityType"
       ]
     },
     "Label": {
@@ -1464,6 +1487,10 @@
         "availabilityZone": {
           "type": "string",
           "description": "The availability zone for the node pool.\nPlease read the documentation to see which regions support availability zones\n- https://learn.microsoft.com/en-us/azure/availability-zones/az-overview"
+        },
+        "encryption": {
+          "$ref": "#/definitions/Encryption",
+          "description": "Disk encryption settings for the OS and data disks"
         }
       },
       "required": [

@@ -89,6 +89,38 @@ func PossibleEffectValues() []Effect {
 	}
 }
 
+// EncryptionInfrastructureEncryption - Infrastructure-level encryption for the disks. Defaults to "disabled".
+type EncryptionInfrastructureEncryption string
+
+const (
+	EncryptionInfrastructureEncryptionDisabled EncryptionInfrastructureEncryption = "disabled"
+	EncryptionInfrastructureEncryptionEnabled EncryptionInfrastructureEncryption = "enabled"
+)
+
+// PossibleEncryptionInfrastructureEncryptionValues returns the possible values for the EncryptionInfrastructureEncryption const type.
+func PossibleEncryptionInfrastructureEncryptionValues() []EncryptionInfrastructureEncryption {
+	return []EncryptionInfrastructureEncryption{	
+		EncryptionInfrastructureEncryptionDisabled,
+		EncryptionInfrastructureEncryptionEnabled,
+	}
+}
+
+// KeyEncryptionKeyIdentityType - Type of identity used for accessing Key Vault (system or user assigned).
+type KeyEncryptionKeyIdentityType string
+
+const (
+	KeyEncryptionKeyIdentityTypeSystemAssignedIdentity KeyEncryptionKeyIdentityType = "systemAssignedIdentity"
+	KeyEncryptionKeyIdentityTypeUserAssignedIdentity KeyEncryptionKeyIdentityType = "userAssignedIdentity"
+)
+
+// PossibleKeyEncryptionKeyIdentityTypeValues returns the possible values for the KeyEncryptionKeyIdentityType const type.
+func PossibleKeyEncryptionKeyIdentityTypeValues() []KeyEncryptionKeyIdentityType {
+	return []KeyEncryptionKeyIdentityType{	
+		KeyEncryptionKeyIdentityTypeSystemAssignedIdentity,
+		KeyEncryptionKeyIdentityTypeUserAssignedIdentity,
+	}
+}
+
 // ManagedServiceIdentityType - Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
 type ManagedServiceIdentityType string
 
