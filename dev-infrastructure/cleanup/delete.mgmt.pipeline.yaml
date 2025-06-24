@@ -1,0 +1,19 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
+rolloutName: Delete Management Resource Group
+resourceGroups:
+- name: '{{ .mgmt.rg  }}'
+  subscription: '{{ .mgmt.subscription  }}'
+  steps:
+  - name: delete-mgmt
+    action: Shell
+    command: ./delete.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    shellIdentity:
+      configRef: aroDevopsMsiId
