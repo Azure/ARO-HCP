@@ -10,7 +10,7 @@ The ARO HCP container registry strategy addresses Microsoft compliance requireme
 
 ### MSFT Requirements
 
-Microsoft mandates that all ARO HCP images must be pulled from private Azure Container Registries (ACRs) or Microsoft Container Registry (MCR). This applies to all workloads on AKS or Azure Container Apps. While ACRs can be populated from trusted Red Hat sources, production workloads must pull images exclusively from Microsoft-controlled registries rather than external public or private registries.
+Microsoft requires that all ARO HCP images must be pulled from private Azure Container Registries (ACRs) or Microsoft Container Registry (MCR). This applies to all workloads on AKS or Azure Container Apps. While ACRs can be populated from trusted Red Hat sources, production workloads must pull images exclusively from Microsoft-controlled registries rather than external public or private registries.
 
 ### ACR Types
 
@@ -28,11 +28,11 @@ Image mirroring ensures ARO HCP environments maintain current OpenShift releases
 
 ### oc-mirror
 
-[oc-mirror](https://github.com/openshift/oc-mirror) is a Red Hat tool built for mirroring OCP release payloads and OLM operator bundles between registries. This tool runs within Azure Container App Cronjobs and continuously brings in new images as they appear in the source registries. `oc-mirror` runs within the global scope of the respective target environment and selectively mirrors images as defined by configuration. The mirroring setup can be found in the [global-image-sync.bicep](../dev-infrastructure/templates/global-image-sync.bicep) template.
+[oc-mirror](https://github.com/openshift/oc-mirror) is a Red Hat tool built for mirroring OCP release payloads and OLM operator bundles between registries. This tool runs within Azure Container App Cronjobs and continuously brings in new images as they appear in the source registries. `oc-mirror` runs within the global scope of the respective target environment and selectively mirrors images. The mirroring setup can be found in the [global-image-sync.bicep](../dev-infrastructure/templates/global-image-sync.bicep) template.
 
 ### On-demand Sync
 
-In contrast to the continuous mirroring of OCP images, the on-demand image sync handles service component images during rollouts as part of the rollout pipeline. The on-demand sync uses [ORAS](https://oras.land/) within an EV2 shell steps to copy images from the source registry to the environment-specific service ACR. In case of a failure, the mirror task can be retried via EV2's retry mechanisms.
+In contrast to the continuous mirroring of OCP images, the on-demand image sync handles service component images during rollouts via the deployment pipeline. The on-demand sync uses [ORAS](https://oras.land/) within an [EV2 shell steps](pipeline-concept.md#shell-step) to copy images from the source registry to the environment-specific service ACR. In case of a failure, the mirror task can be retried via EV2's retry mechanisms.
 
 The image mirror step happens before Helm chart deployment. This ensures that the correct images are available in the target environment before any service components are deployed. Since we exclusively use digest-based image references, mirroring can be re-triggered without affecting the consistency of the deployment across different regions of an environment.
 
@@ -42,9 +42,9 @@ Each service component defines a source registry, repository and the digest to b
 clustersService:
   ...
   image:
-    registry: "quay.io",
+    registry: "quay.io"
     repository: "app-sre/uhc-clusters-service"
-    digest: "sha256:xyz",
+    digest: "sha256:xyz"
 ```
 
 ... and is referenced in the [cluster service rollout pipeline](../cluster-service/pipeline.yaml).
@@ -69,22 +69,28 @@ clustersService:
       configRef: aroDevopsMsiId
 ```
 
+## Building ARO HCP Images
+
+ARO HCP combines various service components to form the hosted control plane management stack. Images for components that are not ARO HCP specific are sourced from Red Hat registries and repositories like quay.io (OCP, CS, Maestro, Hypershift) or registry.redhat.io (ACM).
+
+The component images that are ARO HCP specific (RP frontend, RP backend, Admin API, oc-mirror), are built directly within the [ARO HCP repository](https://github.com/Azure/aro-hcp) with [GitHub Actions](../.github/workflows/services-ci.yml) and pushed to the `arohcpsvcdev` ACR in the RH DEV environment. These images are then mirrored to the respective service ACRs in the other environments using the [on-demand sync](#on-demand-sync) process.
+
 ## Image Pulling
 
 Once images are mirrored into the appropriate ACRs, they must be securely and efficiently pulled by various components across the ARO HCP infrastructure. This process involves different authentication mechanisms described in the sections below.
 
 ### MSI-Acrpull
 
-The majority of ARO HCP service components running on AKS clusters use the [msi-acrpull](https://github.com/Azure/msi-acrpull/) controller to enable image pulls. This controller automatically provides pull secrets to service accounts within Kubernetes clusters and manages their complete lifecycle, including periodic recycling to maintain security hygiene.
+The majority of ARO HCP service components running on AKS clusters use the [msi-acrpull](https://github.com/Azure/msi-acrpull/) controller to enable image pulls. This controller manages pull secrets to service accounts within Kubernetes clusters and manages their complete lifecycle, including periodic recycling to maintain security hygiene.
 
 Inspect existing helm charts in this repo to see how the `AcrPullBinding` CRD is used to integrate with msi-acrpull.
 
-### Kubelet Identity based pull
+### Kubelet Identity-based pull
 
 Before the migration to `msi-acrpull`, most workloads relied on the kubelet managed identity to pull images from ACRs. This approach is still used by ACM but we will migrate to `msi-acrpull` in the future.
 
-### Dedicate pull secrets
+### Dedicated pull secrets
 
-Customer hosted cluster dataplane nodes rely on dedicated pull secrets that are provisioned specifically for accessing OpenShift release payload images in the OCP ACR. During HCP provisioning, cluster-service creates pull secrets with the necessary authentication credentials for accessing the OCP ACR. These secrets are provided to HyperShift, which takes responsibility for distributing them to worker nodes in customer subscriptions. This approach enables secure cross-boundary access while maintaining proper isolation between the ARO HCP service infrastructure and customer environments.
+Customer-hosted cluster dataplane nodes rely on dedicated pull secrets that are provisioned specifically for accessing OpenShift release payload images in the OCP ACR. During HCP provisioning, cluster-service creates pull secrets with the necessary authentication credentials for accessing the OCP ACR. These secrets are provided to HyperShift, which takes responsibility for distributing them to worker nodes in customer subscriptions. This approach enables secure cross-boundary access while maintaining proper isolation between the ARO HCP service infrastructure and customer environments.
 
 In the future, `msi-acrpull` will be used for these pull secrets as well, relieving CS from the duty to create and lifecycle such secrets.
