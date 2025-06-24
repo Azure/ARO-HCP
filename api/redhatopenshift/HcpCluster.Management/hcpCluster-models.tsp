@@ -268,19 +268,19 @@ model UserAssignedIdentitiesProfile {
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   controlPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** The set of Azure User-Assigned Managed Identities leveraged for the Data Plane
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   dataPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** Represents the information associated to an Azure User-Assigned Managed Identity whose
    * purpose is to perform service level actions. */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   serviceManagedIdentity: UserAssignedIdentityResourceId;
 }
 
