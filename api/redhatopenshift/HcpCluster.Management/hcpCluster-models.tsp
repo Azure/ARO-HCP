@@ -197,7 +197,7 @@ model ApiProfile {
   visibility?: Visibility = "public";
 
   /** The IP ranges authorized to access the Kubernetes API server. */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   authorizedIpRanges?: string[];
 }
 
