@@ -54,7 +54,7 @@ func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 	}
 
 	if err := auditClient.Send(ctx, msg); err != nil {
-		logger.Error("error sending audit log", err)
+		logger.Error("error sending audit log", "error", err.Error())
 	}
 }
 
