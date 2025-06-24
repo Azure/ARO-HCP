@@ -95,12 +95,9 @@ func newE2E(tmpdir string, pipelineFilePath string) (*e2eImpl, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading test pipeline %s, %v", pipelineFilePath, err)
 	}
-
-	pipeline, err := types.NewPlainPipelineFromBytes("", pipelineBytes)
-	if err != nil {
+	if err := yaml.Unmarshal(pipelineBytes, &imp.pipeline); err != nil {
 		return nil, fmt.Errorf("error loading pipeline %v", err)
 	}
-	imp.pipeline = *pipeline
 	imp.SetOSArgs()
 	return &imp, nil
 }
