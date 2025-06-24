@@ -258,13 +258,13 @@ mgmt:
     namespaceLabel: network.openshift.io/policy-group=monitoring
     prometheusOperator:
       image:
-        digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+        digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
       version: ""
     prometheusSpec:
       image:
-        digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+        digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
       replicas: 2
@@ -379,13 +379,13 @@ svc:
     namespaceLabel: ""
     prometheusOperator:
       image:
-        digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+        digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
       version: ""
     prometheusSpec:
       image:
-        digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+        digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
       replicas: 2
