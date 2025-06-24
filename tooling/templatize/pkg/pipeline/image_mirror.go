@@ -23,7 +23,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
-func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
+func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) (err error) {
 	tmpFile, err := os.CreateTemp("", "")
 	if err != nil {
 		return fmt.Errorf("error creating script temp file %w", err)
@@ -33,7 +33,10 @@ func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, option
 		return fmt.Errorf("error make script temp file executable %w", err)
 	}
 
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		err = os.Remove(tmpFile.Name())
+	}()
+
 	_, err = tmpFile.Write(types.OnDemandSyncScript)
 	if err != nil {
 		// close file handle in error case
