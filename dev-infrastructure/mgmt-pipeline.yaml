@@ -68,6 +68,10 @@ resourceGroups:
     action: SetCertificateIssuer
     dependsOn:
     - mgmt-infra
+    secretId:
+      configRef: ev2.assistedId.certificate
+    applicationId:
+      configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
         name: cxKeyVaultUrl
@@ -78,6 +82,10 @@ resourceGroups:
     action: SetCertificateIssuer
     dependsOn:
     - mgmt-infra
+    secretId:
+      configRef: ev2.assistedId.certificate
+    applicationId:
+      configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
         name: mgmtKeyVaultUrl
@@ -88,6 +96,10 @@ resourceGroups:
     action: SetCertificateIssuer
     dependsOn:
     - mgmt-infra
+    secretId:
+      configRef: ev2.assistedId.certificate
+    applicationId:
+      configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
         name: mgmtKeyVaultUrl

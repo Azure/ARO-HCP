@@ -57,6 +57,10 @@ resourceGroups:
     action: SetCertificateIssuer
     dependsOn:
     - svc-infra
+    secretId:
+      configRef: ev2.assistedId.certificate
+    applicationId:
+      configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
         name: svcKeyVaultUrl
@@ -67,6 +71,10 @@ resourceGroups:
     action: SetCertificateIssuer
     dependsOn:
     - svc-infra
+    secretId:
+      configRef: ev2.assistedId.certificate
+    applicationId:
+      configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
         name: svcKeyVaultUrl
