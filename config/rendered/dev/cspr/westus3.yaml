@@ -327,6 +327,14 @@ pko:
     repository: package-operator/remote-phase-manager
 region: westus3
 regionRG: hcp-underlay-cspr-westus3
+secretSyncController:
+  image:
+    digest: sha256:33b9cd53791ecb6a34cad68d76e23ef439622278d558bc1a6d5d824e6367a127
+    registry: registry.k8s.io
+    repository: secrets-store-sync/controller
+  k8s:
+    namespace: secret-sync-controller
+    serviceAccountName: secret-sync-controller
 serviceKeyVault:
   assignNSP: false
   name: aro-hcp-dev-svc-kv
