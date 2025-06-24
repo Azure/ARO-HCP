@@ -38,9 +38,14 @@ push: image
 	docker push ${ARO_HCP_ADMIN_IMAGE}:${CURRENT_COMMIT}
 
 deploy:
-	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
+	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} aro-hcp-admin) \
 	kubectl create namespace admin --dry-run=client -o json | kubectl apply -f - && \
 	../hack/helm.sh aro-hcp-admin-dev deploy admin \
 	--set deployment.imageName=${ARO_HCP_ADMIN_IMAGE}@$${DIGEST} \
 	--set location=westus3
 	--namespace admin
+.PHONY: deploy
+
+undeploy:
+	helm uninstall aro-hcp-admin-dev --namespace admin
+.PHONY: undeploy

@@ -10,6 +10,12 @@ acrPull:
     digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
+admin:
+  deploy: false
+  image:
+    digest: ""
+    repository: ""
+  location: ""
 armHelperCertName: armHelperCert2
 armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
