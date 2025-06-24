@@ -174,13 +174,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+          digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         version: ""
         replicas: 2
         shards: 2
@@ -510,10 +510,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
           prometheusSpec:
             image:
-              digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+              digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
             shards: 1
       mgmt:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
@@ -538,10 +538,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
           prometheusSpec:
             image:
-              digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+              digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
             shards: 1
       # ACRs
       acr:
