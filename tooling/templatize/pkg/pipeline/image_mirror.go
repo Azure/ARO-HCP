@@ -29,19 +29,20 @@ func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, option
 		return fmt.Errorf("error creating script temp file %w", err)
 	}
 
-	err = os.Chmod(tmpFile.Name(), 0755)
-	if err != nil {
+	if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
 		return fmt.Errorf("error make script temp file executable %w", err)
 	}
 
 	defer os.Remove(tmpFile.Name())
 	_, err = tmpFile.Write(types.OnDemandSyncScript)
 	if err != nil {
+		// close file handle in error case
+		tmpFile.Close()
 		return fmt.Errorf("error writing script to temp file %w", err)
 	}
 
-	err = tmpFile.Close()
-	if err != nil {
+	// must close before using or shell bash will raise errors, do not defer
+	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("error closing write to script file %w", err)
 	}
 
