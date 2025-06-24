@@ -11,18 +11,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"net/http"
+	"net/url"
+	"regexp"
+
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake/server"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"net/http"
-	"net/url"
-	"regexp"
+
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 // HcpOpenShiftClustersServer is a fake server for instances of the generated.HcpOpenShiftClustersClient type.
-type HcpOpenShiftClustersServer struct{
+type HcpOpenShiftClustersServer struct {
 	// BeginCreateOrUpdate is the fake for method HcpOpenShiftClustersClient.BeginCreateOrUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusCreated
 	BeginCreateOrUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, resource generated.HcpOpenShiftCluster, options *generated.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientCreateOrUpdateResponse], errResp azfake.ErrorResponder)
@@ -54,7 +56,6 @@ type HcpOpenShiftClustersServer struct{
 	// BeginUpdate is the fake for method HcpOpenShiftClustersClient.BeginUpdate
 	// HTTP status codes to indicate success: http.StatusOK, http.StatusAccepted
 	BeginUpdate func(ctx context.Context, resourceGroupName string, hcpOpenShiftClusterName string, properties generated.HcpOpenShiftClusterUpdate, options *generated.HcpOpenShiftClustersClientBeginUpdateOptions) (resp azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse], errResp azfake.ErrorResponder)
-
 }
 
 // NewHcpOpenShiftClustersServerTransport creates a new instance of HcpOpenShiftClustersServerTransport with the provided implementation.
@@ -62,28 +63,28 @@ type HcpOpenShiftClustersServer struct{
 // azcore.ClientOptions.Transporter field in the client's constructor parameters.
 func NewHcpOpenShiftClustersServerTransport(srv *HcpOpenShiftClustersServer) *HcpOpenShiftClustersServerTransport {
 	return &HcpOpenShiftClustersServerTransport{
-		srv: srv,
-		beginCreateOrUpdate: newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientCreateOrUpdateResponse]](),
-		beginDelete: newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientDeleteResponse]](),
+		srv:                         srv,
+		beginCreateOrUpdate:         newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientCreateOrUpdateResponse]](),
+		beginDelete:                 newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientDeleteResponse]](),
 		newListByResourceGroupPager: newTracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListByResourceGroupResponse]](),
-		newListBySubscriptionPager: newTracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListBySubscriptionResponse]](),
+		newListBySubscriptionPager:  newTracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListBySubscriptionResponse]](),
 		beginRequestAdminCredential: newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRequestAdminCredentialResponse]](),
-		beginRevokeCredentials: newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRevokeCredentialsResponse]](),
-		beginUpdate: newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse]](),
+		beginRevokeCredentials:      newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRevokeCredentialsResponse]](),
+		beginUpdate:                 newTracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse]](),
 	}
 }
 
 // HcpOpenShiftClustersServerTransport connects instances of generated.HcpOpenShiftClustersClient to instances of HcpOpenShiftClustersServer.
 // Don't use this type directly, use NewHcpOpenShiftClustersServerTransport instead.
 type HcpOpenShiftClustersServerTransport struct {
-	srv *HcpOpenShiftClustersServer
-	beginCreateOrUpdate *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientCreateOrUpdateResponse]]
-	beginDelete *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientDeleteResponse]]
+	srv                         *HcpOpenShiftClustersServer
+	beginCreateOrUpdate         *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientCreateOrUpdateResponse]]
+	beginDelete                 *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientDeleteResponse]]
 	newListByResourceGroupPager *tracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListByResourceGroupResponse]]
-	newListBySubscriptionPager *tracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListBySubscriptionResponse]]
+	newListBySubscriptionPager  *tracker[azfake.PagerResponder[generated.HcpOpenShiftClustersClientListBySubscriptionResponse]]
 	beginRequestAdminCredential *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRequestAdminCredentialResponse]]
-	beginRevokeCredentials *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRevokeCredentialsResponse]]
-	beginUpdate *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse]]
+	beginRevokeCredentials      *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientRevokeCredentialsResponse]]
+	beginUpdate                 *tracker[azfake.PollerResponder[generated.HcpOpenShiftClustersClientUpdateResponse]]
 }
 
 // Do implements the policy.Transporter interface for HcpOpenShiftClustersServerTransport.
@@ -131,28 +132,28 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginCreateOrUpdate(req *h
 	}
 	beginCreateOrUpdate := h.beginCreateOrUpdate.get(req)
 	if beginCreateOrUpdate == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftCluster](req)
-	if err != nil {
-		return nil, err
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := h.srv.BeginCreateOrUpdate(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, body, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 3 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftCluster](req)
+		if err != nil {
+			return nil, err
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := h.srv.BeginCreateOrUpdate(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, body, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
 		beginCreateOrUpdate = &respr
 		h.beginCreateOrUpdate.add(req, beginCreateOrUpdate)
 	}
@@ -179,24 +180,24 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginDelete(req *http.Requ
 	}
 	beginDelete := h.beginDelete.get(req)
 	if beginDelete == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := h.srv.BeginDelete(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 3 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := h.srv.BeginDelete(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
 		beginDelete = &respr
 		h.beginDelete.add(req, beginDelete)
 	}
@@ -256,17 +257,17 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchNewListByResourceGroupPage
 	}
 	newListByResourceGroupPager := h.newListByResourceGroupPager.get(req)
 	if newListByResourceGroupPager == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 2 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-resp := h.srv.NewListByResourceGroupPager(resourceGroupNameParam, nil)
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 2 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		resp := h.srv.NewListByResourceGroupPager(resourceGroupNameParam, nil)
 		newListByResourceGroupPager = &resp
 		h.newListByResourceGroupPager.add(req, newListByResourceGroupPager)
 		server.PagerResponderInjectNextLinks(newListByResourceGroupPager, req, func(page *generated.HcpOpenShiftClustersClientListByResourceGroupResponse, createLink func() string) {
@@ -293,13 +294,13 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchNewListBySubscriptionPager
 	}
 	newListBySubscriptionPager := h.newListBySubscriptionPager.get(req)
 	if newListBySubscriptionPager == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 1 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-resp := h.srv.NewListBySubscriptionPager(nil)
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 1 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resp := h.srv.NewListBySubscriptionPager(nil)
 		newListBySubscriptionPager = &resp
 		h.newListBySubscriptionPager.add(req, newListBySubscriptionPager)
 		server.PagerResponderInjectNextLinks(newListBySubscriptionPager, req, func(page *generated.HcpOpenShiftClustersClientListBySubscriptionResponse, createLink func() string) {
@@ -326,24 +327,24 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginRequestAdminCredentia
 	}
 	beginRequestAdminCredential := h.beginRequestAdminCredential.get(req)
 	if beginRequestAdminCredential == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/requestAdminCredential`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := h.srv.BeginRequestAdminCredential(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/requestAdminCredential`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 3 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := h.srv.BeginRequestAdminCredential(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
 		beginRequestAdminCredential = &respr
 		h.beginRequestAdminCredential.add(req, beginRequestAdminCredential)
 	}
@@ -370,24 +371,24 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginRevokeCredentials(req
 	}
 	beginRevokeCredentials := h.beginRevokeCredentials.get(req)
 	if beginRevokeCredentials == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/revokeCredentials`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := h.srv.BeginRevokeCredentials(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/revokeCredentials`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 3 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := h.srv.BeginRevokeCredentials(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
 		beginRevokeCredentials = &respr
 		h.beginRevokeCredentials.add(req, beginRevokeCredentials)
 	}
@@ -414,28 +415,28 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginUpdate(req *http.Requ
 	}
 	beginUpdate := h.beginUpdate.get(req)
 	if beginUpdate == nil {
-	const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
-	regex := regexp.MustCompile(regexStr)
-	matches := regex.FindStringSubmatch(req.URL.EscapedPath())
-	if matches == nil || len(matches) < 3 {
-		return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
-	}
-	body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterUpdate](req)
-	if err != nil {
-		return nil, err
-	}
-	resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
-	if err != nil {
-		return nil, err
-	}
-	hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
-	if err != nil {
-		return nil, err
-	}
-	respr, errRespr := h.srv.BeginUpdate(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, body, nil)
-	if respErr := server.GetError(errRespr, req); respErr != nil {
-		return nil, respErr
-	}
+		const regexStr = `/subscriptions/(?P<subscriptionId>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/resourceGroups/(?P<resourceGroupName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)/providers/Microsoft\.RedHatOpenShift/hcpOpenShiftClusters/(?P<hcpOpenShiftClusterName>[!#&$-;=?-\[\]_a-zA-Z0-9~%@]+)`
+		regex := regexp.MustCompile(regexStr)
+		matches := regex.FindStringSubmatch(req.URL.EscapedPath())
+		if matches == nil || len(matches) < 3 {
+			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
+		}
+		body, err := server.UnmarshalRequestAsJSON[generated.HcpOpenShiftClusterUpdate](req)
+		if err != nil {
+			return nil, err
+		}
+		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
+		if err != nil {
+			return nil, err
+		}
+		hcpOpenShiftClusterNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("hcpOpenShiftClusterName")])
+		if err != nil {
+			return nil, err
+		}
+		respr, errRespr := h.srv.BeginUpdate(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, body, nil)
+		if respErr := server.GetError(errRespr, req); respErr != nil {
+			return nil, respErr
+		}
 		beginUpdate = &respr
 		h.beginUpdate.add(req, beginUpdate)
 	}
@@ -455,4 +456,3 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginUpdate(req *http.Requ
 
 	return resp, nil
 }
-
