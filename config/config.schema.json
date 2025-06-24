@@ -256,7 +256,8 @@
           "type": "string"
         },
         "digest": {
-          "type": "string"
+            "type": "string",
+            "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
         }
       },
       "required": [
