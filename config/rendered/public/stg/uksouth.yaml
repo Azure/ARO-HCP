@@ -270,7 +270,7 @@ mgmt:
       replicas: 2
       shards: 2
       version: v2.55.1-3
-  rg: hcp-underlay-stg-uksouth-mgmt-1
+  rg: hcp-underlay-uksouth-mgmt-1
   subscription: hcp-stg-mgmt-uksouth-1
 mgmtKeyVault:
   name: ah-stg-mg-ln-1
@@ -394,6 +394,6 @@ svc:
       replicas: 2
       shards: 2
       version: ""
-  rg: hcp-underlay-stg-uksouth-svc
+  rg: hcp-underlay-uksouth-svc
   subscription: hcp-stg-svc-uksouth
 tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
