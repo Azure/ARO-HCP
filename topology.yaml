@@ -15,21 +15,7 @@ entrypoints:
   metadata:
     name: Management Cluster
     scopeDoc: high-level-architecture.md#management-clusters
-- identifier: 'Microsoft.Azure.ARO.HCP.Delete'
-  metadata:
-    name: Delete Region, Management, and Service Resource Groups
 services:
-- serviceGroup: Microsoft.Azure.ARO.HCP.Delete
-  children:
-  - serviceGroup: Microsoft.Azure.ARO.HCP.Region.Delete
-    pipelinePath: dev-infrastructure/cleanup/delete.region.pipeline.yaml
-    purpose: Delete the region resources and resource group
-  - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
-    pipelinePath: dev-infrastructure/cleanup/delete.svc.pipeline.yaml
-    purpose: Delete the service resources and service resource group
-  - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
-    pipelinePath: dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml
-    purpose: Delete the management resources and management resource group
 - serviceGroup: Microsoft.Azure.ARO.HCP.Global
   children:
   - serviceGroup: Microsoft.Azure.ARO.HCP.Region
@@ -73,3 +59,13 @@ services:
     purpose: Deploy regional shared infrastructure.
   pipelinePath: dev-infrastructure/global-pipeline.yaml
   purpose: Deploy global shared infrastructure.
+# Cleanup pipelines
+- serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml
+  purpose: Delete the management resources and management resource group
+- serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.svc.pipeline.yaml
+  purpose: Delete the service resources and service resource group
+- serviceGroup: Microsoft.Azure.ARO.HCP.Region.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.region.pipeline.yaml
+  purpose: Delete the region resources and resource group

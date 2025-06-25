@@ -2,7 +2,7 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region.Delete
 rolloutName: Delete Regional Resource Group
 resourceGroups:
-- name: '{{ .svc.rg  }}'
+- name: '{{ .regionRg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
   - name: delete-region
