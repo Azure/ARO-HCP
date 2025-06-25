@@ -216,7 +216,7 @@ type HcpOpenShiftClusterUpdate struct {
 
 // Label represents the Kubernetes label
 type Label struct {
-	// The key of the label
+	// REQUIRED; The key of the label
 	Key *string
 
 	// The value of the label

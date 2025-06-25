@@ -1218,7 +1218,10 @@
           "type": "string",
           "description": "The value of the label"
         }
-      }
+      },
+      "required": [
+        "key"
+      ]
     },
     "NetworkProfile": {
       "type": "object",

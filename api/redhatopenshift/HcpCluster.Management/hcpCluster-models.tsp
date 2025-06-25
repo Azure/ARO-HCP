@@ -380,7 +380,7 @@ model Label {
   /** The key of the label
    * @example node-role.kubernetes.io/master
    */
-  key?: string;
+  key: string;
 
   /** The value of the label */
   value?: string;
