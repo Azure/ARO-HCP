@@ -1543,6 +1543,7 @@
         "clients": {
           "type": "array",
           "description": "External Auth clients",
+          "maxItems": 20,
           "items": {
             "$ref": "#/definitions/ExternalAuthClientProfile"
           }
@@ -1554,7 +1555,6 @@
       },
       "required": [
         "issuer",
-        "clients",
         "claim"
       ]
     },
@@ -1569,6 +1569,7 @@
         "clients": {
           "type": "array",
           "description": "External Auth clients",
+          "maxItems": 20,
           "items": {
             "$ref": "#/definitions/ExternalAuthClientProfile"
           }
