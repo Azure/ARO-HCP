@@ -1588,6 +1588,13 @@
         "id": {
           "type": "string",
           "description": "external Auth client id"
+        },
+        "extraScopes": {
+          "type": "array",
+          "description": "external auth client scopes",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
