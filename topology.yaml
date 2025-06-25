@@ -59,3 +59,13 @@ services:
     purpose: Deploy regional shared infrastructure.
   pipelinePath: dev-infrastructure/global-pipeline.yaml
   purpose: Deploy global shared infrastructure.
+# Cleanup pipelines
+- serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml
+  purpose: Delete the management resources and management resource group
+- serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.svc.pipeline.yaml
+  purpose: Delete the service resources and service resource group
+- serviceGroup: Microsoft.Azure.ARO.HCP.Region.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.region.pipeline.yaml
+  purpose: Delete the region resources and resource group
