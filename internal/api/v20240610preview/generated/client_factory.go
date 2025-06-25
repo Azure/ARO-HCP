@@ -35,9 +35,9 @@ func NewClientFactory(subscriptionID string, credential azcore.TokenCredential, 
 	}, nil
 }
 
-// NewExternalAuthProfilesClient creates a new instance of ExternalAuthProfilesClient.
-func (c *ClientFactory) NewExternalAuthProfilesClient() *ExternalAuthProfilesClient {
-	return &ExternalAuthProfilesClient{
+// NewExternalAuthsClient creates a new instance of ExternalAuthsClient.
+func (c *ClientFactory) NewExternalAuthsClient() *ExternalAuthsClient {
+	return &ExternalAuthsClient{
 		subscriptionID: c.subscriptionID,
 		internal:       c.internal,
 	}

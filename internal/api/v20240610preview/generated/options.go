@@ -7,35 +7,33 @@
 
 package generated
 
-// ExternalAuthProfilesClientBeginCreateOrUpdateOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginCreateOrUpdate
+// ExternalAuthsClientBeginCreateOrUpdateOptions contains the optional parameters for the ExternalAuthsClient.BeginCreateOrUpdate
 // method.
-type ExternalAuthProfilesClientBeginCreateOrUpdateOptions struct {
+type ExternalAuthsClientBeginCreateOrUpdateOptions struct {
 	// Resumes the LRO from the provided token.
 	ResumeToken string
 }
 
-// ExternalAuthProfilesClientBeginDeleteOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginDelete
-// method.
-type ExternalAuthProfilesClientBeginDeleteOptions struct {
+// ExternalAuthsClientBeginDeleteOptions contains the optional parameters for the ExternalAuthsClient.BeginDelete method.
+type ExternalAuthsClientBeginDeleteOptions struct {
 	// Resumes the LRO from the provided token.
 	ResumeToken string
 }
 
-// ExternalAuthProfilesClientBeginUpdateOptions contains the optional parameters for the ExternalAuthProfilesClient.BeginUpdate
-// method.
-type ExternalAuthProfilesClientBeginUpdateOptions struct {
+// ExternalAuthsClientBeginUpdateOptions contains the optional parameters for the ExternalAuthsClient.BeginUpdate method.
+type ExternalAuthsClientBeginUpdateOptions struct {
 	// Resumes the LRO from the provided token.
 	ResumeToken string
 }
 
-// ExternalAuthProfilesClientGetOptions contains the optional parameters for the ExternalAuthProfilesClient.Get method.
-type ExternalAuthProfilesClientGetOptions struct {
+// ExternalAuthsClientGetOptions contains the optional parameters for the ExternalAuthsClient.Get method.
+type ExternalAuthsClientGetOptions struct {
 	// placeholder for future optional parameters
 }
 
-// ExternalAuthProfilesClientListByParentOptions contains the optional parameters for the ExternalAuthProfilesClient.NewListByParentPager
+// ExternalAuthsClientListByParentOptions contains the optional parameters for the ExternalAuthsClient.NewListByParentPager
 // method.
-type ExternalAuthProfilesClientListByParentOptions struct {
+type ExternalAuthsClientListByParentOptions struct {
 	// placeholder for future optional parameters
 }
 

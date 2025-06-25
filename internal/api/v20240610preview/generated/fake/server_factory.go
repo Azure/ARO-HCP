@@ -19,7 +19,7 @@ import (
 
 // ServerFactory is a fake server for instances of the generated.ClientFactory type.
 type ServerFactory struct {
-	ExternalAuthProfilesServer ExternalAuthProfilesServer
+	ExternalAuthsServer        ExternalAuthsServer
 	HcpOpenShiftClustersServer HcpOpenShiftClustersServer
 	NodePoolsServer            NodePoolsServer
 	OperationsServer           OperationsServer
@@ -39,7 +39,7 @@ func NewServerFactoryTransport(srv *ServerFactory) *ServerFactoryTransport {
 type ServerFactoryTransport struct {
 	srv                          *ServerFactory
 	trMu                         sync.Mutex
-	trExternalAuthProfilesServer *ExternalAuthProfilesServerTransport
+	trExternalAuthsServer        *ExternalAuthsServerTransport
 	trHcpOpenShiftClustersServer *HcpOpenShiftClustersServerTransport
 	trNodePoolsServer            *NodePoolsServerTransport
 	trOperationsServer           *OperationsServerTransport
@@ -58,11 +58,11 @@ func (s *ServerFactoryTransport) Do(req *http.Request) (*http.Response, error) {
 	var err error
 
 	switch client {
-	case "ExternalAuthProfilesClient":
-		initServer(s, &s.trExternalAuthProfilesServer, func() *ExternalAuthProfilesServerTransport {
-			return NewExternalAuthProfilesServerTransport(&s.srv.ExternalAuthProfilesServer)
+	case "ExternalAuthsClient":
+		initServer(s, &s.trExternalAuthsServer, func() *ExternalAuthsServerTransport {
+			return NewExternalAuthsServerTransport(&s.srv.ExternalAuthsServer)
 		})
-		resp, err = s.trExternalAuthProfilesServer.Do(req)
+		resp, err = s.trExternalAuthsServer.Do(req)
 	case "HcpOpenShiftClustersClient":
 		initServer(s, &s.trHcpOpenShiftClustersServer, func() *HcpOpenShiftClustersServerTransport {
 			return NewHcpOpenShiftClustersServerTransport(&s.srv.HcpOpenShiftClustersServer)
