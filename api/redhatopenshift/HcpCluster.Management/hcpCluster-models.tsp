@@ -525,7 +525,8 @@ model ExternalAuthProperties {
   issuer: TokenIssuerProfile;
 
   /** External Auth clients */
-  clients: ExternalAuthClientProfile[];
+  @maxItems(20)
+  clients?: ExternalAuthClientProfile[];
 
   /** External Auth claim */
   claim: ExternalAuthClaimProfile;

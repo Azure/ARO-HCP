@@ -204,11 +204,11 @@ type ExternalAuthProperties struct {
 	// REQUIRED; External Auth claim
 	Claim *ExternalAuthClaimProfile
 
-	// REQUIRED; External Auth clients
-	Clients []*ExternalAuthClientProfile
-
 	// REQUIRED; Token Issuer profile
 	Issuer *TokenIssuerProfile
+
+	// External Auth clients
+	Clients []*ExternalAuthClientProfile
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ExternalAuthProvisioningState
