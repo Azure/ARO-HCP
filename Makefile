@@ -23,8 +23,9 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
-mocks: install-tools
+mocks: $(MOCKGEN) $(GOIMPORTS)
 	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ./internal/mocks
 .PHONY: mocks
 
 install-tools: $(BINGO)
