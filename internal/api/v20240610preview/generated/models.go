@@ -16,6 +16,9 @@ type APIProfile struct {
 
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
+
+	// The IP ranges authorized to access the Kubernetes API server.
+	AuthorizedIPRanges []*string
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
