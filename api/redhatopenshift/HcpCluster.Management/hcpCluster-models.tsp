@@ -548,7 +548,7 @@ model TokenIssuerProfile {
 /** External Auth client profile */
 model ExternalAuthClientProfile {
   /** External Auth client component */
-  component: ExternalAuthClientComponentProfile;
+  component?: ExternalAuthClientComponentProfile;
 
   /** external Auth client id */
   id: string;
@@ -560,10 +560,10 @@ model ExternalAuthClientProfile {
 /** External Auth component profile */
 model ExternalAuthClientComponentProfile {
   /** The name of the external Auth client */
-  name: string;
+  name?: string;
 
   /** The namespace of the external Auth client */
-  authClientNamespace: string;
+  authClientNamespace?: string;
 }
 
 /** External Auth claim profile */
@@ -573,10 +573,12 @@ model ExternalAuthClaimProfile {
 
   /** The claim validation rules */
   @OpenAPI.extension("x-ms-identifiers", #["claim", "requiredValue"])
-  validationRules: TokenClaimValidationRuleProfile[];
+  validationRules?: TokenClaimValidationRuleProfile[];
 }
 
-/** External Auth claim mappings profile */
+/** External Auth claim mappings profile.
+ * At a minimum username or groups must be defined.
+ */
 model TokenClaimMappingsProfile {
   /** The claim mappings username */
   username?: ClaimProfile;
@@ -588,22 +590,22 @@ model TokenClaimMappingsProfile {
 /** External Auth claim profile */
 model ClaimProfile {
   /** Claim name of the external profile */
-  claim: string;
+  claim?: string;
 
   /** Prefix for the claim external profile */
-  prefix: string;
+  prefix?: string;
 
   /** Prefix policy */
-  prefixPolicy: string;
+  prefixPolicy?: string;
 }
 
 /** External Auth claim validation rule */
 model TokenClaimValidationRuleProfile {
   /** Claim name for the validation profile */
-  claim: string;
+  claim?: string;
 
   /** Required value */
-  requiredValue: string;
+  requiredValue?: string;
 }
 
 /*

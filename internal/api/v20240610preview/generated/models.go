@@ -49,18 +49,6 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 
 // ClaimProfile - External Auth claim profile
 type ClaimProfile struct {
-	// REQUIRED; Claim name of the external profile
-	Claim *string
-
-	// REQUIRED; Prefix for the claim external profile
-	Prefix *string
-
-	// REQUIRED; Prefix policy
-	PrefixPolicy *string
-}
-
-// ClaimProfileUpdate - External Auth claim profile
-type ClaimProfileUpdate struct {
 	// Claim name of the external profile
 	Claim *string
 
@@ -159,14 +147,14 @@ type ExternalAuthClaimProfile struct {
 	// REQUIRED; The claim mappings
 	Mappings *TokenClaimMappingsProfile
 
-	// REQUIRED; The claim validation rules
+	// The claim validation rules
 	ValidationRules []*TokenClaimValidationRuleProfile
 }
 
 // ExternalAuthClaimProfileUpdate - External Auth claim profile
 type ExternalAuthClaimProfileUpdate struct {
 	// The claim mappings
-	Mappings *TokenClaimMappingsProfileUpdate
+	Mappings *TokenClaimMappingsProfile
 
 	// The claim validation rules
 	ValidationRules []*TokenClaimValidationRuleProfile
@@ -174,20 +162,20 @@ type ExternalAuthClaimProfileUpdate struct {
 
 // ExternalAuthClientComponentProfile - External Auth component profile
 type ExternalAuthClientComponentProfile struct {
-	// REQUIRED; The namespace of the external Auth client
+	// The namespace of the external Auth client
 	AuthClientNamespace *string
 
-	// REQUIRED; The name of the external Auth client
+	// The name of the external Auth client
 	Name *string
 }
 
 // ExternalAuthClientProfile - External Auth client profile
 type ExternalAuthClientProfile struct {
-	// REQUIRED; External Auth client component
-	Component *ExternalAuthClientComponentProfile
-
 	// REQUIRED; external Auth client id
 	ID *string
+
+	// External Auth client component
+	Component *ExternalAuthClientComponentProfile
 
 	// external auth client scopes
 	ExtraScopes []*string
@@ -750,7 +738,7 @@ type Taint struct {
 	Value *string
 }
 
-// TokenClaimMappingsProfile - External Auth claim mappings profile
+// TokenClaimMappingsProfile - External Auth claim mappings profile. At a minimum username or groups must be defined.
 type TokenClaimMappingsProfile struct {
 	// The claim mappings groups
 	Groups *ClaimProfile
@@ -759,21 +747,12 @@ type TokenClaimMappingsProfile struct {
 	Username *ClaimProfile
 }
 
-// TokenClaimMappingsProfileUpdate - External Auth claim mappings profile
-type TokenClaimMappingsProfileUpdate struct {
-	// The claim mappings groups
-	Groups *ClaimProfileUpdate
-
-	// The claim mappings username
-	Username *ClaimProfileUpdate
-}
-
 // TokenClaimValidationRuleProfile - External Auth claim validation rule
 type TokenClaimValidationRuleProfile struct {
-	// REQUIRED; Claim name for the validation profile
+	// Claim name for the validation profile
 	Claim *string
 
-	// REQUIRED; Required value
+	// Required value
 	RequiredValue *string
 }
 

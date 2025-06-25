@@ -1390,29 +1390,6 @@
           "type": "string",
           "description": "Prefix policy"
         }
-      },
-      "required": [
-        "claim",
-        "prefix",
-        "prefixPolicy"
-      ]
-    },
-    "ClaimProfileUpdate": {
-      "type": "object",
-      "description": "External Auth claim profile",
-      "properties": {
-        "claim": {
-          "type": "string",
-          "description": "Claim name of the external profile"
-        },
-        "prefix": {
-          "type": "string",
-          "description": "Prefix for the claim external profile"
-        },
-        "prefixPolicy": {
-          "type": "string",
-          "description": "Prefix policy"
-        }
       }
     },
     "ClusterCapabilitiesProfile": {
@@ -1534,8 +1511,7 @@
         }
       },
       "required": [
-        "mappings",
-        "validationRules"
+        "mappings"
       ]
     },
     "ExternalAuthClaimProfileUpdate": {
@@ -1543,7 +1519,7 @@
       "description": "External Auth claim profile",
       "properties": {
         "mappings": {
-          "$ref": "#/definitions/TokenClaimMappingsProfileUpdate",
+          "$ref": "#/definitions/TokenClaimMappingsProfile",
           "description": "The claim mappings"
         },
         "validationRules": {
@@ -1571,11 +1547,7 @@
           "type": "string",
           "description": "The namespace of the external Auth client"
         }
-      },
-      "required": [
-        "name",
-        "authClientNamespace"
-      ]
+      }
     },
     "ExternalAuthClientProfile": {
       "type": "object",
@@ -1598,7 +1570,6 @@
         }
       },
       "required": [
-        "component",
         "id"
       ]
     },
@@ -2667,7 +2638,7 @@
     },
     "TokenClaimMappingsProfile": {
       "type": "object",
-      "description": "External Auth claim mappings profile",
+      "description": "External Auth claim mappings profile.\nAt a minimum username or groups must be defined.",
       "properties": {
         "username": {
           "$ref": "#/definitions/ClaimProfile",
@@ -2675,20 +2646,6 @@
         },
         "groups": {
           "$ref": "#/definitions/ClaimProfile",
-          "description": "The claim mappings groups"
-        }
-      }
-    },
-    "TokenClaimMappingsProfileUpdate": {
-      "type": "object",
-      "description": "External Auth claim mappings profile",
-      "properties": {
-        "username": {
-          "$ref": "#/definitions/ClaimProfileUpdate",
-          "description": "The claim mappings username"
-        },
-        "groups": {
-          "$ref": "#/definitions/ClaimProfileUpdate",
           "description": "The claim mappings groups"
         }
       }
@@ -2705,11 +2662,7 @@
           "type": "string",
           "description": "Required value"
         }
-      },
-      "required": [
-        "claim",
-        "requiredValue"
-      ]
+      }
     },
     "TokenIssuerProfile": {
       "type": "object",
