@@ -40,18 +40,13 @@ model NodePool is TrackedResource<NodePoolProperties> {
   ...ManagedServiceIdentityProperty;
 }
 
-// The ExternalAuthProfile needs to be TrackedResource for the following reasons:
-// - allow ExternalAuthProfile to be tracked in the portal
-// - deleted when resource group is deleted
-// - allow cascade delete
-// more: https://armwiki.azurewebsites.net/rp_onboarding/tracked_vs_proxy_resources.html
+/** ExternalAuthProfile resource */
 @parentResource(HcpOpenShiftCluster)
-model ExternalAuthProfile is TrackedResource<ExternalAuthProfileProperties> {
+model ExternalAuthProfile is ProxyResource<ExternalAuthProfileProperties> {
   ...ResourceNameParameter<
     ExternalAuthProfile,
     NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
   >;
-  ...ManagedServiceIdentityProperty;
 }
 
 /** HCP cluster properties */
@@ -372,9 +367,7 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
-  /** K8s labels to propagate to the NodePool Nodes
-   * The good example of the label is `node-role.kubernetes.io/master: ""`
-   */
+   /** Kubernetes labels to propagate to the NodePool Nodes */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
@@ -385,7 +378,7 @@ model NodePoolProperties {
   taints?: Taint[];
 }
 
-/** The taint effect the same as in K8s */
+/** The taint effect the same as in Kubernetes */
 union Effect {
   string,
 
@@ -421,9 +414,9 @@ model Taint {
   effect: Effect;
 }
 
-/** Label represents the k8s label */
+/** Label represents the Kubernetes label */
 model Label {
-  /** The key of the label
+    /** The key of the label
    * @example node-role.kubernetes.io/master
    */
   key: string;
