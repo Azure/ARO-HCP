@@ -516,13 +516,13 @@
         "x-ms-long-running-operation": true
       }
     },
-    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuthProfiles": {
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuths": {
       "get": {
-        "operationId": "ExternalAuthProfiles_ListByParent",
+        "operationId": "ExternalAuths_ListByParent",
         "tags": [
-          "ExternalAuthProfiles"
+          "ExternalAuths"
         ],
-        "description": "List ExternalAuthProfile resources by HcpOpenShiftCluster",
+        "description": "List ExternalAuth resources by HcpOpenShiftCluster",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
@@ -546,7 +546,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/ExternalAuthProfileListResult"
+              "$ref": "#/definitions/ExternalAuthListResult"
             }
           },
           "default": {
@@ -561,13 +561,13 @@
         }
       }
     },
-    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuthProfiles/{externalAuthProfileName}": {
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuths/{externalAuthName}": {
       "get": {
-        "operationId": "ExternalAuthProfiles_Get",
+        "operationId": "ExternalAuths_Get",
         "tags": [
-          "ExternalAuthProfiles"
+          "ExternalAuths"
         ],
-        "description": "Get a ExternalAuthProfile",
+        "description": "Get a ExternalAuth",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
@@ -587,9 +587,9 @@
             "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
-            "name": "externalAuthProfileName",
+            "name": "externalAuthName",
             "in": "path",
-            "description": "The name of the ExternalAuthProfile",
+            "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
             "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
@@ -599,7 +599,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/ExternalAuthProfile"
+              "$ref": "#/definitions/ExternalAuth"
             }
           },
           "default": {
@@ -611,11 +611,11 @@
         }
       },
       "put": {
-        "operationId": "ExternalAuthProfiles_CreateOrUpdate",
+        "operationId": "ExternalAuths_CreateOrUpdate",
         "tags": [
-          "ExternalAuthProfiles"
+          "ExternalAuths"
         ],
-        "description": "Create a ExternalAuthProfile",
+        "description": "Create a ExternalAuth",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
@@ -635,9 +635,9 @@
             "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
-            "name": "externalAuthProfileName",
+            "name": "externalAuthName",
             "in": "path",
-            "description": "The name of the ExternalAuthProfile",
+            "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
             "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
@@ -648,21 +648,21 @@
             "description": "Resource create parameters.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/ExternalAuthProfile"
+              "$ref": "#/definitions/ExternalAuth"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Resource 'ExternalAuthProfile' update operation succeeded",
+            "description": "Resource 'ExternalAuth' update operation succeeded",
             "schema": {
-              "$ref": "#/definitions/ExternalAuthProfile"
+              "$ref": "#/definitions/ExternalAuth"
             }
           },
           "201": {
-            "description": "Resource 'ExternalAuthProfile' create operation succeeded",
+            "description": "Resource 'ExternalAuth' create operation succeeded",
             "schema": {
-              "$ref": "#/definitions/ExternalAuthProfile"
+              "$ref": "#/definitions/ExternalAuth"
             },
             "headers": {
               "Azure-AsyncOperation": {
@@ -689,11 +689,11 @@
         "x-ms-long-running-operation": true
       },
       "patch": {
-        "operationId": "ExternalAuthProfiles_Update",
+        "operationId": "ExternalAuths_Update",
         "tags": [
-          "ExternalAuthProfiles"
+          "ExternalAuths"
         ],
-        "description": "Update a ExternalAuthProfile",
+        "description": "Update a ExternalAuth",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
@@ -713,9 +713,9 @@
             "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
-            "name": "externalAuthProfileName",
+            "name": "externalAuthName",
             "in": "path",
-            "description": "The name of the ExternalAuthProfile",
+            "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
             "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
@@ -726,7 +726,7 @@
             "description": "The resource properties to be updated.",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/ExternalAuthProfileUpdate"
+              "$ref": "#/definitions/ExternalAuthUpdate"
             }
           }
         ],
@@ -734,7 +734,7 @@
           "200": {
             "description": "Azure operation completed successfully.",
             "schema": {
-              "$ref": "#/definitions/ExternalAuthProfile"
+              "$ref": "#/definitions/ExternalAuth"
             }
           },
           "202": {
@@ -764,11 +764,11 @@
         "x-ms-long-running-operation": true
       },
       "delete": {
-        "operationId": "ExternalAuthProfiles_Delete",
+        "operationId": "ExternalAuths_Delete",
         "tags": [
-          "ExternalAuthProfiles"
+          "ExternalAuths"
         ],
-        "description": "Delete a ExternalAuthProfile",
+        "description": "Delete a ExternalAuth",
         "parameters": [
           {
             "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
@@ -788,9 +788,9 @@
             "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
           },
           {
-            "name": "externalAuthProfileName",
+            "name": "externalAuthName",
             "in": "path",
-            "description": "The name of the ExternalAuthProfile",
+            "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
             "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
@@ -1470,7 +1470,7 @@
     },
     "Effect": {
       "type": "string",
-      "description": "The taint effect the same as in K8s",
+      "description": "The taint effect the same as in Kubernetes",
       "enum": [
         "NoSchedule",
         "PreferNoSchedule",
@@ -1497,6 +1497,21 @@
           }
         ]
       }
+    },
+    "ExternalAuth": {
+      "type": "object",
+      "description": "ExternalAuth resource",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/ExternalAuthProperties",
+          "description": "The resource-specific properties for this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ProxyResource"
+        }
+      ]
     },
     "ExternalAuthClaimProfile": {
       "type": "object",
@@ -1593,8 +1608,8 @@
             "create"
           ]
         },
-        "externalAuthProfile": {
-          "$ref": "#/definitions/ExternalAuthProfile",
+        "externalAuth": {
+          "$ref": "#/definitions/ExternalAuth",
           "description": "This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service",
           "readOnly": true,
           "x-ms-identifiers": [
@@ -1605,37 +1620,18 @@
         }
       },
       "required": [
-        "externalAuthProfile"
+        "externalAuth"
       ]
     },
-    "ExternalAuthProfile": {
+    "ExternalAuthListResult": {
       "type": "object",
-      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
-      "properties": {
-        "properties": {
-          "$ref": "#/definitions/ExternalAuthProfileProperties",
-          "description": "The resource-specific properties for this resource."
-        },
-        "identity": {
-          "$ref": "../../../../../../common-types/resource-management/v6/managedidentity.json#/definitions/ManagedServiceIdentity",
-          "description": "The managed service identities assigned to this resource."
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/TrackedResource"
-        }
-      ]
-    },
-    "ExternalAuthProfileListResult": {
-      "type": "object",
-      "description": "The response of a ExternalAuthProfile list operation.",
+      "description": "The response of a ExternalAuth list operation.",
       "properties": {
         "value": {
           "type": "array",
-          "description": "The ExternalAuthProfile items on this page",
+          "description": "The ExternalAuth items on this page",
           "items": {
-            "$ref": "#/definitions/ExternalAuthProfile"
+            "$ref": "#/definitions/ExternalAuth"
           }
         },
         "nextLink": {
@@ -1648,7 +1644,7 @@
         "value"
       ]
     },
-    "ExternalAuthProfileProperties": {
+    "ExternalAuthProperties": {
       "type": "object",
       "description": "External Auth profile",
       "properties": {
@@ -1679,7 +1675,7 @@
         "claim"
       ]
     },
-    "ExternalAuthProfilePropertiesUpdate": {
+    "ExternalAuthPropertiesUpdate": {
       "type": "object",
       "description": "External Auth profile",
       "properties": {
@@ -1699,25 +1695,6 @@
           "description": "External Auth claim"
         }
       }
-    },
-    "ExternalAuthProfileUpdate": {
-      "type": "object",
-      "description": "Concrete tracked resource types can be created by aliasing this type using a specific property type.",
-      "properties": {
-        "properties": {
-          "$ref": "#/definitions/ExternalAuthProfilePropertiesUpdate",
-          "description": "The resource-specific properties for this resource."
-        },
-        "identity": {
-          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate",
-          "description": "The managed service identities assigned to this resource."
-        }
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/Azure.ResourceManager.CommonTypes.TrackedResourceUpdate"
-        }
-      ]
     },
     "ExternalAuthProvisioningState": {
       "type": "string",
@@ -1779,6 +1756,21 @@
         ]
       },
       "readOnly": true
+    },
+    "ExternalAuthUpdate": {
+      "type": "object",
+      "description": "ExternalAuth resource",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/ExternalAuthPropertiesUpdate",
+          "description": "The resource-specific properties for this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ProxyResource"
+        }
+      ]
     },
     "HcpOpenShiftCluster": {
       "type": "object",
@@ -2025,7 +2017,7 @@
     },
     "Label": {
       "type": "object",
-      "description": "Label represents the k8s label",
+      "description": "Label represents the Kubernetes label",
       "properties": {
         "key": {
           "type": "string",
@@ -2330,7 +2322,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -2400,7 +2392,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "K8s labels to propagate to the NodePool Nodes\nThe good example of the label is `node-role.kubernetes.io/master: \"\"`",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes",
           "items": {
             "$ref": "#/definitions/Label"
           },

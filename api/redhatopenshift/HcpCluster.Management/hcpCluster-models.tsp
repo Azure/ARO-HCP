@@ -40,11 +40,11 @@ model NodePool is TrackedResource<NodePoolProperties> {
   ...ManagedServiceIdentityProperty;
 }
 
-/** ExternalAuthProfile resource */
+/** ExternalAuth resource */
 @parentResource(HcpOpenShiftCluster)
-model ExternalAuthProfile is ProxyResource<ExternalAuthProfileProperties> {
+model ExternalAuth is ProxyResource<ExternalAuthProperties> {
   ...ResourceNameParameter<
-    ExternalAuthProfile,
+    ExternalAuth,
     NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
   >;
 }
@@ -267,7 +267,7 @@ model ExternalAuthConfig {
   /** This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service */
   @visibility(Lifecycle.Read)
   @OpenAPI.extension("x-ms-identifiers", #["issuer", "clients", "claim"])
-  externalAuthProfile: ExternalAuthProfile;
+  externalAuth: ExternalAuth;
 }
 
 scalar SubnetResourceId
@@ -367,7 +367,7 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
-   /** Kubernetes labels to propagate to the NodePool Nodes */
+  /** Kubernetes labels to propagate to the NodePool Nodes */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
@@ -416,7 +416,7 @@ model Taint {
 
 /** Label represents the Kubernetes label */
 model Label {
-    /** The key of the label
+  /** The key of the label
    * @example node-role.kubernetes.io/master
    */
   key: string;
@@ -534,7 +534,7 @@ model HcpOpenShiftClusterAdminCredential {
  */
 
 /** External Auth profile */
-model ExternalAuthProfileProperties {
+model ExternalAuthProperties {
   /** Provisioning state */
   @visibility(Lifecycle.Read)
   provisioningState?: ExternalAuthProvisioningState;

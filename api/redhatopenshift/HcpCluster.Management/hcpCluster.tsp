@@ -49,14 +49,11 @@ interface NodePools {
 }
 
 /** HCP cluster external auth config */
-@armResourceOperations(ExternalAuthProfile)
-interface ExternalAuthProfiles {
-  get is ArmResourceRead<ExternalAuthProfile>;
-  createOrUpdate is ArmResourceCreateOrReplaceAsync<ExternalAuthProfile>;
-  update is ArmResourcePatchAsync<
-    ExternalAuthProfile,
-    ExternalAuthProfileProperties
-  >;
-  delete is ArmResourceDeleteWithoutOkAsync<ExternalAuthProfile>;
-  listByParent is ArmResourceListByParent<ExternalAuthProfile>;
+@armResourceOperations(ExternalAuth)
+interface ExternalAuths {
+  get is ArmResourceRead<ExternalAuth>;
+  createOrUpdate is ArmResourceCreateOrReplaceAsync<ExternalAuth>;
+  update is ArmResourcePatchAsync<ExternalAuth, ExternalAuthProperties>;
+  delete is ArmResourceDeleteWithoutOkAsync<ExternalAuth>;
+  listByParent is ArmResourceListByParent<ExternalAuth>;
 }

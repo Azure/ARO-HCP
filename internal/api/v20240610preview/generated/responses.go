@@ -7,33 +7,33 @@
 
 package generated
 
-// ExternalAuthProfilesClientCreateOrUpdateResponse contains the response from method ExternalAuthProfilesClient.BeginCreateOrUpdate.
-type ExternalAuthProfilesClientCreateOrUpdateResponse struct {
-	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
-	ExternalAuthProfile
+// ExternalAuthsClientCreateOrUpdateResponse contains the response from method ExternalAuthsClient.BeginCreateOrUpdate.
+type ExternalAuthsClientCreateOrUpdateResponse struct {
+	// ExternalAuth resource
+	ExternalAuth
 }
 
-// ExternalAuthProfilesClientDeleteResponse contains the response from method ExternalAuthProfilesClient.BeginDelete.
-type ExternalAuthProfilesClientDeleteResponse struct {
+// ExternalAuthsClientDeleteResponse contains the response from method ExternalAuthsClient.BeginDelete.
+type ExternalAuthsClientDeleteResponse struct {
 	// placeholder for future response values
 }
 
-// ExternalAuthProfilesClientGetResponse contains the response from method ExternalAuthProfilesClient.Get.
-type ExternalAuthProfilesClientGetResponse struct {
-	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
-	ExternalAuthProfile
+// ExternalAuthsClientGetResponse contains the response from method ExternalAuthsClient.Get.
+type ExternalAuthsClientGetResponse struct {
+	// ExternalAuth resource
+	ExternalAuth
 }
 
-// ExternalAuthProfilesClientListByParentResponse contains the response from method ExternalAuthProfilesClient.NewListByParentPager.
-type ExternalAuthProfilesClientListByParentResponse struct {
-	// The response of a ExternalAuthProfile list operation.
-	ExternalAuthProfileListResult
+// ExternalAuthsClientListByParentResponse contains the response from method ExternalAuthsClient.NewListByParentPager.
+type ExternalAuthsClientListByParentResponse struct {
+	// The response of a ExternalAuth list operation.
+	ExternalAuthListResult
 }
 
-// ExternalAuthProfilesClientUpdateResponse contains the response from method ExternalAuthProfilesClient.BeginUpdate.
-type ExternalAuthProfilesClientUpdateResponse struct {
-	// Concrete tracked resource types can be created by aliasing this type using a specific property type.
-	ExternalAuthProfile
+// ExternalAuthsClientUpdateResponse contains the response from method ExternalAuthsClient.BeginUpdate.
+type ExternalAuthsClientUpdateResponse struct {
+	// ExternalAuth resource
+	ExternalAuth
 }
 
 // HcpOpenShiftClustersClientCreateOrUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginCreateOrUpdate.

@@ -136,6 +136,24 @@ type ErrorResponse struct {
 	Error *ErrorDetail
 }
 
+// ExternalAuth resource
+type ExternalAuth struct {
+	// The resource-specific properties for this resource.
+	Properties *ExternalAuthProperties
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
 // ExternalAuthClaimProfile - External Auth claim profile
 type ExternalAuthClaimProfile struct {
 	// REQUIRED; The claim mappings
@@ -175,50 +193,23 @@ type ExternalAuthClientProfile struct {
 // ExternalAuthConfig - External Auth configuration profile
 type ExternalAuthConfig struct {
 	// READ-ONLY; This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service
-	ExternalAuthProfile *ExternalAuthProfile
+	ExternalAuth *ExternalAuth
 
 	// This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster
 	Enabled *bool
 }
 
-// ExternalAuthProfile - Concrete tracked resource types can be created by aliasing this type using a specific property type.
-type ExternalAuthProfile struct {
-	// REQUIRED; The geo-location where the resource lives
-	Location *string
-
-	// The managed service identities assigned to this resource.
-	Identity *ManagedServiceIdentity
-
-	// The resource-specific properties for this resource.
-	Properties *ExternalAuthProfileProperties
-
-	// Resource tags.
-	Tags map[string]*string
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
-}
-
-// ExternalAuthProfileListResult - The response of a ExternalAuthProfile list operation.
-type ExternalAuthProfileListResult struct {
-	// REQUIRED; The ExternalAuthProfile items on this page
-	Value []*ExternalAuthProfile
+// ExternalAuthListResult - The response of a ExternalAuth list operation.
+type ExternalAuthListResult struct {
+	// REQUIRED; The ExternalAuth items on this page
+	Value []*ExternalAuth
 
 	// The link to the next page of items
 	NextLink *string
 }
 
-// ExternalAuthProfileProperties - External Auth profile
-type ExternalAuthProfileProperties struct {
+// ExternalAuthProperties - External Auth profile
+type ExternalAuthProperties struct {
 	// REQUIRED; External Auth claim
 	Claim *ExternalAuthClaimProfile
 
@@ -232,8 +223,8 @@ type ExternalAuthProfileProperties struct {
 	ProvisioningState *ExternalAuthProvisioningState
 }
 
-// ExternalAuthProfilePropertiesUpdate - External Auth profile
-type ExternalAuthProfilePropertiesUpdate struct {
+// ExternalAuthPropertiesUpdate - External Auth profile
+type ExternalAuthPropertiesUpdate struct {
 	// External Auth claim
 	Claim *ExternalAuthClaimProfileUpdate
 
@@ -244,17 +235,10 @@ type ExternalAuthProfilePropertiesUpdate struct {
 	Issuer *TokenIssuerProfileUpdate
 }
 
-// ExternalAuthProfileUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property
-// type.
-type ExternalAuthProfileUpdate struct {
-	// The managed service identities assigned to this resource.
-	Identity *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
-
+// ExternalAuthUpdate - ExternalAuth resource
+type ExternalAuthUpdate struct {
 	// The resource-specific properties for this resource.
-	Properties *ExternalAuthProfilePropertiesUpdate
-
-	// Resource tags.
-	Tags map[string]*string
+	Properties *ExternalAuthPropertiesUpdate
 
 	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
 	ID *string
@@ -545,7 +529,7 @@ type NodePoolProperties struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	// Kubernetes labels to propagate to the NodePool Nodes
 	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
@@ -566,7 +550,7 @@ type NodePoolPropertiesUpdate struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// K8s labels to propagate to the NodePool Nodes The good example of the label is node-role.kubernetes.io/master: ""
+	// Kubernetes labels to propagate to the NodePool Nodes
 	Labels []*Label
 
 	// The number of worker nodes, it cannot be used together with autoscaling
@@ -696,10 +680,20 @@ type PlatformProfile struct {
 	IssuerURL *string
 }
 
-// PlatformProfileUpdate - Azure specific configuration
-type PlatformProfileUpdate struct {
-	// The configuration that the operators of the cluster have to authenticate to Azure
-	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
+// ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
+// location
+type ProxyResource struct {
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
 }
 
 // ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a

@@ -68,7 +68,7 @@ func PossibleDiskStorageAccountTypeValues() []DiskStorageAccountType {
 	}
 }
 
-// Effect - The taint effect the same as in K8s
+// Effect - The taint effect the same as in Kubernetes
 type Effect string
 
 const (
