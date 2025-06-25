@@ -38,12 +38,12 @@ func TestDetectTLE(t *testing.T) {
 					},
 					"console": map[string]any{},
 					"api": map[string]any{
-						"visibility": "public",
+						"visibility": "Public",
 					},
 					"platform": map[string]any{
 						"managedResourceGroup":   "$managed-resource-group",
 						"subnetId":               "/subscriptions/$sub/resourceGroups/$customer-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
-						"outboundType":           "loadBalancer",
+						"outboundType":           "LoadBalancer",
 						"networkSecurityGroupId": "/subscriptions/$sub/resourceGroups/$customer-rg/providers/Microsoft.Network/networkSecurityGroups/customer-nsg",
 						"operatorsAuthentication": map[string]any{
 							"userAssignedIdentities": map[string]any{

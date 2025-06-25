@@ -388,7 +388,7 @@ func TestDeploymentPreflight(t *testing.T) {
 						"channelGroup": "stable",
 					},
 					"api": map[string]any{
-						"visibility": "public",
+						"visibility": "Public",
 					},
 					"platform": map[string]any{
 						"subnetId":               api.TestSubnetResourceID,

@@ -230,7 +230,7 @@ func TestClusterValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid value 'loadJuggler' for field 'outboundType' (must be loadBalancer)",
+					Message: "Invalid value 'loadJuggler' for field 'outboundType' (must be LoadBalancer)",
 					Target:  "properties.platform.outboundType",
 				},
 			},
@@ -246,7 +246,7 @@ func TestClusterValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid value 'it's a secret to everybody' for field 'visibility' (must be one of: public private)",
+					Message: "Invalid value 'it's a secret to everybody' for field 'visibility' (must be one of: Public Private)",
 					Target:  "properties.api.visibility",
 				},
 			},

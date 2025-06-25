@@ -194,7 +194,7 @@ model ApiProfile {
 
   /** The internet visibility of the OpenShift API server */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  visibility?: Visibility = "public";
+  visibility?: Visibility = Visibility.Public;
 }
 
 /** The internet visibility of the OpenShift API server */
@@ -202,10 +202,10 @@ union Visibility {
   string,
 
   /** The API server is visible from the internet. */
-  public: "public",
+  Public: "Public",
 
   /** The API server is not visible from the internet. */
-  private: "private",
+  Private: "Private",
 }
 
 /** Azure specific configuration */
@@ -217,7 +217,7 @@ model PlatformProfile {
   subnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
-  outboundType?: OutboundType = OutboundType.loadBalancer;
+  outboundType?: OutboundType = OutboundType.LoadBalancer;
 
   /** ResourceId for the network security group attached to the cluster subnet */
   networkSecurityGroupId: NetworkSecurityGroupResourceId;
@@ -251,7 +251,7 @@ union OutboundType {
   string,
 
   /** The load balancer configuration */
-  loadBalancer: "loadBalancer",
+  LoadBalancer: "LoadBalancer",
 }
 
 /** The configuration that the operators of the cluster have to authenticate to Azure. */
