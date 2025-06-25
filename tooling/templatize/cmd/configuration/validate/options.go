@@ -544,6 +544,9 @@ func renderDiff(
 	if _, err := fmt.Println(string(diff)); err != nil {
 		return fmt.Errorf("failed to print diff: %w", err)
 	}
+	if strings.TrimSpace(string(diff)) == "" {
+		logger.Info("No diff found between previous and current config. This usually means some backwards-incompatible change has been made to the rendering code, and it renders the same with the previous config, but renders differently than the previous version of the code did.")
+	}
 	return nil
 }
 
