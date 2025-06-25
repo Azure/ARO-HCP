@@ -9,10 +9,11 @@ set -o pipefail
 # Deletes all resources in a resource group except those with locks.
 # Handles dependencies by deleting resources in the proper order:
 # 1. Remove NSP associations first
-# 2. Delete private endpoints and connections  
-# 3. Delete application-level resources
-# 4. Delete infrastructure resources
-# 5. Delete fundamental resources (networks, storage, etc.)
+# 2. Delete private endpoints and DNS components (in dependency order)
+# 3. Delete Data Collection Rules (DCRs) and Endpoints (DCEs) with proper dependency order
+# 4. Delete remaining application and infrastructure resources (excluding VNETs/NSGs)
+# 5. Delete Virtual Networks (to clean up subnet references to NSGs)
+# 6. Delete Network Security Groups (after VNETs to ensure no subnet references remain)
 #
 # Environment variables:
 #   RESOURCE_GROUP - Name of the resource group to clean up (required)
@@ -32,9 +33,9 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 
 # Check if resource group exists
-if ! az group exists --name "$RESOURCE_GROUP" --output tsv >/dev/null 2>&1; then
-    echo "❌ Resource group '$RESOURCE_GROUP' does not exist"
-    exit 1
+if [[ "$(az group exists --name "$RESOURCE_GROUP" --output tsv 2>/dev/null)" != "true" ]]; then
+    echo "⚠️ Resource group '$RESOURCE_GROUP' does not exist"
+    exit 0
 fi
 
 # Function to log actions
@@ -43,8 +44,8 @@ log() {
     shift
     local message="$*"
     case "$level" in
-        INFO) echo "ℹ️  $message" ;;
-        WARN) echo "⚠️  $message" ;;
+        INFO) echo "ℹ️ $message" ;;
+        WARN) echo "⚠️ $message" ;;
         ERROR) echo "❌ $message" ;;
         SUCCESS) echo "✅ $message" ;;
         STEP) echo "🔄 $message" ;;
@@ -72,10 +73,11 @@ has_locks() {
     [[ "$lock_count" -gt 0 ]]
 }
 
-# Function to safely delete resources with error handling
+# Function to safely delete resources with error handling and retries
 safe_delete() {
     local resource_ids="$1"
     local description="$2"
+    local max_retries="${3:-1}"
 
     if [[ -z "$resource_ids" ]]; then
         return 0
@@ -93,16 +95,32 @@ safe_delete() {
 
         local resource_name
         resource_name=$(basename "$resource_id")
+        local resource_type
+        resource_type=$(echo "$resource_id" | grep -o '/Microsoft\.[^/]*/[^/]*' | sed 's|^/||' || echo "Unknown")
 
         if [[ "$DRY_RUN" == "true" ]]; then
-            log INFO "[DRY RUN] Would delete: $resource_name"
+            log INFO "[DRY RUN] Would delete: $resource_name ($resource_type)"
         else
-            log INFO "Deleting: $resource_name"
-            if az resource delete --ids "$resource_id" --output none 2>/dev/null; then
-                log SUCCESS "Deleted: $resource_name"
-            else
-                log ERROR "Failed to delete: $resource_name"
-            fi
+            log INFO "Deleting: $resource_name ($resource_type)"
+
+            local attempt=1
+            while [[ $attempt -le $max_retries ]]; do
+                if [[ $attempt -gt 1 ]]; then
+                    log INFO "Retry attempt $attempt for: $resource_name ($resource_type)"
+                    sleep 10  # Wait between retries
+                fi
+
+                if az resource delete --ids "$resource_id" --output none 2>/dev/null; then
+                    log SUCCESS "Deleted: $resource_name ($resource_type)"
+                    break
+                elif [[ $attempt -eq $max_retries ]]; then
+                    log ERROR "Failed to delete after $max_retries attempts: $resource_name ($resource_type)"
+                else
+                    log WARN "Attempt $attempt failed for: $resource_name ($resource_type) (retrying...)"
+                fi
+
+                ((attempt++))
+            done
         fi
     done <<< "$resource_ids"
 }
@@ -160,31 +178,117 @@ if [[ -n "$nsp_ids" ]]; then
             fi
         fi
     done <<< "$nsp_ids"
-else
-    log INFO "No NSPs found"
 fi
 
-# Step 2: Delete private endpoints and private link connections
-# These often have dependencies on other resources and should be deleted early
-log STEP "Step 2: Deleting private endpoints and connections"
-private_endpoints=$(get_resources_by_types \
-    "Microsoft.Network/privateEndpoints" \
-    "Microsoft.Network/privateLinkServices" \
-    "Microsoft.Network/privateEndpointConnections" \
-    "Microsoft.Network/privateDnsZones"
-)
-safe_delete "$private_endpoints" "private endpoints and connections"
+# Step 2: Delete private endpoints and DNS zone components in correct dependency order
+# Private DNS zones have complex dependencies that require careful ordering
+#
+# DEPENDENCY ISSUE EXPLANATION:
+# Private DNS zones often fail to delete on the first attempt because of these dependencies:
+# 1. privateDnsZoneGroups (link private endpoints to DNS zones)
+# 2. privateEndpointConnections (connect endpoints to services)
+# 3. privateEndpoints (the actual endpoints)
+# 4. virtualNetworkLinks (link DNS zones to VNets)
+# 5. privateLinkServices (the backend services)
+# 6. privateDnsZones (the DNS zones themselves)
+#
+# Azure's eventual consistency model means these resources may not appear
+# as "ready for deletion" immediately, requiring retries for DNS zones.
+#
+log STEP "Step 2: Deleting private endpoints and DNS components"
 
+# Step 2a: Remove private DNS zone groups first (these link private endpoints to DNS zones)
+log STEP "Step 2a: Removing private DNS zone groups"
+dns_zone_groups=$(az resource list --resource-group "$RESOURCE_GROUP" \
+    --resource-type "Microsoft.Network/privateEndpoints/privateDnsZoneGroups" \
+    --query "[].id" \
+    --output tsv 2>/dev/null || true)
+safe_delete "$dns_zone_groups" "private DNS zone groups"
 
-# Step 4: Clean up any remaining resources
-log STEP "Step 3: Cleaning up remaining resources"
-remaining_resources=$(az resource list --resource-group "$RESOURCE_GROUP" --query "[].id" --output tsv 2>/dev/null || true)
-if [[ -n "$remaining_resources" ]]; then
-    log INFO "Found remaining resources, attempting to delete..."
-    safe_delete "$remaining_resources" "remaining resources"
-else
-    log INFO "No remaining resources found"
+# Step 2b: Delete private endpoint connections
+log STEP "Step 2b: Deleting private endpoint connections"
+private_endpoint_connections=$(get_resources_by_type "Microsoft.Network/privateEndpointConnections")
+safe_delete "$private_endpoint_connections" "private endpoint connections"
+
+# Step 2c: Delete private endpoints themselves
+log STEP "Step 2c: Deleting private endpoints"
+private_endpoints=$(get_resources_by_type "Microsoft.Network/privateEndpoints")
+safe_delete "$private_endpoints" "private endpoints"
+
+# Step 2d: Delete virtual network links from private DNS zones
+# These must be removed before the DNS zones themselves can be deleted
+log STEP "Step 2d: Removing virtual network links from private DNS zones"
+vnet_links=$(az resource list --resource-group "$RESOURCE_GROUP" \
+    --resource-type "Microsoft.Network/privateDnsZones/virtualNetworkLinks" \
+    --query "[].id" \
+    --output tsv 2>/dev/null || true)
+safe_delete "$vnet_links" "private DNS zone virtual network links"
+
+# Step 2e: Delete private link services
+log STEP "Step 2e: Deleting private link services"
+private_link_services=$(get_resources_by_type "Microsoft.Network/privateLinkServices")
+safe_delete "$private_link_services" "private link services"
+
+# Step 2f: Finally delete private DNS zones (now that all dependencies are removed)
+log STEP "Step 2f: Deleting private DNS zones"
+private_dns_zones=$(get_resources_by_type "Microsoft.Network/privateDnsZones")
+safe_delete "$private_dns_zones" "private DNS zones" 3  # Use 3 retries for DNS zones
+
+# Verify private DNS zones are deleted
+remaining_dns_zones=$(get_resources_by_type "Microsoft.Network/privateDnsZones")
+if [[ -n "$remaining_dns_zones" ]] && [[ "$DRY_RUN" != "true" ]]; then
+    log WARN "Some private DNS zones still remain after cleanup attempts:"
+    while IFS= read -r zone_id; do
+        [[ -z "$zone_id" ]] && continue
+        log WARN "  - $(basename "$zone_id")"
+    done <<< "$remaining_dns_zones"
+    log INFO "These may require manual intervention or additional cleanup cycles"
 fi
+
+
+# Step 3: Delete Data Collection Rules (DCRs) and Endpoints (DCEs) with proper dependency order
+log STEP "Step 3a: Deleting Data Collection Rules"
+dcrs=$(get_resources_by_type "Microsoft.Insights/dataCollectionRules")
+safe_delete "$dcrs" "Data Collection Rules"
+
+log STEP "Step 3b: Deleting Data Collection Endpoints"
+dces=$(get_resources_by_type "Microsoft.Insights/dataCollectionEndpoints")
+safe_delete "$dces" "Data Collection Endpoints"
+
+# Step 4: Delete remaining application and infrastructure resources (excluding VNETs/NSGs)
+# These resources can be safely deleted after handling monitoring infrastructure
+log STEP "Step 4: Deleting remaining application and infrastructure resources (excluding networking)"
+all_resources=$(az resource list --resource-group "$RESOURCE_GROUP" --query "[].id" --output tsv 2>/dev/null || true)
+non_network_resources=""
+while IFS= read -r resource_id; do
+    [[ -z "$resource_id" ]] && continue
+    # Skip VNETs and NSGs - these will be handled in later steps
+    if [[ "$resource_id" != *"/Microsoft.Network/virtualNetworks/"* ]] && \
+       [[ "$resource_id" != *"/Microsoft.Network/networkSecurityGroups/"* ]]; then
+        if [[ -n "$non_network_resources" ]]; then
+            non_network_resources+=$'\n'
+        fi
+        non_network_resources+="$resource_id"
+    fi
+done <<< "$all_resources"
+
+if [[ -n "$non_network_resources" ]]; then
+    safe_delete "$non_network_resources" "remaining application and infrastructure resources"
+else
+    log INFO "No remaining non-networking resources found"
+fi
+
+# Step 5: Delete Virtual Networks
+# VNETs must be deleted before NSGs since subnets may reference NSGs
+log STEP "Step 5: Deleting Virtual Networks"
+vnets=$(get_resources_by_type "Microsoft.Network/virtualNetworks")
+safe_delete "$vnets" "Virtual Networks"
+
+# Step 6: Delete Network Security Groups
+# NSGs are deleted after VNETs to ensure subnet references are cleaned up
+log STEP "Step 6: Deleting Network Security Groups"
+nsgs=$(get_resources_by_type "Microsoft.Network/networkSecurityGroups")
+safe_delete "$nsgs" "Network Security Groups"
 
 # Final summary
 
@@ -198,7 +302,7 @@ if [[ "$remaining_count" -eq 0 ]]; then
     log SUCCESS "All resources have been deleted from the resource group"
     if [[ "$DRY_RUN" == "false" ]]; then
         log INFO "Executing Safe delete of resource group $RESOURCE_GROUP"
-        az group delete --name $RESOURCE_GROUP --yes
+        az group delete --name "$RESOURCE_GROUP" --yes
     fi
 elif [[ "$locked_count" -gt 0 ]]; then
     log INFO "Resource group cleanup completed. $remaining_count resources remain (including $locked_count locked resources)"
