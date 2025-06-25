@@ -535,6 +535,7 @@ model TokenIssuerProfile {
   url: url;
 
   /** The audience of the token issuer */
+  @minItems(1)
   audiences: string[];
 
   /** The issuer of the token */
