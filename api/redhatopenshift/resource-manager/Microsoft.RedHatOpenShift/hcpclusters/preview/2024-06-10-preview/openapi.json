@@ -2716,6 +2716,7 @@
         "audiences": {
           "type": "array",
           "description": "The audience of the token issuer",
+          "minItems": 1,
           "items": {
             "type": "string"
           }
@@ -2742,6 +2743,7 @@
         "audiences": {
           "type": "array",
           "description": "The audience of the token issuer",
+          "minItems": 1,
           "items": {
             "type": "string"
           }
