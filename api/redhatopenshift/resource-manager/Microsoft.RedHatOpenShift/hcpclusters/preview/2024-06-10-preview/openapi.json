@@ -1790,7 +1790,12 @@
           "$ref": "#/definitions/Effect",
           "description": "The effect of the taint"
         }
-      }
+      },
+      "required": [
+        "key",
+        "value",
+        "effect"
+      ]
     },
     "UserAssignedIdentitiesProfile": {
       "type": "object",

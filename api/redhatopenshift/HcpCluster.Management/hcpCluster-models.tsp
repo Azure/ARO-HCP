@@ -360,19 +360,19 @@ model Taint {
    */
   @minLength(1)
   @maxLength(316)
-  key?: string;
+  key: string;
 
   /** The value of the taint
    * @example true
    */
   @minLength(1)
   @maxLength(63)
-  value?: string;
+  value: string;
 
   /** The effect of the taint
    * @example NoSchedule
    */
-  effect?: Effect;
+  effect: Effect;
 }
 
 /** Label represents the Kubernetes label */

@@ -524,13 +524,13 @@ type SystemData struct {
 
 // Taint is controlling the node taint and its effects
 type Taint struct {
-	// The effect of the taint
+	// REQUIRED; The effect of the taint
 	Effect *Effect
 
-	// The key of the taint
+	// REQUIRED; The key of the taint
 	Key *string
 
-	// The value of the taint
+	// REQUIRED; The value of the taint
 	Value *string
 }
 
