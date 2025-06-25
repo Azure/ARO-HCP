@@ -190,15 +190,6 @@ type ExternalAuthClientProfile struct {
 	ID *string
 }
 
-// ExternalAuthConfig - External Auth configuration profile
-type ExternalAuthConfig struct {
-	// READ-ONLY; This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service
-	ExternalAuth *ExternalAuth
-
-	// This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster
-	Enabled *bool
-}
-
 // ExternalAuthListResult - The response of a ExternalAuth list operation.
 type ExternalAuthListResult struct {
 	// REQUIRED; The ExternalAuth items on this page
@@ -311,10 +302,6 @@ type HcpOpenShiftClusterProperties struct {
 
 	// Cluster DNS configuration
 	DNS *DNSProfile
-
-	// Configuration to override the openshift-oauth-apiserver inside cluster This changes user login into the cluster to external
-	// provider
-	ExternalAuthConfig *ExternalAuthConfig
 
 	// Cluster network configuration
 	Network *NetworkProfile

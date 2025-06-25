@@ -608,39 +608,6 @@ func (e *ExternalAuthClientProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaller interface for type ExternalAuthConfig.
-func (e ExternalAuthConfig) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "enabled", e.Enabled)
-	populate(objectMap, "externalAuth", e.ExternalAuth)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthConfig.
-func (e *ExternalAuthConfig) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", e, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "enabled":
-			err = unpopulate(val, "Enabled", &e.Enabled)
-			delete(rawMsg, key)
-		case "externalAuth":
-			err = unpopulate(val, "ExternalAuth", &e.ExternalAuth)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", e, err)
-		}
-	}
-	return nil
-}
-
 // MarshalJSON implements the json.Marshaller interface for type ExternalAuthListResult.
 func (e ExternalAuthListResult) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -927,7 +894,6 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "capabilities", h.Capabilities)
 	populate(objectMap, "console", h.Console)
 	populate(objectMap, "dns", h.DNS)
-	populate(objectMap, "externalAuthConfig", h.ExternalAuthConfig)
 	populate(objectMap, "network", h.Network)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
@@ -955,9 +921,6 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "dns":
 			err = unpopulate(val, "DNS", &h.DNS)
-			delete(rawMsg, key)
-		case "externalAuthConfig":
-			err = unpopulate(val, "ExternalAuthConfig", &h.ExternalAuthConfig)
 			delete(rawMsg, key)
 		case "network":
 			err = unpopulate(val, "Network", &h.Network)

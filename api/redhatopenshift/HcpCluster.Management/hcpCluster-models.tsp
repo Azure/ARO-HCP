@@ -79,12 +79,6 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
 
-  /** Configuration to override the openshift-oauth-apiserver inside cluster
-   *  This changes user login into the cluster to external provider
-   */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  externalAuthConfig?: ExternalAuthConfig;
-
   /** Configure cluter capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   capabilities?: ClusterCapabilitiesProfile;
@@ -256,18 +250,6 @@ model PlatformProfile {
    */
   @visibility(Lifecycle.Read)
   issuerUrl: url;
-}
-
-/** External Auth configuration profile */
-model ExternalAuthConfig {
-  /** This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster */
-  @visibility(Lifecycle.Create, Lifecycle.Read)
-  enabled?: boolean = false;
-
-  /** This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service */
-  @visibility(Lifecycle.Read)
-  @OpenAPI.extension("x-ms-identifiers", #["issuer", "clients", "claim"])
-  externalAuth: ExternalAuth;
 }
 
 scalar SubnetResourceId

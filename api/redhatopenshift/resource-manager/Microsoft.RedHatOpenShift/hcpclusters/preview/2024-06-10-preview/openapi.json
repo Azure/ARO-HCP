@@ -1595,34 +1595,6 @@
         "id"
       ]
     },
-    "ExternalAuthConfig": {
-      "type": "object",
-      "description": "External Auth configuration profile",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "This can be set during cluster creation only to ensure there is no openshift-oauth-apiserver in cluster",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "externalAuth": {
-          "$ref": "#/definitions/ExternalAuth",
-          "description": "This can only be set as a day-2 resource on a separate endpoint to provide a self-managed Auth service",
-          "readOnly": true,
-          "x-ms-identifiers": [
-            "issuer",
-            "clients",
-            "claim"
-          ]
-        }
-      },
-      "required": [
-        "externalAuth"
-      ]
-    },
     "ExternalAuthListResult": {
       "type": "object",
       "description": "The response of a ExternalAuth list operation.",
@@ -1888,14 +1860,6 @@
           "x-ms-mutability": [
             "read",
             "update",
-            "create"
-          ]
-        },
-        "externalAuthConfig": {
-          "$ref": "#/definitions/ExternalAuthConfig",
-          "description": "Configuration to override the openshift-oauth-apiserver inside cluster\nThis changes user login into the cluster to external provider",
-          "x-ms-mutability": [
-            "read",
             "create"
           ]
         },
