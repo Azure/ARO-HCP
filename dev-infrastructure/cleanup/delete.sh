@@ -10,8 +10,8 @@ set -o pipefail
 # Handles dependencies by deleting resources in the proper order:
 # 1. Remove NSP associations first
 # 2. Delete private endpoints and DNS components (in dependency order)
-# 3. Delete Data Collection Rules (DCRs) and Endpoints (DCEs) with proper dependency order
-# 4. Delete remaining application and infrastructure resources (excluding VNETs/NSGs)
+# 3. Delete application and infrastructure resources (excluding VNETs/NSGs/DCRs/DCEs) - includes AKS clusters
+# 4. Delete Data Collection Rules (DCRs) and Endpoints (DCEs) after AKS clusters are deleted
 # 5. Delete Virtual Networks (to clean up subnet references to NSGs)
 # 6. Delete Network Security Groups (after VNETs to ensure no subnet references remain)
 #
@@ -246,25 +246,18 @@ if [[ -n "$remaining_dns_zones" ]] && [[ "$DRY_RUN" != "true" ]]; then
 fi
 
 
-# Step 3: Delete Data Collection Rules (DCRs) and Endpoints (DCEs) with proper dependency order
-log STEP "Step 3a: Deleting Data Collection Rules"
-dcrs=$(get_resources_by_type "Microsoft.Insights/dataCollectionRules")
-safe_delete "$dcrs" "Data Collection Rules" 3
-
-log STEP "Step 3b: Deleting Data Collection Endpoints"
-dces=$(get_resources_by_type "Microsoft.Insights/dataCollectionEndpoints")
-safe_delete "$dces" "Data Collection Endpoints" 3
-
-# Step 4: Delete remaining application and infrastructure resources (excluding VNETs/NSGs)
-# These resources can be safely deleted after handling monitoring infrastructure
-log STEP "Step 4: Deleting remaining application and infrastructure resources (excluding networking)"
+# Step 3: Delete remaining application and infrastructure resources (excluding VNETs/NSGs and DCRs/DCEs)
+# These resources can be safely deleted after handling private networking
+log STEP "Step 3: Deleting application and infrastructure resources (excluding networking and monitoring)"
 all_resources=$(az resource list --resource-group "$RESOURCE_GROUP" --query "[].id" --output tsv 2>/dev/null || true)
 non_network_resources=""
 while IFS= read -r resource_id; do
     [[ -z "$resource_id" ]] && continue
-    # Skip VNETs and NSGs - these will be handled in later steps
+    # Skip VNETs, NSGs, DCRs, and DCEs - these will be handled in later steps
     if [[ "$resource_id" != *"/Microsoft.Network/virtualNetworks/"* ]] && \
-       [[ "$resource_id" != *"/Microsoft.Network/networkSecurityGroups/"* ]]; then
+       [[ "$resource_id" != *"/Microsoft.Network/networkSecurityGroups/"* ]] && \
+       [[ "$resource_id" != *"/Microsoft.Insights/dataCollectionRules/"* ]] && \
+       [[ "$resource_id" != *"/Microsoft.Insights/dataCollectionEndpoints/"* ]]; then
         if [[ -n "$non_network_resources" ]]; then
             non_network_resources+=$'\n'
         fi
@@ -273,10 +266,21 @@ while IFS= read -r resource_id; do
 done <<< "$all_resources"
 
 if [[ -n "$non_network_resources" ]]; then
-    safe_delete "$non_network_resources" "remaining application and infrastructure resources"
+    safe_delete "$non_network_resources" "application and infrastructure resources"
 else
-    log INFO "No remaining non-networking resources found"
+    log INFO "No non-networking/monitoring resources found"
 fi
+
+# Step 4: Delete Data Collection Rules (DCRs) and Endpoints (DCEs) after AKS clusters are gone
+# Note: DCR Associations are not standalone resources - they're properties of other resources
+# and should be cleaned up when the associated resources (like AKS clusters) are deleted
+log STEP "Step 4a: Deleting Data Collection Rules"
+dcrs=$(get_resources_by_type "Microsoft.Insights/dataCollectionRules")
+safe_delete "$dcrs" "Data Collection Rules" 3
+
+log STEP "Step 4b: Deleting Data Collection Endpoints"
+dces=$(get_resources_by_type "Microsoft.Insights/dataCollectionEndpoints")
+safe_delete "$dces" "Data Collection Endpoints" 3
 
 # Step 5: Delete Virtual Networks
 # VNETs must be deleted before NSGs since subnets may reference NSGs
