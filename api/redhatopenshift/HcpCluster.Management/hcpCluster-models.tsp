@@ -194,7 +194,7 @@ model ApiProfile {
 
   /** The internet visibility of the OpenShift API server */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  visibility?: Visibility = "public";
+  visibility?: Visibility = Visibility.Public;
 }
 
 /** The internet visibility of the OpenShift API server */
@@ -202,10 +202,10 @@ union Visibility {
   string,
 
   /** The API server is visible from the internet. */
-  public: "public",
+  Public: "Public",
 
   /** The API server is not visible from the internet. */
-  private: "private",
+  Private: "Private",
 }
 
 /** Azure specific configuration */
@@ -217,7 +217,7 @@ model PlatformProfile {
   subnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
-  outboundType?: OutboundType = OutboundType.loadBalancer;
+  outboundType?: OutboundType = OutboundType.LoadBalancer;
 
   /** ResourceId for the network security group attached to the cluster subnet */
   networkSecurityGroupId: NetworkSecurityGroupResourceId;
@@ -251,7 +251,7 @@ union OutboundType {
   string,
 
   /** The load balancer configuration */
-  loadBalancer: "loadBalancer",
+  LoadBalancer: "LoadBalancer",
 }
 
 /** The configuration that the operators of the cluster have to authenticate to Azure. */
@@ -360,19 +360,19 @@ model Taint {
    */
   @minLength(1)
   @maxLength(316)
-  key?: string;
+  key: string;
 
   /** The value of the taint
    * @example true
    */
   @minLength(1)
   @maxLength(63)
-  value?: string;
+  value: string;
 
   /** The effect of the taint
    * @example NoSchedule
    */
-  effect?: Effect;
+  effect: Effect;
 }
 
 /** Label represents the Kubernetes label */
@@ -380,7 +380,7 @@ model Label {
   /** The key of the label
    * @example node-role.kubernetes.io/master
    */
-  key?: string;
+  key: string;
 
   /** The value of the label */
   value?: string;

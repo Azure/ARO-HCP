@@ -166,7 +166,7 @@ type OutboundType string
 
 const (
 	// OutboundTypeLoadBalancer - The load balancer configuration
-	OutboundTypeLoadBalancer OutboundType = "loadBalancer"
+	OutboundTypeLoadBalancer OutboundType = "LoadBalancer"
 )
 
 // PossibleOutboundTypeValues returns the possible values for the OutboundType const type.
@@ -214,9 +214,9 @@ type Visibility string
 
 const (
 	// VisibilityPrivate - The API server is not visible from the internet.
-	VisibilityPrivate Visibility = "private"
+	VisibilityPrivate Visibility = "Private"
 	// VisibilityPublic - The API server is visible from the internet.
-	VisibilityPublic Visibility = "public"
+	VisibilityPublic Visibility = "Public"
 )
 
 // PossibleVisibilityValues returns the possible values for the Visibility const type.

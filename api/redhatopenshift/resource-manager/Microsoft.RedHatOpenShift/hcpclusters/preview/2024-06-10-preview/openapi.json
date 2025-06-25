@@ -899,23 +899,23 @@
         "visibility": {
           "type": "string",
           "description": "The internet visibility of the OpenShift API server",
-          "default": "public",
+          "default": "Public",
           "enum": [
-            "public",
-            "private"
+            "Public",
+            "Private"
           ],
           "x-ms-enum": {
             "name": "Visibility",
             "modelAsString": true,
             "values": [
               {
-                "name": "public",
-                "value": "public",
+                "name": "Public",
+                "value": "Public",
                 "description": "The API server is visible from the internet."
               },
               {
-                "name": "private",
-                "value": "private",
+                "name": "Private",
+                "value": "Private",
                 "description": "The API server is not visible from the internet."
               }
             ]
@@ -1218,7 +1218,10 @@
           "type": "string",
           "description": "The value of the label"
         }
-      }
+      },
+      "required": [
+        "key"
+      ]
     },
     "NetworkProfile": {
       "type": "object",
@@ -1665,17 +1668,17 @@
         "outboundType": {
           "type": "string",
           "description": "The core outgoing configuration",
-          "default": "loadBalancer",
+          "default": "LoadBalancer",
           "enum": [
-            "loadBalancer"
+            "LoadBalancer"
           ],
           "x-ms-enum": {
             "name": "OutboundType",
             "modelAsString": true,
             "values": [
               {
-                "name": "loadBalancer",
-                "value": "loadBalancer",
+                "name": "LoadBalancer",
+                "value": "LoadBalancer",
                 "description": "The load balancer configuration"
               }
             ]
@@ -1790,7 +1793,12 @@
           "$ref": "#/definitions/Effect",
           "description": "The effect of the taint"
         }
-      }
+      },
+      "required": [
+        "key",
+        "value",
+        "effect"
+      ]
     },
     "UserAssignedIdentitiesProfile": {
       "type": "object",

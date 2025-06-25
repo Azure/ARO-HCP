@@ -388,7 +388,7 @@ func TestDeploymentPreflight(t *testing.T) {
 						"channelGroup": "stable",
 					},
 					"api": map[string]any{
-						"visibility": "public",
+						"visibility": "Public",
 					},
 					"platform": map[string]any{
 						"subnetId":               api.TestSubnetResourceID,
@@ -464,14 +464,14 @@ func TestDeploymentPreflight(t *testing.T) {
 					},
 					"taints": []map[string]any{
 						{
-							// 1 invalid + 1 missing required field
+							// 1 invalid + 2 missing required fields
 							"effect": "NoTouchy",
 						},
 					},
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
-			expectErrors: 4,
+			expectErrors: 5,
 		},
 	}
 

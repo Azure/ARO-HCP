@@ -73,13 +73,13 @@ func CreateJSONFile() error {
 			},
 			Console: api.ConsoleProfile{},
 			API: api.APIProfile{
-				Visibility: api.Visibility("public"),
+				Visibility: api.Visibility("Public"),
 			},
 			Platform: api.PlatformProfile{
 				ManagedResourceGroup:   "dev-test-mrg",
 				NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
 				SubnetID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
-				OutboundType:           api.OutboundType("loadBalancer"),
+				OutboundType:           api.OutboundType("LoadBalancer"),
 				IssuerURL:              "",
 			},
 		},
