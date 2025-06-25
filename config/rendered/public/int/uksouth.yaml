@@ -271,7 +271,7 @@ mgmt:
       replicas: 2
       shards: 2
       version: v2.55.1-3
-  rg: hcp-underlay-int-uksouth-mgmt-1
+  rg: hcp-underlay-uksouth-mgmt-1
   subscription: hcp-int-mgmt-uksouth-1
 mgmtKeyVault:
   name: ah-int-mg-ln-1
@@ -395,6 +395,6 @@ svc:
       replicas: 2
       shards: 2
       version: ""
-  rg: hcp-underlay-int-uksouth-svc
+  rg: hcp-underlay-uksouth-svc
   subscription: hcp-int-svc-uksouth
 tenantId: 72f988bf-86f1-41af-91ab-2d7cd011db47

@@ -542,6 +542,8 @@ clouds:
               digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
           # SVC cluster settings
           svc:
+            # tmp overrides for the sake of deprovisioning the old stg content
+            rg: "hcp-underlay-{{ .ctx.region }}-svc"
             aks:
               kubernetesVersion: 1.31.8
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
@@ -562,6 +564,8 @@ clouds:
                   digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
           # MC cluster settings
           mgmt:
+            # tmp overrides for the sake of deprovisioning the old stg content
+            rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
             aks:
               # MGMTM AKS nodepools
               systemAgentPool:
