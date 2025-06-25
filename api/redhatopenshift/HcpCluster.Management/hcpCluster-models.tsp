@@ -549,6 +549,9 @@ model ExternalAuthClientProfile {
 
   /** external Auth client id */
   id: string;
+
+  /** external auth client scopes */
+  extraScopes?: string[];
 }
 
 /** External Auth component profile */

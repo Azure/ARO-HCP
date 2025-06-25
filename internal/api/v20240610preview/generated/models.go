@@ -188,6 +188,9 @@ type ExternalAuthClientProfile struct {
 
 	// REQUIRED; external Auth client id
 	ID *string
+
+	// external auth client scopes
+	ExtraScopes []*string
 }
 
 // ExternalAuthListResult - The response of a ExternalAuth list operation.

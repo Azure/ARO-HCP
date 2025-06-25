@@ -579,6 +579,7 @@ func (e *ExternalAuthClientComponentProfile) UnmarshalJSON(data []byte) error {
 func (e ExternalAuthClientProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "component", e.Component)
+	populate(objectMap, "extraScopes", e.ExtraScopes)
 	populate(objectMap, "id", e.ID)
 	return json.Marshal(objectMap)
 }
@@ -594,6 +595,9 @@ func (e *ExternalAuthClientProfile) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "component":
 			err = unpopulate(val, "Component", &e.Component)
+			delete(rawMsg, key)
+		case "extraScopes":
+			err = unpopulate(val, "ExtraScopes", &e.ExtraScopes)
 			delete(rawMsg, key)
 		case "id":
 			err = unpopulate(val, "ID", &e.ID)
