@@ -249,11 +249,11 @@ fi
 # Step 3: Delete Data Collection Rules (DCRs) and Endpoints (DCEs) with proper dependency order
 log STEP "Step 3a: Deleting Data Collection Rules"
 dcrs=$(get_resources_by_type "Microsoft.Insights/dataCollectionRules")
-safe_delete "$dcrs" "Data Collection Rules"
+safe_delete "$dcrs" "Data Collection Rules" 3
 
 log STEP "Step 3b: Deleting Data Collection Endpoints"
 dces=$(get_resources_by_type "Microsoft.Insights/dataCollectionEndpoints")
-safe_delete "$dces" "Data Collection Endpoints"
+safe_delete "$dces" "Data Collection Endpoints" 3
 
 # Step 4: Delete remaining application and infrastructure resources (excluding VNETs/NSGs)
 # These resources can be safely deleted after handling monitoring infrastructure
