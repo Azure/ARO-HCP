@@ -78,7 +78,7 @@ type DBClient interface {
 	DBConnectionTest(ctx context.Context) error
 
 	// GetLockClient returns a LockClient, or nil if the DBClient does not support a LockClient.
-	GetLockClient() *LockClient
+	GetLockClient() LockClientInterface
 
 	// NewTransaction initiates a new transactional batch for the given partition key.
 	NewTransaction(pk azcosmos.PartitionKey) DBTransaction
@@ -223,7 +223,7 @@ func (d *cosmosDBClient) DBConnectionTest(ctx context.Context) error {
 	return nil
 }
 
-func (d *cosmosDBClient) GetLockClient() *LockClient {
+func (d *cosmosDBClient) GetLockClient() LockClientInterface {
 	return d.lockClient
 }
 

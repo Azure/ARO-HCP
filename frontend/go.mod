@@ -17,6 +17,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.36.0
 	go.uber.org/mock v0.5.2
 	golang.org/x/sync v0.15.0
+	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
 )
 
 require (
@@ -56,7 +57,6 @@ require (
 	google.golang.org/grpc v1.71.0 // indirect
 	k8s.io/apimachinery v0.33.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979 // indirect
 )
 
 require (

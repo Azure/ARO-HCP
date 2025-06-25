@@ -413,10 +413,10 @@ func (c *MockDBClientDeleteResourceDocCall) DoAndReturn(f func(context.Context, 
 }
 
 // GetLockClient mocks base method.
-func (m *MockDBClient) GetLockClient() *database.LockClient {
+func (m *MockDBClient) GetLockClient() database.LockClientInterface {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetLockClient")
-	ret0, _ := ret[0].(*database.LockClient)
+	ret0, _ := ret[0].(database.LockClientInterface)
 	return ret0
 }
 
@@ -433,19 +433,19 @@ type MockDBClientGetLockClientCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockDBClientGetLockClientCall) Return(arg0 *database.LockClient) *MockDBClientGetLockClientCall {
+func (c *MockDBClientGetLockClientCall) Return(arg0 database.LockClientInterface) *MockDBClientGetLockClientCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBClientGetLockClientCall) Do(f func() *database.LockClient) *MockDBClientGetLockClientCall {
+func (c *MockDBClientGetLockClientCall) Do(f func() database.LockClientInterface) *MockDBClientGetLockClientCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientGetLockClientCall) DoAndReturn(f func() *database.LockClient) *MockDBClientGetLockClientCall {
+func (c *MockDBClientGetLockClientCall) DoAndReturn(f func() database.LockClientInterface) *MockDBClientGetLockClientCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
