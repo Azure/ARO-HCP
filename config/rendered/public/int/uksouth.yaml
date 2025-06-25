@@ -324,8 +324,8 @@ pko:
 region: uksouth
 regionRG: uksouth-shared-resources
 releaseApprover:
-  id: feca6a27-8f05-4abe-b9e4-e1185f5833ab
-  name: TM-AzureRedHatOpenShift-HCP-Leads
+  id: dcf16087-18f4-4370-aa44-758727dc14a9
+  name: ARO Ev2 Owner
 serviceKeyVault:
   assignNSP: true
   name: arohcpint-svc-ln

@@ -497,6 +497,9 @@ clouds:
         # this is the MSFT INT environment
         defaults:
           tenantId: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          releaseApprover:
+            id: dcf16087-18f4-4370-aa44-758727dc14a9
+            name: ARO Ev2 Owner
           ev2:
             assistedId:
               certificate: https://aro-ev2-admin-int-kv.vault.azure.net/secrets/aro-ev2-admin-int-cert
