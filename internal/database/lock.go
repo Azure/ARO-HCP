@@ -36,6 +36,16 @@ func Delay(ctx context.Context, delay time.Duration) error {
 	}
 }
 
+type LockClientInterface interface {
+	GetDefaultTimeToLive() time.Duration
+	SetRetryAfterHeader(header http.Header)
+	AcquireLock(ctx context.Context, id string, timeout *time.Duration) (*azcosmos.ItemResponse, error)
+	TryAcquireLock(ctx context.Context, id string) (*azcosmos.ItemResponse, error)
+	HoldLock(ctx context.Context, item *azcosmos.ItemResponse) (context.Context, StopHoldLock)
+	RenewLock(ctx context.Context, item *azcosmos.ItemResponse) (*azcosmos.ItemResponse, error)
+	ReleaseLock(ctx context.Context, item *azcosmos.ItemResponse) error
+}
+
 type LockClient struct {
 	name              string
 	containerClient   *azcosmos.ContainerClient

@@ -127,7 +127,7 @@ func (o *operation) setSpanAttributes(span trace.Span) {
 type OperationsScanner struct {
 	location            string
 	dbClient            database.DBClient
-	lockClient          *database.LockClient
+	lockClient          database.LockClientInterface
 	clusterService      ocm.ClusterServiceClientSpec
 	notificationClient  *http.Client
 	subscriptionsLock   sync.Mutex
