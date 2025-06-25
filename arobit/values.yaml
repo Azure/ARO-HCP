@@ -114,7 +114,7 @@ forwarder:
       runAsGroup: 0
       capabilities:
         drop: ['ALL']
-      # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
+        # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
     # readOnlyRootFilesystem: true
 
     ## The configMap that contains the configuration files for fluent-bit
@@ -409,49 +409,6 @@ aggregator:
     # msiClientId: ""
   ## ref: https://github.com/Hexadite/acs-keyvault-agent
   ##
-  kvagent:
-    ## Specifies whether to use keyvaultagent to pull geneva certificates from the keyvault
-    ##
-    enabled: false
-    ## image version
-    ##
-    image:
-      repository: linuxgeneva-microsoft.azurecr.io/acskeyvaultagent
-      tag: mariner_20230727.1
-      pullPolicy: IfNotPresent
-    ## K8s Security Context for fluent bit container
-    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-    containerSecurityContext:
-      # Required to access /host/azure.json
-      enabled: true
-      runAsUser: 0
-      runAsGroup: 0
-    ## Environment variables for kvagent to the Geneva certificate from the Azure keyvault
-    ## Must override these environment variables:
-    ## - SECRETS_KEYS
-    ## - VAULT_BASE_URL
-    ##
-    env:
-      AUTO_DETECT_AAD_TENANT: "false"
-      AZURE_AUTHORITY_SERVER: "https://login.microsoftonline.com/"
-      DOWNLOAD_CA_CERTIFICATES: "false"
-      REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
-      SECRETS_FOLDER: "/geneva-secret"
-      SECRETS_KEYS: "eegenevaplayground--pfx::mdm-cert.pem:mdm-key.pem;eegenevaplayground--pfx::gcscert.pem:gcskey.pem"
-      SERVICE_PRINCIPLE_FILE_PATH: "/host/azure.json"
-      USE_MSI: "false"
-      VAULT_BASE_URL: "https://aireesharedsecrets.vault.azure.net/"
-      VAULT_RESOURCE_NAME: "https://vault.azure.net"
-    ## resource requests and limits
-    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-    ##
-    resources:
-      # We usually recommend not to specify default resources and to leave this as a conscious
-      # choice for the user. This also increases chances charts run on environments with little
-      # resources, such as Minikube. If you do want to specify resources, uncomment the following
-      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-      limits: {}
-      requests: {}
   fluentbit:
     ## Fluent Bit image version
     ##
@@ -476,7 +433,7 @@ aggregator:
       allowPrivilegeEscalation: false
       capabilities:
         drop: ['ALL']
-      # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
+        # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
     # readOnlyRootFilesystem: true
 
     ## The configMap that contains the configuration files for fluent-bit
@@ -621,7 +578,7 @@ aggregator:
       capabilities:
         add: []
         drop: []
-      # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
+        # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
     # readOnlyRootFilesystem: true
 
     ## Environment variables for mdsd
@@ -685,7 +642,7 @@ aggregator:
           command:
           - "/bin/sleep"
           - "60"
-      # Workaround to delay starting the test container 
+          # Workaround to delay starting the test container 
     # postStart:
     #   exec:
     #     command:

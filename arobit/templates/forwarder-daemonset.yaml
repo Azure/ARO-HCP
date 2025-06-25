@@ -51,30 +51,6 @@ spec:
       securityContext: {{- omit .Values.forwarder.securityContext "enabled" | toYaml | nindent 8 }}
       {{- end }}
       shareProcessNamespace: true
-      {{- if .Values.aggregator.kvagent.enabled }}
-      initContainers:
-        - name: kvagent
-          image: {{ .Values.aggregator.kvagent.image.repository }}:{{ .Values.aggregator.kvagent.image.tag }}
-          imagePullPolicy: {{ .Values.aggregator.kvagent.image.pullPolicy }}
-          {{- if .Values.aggregator.kvagent.containerSecurityContext.enabled }}
-          securityContext: {{- omit .Values.aggregator.kvagent.containerSecurityContext "enabled" | toYaml | nindent 12 }}
-          {{- end }}
-          env:
-            {{- range $key,$value := .Values.aggregator.kvagent.env }}
-            - name: {{ $key | upper | quote }}
-              value: {{ $value | quote }}
-            {{- end }}
-          volumeMounts:
-            - name: sp-host
-              mountPath: /host/
-              readOnly: true
-            - name: cacrt-host
-              mountPath: /etc/ssl/certs/ca-certificates.crt
-              readOnly: true
-            - name: geneva-certs
-              mountPath: {{ .Values.aggregator.kvagent.env.SECRETS_FOLDER }}/certs_keys/
-          resources: {{- toYaml .Values.aggregator.kvagent.resources | nindent 12 }}
-      {{- end }}
       containers:
         - name: fluentbit
           image: {{ .Values.forwarder.fluentbit.image.repository }}:{{ .Values.forwarder.fluentbit.image.tag }}
@@ -189,10 +165,6 @@ spec:
             nodePublishSecretRef:
               name: {{ include "arobit.name" . }}-aggregator-kv-creds
             {{- end }}
-          {{- else if .Values.aggregator.kvagent.enabled }}
-          emptyDir:
-            medium: Memory
-          {{- else }}
           secret:
             secretName: {{ include "arobit.name" . }}-aggregator
           {{- end }}
