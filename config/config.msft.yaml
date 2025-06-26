@@ -141,7 +141,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.8
+      kubernetesVersion: 1.32.4
       networkDataplane: "cilium"
       networkPolicy: "cilium"
       systemAgentPool:
@@ -199,7 +199,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.8
+      kubernetesVersion: 1.32.4
       networkDataplane: "azure"
       networkPolicy: "azure"
       etcd:
@@ -546,7 +546,7 @@ clouds:
           # SVC cluster settings
           svc:
             aks:
-              kubernetesVersion: 1.31.8
+              kubernetesVersion: 1.32.4
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
             istio:
               targetVersion: "asm-1-25"
@@ -576,7 +576,7 @@ clouds:
                 maxCount: 12
                 azCount: {{ .ev2.availabilityZoneCount }}
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/NonProd"
-              kubernetesVersion: 1.31.8
+              kubernetesVersion: 1.32.4
             logs:
               configVersion: "1.0"
             nsp:
@@ -675,7 +675,7 @@ clouds:
             # tmp overrides for the sake of deprovisioning the old stg content
             rg: "hcp-underlay-{{ .ctx.region }}-svc"
             aks:
-              kubernetesVersion: 1.31.8
+              kubernetesVersion: 1.32.4
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-outbound-svc"
             istio:
               targetVersion: "asm-1-25"
@@ -697,7 +697,7 @@ clouds:
             # tmp overrides for the sake of deprovisioning the old stg content
             rg: "hcp-underlay-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
             aks:
-              kubernetesVersion: 1.31.8
+              kubernetesVersion: 1.32.4
               clusterOutboundIPAddressIPTags: "FirstPartyUsage:/aro-hcp-prod-outbound-cx"
               systemAgentPool:
                 maxCount: 4
