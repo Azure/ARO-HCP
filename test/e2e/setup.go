@@ -72,7 +72,7 @@ func setup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	testEnv = environment.Environment(strings.ToLower(os.Getenv("ENV")))
+	testEnv = environment.Environment(strings.ToLower(os.Getenv("AROHCP_ENV")))
 	if testEnv == "" {
 		testEnv = environment.Development
 	}

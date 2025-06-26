@@ -7,7 +7,7 @@ The E2E test suite will work in every environment of the ARO-HCP project. Its ma
 ## E2E Test Suite Configuration
 To run the test suite, you must configure the following environment variables and the build tag.
 ### Environment
-Set the environment variable **ENV** to the target environment's name. The supported values (case-insensitive) are:
+Set the environment variable **AROHCP_ENV** to the target environment's name. The supported values (case-insensitive) are:
 - development (requires port-forwarding prior of running tests)
 - integration
 - staging
@@ -29,11 +29,11 @@ To distinguish E2E test suite from unit tests, initial ginkgo file *e2e_test.go*
 
 1. Login with AZ CLI
 2. Port-forward RP running on SC: `kubectl port-forward -n aro-hcp svc/aro-hcp-frontend 8443:8443`
-3. Export environment variables LOCAL_DEVELOPMENT, ENV, CUSTOMER_SUBSCRIPTION and SETUP_FILEPATH
+3. Export environment variables LOCAL_DEVELOPMENT, AROHCP_ENV, CUSTOMER_SUBSCRIPTION and SETUP_FILEPATH
 
 ```bash
 export LOCAL_DEVELOPMENT=true
-export ENV=development
+export AROHCP_ENV=development
 export CUSTOMER_SUBSCRIPTION=<subscriptionId>
 export SETUP_FILEPATH=<filepath>
 ```
