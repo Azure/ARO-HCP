@@ -69,6 +69,15 @@ type ClusterAutoscalingProfile struct {
 	PodPriorityThreshold *int32
 }
 
+// ClusterImageRegistryProfile - OpenShift cluster image registry
+type ClusterImageRegistryProfile struct {
+	// state indicates the desired ImageStream-backed cluster image registry installation mode. This can only be set during cluster
+	// creation and cannot be changed after cluster creation. Enabled means the
+	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
+	// image registry will not be present in the cluster. The default is Enabled.
+	State *ClusterImageRegistryProfileState
+}
+
 type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
@@ -208,6 +217,9 @@ type HcpOpenShiftClusterProperties struct {
 
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
+
+	// OpenShift internal image registry
+	ClusterImageRegistry *ClusterImageRegistryProfile
 
 	// Cluster DNS configuration
 	DNS *DNSProfile

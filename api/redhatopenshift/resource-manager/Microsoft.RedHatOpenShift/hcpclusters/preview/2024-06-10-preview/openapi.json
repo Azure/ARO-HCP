@@ -1187,6 +1187,28 @@
         }
       }
     },
+    "ClusterImageRegistryProfile": {
+      "type": "object",
+      "description": "OpenShift cluster image registry",
+      "properties": {
+        "state": {
+          "type": "string",
+          "description": "state indicates the desired ImageStream-backed cluster image registry installation mode.\nThis can only be set during cluster creation and cannot be changed after cluster creation.\nEnabled means the ImageStream-backed image registry will be run as pods on worker nodes in\nthe cluster. Disabled means the ImageStream-backed image registry will not be present in\nthe cluster. The default is Enabled.",
+          "default": "Enabled",
+          "enum": [
+            "Enabled",
+            "Disabled"
+          ],
+          "x-ms-enum": {
+            "modelAsString": true
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      }
+    },
     "ConsoleProfile": {
       "type": "object",
       "description": "Configuration of the cluster web console",
@@ -1505,6 +1527,14 @@
           "x-ms-mutability": [
             "read",
             "update",
+            "create"
+          ]
+        },
+        "clusterImageRegistry": {
+          "$ref": "#/definitions/ClusterImageRegistryProfile",
+          "description": "OpenShift internal image registry",
+          "x-ms-mutability": [
+            "read",
             "create"
           ]
         }
