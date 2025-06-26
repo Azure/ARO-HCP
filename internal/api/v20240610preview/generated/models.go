@@ -47,13 +47,6 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
-// ClusterCapabilitiesProfile - Cluster capabilities configuration.
-type ClusterCapabilitiesProfile struct {
-	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
-	// available in the future. Clients should expect to handle additional values.
-	Disabled []*OptionalClusterCapability
-}
-
 type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
@@ -161,9 +154,6 @@ type HcpOpenShiftClusterListResult struct {
 type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
-
-	// Configure cluter capabilities.
-	Capabilities *ClusterCapabilitiesProfile
 
 	// Cluster DNS configuration
 	DNS *DNSProfile
