@@ -487,6 +487,7 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "capabilities", h.Capabilities)
 	populate(objectMap, "console", h.Console)
 	populate(objectMap, "dns", h.DNS)
+	populate(objectMap, "etcdEncryptionKey", h.EtcdEncryptionKey)
 	populate(objectMap, "network", h.Network)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
@@ -514,6 +515,9 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "dns":
 			err = unpopulate(val, "DNS", &h.DNS)
+			delete(rawMsg, key)
+		case "etcdEncryptionKey":
+			err = unpopulate(val, "EtcdEncryptionKey", &h.EtcdEncryptionKey)
 			delete(rawMsg, key)
 		case "network":
 			err = unpopulate(val, "Network", &h.Network)
@@ -614,6 +618,43 @@ func (h *HcpOpenShiftClusterUpdate) UnmarshalJSON(data []byte) error {
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", h, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type KmsKey.
+func (k KmsKey) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "name", k.Name)
+	populate(objectMap, "vaultName", k.VaultName)
+	populate(objectMap, "version", k.Version)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type KmsKey.
+func (k *KmsKey) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", k, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "name":
+			err = unpopulate(val, "Name", &k.Name)
+			delete(rawMsg, key)
+		case "vaultName":
+			err = unpopulate(val, "VaultName", &k.VaultName)
+			delete(rawMsg, key)
+		case "version":
+			err = unpopulate(val, "Version", &k.Version)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", k, err)
 		}
 	}
 	return nil
