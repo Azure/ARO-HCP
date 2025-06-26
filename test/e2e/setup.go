@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"os"
 	"strings"
 
@@ -34,22 +33,25 @@ var (
 	clients        *api.ClientFactory
 	subscriptionID string
 	e2eSetup       integration.SetupModel
-	endpointUrl    string
+	testEnv        environment.Environment
 )
 
-func prepareEnvironmentConf(endpoint string) azcore.ClientOptions {
-	c := cloud.Configuration{
-		ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
-		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-			cloud.ResourceManager: {
-				Audience: "https://management.core.windows.net/",
-				Endpoint: endpoint,
+func prepareEnvironmentConf(testEnv environment.Environment) azcore.ClientOptions {
+	c := cloud.AzurePublic
+	if environment.Development.Compare(testEnv) {
+		c = cloud.Configuration{
+			ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+				cloud.ResourceManager: {
+					Audience: "https://management.core.windows.net/",
+					Endpoint: testEnv.Url(),
+				},
 			},
-		},
+		}
 	}
 	opts := azcore.ClientOptions{
 		Cloud:                           c,
-		InsecureAllowCredentialWithHTTP: environment.Development.CompareUrl(endpoint),
+		InsecureAllowCredentialWithHTTP: environment.Development.Compare(testEnv),
 	}
 
 	return opts
@@ -70,12 +72,12 @@ func setup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	endpointUrl = environment.Environment(strings.ToLower(os.Getenv("ENV"))).Url()
-	if endpointUrl == "" {
-		return errors.New("unsupported or empty testing environment")
+	testEnv = environment.Environment(strings.ToLower(os.Getenv("ENV")))
+	if testEnv == "" {
+		testEnv = environment.Development
 	}
 
-	opts = prepareEnvironmentConf(endpointUrl)
+	opts = prepareEnvironmentConf(testEnv)
 	envOptions := &azidentity.EnvironmentCredentialOptions{
 		ClientOptions: opts,
 	}

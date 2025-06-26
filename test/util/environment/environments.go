@@ -23,17 +23,13 @@ const (
 	Production  Environment = "production"
 )
 
-var environmentUrl = map[Environment]string{
-	Development: "http://localhost:8443",
-	Integration: "https://centraluseuap.management.azure.com",
-	Staging:     "https://...",
-	Production:  "https://...",
-}
-
 func (env Environment) Url() string {
-	return environmentUrl[env]
+	if Development.Compare(env) {
+		return "http://localhost:8443"
+	}
+	return "https://management.azure.com"
 }
 
-func (env Environment) CompareUrl(url string) bool {
-	return environmentUrl[env] == url
+func (env Environment) Compare(testEnv Environment) bool {
+	return env == testEnv
 }
