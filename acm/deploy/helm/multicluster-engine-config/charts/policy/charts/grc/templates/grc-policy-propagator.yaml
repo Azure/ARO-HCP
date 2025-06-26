@@ -8,7 +8,7 @@ metadata:
   namespace: '{{ .Values.global.namespace  }}'
 spec:
   progressDeadlineSeconds: 600
-  replicas: {{ .Values.hubconfig.replicaCount }}
+  replicas: {? {.Values.hubconfig.replicaCount: ''} : ''}
   revisionHistoryLimit: 10
   selector:
     matchLabels:
