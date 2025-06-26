@@ -7,8 +7,8 @@ resourceGroups:
   steps:
   - name: rg-ownership
     action: ARM
-    template: templates/rg-ownership.bicep
-    parameters: configurations/rg-ownership.tmpl.bicepparam
+    template: ../templates/rg-ownership.bicep
+    parameters: ../configurations/rg-ownership.tmpl.bicepparam
     deploymentLevel: ResourceGroup
   - name: delete-region
     action: Shell
