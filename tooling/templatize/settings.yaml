@@ -46,18 +46,3 @@ environments:
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
-# MSFT environments
-- name: int
-  description: |
-    MSFT integration environment.
-  defaults:
-    region: uksouth
-    cloud: public
-    cxStamp: 1
-- name: stg
-  description: |
-    MSFT stage environment.
-  defaults:
-    region: uksouth
-    cloud: public
-    cxStamp: 1
