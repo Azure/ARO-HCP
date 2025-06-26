@@ -126,80 +126,6 @@ func (a *AzureResourceManagerCommonTypesTrackedResourceUpdate) UnmarshalJSON(dat
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaller interface for type ClaimProfile.
-func (c ClaimProfile) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "claim", c.Claim)
-	populate(objectMap, "prefix", c.Prefix)
-	populate(objectMap, "prefixPolicy", c.PrefixPolicy)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type ClaimProfile.
-func (c *ClaimProfile) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", c, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "claim":
-			err = unpopulate(val, "Claim", &c.Claim)
-			delete(rawMsg, key)
-		case "prefix":
-			err = unpopulate(val, "Prefix", &c.Prefix)
-			delete(rawMsg, key)
-		case "prefixPolicy":
-			err = unpopulate(val, "PrefixPolicy", &c.PrefixPolicy)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", c, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type ClaimProfileUpdate.
-func (c ClaimProfileUpdate) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "claim", c.Claim)
-	populate(objectMap, "prefix", c.Prefix)
-	populate(objectMap, "prefixPolicy", c.PrefixPolicy)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type ClaimProfileUpdate.
-func (c *ClaimProfileUpdate) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", c, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "claim":
-			err = unpopulate(val, "Claim", &c.Claim)
-			delete(rawMsg, key)
-		case "prefix":
-			err = unpopulate(val, "Prefix", &c.Prefix)
-			delete(rawMsg, key)
-		case "prefixPolicy":
-			err = unpopulate(val, "PrefixPolicy", &c.PrefixPolicy)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", c, err)
-		}
-	}
-	return nil
-}
-
 // MarshalJSON implements the json.Marshaller interface for type ClusterCapabilitiesProfile.
 func (c ClusterCapabilitiesProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -763,6 +689,72 @@ func (e *ExternalAuthUpdate) UnmarshalJSON(data []byte) error {
 		}
 		if err != nil {
 			return fmt.Errorf("unmarshalling type %T: %v", e, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type GroupClaimProfile.
+func (g GroupClaimProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "claim", g.Claim)
+	populate(objectMap, "prefix", g.Prefix)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type GroupClaimProfile.
+func (g *GroupClaimProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", g, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "claim":
+			err = unpopulate(val, "Claim", &g.Claim)
+			delete(rawMsg, key)
+		case "prefix":
+			err = unpopulate(val, "Prefix", &g.Prefix)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", g, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", g, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type GroupClaimProfileUpdate.
+func (g GroupClaimProfileUpdate) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "claim", g.Claim)
+	populate(objectMap, "prefix", g.Prefix)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type GroupClaimProfileUpdate.
+func (g *GroupClaimProfileUpdate) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", g, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "claim":
+			err = unpopulate(val, "Claim", &g.Claim)
+			delete(rawMsg, key)
+		case "prefix":
+			err = unpopulate(val, "Prefix", &g.Prefix)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", g, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", g, err)
 		}
 	}
 	return nil
@@ -2374,6 +2366,80 @@ func (u *UserAssignedIdentity) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "principalId":
 			err = unpopulate(val, "PrincipalID", &u.PrincipalID)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", u, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type UsernameClaimProfile.
+func (u UsernameClaimProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "claim", u.Claim)
+	populate(objectMap, "prefix", u.Prefix)
+	populate(objectMap, "prefixPolicy", u.PrefixPolicy)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type UsernameClaimProfile.
+func (u *UsernameClaimProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", u, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "claim":
+			err = unpopulate(val, "Claim", &u.Claim)
+			delete(rawMsg, key)
+		case "prefix":
+			err = unpopulate(val, "Prefix", &u.Prefix)
+			delete(rawMsg, key)
+		case "prefixPolicy":
+			err = unpopulate(val, "PrefixPolicy", &u.PrefixPolicy)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", u, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type UsernameClaimProfileUpdate.
+func (u UsernameClaimProfileUpdate) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "claim", u.Claim)
+	populate(objectMap, "prefix", u.Prefix)
+	populate(objectMap, "prefixPolicy", u.PrefixPolicy)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type UsernameClaimProfileUpdate.
+func (u *UsernameClaimProfileUpdate) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", u, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "claim":
+			err = unpopulate(val, "Claim", &u.Claim)
+			delete(rawMsg, key)
+		case "prefix":
+			err = unpopulate(val, "Prefix", &u.Prefix)
+			delete(rawMsg, key)
+		case "prefixPolicy":
+			err = unpopulate(val, "PrefixPolicy", &u.PrefixPolicy)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)

@@ -1374,49 +1374,6 @@
         }
       ]
     },
-    "ClaimProfile": {
-      "type": "object",
-      "description": "External Auth claim profile",
-      "properties": {
-        "claim": {
-          "type": "string",
-          "description": "Claim name of the external profile",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "prefix": {
-          "type": "string",
-          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
-        },
-        "prefixPolicy": {
-          "type": "string",
-          "description": "Prefix policy\nMore information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633"
-        }
-      },
-      "required": [
-        "claim"
-      ]
-    },
-    "ClaimProfileUpdate": {
-      "type": "object",
-      "description": "External Auth claim profile",
-      "properties": {
-        "claim": {
-          "type": "string",
-          "description": "Claim name of the external profile",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "prefix": {
-          "type": "string",
-          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
-        },
-        "prefixPolicy": {
-          "type": "string",
-          "description": "Prefix policy\nMore information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633"
-        }
-      }
-    },
     "ClusterCapabilitiesProfile": {
       "type": "object",
       "description": "Cluster capabilities configuration.",
@@ -1766,6 +1723,41 @@
           "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ProxyResource"
         }
       ]
+    },
+    "GroupClaimProfile": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        }
+      },
+      "required": [
+        "claim"
+      ]
+    },
+    "GroupClaimProfileUpdate": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        }
+      }
     },
     "HcpOpenShiftCluster": {
       "type": "object",
@@ -2685,11 +2677,11 @@
       "description": "External Auth claim mappings profile.\nAt a minimum username or groups must be defined.",
       "properties": {
         "username": {
-          "$ref": "#/definitions/ClaimProfile",
+          "$ref": "#/definitions/UsernameClaimProfile",
           "description": "The claim mappings username"
         },
         "groups": {
-          "$ref": "#/definitions/ClaimProfile",
+          "$ref": "#/definitions/GroupClaimProfile",
           "description": "The claim mappings groups"
         }
       }
@@ -2699,11 +2691,11 @@
       "description": "External Auth claim mappings profile.\nAt a minimum username or groups must be defined.",
       "properties": {
         "username": {
-          "$ref": "#/definitions/ClaimProfileUpdate",
+          "$ref": "#/definitions/UsernameClaimProfileUpdate",
           "description": "The claim mappings username"
         },
         "groups": {
-          "$ref": "#/definitions/ClaimProfileUpdate",
+          "$ref": "#/definitions/GroupClaimProfileUpdate",
           "description": "The claim mappings groups"
         }
       }
@@ -2873,6 +2865,49 @@
             "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
           }
         ]
+      }
+    },
+    "UsernameClaimProfile": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        },
+        "prefixPolicy": {
+          "type": "string",
+          "description": "Prefix policy\nMore information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633"
+        }
+      },
+      "required": [
+        "claim"
+      ]
+    },
+    "UsernameClaimProfileUpdate": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        },
+        "prefixPolicy": {
+          "type": "string",
+          "description": "Prefix policy\nMore information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633"
+        }
       }
     },
     "VersionProfile": {

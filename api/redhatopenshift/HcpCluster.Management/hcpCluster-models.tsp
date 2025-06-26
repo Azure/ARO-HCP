@@ -600,14 +600,26 @@ model ExternalAuthClaimProfile {
  * At a minimum username or groups must be defined. */
 model TokenClaimMappingsProfile {
   /** The claim mappings username */
-  username?: ClaimProfile;
+  username?: UsernameClaimProfile;
 
   /** The claim mappings groups */
-  groups?: ClaimProfile;
+  groups?: GroupClaimProfile;
 }
 
 /** External Auth claim profile */
-model ClaimProfile {
+model GroupClaimProfile {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim: string;
+
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default */
+  prefix?: string;
+}
+
+/** External Auth claim profile */
+model UsernameClaimProfile {
   /** Claim name of the external profile */
   @minLength(1)
   @maxLength(256)

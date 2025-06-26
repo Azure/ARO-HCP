@@ -47,30 +47,6 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
-// ClaimProfile - External Auth claim profile
-type ClaimProfile struct {
-	// REQUIRED; Claim name of the external profile
-	Claim *string
-
-	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
-	Prefix *string
-
-	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
-	PrefixPolicy *string
-}
-
-// ClaimProfileUpdate - External Auth claim profile
-type ClaimProfileUpdate struct {
-	// Claim name of the external profile
-	Claim *string
-
-	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
-	Prefix *string
-
-	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
-	PrefixPolicy *string
-}
-
 // ClusterCapabilitiesProfile - Cluster capabilities configuration.
 type ClusterCapabilitiesProfile struct {
 	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
@@ -247,6 +223,24 @@ type ExternalAuthUpdate struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// GroupClaimProfile - External Auth claim profile
+type GroupClaimProfile struct {
+	// REQUIRED; Claim name of the external profile
+	Claim *string
+
+	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	Prefix *string
+}
+
+// GroupClaimProfileUpdate - External Auth claim profile
+type GroupClaimProfileUpdate struct {
+	// Claim name of the external profile
+	Claim *string
+
+	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	Prefix *string
 }
 
 // HcpOpenShiftCluster - HCP cluster resource
@@ -755,19 +749,19 @@ type Taint struct {
 // TokenClaimMappingsProfile - External Auth claim mappings profile. At a minimum username or groups must be defined.
 type TokenClaimMappingsProfile struct {
 	// The claim mappings groups
-	Groups *ClaimProfile
+	Groups *GroupClaimProfile
 
 	// The claim mappings username
-	Username *ClaimProfile
+	Username *UsernameClaimProfile
 }
 
 // TokenClaimMappingsProfileUpdate - External Auth claim mappings profile. At a minimum username or groups must be defined.
 type TokenClaimMappingsProfileUpdate struct {
 	// The claim mappings groups
-	Groups *ClaimProfileUpdate
+	Groups *GroupClaimProfileUpdate
 
 	// The claim mappings username
-	Username *ClaimProfileUpdate
+	Username *UsernameClaimProfileUpdate
 }
 
 // TokenClaimValidationRuleProfile - External Auth claim validation rule
@@ -866,6 +860,30 @@ type UserAssignedIdentity struct {
 
 	// READ-ONLY; The principal ID of the assigned identity.
 	PrincipalID *string
+}
+
+// UsernameClaimProfile - External Auth claim profile
+type UsernameClaimProfile struct {
+	// REQUIRED; Claim name of the external profile
+	Claim *string
+
+	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	Prefix *string
+
+	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
+	PrefixPolicy *string
+}
+
+// UsernameClaimProfileUpdate - External Auth claim profile
+type UsernameClaimProfileUpdate struct {
+	// Claim name of the external profile
+	Claim *string
+
+	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	Prefix *string
+
+	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
+	PrefixPolicy *string
 }
 
 // VersionProfile - Versions represents an OpenShift version.
