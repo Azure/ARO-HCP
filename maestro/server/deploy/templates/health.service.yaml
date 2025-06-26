@@ -10,5 +10,5 @@ spec:
   selector:
     app: maestro
   ports:
-  - port: {{ .Values.maestro.healthCheckBindPort }}
-    targetPort: {{ .Values.maestro.healthCheckBindPort }}
+  - port: {? {.Values.maestro.healthCheckBindPort: ''} : ''}
+    targetPort: {? {.Values.maestro.healthCheckBindPort: ''} : ''}

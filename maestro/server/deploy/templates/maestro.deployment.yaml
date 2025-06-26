@@ -9,7 +9,7 @@ spec:
   selector:
     matchLabels:
       app: maestro
-  replicas: {{ .Values.deployment.replicas }}
+  replicas: {? {.Values.deployment.replicas: ''} : ''}
   strategy:
     rollingUpdate:
       maxSurge: 0
@@ -128,14 +128,14 @@ spec:
         livenessProbe:
           httpGet:
             path: /healthcheck
-            port: {{ .Values.maestro.healthCheckBindPort }}
+            port: {? {.Values.maestro.healthCheckBindPort: ''} : ''}
             scheme: HTTP
           initialDelaySeconds: 25
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /healthcheck
-            port: {{ .Values.maestro.healthCheckBindPort }}
+            port: {? {.Values.maestro.healthCheckBindPort: ''} : ''}
             scheme: HTTP
             httpHeaders:
             - name: User-Agent

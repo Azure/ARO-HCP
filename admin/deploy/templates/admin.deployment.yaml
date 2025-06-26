@@ -16,12 +16,12 @@ spec:
         app: aro-hcp-admin
     spec:
       containers:
-        - name: aro-hcp-admin
-          image: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}"
-          imagePullPolicy: Always
-          args:
-            - "--location"
-            - "{{ .Values.location }}"
-          ports:
-            - containerPort: 8443
-              protocol: TCP
+      - name: aro-hcp-admin
+        image: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}"
+        imagePullPolicy: Always
+        args:
+        - "--location"
+        - "{{ .Values.location }}"
+        ports:
+        - containerPort: 8443
+          protocol: TCP

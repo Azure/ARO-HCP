@@ -1,47 +1,45 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.RP.Admin
 rolloutName: ARO HCP Admin Rollout
-
 resourceGroups:
-  - name: '{{ .global.rg }}'
-    subscription: '{{ .global.subscription }}'
-    steps:
-      - name: mirror-aro-hcp-admin-image
-        action: ImageMirror
-        targetACR:
-          configRef: acr.svc.name
-        sourceRegistry:
-          configRef: arohcpadmin.image.registry
-        repository:
-          configRef: arohcpadmin.image.repository
-        digest:
-          configRef: arohcpadmin.image.digest
-
-  - name: '{{ .svc.rg }}'
-    subscription: '{{ .svc.subscription }}'
-    steps:
-      - name: deploy-aro-hcp-admin
-        aksCluster: '{{ .svc.aks.name }}'
-        action: Shell
-        command: make deploy
-        dependsOn:
-          - mirror-aro-hcp-admin-image
-        dryRun:
-          variables:
-            - name: DRY_RUN
-              value: "true"
-        variables:
-          - name: ARO_HCP_IMAGE_ACR
-            configRef: acr.svc.name
-          - name: IMAGE_DIGEST
-            configRef: arohcpadmin.image.digest
-          - name: ARO_HCP_IMAGE_REPOSITORY
-            configRef: arohcpadmin.image.repository
-          - name: LOCATION
-            configRef: region
-          - name: RESOURCEGROUP
-            configRef: svc.rg
-          - name: AKS_NAME
-            configRef: svc.aks.name
-          - name: NAMESPACE
-            configRef: svc.k8s.namespace
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription }}'
+  steps:
+  - name: mirror-aro-hcp-admin-image
+    action: ImageMirror
+    targetACR:
+      configRef: acr.svc.name
+    sourceRegistry:
+      configRef: arohcpadmin.image.registry
+    repository:
+      configRef: arohcpadmin.image.repository
+    digest:
+      configRef: arohcpadmin.image.digest
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription }}'
+  steps:
+  - name: deploy-aro-hcp-admin
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: make deploy
+    dependsOn:
+    - mirror-aro-hcp-admin-image
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ARO_HCP_IMAGE_ACR
+      configRef: acr.svc.name
+    - name: IMAGE_DIGEST
+      configRef: arohcpadmin.image.digest
+    - name: ARO_HCP_IMAGE_REPOSITORY
+      configRef: arohcpadmin.image.repository
+    - name: LOCATION
+      configRef: region
+    - name: RESOURCEGROUP
+      configRef: svc.rg
+    - name: AKS_NAME
+      configRef: svc.aks.name
+    - name: NAMESPACE
+      configRef: svc.k8s.namespace

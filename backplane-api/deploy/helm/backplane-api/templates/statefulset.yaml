@@ -4,7 +4,7 @@ metadata:
   name: '{{ .Release.Name  }}'
 spec:
   serviceName: '{{ .Release.Name  }}'
-  replicas: {{ .Values.statefulset.replicaCount }}
+  replicas: {? {.Values.statefulset.replicaCount: ''} : ''}
   podManagementPolicy: '{{ .Values.statefulset.podManagementPolicy  }}'
   revisionHistoryLimit: '{{ .Values.statefulset.revisionHistoryLimit  }}'
   updateStrategy:
