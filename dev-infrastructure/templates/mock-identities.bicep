@@ -121,6 +121,7 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
       {
         actions: [
           'Microsoft.Network/virtualNetworks/read'
+          'Microsoft.Network/virtualNetworks/join/action'
           'Microsoft.Network/virtualNetworks/subnets/read'
           'Microsoft.Network/virtualNetworks/subnets/write'
           'Microsoft.Network/virtualNetworks/subnets/join/action'
