@@ -769,7 +769,9 @@ type TokenClaimValidationRuleProfile struct {
 	// REQUIRED; Claim name for the validation profile claim is a required field that configures the name of the required claim.
 	Claim *string
 
-	// REQUIRED; Required value
+	// REQUIRED; Required value requiredValue is a required field that configures the value that 'claim' must have when taken
+	// from the incoming JWT claims. If the value in the JWT claims does not match, the token will
+	// be rejected for authentication.
 	RequiredValue *string
 }
 

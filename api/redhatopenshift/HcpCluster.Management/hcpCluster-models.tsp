@@ -641,7 +641,12 @@ model TokenClaimValidationRuleProfile {
   @minLength(1)
   claim: string;
 
-  /** Required value */
+  /** Required value
+   * requiredValue is a required field that configures the value that 'claim' must
+   * have when taken from the incoming JWT claims.
+   * If the value in the JWT claims does not match, the token
+   * will be rejected for authentication.
+   */
   @minLength(1)
   requiredValue: string;
 }

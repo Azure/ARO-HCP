@@ -2711,7 +2711,7 @@
         },
         "requiredValue": {
           "type": "string",
-          "description": "Required value",
+          "description": "Required value\nrequiredValue is a required field that configures the value that 'claim' must\nhave when taken from the incoming JWT claims.\nIf the value in the JWT claims does not match, the token\nwill be rejected for authentication.",
           "minLength": 1
         }
       },
