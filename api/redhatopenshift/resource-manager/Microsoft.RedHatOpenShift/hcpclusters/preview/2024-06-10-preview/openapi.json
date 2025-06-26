@@ -1380,15 +1380,40 @@
       "properties": {
         "claim": {
           "type": "string",
-          "description": "Claim name of the external profile"
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
         },
         "prefix": {
           "type": "string",
-          "description": "Prefix for the claim external profile"
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
         },
         "prefixPolicy": {
           "type": "string",
-          "description": "Prefix policy"
+          "description": "Prefix policy\nMore information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633"
+        }
+      },
+      "required": [
+        "claim"
+      ]
+    },
+    "ClaimProfileUpdate": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        },
+        "prefixPolicy": {
+          "type": "string",
+          "description": "Prefix policy\nMore information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633"
         }
       }
     },
@@ -1519,7 +1544,7 @@
       "description": "External Auth claim profile",
       "properties": {
         "mappings": {
-          "$ref": "#/definitions/TokenClaimMappingsProfile",
+          "$ref": "#/definitions/TokenClaimMappingsProfileUpdate",
           "description": "The claim mappings"
         },
         "validationRules": {
@@ -1537,17 +1562,24 @@
     },
     "ExternalAuthClientComponentProfile": {
       "type": "object",
-      "description": "External Auth component profile",
+      "description": "External Auth component profile\nMust have unique namespace/name pairs.",
       "properties": {
         "name": {
           "type": "string",
-          "description": "The name of the external Auth client"
+          "description": "The name of the external Auth client",
+          "minLength": 1,
+          "maxLength": 256
         },
         "authClientNamespace": {
           "type": "string",
-          "description": "The namespace of the external Auth client"
+          "description": "The namespace of the external Auth client",
+          "minLength": 1,
+          "maxLength": 63
         }
-      }
+      },
+      "required": [
+        "name"
+      ]
     },
     "ExternalAuthClientProfile": {
       "type": "object",
@@ -1557,20 +1589,22 @@
           "$ref": "#/definitions/ExternalAuthClientComponentProfile",
           "description": "External Auth client component"
         },
-        "id": {
+        "clientId": {
           "type": "string",
-          "description": "external Auth client id"
+          "description": "External Auth client id\nThe clientId must appear in the audience field of the TokenIssuerProfile.",
+          "minLength": 1
         },
         "extraScopes": {
           "type": "array",
-          "description": "external auth client scopes",
+          "description": "external auth client scopes\n\nThis is useful if you have configured claim mappings that requires specific\nscopes to be requested beyond the standard OIDC scopes.\nWhen omitted, no additional scopes are requested.",
           "items": {
             "type": "string"
           }
         }
       },
       "required": [
-        "id"
+        "component",
+        "clientId"
       ]
     },
     "ExternalAuthListResult": {
@@ -1609,11 +1643,16 @@
         },
         "clients": {
           "type": "array",
-          "description": "External Auth clients",
+          "description": "External Auth clients\nOidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.",
           "maxItems": 20,
           "items": {
             "$ref": "#/definitions/ExternalAuthClientProfile"
-          }
+          },
+          "x-ms-identifiers": [
+            "component",
+            "clientId",
+            "extraScopes"
+          ]
         },
         "claim": {
           "$ref": "#/definitions/ExternalAuthClaimProfile",
@@ -1635,11 +1674,16 @@
         },
         "clients": {
           "type": "array",
-          "description": "External Auth clients",
+          "description": "External Auth clients\nOidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.",
           "maxItems": 20,
           "items": {
             "$ref": "#/definitions/ExternalAuthClientProfile"
-          }
+          },
+          "x-ms-identifiers": [
+            "component",
+            "clientId",
+            "extraScopes"
+          ]
         },
         "claim": {
           "$ref": "#/definitions/ExternalAuthClaimProfileUpdate",
@@ -2418,7 +2462,7 @@
       "properties": {
         "userAssignedIdentities": {
           "$ref": "#/definitions/UserAssignedIdentitiesProfile",
-          "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators Auth based on Azure User-Assigned Managed Identities"
+          "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators authentication based on Azure User-Assigned Managed Identities"
         }
       },
       "required": [
@@ -2516,7 +2560,7 @@
         "issuerUrl": {
           "type": "string",
           "format": "uri",
-          "description": "URL for the OIDC provider to be used for Auth\nto authenticate against user Azure cloud account",
+          "description": "URL for the OIDC provider to be used for authentication\nto authenticate against user Azure cloud account",
           "readOnly": true
         }
       },
@@ -2650,19 +2694,39 @@
         }
       }
     },
+    "TokenClaimMappingsProfileUpdate": {
+      "type": "object",
+      "description": "External Auth claim mappings profile.\nAt a minimum username or groups must be defined.",
+      "properties": {
+        "username": {
+          "$ref": "#/definitions/ClaimProfileUpdate",
+          "description": "The claim mappings username"
+        },
+        "groups": {
+          "$ref": "#/definitions/ClaimProfileUpdate",
+          "description": "The claim mappings groups"
+        }
+      }
+    },
     "TokenClaimValidationRuleProfile": {
       "type": "object",
       "description": "External Auth claim validation rule",
       "properties": {
         "claim": {
           "type": "string",
-          "description": "Claim name for the validation profile"
+          "description": "Claim name for the validation profile\nclaim is a required field that configures the name of the required claim.",
+          "minLength": 1
         },
         "requiredValue": {
           "type": "string",
-          "description": "Required value"
+          "description": "Required value",
+          "minLength": 1
         }
-      }
+      },
+      "required": [
+        "claim",
+        "requiredValue"
+      ]
     },
     "TokenIssuerProfile": {
       "type": "object",
@@ -2677,13 +2741,14 @@
           "type": "array",
           "description": "The audience of the token issuer",
           "minItems": 1,
+          "maxItems": 10,
           "items": {
             "type": "string"
           }
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token"
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded."
         }
       },
       "required": [
@@ -2704,19 +2769,20 @@
           "type": "array",
           "description": "The audience of the token issuer",
           "minItems": 1,
+          "maxItems": 10,
           "items": {
             "type": "string"
           }
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token"
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded."
         }
       }
     },
     "UserAssignedIdentitiesProfile": {
       "type": "object",
-      "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators Auth based on Azure User-Assigned Managed Identities",
+      "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators authentication based on Azure User-Assigned Managed Identities",
       "properties": {
         "controlPlaneOperators": {
           "type": "object",

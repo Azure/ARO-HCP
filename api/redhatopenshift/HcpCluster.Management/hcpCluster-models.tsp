@@ -245,7 +245,7 @@ model PlatformProfile {
   /** The configuration that the operators of the cluster have to authenticate to Azure */
   operatorsAuthentication: OperatorsAuthenticationProfile;
 
-  /** URL for the OIDC provider to be used for Auth
+  /** URL for the OIDC provider to be used for authentication
    * to authenticate against user Azure cloud account
    */
   @visibility(Lifecycle.Read)
@@ -277,12 +277,12 @@ union OutboundType {
 /** The configuration that the operators of the cluster have to authenticate to Azure. */
 model OperatorsAuthenticationProfile {
   /** Represents the information related to Azure User-Assigned managed identities needed
-   * to perform Operators Auth based on Azure User-Assigned Managed Identities */
+   * to perform Operators authentication based on Azure User-Assigned Managed Identities */
   userAssignedIdentities: UserAssignedIdentitiesProfile;
 }
 
 /** Represents the information related to Azure User-Assigned managed identities needed
- * to perform Operators Auth based on Azure User-Assigned Managed Identities */
+ * to perform Operators authentication based on Azure User-Assigned Managed Identities */
 model UserAssignedIdentitiesProfile {
   /** The set of Azure User-Assigned Managed Identities leveraged for the Control Plane
    * operators of the cluster. The set of required managed identities is dependent on the
@@ -524,8 +524,13 @@ model ExternalAuthProperties {
   /** Token Issuer profile */
   issuer: TokenIssuerProfile;
 
-  /** External Auth clients */
+  /** External Auth clients
+   * OidcClients must not exceed 20 entries and entries must have unique namespace/name pairs. */
   @maxItems(20)
+  @OpenAPI.extension(
+    "x-ms-identifiers",
+    #["component", "clientId", "extraScopes"]
+  )
   clients?: ExternalAuthClientProfile[];
 
   /** External Auth claim */
@@ -539,30 +544,45 @@ model TokenIssuerProfile {
 
   /** The audience of the token issuer */
   @minItems(1)
+  @maxItems(10)
   audiences: string[];
 
-  /** The issuer of the token */
+  /** The issuer of the token
+   *
+   * Certificate bundle to use to validate server certificates for the configured URL.
+   * It must be PEM encoded. */
   ca?: string;
 }
 
 /** External Auth client profile */
 model ExternalAuthClientProfile {
   /** External Auth client component */
-  component?: ExternalAuthClientComponentProfile;
+  component: ExternalAuthClientComponentProfile;
 
-  /** external Auth client id */
-  id: string;
+  /** External Auth client id
+   * The clientId must appear in the audience field of the TokenIssuerProfile. */
+  @minLength(1)
+  clientId: string;
 
-  /** external auth client scopes */
+  /** external auth client scopes
+   *
+   * This is useful if you have configured claim mappings that requires specific
+   * scopes to be requested beyond the standard OIDC scopes.
+   * When omitted, no additional scopes are requested. */
   extraScopes?: string[];
 }
 
-/** External Auth component profile */
+/** External Auth component profile
+ * Must have unique namespace/name pairs. */
 model ExternalAuthClientComponentProfile {
   /** The name of the external Auth client */
-  name?: string;
+  @minLength(1)
+  @maxLength(256)
+  name: string;
 
   /** The namespace of the external Auth client */
+  @minLength(1)
+  @maxLength(63)
   authClientNamespace?: string;
 }
 
@@ -577,8 +597,7 @@ model ExternalAuthClaimProfile {
 }
 
 /** External Auth claim mappings profile.
- * At a minimum username or groups must be defined.
- */
+ * At a minimum username or groups must be defined. */
 model TokenClaimMappingsProfile {
   /** The claim mappings username */
   username?: ClaimProfile;
@@ -590,22 +609,29 @@ model TokenClaimMappingsProfile {
 /** External Auth claim profile */
 model ClaimProfile {
   /** Claim name of the external profile */
-  claim?: string;
+  @minLength(1)
+  @maxLength(256)
+  claim: string;
 
-  /** Prefix for the claim external profile */
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default */
   prefix?: string;
 
-  /** Prefix policy */
+  /** Prefix policy
+   * More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633 */
   prefixPolicy?: string;
 }
 
 /** External Auth claim validation rule */
 model TokenClaimValidationRuleProfile {
-  /** Claim name for the validation profile */
-  claim?: string;
+  /** Claim name for the validation profile
+   * claim is a required field that configures the name of the required claim. */
+  @minLength(1)
+  claim: string;
 
   /** Required value */
-  requiredValue?: string;
+  @minLength(1)
+  requiredValue: string;
 }
 
 /*

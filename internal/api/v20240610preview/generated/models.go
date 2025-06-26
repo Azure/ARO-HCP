@@ -49,13 +49,25 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 
 // ClaimProfile - External Auth claim profile
 type ClaimProfile struct {
+	// REQUIRED; Claim name of the external profile
+	Claim *string
+
+	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	Prefix *string
+
+	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
+	PrefixPolicy *string
+}
+
+// ClaimProfileUpdate - External Auth claim profile
+type ClaimProfileUpdate struct {
 	// Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile
+	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
 	Prefix *string
 
-	// Prefix policy
+	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
 	PrefixPolicy *string
 }
 
@@ -154,30 +166,32 @@ type ExternalAuthClaimProfile struct {
 // ExternalAuthClaimProfileUpdate - External Auth claim profile
 type ExternalAuthClaimProfileUpdate struct {
 	// The claim mappings
-	Mappings *TokenClaimMappingsProfile
+	Mappings *TokenClaimMappingsProfileUpdate
 
 	// The claim validation rules
 	ValidationRules []*TokenClaimValidationRuleProfile
 }
 
-// ExternalAuthClientComponentProfile - External Auth component profile
+// ExternalAuthClientComponentProfile - External Auth component profile Must have unique namespace/name pairs.
 type ExternalAuthClientComponentProfile struct {
+	// REQUIRED; The name of the external Auth client
+	Name *string
+
 	// The namespace of the external Auth client
 	AuthClientNamespace *string
-
-	// The name of the external Auth client
-	Name *string
 }
 
 // ExternalAuthClientProfile - External Auth client profile
 type ExternalAuthClientProfile struct {
-	// REQUIRED; external Auth client id
-	ID *string
+	// REQUIRED; External Auth client id The clientId must appear in the audience field of the TokenIssuerProfile.
+	ClientID *string
 
-	// External Auth client component
+	// REQUIRED; External Auth client component
 	Component *ExternalAuthClientComponentProfile
 
 	// external auth client scopes
+	// This is useful if you have configured claim mappings that requires specific scopes to be requested beyond the standard
+	// OIDC scopes. When omitted, no additional scopes are requested.
 	ExtraScopes []*string
 }
 
@@ -198,7 +212,7 @@ type ExternalAuthProperties struct {
 	// REQUIRED; Token Issuer profile
 	Issuer *TokenIssuerProfile
 
-	// External Auth clients
+	// External Auth clients OidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.
 	Clients []*ExternalAuthClientProfile
 
 	// READ-ONLY; Provisioning state
@@ -210,7 +224,7 @@ type ExternalAuthPropertiesUpdate struct {
 	// External Auth claim
 	Claim *ExternalAuthClaimProfileUpdate
 
-	// External Auth clients
+	// External Auth clients OidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.
 	Clients []*ExternalAuthClientProfile
 
 	// Token Issuer profile
@@ -625,7 +639,7 @@ type OperationListResult struct {
 
 // OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
 type OperatorsAuthenticationProfile struct {
-	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators Auth
+	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
 	// based on Azure User-Assigned Managed Identities
 	UserAssignedIdentities *UserAssignedIdentitiesProfile
 }
@@ -654,7 +668,7 @@ type PlatformProfile struct {
 	// The core outgoing configuration
 	OutboundType *OutboundType
 
-	// READ-ONLY; URL for the OIDC provider to be used for Auth to authenticate against user Azure cloud account
+	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
 	IssuerURL *string
 }
 
@@ -747,12 +761,21 @@ type TokenClaimMappingsProfile struct {
 	Username *ClaimProfile
 }
 
+// TokenClaimMappingsProfileUpdate - External Auth claim mappings profile. At a minimum username or groups must be defined.
+type TokenClaimMappingsProfileUpdate struct {
+	// The claim mappings groups
+	Groups *ClaimProfileUpdate
+
+	// The claim mappings username
+	Username *ClaimProfileUpdate
+}
+
 // TokenClaimValidationRuleProfile - External Auth claim validation rule
 type TokenClaimValidationRuleProfile struct {
-	// Claim name for the validation profile
+	// REQUIRED; Claim name for the validation profile claim is a required field that configures the name of the required claim.
 	Claim *string
 
-	// Required value
+	// REQUIRED; Required value
 	RequiredValue *string
 }
 
@@ -765,6 +788,7 @@ type TokenIssuerProfile struct {
 	URL *string
 
 	// The issuer of the token
+	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded.
 	Ca *string
 }
 
@@ -774,6 +798,7 @@ type TokenIssuerProfileUpdate struct {
 	Audiences []*string
 
 	// The issuer of the token
+	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded.
 	Ca *string
 
 	// The URL of the token issuer
@@ -803,7 +828,7 @@ type TrackedResource struct {
 }
 
 // UserAssignedIdentitiesProfile - Represents the information related to Azure User-Assigned managed identities needed to
-// perform Operators Auth based on Azure User-Assigned Managed Identities
+// perform Operators authentication based on Azure User-Assigned Managed Identities
 type UserAssignedIdentitiesProfile struct {
 	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The
 	// set of required managed identities is dependent on the Cluster's OpenShift version.

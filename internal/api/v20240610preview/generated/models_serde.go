@@ -163,6 +163,43 @@ func (c *ClaimProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type ClaimProfileUpdate.
+func (c ClaimProfileUpdate) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "claim", c.Claim)
+	populate(objectMap, "prefix", c.Prefix)
+	populate(objectMap, "prefixPolicy", c.PrefixPolicy)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type ClaimProfileUpdate.
+func (c *ClaimProfileUpdate) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", c, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "claim":
+			err = unpopulate(val, "Claim", &c.Claim)
+			delete(rawMsg, key)
+		case "prefix":
+			err = unpopulate(val, "Prefix", &c.Prefix)
+			delete(rawMsg, key)
+		case "prefixPolicy":
+			err = unpopulate(val, "PrefixPolicy", &c.PrefixPolicy)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", c, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type ClusterCapabilitiesProfile.
 func (c ClusterCapabilitiesProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -541,9 +578,9 @@ func (e *ExternalAuthClientComponentProfile) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type ExternalAuthClientProfile.
 func (e ExternalAuthClientProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "clientId", e.ClientID)
 	populate(objectMap, "component", e.Component)
 	populate(objectMap, "extraScopes", e.ExtraScopes)
-	populate(objectMap, "id", e.ID)
 	return json.Marshal(objectMap)
 }
 
@@ -556,14 +593,14 @@ func (e *ExternalAuthClientProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "clientId":
+			err = unpopulate(val, "ClientID", &e.ClientID)
+			delete(rawMsg, key)
 		case "component":
 			err = unpopulate(val, "Component", &e.Component)
 			delete(rawMsg, key)
 		case "extraScopes":
 			err = unpopulate(val, "ExtraScopes", &e.ExtraScopes)
-			delete(rawMsg, key)
-		case "id":
-			err = unpopulate(val, "ID", &e.ID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -2029,6 +2066,39 @@ func (t TokenClaimMappingsProfile) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements the json.Unmarshaller interface for type TokenClaimMappingsProfile.
 func (t *TokenClaimMappingsProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", t, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "groups":
+			err = unpopulate(val, "Groups", &t.Groups)
+			delete(rawMsg, key)
+		case "username":
+			err = unpopulate(val, "Username", &t.Username)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", t, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type TokenClaimMappingsProfileUpdate.
+func (t TokenClaimMappingsProfileUpdate) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "groups", t.Groups)
+	populate(objectMap, "username", t.Username)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type TokenClaimMappingsProfileUpdate.
+func (t *TokenClaimMappingsProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
