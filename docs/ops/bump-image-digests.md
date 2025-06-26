@@ -47,7 +47,7 @@ Once merged, a GitHub Actions pipeline will propagate the updated configuration 
 
 ## Bumping Image Digests in Microsoft Environments
 
-Image digests for Microsoft environments are defined in [sdp-pipelines/hcp/config.msft.public-cloud-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.public-cloud-overlay.yaml), under the `clouds.public` section.
+Image digests for Microsoft environments are defined in [sdp-pipelines/hcp/config.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.clouds-overlay.yaml), under the `clouds.public` section.
 
 To update a digest:
 
