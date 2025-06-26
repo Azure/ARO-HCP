@@ -84,30 +84,6 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			cluster: arohcpv1alpha1.NewCluster(),
 			want:    clusterResource(),
 		},
-		{
-			name: "disabled capability",
-			cluster: arohcpv1alpha1.NewCluster().
-				Capabilities(
-					arohcpv1alpha1.NewClusterCapabilities().
-						Disabled("red"),
-				),
-			want: clusterResource(withDisabledCapabilities("red")),
-		},
-		{
-			name: "disabled capabilities",
-			cluster: arohcpv1alpha1.NewCluster().
-				Capabilities(
-					arohcpv1alpha1.NewClusterCapabilities().
-						Disabled("red", "green", "blue"),
-				),
-			want: clusterResource(withDisabledCapabilities("red", "green", "blue")),
-		},
-		{
-			name: "disabled capabilities empty",
-			cluster: arohcpv1alpha1.NewCluster().
-				Capabilities(arohcpv1alpha1.NewClusterCapabilities()),
-			want: clusterResource(),
-		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -134,39 +110,6 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, withOCMClusterDefaults()),
-		},
-		{
-			name: "disabled capability",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
-						ManagedResourceGroup: "test",
-					},
-					Capabilities: api.ClusterCapabilitiesProfile{
-						Disabled: []api.OptionalClusterCapability{
-							api.OptionalClusterCapability("TEST_ONE"),
-						},
-					},
-				},
-			},
-			want: ocmCluster(t, withOCMClusterDefaults(), withOCMDisabledCapabilities("TEST_ONE")),
-		},
-		{
-			name: "disabled capabilities",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
-						ManagedResourceGroup: "test",
-					},
-					Capabilities: api.ClusterCapabilitiesProfile{
-						Disabled: []api.OptionalClusterCapability{
-							api.OptionalClusterCapability("TEST_ONE"),
-							api.OptionalClusterCapability("TEST_TWO"),
-						},
-					},
-				},
-			},
-			want: ocmCluster(t, withOCMClusterDefaults(), withOCMDisabledCapabilities("TEST_ONE", "TEST_TWO")),
 		},
 	}
 
@@ -208,14 +151,6 @@ func clusterResource(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCl
 	return c
 }
 
-func withDisabledCapabilities(caps ...string) func(*api.HCPOpenShiftCluster) {
-	return func(c *api.HCPOpenShiftCluster) {
-		for _, capability := range caps {
-			c.Properties.Capabilities.Disabled = append(c.Properties.Capabilities.Disabled, api.OptionalClusterCapability(capability))
-		}
-	}
-}
-
 func ocmCluster(t *testing.T, opts ...func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.Cluster {
 	b := arohcpv1alpha1.NewCluster()
 	for _, opt := range opts {
@@ -224,11 +159,6 @@ func ocmCluster(t *testing.T, opts ...func(*arohcpv1alpha1.ClusterBuilder) *aroh
 	c, err := b.Build()
 	assert.NoError(t, err)
 	return c
-}
-func withOCMDisabledCapabilities(values ...string) func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
-	return func(b *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
-		return b.Capabilities(arohcpv1alpha1.NewClusterCapabilities().Disabled(values...))
-	}
 }
 
 func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
@@ -248,8 +178,6 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 				SubscriptionID("test").
 				TenantID("test"),
 			).
-			Capabilities(arohcpv1alpha1.NewClusterCapabilities().
-				Disabled()).
 			CCS(arohcpv1alpha1.NewCCS().Enabled(true)).
 			CloudProvider(cmv1.NewCloudProvider().
 				ID("azure")).
