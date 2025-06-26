@@ -26,6 +26,22 @@ func PossibleActionTypeValues() []ActionType {
 	}
 }
 
+// ClusterImageRegistryProfileState - The state of the OpenShift cluster image registry
+type ClusterImageRegistryProfileState string
+
+const (
+	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
+	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
+)
+
+// PossibleClusterImageRegistryProfileStateValues returns the possible values for the ClusterImageRegistryProfileState const type.
+func PossibleClusterImageRegistryProfileStateValues() []ClusterImageRegistryProfileState {
+	return []ClusterImageRegistryProfileState{
+		ClusterImageRegistryProfileStateDisabled,
+		ClusterImageRegistryProfileStateEnabled,
+	}
+}
+
 // CreatedByType - The type of identity that created the resource.
 type CreatedByType string
 

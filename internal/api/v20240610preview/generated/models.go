@@ -47,6 +47,12 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
+// ClusterImageRegistryProfile - OpenShift cluster image registry
+type ClusterImageRegistryProfile struct {
+	// The state of the OpenShift cluster image registry
+	State *ClusterImageRegistryProfileState
+}
+
 type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
 	// READ-ONLY; The client ID of the assigned identity.
 	ClientID *string
@@ -154,6 +160,9 @@ type HcpOpenShiftClusterListResult struct {
 type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
+
+	// OpenShift internal image registry
+	ClusterImageRegistry *ClusterImageRegistryProfile
 
 	// Cluster DNS configuration
 	DNS *DNSProfile

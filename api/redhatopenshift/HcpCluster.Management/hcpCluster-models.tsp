@@ -68,6 +68,13 @@ model HcpOpenShiftClusterProperties {
   /** Azure platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: PlatformProfile;
+
+  // Optional features begin here. Each feature has
+  // its own model with at least a "state" property.
+
+  /** OpenShift internal image registry */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  clusterImageRegistry?: ClusterImageRegistryProfile;
 }
 
 /** The resource provisioning state. */
@@ -207,6 +214,12 @@ model PlatformProfile {
    */
   @visibility(Lifecycle.Read)
   issuerUrl: url;
+}
+
+/** OpenShift cluster image registry */
+model ClusterImageRegistryProfile {
+  /** The state of the OpenShift cluster image registry */
+  state?: "Enabled" | "Disabled" | string = "Enabled";
 }
 
 scalar SubnetResourceId
