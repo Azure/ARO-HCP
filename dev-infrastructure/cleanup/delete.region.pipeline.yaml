@@ -5,6 +5,11 @@ resourceGroups:
 - name: '{{ .regionRG  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
+  - name: rg-ownership
+    action: ARM
+    template: ../templates/rg-ownership.bicep
+    parameters: ../configurations/rg-ownership.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
   - name: delete-region
     action: Shell
     command: ./delete.sh
@@ -17,3 +22,5 @@ resourceGroups:
       configRef: regionRG
     shellIdentity:
       configRef: aroDevopsMsiId
+    dependsOn:
+    - rg-ownership
