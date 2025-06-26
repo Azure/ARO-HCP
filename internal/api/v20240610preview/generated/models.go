@@ -181,6 +181,11 @@ type HcpOpenShiftClusterListResult struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
+	// REQUIRED; Configure etcd encryption KMS key. Your Microsoft Entra application used to create the cluster must be authorized
+	// to access this keyvault, e.g using the AzureCLI: az keyvault set-policy -n
+	// $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
+	EtcdEncryptionKey *KmsKey
+
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
@@ -245,6 +250,7 @@ type HcpOpenShiftClusterUpdate struct {
 	Type *string
 }
 
+<<<<<<< HEAD
 // HcpOpenShiftVersion represents a location based available HCP OpenShift version
 type HcpOpenShiftVersion struct {
 	// The resource-specific properties for this resource.
@@ -319,6 +325,18 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Data Plane operators on a cluster.
 	DataPlaneOperators []*OperatorIdentityRoles
+=======
+// KmsKey - A represention of a KeyVault Secret.
+type KmsKey struct {
+	// REQUIRED; name is the name of the keyvault key used for encrypt/decrypt
+	Name *string
+
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret
+	VaultName *string
+
+	// REQUIRED; version contains the version of the key to use
+	Version *string
+>>>>>>> 08725c5a (Add etcd encryptionKey)
 }
 
 // Label represents the Kubernetes label

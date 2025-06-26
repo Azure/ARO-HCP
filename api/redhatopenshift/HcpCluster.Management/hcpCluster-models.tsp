@@ -77,6 +77,14 @@ model HcpOpenShiftClusterProperties {
   /** Configure cluter capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   capabilities?: ClusterCapabilitiesProfile;
+
+  /** Configure etcd encryption KMS key.
+   * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
+   * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
+   *
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  etcdEncryptionKey: KmsKey;
 }
 
 /** Cluster capabilities configuration. */
@@ -321,6 +329,27 @@ scalar UserAssignedIdentityResourceId
       type: "Microsoft.ManagedIdentity/userAssignedIdentities",
     }
   ]>;
+
+/** A represention of a KeyVault Secret. */
+model KmsKey {
+  /** vaultName is the name of the keyvault that contains the secret */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(255)
+  @minLength(1)
+  vaultName: string;
+
+  /** name is the name of the keyvault key used for encrypt/decrypt */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(255)
+  @minLength(1)
+  name: string;
+
+  /** version contains the version of the key to use */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(255)
+  @minLength(1)
+  version: string;
+}
 
 /*
  * =======================================

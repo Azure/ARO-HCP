@@ -1405,10 +1405,19 @@
             "read",
             "create"
           ]
+        },
+        "etcdEncryptionKey": {
+          "$ref": "#/definitions/KmsKey",
+          "description": "Configure etcd encryption KMS key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
-        "platform"
+        "platform",
+        "etcdEncryptionKey"
       ]
     },
     "HcpOpenShiftClusterPropertiesUpdate": {
@@ -1583,6 +1592,45 @@
       "required": [
         "controlPlaneOperators",
         "dataPlaneOperators"
+    "KmsKey": {
+      "type": "object",
+      "description": "A represention of a KeyVault Secret.",
+      "properties": {
+        "vaultName": {
+          "type": "string",
+          "description": "vaultName is the name of the keyvault that contains the secret",
+          "minLength": 1,
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "description": "name is the name of the keyvault key used for encrypt/decrypt",
+          "minLength": 1,
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "description": "version contains the version of the key to use",
+          "minLength": 1,
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "vaultName",
+        "name",
+        "version"
       ]
     },
     "Label": {

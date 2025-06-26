@@ -529,6 +529,7 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "capabilities", h.Capabilities)
 	populate(objectMap, "console", h.Console)
 	populate(objectMap, "dns", h.DNS)
+	populate(objectMap, "etcdEncryptionKey", h.EtcdEncryptionKey)
 	populate(objectMap, "network", h.Network)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
@@ -559,6 +560,9 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "dns":
 			err = unpopulate(val, "DNS", &h.DNS)
+			delete(rawMsg, key)
+		case "etcdEncryptionKey":
+			err = unpopulate(val, "EtcdEncryptionKey", &h.EtcdEncryptionKey)
 			delete(rawMsg, key)
 		case "network":
 			err = unpopulate(val, "Network", &h.Network)
