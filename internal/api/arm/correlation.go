@@ -31,6 +31,9 @@ type CorrelationData struct {
 
 	// CorrelationRequestID contains the value of header "x-ms-correlation-request-id".
 	CorrelationRequestID string `json:"correlationRequestId,omitempty"`
+
+	// ClientPrincipalName contains the value of header "x-ms-client-principal-name".
+	ClientPrincipalName string `json:"clientPrincipalName,omitempty"`
 }
 
 // NewCorrelationData allocates and initializes a new CorrelationData from
@@ -40,5 +43,6 @@ func NewCorrelationData(r *http.Request) *CorrelationData {
 		RequestID:            uuid.New(),
 		ClientRequestID:      r.Header.Get(HeaderNameClientRequestID),
 		CorrelationRequestID: r.Header.Get(HeaderNameCorrelationRequestID),
+		ClientPrincipalName:  r.Header.Get(HeaderClientPrincipalName),
 	}
 }
