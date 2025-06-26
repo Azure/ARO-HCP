@@ -41,8 +41,11 @@ push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	docker push ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT}
 
+deploy.current: push
+	@$(MAKE) deploy IMAGE_DIGEST=$(shell ../get-digest.sh ${ARO_HCP_IMAGE_ACR} ${ARO_HCP_IMAGE_REPOSITORY} ${CURRENT_COMMIT})
+.PHONY: deploy.current
+
 deploy:
-	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
 	FRONTEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend \
@@ -81,9 +84,9 @@ deploy:
 		--set serviceAccount.workloadIdentityTenantId="$${FRONTEND_MI_TENANT_ID}" \
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE}@$${DIGEST} \
+		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE}@${IMAGE_DIGEST} \
 		--set configMap.location=${LOCATION}  \
-		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE}@$${DIGEST} \
+		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE}@${IMAGE_DIGEST} \
 		--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
 		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
 		--set clustersService.namespace=${CS_NAMESPACE} \
