@@ -7,6 +7,8 @@ set -o pipefail
 source env_vars
 source "$(dirname "$0")"/common.sh
 
+CONFIG_FILE="cluster-service/azure-operators-managed-identities-config.yaml"
+
 initialize_control_plane_identities_uamis_names() {
   for operator_name in "${CONTROL_PLANE_OPERATORS_NAMES[@]}"
   do
