@@ -92,7 +92,7 @@ defaults:
       registry: quay.io
       repository: acm-d/rhtap-hypershift-operator
     namespace: hypershift
-    additionalInstallArg: ''
+    additionalInstallArg: '--enable-size-tagging=true'
   # Log settings
   logs:
     mdsd:
