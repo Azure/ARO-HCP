@@ -971,6 +971,24 @@
         }
       ]
     },
+    "ClusterImageRegistryProfile": {
+      "type": "object",
+      "description": "OpenShift cluster image registry",
+      "properties": {
+        "state": {
+          "type": "string",
+          "description": "The state of the OpenShift cluster image registry",
+          "default": "Enabled",
+          "enum": [
+            "Enabled",
+            "Disabled"
+          ],
+          "x-ms-enum": {
+            "modelAsString": true
+          }
+        }
+      }
+    },
     "ConsoleProfile": {
       "type": "object",
       "description": "Configuration of the cluster web console",
@@ -1142,6 +1160,14 @@
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
           "description": "Azure platform configuration",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "clusterImageRegistry": {
+          "$ref": "#/definitions/ClusterImageRegistryProfile",
+          "description": "OpenShift internal image registry",
           "x-ms-mutability": [
             "read",
             "create"

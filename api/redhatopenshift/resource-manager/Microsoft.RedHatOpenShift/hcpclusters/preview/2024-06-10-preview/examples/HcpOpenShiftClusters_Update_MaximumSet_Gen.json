@@ -58,6 +58,9 @@
               }
             },
             "issuerUrl": "https://oidc.contoso.com"
+          },
+          "clusterImageRegistry": {
+            "state": "Enabled"
           }
         },
         "identity": {

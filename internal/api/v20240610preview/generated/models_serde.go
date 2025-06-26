@@ -126,6 +126,35 @@ func (a *AzureResourceManagerCommonTypesTrackedResourceUpdate) UnmarshalJSON(dat
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type ClusterImageRegistryProfile.
+func (c ClusterImageRegistryProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "state", c.State)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type ClusterImageRegistryProfile.
+func (c *ClusterImageRegistryProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", c, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "state":
+			err = unpopulate(val, "State", &c.State)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", c, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties.
 func (c Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -455,6 +484,7 @@ func (h *HcpOpenShiftClusterListResult) UnmarshalJSON(data []byte) error {
 func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "api", h.API)
+	populate(objectMap, "clusterImageRegistry", h.ClusterImageRegistry)
 	populate(objectMap, "console", h.Console)
 	populate(objectMap, "dns", h.DNS)
 	populate(objectMap, "network", h.Network)
@@ -475,6 +505,9 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "api":
 			err = unpopulate(val, "API", &h.API)
+			delete(rawMsg, key)
+		case "clusterImageRegistry":
+			err = unpopulate(val, "ClusterImageRegistry", &h.ClusterImageRegistry)
 			delete(rawMsg, key)
 		case "console":
 			err = unpopulate(val, "Console", &h.Console)
