@@ -35,14 +35,13 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState arm.ProvisioningState      `json:"provisioningState,omitempty"             visibility:"read"`
-	Version           VersionProfile             `json:"version,omitempty"`
-	DNS               DNSProfile                 `json:"dns,omitempty"`
-	Network           NetworkProfile             `json:"network,omitempty"                       visibility:"read create"`
-	Console           ConsoleProfile             `json:"console,omitempty"                       visibility:"read"`
-	API               APIProfile                 `json:"api,omitempty"`
-	Platform          PlatformProfile            `json:"platform,omitempty"                      visibility:"read create"`
-	Capabilities      ClusterCapabilitiesProfile `json:"capabilities,omitempty"                  visibility:"read create"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"             visibility:"read"`
+	Version           VersionProfile        `json:"version,omitempty"`
+	DNS               DNSProfile            `json:"dns,omitempty"`
+	Network           NetworkProfile        `json:"network,omitempty"                       visibility:"read create"`
+	Console           ConsoleProfile        `json:"console,omitempty"                       visibility:"read"`
+	API               APIProfile            `json:"api,omitempty"`
+	Platform          PlatformProfile       `json:"platform,omitempty"                      visibility:"read create"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -104,13 +103,6 @@ type UserAssignedIdentitiesProfile struct {
 	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
-}
-
-// ClusterCapabilitiesProfile - Cluster capabilities configuration.
-// Visibility for the entire struct is "read create".
-type ClusterCapabilitiesProfile struct {
-	// Disabled cluter capabilities.
-	Disabled []OptionalClusterCapability `json:"disabled,omitempty" validate:"dive,enum_optionalclustercapability"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.

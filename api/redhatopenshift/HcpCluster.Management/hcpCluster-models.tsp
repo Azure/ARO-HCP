@@ -74,10 +74,6 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoscaling?: ClusterAutoscalingProfile;
 
-  /** Configure cluster capabilities. */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  capabilities?: ClusterCapabilitiesProfile;
-
   /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   etcd?: EtcdProfile;
@@ -97,24 +93,6 @@ model HcpOpenShiftClusterProperties {
   @maxValue(10080)
   @minValue(0)
   nodeDrainTimeoutMinutes?: int32 = 0;
-}
-/** Cluster capabilities configuration. */
-model ClusterCapabilitiesProfile {
-  /**
-   * Immutable list of disabled capabilities. May only contain "ImageRegistry" at
-   * this time. Additional capabilities may be available in the future. Clients
-   * should expect to handle additional values.
-   */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  disabled?: OptionalClusterCapability[];
-}
-
-/** Cluster capabilities that can be disabled. */
-union OptionalClusterCapability {
-  string,
-
-  /** Enables the OpenShift internal image registry. */
-  ImageRegistry: "ImageRegistry",
 }
 
 /** The resource provisioning state. */
