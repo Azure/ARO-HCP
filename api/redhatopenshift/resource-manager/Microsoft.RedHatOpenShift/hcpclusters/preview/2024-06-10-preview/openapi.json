@@ -988,11 +988,11 @@
           "default": 600,
           "minimum": 0
         },
-        "maxNodeProvisionTimeMinutes": {
+        "maxNodeProvisionTimeSeconds": {
           "type": "integer",
           "format": "int32",
           "description": "maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning\nto be unsuccessful. The default is 15 minutes.",
-          "default": 15,
+          "default": 900,
           "minimum": 0
         },
         "podPriorityThreshold": {

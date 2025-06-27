@@ -258,7 +258,7 @@ model ClusterAutoscalingProfile {
   /** maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning
    *  to be unsuccessful. The default is 15 minutes. */
   @minValue(0)
-  maxNodeProvisionTimeMinutes?: int32 = 15;
+  maxNodeProvisionTimeSeconds?: int32 = 900;
 
   /** podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
    * but only run when there are spare resources available. The default is -10.

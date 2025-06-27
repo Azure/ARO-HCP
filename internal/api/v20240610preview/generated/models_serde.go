@@ -129,7 +129,7 @@ func (a *AzureResourceManagerCommonTypesTrackedResourceUpdate) UnmarshalJSON(dat
 // MarshalJSON implements the json.Marshaller interface for type ClusterAutoscalingProfile.
 func (c ClusterAutoscalingProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "maxNodeProvisionTimeMinutes", c.MaxNodeProvisionTimeMinutes)
+	populate(objectMap, "maxNodeProvisionTimeSeconds", c.MaxNodeProvisionTimeSeconds)
 	populate(objectMap, "maxNodesTotal", c.MaxNodesTotal)
 	populate(objectMap, "maxPodGracePeriodSeconds", c.MaxPodGracePeriodSeconds)
 	populate(objectMap, "podPriorityThreshold", c.PodPriorityThreshold)
@@ -145,8 +145,8 @@ func (c *ClusterAutoscalingProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "maxNodeProvisionTimeMinutes":
-			err = unpopulate(val, "MaxNodeProvisionTimeMinutes", &c.MaxNodeProvisionTimeMinutes)
+		case "maxNodeProvisionTimeSeconds":
+			err = unpopulate(val, "MaxNodeProvisionTimeSeconds", &c.MaxNodeProvisionTimeSeconds)
 			delete(rawMsg, key)
 		case "maxNodesTotal":
 			err = unpopulate(val, "MaxNodesTotal", &c.MaxNodesTotal)
