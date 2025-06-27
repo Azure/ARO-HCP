@@ -47,21 +47,26 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
-// ClusterAutoscalingProfile - Cluster autoscaling configuration
+// ClusterAutoscalingProfile - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
+// with a control plane.
 type ClusterAutoscalingProfile struct {
-	// The maximum time to wait for node provisioning before considering the provisioning to be unsuccessful.
-	MaxNodeProvisionTimeSeconds *int32
+	// maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning to be unsuccessful.
+	// The default is 15 minutes.
+	MaxNodeProvisionTimeMinutes *int32
 
-	// The maximum allowable number of nodes
+	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
+	// not grow the cluster beyond this number. If omitted, the autoscaler will not
+	// have a maximum limit. number.
 	MaxNodesTotal *int32
 
-	// The maximum seconds to wait for graceful pod termination before scaling down a NodePool.
+	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
+	// is 600 seconds.
 	MaxPodGracePeriodSeconds *int32
 
-	// This enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only run when there
-	// are spare resources available.See the following for more details:
-	// https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
-	MaxPodPriorityThreshold *int32
+	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
+	// run when there are spare resources available. The default is -10. See the
+	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
+	PodPriorityThreshold *int32
 }
 
 // ClusterCapabilitiesProfile - Cluster capabilities configuration.
@@ -179,7 +184,7 @@ type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
-	// ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated with a control plane.
+	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
 
 	// Configure cluter capabilities.
@@ -206,7 +211,7 @@ type HcpOpenShiftClusterProperties struct {
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
-	// ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated with a control plane.
+	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
 
 	// Cluster DNS configuration

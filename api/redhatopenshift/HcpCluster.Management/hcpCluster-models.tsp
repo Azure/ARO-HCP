@@ -69,8 +69,7 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: PlatformProfile;
 
-  /** ClusterAutoscaling specifies auto-scaling behavior that
-   *  applies to all NodePools associated with a control plane.*/
+  /** Configure ClusterAutoscaling . */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoscaling?: ClusterAutoscalingProfile;
 
@@ -237,25 +236,29 @@ model PlatformProfile {
   issuerUrl: url;
 }
 
-/** Cluster autoscaling configuration */
-// Based on https://hypershift-docs.netlify.app/reference/api/#hypershift.openshift.io/v1beta1.ClusterAutoscaling
+/** ClusterAutoscaling specifies auto-scaling behavior that
+ *  applies to all NodePools associated with a control plane. */
 model ClusterAutoscalingProfile {
-  /** The maximum allowable number of nodes */
+  /** maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.
+   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. number. */
   @minValue(0)
   maxNodesTotal?: int32;
 
-  /** The maximum seconds to wait for graceful pod termination before scaling down a NodePool. */
+  /** maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.
+   * The default is 600 seconds. */
   @minValue(0)
   maxPodGracePeriodSeconds?: int32 = 600;
 
-  /** The maximum time to wait for node provisioning before considering the provisioning to be unsuccessful. */
+  /** maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning
+   *  to be unsuccessful. The default is 15 minutes. */
   @minValue(0)
-  maxNodeProvisionTimeSeconds?: int32 = 900;
+  maxNodeProvisionTimeMinutes?: int32 = 15;
 
-  /** This enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
-   * but only run when there are spare resources available.See the following for more details:
+  /** podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
+   * but only run when there are spare resources available. The default is -10.
+   * See the following for more details:
    * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption */
-  maxPodPriorityThreshold?: int32 = -10;
+  podPriorityThreshold?: int32 = -10;
 }
 
 scalar SubnetResourceId
