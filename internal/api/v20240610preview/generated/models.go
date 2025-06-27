@@ -52,7 +52,7 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 type ClusterAutoscalingProfile struct {
 	// maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning to be unsuccessful.
 	// The default is 15 minutes.
-	MaxNodeProvisionTimeMinutes *int32
+	MaxNodeProvisionTimeSeconds *int32
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
 	// not grow the cluster beyond this number. If omitted, the autoscaler will not
