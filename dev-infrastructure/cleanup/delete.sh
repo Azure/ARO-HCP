@@ -191,6 +191,7 @@ fi
 # 4. virtualNetworkLinks (link DNS zones to VNets)
 # 5. privateLinkServices (the backend services)
 # 6. privateDnsZones (the DNS zones themselves)
+# 7. publicDnsZones delegations from parent zones
 #
 # Azure's eventual consistency model means these resources may not appear
 # as "ready for deletion" immediately, requiring retries for DNS zones.
@@ -245,6 +246,88 @@ if [[ -n "$remaining_dns_zones" ]] && [[ "$DRY_RUN" != "true" ]]; then
     log INFO "These may require manual intervention or additional cleanup cycles"
 fi
 
+# Step 2g: List public DNS zones
+log STEP "Step 2g: Deleting public DNS zones"
+public_dns_zones=$(get_resources_by_type "Microsoft.Network/dnszones")
+if [[ -n "$public_dns_zones" ]]; then
+    subscriptions=$(az account list --query "[].id" --output tsv 2>/dev/null || true)
+    while IFS= read -r zone_id; do
+        [[ -z "$zone_id" ]] && continue
+        zone_name=$(basename "$zone_id")
+        echo "Found public DNS zone: $zone_name"
+
+        # Check if this zone has a potential parent zone
+        if [[ "$zone_name" == *.*.* ]]; then
+            parent_domain=$(echo "$zone_name" | sed 's/^[^.]*\.//')
+            echo "  Potential parent zone: $parent_domain"
+
+            # Search for the parent zone across all subscriptions
+            echo "  Searching for parent zone in all subscriptions..."
+            parent_zone_id=""
+
+            # Search in all subscriptions
+            if [[ -n "$subscriptions" ]]; then
+                while IFS= read -r sub_id; do
+                    [[ -z "$sub_id" ]] && continue
+                    # Search for the parent zone in this subscription
+                    zone_id=$(az network dns zone list --subscription "$sub_id" --query "[?name=='$parent_domain'].id | [0]" --output tsv 2>/dev/null || true)
+                    if [[ -n "$zone_id" ]] && [[ "$zone_id" != "null" ]]; then
+                        parent_zone_id="$zone_id"
+                        break
+                    fi
+                done <<< "$subscriptions"
+            fi
+
+            if [[ -n "$parent_zone_id" ]]; then
+                echo "  Found parent zone: $parent_domain"
+                echo "    Resource ID: $parent_zone_id"
+
+                # Extract subscription ID and resource group from the parent zone resource ID
+                parent_subscription=$(echo "$parent_zone_id" | cut -d'/' -f3)
+                parent_rg=$(echo "$parent_zone_id" | cut -d'/' -f5)
+                subdomain_name=$(echo "$zone_name" | sed 's/\..*//')
+
+                # Check if NS record exists for the subdomain
+                ns_record_exists=$(az network dns record-set ns show \
+                    --subscription "$parent_subscription" \
+                    --resource-group "$parent_rg" \
+                    --zone-name "$parent_domain" \
+                    --name "$subdomain_name" \
+                    --query "name" --output tsv 2>/dev/null || echo "")
+
+                if [[ "$DRY_RUN" == "true" ]]; then
+                    if [[ -n "$ns_record_exists" ]]; then
+                        echo "    [DRY RUN] Would remove NS record set '$subdomain_name' from parent zone"
+                    else
+                        echo "    [DRY RUN] No delegation found for '$subdomain_name' in parent zone"
+                    fi
+                else
+                    if [[ -n "$ns_record_exists" ]]; then
+                        echo "    Removing NS delegation record '$subdomain_name' from parent zone"
+                        if az network dns record-set ns delete \
+                            --subscription "$parent_subscription" \
+                            --resource-group "$parent_rg" \
+                            --zone-name "$parent_domain" \
+                            --name "$subdomain_name" \
+                            --yes --output none 2>/dev/null; then
+                            echo "    Successfully removed delegation for: $zone_name"
+                        else
+                            echo "    Failed to remove delegation for: $zone_name"
+                        fi
+                    else
+                        echo "    No delegation found for '$subdomain_name' in parent zone"
+                    fi
+                fi
+            else
+                echo "  Parent zone not found in any subscription... let's move on"
+            fi
+        else
+            echo "  No parent zone (top-level domain)"
+        fi
+    done <<< "$public_dns_zones"
+else
+    echo "No public DNS zones found"
+fi
 
 # Step 3: Delete remaining application and infrastructure resources (excluding VNETs/NSGs and DCRs/DCEs)
 # These resources can be safely deleted after handling private networking
