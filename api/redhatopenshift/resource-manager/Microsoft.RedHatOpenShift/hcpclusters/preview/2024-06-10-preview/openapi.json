@@ -973,32 +973,32 @@
     },
     "ClusterAutoscalingProfile": {
       "type": "object",
-      "description": "Cluster autoscaling configuration",
+      "description": "ClusterAutoscaling specifies auto-scaling behavior that\napplies to all NodePools associated with a control plane.",
       "properties": {
         "maxNodesTotal": {
           "type": "integer",
           "format": "int32",
-          "description": "The maximum allowable number of nodes",
+          "description": "maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.\nThe autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. number.",
           "minimum": 0
         },
         "maxPodGracePeriodSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "The maximum seconds to wait for graceful pod termination before scaling down a NodePool.",
+          "description": "maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.",
           "default": 600,
           "minimum": 0
         },
-        "maxNodeProvisionTimeSeconds": {
+        "maxNodeProvisionTimeMinutes": {
           "type": "integer",
           "format": "int32",
-          "description": "The maximum time to wait for node provisioning before considering the provisioning to be unsuccessful.",
-          "default": 900,
+          "description": "maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning\nto be unsuccessful. The default is 15 minutes.",
+          "default": 15,
           "minimum": 0
         },
-        "maxPodPriorityThreshold": {
+        "podPriorityThreshold": {
           "type": "integer",
           "format": "int32",
-          "description": "This enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,\nbut only run when there are spare resources available.See the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption",
+          "description": "podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption",
           "default": -10
         }
       }
@@ -1207,7 +1207,7 @@
         },
         "autoscaling": {
           "$ref": "#/definitions/ClusterAutoscalingProfile",
-          "description": "ClusterAutoscaling specifies auto-scaling behavior that\napplies to all NodePools associated with a control plane.",
+          "description": "Configure ClusterAutoscaling .",
           "x-ms-mutability": [
             "read",
             "update",
@@ -1251,7 +1251,7 @@
         },
         "autoscaling": {
           "$ref": "#/definitions/ClusterAutoscalingProfile",
-          "description": "ClusterAutoscaling specifies auto-scaling behavior that\napplies to all NodePools associated with a control plane.",
+          "description": "Configure ClusterAutoscaling .",
           "x-ms-mutability": [
             "read",
             "update",
