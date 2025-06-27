@@ -14,4 +14,4 @@ while IFS= read -r file; do
   os::util::sed -E "s/'\\{\\{ +/'{{ /g" "$file"
   # Step 3: Remove trailing spaces inside quotes
   os::util::sed -E "s/ +\\}\\}'/ }}'/g" "$file"
-done < <(grep -r -l -E '(:|-) \{\{\s*[^}]+\s*\}\}$' --include '*.yaml' --include '*.yml' .)
+done < <(grep -r -l -E '(:|-) \{\{\s*[^}]+\s*\}\}$' --include '*.yaml' --include '*.yml' . || true)
