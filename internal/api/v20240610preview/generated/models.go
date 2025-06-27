@@ -47,16 +47,16 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
-// ClusterAutoscalingConfig - Cluster autoscaling configuration
-type ClusterAutoscalingConfig struct {
+// ClusterAutoscalingProfile - Cluster autoscaling configuration
+type ClusterAutoscalingProfile struct {
 	// The maximum time to wait for node provisioning before considering the provisioning to be unsuccessful.
-	MaxNodeProvisionTime *int32
+	MaxNodeProvisionTimeSeconds *int32
 
 	// The maximum allowable number of nodes
 	MaxNodesTotal *int32
 
 	// The maximum seconds to wait for graceful pod termination before scaling down a NodePool.
-	MaxPodGracePeriod *int32
+	MaxPodGracePeriodSeconds *int32
 
 	// This enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only run when there
 	// are spare resources available.See the following for more details:
@@ -179,8 +179,8 @@ type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
-	// Azure platform configuration
-	Autoscaling *ClusterAutoscalingConfig
+	// ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated with a control plane.
+	Autoscaling *ClusterAutoscalingProfile
 
 	// Shows the cluster API server profile
 	API *APIProfile
@@ -206,6 +206,9 @@ type HcpOpenShiftClusterProperties struct {
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
+	// ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated with a control plane.
+	Autoscaling *ClusterAutoscalingProfile
+
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate
 

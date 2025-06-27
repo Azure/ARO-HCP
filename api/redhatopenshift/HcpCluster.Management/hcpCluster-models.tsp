@@ -70,9 +70,10 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
 
-  /** Azure platform configuration */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  autoscaling?: ClusterAutoscalingConfig;
+  /** ClusterAutoscaling specifies auto-scaling behavior that
+   *  applies to all NodePools associated with a control plane.*/
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  autoscaling?: ClusterAutoscalingProfile;
 
   /** Configure cluter capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
@@ -244,21 +245,23 @@ model PlatformProfile {
 
 /** Cluster autoscaling configuration */
 // Based on https://hypershift-docs.netlify.app/reference/api/#hypershift.openshift.io/v1beta1.ClusterAutoscaling
-model ClusterAutoscalingConfig {
+model ClusterAutoscalingProfile {
   /** The maximum allowable number of nodes */
+  @minValue(0)
   maxNodesTotal?: int32;
 
   /** The maximum seconds to wait for graceful pod termination before scaling down a NodePool. */
-  maxPodGracePeriod?: int32;
+  @minValue(0)
+  maxPodGracePeriodSeconds?: int32 = 600;
 
   /** The maximum time to wait for node provisioning before considering the provisioning to be unsuccessful. */
-  maxNodeProvisionTime?: int32;
+  @minValue(0)
+  maxNodeProvisionTimeSeconds?: int32 = 900;
 
   /** This enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
    * but only run when there are spare resources available.See the following for more details:
    * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption */
-  @minValue(0)
-  maxpodPriorityThreshold?: int32;
+  maxpodPriorityThreshold?: int32 = -10;
 }
 
 scalar SubnetResourceId
