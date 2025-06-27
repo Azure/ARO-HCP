@@ -2,7 +2,7 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: maestro
-  namespace: '{{ .Release.Namespace  }}'
+  namespace: '{{ .Release.Namespace }}'
   labels:
     app: maestro
 spec:
@@ -21,11 +21,11 @@ spec:
         app: maestro
         azure.workload.identity/use: "true"
       annotations:
-        checksum/credsstore: '{{ include (print $.Template.BasePath "/maestro.secretproviderclass.yaml") . | sha256sum  }}'
-        checksum/config: '{{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum  }}'
-        checksum/db: '{{ include (print $.Template.BasePath "/pg.secret.yaml") . | sha256sum  }}'
+        checksum/credsstore: '{{ include (print $.Template.BasePath "/maestro.secretproviderclass.yaml") . | sha256sum }}'
+        checksum/config: '{{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum }}'
+        checksum/db: '{{ include (print $.Template.BasePath "/pg.secret.yaml") . | sha256sum }}'
     spec:
-      serviceAccountName: '{{ .Values.maestro.serviceAccount  }}'
+      serviceAccountName: '{{ .Values.maestro.serviceAccount }}'
       volumes:
       - name: db
         secret:
@@ -73,9 +73,9 @@ spec:
           readOnly: true
         env:
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: '{{ .Values.tracing.address  }}'
+          value: '{{ .Values.tracing.address }}'
         - name: OTEL_TRACES_EXPORTER
-          value: '{{ .Values.tracing.exporter  }}'
+          value: '{{ .Values.tracing.exporter }}'
         - name: "AMS_ENV"
           value: "production"
         - name: POD_NAME
@@ -120,11 +120,11 @@ spec:
         - --db-auth-method={{ .Values.database.authMethod }}
         resources:
           requests:
-            cpu: '{{ .Values.deployment.requests.cpu  }}'
-            memory: '{{ .Values.deployment.requests.memory  }}'
+            cpu: '{{ .Values.deployment.requests.cpu }}'
+            memory: '{{ .Values.deployment.requests.memory }}'
           limits:
-            cpu: '{{ .Values.deployment.limits.cpu  }}'
-            memory: '{{ .Values.deployment.limits.memory  }}'
+            cpu: '{{ .Values.deployment.limits.cpu }}'
+            memory: '{{ .Values.deployment.limits.memory }}'
         livenessProbe:
           httpGet:
             path: /healthcheck
