@@ -113,7 +113,7 @@ local-azure-operators-managed-identities-config:
 	@source ./generate_helm_set_flags.sh && \
 	helm template deploy -s templates/azure-operators-managed-identities-config.configmap.yaml \
 	  "$${OP_HELM_SET_FLAGS[@]}" \
-	  | yq '.data."azure-operators-managed-identities-config.yaml"' > ./azure-operators-managed-identities-config.yaml
+	  | yq '.data["azure-operators-managed-identities-config.yaml"]' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
 
 local-aro-hcp-ocp-versions-config:
