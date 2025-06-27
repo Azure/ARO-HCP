@@ -89,12 +89,12 @@ func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) *
 	}
 }
 
-func newClusterAutoscalingConfig(from *api.ClusterAutoscalingConfig) *generated.ClusterAutoscalingConfig {
-	return &generated.ClusterAutoscalingConfig{
-		MaxNodeProvisionTime:    api.PtrOrNil(from.MaxNodeProvisionTime),
-		MaxNodesTotal:           api.PtrOrNil(from.MaxNodesTotal),
-		MaxPodGracePeriod:       api.PtrOrNil(from.MaxPodGracePeriod),
-		MaxpodPriorityThreshold: api.PtrOrNil(from.MaxpodPriorityThreshold),
+func newClusterAutoscalingProfile(from *api.ClusterAutoscalingProfile) *generated.ClusterAutoscalingProfile {
+	return &generated.ClusterAutoscalingProfile{
+		MaxNodeProvisionTimeSeconds: api.PtrOrNil(from.MaxNodeProvisionTimeSeconds),
+		MaxNodesTotal:               api.PtrOrNil(from.MaxNodesTotal),
+		MaxPodGracePeriodSeconds:    api.PtrOrNil(from.MaxPodGracePeriodSeconds),
+		MaxPodPriorityThreshold:     api.PtrOrNil(from.MaxPodPriorityThreshold),
 	}
 }
 
@@ -137,7 +137,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Console:           newConsoleProfile(&from.Properties.Console),
 				API:               newAPIProfile(&from.Properties.API),
 				Platform:          newPlatformProfile(&from.Properties.Platform),
-				Autoscaling:       newClusterAutoscalingConfig(&from.Properties.Autoscaling),
+				Autoscaling:       newClusterAutoscalingProfile(&from.Properties.Autoscaling),
 				Capabilities:      newClusterCapabilitiesProfile(&from.Properties.Capabilities),
 			},
 		},
@@ -339,18 +339,18 @@ func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
 	}
 }
 
-func normailzeAutoscaling(p *generated.ClusterAutoscalingConfig, out *api.ClusterAutoscalingConfig) {
-	if p.MaxNodeProvisionTime != nil {
-		out.MaxNodeProvisionTime = *p.MaxNodeProvisionTime
+func normailzeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.ClusterAutoscalingProfile) {
+	if p.MaxNodeProvisionTimeSeconds != nil {
+		out.MaxNodeProvisionTimeSeconds = *p.MaxNodeProvisionTimeSeconds
 	}
 	if p.MaxNodesTotal != nil {
 		out.MaxNodesTotal = *p.MaxNodesTotal
 	}
-	if p.MaxPodGracePeriod != nil {
-		out.MaxPodGracePeriod = *p.MaxPodGracePeriod
+	if p.MaxPodGracePeriodSeconds != nil {
+		out.MaxPodGracePeriodSeconds = *p.MaxPodGracePeriodSeconds
 	}
-	if p.MaxpodPriorityThreshold != nil {
-		out.MaxpodPriorityThreshold = *p.MaxpodPriorityThreshold
+	if p.MaxPodPriorityThreshold != nil {
+		out.MaxPodPriorityThreshold = *p.MaxPodPriorityThreshold
 	}
 }
 

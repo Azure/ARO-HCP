@@ -42,7 +42,7 @@ type HCPOpenShiftClusterProperties struct {
 	Console           ConsoleProfile             `json:"console,omitempty"                       visibility:"read"`
 	API               APIProfile                 `json:"api,omitempty"`
 	Platform          PlatformProfile            `json:"platform,omitempty"                      visibility:"read create"`
-	Autoscaling       ClusterAutoscalingConfig   `json:"autoscaling,omitempty"                   visibility:"read create"`
+	Autoscaling       ClusterAutoscalingProfile  `json:"autoscaling,omitempty"                   visibility:"read create update"`
 	Capabilities      ClusterCapabilitiesProfile `json:"capabilities,omitempty"                  visibility:"read create"`
 }
 
@@ -95,11 +95,11 @@ type PlatformProfile struct {
 // Cluster autoscaling configuration
 // ClusterAutoscaling specifies auto-scaling behavior that
 // applies to all NodePools associated with a control plane.
-type ClusterAutoscalingConfig struct {
-	MaxNodesTotal           int32 `json:"maxNodesTotal,omitempty"`
-	MaxPodGracePeriod       int32 `json:"maxPodGracePeriod,omitempty"`
-	MaxNodeProvisionTime    int32 `json:"maxNodeProvisionTime,omitempty"`
-	MaxpodPriorityThreshold int32 `json:"maxpodPriorityThreshold,omitempty"`
+type ClusterAutoscalingProfile struct {
+	MaxNodesTotal               int32 `json:"maxNodesTotal,omitempty"`
+	MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
+	MaxNodeProvisionTimeSeconds int32 `json:"maxNodeProvisionTimeSeconds,omitempty"`
+	MaxPodPriorityThreshold     int32 `json:"maxPodPriorityThreshold,omitempty"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for
