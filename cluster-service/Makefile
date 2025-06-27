@@ -116,6 +116,10 @@ local-azure-operators-managed-identities-config:
 	  | yq '.data."azure-operators-managed-identities-config.yaml"' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
 
+local-aro-hcp-ocp-versions-config:
+	helm template deploy -s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
+.PHONY: local-aro-hcp-ocp-versions-config
+
 #
 # Shared OIDC Storage
 #
