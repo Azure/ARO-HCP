@@ -995,7 +995,7 @@
           "default": 900,
           "minimum": 0
         },
-        "maxpodPriorityThreshold": {
+        "maxPodPriorityThreshold": {
           "type": "integer",
           "format": "int32",
           "description": "This enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,\nbut only run when there are spare resources available.See the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption",
