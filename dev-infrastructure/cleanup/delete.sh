@@ -304,10 +304,6 @@ locked_count=$(az resource list --resource-group "$RESOURCE_GROUP" --query "leng
 
 if [[ "$remaining_count" -eq 0 ]]; then
     log SUCCESS "All resources have been deleted from the resource group"
-    if [[ "$DRY_RUN" == "false" ]]; then
-        log INFO "Executing Safe delete of resource group $RESOURCE_GROUP"
-        az group delete --name "$RESOURCE_GROUP" --yes
-    fi
 elif [[ "$locked_count" -gt 0 ]]; then
     log INFO "Resource group cleanup completed. $remaining_count resources remain (including $locked_count locked resources)"
 else
