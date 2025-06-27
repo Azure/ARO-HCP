@@ -44,11 +44,11 @@ log() {
     shift
     local message="$*"
     case "$level" in
-        INFO) echo "ℹ️ $message" ;;
-        WARN) echo "⚠️ $message" ;;
-        ERROR) echo "❌ $message" ;;
-        SUCCESS) echo "✅ $message" ;;
-        STEP) echo "🔄 $message" ;;
+        INFO) echo "(i) $message" ;;
+        WARN) echo "(w) $message" ;;
+        ERROR) echo "(!) $message" ;;
+        SUCCESS) echo "(o) $message" ;;
+        STEP) echo "(~) $message" ;;
     esac
 }
 
