@@ -132,7 +132,7 @@ func (c ClusterAutoscalingProfile) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "maxNodeProvisionTimeSeconds", c.MaxNodeProvisionTimeSeconds)
 	populate(objectMap, "maxNodesTotal", c.MaxNodesTotal)
 	populate(objectMap, "maxPodGracePeriodSeconds", c.MaxPodGracePeriodSeconds)
-	populate(objectMap, "maxpodPriorityThreshold", c.MaxpodPriorityThreshold)
+	populate(objectMap, "maxPodPriorityThreshold", c.MaxPodPriorityThreshold)
 	return json.Marshal(objectMap)
 }
 
@@ -154,8 +154,8 @@ func (c *ClusterAutoscalingProfile) UnmarshalJSON(data []byte) error {
 		case "maxPodGracePeriodSeconds":
 			err = unpopulate(val, "MaxPodGracePeriodSeconds", &c.MaxPodGracePeriodSeconds)
 			delete(rawMsg, key)
-		case "maxpodPriorityThreshold":
-			err = unpopulate(val, "MaxpodPriorityThreshold", &c.MaxpodPriorityThreshold)
+		case "maxPodPriorityThreshold":
+			err = unpopulate(val, "MaxPodPriorityThreshold", &c.MaxPodPriorityThreshold)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
