@@ -126,18 +126,18 @@ func (a *AzureResourceManagerCommonTypesTrackedResourceUpdate) UnmarshalJSON(dat
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaller interface for type ClusterAutoscalingConfig.
-func (c ClusterAutoscalingConfig) MarshalJSON() ([]byte, error) {
+// MarshalJSON implements the json.Marshaller interface for type ClusterAutoscalingProfile.
+func (c ClusterAutoscalingProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "maxNodeProvisionTime", c.MaxNodeProvisionTime)
+	populate(objectMap, "maxNodeProvisionTimeSeconds", c.MaxNodeProvisionTimeSeconds)
 	populate(objectMap, "maxNodesTotal", c.MaxNodesTotal)
-	populate(objectMap, "maxPodGracePeriod", c.MaxPodGracePeriod)
+	populate(objectMap, "maxPodGracePeriodSeconds", c.MaxPodGracePeriodSeconds)
 	populate(objectMap, "maxpodPriorityThreshold", c.MaxpodPriorityThreshold)
 	return json.Marshal(objectMap)
 }
 
-// UnmarshalJSON implements the json.Unmarshaller interface for type ClusterAutoscalingConfig.
-func (c *ClusterAutoscalingConfig) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON implements the json.Unmarshaller interface for type ClusterAutoscalingProfile.
+func (c *ClusterAutoscalingProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", c, err)
@@ -145,14 +145,14 @@ func (c *ClusterAutoscalingConfig) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "maxNodeProvisionTime":
-			err = unpopulate(val, "MaxNodeProvisionTime", &c.MaxNodeProvisionTime)
+		case "maxNodeProvisionTimeSeconds":
+			err = unpopulate(val, "MaxNodeProvisionTimeSeconds", &c.MaxNodeProvisionTimeSeconds)
 			delete(rawMsg, key)
 		case "maxNodesTotal":
 			err = unpopulate(val, "MaxNodesTotal", &c.MaxNodesTotal)
 			delete(rawMsg, key)
-		case "maxPodGracePeriod":
-			err = unpopulate(val, "MaxPodGracePeriod", &c.MaxPodGracePeriod)
+		case "maxPodGracePeriodSeconds":
+			err = unpopulate(val, "MaxPodGracePeriodSeconds", &c.MaxPodGracePeriodSeconds)
 			delete(rawMsg, key)
 		case "maxpodPriorityThreshold":
 			err = unpopulate(val, "MaxpodPriorityThreshold", &c.MaxpodPriorityThreshold)
@@ -585,6 +585,7 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type HcpOpenShiftClusterPropertiesUpdate.
 func (h HcpOpenShiftClusterPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "autoscaling", h.Autoscaling)
 	populate(objectMap, "dns", h.DNS)
 	return json.Marshal(objectMap)
 }
@@ -598,6 +599,9 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "autoscaling":
+			err = unpopulate(val, "Autoscaling", &h.Autoscaling)
+			delete(rawMsg, key)
 		case "dns":
 			err = unpopulate(val, "DNS", &h.DNS)
 			delete(rawMsg, key)
