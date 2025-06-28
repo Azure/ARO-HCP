@@ -16,6 +16,8 @@ package pipeline
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -64,6 +66,22 @@ func newArmClient(subscriptionID, region string) *armClient {
 	}
 }
 
+// generateDeploymentName generates a unique deployment name for ARM steps.
+// For outputOnly steps, it appends a random suffix to avoid conflicts when
+// the same step runs multiple times concurrently or sequentially.
+func generateDeploymentName(step *types.ARMStep) string {
+	if step.OutputOnly {
+		// Generate a random 8-character hex suffix for outputOnly steps
+		suffix := make([]byte, 4)
+		if _, err := rand.Read(suffix); err != nil {
+			// Fallback to timestamp if random generation fails
+			return fmt.Sprintf("%s-%d", step.Name, time.Now().Unix())
+		}
+		return fmt.Sprintf("%s-%s", step.Name, hex.EncodeToString(suffix))
+	}
+	return step.Name
+}
+
 func (a *armClient) getExistingDeployment(ctx context.Context, rgName, deploymentName string) (*armresources.DeploymentsClientGetResponse, error) {
 	resp, err := a.GetDeployment(ctx, rgName, deploymentName)
 	if err != nil && !strings.Contains(err.Error(), "ERROR CODE: DeploymentNotFound") {
@@ -98,16 +116,17 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	}
 
 	// Run deployment
+	deploymentName := generateDeploymentName(step)
 
-	if err := a.waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, step.Name); err != nil {
+	if err := a.waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, deploymentName); err != nil {
 		return nil, fmt.Errorf("error waiting for deploymenty %w", err)
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.deploymentClient, rgName, step, options.Configuration, input)
+		return doWaitForDeployment(ctx, a.deploymentClient, rgName, deploymentName, step, options.Configuration, input)
 	}
 
-	return doDryRun(ctx, a.deploymentClient, rgName, step, options.Configuration, input)
+	return doDryRun(ctx, a.deploymentClient, rgName, deploymentName, step, options.Configuration, input)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
@@ -186,7 +205,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *types.ARMStep, cfg config.Configuration, input map[string]Output) (Output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, cfg config.Configuration, input map[string]Output) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
@@ -207,21 +226,21 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 	if step.DeploymentLevel == "Subscription" {
 		// Hardcode until schema is adapted
 		deployment.Location = to.Ptr("eastus2")
-		poller, err := client.BeginWhatIfAtSubscriptionScope(ctx, step.Name, deployment, nil)
+		poller, err := client.BeginWhatIfAtSubscriptionScope(ctx, deploymentName, deployment, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
 		}
-		logger.Info("WhatIf Deployment started", "deployment", step.Name)
+		logger.Info("WhatIf Deployment started", "deployment", deploymentName)
 		err = pollAndPrint(ctx, poller)
 		if err != nil {
 			return nil, fmt.Errorf("failed to poll and print: %w", err)
 		}
 	} else {
-		poller, err := client.BeginWhatIf(ctx, rgName, step.Name, deployment, nil)
+		poller, err := client.BeginWhatIf(ctx, rgName, deploymentName, deployment, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
 		}
-		logger.Info("WhatIf Deployment started", "deployment", step.Name)
+		logger.Info("WhatIf Deployment started", "deployment", deploymentName)
 		err = pollAndPrint(ctx, poller)
 		if err != nil {
 			return nil, fmt.Errorf("failed to poll and print: %w", err)
@@ -260,7 +279,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, step *types.ARMStep, cfg config.Configuration, input map[string]Output) (Output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, cfg config.Configuration, input map[string]Output) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
@@ -285,19 +304,19 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 	if step.DeploymentLevel == "Subscription" {
 		// Hardcode until schema is adapted
 		deployment.Location = to.Ptr("eastus2")
-		poller, err := client.BeginCreateOrUpdateAtSubscriptionScope(ctx, step.Name, deployment, nil)
+		poller, err := client.BeginCreateOrUpdateAtSubscriptionScope(ctx, deploymentName, deployment, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
-		logger.V(1).Info("Deployment started", "deployment", step.Name)
+		logger.V(1).Info("Deployment started", "deployment", deploymentName)
 
 		return pollAndGetOutput(ctx, poller)
 	} else {
-		poller, err := client.BeginCreateOrUpdate(ctx, rgName, step.Name, deployment, nil)
+		poller, err := client.BeginCreateOrUpdate(ctx, rgName, deploymentName, deployment, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
-		logger.V(1).Info("Deployment started", "deployment", step.Name)
+		logger.V(1).Info("Deployment started", "deployment", deploymentName)
 
 		return pollAndGetOutput(ctx, poller)
 	}
