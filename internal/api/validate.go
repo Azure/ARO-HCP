@@ -124,6 +124,18 @@ func NewValidator() *validator.Validate {
 		panic(err)
 	}
 
+	// Use this for string fields the must have a positive length after being trimmed of whitespace.
+	err = validate.RegisterValidation("notblank", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			panic("String type required for notblank")
+		}
+		return len(strings.TrimSpace(field.String())) > 0
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	// Use this for version ID fields that might begin with "openshift-v".
 	err = validate.RegisterValidation("openshift_version", func(fl validator.FieldLevel) bool {
 		field := fl.Field()
@@ -335,6 +347,8 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 				switch tag {
 				case "api_version": // custom tag
 					message = fmt.Sprintf("Unrecognized API version '%s'", fieldErr.Value())
+				case "notblank":
+					message += " (must not be empty or whitespace-only)"
 				case "openshift_version": // custom tag
 					message = fmt.Sprintf("Invalid OpenShift version '%s'", fieldErr.Value())
 				case "pem_certificates": // custom tag
@@ -376,6 +390,12 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
 						message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, jsonName)
 					}
+				case "excluded_without_all":
+					quotedParams := make([]string, len(params))
+					for i := range params {
+						quotedParams[i] = "'" + fieldNameToJSONName[T](fieldErr, params[i]) + "'"
+					}
+					message = fmt.Sprintf("Field '%s' requires %s to be specified", fieldErr.Field(), strings.Join(quotedParams, " or "))
 				case "gtefield":
 					if len(params) > 0 {
 						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
