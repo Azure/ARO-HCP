@@ -378,7 +378,6 @@ func TestClusterValidate(t *testing.T) {
 				},
 			},
 		},
-
 		{
 			name: "Data plane operator name cannot be empty",
 			tweaks: &HCPOpenShiftCluster{
@@ -483,6 +482,75 @@ func TestClusterValidate(t *testing.T) {
 				{
 					Message: "Field 'kms' can only be set when 'encryptionType' is 'KMS'",
 					Target:  "properties.etcd.dataEncryption.customerManaged.kms",
+				},
+			},
+		},
+		{
+			name: "Bad url",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Proxy: ProxyProfile{
+						HTTPProxy: "http_but_not_a_url",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'http_but_not_a_url' for field 'httpProxy' (must be a URL)",
+					Target:  "properties.proxy.httpProxy",
+				},
+			},
+		},
+		{
+			name: "noProxy set without httpProxy or httpsProxy",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Proxy: ProxyProfile{
+						NoProxy: []string{"localhost"},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'noProxy' requires 'httpProxy' or 'httpsProxy' to be specified",
+					Target:  "properties.proxy.noProxy",
+				},
+			},
+		},
+		{
+			name: "Blank values in noProxy",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Proxy: ProxyProfile{
+						HTTPProxy: "http://example.com",
+						NoProxy:   []string{"", "   "},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value '' for field 'noProxy[0]' (must not be empty or whitespace-only)",
+					Target:  "properties.proxy.noProxy[0]",
+				},
+				{
+					Message: "Invalid value '   ' for field 'noProxy[1]' (must not be empty or whitespace-only)",
+					Target:  "properties.proxy.noProxy[1]",
+				},
+			},
+		},
+		{
+			name: "Bad startswith=http:",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Proxy: ProxyProfile{
+						HTTPProxy: "ftp://not_an_http_url",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'ftp://not_an_http_url' for field 'httpProxy' (must start with 'http:')",
+					Target:  "properties.proxy.httpProxy",
 				},
 			},
 		},
