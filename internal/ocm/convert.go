@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -142,6 +143,17 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 	default:
 		return "", conversionError[string](prefixPolicyRP)
 	}
+}
+
+func convertNoProxyRPToCS(noProxy []string) string {
+	return strings.Join(noProxy, ",")
+}
+
+func convertNoProxyCSToRP(noProxy string) []string {
+	if strings.Contains(noProxy, ",") {
+		return strings.Split(noProxy, ",")
+	}
+	return nil
 }
 
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
@@ -351,6 +363,12 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 				IssuerURL:              "",
 			},
+			Proxy: api.ProxyProfile{
+				HTTPProxy:  cluster.Proxy().HTTPProxy(),
+				HTTPSProxy: cluster.Proxy().HTTPSProxy(),
+				NoProxy:    convertNoProxyCSToRP(cluster.Proxy().NoProxy()),
+				TrustedCA:  cluster.AdditionalTrustBundle(),
+			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
 				State: clusterImageRegistryState,
@@ -455,6 +473,20 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	proxyBuilder := arohcpv1alpha1.NewProxy()
+	// Cluster Service allows an empty HTTPProxy on PATCH but not PUT.
+	if updating || hcpCluster.Properties.Proxy.HTTPProxy != "" {
+		proxyBuilder.HTTPProxy(hcpCluster.Properties.Proxy.HTTPProxy)
+	}
+	// Cluster Service allows an empty HTTPSProxy on PATCH but not PUT.
+	if updating || hcpCluster.Properties.Proxy.HTTPSProxy != "" {
+		proxyBuilder.HTTPSProxy(hcpCluster.Properties.Proxy.HTTPSProxy)
+	}
+	// Cluster Service allows an empty NoProxy on PATCH but not PUT.
+	if updating || len(hcpCluster.Properties.Proxy.NoProxy) > 0 {
+		proxyBuilder.NoProxy(convertNoProxyRPToCS(hcpCluster.Properties.Proxy.NoProxy))
 	}
 
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
