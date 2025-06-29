@@ -41,6 +41,8 @@ resourceGroups:
       configRef: secretSyncController.image.digest
     - name: IMAGE_REPOSITORY
       configRef: secretSyncController.image.repository
+    - name: PROVIDER_IMAGE
+      configRef: secretSyncController.providerImage
     - name: NAMESPACE
       configRef: secretSyncController.k8s.namespace
     - name: SA_NAME

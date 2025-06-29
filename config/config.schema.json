@@ -1014,6 +1014,9 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
+        "providerImage": {
+          "type": "string"
+        },
         "k8s": {
           "type": "object",
           "properties": {
