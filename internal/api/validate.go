@@ -21,8 +21,6 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	validator "github.com/go-playground/validator/v10"
@@ -228,19 +226,53 @@ func NewValidator() *validator.Validate {
 	return validate
 }
 
-// approximateJSONName approximates the JSON name for a struct field name by
-// lowercasing the first letter. This is not always accurate in general but
-// works for the small set of cases where we need it.
-func approximateJSONName(s string) string {
-	r, size := utf8.DecodeRuneInString(s)
-	if r == utf8.RuneError && size <= 1 {
-		return s
+// fieldNameToJSONName returns the JSON tag name for fieldName using a fieldError
+// instance for type T. The fieldName should be a parameter value from fieldError.
+// If the JSON tag name cannot be found, such as if the fieldError corresponds to
+// a different type than type T, then fieldNameToJSONName just returns fieldName.
+func fieldNameToJSONName[T any](fe validator.FieldError, fieldName string) string {
+	reflectType := reflect.TypeFor[T]()
+	if reflectType.Kind() == reflect.Pointer {
+		reflectType = reflectType.Elem()
 	}
-	lc := unicode.ToLower(r)
-	if r == lc {
-		return s
+
+	namespaceSegments := strings.Split(fe.StructNamespace(), ".")
+
+	// First namespace segment should be the name of type T.
+	if len(namespaceSegments) < 2 || namespaceSegments[0] != reflectType.Name() {
+		return fieldName
 	}
-	return string(lc) + s[size:]
+
+	for _, segment := range namespaceSegments[1 : len(namespaceSegments)-1] {
+		if reflectType.Kind() != reflect.Struct {
+			return fieldName
+		}
+
+		// Discard any subscript in the segment.
+		index := strings.Index(segment, "[")
+		if index >= 0 {
+			segment = segment[:index]
+		}
+
+		if field, ok := reflectType.FieldByName(segment); ok {
+			switch field.Type.Kind() {
+			case reflect.Map, reflect.Pointer, reflect.Slice:
+				reflectType = field.Type.Elem()
+			default:
+				reflectType = field.Type
+			}
+		} else {
+			return fieldName
+		}
+	}
+
+	if reflectType.Kind() == reflect.Struct {
+		if field, ok := reflectType.FieldByName(fieldName); ok {
+			return GetJSONTagName(field.Tag)
+		}
+	}
+
+	return fieldName
 }
 
 // fieldErrorToTarget converts a validator.FieldError to a string suitable
@@ -268,7 +300,7 @@ func fieldErrorToTarget(fe validator.FieldError) string {
 	return fe.Namespace()
 }
 
-func ValidateRequest(validate *validator.Validate, request *http.Request, resource any) []arm.CloudErrorBody {
+func ValidateRequest[T any](validate *validator.Validate, request *http.Request, resource T) []arm.CloudErrorBody {
 	var ctx = context.Background()
 	var errorDetails []arm.CloudErrorBody
 
@@ -325,12 +357,8 @@ func ValidateRequest(validate *validator.Validate, request *http.Request, resour
 					// The parameter format is pairs of "fieldName fieldValue".
 					// Multiple pairs are possible but we currently only use one.
 					if len(params) > 1 {
-						// We want to print the JSON name for the field
-						// referenced in the parameter, but FieldError does
-						// not provide access to the parent reflect.Type from
-						// which we could look it up. So approximate the JSON
-						// name by lowercasing the first letter.
-						message = fmt.Sprintf("Field '%s' is required when '%s' is not '%s'", fieldErr.Field(), approximateJSONName(params[0]), params[1])
+						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
+						message = fmt.Sprintf("Field '%s' is required when '%s' is not '%s'", fieldErr.Field(), jsonName, params[1])
 					}
 				case "resource_id": // custom tag
 					if len(params) > 0 {
@@ -344,22 +372,14 @@ func ValidateRequest(validate *validator.Validate, request *http.Request, resour
 					message += " (must be a valid DNS RFC 1035 label)"
 				case "excluded_with":
 					if len(params) > 0 {
-						// We want to print the JSON name for the field
-						// referenced in the parameter, but FieldError does
-						// not provide access to the parent reflect.Type from
-						// which we could look it up. So approximate the JSON
-						// name by lowercasing the first letter.
 						zero := reflect.Zero(fieldErr.Type()).Interface()
-						message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, approximateJSONName(params[0]))
+						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
+						message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, jsonName)
 					}
 				case "gtefield":
 					if len(params) > 0 {
-						// We want to print the JSON name for the field
-						// referenced in the parameter, but FieldError does
-						// not provide access to the parent reflect.Type from
-						// which we could look it up. So approximate the JSON
-						// name by lowercasing the first letter.
-						message += fmt.Sprintf(" (must be at least the value of '%s')", approximateJSONName(params[0]))
+						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
+						message += fmt.Sprintf(" (must be at least the value of '%s')", jsonName)
 					}
 				case "ipv4":
 					message += " (must be an IPv4 address)"
