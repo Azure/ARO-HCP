@@ -1,0 +1,5 @@
+{
+  "api.openshift.com/id": "production-cluster",
+  "api.openshift.com/name": "sre-admin",
+  "api.openshift.com/type": "break-glass-credential"
+}

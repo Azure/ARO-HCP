@@ -1,0 +1,5 @@
+{
+  "clusterID": "-invalid-start",
+  "error_type": "*breakglass.ValidationError",
+  "message": "validation failed for field 'clusterID' with value '-invalid-start': must contain only alphanumeric characters and hyphens, cannot start/end with hyphen"
+}

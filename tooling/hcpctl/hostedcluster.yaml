@@ -1,0 +1,907 @@
+apiVersion: hypershift.openshift.io/v1beta1
+kind: HostedCluster
+metadata:
+  annotations:
+    cluster.open-cluster-management.io/hypershiftdeployment: ignore/ignore
+    cluster.open-cluster-management.io/managedcluster-name: 2jesjug41iavg27inj078ssjidn20clk
+    create-external-hub-kubeconfig: "2025-07-03T14:05:51Z"
+    hypershift.openshift.io/HasBeenAvailable: "true"
+    hypershift.openshift.io/certified-operators-catalog-image: arohcpocpdev.azurecr.io/redhat/certified-operator-index@sha256:3c84d85f333d3fe339d0243041883d860e15c049bc310972ceed4d25aaecbe47
+    hypershift.openshift.io/cleanup-cloud-resources: "true"
+    hypershift.openshift.io/cluster-scheduled: "true"
+    hypershift.openshift.io/community-operators-catalog-image: arohcpocpdev.azurecr.io/redhat/community-operator-index@sha256:49b295ab1309f2eab8faa98127fea392f51329a5d6c69f3961193a8f5fbcce6b
+    hypershift.openshift.io/olm-catalogs-is-registry-overrides: registry.redhat.io/redhat=arohcpocpdev.azurecr.io/redhat
+    hypershift.openshift.io/pod-security-admission-label-override: baseline
+    hypershift.openshift.io/redhat-marketplace-catalog-image: arohcpocpdev.azurecr.io/redhat/redhat-marketplace-index@sha256:1dc15c170ebf462dacaef75511740ed94ca1da210f3980f66d77f91ba201c875
+    hypershift.openshift.io/redhat-operators-catalog-image: arohcpocpdev.azurecr.io/redhat/redhat-operator-index@sha256:11bcf4ea4ecbd91fcbadbf0fa8b8e89949bd9f4da81966af0eded461055d63f9
+    hypershift.openshift.io/skip-release-image-validation: "true"
+  creationTimestamp: "2025-06-16T13:13:22Z"
+  finalizers:
+  - hypershift.openshift.io/finalizer
+  generation: 2
+  labels:
+    api.openshift.com/environment: arohcpdev
+    api.openshift.com/id: 2jesjug41iavg27inj078ssjidn20clk
+    api.openshift.com/name: mmazur
+    hypershift.openshift.io/hosted-cluster-size: small
+  name: mmazur
+  namespace: ocm-arohcpdev-2jesjug41iavg27inj078ssjidn20clk
+  ownerReferences:
+  - apiVersion: work.open-cluster-management.io/v1
+    kind: AppliedManifestWork
+    name: 1710ce7a0d4dfc0db490b6b6747644ffbb86e00748dd9562d4bee835e077b083-2jesjug41iavg27inj078ssjidn20clk
+    uid: fbe08afd-ed58-4a62-b310-ad20e41e9810
+  resourceVersion: "23151354"
+  uid: 599a0e22-c489-4098-a5b9-3244eccdee53
+spec:
+  capabilities: {}
+  channel: stable-4.18
+  clusterID: fbacc1d6-5464-4096-84ba-4953484c5cb7
+  configuration: {}
+  controllerAvailabilityPolicy: HighlyAvailable
+  dns:
+    baseDomain: aro.mmazur.81ec.westus3.hcp.osadev.cloud
+    baseDomainPrefix: ""
+    publicZoneID: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/mmazur-rg-03/providers/Microsoft.Network/dnszones/aro.mmazur.81ec.westus3.hcp.osadev.cloud
+  etcd:
+    managed:
+      storage:
+        persistentVolume:
+          size: 32G
+        type: PersistentVolume
+    managementType: Managed
+  fips: false
+  imageContentSources:
+  - mirrors:
+    - arohcpocpdev.azurecr.io/openshift/release
+    source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+  - mirrors:
+    - arohcpocpdev.azurecr.io/openshift/release-images
+    source: quay.io/openshift-release-dev/ocp-release
+  infraID: 2jesjug41iavg27inj078ssjidn20clk
+  infrastructureAvailabilityPolicy: HighlyAvailable
+  issuerURL: https://arohcpdevoidcusw3.z1.web.core.windows.net/64dc69e4-d083-49fc-9569-ebece1dd1408/2jesjug41iavg27inj078ssjidn20clk
+  labels:
+    kubernetes.azure.com/managedby: sub_1d3378d3-5a3f-4712-85a1-2485495dfc4b
+  networking:
+    clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+    machineNetwork:
+    - cidr: 10.0.0.0/16
+    networkType: OVNKubernetes
+    serviceNetwork:
+    - cidr: 172.30.0.0/16
+  olmCatalogPlacement: management
+  platform:
+    azure:
+      cloud: AzurePublicCloud
+      location: westus3
+      managedIdentities:
+        controlPlane:
+          cloudProvider:
+            certificateName: cert-2jesjug41iavg27inj078ssjidn20clk-cloud-controller-manager
+            clientID: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+            objectEncoding: base64
+          controlPlaneOperator:
+            certificateName: cert-2jesjug41iavg27inj078ssjidn20clk-control-plane
+            clientID: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+            objectEncoding: base64
+          disk:
+            certificateName: cert-2jesjug41iavg27inj078ssjidn20clk-disk-csi-driver
+            clientID: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+            objectEncoding: base64
+          file:
+            certificateName: cert-2jesjug41iavg27inj078ssjidn20clk-file-csi-driver
+            clientID: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+            objectEncoding: base64
+          imageRegistry:
+            certificateName: cert-2jesjug41iavg27inj078ssjidn20clk-image-registry
+            clientID: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+            objectEncoding: base64
+          ingress:
+            certificateName: cert-2jesjug41iavg27inj078ssjidn20clk-ingress
+            clientID: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+            objectEncoding: base64
+          managedIdentitiesKeyVault:
+            name: ah-dev-mi-usw3-1
+            tenantID: 64dc69e4-d083-49fc-9569-ebece1dd1408
+          network:
+            certificateName: cert-2jesjug41iavg27inj078ssjidn20clk-cloud-network-config
+            clientID: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+            objectEncoding: base64
+          nodePoolManagement:
+            certificateName: cert-2jesjug41iavg27inj078ssjidn20clk-cluster-api-azure
+            clientID: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+            objectEncoding: base64
+        dataPlane:
+          diskMSIClientID: 927459ec-05b2-4155-9093-0c3be3c836dc
+          fileMSIClientID: 266bd1c7-c4cb-42f5-86da-8683f2dc9689
+          imageRegistryMSIClientID: ab7839a6-adec-4ab3-8a96-54fe9425cd05
+      resourceGroup: mmazur-rg-03
+      securityGroupID: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/mmazur-net-rg-03/providers/Microsoft.Network/networkSecurityGroups/customer-nsg
+      subnetID: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/mmazur-net-rg-03/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1
+      subscriptionID: 1d3378d3-5a3f-4712-85a1-2485495dfc4b
+      tenantID: 64dc69e4-d083-49fc-9569-ebece1dd1408
+      vnetID: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/mmazur-net-rg-03/providers/Microsoft.Network/virtualNetworks/customer-vnet
+    type: Azure
+  pullSecret:
+    name: mmazur-pull
+  release:
+    image: quay.io/openshift-release-dev/ocp-release@sha256:a525c21dc0f92a65911bf073d1d284a988a866ed2b0952ffe63608b041504190
+  serviceAccountSigningKey:
+    name: bound-service-account-signing-key
+  services:
+  - service: APIServer
+    servicePublishingStrategy:
+      route:
+        hostname: api.mmazur.81ec.westus3.hcp.osadev.cloud
+      type: Route
+  - service: OAuthServer
+    servicePublishingStrategy:
+      route:
+        hostname: oauth.mmazur.81ec.westus3.hcp.osadev.cloud
+      type: Route
+  - service: Konnectivity
+    servicePublishingStrategy:
+      route:
+        hostname: konnectivity-server.mmazur.81ec.westus3.hcp.osadev.cloud
+      type: Route
+  - service: Ignition
+    servicePublishingStrategy:
+      route:
+        hostname: ignition-server.mmazur.81ec.westus3.hcp.osadev.cloud
+      type: Route
+  sshKey:
+    name: ""
+status:
+  conditions:
+  - lastTransitionTime: "2025-06-16T13:16:04Z"
+    message: ""
+    observedGeneration: 2
+    reason: FromClusterVersion
+    status: "False"
+    type: ClusterVersionAvailable
+  - lastTransitionTime: "2025-07-03T15:23:12Z"
+    message: Cluster operators console, dns, image-registry, ingress, insights, kube-storage-version-migrator,
+      monitoring, node-tuning, openshift-samples, service-ca, storage are not available
+    observedGeneration: 2
+    reason: ClusterOperatorsNotAvailable
+    status: "False"
+    type: ClusterVersionSucceeding
+  - lastTransitionTime: "2025-06-16T13:16:04Z"
+    message: 'Unable to apply 4.18.1: some cluster operators are not available'
+    observedGeneration: 2
+    reason: ClusterOperatorsNotAvailable
+    status: "True"
+    type: ClusterVersionProgressing
+  - lastTransitionTime: "2025-06-16T13:16:04Z"
+    message: Payload loaded version="4.18.1" image="quay.io/openshift-release-dev/ocp-release@sha256:a525c21dc0f92a65911bf073d1d284a988a866ed2b0952ffe63608b041504190"
+      architecture="Multi"
+    observedGeneration: 2
+    reason: PayloadLoaded
+    status: "True"
+    type: ClusterVersionReleaseAccepted
+  - lastTransitionTime: "2025-06-16T13:16:04Z"
+    message: Condition not found in the CVO.
+    observedGeneration: 2
+    reason: FromClusterVersion
+    status: "True"
+    type: ClusterVersionUpgradeable
+  - lastTransitionTime: "2025-07-01T10:04:41Z"
+    message: The hosted cluster is not degraded
+    observedGeneration: 2
+    reason: AsExpected
+    status: "False"
+    type: Degraded
+  - lastTransitionTime: "2025-06-16T13:14:37Z"
+    message: ""
+    observedGeneration: 2
+    reason: QuorumAvailable
+    status: "True"
+    type: EtcdAvailable
+  - lastTransitionTime: "2025-06-16T13:15:05Z"
+    message: Kube APIServer deployment is available
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: KubeAPIServerAvailable
+  - lastTransitionTime: "2025-06-16T13:14:04Z"
+    message: All is well
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: InfrastructureReady
+  - lastTransitionTime: "2025-07-03T07:54:37Z"
+    message: All is well
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: ExternalDNSReachable
+  - lastTransitionTime: "2025-06-26T15:42:39Z"
+    message: Configuration passes validation
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: ValidHostedControlPlaneConfiguration
+  - lastTransitionTime: "2025-06-16T13:13:55Z"
+    message: All is well
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: ValidReleaseInfo
+  - lastTransitionTime: "2025-06-16T13:15:17Z"
+    message: Identity provider configuration is valid
+    observedGeneration: 2
+    reason: IDPConfigurationValid
+    status: "True"
+    type: ValidIDPConfiguration
+  - lastTransitionTime: "2025-07-02T21:49:48Z"
+    message: The hosted control plane is available
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: Available
+  - lastTransitionTime: "2025-06-16T13:13:26Z"
+    message: Configuration passes validation
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: ValidConfiguration
+  - lastTransitionTime: "2025-06-16T13:13:26Z"
+    message: HostedCluster is supported by operator configuration
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: SupportedHostedCluster
+  - lastTransitionTime: "2025-06-16T13:15:22Z"
+    message: Ignition server deployment is available
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: IgnitionEndpointAvailable
+  - lastTransitionTime: "2025-06-16T13:13:26Z"
+    message: Reconciliation active on resource
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: ReconciliationActive
+  - lastTransitionTime: "2025-06-18T04:33:01Z"
+    message: Release image is valid
+    observedGeneration: 2
+    reason: AsExpected
+    status: "True"
+    type: ValidReleaseImage
+  - lastTransitionTime: "2025-06-16T13:13:26Z"
+    message: HostedCluster is at expected version
+    observedGeneration: 2
+    reason: AsExpected
+    status: "False"
+    type: Progressing
+  - lastTransitionTime: "2025-06-16T13:13:26Z"
+    message: Required platform credentials are found
+    observedGeneration: 1
+    reason: AsExpected
+    status: "True"
+    type: PlatformCredentialsFound
+  - lastTransitionTime: "2025-07-03T15:18:51Z"
+    message: Reconciliation completed successfully
+    observedGeneration: 2
+    reason: ReconciliatonSucceeded
+    status: "True"
+    type: ReconciliationSucceeded
+  - lastTransitionTime: "2025-06-16T13:13:39Z"
+    message: Azure KMS is not configured
+    observedGeneration: 2
+    reason: StatusUnknown
+    status: Unknown
+    type: ValidAzureKMSConfig
+  - lastTransitionTime: "2025-06-23T15:04:10Z"
+    message: ""
+    observedGeneration: 2
+    reason: FromClusterVersion
+    status: "True"
+    type: ClusterVersionRetrievedUpdates
+  - lastTransitionTime: "2025-07-01T10:04:06Z"
+    message: The HostedCluster has transitioned to a new t-shirt size.
+    reason: small
+    status: "True"
+    type: ClusterSizeComputed
+  - lastTransitionTime: "2025-07-01T10:04:06Z"
+    message: The HostedCluster has transitioned to a new t-shirt size.
+    reason: ClusterSizeTransitioned
+    status: "False"
+    type: ClusterSizeTransitionPending
+  - lastTransitionTime: "2025-07-01T10:04:06Z"
+    message: The HostedCluster has transitioned to a new t-shirt size.
+    reason: AsExpected
+    status: "False"
+    type: ClusterSizeTransitionRequired
+  controlPlaneEndpoint:
+    host: api.mmazur.81ec.westus3.hcp.osadev.cloud
+    port: 443
+  ignitionEndpoint: ignition-server.mmazur.81ec.westus3.hcp.osadev.cloud
+  kubeadminPassword:
+    name: mmazur-kubeadmin-password
+  kubeconfig:
+    name: mmazur-admin-kubeconfig
+  oauthCallbackURLTemplate: https://oauth.mmazur.81ec.westus3.hcp.osadev.cloud:443/oauth2callback/[identity-provider-name]
+  payloadArch: Multi
+  version:
+    availableUpdates:
+    - channels:
+      - candidate-4.18
+      - candidate-4.19
+      - candidate-4.20
+      - eus-4.18
+      - fast-4.18
+      - fast-4.19
+      - stable-4.18
+      image: quay.io/openshift-release-dev/ocp-release@sha256:fd6c7ba61d366321e1bcbb21395e3e6a2aa00443e42df5c25a877c7ee28e4d69
+      url: https://access.redhat.com/errata/RHSA-2025:9269
+      version: 4.18.18
+    - channels:
+      - candidate-4.18
+      - candidate-4.19
+      - candidate-4.20
+      - eus-4.18
+      - fast-4.18
+      - fast-4.19
+      - stable-4.18
+      image: quay.io/openshift-release-dev/ocp-release@sha256:da05310b7fa3489c2a4f18dc2d7e76f967a3895710263ea66aed04b65882828e
+      url: https://access.redhat.com/errata/RHSA-2025:8560
+      version: 4.18.17
+    conditionalUpdates:
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:e5129eb2070cdd2efc34ec30d49f47cece86b3e3e601daa49e392da4cf24daee
+        url: https://access.redhat.com/errata/RHSA-2025:8284
+        version: 4.18.16
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:b11973845d1c72c5b3975209284ef3bdbb00a23f1d18b8a3f4f141c491f4027d
+        url: https://access.redhat.com/errata/RHBA-2025:8104
+        version: 4.18.15
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:7e05e15756d5b23f768e4441b319e07b5dd7613dd44778fcffea8da202ebdcf1
+        url: https://access.redhat.com/errata/RHSA-2025:7863
+        version: 4.18.14
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:e937c839faf254a842341489059ce47eac468c54cde28fae647a64f8bd3489fd
+        url: https://access.redhat.com/errata/RHSA-2025:4712
+        version: 4.18.13
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:a7b08a023f84c14cf731f2076bc06ae0100e027446835273506f5556bf739298
+        url: https://access.redhat.com/errata/RHSA-2025:4427
+        version: 4.18.12
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk MetallbBgpBfdFrrRpm (failure determine thanos IP: services "thanos-querier" not found)
+            MetallbBgpBfdFrrRpm description: Clusters using MetalLB BFD capabilities alongside BGP can fail to establish BGP peering, reducing the availability of LoadBalancer services exposed by MetalLB, or even making them unreachable
+            MetallbBgpBfdFrrRpm URL: https://issues.redhat.com/browse/CNF-17689
+
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:4198606580b69c8335ad7ae531c3a74e51aee25db5faaf368234e8c8dae5cbea
+        url: https://access.redhat.com/errata/RHSA-2025:4211
+        version: 4.18.11
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              (
+                group by (_id, name) (csv_succeeded{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7", name=~"metallb-operator[.].*"})
+                or on (_id)
+                0 * label_replace(group by (_id) (csv_succeeded{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"}), "name", "metallb operator not installed", "name", ".*")
+              )
+          type: PromQL
+        message: Clusters using MetalLB BFD capabilities alongside BGP can fail to
+          establish BGP peering, reducing the availability of LoadBalancer services
+          exposed by MetalLB, or even making them unreachable
+        name: MetallbBgpBfdFrrRpm
+        url: https://issues.redhat.com/browse/CNF-17689
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk MetallbBgpBfdFrrRpm (failure determine thanos IP: services "thanos-querier" not found)
+            MetallbBgpBfdFrrRpm description: Clusters using MetalLB BFD capabilities alongside BGP can fail to establish BGP peering, reducing the availability of LoadBalancer services exposed by MetalLB, or even making them unreachable
+            MetallbBgpBfdFrrRpm URL: https://issues.redhat.com/browse/CNF-17689
+
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:0e63f36129991fe6fa25112ab12a56110d1660f21f3e2582d290f7820a3479d2
+        url: https://access.redhat.com/errata/RHSA-2025:4019
+        version: 4.18.10
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              (
+                group by (_id, name) (csv_succeeded{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7", name=~"metallb-operator[.].*"})
+                or on (_id)
+                0 * label_replace(group by (_id) (csv_succeeded{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"}), "name", "metallb operator not installed", "name", ".*")
+              )
+          type: PromQL
+        message: Clusters using MetalLB BFD capabilities alongside BGP can fail to
+          establish BGP peering, reducing the availability of LoadBalancer services
+          exposed by MetalLB, or even making them unreachable
+        name: MetallbBgpBfdFrrRpm
+        url: https://issues.redhat.com/browse/CNF-17689
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:dafd6d1fe6008bf1a3e5baea3420aa0344412bf3167e1e92bec5c92098dc6464
+        url: https://access.redhat.com/errata/RHSA-2025:3775
+        version: 4.18.9
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:88188d19bd4f76de7f6d2a19aeb34d3aa0f03affe27a217ce0e91db4405b4d93
+        url: https://access.redhat.com/errata/RHSA-2025:3577
+        version: 4.18.8
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: EvaluationFailed
+        status: Unknown
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:91b0782129aedbe3be57fe92f955f51e04d0441ba216276d4486eeaca7df4e21
+        url: https://access.redhat.com/errata/RHBA-2025:3293
+        version: 4.18.7
+      risks:
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: |-
+          The CRI-O container runtime may fail to pull images with certain layer compression characteristics https://issues.redhat.com/browse/OCPNODE-3074
+
+          Could not evaluate exposure to update risk RHELFailedRebootMissingService (failure determine thanos IP: services "thanos-querier" not found)
+            RHELFailedRebootMissingService description: RHEL worker nodes will fail to reboot during a node update due to a missing service.
+            RHELFailedRebootMissingService URL: https://issues.redhat.com/browse/MCO-1702
+        reason: MultipleReasons
+        status: "False"
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:4c982f0c9b0d8501a25360ede81fd47645959cf4f8395e79655deeaba12f4514
+        url: https://access.redhat.com/errata/RHSA-2025:3066
+        version: 4.18.6
+      risks:
+      - matchingRules:
+        - type: Always
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics
+        name: CRIOLayerCompressionPulls
+        url: https://issues.redhat.com/browse/OCPNODE-3074
+      - matchingRules:
+        - promql:
+            promql: |
+              topk(1,
+                group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7",label_node_openshift_io_os_id="rhel"})
+                or
+                0 * group by (label_node_openshift_io_os_id) (kube_node_labels{_id="fbacc1d6-5464-4096-84ba-4953484c5cb7"})
+              )
+          type: PromQL
+        message: RHEL worker nodes will fail to reboot during a node update due to
+          a missing service.
+        name: RHELFailedRebootMissingService
+        url: https://issues.redhat.com/browse/MCO-1702
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics https://issues.redhat.com/browse/OCPNODE-3074
+        reason: CRIOLayerCompressionPulls
+        status: "False"
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:5080fd1e3ff3cda10f57eb55517e11a80b478036a7395c9f7b3aa9c04125ed13
+        url: https://access.redhat.com/errata/RHSA-2025:2705
+        version: 4.18.5
+      risks:
+      - matchingRules:
+        - type: Always
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics
+        name: CRIOLayerCompressionPulls
+        url: https://issues.redhat.com/browse/OCPNODE-3074
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics https://issues.redhat.com/browse/OCPNODE-3074
+        reason: CRIOLayerCompressionPulls
+        status: "False"
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:05cf35f1a666ce78888a3ddd202be46b15f73a64eadb738f3cc24b2bdb2cf2f5
+        url: https://access.redhat.com/errata/RHSA-2025:2449
+        version: 4.18.4
+      risks:
+      - matchingRules:
+        - type: Always
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics
+        name: CRIOLayerCompressionPulls
+        url: https://issues.redhat.com/browse/OCPNODE-3074
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics https://issues.redhat.com/browse/OCPNODE-3074
+        reason: CRIOLayerCompressionPulls
+        status: "False"
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:38780d1d1a2bc969f225af81ad896637bf227df3da4bfbca650c4436614edc27
+        url: https://access.redhat.com/errata/RHBA-2025:2229
+        version: 4.18.3
+      risks:
+      - matchingRules:
+        - type: Always
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics
+        name: CRIOLayerCompressionPulls
+        url: https://issues.redhat.com/browse/OCPNODE-3074
+    - conditions:
+      - lastTransitionTime: "2025-06-16T13:16:17Z"
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics https://issues.redhat.com/browse/OCPNODE-3074
+        reason: CRIOLayerCompressionPulls
+        status: "False"
+        type: Recommended
+      release:
+        channels:
+        - candidate-4.18
+        - candidate-4.19
+        - candidate-4.20
+        - eus-4.18
+        - fast-4.18
+        - fast-4.19
+        - stable-4.18
+        image: quay.io/openshift-release-dev/ocp-release@sha256:8341a7a835a75b7f960fc9bd97d9cbb6df265c7067cf24f0e7776e165b623732
+        url: https://access.redhat.com/errata/RHBA-2025:1904
+        version: 4.18.2
+      risks:
+      - matchingRules:
+        - type: Always
+        message: The CRI-O container runtime may fail to pull images with certain
+          layer compression characteristics
+        name: CRIOLayerCompressionPulls
+        url: https://issues.redhat.com/browse/OCPNODE-3074
+    desired:
+      channels:
+      - candidate-4.18
+      - candidate-4.19
+      - candidate-4.20
+      - eus-4.18
+      - fast-4.18
+      - fast-4.19
+      - stable-4.18
+      image: quay.io/openshift-release-dev/ocp-release@sha256:a525c21dc0f92a65911bf073d1d284a988a866ed2b0952ffe63608b041504190
+      url: https://access.redhat.com/errata/RHSA-2024:6122
+      version: 4.18.1
+    history:
+    - completionTime: null
+      image: quay.io/openshift-release-dev/ocp-release@sha256:a525c21dc0f92a65911bf073d1d284a988a866ed2b0952ffe63608b041504190
+      startedTime: "2025-06-16T13:15:56Z"
+      state: Partial
+      verified: false
+      version: 4.18.1
+    observedGeneration: 2

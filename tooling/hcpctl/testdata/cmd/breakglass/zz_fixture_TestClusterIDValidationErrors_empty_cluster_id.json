@@ -1,0 +1,5 @@
+{
+  "clusterID": "",
+  "error_type": "*breakglass.ValidationError",
+  "message": "validation failed for field 'clusterID' with value '': cluster ID is required"
+}

@@ -1,0 +1,246 @@
+# golangci-lint configuration for SRE breakglass tool
+# See https://golangci-lint.run/usage/configuration for more options
+
+run:
+  # timeout for analysis
+  timeout: 5m
+  # exit code when at least one issue was found
+  issues-exit-code: 1
+  # include test files or not
+  tests: true
+  # skip directories
+  skip-dirs:
+    - vendor
+  # skip files
+  skip-files: []
+
+# output configuration options
+output:
+  # colored-line-number|line-number|json|tab|checkstyle|code-climate|html|junit-xml|github-actions
+  format: colored-line-number
+  # print lines of code with issue
+  print-issued-lines: true
+  # print linter name in the end of issue text
+  print-linter-name: true
+  # make issues output unique by line
+  uniq-by-line: true
+  # sort results by: filepath, line and column
+  sort-results: true
+
+# enabled/disabled linters
+linters:
+  # disable all default linters
+  disable-all: true
+  # enable specific linters
+  enable:
+    # standard linters
+    - errcheck      # checks for unchecked errors
+    - gosimple      # specializes in simplifying a code
+    - govet         # reports suspicious constructs
+    - ineffassign   # detects unused assignments
+    - staticcheck   # go vet on steroids
+    - typecheck     # parses and type-checks Go code
+    - unused        # checks for unused constants, variables, functions and types
+    
+    # additional code quality linters
+    - gofmt         # checks whether code was gofmt-ed
+    - goimports     # checks missing or unreferenced package imports
+    - gosec         # inspects source code for security problems
+    - goconst       # finds repeated strings that could be replaced by a constant
+    - gocritic      # provides diagnostics that check for bugs, performance and style issues
+    - gocyclo       # computes and checks the cyclomatic complexity of functions
+    - godot         # checks if comments end in a period
+    - godox         # detects FIXME, TODO and other comment keywords
+    - err113        # checks the errors handling expressions
+    - gofumpt       # stricter gofmt
+    - misspell      # finds commonly misspelled English words
+    - unconvert     # removes unnecessary type conversions
+    - whitespace    # detects leading and trailing whitespace
+    
+    # maintainability linters  
+    - dupl          # detects code clones
+    - funlen        # detects long functions
+    - lll           # reports long lines
+    - nestif        # reports deeply nested if statements
+    - cyclop        # checks function and package cyclomatic complexity
+    
+    # style linters
+    - stylecheck    # replacement for golint
+    - revive        # fast, configurable, extensible, flexible, and beautiful linter for Go
+
+linters-settings:
+  # settings for specific linters
+  errcheck:
+    # report about not checking of errors in type assertions: `a := b.(MyStruct)`;
+    check-type-assertions: true
+    # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`;
+    check-blank: false
+    # list of functions to exclude from checking
+    exclude-functions:
+      - io/ioutil.ReadFile
+      - io.Copy(*bytes.Buffer)
+      - io.Copy(os.Stdout)
+
+  govet:
+    # report about shadowed variables
+    check-shadowing: true
+    # enable all analyzers
+    enable-all: true
+    # disable specific analyzers
+    disable:
+      - fieldalignment # too strict for this project
+
+  gofmt:
+    # simplify code: gofmt with `-s` option
+    simplify: true
+
+  goimports:
+    # put imports beginning with prefix after 3rd-party packages
+    local-prefixes: github.com/Azure/ARO-HCP
+
+  gosec:
+    # exclude rules
+    excludes:
+      - G107 # Url provided to HTTP request as taint input (false positives with Kubernetes client)
+      - G204 # Subprocess launched with variable (expected in this tool)
+
+  goconst:
+    # minimal length of string constant
+    min-len: 3
+    # minimum occurrences of constant string count to trigger issue
+    min-occurrences: 3
+    # ignore test files
+    ignore-tests: true
+
+  gocritic:
+    # enable multiple checks by tags
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - experimental
+    disabled-checks:
+      - commentedOutCode
+      - whyNoLint
+
+  gocyclo:
+    # minimal code complexity to report
+    min-complexity: 15
+
+  funlen:
+    # max number of lines in a function
+    lines: 100
+    # max number of statements in a function  
+    statements: 50
+
+  lll:
+    # max line length
+    line-length: 120
+    # tab width in spaces
+    tab-width: 4
+
+  misspell:
+    # correct spellings using locale preferences for US or UK
+    locale: US
+    ignore-words:
+      - kubeconfig
+      - breakglass
+      - kubernetes
+
+  nestif:
+    # minimal complexity of if statements to report
+    min-complexity: 5
+
+  cyclop:
+    # the maximal code complexity to report
+    max-complexity: 15
+    # the maximal average package complexity
+    package-average: 10.0
+    # skip tests
+    skip-tests: true
+
+  whitespace:
+    multi-if: false   # Enforces newlines (or comments) after every multi-line if statement
+    multi-func: false # Enforces newlines (or comments) after every multi-line function signature
+
+  stylecheck:
+    # https://staticcheck.io/docs/options#checks
+    checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022"]
+    # ST1000: Incorrect or missing package comment
+    # ST1003: Poorly chosen identifier  
+    # ST1016: methods on the same type should have the same receiver name
+    # ST1020: comment on exported function should be of the form
+    # ST1021: comment on exported type should be of the form
+    # ST1022: comment on exported variable should be of the form
+
+  revive:
+    # see https://github.com/mgechev/revive#available-rules for details
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+        disabled: true # We're handling this manually
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+issues:
+  # list of regexps of issue texts to exclude
+  exclude:
+    # exclude common false positives
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*printf?|os\\.(Un)?Setenv). is not checked"
+    - "func name will be used as test\\.Test.* by other packages, and that stutters; consider calling this"
+    - "G104: Errors unhandled\\." # Handled by errcheck
+    
+  # exclude issues in specific files
+  exclude-rules:
+    # exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - err113
+        - dupl
+        - gosec
+        - funlen
+        - gocognit
+        - cyclop
+    
+    # exclude godox (TODO/FIXME comments) from test files  
+    - path: _test\.go
+      linters:
+        - godox
+        
+    # exclude line length issues in test files (test names can be long)
+    - path: _test\.go
+      linters:
+        - lll
+
+  # show issues only in new code
+  new: false
+  
+  # fix issues automatically when possible
+  fix: false
+
+  # maximum issues count per one linter
+  max-issues-per-linter: 0
+  
+  # maximum count of issues with the same text
+  max-same-issues: 0

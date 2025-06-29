@@ -1,0 +1,5 @@
+{
+  "clusterID": "invalid_underscore",
+  "error_type": "*breakglass.ValidationError",
+  "message": "validation failed for field 'clusterID' with value 'invalid_underscore': must contain only alphanumeric characters and hyphens, cannot start/end with hyphen"
+}

@@ -1,0 +1,30 @@
+{
+  "services": {
+    "kubeAPIServer": "kube-apiserver"
+  },
+  "secrets": {
+    "kasServerCert": "kas-server-crt",
+    "kasServerCertKey": "tls.crt"
+  },
+  "templates": {
+    "csrNameTemplate": "sre-breakglass-%s-%s",
+    "signerNameTemplate": "hypershift.openshift.io/%s.sre-break-glass",
+    "userNameTemplate": "sre-breakglass-%s-%s"
+  },
+  "labels": {
+    "clusterIdKey": "api.openshift.com/id",
+    "userNameKey": "api.openshift.com/name",
+    "resourceTypeKey": "api.openshift.com/type",
+    "resourceTypeValue": "break-glass-credential"
+  },
+  "csr": {
+    "organization": "sre-group",
+    "commonNameTemplate": "system:sre-break-glass:%s"
+  },
+  "naming": {
+    "addTimestamp": true,
+    "addRandomSuffix": false,
+    "randomSuffixLength": 6,
+    "validateLengths": true
+  }
+}

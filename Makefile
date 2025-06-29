@@ -79,6 +79,9 @@ mega-lint:
 # Infra
 #
 
+o: $(ORAS)
+	ls ${ORAS}
+
 infra.region:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make region
 .PHONY: infra.region

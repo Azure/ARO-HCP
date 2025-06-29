@@ -12,5 +12,6 @@ use (
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
 	./tooling/secret-sync
+	./tooling/hcpctl
 	./tooling/templatize
 )
