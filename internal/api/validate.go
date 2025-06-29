@@ -292,11 +292,12 @@ func ValidateRequest(validate *validator.Validate, request *http.Request, resour
 			message := fmt.Sprintf("Invalid value '%v' for field '%s'", fieldErr.Value(), fieldErr.Field())
 			// Try to add a corrective suggestion to the message.
 			tag := fieldErr.Tag()
+			params := strings.Fields(fieldErr.Param())
 			if strings.HasPrefix(tag, "enum_") {
-				if len(strings.Split(fieldErr.Param(), " ")) == 1 {
-					message += fmt.Sprintf(" (must be %s)", fieldErr.Param())
+				if len(params) == 1 {
+					message += fmt.Sprintf(" (must be %s)", params[0])
 				} else {
-					message += fmt.Sprintf(" (must be one of: %s)", fieldErr.Param())
+					message += fmt.Sprintf(" (must be one of: %s)", strings.Join(params, " "))
 				}
 			} else {
 				switch tag {
@@ -323,18 +324,17 @@ func ValidateRequest(validate *validator.Validate, request *http.Request, resour
 				case "required_unless":
 					// The parameter format is pairs of "fieldName fieldValue".
 					// Multiple pairs are possible but we currently only use one.
-					fields := strings.Fields(fieldErr.Param())
-					if len(fields) > 1 {
+					if len(params) > 1 {
 						// We want to print the JSON name for the field
 						// referenced in the parameter, but FieldError does
 						// not provide access to the parent reflect.Type from
 						// which we could look it up. So approximate the JSON
 						// name by lowercasing the first letter.
-						message = fmt.Sprintf("Field '%s' is required when '%s' is not '%s'", fieldErr.Field(), approximateJSONName(fields[0]), fields[1])
+						message = fmt.Sprintf("Field '%s' is required when '%s' is not '%s'", fieldErr.Field(), approximateJSONName(params[0]), params[1])
 					}
 				case "resource_id": // custom tag
-					if fieldErr.Param() != "" {
-						message += fmt.Sprintf(" (must be a valid '%s' resource ID)", fieldErr.Param())
+					if len(params) > 0 {
+						message += fmt.Sprintf(" (must be a valid '%s' resource ID)", params[0])
 					} else {
 						message += " (must be a valid Azure resource ID)"
 					}
@@ -343,46 +343,56 @@ func ValidateRequest(validate *validator.Validate, request *http.Request, resour
 				case "dns_rfc1035_label":
 					message += " (must be a valid DNS RFC 1035 label)"
 				case "excluded_with":
-					// We want to print the JSON name for the field
-					// referenced in the parameter, but FieldError does
-					// not provide access to the parent reflect.Type from
-					// which we could look it up. So approximate the JSON
-					// name by lowercasing the first letter.
-					zero := reflect.Zero(fieldErr.Type()).Interface()
-					message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, approximateJSONName(fieldErr.Param()))
+					if len(params) > 0 {
+						// We want to print the JSON name for the field
+						// referenced in the parameter, but FieldError does
+						// not provide access to the parent reflect.Type from
+						// which we could look it up. So approximate the JSON
+						// name by lowercasing the first letter.
+						zero := reflect.Zero(fieldErr.Type()).Interface()
+						message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, approximateJSONName(params[0]))
+					}
 				case "gtefield":
-					// We want to print the JSON name for the field
-					// referenced in the parameter, but FieldError does
-					// not provide access to the parent reflect.Type from
-					// which we could look it up. So approximate the JSON
-					// name by lowercasing the first letter.
-					message += fmt.Sprintf(" (must be at least the value of '%s')", approximateJSONName(fieldErr.Param()))
+					if len(params) > 0 {
+						// We want to print the JSON name for the field
+						// referenced in the parameter, but FieldError does
+						// not provide access to the parent reflect.Type from
+						// which we could look it up. So approximate the JSON
+						// name by lowercasing the first letter.
+						message += fmt.Sprintf(" (must be at least the value of '%s')", approximateJSONName(params[0]))
+					}
 				case "ipv4":
 					message += " (must be an IPv4 address)"
 				case "max":
-					switch fieldErr.Kind() {
-					case reflect.String:
-						message += fmt.Sprintf(" (maximum length is %s)", fieldErr.Param())
-					default:
-						if fieldErr.Param() == "0" {
-							message += " (must be non-positive)"
-						} else {
-							message += fmt.Sprintf(" (must be at most %s)", fieldErr.Param())
+					if len(params) > 0 {
+						switch fieldErr.Kind() {
+						case reflect.String:
+							message += fmt.Sprintf(" (maximum length is %s)", params[0])
+						default:
+							if params[0] == "0" {
+								message += " (must be non-positive)"
+							} else {
+								message += fmt.Sprintf(" (must be at most %s)", params[0])
+							}
 						}
 					}
 				case "min":
-					switch fieldErr.Kind() {
-					case reflect.String:
-						message += fmt.Sprintf(" (minimum length is %s)", fieldErr.Param())
-					default:
-						if fieldErr.Param() == "0" {
-							message += " (must be non-negative)"
-						} else {
-							message += fmt.Sprintf(" (must be at least %s)", fieldErr.Param())
+					if len(params) > 0 {
+						switch fieldErr.Kind() {
+						case reflect.String:
+							message += fmt.Sprintf(" (minimum length is %s)", params[0])
+						default:
+							if params[0] == "0" {
+								message += " (must be non-negative)"
+							} else {
+								message += fmt.Sprintf(" (must be at least %s)", params[0])
+							}
 						}
 					}
 				case "startswith":
-					message += fmt.Sprintf(" (must start with '%s')", fieldErr.Param())
+					if len(params) > 0 {
+						message += fmt.Sprintf(" (must start with '%s')", params[0])
+					}
 				case "url":
 					message += " (must be a URL)"
 				}
