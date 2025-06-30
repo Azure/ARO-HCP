@@ -1680,12 +1680,45 @@
       "description": "Configure etcd encryption KMS key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`",
       "properties": {
         "activeKey": {
-          "$ref": "#/definitions/NonUpdatableKmsKey",
-          "description": "The details of the active key."
+          "$ref": "#/definitions/KmsKey",
+          "description": "The details of the active key.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
         "activeKey"
+      ]
+    },
+    "KmsKey": {
+      "type": "object",
+      "description": "A representation of a KeyVault Secret.",
+      "properties": {
+        "vaultName": {
+          "type": "string",
+          "description": "vaultName is the name of the keyvault that contains the secret",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "name": {
+          "type": "string",
+          "description": "name is the name of the keyvault key used for encrypt/decrypt",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "version": {
+          "type": "string",
+          "description": "version contains the version of the key to use",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      },
+      "required": [
+        "vaultName",
+        "name",
+        "version"
       ]
     },
     "Label": {
@@ -2136,35 +2169,6 @@
           ]
         }
       }
-    },
-    "NonUpdatableKmsKey": {
-      "type": "object",
-      "description": "A KMS Key that is immutable.",
-      "properties": {
-        "vaultName": {
-          "type": "string",
-          "description": "vaultName is the name of the keyvault that contains the secret",
-          "minLength": 1,
-          "maxLength": 255
-        },
-        "name": {
-          "type": "string",
-          "description": "name is the name of the keyvault key used for encrypt/decrypt",
-          "minLength": 1,
-          "maxLength": 255
-        },
-        "version": {
-          "type": "string",
-          "description": "version contains the version of the key to use",
-          "minLength": 1,
-          "maxLength": 255
-        }
-      },
-      "required": [
-        "vaultName",
-        "name",
-        "version"
-      ]
     },
     "OperatorIdentityRequired": {
       "type": "string",

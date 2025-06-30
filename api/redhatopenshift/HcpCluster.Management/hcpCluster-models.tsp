@@ -344,12 +344,6 @@ model KmsKey {
   version: string;
 }
 
-/** A KMS Key that is immutable. */
-@withVisibilityFilter(#{ all: #[Lifecycle.Create, Lifecycle.Read] })
-model NonUpdatableKmsKey {
-  ...KmsKey;
-}
-
 /** The ETCD settings and configuration options. */
 model EtcdProfile {
   /** ETCD Data Encryption settings.
@@ -385,7 +379,8 @@ model CustomerManagedConfig {
  */
 model KmsConfig {
   /** The details of the active key. */
-  activeKey: NonUpdatableKmsKey;
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  activeKey: KmsKey;
 }
 
 /** The encryption types supported for a customer managed key. */
