@@ -1246,10 +1246,7 @@
           "$ref": "#/definitions/KmsConfig",
           "description": "The kms encryption key details."
         }
-      },
-      "required": [
-        "kms"
-      ]
+      }
     },
     "DnsProfile": {
       "type": "object",

@@ -369,7 +369,7 @@ model CustomerManagedConfig {
   encryptionType?: CustomerManagedKeyEncryptionType = CustomerManagedKeyEncryptionType.Kms;
 
   /** The kms encryption key details. */
-  kms: KmsConfig;
+  kms?: KmsConfig;
 }
 
 /** Configure etcd encryption KMS key.

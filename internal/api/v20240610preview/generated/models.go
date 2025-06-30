@@ -92,11 +92,11 @@ type ConsoleProfile struct {
 
 // CustomerManagedConfig - Customer managed encryption key details.
 type CustomerManagedConfig struct {
-	// REQUIRED; The kms encryption key details.
-	Kms *KmsConfig
-
 	// The encryption type used.
 	EncryptionType *CustomerManagedKeyEncryptionType
+
+	// The kms encryption key details.
+	Kms *KmsConfig
 }
 
 // DNSProfile - DNS contains the DNS settings of the cluster
