@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     secrets-store.io/system: "true"
   name: secrets-store-sync-controller-leader-election-rolebinding
-  namespace: {{ .Release.Namespace }}
+  namespace: '{{ .Release.Namespace }}'
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
