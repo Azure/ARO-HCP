@@ -352,13 +352,17 @@ model NonUpdatableKmsKey {
 
 /** The ETCD settings and configuration options. */
 model EtcdProfile {
-  /** ETCD Data Encryption settings. */
-  dataEncryption: EtcdDataEncryptionProfile;
+  /** ETCD Data Encryption settings.
+   * If not specified platform managed keys are used.
+   */
+  dataEncryption?: EtcdDataEncryptionProfile;
 }
 
 /** The ETCD data encryption settings. */
 model EtcdDataEncryptionProfile {
-  /** Specify whether the key is customer or platform managed. */
+  /** Specify whether the key is customer or platform managed.
+   * By default, platform managed keys are used.
+   */
   managementMode: "customerManaged" | "platformManaged" | string = "platformManaged";
 
   /** Specify customer managed encryption key details. */

@@ -1301,7 +1301,7 @@
       "properties": {
         "managementMode": {
           "type": "string",
-          "description": "Specify whether the key is customer or platform managed.",
+          "description": "Specify whether the key is customer or platform managed.\nBy default, platform managed keys are used.",
           "default": "platformManaged",
           "enum": [
             "customerManaged",
@@ -1326,12 +1326,9 @@
       "properties": {
         "dataEncryption": {
           "$ref": "#/definitions/EtcdDataEncryptionProfile",
-          "description": "ETCD Data Encryption settings."
+          "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used."
         }
-      },
-      "required": [
-        "dataEncryption"
-      ]
+      }
     },
     "HcpOpenShiftCluster": {
       "type": "object",

@@ -145,7 +145,7 @@ type ErrorResponse struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
-	// REQUIRED; Specify whether the key is customer or platform managed.
+	// REQUIRED; Specify whether the key is customer or platform managed. By default, platform managed keys are used.
 	ManagementMode *EtcdDataEncryptionProfileManagementMode
 
 	// Specify customer managed encryption key details.
@@ -154,7 +154,7 @@ type EtcdDataEncryptionProfile struct {
 
 // EtcdProfile - The ETCD settings and configuration options.
 type EtcdProfile struct {
-	// REQUIRED; ETCD Data Encryption settings.
+	// ETCD Data Encryption settings. If not specified platform managed keys are used.
 	DataEncryption *EtcdDataEncryptionProfile
 }
 
