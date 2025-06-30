@@ -435,7 +435,7 @@ func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
 func (e EtcdDataEncryptionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "customerManaged", e.CustomerManaged)
-	populate(objectMap, "managementMode", e.ManagementMode)
+	populate(objectMap, "keyManagementMode", e.KeyManagementMode)
 	return json.Marshal(objectMap)
 }
 
@@ -451,8 +451,8 @@ func (e *EtcdDataEncryptionProfile) UnmarshalJSON(data []byte) error {
 		case "customerManaged":
 			err = unpopulate(val, "CustomerManaged", &e.CustomerManaged)
 			delete(rawMsg, key)
-		case "managementMode":
-			err = unpopulate(val, "ManagementMode", &e.ManagementMode)
+		case "keyManagementMode":
+			err = unpopulate(val, "KeyManagementMode", &e.KeyManagementMode)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)

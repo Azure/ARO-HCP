@@ -93,7 +93,7 @@ type ConsoleProfile struct {
 // CustomerManagedConfig - Customer managed encryption key details.
 type CustomerManagedConfig struct {
 	// REQUIRED; The encryption type used.
-	EncryptionType *CustomerManagedConfigEncryptionType
+	EncryptionType *CustomerManagedKeyEncryptionType
 
 	// REQUIRED; The kms encryption key details.
 	Kms *KmsConfig
@@ -146,7 +146,7 @@ type ErrorResponse struct {
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
 	// REQUIRED; Specify whether the key is customer or platform managed. By default, platform managed keys are used.
-	ManagementMode *EtcdDataEncryptionProfileManagementMode
+	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 
 	// Specify customer managed encryption key details.
 	CustomerManaged *CustomerManagedConfig

@@ -46,17 +46,18 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
-// CustomerManagedConfigEncryptionType - The encryption type used.
-type CustomerManagedConfigEncryptionType string
+// CustomerManagedKeyEncryptionType - The encryption type used.
+type CustomerManagedKeyEncryptionType string
 
 const (
-	CustomerManagedConfigEncryptionTypeKms CustomerManagedConfigEncryptionType = "kms"
+	// CustomerManagedKeyEncryptionTypeKms - A KMS encryption key type.
+	CustomerManagedKeyEncryptionTypeKms CustomerManagedKeyEncryptionType = "kms"
 )
 
-// PossibleCustomerManagedConfigEncryptionTypeValues returns the possible values for the CustomerManagedConfigEncryptionType const type.
-func PossibleCustomerManagedConfigEncryptionTypeValues() []CustomerManagedConfigEncryptionType {
-	return []CustomerManagedConfigEncryptionType{
-		CustomerManagedConfigEncryptionTypeKms,
+// PossibleCustomerManagedKeyEncryptionTypeValues returns the possible values for the CustomerManagedKeyEncryptionType const type.
+func PossibleCustomerManagedKeyEncryptionTypeValues() []CustomerManagedKeyEncryptionType {
+	return []CustomerManagedKeyEncryptionType{
+		CustomerManagedKeyEncryptionTypeKms,
 	}
 }
 
@@ -103,20 +104,22 @@ func PossibleEffectValues() []Effect {
 	}
 }
 
-// EtcdDataEncryptionProfileManagementMode - Specify whether the key is customer or platform managed. By default, platform
+// EtcdDataEncryptionKeyManagementModeType - Specify whether the key is customer or platform managed. By default, platform
 // managed keys are used.
-type EtcdDataEncryptionProfileManagementMode string
+type EtcdDataEncryptionKeyManagementModeType string
 
 const (
-	EtcdDataEncryptionProfileManagementModeCustomerManaged EtcdDataEncryptionProfileManagementMode = "customerManaged"
-	EtcdDataEncryptionProfileManagementModePlatformManaged EtcdDataEncryptionProfileManagementMode = "platformManaged"
+	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - A customer managed encryption key type.
+	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "customerManaged"
+	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - A platform managed encryption key type.
+	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "platformManaged"
 )
 
-// PossibleEtcdDataEncryptionProfileManagementModeValues returns the possible values for the EtcdDataEncryptionProfileManagementMode const type.
-func PossibleEtcdDataEncryptionProfileManagementModeValues() []EtcdDataEncryptionProfileManagementMode {
-	return []EtcdDataEncryptionProfileManagementMode{
-		EtcdDataEncryptionProfileManagementModeCustomerManaged,
-		EtcdDataEncryptionProfileManagementModePlatformManaged,
+// PossibleEtcdDataEncryptionKeyManagementModeTypeValues returns the possible values for the EtcdDataEncryptionKeyManagementModeType const type.
+func PossibleEtcdDataEncryptionKeyManagementModeTypeValues() []EtcdDataEncryptionKeyManagementModeType {
+	return []EtcdDataEncryptionKeyManagementModeType{
+		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 	}
 }
 

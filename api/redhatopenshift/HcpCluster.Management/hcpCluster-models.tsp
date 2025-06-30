@@ -363,7 +363,7 @@ model EtcdDataEncryptionProfile {
   /** Specify whether the key is customer or platform managed.
    * By default, platform managed keys are used.
    */
-  managementMode: "customerManaged" | "platformManaged" | string = "platformManaged";
+  keyManagementMode: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
 
   /** Specify customer managed encryption key details. */
   customerManaged?: CustomerManagedConfig;
@@ -372,7 +372,7 @@ model EtcdDataEncryptionProfile {
 /** Customer managed encryption key details. */
 model CustomerManagedConfig {
   /** The encryption type used. */
-  encryptionType: "kms" | string = "kms";
+  encryptionType: CustomerManagedKeyEncryptionType = CustomerManagedKeyEncryptionType.Kms;
 
   /** The kms encryption key details. */
   kms: KmsConfig;
@@ -386,6 +386,25 @@ model CustomerManagedConfig {
 model KmsConfig {
   /** The details of the active key. */
   activeKey: NonUpdatableKmsKey;
+}
+
+/** The encryption types supported for a customer managed key. */
+union CustomerManagedKeyEncryptionType {
+  string,
+
+  /** A KMS encryption key type. */
+  Kms: "kms",
+}
+
+/** The encryption key management types supported for ETCD data encryption. */
+union EtcdDataEncryptionKeyManagementModeType {
+  string,
+
+  /** A customer managed encryption key type. */
+  CustomerManaged: "customerManaged",
+
+  /** A platform managed encryption key type. */
+  PlatformManaged: "platformManaged",
 }
 
 /*

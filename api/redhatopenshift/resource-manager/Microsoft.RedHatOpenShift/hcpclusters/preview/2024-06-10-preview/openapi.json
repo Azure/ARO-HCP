@@ -1231,7 +1231,15 @@
             "kms"
           ],
           "x-ms-enum": {
-            "modelAsString": true
+            "name": "CustomerManagedKeyEncryptionType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Kms",
+                "value": "kms",
+                "description": "A KMS encryption key type."
+              }
+            ]
           }
         },
         "kms": {
@@ -1299,7 +1307,7 @@
       "type": "object",
       "description": "The ETCD data encryption settings.",
       "properties": {
-        "managementMode": {
+        "keyManagementMode": {
           "type": "string",
           "description": "Specify whether the key is customer or platform managed.\nBy default, platform managed keys are used.",
           "default": "platformManaged",
@@ -1308,7 +1316,20 @@
             "platformManaged"
           ],
           "x-ms-enum": {
-            "modelAsString": true
+            "name": "EtcdDataEncryptionKeyManagementModeType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "CustomerManaged",
+                "value": "customerManaged",
+                "description": "A customer managed encryption key type."
+              },
+              {
+                "name": "PlatformManaged",
+                "value": "platformManaged",
+                "description": "A platform managed encryption key type."
+              }
+            ]
           }
         },
         "customerManaged": {
@@ -1317,7 +1338,7 @@
         }
       },
       "required": [
-        "managementMode"
+        "keyManagementMode"
       ]
     },
     "EtcdProfile": {
