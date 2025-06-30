@@ -46,18 +46,18 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
-// CustomerManagedKeyEncryptionType - The encryption type used.
-type CustomerManagedKeyEncryptionType string
+// CustomerManagedEncryptionType - The encryption type used. By default, "kms" is used.
+type CustomerManagedEncryptionType string
 
 const (
-	// CustomerManagedKeyEncryptionTypeKms - A KMS encryption key type.
-	CustomerManagedKeyEncryptionTypeKms CustomerManagedKeyEncryptionType = "kms"
+	// CustomerManagedEncryptionTypeKms - KMS encryption type.
+	CustomerManagedEncryptionTypeKms CustomerManagedEncryptionType = "kms"
 )
 
-// PossibleCustomerManagedKeyEncryptionTypeValues returns the possible values for the CustomerManagedKeyEncryptionType const type.
-func PossibleCustomerManagedKeyEncryptionTypeValues() []CustomerManagedKeyEncryptionType {
-	return []CustomerManagedKeyEncryptionType{
-		CustomerManagedKeyEncryptionTypeKms,
+// PossibleCustomerManagedEncryptionTypeValues returns the possible values for the CustomerManagedEncryptionType const type.
+func PossibleCustomerManagedEncryptionTypeValues() []CustomerManagedEncryptionType {
+	return []CustomerManagedEncryptionType{
+		CustomerManagedEncryptionTypeKms,
 	}
 }
 
@@ -105,13 +105,13 @@ func PossibleEffectValues() []Effect {
 }
 
 // EtcdDataEncryptionKeyManagementModeType - Specify the key management strategy used for the encryption key that encrypts
-// the ETCD data. By default, platform managed keys are used.
+// the ETCD data. By default, "platformManaged" is used.
 type EtcdDataEncryptionKeyManagementModeType string
 
 const (
-	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - A customer managed encryption key type.
+	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - Customer managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "customerManaged"
-	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - A platform managed encryption key type.
+	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "platformManaged"
 )
 

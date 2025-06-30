@@ -92,8 +92,8 @@ type ConsoleProfile struct {
 
 // CustomerManagedConfig - Customer managed encryption key details.
 type CustomerManagedConfig struct {
-	// The encryption type used.
-	EncryptionType *CustomerManagedKeyEncryptionType
+	// The encryption type used. By default, "kms" is used.
+	EncryptionType *CustomerManagedEncryptionType
 
 	// The kms encryption key details.
 	Kms *KmsConfig
@@ -145,11 +145,11 @@ type ErrorResponse struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
-	// Specify customer managed encryption key details.
+	// Specify customer managed encryption key details. Required when keyManagementMode is "customerManaged".
 	CustomerManaged *CustomerManagedConfig
 
-	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, platform managed
-	// keys are used.
+	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "platformManaged"
+	// is used.
 	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 }
 
@@ -206,9 +206,6 @@ type HcpOpenShiftClusterListResult struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
-	// REQUIRED; Configure ETCD.
-	Etcd *EtcdProfile
-
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
@@ -223,6 +220,9 @@ type HcpOpenShiftClusterProperties struct {
 
 	// Cluster DNS configuration
 	DNS *DNSProfile
+
+	// Configure ETCD.
+	Etcd *EtcdProfile
 
 	// Cluster network configuration
 	Network *NetworkProfile
@@ -359,13 +359,13 @@ type KmsConfig struct {
 
 // KmsKey - A representation of a KeyVault Secret.
 type KmsKey struct {
-	// REQUIRED; name is the name of the keyvault key used for encrypt/decrypt
+	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
 
-	// REQUIRED; vaultName is the name of the keyvault that contains the secret
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
 	VaultName *string
 
-	// REQUIRED; version contains the version of the key to use
+	// REQUIRED; version contains the version of the key to use.
 	Version *string
 }
 

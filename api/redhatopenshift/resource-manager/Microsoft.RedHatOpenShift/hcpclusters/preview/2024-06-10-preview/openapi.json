@@ -1225,19 +1225,19 @@
       "properties": {
         "encryptionType": {
           "type": "string",
-          "description": "The encryption type used.",
+          "description": "The encryption type used.\nBy default, \"kms\" is used.",
           "default": "kms",
           "enum": [
             "kms"
           ],
           "x-ms-enum": {
-            "name": "CustomerManagedKeyEncryptionType",
+            "name": "CustomerManagedEncryptionType",
             "modelAsString": true,
             "values": [
               {
                 "name": "Kms",
                 "value": "kms",
-                "description": "A KMS encryption key type."
+                "description": "KMS encryption type."
               }
             ]
           }
@@ -1305,7 +1305,7 @@
       "properties": {
         "keyManagementMode": {
           "type": "string",
-          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.\nBy default, platform managed keys are used.",
+          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.\nBy default, \"platformManaged\" is used.",
           "default": "platformManaged",
           "enum": [
             "customerManaged",
@@ -1318,19 +1318,19 @@
               {
                 "name": "CustomerManaged",
                 "value": "customerManaged",
-                "description": "A customer managed encryption key type."
+                "description": "Customer managed encryption key management mode type."
               },
               {
                 "name": "PlatformManaged",
                 "value": "platformManaged",
-                "description": "A platform managed encryption key type."
+                "description": "Platform managed encryption key management mode type."
               }
             ]
           }
         },
         "customerManaged": {
           "$ref": "#/definitions/CustomerManagedConfig",
-          "description": "Specify customer managed encryption key details."
+          "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"customerManaged\"."
         }
       }
     },
@@ -1490,8 +1490,7 @@
         }
       },
       "required": [
-        "platform",
-        "etcd"
+        "platform"
       ]
     },
     "HcpOpenShiftClusterPropertiesUpdate": {
@@ -1691,19 +1690,19 @@
       "properties": {
         "vaultName": {
           "type": "string",
-          "description": "vaultName is the name of the keyvault that contains the secret",
+          "description": "vaultName is the name of the keyvault that contains the secret.",
           "minLength": 1,
           "maxLength": 255
         },
         "name": {
           "type": "string",
-          "description": "name is the name of the keyvault key used for encrypt/decrypt",
+          "description": "name is the name of the keyvault key used for encryption/decryption.",
           "minLength": 1,
           "maxLength": 255
         },
         "version": {
           "type": "string",
-          "description": "version contains the version of the key to use",
+          "description": "version contains the version of the key to use.",
           "minLength": 1,
           "maxLength": 255
         }

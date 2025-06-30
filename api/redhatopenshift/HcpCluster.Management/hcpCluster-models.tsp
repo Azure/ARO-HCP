@@ -80,7 +80,7 @@ model HcpOpenShiftClusterProperties {
 
   /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  etcd: EtcdProfile;
+  etcd?: EtcdProfile;
 }
 
 /** Cluster capabilities configuration. */
@@ -328,17 +328,17 @@ scalar UserAssignedIdentityResourceId
 
 /** A representation of a KeyVault Secret. */
 model KmsKey {
-  /** vaultName is the name of the keyvault that contains the secret */
+  /** vaultName is the name of the keyvault that contains the secret. */
   @maxLength(255)
   @minLength(1)
   vaultName: string;
 
-  /** name is the name of the keyvault key used for encrypt/decrypt */
+  /** name is the name of the keyvault key used for encryption/decryption. */
   @maxLength(255)
   @minLength(1)
   name: string;
 
-  /** version contains the version of the key to use */
+  /** version contains the version of the key to use. */
   @maxLength(255)
   @minLength(1)
   version: string;
@@ -355,18 +355,22 @@ model EtcdProfile {
 /** The ETCD data encryption settings. */
 model EtcdDataEncryptionProfile {
   /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
-   * By default, platform managed keys are used.
+   * By default, "platformManaged" is used.
    */
   keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
 
-  /** Specify customer managed encryption key details. */
+  /** Specify customer managed encryption key details.
+   * Required when keyManagementMode is "customerManaged".
+   */
   customerManaged?: CustomerManagedConfig;
 }
 
 /** Customer managed encryption key details. */
 model CustomerManagedConfig {
-  /** The encryption type used. */
-  encryptionType?: CustomerManagedKeyEncryptionType = CustomerManagedKeyEncryptionType.Kms;
+  /** The encryption type used.
+   * By default, "kms" is used.
+   */
+  encryptionType?: CustomerManagedEncryptionType = CustomerManagedEncryptionType.Kms;
 
   /** The kms encryption key details. */
   kms?: KmsConfig;
@@ -384,21 +388,21 @@ model KmsConfig {
 }
 
 /** The encryption types supported for a customer managed key. */
-union CustomerManagedKeyEncryptionType {
+union CustomerManagedEncryptionType {
   string,
 
-  /** A KMS encryption key type. */
+  /** KMS encryption type. */
   Kms: "kms",
 }
 
-/** The encryption key management types supported for ETCD data encryption. */
+/** The encryption key management mode types supported for ETCD data encryption. */
 union EtcdDataEncryptionKeyManagementModeType {
   string,
 
-  /** A customer managed encryption key type. */
+  /** Customer managed encryption key management mode type. */
   CustomerManaged: "customerManaged",
 
-  /** A platform managed encryption key type. */
+  /** Platform managed encryption key management mode type. */
   PlatformManaged: "platformManaged",
 }
 
