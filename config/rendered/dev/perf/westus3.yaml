@@ -295,12 +295,12 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: arohcp-hcp-perf-usw3ptest
+  hcpWorkspaceName: hcps-usw3ptest
   sev1ActionGroupIDs: ""
   sev2ActionGroupIDs: ""
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
-  svcWorkspaceName: arohcp-perf-usw3ptest
+  svcWorkspaceName: services-usw3ptest
 msiKeyVault:
   name: ah-perf-mi-usw3ptest-1
   private: false
