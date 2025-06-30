@@ -124,15 +124,18 @@ jobs:
       run: |
         cd dev-infrastructure/
         make mgmt.aks.kubeconfig
-    - name: 'Deploy PKO'
-      run: |
-        make pko.deploy_pipeline
     - name: 'Deploy ACM'
       run: |
         make acm.deploy_pipeline
+    - name: 'Deploy PKO'
+      run: |
+        make pko.deploy_pipeline
     - name: 'Deploy Maestro Agent'
       run: |
         make maestro.agent.deploy_pipeline
     - name: 'Deploy Hypershift Operator and External DNS Operator'
       run: |
         make hypershiftoperator.deploy_pipeline
+    - name: 'Deploy Secret Sync Controller'
+      run: |
+        make secret-sync-controller.deploy_pipeline
