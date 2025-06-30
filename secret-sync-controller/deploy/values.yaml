@@ -2,39 +2,32 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 controllerName: secrets-store-sync-controller-manager
-
 tokenRequestAudience:
-  - audience:  # e.g. api://TokenAudienceExample
-
+- audience: # e.g. api://TokenAudienceExample
 logVerbosity: 5
-
 validatingAdmissionPolicies:
   applyPolicies: true
   kubernetesReleaseVersion: "1.28.0"
   allowedSecretTypes:
-    - "Opaque"
-    - "kubernetes.io/basic-auth"
-    - "bootstrap.kubernetes.io/token"
-    - "kubernetes.io/dockerconfigjson"
-    - "kubernetes.io/dockercfg"
-    - "kubernetes.io/ssh-auth"
-    - "kubernetes.io/tls"
-
+  - "Opaque"
+  - "kubernetes.io/basic-auth"
+  - "bootstrap.kubernetes.io/token"
+  - "kubernetes.io/dockerconfigjson"
+  - "kubernetes.io/dockercfg"
+  - "kubernetes.io/ssh-auth"
+  - "kubernetes.io/tls"
   deniedSecretTypes:
-    - "kubernetes.io/service-account-token"
-
+  - "kubernetes.io/service-account-token"
 image:
   repository: registry.k8s.io/secrets-store-sync/controller # e.g. my-registry.example.com/my-repo
   pullPolicy: IfNotPresent
   tag: v0.0.1
-
 securityContext:
   # Default values, can be overridden or extended
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - ALL
-
+    - ALL
 resources:
   limits:
     cpu: 500m
@@ -42,20 +35,14 @@ resources:
   requests:
     cpu: 10m
     memory: 64Mi
-
 podAnnotations:
   kubectl.kubernetes.io/default-container: manager
-
 podLabels:
   control-plane: controller-manager
   secrets-store.io/system: "true"
   app: secrets-store-sync-controller
-
 nodeSelector:
-
 tolerations:
 - operator: Exists
-
 affinity:
-
 metricsPort: 8085
