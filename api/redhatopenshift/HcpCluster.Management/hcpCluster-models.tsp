@@ -428,6 +428,9 @@ model NodePoolPlatformProfile {
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
   availabilityZone?: string;
+
+  /** Disk encryption settings for the OS and data disks */
+  encryption?: Encryption;
 }
 
 /** Supported Azure storage account types
@@ -456,7 +459,35 @@ model NodePoolAutoScaling {
   @minValue(0)
   max?: int32;
 }
+/** Disk encryption settings for the OS and data disks */
+model Encryption {
+  /** Infrastructure-level encryption for the disks. Defaults to "disabled". */
+  infrastructureEncryption?: "enabled" | "disabled" | string = "disabled";
 
+  /** Configuration for using a customer-managed key (CMK) for disk encryption. */
+  customerManagedKeyEncryption?: CustomerManagedKeyEncryption;
+}
+
+/** Configuration for customer-managed disk encryption using Azure Key Vault. */
+model CustomerManagedKeyEncryption {
+  /** Identity used to authenticate with the Azure Key Vault for CMK. */
+  keyEncryptionKeyIdentity: KeyEncryptionKeyIdentity;
+
+  /** The URL of the Key Vault key to use for encryption. */
+  keyEncryptionKeyUrl: string;
+}
+
+/** Identity used to access Azure Key Vault for CMK. */
+model KeyEncryptionKeyIdentity {
+  /** Type of identity used for accessing Key Vault (system or user assigned). */
+  identityType: "systemAssignedIdentity" | "userAssignedIdentity" | string;
+
+  /** Optional: Resource ID of the user-assigned identity. */
+  userAssignedIdentityResourceId?: UserAssignedIdentityResourceId;
+
+  /** Optional: Client ID used for federated identity scenarios. */
+  federatedClientId?: string;
+}
 /*
  * =======================================
  * End NodePool resources
