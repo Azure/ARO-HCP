@@ -5,13 +5,14 @@ import "@azure-tools/typespec-azure-resource-manager";
 
 namespace Microsoft.RedHatOpenShift;
 
+using TypeSpec.Rest;
 using Azure.ResourceManager;
 
 /** HcpOperatorIdentityRoles represents a location based representation of
  * the required platform workload identities and their required roles for a given
  * OpenShift version
  */
-@locationResource
+@parentResource(SubscriptionLocationResource)
 model HcpOperatorIdentityRoleSet
   is ProxyResource<HcpOperatorIdentityRoleSetProperties> {
   ...ResourceNameParameter<

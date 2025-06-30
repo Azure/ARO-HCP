@@ -126,7 +126,7 @@
             }
           ]
         },
-        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/locations/adbtcqjkymyzrefddom/providers/Microsoft.RedHatOpenShift/hcpOperatorIdentityRoleSets/4.19",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/providers/Microsoft.RedHatOpenShift/locations/adbtcqjkymyzrefddom/hcpOperatorIdentityRoleSets/4.19",
         "name": "4.19",
         "type": "Microsoft.RedHatOpenShift/hcpOperatorIdentityRoleSets",
         "systemData": {

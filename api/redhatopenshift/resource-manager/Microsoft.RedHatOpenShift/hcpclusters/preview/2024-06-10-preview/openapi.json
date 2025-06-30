@@ -95,95 +95,6 @@
         }
       }
     },
-    "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenShift/hcpOperatorIdentityRoleSets": {
-      "get": {
-        "operationId": "HcpOperatorIdentityRoleSets_List",
-        "tags": [
-          "HcpOperatorIdentityRoleSets"
-        ],
-        "description": "List HcpOperatorIdentityRoleSet resources by location",
-        "parameters": [
-          {
-            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
-          },
-          {
-            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
-          },
-          {
-            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/LocationParameter"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Azure operation completed successfully.",
-            "schema": {
-              "$ref": "#/definitions/HcpOperatorIdentityRoleSetListResult"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
-            }
-          }
-        },
-        "x-ms-examples": {
-          "HcpOperatorIdentityRoleSets_List_MaximumSet": {
-            "$ref": "./examples/HcpOperatorIdentityRoleSets_List_MaximumSet_Gen.json"
-          }
-        },
-        "x-ms-pageable": {
-          "nextLinkName": "nextLink"
-        }
-      }
-    },
-    "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenShift/hcpOperatorIdentityRoleSets/{hcpOperatorIdentityRoleSetName}": {
-      "get": {
-        "operationId": "HcpOperatorIdentityRoleSets_Get",
-        "tags": [
-          "HcpOperatorIdentityRoleSets"
-        ],
-        "description": "Get a HcpOperatorIdentityRoleSet",
-        "parameters": [
-          {
-            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
-          },
-          {
-            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
-          },
-          {
-            "$ref": "../../../../../../common-types/resource-management/v5/types.json#/parameters/LocationParameter"
-          },
-          {
-            "name": "hcpOperatorIdentityRoleSetName",
-            "in": "path",
-            "description": "The OpenShift minor version these identities are required for.",
-            "required": true,
-            "type": "string",
-            "pattern": "^[a-zA-Z0-9-\\.]{3,24}$"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Azure operation completed successfully.",
-            "schema": {
-              "$ref": "#/definitions/HcpOperatorIdentityRoleSet"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
-            }
-          }
-        },
-        "x-ms-examples": {
-          "HcpOperatorIdentityRoleSets_Get_MaximumSet": {
-            "$ref": "./examples/HcpOperatorIdentityRoleSets_Get_MaximumSet_Gen.json"
-          }
-        }
-      }
-    },
     "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters": {
       "get": {
         "operationId": "HcpOpenShiftClusters_ListBySubscription",
@@ -308,6 +219,95 @@
         "x-ms-examples": {
           "HcpOpenShiftVersions_Get_MaximumSet": {
             "$ref": "./examples/HcpOpenShiftVersions_Get_MaximumSet_Gen.json"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOperatorIdentityRoleSets": {
+      "get": {
+        "operationId": "HcpOperatorIdentityRoleSets_List",
+        "tags": [
+          "HcpOperatorIdentityRoleSets"
+        ],
+        "description": "List HcpOperatorIdentityRoleSet resources by SubscriptionLocationResource",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/LocationParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOperatorIdentityRoleSetListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOperatorIdentityRoleSets_List_MaximumSet": {
+            "$ref": "./examples/HcpOperatorIdentityRoleSets_List_MaximumSet_Gen.json"
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOperatorIdentityRoleSets/{hcpOperatorIdentityRoleSetName}": {
+      "get": {
+        "operationId": "HcpOperatorIdentityRoleSets_Get",
+        "tags": [
+          "HcpOperatorIdentityRoleSets"
+        ],
+        "description": "Get a HcpOperatorIdentityRoleSet",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/LocationParameter"
+          },
+          {
+            "name": "hcpOperatorIdentityRoleSetName",
+            "in": "path",
+            "description": "The OpenShift minor version these identities are required for.",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9-\\.]{3,24}$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/HcpOperatorIdentityRoleSet"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-examples": {
+          "HcpOperatorIdentityRoleSets_Get_MaximumSet": {
+            "$ref": "./examples/HcpOperatorIdentityRoleSets_Get_MaximumSet_Gen.json"
           }
         }
       }

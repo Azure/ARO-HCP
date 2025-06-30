@@ -75,7 +75,7 @@ func (client *HcpOperatorIdentityRoleSetsClient) Get(ctx context.Context, locati
 
 // getCreateRequest creates the Get request.
 func (client *HcpOperatorIdentityRoleSetsClient) getCreateRequest(ctx context.Context, location string, hcpOperatorIdentityRoleSetName string, options *HcpOperatorIdentityRoleSetsClientGetOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenShift/hcpOperatorIdentityRoleSets/{hcpOperatorIdentityRoleSetName}"
+	urlPath := "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOperatorIdentityRoleSets/{hcpOperatorIdentityRoleSetName}"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
@@ -108,7 +108,7 @@ func (client *HcpOperatorIdentityRoleSetsClient) getHandleResponse(resp *http.Re
 	return result, nil
 }
 
-// NewListPager - List HcpOperatorIdentityRoleSet resources by location
+// NewListPager - List HcpOperatorIdentityRoleSet resources by SubscriptionLocationResource
 //
 // Generated from API version 2024-06-10-preview
 //   - location - The name of the Azure region.
@@ -139,7 +139,7 @@ func (client *HcpOperatorIdentityRoleSetsClient) NewListPager(location string, o
 
 // listCreateRequest creates the List request.
 func (client *HcpOperatorIdentityRoleSetsClient) listCreateRequest(ctx context.Context, location string, options *HcpOperatorIdentityRoleSetsClientListOptions) (*policy.Request, error) {
-	urlPath := "/subscriptions/{subscriptionId}/locations/{location}/providers/Microsoft.RedHatOpenShift/hcpOperatorIdentityRoleSets"
+	urlPath := "/subscriptions/{subscriptionId}/providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOperatorIdentityRoleSets"
 	if client.subscriptionID == "" {
 		return nil, errors.New("parameter client.subscriptionID cannot be empty")
 	}
