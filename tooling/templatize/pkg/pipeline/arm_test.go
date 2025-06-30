@@ -17,11 +17,14 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
 func TestWaitForExistingDeployment(t *testing.T) {
@@ -100,5 +103,88 @@ func TestWaitForExistingDeployment(t *testing.T) {
 			}
 			assert.Equal(t, callCnt, c.expecetCallCnt)
 		})
+	}
+}
+
+func TestGenerateDeploymentName(t *testing.T) {
+	tests := []struct {
+		name         string
+		step         *types.ARMStep
+		expectUnique bool
+		expectPrefix string
+	}{
+		{
+			name: "regular step returns original name",
+			step: &types.ARMStep{
+				StepMeta: types.StepMeta{
+					Name: "test-step",
+				},
+				OutputOnly: false,
+			},
+			expectUnique: false,
+			expectPrefix: "test-step",
+		},
+		{
+			name: "outputOnly step returns unique name",
+			step: &types.ARMStep{
+				StepMeta: types.StepMeta{
+					Name: "test-output-step",
+				},
+				OutputOnly: true,
+			},
+			expectUnique: true,
+			expectPrefix: "test-output-step-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := generateDeploymentName(tt.step)
+
+			if tt.expectUnique {
+				// Should have the original name as prefix
+				if !strings.HasPrefix(result, tt.expectPrefix) {
+					t.Errorf("Expected result to start with '%s', got '%s'", tt.expectPrefix, result)
+				}
+				// Should be longer than the original name
+				if len(result) <= len(tt.step.Name) {
+					t.Errorf("Expected unique name to be longer than original name '%s', got '%s'", tt.step.Name, result)
+				}
+				// Should contain a hyphen and suffix
+				parts := strings.Split(result, "-")
+				if len(parts) < 2 {
+					t.Errorf("Expected unique name to contain hyphen and suffix, got '%s'", result)
+				}
+				// Suffix should be 8 characters (hex encoded 4 bytes)
+				suffix := parts[len(parts)-1]
+				if len(suffix) != 8 {
+					t.Errorf("Expected suffix to be 8 characters, got '%s' (length %d)", suffix, len(suffix))
+				}
+			} else {
+				// Should be exactly the original name
+				if result != tt.expectPrefix {
+					t.Errorf("Expected result to be '%s', got '%s'", tt.expectPrefix, result)
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateDeploymentNameUniqueness(t *testing.T) {
+	step := &types.ARMStep{
+		StepMeta: types.StepMeta{
+			Name: "test-step",
+		},
+		OutputOnly: true,
+	}
+
+	// Generate multiple names and ensure they're unique
+	names := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		name := generateDeploymentName(step)
+		if names[name] {
+			t.Errorf("Generated duplicate name: %s", name)
+		}
+		names[name] = true
 	}
 }
