@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -24,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/test/util/environment"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 )
 
@@ -31,21 +33,25 @@ var (
 	clients        *api.ClientFactory
 	subscriptionID string
 	e2eSetup       integration.SetupModel
+	testEnv        environment.Environment
 )
 
-func prepareDevelopmentConf() azcore.ClientOptions {
-	c := cloud.Configuration{
-		ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
-		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-			cloud.ResourceManager: {
-				Audience: "https://management.core.windows.net/",
-				Endpoint: "http://localhost:8443",
+func prepareEnvironmentConf(testEnv environment.Environment) azcore.ClientOptions {
+	c := cloud.AzurePublic
+	if environment.Development.Compare(testEnv) {
+		c = cloud.Configuration{
+			ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+				cloud.ResourceManager: {
+					Audience: "https://management.core.windows.net/",
+					Endpoint: testEnv.Url(),
+				},
 			},
-		},
+		}
 	}
 	opts := azcore.ClientOptions{
 		Cloud:                           c,
-		InsecureAllowCredentialWithHTTP: true,
+		InsecureAllowCredentialWithHTTP: environment.Development.Compare(testEnv),
 	}
 
 	return opts
@@ -56,6 +62,7 @@ func setup(ctx context.Context) error {
 		found bool
 		creds azcore.TokenCredential
 		err   error
+		opts  azcore.ClientOptions
 	)
 
 	if subscriptionID, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
@@ -65,9 +72,12 @@ func setup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	testEnv = environment.Environment(strings.ToLower(os.Getenv("AROHCP_ENV")))
+	if testEnv == "" {
+		testEnv = environment.Development
+	}
 
-	opts := prepareDevelopmentConf()
-
+	opts = prepareEnvironmentConf(testEnv)
 	envOptions := &azidentity.EnvironmentCredentialOptions{
 		ClientOptions: opts,
 	}
