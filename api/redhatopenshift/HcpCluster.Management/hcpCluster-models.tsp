@@ -359,7 +359,7 @@ model EtcdProfile {
 /** The ETCD data encryption settings. */
 model EtcdDataEncryptionProfile {
   /** Specify whether the key is customer or platform managed. */
-  managementMode: "customerManaged" | "platformManaged" | string;
+  managementMode: "customerManaged" | "platformManaged" | string = "platformManaged";
 
   /** Specify customer managed encryption key details. */
   customerManagedConfig?: CustomerManagedConfig;
@@ -368,7 +368,7 @@ model EtcdDataEncryptionProfile {
 /** Customer managed encryption key details. */
 model CustomerManagedConfig {
   /** The encryption type used. */
-  encryptionType: "kms" | string;
+  encryptionType: "kms" | string = "kms";
 
   /** The kms encryption key details. */
   kmsConfig: KmsConfig;

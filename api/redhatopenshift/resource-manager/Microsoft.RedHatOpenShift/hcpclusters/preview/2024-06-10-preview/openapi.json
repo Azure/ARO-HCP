@@ -1226,6 +1226,7 @@
         "encryptionType": {
           "type": "string",
           "description": "The encryption type used.",
+          "default": "kms",
           "enum": [
             "kms"
           ],
@@ -1301,6 +1302,7 @@
         "managementMode": {
           "type": "string",
           "description": "Specify whether the key is customer or platform managed.",
+          "default": "platformManaged",
           "enum": [
             "customerManaged",
             "platformManaged"
