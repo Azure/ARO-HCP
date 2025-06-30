@@ -33,7 +33,7 @@ install-tools: $(BINGO)
 .PHONY: install-tools
 
 licenses: $(ADDLICENSE)
-	$(ADDLICENSE) -c 'Microsoft Corporation' -l apache $(shell find -type f -name '*.go')
+	$(ADDLICENSE) -c 'Microsoft Corporation' -l apache $(shell find . -type f -name '*.go')
 
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
 # https://github.com/golang/go/issues/50745
