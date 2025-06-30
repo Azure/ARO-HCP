@@ -47,14 +47,15 @@ model HcpOpenShiftClusterProperties {
   provisioningState?: ProvisioningState;
 
   /** Version of the control plane components */
-  @visibility(Lifecycle.Create, Lifecycle.Read)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   version?: VersionProfile;
 
   /** Cluster DNS configuration */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   dns?: DnsProfile;
 
   /** Cluster network configuration */
-  @visibility(Lifecycle.Create, Lifecycle.Read)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   network?: NetworkProfile;
 
   /** Shows the cluster web console information */
@@ -62,11 +63,11 @@ model HcpOpenShiftClusterProperties {
   console?: ConsoleProfile;
 
   /** Shows the cluster API server profile */
-  @visibility(Lifecycle.Read)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   api?: ApiProfile;
 
   /** Azure platform configuration */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
 
   /** Configure cluter capabilities. */
@@ -211,18 +212,23 @@ union Visibility {
 /** Azure specific configuration */
 model PlatformProfile {
   /** Resource group to put cluster resources */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   managedResourceGroup?: string;
 
   /** The Azure resource ID of the worker subnet */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   outboundType?: OutboundType = OutboundType.LoadBalancer;
 
   /** ResourceId for the network security group attached to the cluster subnet */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
   /** The configuration that the operators of the cluster have to authenticate to Azure */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   operatorsAuthentication: OperatorsAuthenticationProfile;
 
   /** URL for the OIDC provider to be used for authentication
@@ -310,7 +316,7 @@ model NodePoolProperties {
   provisioningState?: ProvisioningState;
 
   /** OpenShift version for the nodepool */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   version?: NodePoolVersionProfile;
 
   /** Azure node pool platform configuration */
@@ -326,6 +332,7 @@ model NodePoolProperties {
   autoRepair?: boolean = true;
 
   /** Representation of a autoscaling in a node pool. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
   /** Kubernetes labels to propagate to the NodePool Nodes */
@@ -404,29 +411,35 @@ model NodePoolVersionProfile {
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
   /** The Azure resource ID of the worker subnet */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId?: string;
 
   /** The VM size according to the documentation:
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   vmSize: string;
 
   /** Whether to enable host based OS and data drive encryption.
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   enableEncryptionAtHost?: boolean = false;
 
   /** The OS disk size in GiB */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   diskSizeGiB?: int32 = 64;
 
   /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   availabilityZone?: string;
 }
 
