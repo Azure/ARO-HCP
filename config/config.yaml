@@ -146,19 +146,19 @@ defaults:
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
-        azCount: {? {.ev2.availabilityZoneCount: ''} : ''}
+        azCount: {{ .ev2.availabilityZoneCount: }}
       userAgentPool:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
-        azCount: {? {.ev2.availabilityZoneCount: ''} : ''}
+        azCount: {{ .ev2.availabilityZoneCount: }}
       infraAgentPool:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
-        azCount: {? {.ev2.availabilityZoneCount: ''} : ''}
+        azCount: {{ .ev2.availabilityZoneCount: }}
       etcd:
         kvName: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
         kvSoftDelete: true
@@ -206,18 +206,18 @@ defaults:
         vmSize: 'Standard_E8s_v3'
         osDiskSizeGB: 128
         minCount: 1
-        azCount: {? {.ev2.availabilityZoneCount: ''} : ''}
+        azCount: {{ .ev2.availabilityZoneCount: }}
       userAgentPool:
         vmSize: 'Standard_D16s_v3'
         osDiskSizeGB: 128
         minCount: 1
-        azCount: {? {.ev2.availabilityZoneCount: ''} : ''}
+        azCount: {{ .ev2.availabilityZoneCount: }}
       infraAgentPool:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
-        azCount: {? {.ev2.availabilityZoneCount: ''} : ''}
+        azCount: {{ .ev2.availabilityZoneCount: }}
       clusterOutboundIPAddressIPTags: ""
       enableSwiftV2: true
     logs:
