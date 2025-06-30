@@ -19,7 +19,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/go-logr/logr"
 
@@ -76,31 +75,7 @@ func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
 }
 
 func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions) (map[string]Output, error) {
-	logger := logr.FromContextOrDiscard(ctx)
-
 	outPuts := make(map[string]Output)
-
-	// set working directory to the pipeline file directory for the
-	// duration of the execution so that all commands and file references
-	// within the pipeline file are resolved relative to the pipeline file
-	originalDir, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	dir := filepath.Dir(options.PipelineFilePath)
-	logger.V(7).Info("switch current dir to pipeline file directory", "path", dir)
-	err = os.Chdir(dir)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		logger.V(7).Info("switch back dir", "path", originalDir)
-		err = os.Chdir(originalDir)
-		if err != nil {
-			logger.Error(err, "failed to switch back to original directory", "path", originalDir)
-		}
-	}()
-
 	for _, rg := range pipeline.ResourceGroups {
 		// prepare execution context
 		subscriptionID, err := options.SubsciptionLookupFunc(ctx, rg.Subscription)

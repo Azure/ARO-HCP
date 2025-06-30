@@ -20,6 +20,7 @@ import (
 	"io"
 	"maps"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/go-logr/logr"
 
@@ -29,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
-func createCommand(ctx context.Context, scriptCommand string, dryRun *types.DryRun, envVars map[string]string) (*exec.Cmd, bool) {
+func createCommand(ctx context.Context, scriptCommand, pipelineWorkingDir string, dryRun *types.DryRun, envVars map[string]string) (*exec.Cmd, bool) {
 	if dryRun != nil {
 		if dryRun.Command == "" && dryRun.Variables == nil {
 			return nil, true
@@ -40,6 +41,7 @@ func createCommand(ctx context.Context, scriptCommand string, dryRun *types.DryR
 	}
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", buildBashScript(scriptCommand))
 	cmd.Env = append(cmd.Env, utils.MapToEnvVarArray(envVars)...)
+	cmd.Dir = pipelineWorkingDir
 	return cmd, false
 }
 
@@ -73,7 +75,7 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	maps.Copy(envVars, stepVars)
 	maps.Copy(envVars, dryRunVars)
 
-	cmd, skipCommand := createCommand(ctx, s.Command, dryRun, envVars)
+	cmd, skipCommand := createCommand(ctx, s.Command, filepath.Dir(options.PipelineFilePath), dryRun, envVars)
 	if skipCommand {
 		logger.V(5).Info(fmt.Sprintf("Skipping step '%s' due to missing dry-run configuration", s.Name))
 		return nil

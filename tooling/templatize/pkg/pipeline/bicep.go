@@ -39,8 +39,8 @@ func modeFromString(mode string) armresources.DeploymentMode {
 	}
 }
 
-func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemplateFile, deploymentMode string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
-	template, params, err := transformParameters(ctx, cfg, inputs, bicepParameterTemplateFile)
+func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
+	template, params, err := transformParameters(ctx, cfg, inputs, bicepParameterTemplateFile, pipelineWorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -51,8 +51,8 @@ func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepParameterTemp
 	}, nil
 }
 
-func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFile, deploymentMode string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentProperties, error) {
-	template, params, err := transformParameters(ctx, cfg, inputs, bicepParameterTemplateFile)
+func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentProperties, error) {
+	template, params, err := transformParameters(ctx, cfg, inputs, bicepParameterTemplateFile, pipelineWorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -63,12 +63,13 @@ func transformBicepToARMDeployment(ctx context.Context, bicepParameterTemplateFi
 	}, nil
 }
 
-func transformParameters(ctx context.Context, cfg config.Configuration, inputs map[string]any, bicepParameterTemplateFile string) (map[string]interface{}, map[string]interface{}, error) {
-	bicepParamContent, err := config.PreprocessFile(bicepParameterTemplateFile, cfg)
+func transformParameters(ctx context.Context, cfg config.Configuration, inputs map[string]any, bicepParameterTemplateFile, pipelineWorkingDir string) (map[string]interface{}, map[string]interface{}, error) {
+	bicepParameterFile := filepath.Join(pipelineWorkingDir, bicepParameterTemplateFile)
+	bicepParamContent, err := config.PreprocessFile(bicepParameterFile, cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to preprocess file: %w", err)
 	}
-	bicepParamBaseDir := filepath.Dir(bicepParameterTemplateFile)
+	bicepParamBaseDir := filepath.Dir(bicepParameterFile)
 	bicepParamFile, err := os.CreateTemp(bicepParamBaseDir, "bicep-params-*.bicepparam")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create temp file: %w", err)
