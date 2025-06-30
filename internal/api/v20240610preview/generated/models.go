@@ -214,6 +214,43 @@ type HcpOpenShiftClusterUpdate struct {
 	Type *string
 }
 
+// HcpOperatorIdentityRoleSet - HcpOperatorIdentityRoles represents a location based representation of the required platform
+// workload identities and their required roles for a given OpenShift version
+type HcpOperatorIdentityRoleSet struct {
+	// The resource-specific properties for this resource.
+	Properties *HcpOperatorIdentityRoleSetProperties
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
+// HcpOperatorIdentityRoleSetListResult - The response of a HcpOperatorIdentityRoleSet list operation.
+type HcpOperatorIdentityRoleSetListResult struct {
+	// REQUIRED; The HcpOperatorIdentityRoleSet items on this page
+	Value []*HcpOperatorIdentityRoleSet
+
+	// The link to the next page of items
+	NextLink *string
+}
+
+// HcpOperatorIdentityRoleSetProperties - HCP Operator Identity Roles properties
+type HcpOperatorIdentityRoleSetProperties struct {
+	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Control Plane operators on a cluster.
+	ControlPlaneOperators []*OperatorIdentityRoles
+
+	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Data Plane operators on a cluster.
+	DataPlaneOperators []*OperatorIdentityRoles
+}
+
 // Label represents the Kubernetes label
 type Label struct {
 	// REQUIRED; The key of the label
@@ -458,6 +495,18 @@ type OperationListResult struct {
 	Value []*Operation
 }
 
+// OperatorIdentityRoles - Role definitions for a specific operator
+type OperatorIdentityRoles struct {
+	// REQUIRED; Name of the operator
+	Name *string
+
+	// REQUIRED; Whether or not the operator is required for installation
+	Required *OperatorIdentityRequired
+
+	// REQUIRED; The role definitions required to be assigned to the identity assumed by this operator
+	RoleDefinitions []*RoleDefinition
+}
+
 // OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
 type OperatorsAuthenticationProfile struct {
 	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
@@ -486,6 +535,22 @@ type PlatformProfile struct {
 	IssuerURL *string
 }
 
+// ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
+// location
+type ProxyResource struct {
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
 // Resource - Common fields that are returned in the response for all Azure Resource Manager resources
 type Resource struct {
 	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
@@ -499,6 +564,15 @@ type Resource struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// RoleDefinition - A single role definition required by a given operator
+type RoleDefinition struct {
+	// REQUIRED; The name of the required role definition
+	Name *string
+
+	// REQUIRED; The resource ID of the role definition
+	ResourceID *string
 }
 
 // SystemData - Metadata pertaining to creation and last modification of the resource.

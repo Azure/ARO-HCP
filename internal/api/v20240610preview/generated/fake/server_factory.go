@@ -19,9 +19,10 @@ import (
 
 // ServerFactory is a fake server for instances of the generated.ClientFactory type.
 type ServerFactory struct {
-	HcpOpenShiftClustersServer HcpOpenShiftClustersServer
-	NodePoolsServer            NodePoolsServer
-	OperationsServer           OperationsServer
+	HcpOpenShiftClustersServer        HcpOpenShiftClustersServer
+	HcpOperatorIdentityRoleSetsServer HcpOperatorIdentityRoleSetsServer
+	NodePoolsServer                   NodePoolsServer
+	OperationsServer                  OperationsServer
 }
 
 // NewServerFactoryTransport creates a new instance of ServerFactoryTransport with the provided implementation.
@@ -36,11 +37,12 @@ func NewServerFactoryTransport(srv *ServerFactory) *ServerFactoryTransport {
 // ServerFactoryTransport connects instances of generated.ClientFactory to instances of ServerFactory.
 // Don't use this type directly, use NewServerFactoryTransport instead.
 type ServerFactoryTransport struct {
-	srv                          *ServerFactory
-	trMu                         sync.Mutex
-	trHcpOpenShiftClustersServer *HcpOpenShiftClustersServerTransport
-	trNodePoolsServer            *NodePoolsServerTransport
-	trOperationsServer           *OperationsServerTransport
+	srv                                 *ServerFactory
+	trMu                                sync.Mutex
+	trHcpOpenShiftClustersServer        *HcpOpenShiftClustersServerTransport
+	trHcpOperatorIdentityRoleSetsServer *HcpOperatorIdentityRoleSetsServerTransport
+	trNodePoolsServer                   *NodePoolsServerTransport
+	trOperationsServer                  *OperationsServerTransport
 }
 
 // Do implements the policy.Transporter interface for ServerFactoryTransport.
@@ -61,6 +63,11 @@ func (s *ServerFactoryTransport) Do(req *http.Request) (*http.Response, error) {
 			return NewHcpOpenShiftClustersServerTransport(&s.srv.HcpOpenShiftClustersServer)
 		})
 		resp, err = s.trHcpOpenShiftClustersServer.Do(req)
+	case "HcpOperatorIdentityRoleSetsClient":
+		initServer(s, &s.trHcpOperatorIdentityRoleSetsServer, func() *HcpOperatorIdentityRoleSetsServerTransport {
+			return NewHcpOperatorIdentityRoleSetsServerTransport(&s.srv.HcpOperatorIdentityRoleSetsServer)
+		})
+		resp, err = s.trHcpOperatorIdentityRoleSetsServer.Do(req)
 	case "NodePoolsClient":
 		initServer(s, &s.trNodePoolsServer, func() *NodePoolsServerTransport { return NewNodePoolsServerTransport(&s.srv.NodePoolsServer) })
 		resp, err = s.trNodePoolsServer.Do(req)
