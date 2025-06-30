@@ -1036,7 +1036,9 @@
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "providerImage",
+        "k8s"
       ]
     },
     "maestro": {
