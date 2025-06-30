@@ -1248,7 +1248,6 @@
         }
       },
       "required": [
-        "encryptionType",
         "kms"
       ]
     },
@@ -1309,7 +1308,7 @@
       "properties": {
         "keyManagementMode": {
           "type": "string",
-          "description": "Specify whether the key is customer or platform managed.\nBy default, platform managed keys are used.",
+          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.\nBy default, platform managed keys are used.",
           "default": "platformManaged",
           "enum": [
             "customerManaged",
@@ -1336,10 +1335,7 @@
           "$ref": "#/definitions/CustomerManagedConfig",
           "description": "Specify customer managed encryption key details."
         }
-      },
-      "required": [
-        "keyManagementMode"
-      ]
+      }
     },
     "EtcdProfile": {
       "type": "object",

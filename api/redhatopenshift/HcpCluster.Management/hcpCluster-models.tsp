@@ -354,10 +354,10 @@ model EtcdProfile {
 
 /** The ETCD data encryption settings. */
 model EtcdDataEncryptionProfile {
-  /** Specify whether the key is customer or platform managed.
+  /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
    * By default, platform managed keys are used.
    */
-  keyManagementMode: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+  keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
 
   /** Specify customer managed encryption key details. */
   customerManaged?: CustomerManagedConfig;
@@ -366,7 +366,7 @@ model EtcdDataEncryptionProfile {
 /** Customer managed encryption key details. */
 model CustomerManagedConfig {
   /** The encryption type used. */
-  encryptionType: CustomerManagedKeyEncryptionType = CustomerManagedKeyEncryptionType.Kms;
+  encryptionType?: CustomerManagedKeyEncryptionType = CustomerManagedKeyEncryptionType.Kms;
 
   /** The kms encryption key details. */
   kms: KmsConfig;

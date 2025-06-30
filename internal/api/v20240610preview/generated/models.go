@@ -92,11 +92,11 @@ type ConsoleProfile struct {
 
 // CustomerManagedConfig - Customer managed encryption key details.
 type CustomerManagedConfig struct {
-	// REQUIRED; The encryption type used.
-	EncryptionType *CustomerManagedKeyEncryptionType
-
 	// REQUIRED; The kms encryption key details.
 	Kms *KmsConfig
+
+	// The encryption type used.
+	EncryptionType *CustomerManagedKeyEncryptionType
 }
 
 // DNSProfile - DNS contains the DNS settings of the cluster
@@ -145,11 +145,12 @@ type ErrorResponse struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
-	// REQUIRED; Specify whether the key is customer or platform managed. By default, platform managed keys are used.
-	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
-
 	// Specify customer managed encryption key details.
 	CustomerManaged *CustomerManagedConfig
+
+	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, platform managed
+	// keys are used.
+	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 }
 
 // EtcdProfile - The ETCD settings and configuration options.
