@@ -31,6 +31,15 @@ kubectl port-forward -n observability svc/jaeger 16686:16686
 Open http://localhost:16686 in your browser to access the Jaeger UI.
 The `observability` namespace contains a second service named `ingest` which accepts otlp via gRPC and HTTP.
 
+##### Alternative visualization with log support
+
+In addition to Jaeger, grafana lgtm is also deployed. In addition to traces, logs are also available there for retrieval.
+We can access the UI using  `kubectl port-forward`:
+
+```
+kubectl port-forward -n observability svc/grafana 3000:3000
+```
+
 #### Configure the ARO services
 
 Run the following commands:
