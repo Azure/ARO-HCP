@@ -1234,14 +1234,14 @@
             "modelAsString": true
           }
         },
-        "kmsConfig": {
+        "kms": {
           "$ref": "#/definitions/KmsConfig",
           "description": "The kms encryption key details."
         }
       },
       "required": [
         "encryptionType",
-        "kmsConfig"
+        "kms"
       ]
     },
     "DnsProfile": {
@@ -1311,7 +1311,7 @@
             "modelAsString": true
           }
         },
-        "customerManagedConfig": {
+        "customerManaged": {
           "$ref": "#/definitions/CustomerManagedConfig",
           "description": "Specify customer managed encryption key details."
         }

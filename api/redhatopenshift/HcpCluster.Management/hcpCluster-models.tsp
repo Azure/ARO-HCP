@@ -366,7 +366,7 @@ model EtcdDataEncryptionProfile {
   managementMode: "customerManaged" | "platformManaged" | string = "platformManaged";
 
   /** Specify customer managed encryption key details. */
-  customerManagedConfig?: CustomerManagedConfig;
+  customerManaged?: CustomerManagedConfig;
 }
 
 /** Customer managed encryption key details. */
@@ -375,7 +375,7 @@ model CustomerManagedConfig {
   encryptionType: "kms" | string = "kms";
 
   /** The kms encryption key details. */
-  kmsConfig: KmsConfig;
+  kms: KmsConfig;
 }
 
 /** Configure etcd encryption KMS key.

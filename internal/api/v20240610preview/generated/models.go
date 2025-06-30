@@ -96,7 +96,7 @@ type CustomerManagedConfig struct {
 	EncryptionType *CustomerManagedConfigEncryptionType
 
 	// REQUIRED; The kms encryption key details.
-	KmsConfig *KmsConfig
+	Kms *KmsConfig
 }
 
 // DNSProfile - DNS contains the DNS settings of the cluster
@@ -149,7 +149,7 @@ type EtcdDataEncryptionProfile struct {
 	ManagementMode *EtcdDataEncryptionProfileManagementMode
 
 	// Specify customer managed encryption key details.
-	CustomerManagedConfig *CustomerManagedConfig
+	CustomerManaged *CustomerManagedConfig
 }
 
 // EtcdProfile - The ETCD settings and configuration options.
