@@ -159,6 +159,11 @@ type HcpOpenShiftClusterListResult struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
+	// REQUIRED; Configure etcd encryption KMS key. Your Microsoft Entra application used to create the cluster must be authorized
+	// to access this keyvault, e.g using the AzureCLI: az keyvault set-policy -n
+	// $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
+	EtcdEncryptionKey *KmsKey
+
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
@@ -212,6 +217,18 @@ type HcpOpenShiftClusterUpdate struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// KmsKey - A represention of a KeyVault Secret.
+type KmsKey struct {
+	// REQUIRED; name is the name of the keyvault key used for encrypt/decrypt
+	Name *string
+
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret
+	VaultName *string
+
+	// REQUIRED; version contains the version of the key to use
+	Version *string
 }
 
 // Label represents the Kubernetes label
