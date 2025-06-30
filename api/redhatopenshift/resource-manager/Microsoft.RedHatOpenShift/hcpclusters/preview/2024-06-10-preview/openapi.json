@@ -1557,12 +1557,41 @@
           "items": {
             "type": "string"
           }
+        },
+        "type": {
+          "$ref": "#/definitions/ExternalAuthClientType",
+          "description": "Determines the OIDC provider client type."
         }
       },
       "required": [
         "component",
-        "clientId"
+        "clientId",
+        "type"
       ]
+    },
+    "ExternalAuthClientType": {
+      "type": "string",
+      "description": "Representation of the possible values of an external authentication client's type",
+      "enum": [
+        "confidential",
+        "public"
+      ],
+      "x-ms-enum": {
+        "name": "ExternalAuthClientType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Confidential",
+            "value": "confidential",
+            "description": "Indicates that the client is confidential.\nConfidential clients must provide a client secret.\nThe secret should be provided within the cluster itself."
+          },
+          {
+            "name": "Public",
+            "value": "public",
+            "description": "Indicates that the client is public.\nPublic clients must not provide a client secret."
+          }
+        ]
+      }
     },
     "ExternalAuthListResult": {
       "type": "object",

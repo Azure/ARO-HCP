@@ -507,6 +507,7 @@ func (e ExternalAuthClientProfile) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "clientId", e.ClientID)
 	populate(objectMap, "component", e.Component)
 	populate(objectMap, "extraScopes", e.ExtraScopes)
+	populate(objectMap, "type", e.Type)
 	return json.Marshal(objectMap)
 }
 
@@ -527,6 +528,9 @@ func (e *ExternalAuthClientProfile) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "extraScopes":
 			err = unpopulate(val, "ExtraScopes", &e.ExtraScopes)
+			delete(rawMsg, key)
+		case "type":
+			err = unpopulate(val, "Type", &e.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)

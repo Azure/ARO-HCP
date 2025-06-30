@@ -89,6 +89,27 @@ func PossibleEffectValues() []Effect {
 	}
 }
 
+// ExternalAuthClientType - Representation of the possible values of an external authentication client's type
+type ExternalAuthClientType string
+
+const (
+	// ExternalAuthClientTypeConfidential - Indicates that the client is confidential.
+	// Confidential clients must provide a client secret.
+	// The secret should be provided within the cluster itself.
+	ExternalAuthClientTypeConfidential ExternalAuthClientType = "confidential"
+	// ExternalAuthClientTypePublic - Indicates that the client is public.
+	// Public clients must not provide a client secret.
+	ExternalAuthClientTypePublic ExternalAuthClientType = "public"
+)
+
+// PossibleExternalAuthClientTypeValues returns the possible values for the ExternalAuthClientType const type.
+func PossibleExternalAuthClientTypeValues() []ExternalAuthClientType {
+	return []ExternalAuthClientType{
+		ExternalAuthClientTypeConfidential,
+		ExternalAuthClientTypePublic,
+	}
+}
+
 // ExternalAuthProvisioningState - The resource provisioning state.
 type ExternalAuthProvisioningState string
 

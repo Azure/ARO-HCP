@@ -165,6 +165,9 @@ type ExternalAuthClientProfile struct {
 	// REQUIRED; External Auth client component
 	Component *ExternalAuthClientComponentProfile
 
+	// REQUIRED; Determines the OIDC provider client type.
+	Type *ExternalAuthClientType
+
 	// external auth client scopes
 	// This is useful if you have configured claim mappings that requires specific scopes to be requested beyond the standard
 	// OIDC scopes. When omitted, no additional scopes are requested.

@@ -570,6 +570,25 @@ model ExternalAuthClientProfile {
    * scopes to be requested beyond the standard OIDC scopes.
    * When omitted, no additional scopes are requested. */
   extraScopes?: string[];
+
+  /** Determines the OIDC provider client type. */
+  type: ExternalAuthClientType;
+}
+
+/** Representation of the possible values of an external authentication client's type */
+union ExternalAuthClientType {
+  string,
+
+  /** Indicates that the client is confidential.
+   * Confidential clients must provide a client secret.
+   * The secret should be provided within the cluster itself.
+   */
+  Confidential: "confidential",
+
+  /** Indicates that the client is public.
+   * Public clients must not provide a client secret.
+   */
+  Public: "public",
 }
 
 /** External Auth component profile
