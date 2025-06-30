@@ -162,6 +162,9 @@ type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
+	// Shows the cluster API server profile
+	API *APIProfile
+
 	// Configure cluter capabilities.
 	Capabilities *ClusterCapabilitiesProfile
 
@@ -174,9 +177,6 @@ type HcpOpenShiftClusterProperties struct {
 	// Version of the control plane components
 	Version *VersionProfile
 
-	// READ-ONLY; Shows the cluster API server profile
-	API *APIProfile
-
 	// READ-ONLY; Shows the cluster web console information
 	Console *ConsoleProfile
 
@@ -186,8 +186,11 @@ type HcpOpenShiftClusterProperties struct {
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
-	// Cluster DNS configuration
-	DNS *DNSProfile
+	// Azure platform configuration
+	Platform *PlatformProfileUpdate
+
+	// Version of the control plane components
+	Version *VersionProfileUpdate
 }
 
 // HcpOpenShiftClusterUpdate - HCP cluster resource
@@ -371,6 +374,9 @@ type NodePoolPropertiesUpdate struct {
 
 	// Taints for the nodes
 	Taints []*Taint
+
+	// OpenShift version for the nodepool
+	Version *NodePoolVersionProfileUpdate
 }
 
 // NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
@@ -407,6 +413,15 @@ type NodePoolVersionProfile struct {
 
 	// READ-ONLY; AvailableUpgrades is a list of version names the current version can be upgraded to.
 	AvailableUpgrades []*string
+}
+
+// NodePoolVersionProfileUpdate - Versions represents an OpenShift version.
+type NodePoolVersionProfileUpdate struct {
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	ChannelGroup *string
+
+	// ID is the unique identifier of the version.
+	ID *string
 }
 
 // Operation - Details of a REST API operation, returned from the Resource Provider Operations API
@@ -465,6 +480,13 @@ type OperatorsAuthenticationProfile struct {
 	UserAssignedIdentities *UserAssignedIdentitiesProfile
 }
 
+// OperatorsAuthenticationProfileUpdate - The configuration that the operators of the cluster have to authenticate to Azure.
+type OperatorsAuthenticationProfileUpdate struct {
+	// Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
+	// based on Azure User-Assigned Managed Identities
+	UserAssignedIdentities *UserAssignedIdentitiesProfileUpdate
+}
+
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
 	// REQUIRED; ResourceId for the network security group attached to the cluster subnet
@@ -484,6 +506,12 @@ type PlatformProfile struct {
 
 	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
 	IssuerURL *string
+}
+
+// PlatformProfileUpdate - Azure specific configuration
+type PlatformProfileUpdate struct {
+	// The configuration that the operators of the cluster have to authenticate to Azure
+	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
 }
 
 // Resource - Common fields that are returned in the response for all Azure Resource Manager resources
@@ -572,6 +600,22 @@ type UserAssignedIdentitiesProfile struct {
 	ServiceManagedIdentity *string
 }
 
+// UserAssignedIdentitiesProfileUpdate - Represents the information related to Azure User-Assigned managed identities needed
+// to perform Operators authentication based on Azure User-Assigned Managed Identities
+type UserAssignedIdentitiesProfileUpdate struct {
+	// The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The set of
+	// required managed identities is dependent on the Cluster's OpenShift version.
+	ControlPlaneOperators map[string]*string
+
+	// The set of Azure User-Assigned Managed Identities leveraged for the Data Plane operators of the cluster. The set of required
+	// managed identities is dependent on the Cluster's OpenShift version.
+	DataPlaneOperators map[string]*string
+
+	// Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform service level
+	// actions.
+	ServiceManagedIdentity *string
+}
+
 // UserAssignedIdentity - User assigned identity properties
 type UserAssignedIdentity struct {
 	// READ-ONLY; The client ID of the assigned identity.
@@ -591,4 +635,10 @@ type VersionProfile struct {
 
 	// READ-ONLY; AvailableUpgrades is a list of version names the current version can be upgraded to.
 	AvailableUpgrades []*string
+}
+
+// VersionProfileUpdate - Versions represents an OpenShift version.
+type VersionProfileUpdate struct {
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	ChannelGroup *string
 }

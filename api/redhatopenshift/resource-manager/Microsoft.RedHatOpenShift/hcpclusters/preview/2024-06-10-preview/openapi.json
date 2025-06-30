@@ -1131,12 +1131,17 @@
           "description": "Version of the control plane components",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
         "dns": {
           "$ref": "#/definitions/DnsProfile",
-          "description": "Cluster DNS configuration"
+          "description": "Cluster DNS configuration",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "network": {
           "$ref": "#/definitions/NetworkProfile",
@@ -1154,13 +1159,17 @@
         "api": {
           "$ref": "#/definitions/ApiProfile",
           "description": "Shows the cluster API server profile",
-          "readOnly": true
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
           "description": "Azure platform configuration",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1181,9 +1190,23 @@
       "type": "object",
       "description": "HCP cluster properties",
       "properties": {
-        "dns": {
-          "$ref": "#/definitions/DnsProfile",
-          "description": "Cluster DNS configuration"
+        "version": {
+          "$ref": "#/definitions/VersionProfileUpdate",
+          "description": "Version of the control plane components",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "platform": {
+          "$ref": "#/definitions/PlatformProfileUpdate",
+          "description": "Azure platform configuration",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         }
       }
     },
@@ -1371,22 +1394,38 @@
       "properties": {
         "subnetId": {
           "type": "string",
-          "description": "The Azure resource ID of the worker subnet"
+          "description": "The Azure resource ID of the worker subnet",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "vmSize": {
           "type": "string",
-          "description": "The VM size according to the documentation:\n- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes"
+          "description": "The VM size according to the documentation:\n- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "enableEncryptionAtHost": {
           "type": "boolean",
           "description": "Whether to enable host based OS and data drive encryption.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data",
-          "default": false
+          "default": false,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "diskSizeGiB": {
           "type": "integer",
           "format": "int32",
           "description": "The OS disk size in GiB",
-          "default": 64
+          "default": 64,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "diskStorageAccountType": {
           "type": "string",
@@ -1417,11 +1456,19 @@
                 "description": "Standard HDD with Locally Redundant Storage (LRS)"
               }
             ]
-          }
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "availabilityZone": {
           "type": "string",
-          "description": "The availability zone for the node pool.\nPlease read the documentation to see which regions support availability zones\n- https://learn.microsoft.com/en-us/azure/availability-zones/az-overview"
+          "description": "The availability zone for the node pool.\nPlease read the documentation to see which regions support availability zones\n- https://learn.microsoft.com/en-us/azure/availability-zones/az-overview",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
@@ -1442,6 +1489,7 @@
           "description": "OpenShift version for the nodepool",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1474,7 +1522,12 @@
         },
         "autoScaling": {
           "$ref": "#/definitions/NodePoolAutoScaling",
-          "description": "Representation of a autoscaling in a node pool."
+          "description": "Representation of a autoscaling in a node pool.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         },
         "labels": {
           "type": "array",
@@ -1518,6 +1571,15 @@
       "type": "object",
       "description": "Represents the node pool properties",
       "properties": {
+        "version": {
+          "$ref": "#/definitions/NodePoolVersionProfileUpdate",
+          "description": "OpenShift version for the nodepool",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "replicas": {
           "type": "integer",
           "format": "int32",
@@ -1530,7 +1592,12 @@
         },
         "autoScaling": {
           "$ref": "#/definitions/NodePoolAutoScaling",
-          "description": "Representation of a autoscaling in a node pool."
+          "description": "Representation of a autoscaling in a node pool.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         },
         "labels": {
           "type": "array",
@@ -1622,6 +1689,31 @@
         "availableUpgrades"
       ]
     },
+    "NodePoolVersionProfileUpdate": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the unique identifier of the version.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
+          "default": "stable",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "OperatorsAuthenticationProfile": {
       "type": "object",
       "description": "The configuration that the operators of the cluster have to authenticate to Azure.",
@@ -1634,6 +1726,16 @@
       "required": [
         "userAssignedIdentities"
       ]
+    },
+    "OperatorsAuthenticationProfileUpdate": {
+      "type": "object",
+      "description": "The configuration that the operators of the cluster have to authenticate to Azure.",
+      "properties": {
+        "userAssignedIdentities": {
+          "$ref": "#/definitions/UserAssignedIdentitiesProfileUpdate",
+          "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators authentication based on Azure User-Assigned Managed Identities"
+        }
+      }
     },
     "OptionalClusterCapability": {
       "type": "string",
@@ -1659,11 +1761,19 @@
       "properties": {
         "managedResourceGroup": {
           "type": "string",
-          "description": "Resource group to put cluster resources"
+          "description": "Resource group to put cluster resources",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "subnetId": {
           "$ref": "#/definitions/SubnetResourceId",
-          "description": "The Azure resource ID of the worker subnet"
+          "description": "The Azure resource ID of the worker subnet",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "outboundType": {
           "type": "string",
@@ -1682,15 +1792,28 @@
                 "description": "The load balancer configuration"
               }
             ]
-          }
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "networkSecurityGroupId": {
           "$ref": "#/definitions/NetworkSecurityGroupResourceId",
-          "description": "ResourceId for the network security group attached to the cluster subnet"
+          "description": "ResourceId for the network security group attached to the cluster subnet",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "operatorsAuthentication": {
           "$ref": "#/definitions/OperatorsAuthenticationProfile",
-          "description": "The configuration that the operators of the cluster have to authenticate to Azure"
+          "description": "The configuration that the operators of the cluster have to authenticate to Azure",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         },
         "issuerUrl": {
           "type": "string",
@@ -1705,6 +1828,21 @@
         "operatorsAuthentication",
         "issuerUrl"
       ]
+    },
+    "PlatformProfileUpdate": {
+      "type": "object",
+      "description": "Azure specific configuration",
+      "properties": {
+        "operatorsAuthentication": {
+          "$ref": "#/definitions/OperatorsAuthenticationProfileUpdate",
+          "description": "The configuration that the operators of the cluster have to authenticate to Azure",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
     },
     "ProvisioningState": {
       "type": "string",
@@ -1844,6 +1982,45 @@
         "serviceManagedIdentity"
       ]
     },
+    "UserAssignedIdentitiesProfileUpdate": {
+      "type": "object",
+      "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators authentication based on Azure User-Assigned Managed Identities",
+      "properties": {
+        "controlPlaneOperators": {
+          "type": "object",
+          "description": "The set of Azure User-Assigned Managed Identities leveraged for the Control Plane\noperators of the cluster. The set of required managed identities is dependent on the\nCluster's OpenShift version.",
+          "additionalProperties": {
+            "$ref": "#/definitions/UserAssignedIdentityResourceId"
+          },
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "dataPlaneOperators": {
+          "type": "object",
+          "description": "The set of Azure User-Assigned Managed Identities leveraged for the Data Plane\noperators of the cluster. The set of required managed identities is dependent on the\nCluster's OpenShift version.",
+          "additionalProperties": {
+            "$ref": "#/definitions/UserAssignedIdentityResourceId"
+          },
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "serviceManagedIdentity": {
+          "$ref": "#/definitions/UserAssignedIdentityResourceId",
+          "description": "Represents the information associated to an Azure User-Assigned Managed Identity whose\npurpose is to perform service level actions.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "UserAssignedIdentityResourceId": {
       "type": "string",
       "format": "arm-id",
@@ -1890,6 +2067,22 @@
       "required": [
         "availableUpgrades"
       ]
+    },
+    "VersionProfileUpdate": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
+          "default": "stable",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
     }
   },
   "parameters": {}
