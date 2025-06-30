@@ -90,6 +90,11 @@ create-pr-env-sp:
 	--role "Key Vault Certificate User" \
 	--assignee "$(shell az ad sp list --display-name cs-pr-authentication --query [0].appId -o tsv)" \
 	--scope "$(shell az keyvault show --name ${SERVICE_KV} --query id -o tsv)"
+	echo "cs-pr-authentication requires 'Microsoft.Authorization/roleAssignments/write' action granted via 'User Access Administrator'. This role assignment requires elevated permissions, please add it in the case of re-creation of this service principal."
+#	az role assignment create \
+#	--role "User Access Administrator" \
+#	--assignee "$(shell az ad sp list --display-name cs-pr-authentication --query [0].appId -o tsv)" \
+#	--scope "$${CLUSTER_ID}"
 
 local-deploy-provision-shard:
 	@ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
