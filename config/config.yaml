@@ -115,8 +115,8 @@ defaults:
     # Our yaml formatter does not allow >- when there is no value, so remember
     # to chage "" to >- when you add a value.
     grafanaRoles: ""
-    svcWorkspaceName: 'arohcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
-    hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
+    svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
+    hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
     devAlertingEmails: ""
     sev1ActionGroupIDs: ""
     sev2ActionGroupIDs: ""
@@ -602,6 +602,9 @@ clouds:
         # this is the cluster service PR check and full cycle test environment
         defaults:
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
+          monitoring:
+            svcWorkspaceName: 'services-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
+            hcpWorkspaceName: 'hcps-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false

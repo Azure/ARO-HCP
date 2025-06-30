@@ -295,12 +295,12 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: arohcp-hcp-cspr-usw3
+  hcpWorkspaceName: hcps-cspr-usw3
   sev1ActionGroupIDs: ""
   sev2ActionGroupIDs: ""
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
-  svcWorkspaceName: arohcp-cspr-usw3
+  svcWorkspaceName: services-cspr-usw3
 msiKeyVault:
   name: ah-cspr-mi-usw3-1
   private: false
