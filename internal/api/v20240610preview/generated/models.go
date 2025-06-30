@@ -90,6 +90,15 @@ type ConsoleProfile struct {
 	URL *string
 }
 
+// CustomerManagedConfig - Customer managed encryption key details.
+type CustomerManagedConfig struct {
+	// REQUIRED; The encryption type used.
+	EncryptionType *CustomerManagedConfigEncryptionType
+
+	// REQUIRED; The kms encryption key details.
+	KmsConfig *KmsConfig
+}
+
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
 	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
@@ -132,6 +141,21 @@ type ErrorDetail struct {
 type ErrorResponse struct {
 	// The error object.
 	Error *ErrorDetail
+}
+
+// EtcdDataEncryptionProfile - The ETCD data encryption settings.
+type EtcdDataEncryptionProfile struct {
+	// REQUIRED; Specify whether the key is customer or platform managed.
+	ManagementMode *EtcdDataEncryptionProfileManagementMode
+
+	// Specify customer managed encryption key details.
+	CustomerManagedConfig *CustomerManagedConfig
+}
+
+// EtcdProfile - The ETCD settings and configuration options.
+type EtcdProfile struct {
+	// REQUIRED; ETCD Data Encryption settings.
+	DataEncryption *EtcdDataEncryptionProfile
 }
 
 // HcpOpenShiftCluster - HCP cluster resource
@@ -181,10 +205,8 @@ type HcpOpenShiftClusterListResult struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
-	// REQUIRED; Configure etcd encryption KMS key. Your Microsoft Entra application used to create the cluster must be authorized
-	// to access this keyvault, e.g using the AzureCLI: az keyvault set-policy -n
-	// $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
-	EtcdEncryptionKey *KmsKey
+	// REQUIRED; Configure ETCD.
+	Etcd *EtcdProfile
 
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
@@ -195,7 +217,7 @@ type HcpOpenShiftClusterProperties struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
 
-	// Configure cluter capabilities.
+	// Configure cluster capabilities.
 	Capabilities *ClusterCapabilitiesProfile
 
 	// Cluster DNS configuration
@@ -250,7 +272,6 @@ type HcpOpenShiftClusterUpdate struct {
 	Type *string
 }
 
-<<<<<<< HEAD
 // HcpOpenShiftVersion represents a location based available HCP OpenShift version
 type HcpOpenShiftVersion struct {
 	// The resource-specific properties for this resource.
@@ -325,8 +346,17 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Data Plane operators on a cluster.
 	DataPlaneOperators []*OperatorIdentityRoles
-=======
-// KmsKey - A represention of a KeyVault Secret.
+}
+
+// KmsConfig - Configure etcd encryption KMS key. Your Microsoft Entra application used to create the cluster must be authorized
+// to access this keyvault, e.g using the AzureCLI: az keyvault set-policy -n
+// $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
+type KmsConfig struct {
+	// REQUIRED; The details of the active key.
+	ActiveKey *KmsKey
+}
+
+// KmsKey - A representation of a KeyVault Secret.
 type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encrypt/decrypt
 	Name *string
@@ -336,7 +366,6 @@ type KmsKey struct {
 
 	// REQUIRED; version contains the version of the key to use
 	Version *string
->>>>>>> 08725c5a (Add etcd encryptionKey)
 }
 
 // Label represents the Kubernetes label

@@ -46,6 +46,20 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
+// CustomerManagedConfigEncryptionType - The encryption type used.
+type CustomerManagedConfigEncryptionType string
+
+const (
+	CustomerManagedConfigEncryptionTypeKms CustomerManagedConfigEncryptionType = "kms"
+)
+
+// PossibleCustomerManagedConfigEncryptionTypeValues returns the possible values for the CustomerManagedConfigEncryptionType const type.
+func PossibleCustomerManagedConfigEncryptionTypeValues() []CustomerManagedConfigEncryptionType {
+	return []CustomerManagedConfigEncryptionType{
+		CustomerManagedConfigEncryptionTypeKms,
+	}
+}
+
 // DiskStorageAccountType - The type of the disk storage account
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 type DiskStorageAccountType string
@@ -86,6 +100,22 @@ func PossibleEffectValues() []Effect {
 		EffectNoExecute,
 		EffectNoSchedule,
 		EffectPreferNoSchedule,
+	}
+}
+
+// EtcdDataEncryptionProfileManagementMode - Specify whether the key is customer or platform managed.
+type EtcdDataEncryptionProfileManagementMode string
+
+const (
+	EtcdDataEncryptionProfileManagementModeCustomerManaged EtcdDataEncryptionProfileManagementMode = "customerManaged"
+	EtcdDataEncryptionProfileManagementModePlatformManaged EtcdDataEncryptionProfileManagementMode = "platformManaged"
+)
+
+// PossibleEtcdDataEncryptionProfileManagementModeValues returns the possible values for the EtcdDataEncryptionProfileManagementMode const type.
+func PossibleEtcdDataEncryptionProfileManagementModeValues() []EtcdDataEncryptionProfileManagementMode {
+	return []EtcdDataEncryptionProfileManagementMode{
+		EtcdDataEncryptionProfileManagementModeCustomerManaged,
+		EtcdDataEncryptionProfileManagementModePlatformManaged,
 	}
 }
 

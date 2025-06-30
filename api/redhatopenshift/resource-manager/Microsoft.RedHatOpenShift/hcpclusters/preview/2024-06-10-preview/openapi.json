@@ -1219,6 +1219,30 @@
         "url"
       ]
     },
+    "CustomerManagedConfig": {
+      "type": "object",
+      "description": "Customer managed encryption key details.",
+      "properties": {
+        "encryptionType": {
+          "type": "string",
+          "description": "The encryption type used.",
+          "enum": [
+            "kms"
+          ],
+          "x-ms-enum": {
+            "modelAsString": true
+          }
+        },
+        "kmsConfig": {
+          "$ref": "#/definitions/KmsConfig",
+          "description": "The kms encryption key details."
+        }
+      },
+      "required": [
+        "encryptionType",
+        "kmsConfig"
+      ]
+    },
     "DnsProfile": {
       "type": "object",
       "description": "DNS contains the DNS settings of the cluster",
@@ -1269,6 +1293,43 @@
           }
         ]
       }
+    },
+    "EtcdDataEncryptionProfile": {
+      "type": "object",
+      "description": "The ETCD data encryption settings.",
+      "properties": {
+        "managementMode": {
+          "type": "string",
+          "description": "Specify whether the key is customer or platform managed.",
+          "enum": [
+            "customerManaged",
+            "platformManaged"
+          ],
+          "x-ms-enum": {
+            "modelAsString": true
+          }
+        },
+        "customerManagedConfig": {
+          "$ref": "#/definitions/CustomerManagedConfig",
+          "description": "Specify customer managed encryption key details."
+        }
+      },
+      "required": [
+        "managementMode"
+      ]
+    },
+    "EtcdProfile": {
+      "type": "object",
+      "description": "The ETCD settings and configuration options.",
+      "properties": {
+        "dataEncryption": {
+          "$ref": "#/definitions/EtcdDataEncryptionProfile",
+          "description": "ETCD Data Encryption settings."
+        }
+      },
+      "required": [
+        "dataEncryption"
+      ]
     },
     "HcpOpenShiftCluster": {
       "type": "object",
@@ -1400,15 +1461,15 @@
         },
         "capabilities": {
           "$ref": "#/definitions/ClusterCapabilitiesProfile",
-          "description": "Configure cluter capabilities.",
+          "description": "Configure cluster capabilities.",
           "x-ms-mutability": [
             "read",
             "create"
           ]
         },
-        "etcdEncryptionKey": {
-          "$ref": "#/definitions/KmsKey",
-          "description": "Configure etcd encryption KMS key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`",
+        "etcd": {
+          "$ref": "#/definitions/EtcdProfile",
+          "description": "Configure ETCD.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1417,7 +1478,7 @@
       },
       "required": [
         "platform",
-        "etcdEncryptionKey"
+        "etcd"
       ]
     },
     "HcpOpenShiftClusterPropertiesUpdate": {
@@ -1592,9 +1653,24 @@
       "required": [
         "controlPlaneOperators",
         "dataPlaneOperators"
+      ]
+    },
+    "KmsConfig": {
+      "type": "object",
+      "description": "Configure etcd encryption KMS key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`",
+      "properties": {
+        "activeKey": {
+          "$ref": "#/definitions/KmsKey",
+          "description": "The details of the active key."
+        }
+      },
+      "required": [
+        "activeKey"
+      ]
+    },
     "KmsKey": {
       "type": "object",
-      "description": "A represention of a KeyVault Secret.",
+      "description": "A representation of a KeyVault Secret.",
       "properties": {
         "vaultName": {
           "type": "string",

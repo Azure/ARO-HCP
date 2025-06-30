@@ -74,17 +74,13 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoscaling?: ClusterAutoscalingProfile;
 
-  /** Configure cluter capabilities. */
+  /** Configure cluster capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   capabilities?: ClusterCapabilitiesProfile;
 
-  /** Configure etcd encryption KMS key.
-   * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
-   * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
-   *
-   */
+  /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  etcdEncryptionKey: KmsKey;
+  etcd: EtcdProfile;
 }
 
 /** Cluster capabilities configuration. */
@@ -330,7 +326,7 @@ scalar UserAssignedIdentityResourceId
     }
   ]>;
 
-/** A represention of a KeyVault Secret. */
+/** A representation of a KeyVault Secret. */
 model KmsKey {
   /** vaultName is the name of the keyvault that contains the secret */
   @visibility(Lifecycle.Read, Lifecycle.Create)
@@ -349,6 +345,40 @@ model KmsKey {
   @maxLength(255)
   @minLength(1)
   version: string;
+}
+
+/** The ETCD settings and configuration options. */
+model EtcdProfile {
+  /** ETCD Data Encryption settings. */
+  dataEncryption: EtcdDataEncryptionProfile;
+}
+
+/** The ETCD data encryption settings. */
+model EtcdDataEncryptionProfile {
+  /** Specify whether the key is customer or platform managed. */
+  managementMode: "customerManaged" | "platformManaged" | string;
+
+  /** Specify customer managed encryption key details. */
+  customerManagedConfig?: CustomerManagedConfig;
+}
+
+/** Customer managed encryption key details. */
+model CustomerManagedConfig {
+  /** The encryption type used. */
+  encryptionType: "kms" | string;
+
+  /** The kms encryption key details. */
+  kmsConfig: KmsConfig;
+}
+
+/** Configure etcd encryption KMS key.
+ * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
+ * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
+ *
+ */
+model KmsConfig {
+  /** The details of the active key. */
+  activeKey: KmsKey;
 }
 
 /*
