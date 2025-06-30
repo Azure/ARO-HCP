@@ -7,6 +7,36 @@
 
 package generated
 
+// ExternalAuthsClientBeginCreateOrUpdateOptions contains the optional parameters for the ExternalAuthsClient.BeginCreateOrUpdate
+// method.
+type ExternalAuthsClientBeginCreateOrUpdateOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// ExternalAuthsClientBeginDeleteOptions contains the optional parameters for the ExternalAuthsClient.BeginDelete method.
+type ExternalAuthsClientBeginDeleteOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// ExternalAuthsClientBeginUpdateOptions contains the optional parameters for the ExternalAuthsClient.BeginUpdate method.
+type ExternalAuthsClientBeginUpdateOptions struct {
+	// Resumes the LRO from the provided token.
+	ResumeToken string
+}
+
+// ExternalAuthsClientGetOptions contains the optional parameters for the ExternalAuthsClient.Get method.
+type ExternalAuthsClientGetOptions struct {
+	// placeholder for future optional parameters
+}
+
+// ExternalAuthsClientListByParentOptions contains the optional parameters for the ExternalAuthsClient.NewListByParentPager
+// method.
+type ExternalAuthsClientListByParentOptions struct {
+	// placeholder for future optional parameters
+}
+
 // HcpOpenShiftClustersClientBeginCreateOrUpdateOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginCreateOrUpdate
 // method.
 type HcpOpenShiftClustersClientBeginCreateOrUpdateOptions struct {

@@ -47,6 +47,9 @@
     },
     {
       "name": "NodePools"
+    },
+    {
+      "name": "ExternalAuths"
     }
   ],
   "paths": {
@@ -416,6 +419,317 @@
         "x-ms-examples": {
           "HcpOpenShiftClusters_Delete": {
             "$ref": "./examples/HcpOpenShiftClusters_Delete_MaximumSet_Gen.json"
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "location"
+        },
+        "x-ms-long-running-operation": true
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuths": {
+      "get": {
+        "operationId": "ExternalAuths_ListByParent",
+        "tags": [
+          "ExternalAuths"
+        ],
+        "description": "List ExternalAuth resources by HcpOpenShiftCluster",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "The name of the HcpOpenShiftCluster",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/ExternalAuthListResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/externalAuths/{externalAuthName}": {
+      "get": {
+        "operationId": "ExternalAuths_Get",
+        "tags": [
+          "ExternalAuths"
+        ],
+        "description": "Get a ExternalAuth",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "The name of the HcpOpenShiftCluster",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+          },
+          {
+            "name": "externalAuthName",
+            "in": "path",
+            "description": "The name of the ExternalAuth",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/ExternalAuth"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "ExternalAuths_CreateOrUpdate",
+        "tags": [
+          "ExternalAuths"
+        ],
+        "description": "Create a ExternalAuth",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "The name of the HcpOpenShiftCluster",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+          },
+          {
+            "name": "externalAuthName",
+            "in": "path",
+            "description": "The name of the ExternalAuth",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+          },
+          {
+            "name": "resource",
+            "in": "body",
+            "description": "Resource create parameters.",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ExternalAuth"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resource 'ExternalAuth' update operation succeeded",
+            "schema": {
+              "$ref": "#/definitions/ExternalAuth"
+            }
+          },
+          "201": {
+            "description": "Resource 'ExternalAuth' create operation succeeded",
+            "schema": {
+              "$ref": "#/definitions/ExternalAuth"
+            },
+            "headers": {
+              "Azure-AsyncOperation": {
+                "type": "string",
+                "description": "A link to the status monitor"
+              },
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "azure-async-operation"
+        },
+        "x-ms-long-running-operation": true
+      },
+      "patch": {
+        "operationId": "ExternalAuths_Update",
+        "tags": [
+          "ExternalAuths"
+        ],
+        "description": "Update a ExternalAuth",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "The name of the HcpOpenShiftCluster",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+          },
+          {
+            "name": "externalAuthName",
+            "in": "path",
+            "description": "The name of the ExternalAuth",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+          },
+          {
+            "name": "properties",
+            "in": "body",
+            "description": "The resource properties to be updated.",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ExternalAuthUpdate"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Azure operation completed successfully.",
+            "schema": {
+              "$ref": "#/definitions/ExternalAuth"
+            }
+          },
+          "202": {
+            "description": "Resource update request accepted.",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "description": "The Location header contains the URL where the status of the long running operation can be checked."
+              },
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "x-ms-long-running-operation-options": {
+          "final-state-via": "location"
+        },
+        "x-ms-long-running-operation": true
+      },
+      "delete": {
+        "operationId": "ExternalAuths_Delete",
+        "tags": [
+          "ExternalAuths"
+        ],
+        "description": "Delete a ExternalAuth",
+        "parameters": [
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ApiVersionParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/SubscriptionIdParameter"
+          },
+          {
+            "$ref": "../../../../../../common-types/resource-management/v6/types.json#/parameters/ResourceGroupNameParameter"
+          },
+          {
+            "name": "hcpOpenShiftClusterName",
+            "in": "path",
+            "description": "The name of the HcpOpenShiftCluster",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+          },
+          {
+            "name": "externalAuthName",
+            "in": "path",
+            "description": "The name of the ExternalAuth",
+            "required": true,
+            "type": "string",
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Resource deletion accepted.",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "description": "The Location header contains the URL where the status of the long running operation can be checked."
+              },
+              "Retry-After": {
+                "type": "integer",
+                "format": "int32",
+                "description": "The Retry-After header can indicate how long the client should wait before polling the operation status."
+              }
+            }
+          },
+          "204": {
+            "description": "Resource does not exist."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ErrorResponse"
+            }
           }
         },
         "x-ms-long-running-operation-options": {
@@ -1052,6 +1366,308 @@
             "description": "NoExecute taint effect"
           }
         ]
+      }
+    },
+    "ExternalAuth": {
+      "type": "object",
+      "description": "ExternalAuth resource",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/ExternalAuthProperties",
+          "description": "The resource-specific properties for this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ProxyResource"
+        }
+      ]
+    },
+    "ExternalAuthClaimProfile": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "mappings": {
+          "$ref": "#/definitions/TokenClaimMappingsProfile",
+          "description": "The claim mappings"
+        },
+        "validationRules": {
+          "type": "array",
+          "description": "The claim validation rules",
+          "items": {
+            "$ref": "#/definitions/TokenClaimValidationRuleProfile"
+          },
+          "x-ms-identifiers": [
+            "claim",
+            "requiredValue"
+          ]
+        }
+      },
+      "required": [
+        "mappings"
+      ]
+    },
+    "ExternalAuthClaimProfileUpdate": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "mappings": {
+          "$ref": "#/definitions/TokenClaimMappingsProfileUpdate",
+          "description": "The claim mappings"
+        },
+        "validationRules": {
+          "type": "array",
+          "description": "The claim validation rules",
+          "items": {
+            "$ref": "#/definitions/TokenClaimValidationRuleProfile"
+          },
+          "x-ms-identifiers": [
+            "claim",
+            "requiredValue"
+          ]
+        }
+      }
+    },
+    "ExternalAuthClientComponentProfile": {
+      "type": "object",
+      "description": "External Auth component profile\nMust have unique namespace/name pairs.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the external Auth client",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "authClientNamespace": {
+          "type": "string",
+          "description": "The namespace of the external Auth client",
+          "minLength": 1,
+          "maxLength": 63
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "ExternalAuthClientProfile": {
+      "type": "object",
+      "description": "External Auth client profile",
+      "properties": {
+        "component": {
+          "$ref": "#/definitions/ExternalAuthClientComponentProfile",
+          "description": "External Auth client component"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "External Auth client id\nThe clientId must appear in the audience field of the TokenIssuerProfile.",
+          "minLength": 1
+        },
+        "extraScopes": {
+          "type": "array",
+          "description": "external auth client scopes\n\nThis is useful if you have configured claim mappings that requires specific\nscopes to be requested beyond the standard OIDC scopes.\nWhen omitted, no additional scopes are requested.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "component",
+        "clientId"
+      ]
+    },
+    "ExternalAuthListResult": {
+      "type": "object",
+      "description": "The response of a ExternalAuth list operation.",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The ExternalAuth items on this page",
+          "items": {
+            "$ref": "#/definitions/ExternalAuth"
+          }
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "ExternalAuthProperties": {
+      "type": "object",
+      "description": "External Auth profile",
+      "properties": {
+        "provisioningState": {
+          "$ref": "#/definitions/ExternalAuthProvisioningState",
+          "description": "Provisioning state",
+          "readOnly": true
+        },
+        "issuer": {
+          "$ref": "#/definitions/TokenIssuerProfile",
+          "description": "Token Issuer profile"
+        },
+        "clients": {
+          "type": "array",
+          "description": "External Auth clients\nOidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/definitions/ExternalAuthClientProfile"
+          },
+          "x-ms-identifiers": [
+            "component",
+            "clientId",
+            "extraScopes"
+          ]
+        },
+        "claim": {
+          "$ref": "#/definitions/ExternalAuthClaimProfile",
+          "description": "External Auth claim"
+        }
+      },
+      "required": [
+        "issuer",
+        "claim"
+      ]
+    },
+    "ExternalAuthPropertiesUpdate": {
+      "type": "object",
+      "description": "External Auth profile",
+      "properties": {
+        "issuer": {
+          "$ref": "#/definitions/TokenIssuerProfileUpdate",
+          "description": "Token Issuer profile"
+        },
+        "clients": {
+          "type": "array",
+          "description": "External Auth clients\nOidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/definitions/ExternalAuthClientProfile"
+          },
+          "x-ms-identifiers": [
+            "component",
+            "clientId",
+            "extraScopes"
+          ]
+        },
+        "claim": {
+          "$ref": "#/definitions/ExternalAuthClaimProfileUpdate",
+          "description": "External Auth claim"
+        }
+      }
+    },
+    "ExternalAuthProvisioningState": {
+      "type": "string",
+      "description": "The resource provisioning state.",
+      "enum": [
+        "Succeeded",
+        "Failed",
+        "Canceled",
+        "Accepted",
+        "Deleting",
+        "Provisioning",
+        "Updating",
+        "AwaitingSecret"
+      ],
+      "x-ms-enum": {
+        "name": "ExternalAuthProvisioningState",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Succeeded",
+            "value": "Succeeded",
+            "description": "Resource has been created."
+          },
+          {
+            "name": "Failed",
+            "value": "Failed",
+            "description": "Resource creation failed."
+          },
+          {
+            "name": "Canceled",
+            "value": "Canceled",
+            "description": "Resource creation was canceled."
+          },
+          {
+            "name": "Accepted",
+            "value": "Accepted",
+            "description": "Non-terminal state indicating the resource has been accepted"
+          },
+          {
+            "name": "Deleting",
+            "value": "Deleting",
+            "description": "Non-terminal state indicating the resource is deleting"
+          },
+          {
+            "name": "Provisioning",
+            "value": "Provisioning",
+            "description": "Non-terminal state indicating the resource is provisioning"
+          },
+          {
+            "name": "Updating",
+            "value": "Updating",
+            "description": "Non-terminal state indicating the resource is updating"
+          },
+          {
+            "name": "AwaitingSecret",
+            "value": "AwaitingSecret",
+            "description": "Non-terminal state indicating the resource is awaiting secret"
+          }
+        ]
+      },
+      "readOnly": true
+    },
+    "ExternalAuthUpdate": {
+      "type": "object",
+      "description": "ExternalAuth resource",
+      "properties": {
+        "properties": {
+          "$ref": "#/definitions/ExternalAuthPropertiesUpdate",
+          "description": "The resource-specific properties for this resource."
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "../../../../../../common-types/resource-management/v6/types.json#/definitions/ProxyResource"
+        }
+      ]
+    },
+    "GroupClaimProfile": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        }
+      },
+      "required": [
+        "claim"
+      ]
+    },
+    "GroupClaimProfileUpdate": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        }
       }
     },
     "HcpOpenShiftCluster": {
@@ -1800,6 +2416,106 @@
         "effect"
       ]
     },
+    "TokenClaimMappingsProfile": {
+      "type": "object",
+      "description": "External Auth claim mappings profile.\nAt a minimum username or groups must be defined.",
+      "properties": {
+        "username": {
+          "$ref": "#/definitions/UsernameClaimProfile",
+          "description": "The claim mappings username"
+        },
+        "groups": {
+          "$ref": "#/definitions/GroupClaimProfile",
+          "description": "The claim mappings groups"
+        }
+      }
+    },
+    "TokenClaimMappingsProfileUpdate": {
+      "type": "object",
+      "description": "External Auth claim mappings profile.\nAt a minimum username or groups must be defined.",
+      "properties": {
+        "username": {
+          "$ref": "#/definitions/UsernameClaimProfileUpdate",
+          "description": "The claim mappings username"
+        },
+        "groups": {
+          "$ref": "#/definitions/GroupClaimProfileUpdate",
+          "description": "The claim mappings groups"
+        }
+      }
+    },
+    "TokenClaimValidationRuleProfile": {
+      "type": "object",
+      "description": "External Auth claim validation rule",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name for the validation profile\nclaim is a required field that configures the name of the required claim.",
+          "minLength": 1
+        },
+        "requiredValue": {
+          "type": "string",
+          "description": "Required value\nrequiredValue is a required field that configures the value that 'claim' must\nhave when taken from the incoming JWT claims.\nIf the value in the JWT claims does not match, the token\nwill be rejected for authentication.",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "claim",
+        "requiredValue"
+      ]
+    },
+    "TokenIssuerProfile": {
+      "type": "object",
+      "description": "Token issuer profile",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the token issuer"
+        },
+        "audiences": {
+          "type": "array",
+          "description": "The audience of the token issuer",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "string"
+          }
+        },
+        "ca": {
+          "type": "string",
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded."
+        }
+      },
+      "required": [
+        "url",
+        "audiences"
+      ]
+    },
+    "TokenIssuerProfileUpdate": {
+      "type": "object",
+      "description": "Token issuer profile",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the token issuer"
+        },
+        "audiences": {
+          "type": "array",
+          "description": "The audience of the token issuer",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "string"
+          }
+        },
+        "ca": {
+          "type": "string",
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded."
+        }
+      }
+    },
     "UserAssignedIdentitiesProfile": {
       "type": "object",
       "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators authentication based on Azure User-Assigned Managed Identities",
@@ -1851,6 +2567,49 @@
             "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
           }
         ]
+      }
+    },
+    "UsernameClaimProfile": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        },
+        "prefixPolicy": {
+          "type": "string",
+          "description": "Prefix policy\nMore information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633"
+        }
+      },
+      "required": [
+        "claim"
+      ]
+    },
+    "UsernameClaimProfileUpdate": {
+      "type": "object",
+      "description": "External Auth claim profile",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name of the external profile",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+        },
+        "prefixPolicy": {
+          "type": "string",
+          "description": "Prefix policy\nMore information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633"
+        }
       }
     },
     "VersionProfile": {

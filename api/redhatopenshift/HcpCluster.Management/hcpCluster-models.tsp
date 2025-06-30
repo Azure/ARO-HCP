@@ -40,6 +40,15 @@ model NodePool is TrackedResource<NodePoolProperties> {
   ...ManagedServiceIdentityProperty;
 }
 
+/** ExternalAuth resource */
+@parentResource(HcpOpenShiftCluster)
+model ExternalAuth is ProxyResource<ExternalAuthProperties> {
+  ...ResourceNameParameter<
+    ExternalAuth,
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+  >;
+}
+
 /** HCP cluster properties */
 model HcpOpenShiftClusterProperties {
   /** The status of the last operation. */
@@ -110,6 +119,16 @@ union ProvisioningState {
 
   /** Non-terminal state indicating the resource is updating */
   "Updating",
+}
+
+/** The resource provisioning state. */
+@lroStatus
+union ExternalAuthProvisioningState {
+  string,
+  ProvisioningState,
+
+  /** Non-terminal state indicating the resource is awaiting secret */
+  "AwaitingSecret",
 }
 
 /** Versions represents an OpenShift version. */
@@ -484,5 +503,153 @@ model HcpOpenShiftClusterAdminCredential {
 /*
  * =======================================
  *   End HCP cluster credentials
+ * =======================================
+ */
+
+/*
+ * =======================================
+ *  ExternalAuth resources
+ * =======================================
+ */
+
+/** External Auth profile */
+model ExternalAuthProperties {
+  /** Provisioning state */
+  @visibility(Lifecycle.Read)
+  provisioningState?: ExternalAuthProvisioningState;
+
+  /** Token Issuer profile */
+  issuer: TokenIssuerProfile;
+
+  /** External Auth clients
+   * OidcClients must not exceed 20 entries and entries must have unique namespace/name pairs. */
+  @maxItems(20)
+  @OpenAPI.extension(
+    "x-ms-identifiers",
+    #["component", "clientId", "extraScopes"]
+  )
+  clients?: ExternalAuthClientProfile[];
+
+  /** External Auth claim */
+  claim: ExternalAuthClaimProfile;
+}
+
+/** Token issuer profile */
+model TokenIssuerProfile {
+  /** The URL of the token issuer */
+  url: url;
+
+  /** The audience of the token issuer */
+  @minItems(1)
+  @maxItems(10)
+  audiences: string[];
+
+  /** The issuer of the token
+   *
+   * Certificate bundle to use to validate server certificates for the configured URL.
+   * It must be PEM encoded. */
+  ca?: string;
+}
+
+/** External Auth client profile */
+model ExternalAuthClientProfile {
+  /** External Auth client component */
+  component: ExternalAuthClientComponentProfile;
+
+  /** External Auth client id
+   * The clientId must appear in the audience field of the TokenIssuerProfile. */
+  @minLength(1)
+  clientId: string;
+
+  /** external auth client scopes
+   *
+   * This is useful if you have configured claim mappings that requires specific
+   * scopes to be requested beyond the standard OIDC scopes.
+   * When omitted, no additional scopes are requested. */
+  extraScopes?: string[];
+}
+
+/** External Auth component profile
+ * Must have unique namespace/name pairs. */
+model ExternalAuthClientComponentProfile {
+  /** The name of the external Auth client */
+  @minLength(1)
+  @maxLength(256)
+  name: string;
+
+  /** The namespace of the external Auth client */
+  @minLength(1)
+  @maxLength(63)
+  authClientNamespace?: string;
+}
+
+/** External Auth claim profile */
+model ExternalAuthClaimProfile {
+  /** The claim mappings */
+  mappings: TokenClaimMappingsProfile;
+
+  /** The claim validation rules */
+  @OpenAPI.extension("x-ms-identifiers", #["claim", "requiredValue"])
+  validationRules?: TokenClaimValidationRuleProfile[];
+}
+
+/** External Auth claim mappings profile.
+ * At a minimum username or groups must be defined. */
+model TokenClaimMappingsProfile {
+  /** The claim mappings username */
+  username?: UsernameClaimProfile;
+
+  /** The claim mappings groups */
+  groups?: GroupClaimProfile;
+}
+
+/** External Auth claim profile */
+model GroupClaimProfile {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim: string;
+
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default */
+  prefix?: string;
+}
+
+/** External Auth claim profile */
+model UsernameClaimProfile {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim: string;
+
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default */
+  prefix?: string;
+
+  /** Prefix policy
+   * More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633 */
+  prefixPolicy?: string;
+}
+
+/** External Auth claim validation rule */
+model TokenClaimValidationRuleProfile {
+  /** Claim name for the validation profile
+   * claim is a required field that configures the name of the required claim. */
+  @minLength(1)
+  claim: string;
+
+  /** Required value
+   * requiredValue is a required field that configures the value that 'claim' must
+   * have when taken from the incoming JWT claims.
+   * If the value in the JWT claims does not match, the token
+   * will be rejected for authentication.
+   */
+  @minLength(1)
+  requiredValue: string;
+}
+
+/*
+ * =======================================
+ *  End ExternalAuth resources
  * =======================================
  */

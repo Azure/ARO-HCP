@@ -89,6 +89,42 @@ func PossibleEffectValues() []Effect {
 	}
 }
 
+// ExternalAuthProvisioningState - The resource provisioning state.
+type ExternalAuthProvisioningState string
+
+const (
+	// ExternalAuthProvisioningStateAccepted - Non-terminal state indicating the resource has been accepted
+	ExternalAuthProvisioningStateAccepted ExternalAuthProvisioningState = "Accepted"
+	// ExternalAuthProvisioningStateAwaitingSecret - Non-terminal state indicating the resource is awaiting secret
+	ExternalAuthProvisioningStateAwaitingSecret ExternalAuthProvisioningState = "AwaitingSecret"
+	// ExternalAuthProvisioningStateCanceled - Resource creation was canceled.
+	ExternalAuthProvisioningStateCanceled ExternalAuthProvisioningState = "Canceled"
+	// ExternalAuthProvisioningStateDeleting - Non-terminal state indicating the resource is deleting
+	ExternalAuthProvisioningStateDeleting ExternalAuthProvisioningState = "Deleting"
+	// ExternalAuthProvisioningStateFailed - Resource creation failed.
+	ExternalAuthProvisioningStateFailed ExternalAuthProvisioningState = "Failed"
+	// ExternalAuthProvisioningStateProvisioning - Non-terminal state indicating the resource is provisioning
+	ExternalAuthProvisioningStateProvisioning ExternalAuthProvisioningState = "Provisioning"
+	// ExternalAuthProvisioningStateSucceeded - Resource has been created.
+	ExternalAuthProvisioningStateSucceeded ExternalAuthProvisioningState = "Succeeded"
+	// ExternalAuthProvisioningStateUpdating - Non-terminal state indicating the resource is updating
+	ExternalAuthProvisioningStateUpdating ExternalAuthProvisioningState = "Updating"
+)
+
+// PossibleExternalAuthProvisioningStateValues returns the possible values for the ExternalAuthProvisioningState const type.
+func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningState {
+	return []ExternalAuthProvisioningState{
+		ExternalAuthProvisioningStateAccepted,
+		ExternalAuthProvisioningStateAwaitingSecret,
+		ExternalAuthProvisioningStateCanceled,
+		ExternalAuthProvisioningStateDeleting,
+		ExternalAuthProvisioningStateFailed,
+		ExternalAuthProvisioningStateProvisioning,
+		ExternalAuthProvisioningStateSucceeded,
+		ExternalAuthProvisioningStateUpdating,
+	}
+}
+
 // ManagedServiceIdentityType - Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
 type ManagedServiceIdentityType string
 
