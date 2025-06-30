@@ -1,6 +1,8 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
 
+NAMESPACE ?= secret-sync-controller
+
 deploy:
 	$(eval IMAGE_DIGEST := $(subst sha256:,,$(IMAGE_DIGEST)))
 	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \

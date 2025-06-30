@@ -58,9 +58,6 @@ defaults:
     image:
       registry: registry.k8s.io
       repository: secrets-store-sync/controller
-    k8s:
-      namespace: secret-sync-controller
-      serviceAccountName: secret-sync-controller
   # Backplane API
   backplaneAPI:
     image:

@@ -43,9 +43,5 @@ resourceGroups:
       configRef: secretSyncController.image.repository
     - name: PROVIDER_IMAGE
       configRef: secretSyncController.providerImage
-    - name: NAMESPACE
-      configRef: secretSyncController.k8s.namespace
-    - name: SA_NAME
-      configRef: secretSyncController.k8s.serviceAccountName
     shellIdentity:
       configRef: aroDevopsMsiId

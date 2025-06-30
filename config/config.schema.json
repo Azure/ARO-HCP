@@ -1016,29 +1016,12 @@
         },
         "providerImage": {
           "type": "string"
-        },
-        "k8s": {
-          "type": "object",
-          "properties": {
-            "namespace": {
-              "type": "string"
-            },
-            "serviceAccountName": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "namespace",
-            "serviceAccountName"
-          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
-        "providerImage",
-        "k8s"
+        "providerImage"
       ]
     },
     "maestro": {
