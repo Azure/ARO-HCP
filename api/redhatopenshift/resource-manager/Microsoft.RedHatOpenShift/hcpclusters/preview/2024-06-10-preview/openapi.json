@@ -1812,6 +1812,7 @@
           },
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1823,6 +1824,7 @@
           },
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -1831,6 +1833,7 @@
           "description": "Represents the information associated to an Azure User-Assigned Managed Identity whose\npurpose is to perform service level actions.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         }
