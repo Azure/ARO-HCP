@@ -69,6 +69,10 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: PlatformProfile;
 
+  /** Cluster-wide proxy configuration */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  proxy?: ProxyProfile;
+
   /** Configure cluter capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   capabilities?: ClusterCapabilitiesProfile;
@@ -290,6 +294,21 @@ scalar UserAssignedIdentityResourceId
       type: "Microsoft.ManagedIdentity/userAssignedIdentities",
     }
   ]>;
+
+/** Cluster-wide proxy configuration */
+model ProxyProfile {
+  /** The HTTP proxy server endpoint to use */
+  httpProxy?: url;
+
+  /** The HTTPS proxy server endpoint to use */
+  httpsProxy?: url;
+
+  /** The endpoints that should not go through proxy */
+  noProxy?: string[];
+
+  /** Alternative CA cert to use for connecting to proxy servers */
+  trustedCa?: string;
+}
 
 /*
  * =======================================
