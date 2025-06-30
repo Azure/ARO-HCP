@@ -33,7 +33,7 @@ The `observability` namespace contains a second service named `ingest` which acc
 
 ##### Alternative visualization with log support
 
-In addition to Jaeger, grafana lgtm is also deployed. In addition to traces, logs are also available there for retrieval.
+In addition to Jaeger, Grafana [OTEL lgtm](https://github.com/grafana/docker-otel-lgtm) is also deployed which can store and visualize traces and logs.
 We can access the UI using  `kubectl port-forward`:
 
 ```
