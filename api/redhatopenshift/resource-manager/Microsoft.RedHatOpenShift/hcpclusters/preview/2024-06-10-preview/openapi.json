@@ -971,20 +971,21 @@
         }
       ]
     },
-    "ClusterCapabilitiesProfile": {
+    "ClusterImageRegistryProfile": {
       "type": "object",
-      "description": "Cluster capabilities configuration.",
+      "description": "OpenShift cluster image registry",
       "properties": {
-        "disabled": {
-          "type": "array",
-          "description": "Immutable list of disabled capabilities. May only contain \"ImageRegistry\" at\nthis time. Additional capabilities may be available in the future. Clients\nshould expect to handle additional values.",
-          "items": {
-            "$ref": "#/definitions/OptionalClusterCapability"
-          },
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
+        "state": {
+          "type": "string",
+          "description": "The state of the OpenShift cluster image registry",
+          "default": "Enabled",
+          "enum": [
+            "Enabled",
+            "Disabled"
+          ],
+          "x-ms-enum": {
+            "modelAsString": true
+          }
         }
       }
     },
@@ -1164,9 +1165,9 @@
             "create"
           ]
         },
-        "capabilities": {
-          "$ref": "#/definitions/ClusterCapabilitiesProfile",
-          "description": "Configure cluter capabilities.",
+        "clusterImageRegistry": {
+          "$ref": "#/definitions/ClusterImageRegistryProfile",
+          "description": "OpenShift internal image registry",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1634,24 +1635,6 @@
       "required": [
         "userAssignedIdentities"
       ]
-    },
-    "OptionalClusterCapability": {
-      "type": "string",
-      "description": "Cluster capabilities that can be disabled.",
-      "enum": [
-        "ImageRegistry"
-      ],
-      "x-ms-enum": {
-        "name": "OptionalClusterCapability",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "ImageRegistry",
-            "value": "ImageRegistry",
-            "description": "Enables the OpenShift internal image registry."
-          }
-        ]
-      }
     },
     "PlatformProfile": {
       "type": "object",

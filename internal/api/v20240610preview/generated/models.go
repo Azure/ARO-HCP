@@ -47,11 +47,10 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
-// ClusterCapabilitiesProfile - Cluster capabilities configuration.
-type ClusterCapabilitiesProfile struct {
-	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
-	// available in the future. Clients should expect to handle additional values.
-	Disabled []*OptionalClusterCapability
+// ClusterImageRegistryProfile - OpenShift cluster image registry
+type ClusterImageRegistryProfile struct {
+	// The state of the OpenShift cluster image registry
+	State *ClusterImageRegistryProfileState
 }
 
 type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
@@ -162,8 +161,8 @@ type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
-	// Configure cluter capabilities.
-	Capabilities *ClusterCapabilitiesProfile
+	// OpenShift internal image registry
+	ClusterImageRegistry *ClusterImageRegistryProfile
 
 	// Cluster DNS configuration
 	DNS *DNSProfile

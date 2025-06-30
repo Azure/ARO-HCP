@@ -69,28 +69,12 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: PlatformProfile;
 
-  /** Configure cluter capabilities. */
+  // Optional features begin here. Each feature has
+  // its own model with at least a "state" property.
+
+  /** OpenShift internal image registry */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  capabilities?: ClusterCapabilitiesProfile;
-}
-
-/** Cluster capabilities configuration. */
-model ClusterCapabilitiesProfile {
-  /**
-   * Immutable list of disabled capabilities. May only contain "ImageRegistry" at
-   * this time. Additional capabilities may be available in the future. Clients
-   * should expect to handle additional values.
-   */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  disabled?: OptionalClusterCapability[];
-}
-
-/** Cluster capabilities that can be disabled. */
-union OptionalClusterCapability {
-  string,
-
-  /** Enables the OpenShift internal image registry. */
-  ImageRegistry: "ImageRegistry",
+  clusterImageRegistry?: ClusterImageRegistryProfile;
 }
 
 /** The resource provisioning state. */
@@ -230,6 +214,12 @@ model PlatformProfile {
    */
   @visibility(Lifecycle.Read)
   issuerUrl: url;
+}
+
+/** OpenShift cluster image registry */
+model ClusterImageRegistryProfile {
+  /** The state of the OpenShift cluster image registry */
+  state?: "Enabled" | "Disabled" | string = "Enabled";
 }
 
 scalar SubnetResourceId

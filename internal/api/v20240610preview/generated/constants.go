@@ -26,6 +26,22 @@ func PossibleActionTypeValues() []ActionType {
 	}
 }
 
+// ClusterImageRegistryProfileState - The state of the OpenShift cluster image registry
+type ClusterImageRegistryProfileState string
+
+const (
+	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
+	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
+)
+
+// PossibleClusterImageRegistryProfileStateValues returns the possible values for the ClusterImageRegistryProfileState const type.
+func PossibleClusterImageRegistryProfileStateValues() []ClusterImageRegistryProfileState {
+	return []ClusterImageRegistryProfileState{
+		ClusterImageRegistryProfileStateDisabled,
+		ClusterImageRegistryProfileStateEnabled,
+	}
+}
+
 // CreatedByType - The type of identity that created the resource.
 type CreatedByType string
 
@@ -124,21 +140,6 @@ func PossibleNetworkTypeValues() []NetworkType {
 	return []NetworkType{
 		NetworkTypeOVNKubernetes,
 		NetworkTypeOther,
-	}
-}
-
-// OptionalClusterCapability - Cluster capabilities that can be disabled.
-type OptionalClusterCapability string
-
-const (
-	// OptionalClusterCapabilityImageRegistry - Enables the OpenShift internal image registry.
-	OptionalClusterCapabilityImageRegistry OptionalClusterCapability = "ImageRegistry"
-)
-
-// PossibleOptionalClusterCapabilityValues returns the possible values for the OptionalClusterCapability const type.
-func PossibleOptionalClusterCapabilityValues() []OptionalClusterCapability {
-	return []OptionalClusterCapability{
-		OptionalClusterCapabilityImageRegistry,
 	}
 }
 
