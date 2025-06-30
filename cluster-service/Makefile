@@ -118,8 +118,12 @@ local-azure-operators-managed-identities-config:
 	@source ./generate_helm_set_flags.sh && \
 	helm template deploy -s templates/azure-operators-managed-identities-config.configmap.yaml \
 	  "$${OP_HELM_SET_FLAGS[@]}" \
-	  | yq '.data."azure-operators-managed-identities-config.yaml"' > ./azure-operators-managed-identities-config.yaml
+	  | yq '.data["azure-operators-managed-identities-config.yaml"]' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
+
+local-aro-hcp-ocp-versions-config:
+	helm template deploy -s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
+.PHONY: local-aro-hcp-ocp-versions-config
 
 #
 # Shared OIDC Storage

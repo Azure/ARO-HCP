@@ -4,3 +4,4 @@ local/local-provisioning-shards.yml
 local/azure-runtime-config.yaml
 local/azure-runtime-config.json
 azure-operators-managed-identities-config.yaml
+aro-hcp-ocp-versions-config.yaml
