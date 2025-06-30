@@ -353,19 +353,7 @@ type HcpOperatorIdentityRoleSetProperties struct {
 // $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
 type KmsConfig struct {
 	// REQUIRED; The details of the active key.
-	ActiveKey *KmsKey
-}
-
-// KmsKey - A representation of a KeyVault Secret.
-type KmsKey struct {
-	// REQUIRED; name is the name of the keyvault key used for encrypt/decrypt
-	Name *string
-
-	// REQUIRED; vaultName is the name of the keyvault that contains the secret
-	VaultName *string
-
-	// REQUIRED; version contains the version of the key to use
-	Version *string
+	ActiveKey *NonUpdatableKmsKey
 }
 
 // Label represents the Kubernetes label
@@ -561,6 +549,18 @@ type NodePoolVersionProfile struct {
 
 	// ID is the unique identifier of the version.
 	ID *string
+}
+
+// NonUpdatableKmsKey - A KMS Key that is immutable.
+type NonUpdatableKmsKey struct {
+	// REQUIRED; name is the name of the keyvault key used for encrypt/decrypt
+	Name *string
+
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret
+	VaultName *string
+
+	// REQUIRED; version contains the version of the key to use
+	Version *string
 }
 
 // Operation - Details of a REST API operation, returned from the Resource Provider Operations API

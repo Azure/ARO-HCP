@@ -329,22 +329,25 @@ scalar UserAssignedIdentityResourceId
 /** A representation of a KeyVault Secret. */
 model KmsKey {
   /** vaultName is the name of the keyvault that contains the secret */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(255)
   @minLength(1)
   vaultName: string;
 
   /** name is the name of the keyvault key used for encrypt/decrypt */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(255)
   @minLength(1)
   name: string;
 
   /** version contains the version of the key to use */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(255)
   @minLength(1)
   version: string;
+}
+
+/** A KMS Key that is immutable. */
+@withVisibilityFilter(#{ all: #[Lifecycle.Create, Lifecycle.Read] })
+model NonUpdatableKmsKey {
+  ...KmsKey;
 }
 
 /** The ETCD settings and configuration options. */
@@ -378,7 +381,7 @@ model CustomerManagedConfig {
  */
 model KmsConfig {
   /** The details of the active key. */
-  activeKey: KmsKey;
+  activeKey: NonUpdatableKmsKey;
 }
 
 /*
