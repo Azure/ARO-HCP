@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -123,10 +124,10 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.deploymentClient, rgName, deploymentName, step, options.Configuration, input)
+		return doWaitForDeployment(ctx, a.deploymentClient, rgName, deploymentName, step, filepath.Dir(options.PipelineFilePath), options.Configuration, input)
 	}
 
-	return doDryRun(ctx, a.deploymentClient, rgName, deploymentName, step, options.Configuration, input)
+	return doDryRun(ctx, a.deploymentClient, rgName, deploymentName, step, filepath.Dir(options.PipelineFilePath), options.Configuration, input)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
@@ -205,7 +206,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, cfg config.Configuration, input map[string]Output) (Output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir string, cfg config.Configuration, input map[string]Output) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
@@ -213,7 +214,7 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, step.Parameters, step.DeploymentMode, cfg, inputValues)
+	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
@@ -279,7 +280,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, cfg config.Configuration, input map[string]Output) (Output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir string, cfg config.Configuration, input map[string]Output) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
@@ -287,7 +288,7 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, step.DeploymentMode, cfg, inputValues)
+	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}

@@ -119,7 +119,7 @@ func TestCreateCommand(t *testing.T) {
 			assert.NoError(t, err)
 			maps.Copy(tc.envVars, dryRunVars)
 
-			cmd, skipCommand := createCommand(ctx, tc.step.Command, dryRun, tc.envVars)
+			cmd, skipCommand := createCommand(ctx, tc.step.Command, "", dryRun, tc.envVars)
 			assert.Empty(t, cmp.Diff(skipCommand, tc.skipCommand))
 			if !tc.skipCommand {
 				assert.Equal(t, strings.Join(cmd.Args, " "), fmt.Sprintf("/bin/bash -c %s", tc.expectedScript))
