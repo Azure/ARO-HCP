@@ -47,9 +47,8 @@ type HCPOpenShiftClusterProperties struct {
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID                string   `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
-	ChannelGroup      string   `json:"channelGroup,omitempty"      visibility:"read create update"`
-	AvailableUpgrades []string `json:"availableUpgrades,omitempty" visibility:"read"`
+	ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
+	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
 }
 
 // DNSProfile represents the DNS configuration of the cluster.

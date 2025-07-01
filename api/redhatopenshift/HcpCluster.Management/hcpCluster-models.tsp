@@ -122,10 +122,6 @@ model VersionProfile {
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string = "stable";
-
-  /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
-  @visibility(Lifecycle.Read)
-  availableUpgrades: string[];
 }
 
 /** DNS contains the DNS settings of the cluster */
@@ -402,10 +398,6 @@ model NodePoolVersionProfile {
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string = "stable";
-
-  /** AvailableUpgrades is a list of version names the current version can be upgraded to. */
-  @visibility(Lifecycle.Read)
-  availableUpgrades: string[];
 }
 
 /** Azure node pool platform configuration */

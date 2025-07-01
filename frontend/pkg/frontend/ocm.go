@@ -146,9 +146,8 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
 			Version: api.VersionProfile{
-				ID:                cluster.Version().ID(),
-				ChannelGroup:      cluster.Version().ChannelGroup(),
-				AvailableUpgrades: cluster.Version().AvailableUpgrades(),
+				ID:           cluster.Version().ID(),
+				ChannelGroup: cluster.Version().ChannelGroup(),
 			},
 			DNS: api.DNSProfile{
 				BaseDomain:       cluster.DNS().BaseDomain(),
@@ -351,9 +350,8 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
-				ID:                np.Version().ID(),
-				ChannelGroup:      np.Version().ChannelGroup(),
-				AvailableUpgrades: np.Version().AvailableUpgrades(),
+				ID:           np.Version().ID(),
+				ChannelGroup: np.Version().ChannelGroup(),
 			},
 			Platform: api.NodePoolPlatformProfile{
 				SubnetID:               np.Subnet(),
@@ -402,8 +400,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			ID(nodePool.Name).
 			Version(arohcpv1alpha1.NewVersion().
 				ID(nodePool.Properties.Version.ID).
-				ChannelGroup(nodePool.Properties.Version.ChannelGroup).
-				AvailableUpgrades(nodePool.Properties.Version.AvailableUpgrades...)).
+				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(nodePool.Properties.Platform.SubnetID).
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
 				ResourceName(nodePool.Name).
