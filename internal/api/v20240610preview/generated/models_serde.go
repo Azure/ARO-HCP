@@ -1072,7 +1072,6 @@ func (n *NodePoolUpdate) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type NodePoolVersionProfile.
 func (n NodePoolVersionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "availableUpgrades", n.AvailableUpgrades)
 	populate(objectMap, "channelGroup", n.ChannelGroup)
 	populate(objectMap, "id", n.ID)
 	return json.Marshal(objectMap)
@@ -1080,42 +1079,6 @@ func (n NodePoolVersionProfile) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolVersionProfile.
 func (n *NodePoolVersionProfile) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", n, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "availableUpgrades":
-			err = unpopulate(val, "AvailableUpgrades", &n.AvailableUpgrades)
-			delete(rawMsg, key)
-		case "channelGroup":
-			err = unpopulate(val, "ChannelGroup", &n.ChannelGroup)
-			delete(rawMsg, key)
-		case "id":
-			err = unpopulate(val, "ID", &n.ID)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", n, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type NodePoolVersionProfileUpdate.
-func (n NodePoolVersionProfileUpdate) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "channelGroup", n.ChannelGroup)
-	populate(objectMap, "id", n.ID)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type NodePoolVersionProfileUpdate.
-func (n *NodePoolVersionProfileUpdate) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", n, err)
@@ -1680,7 +1643,6 @@ func (u *UserAssignedIdentity) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type VersionProfile.
 func (v VersionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "availableUpgrades", v.AvailableUpgrades)
 	populate(objectMap, "channelGroup", v.ChannelGroup)
 	populate(objectMap, "id", v.ID)
 	return json.Marshal(objectMap)
@@ -1695,43 +1657,11 @@ func (v *VersionProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "availableUpgrades":
-			err = unpopulate(val, "AvailableUpgrades", &v.AvailableUpgrades)
-			delete(rawMsg, key)
 		case "channelGroup":
 			err = unpopulate(val, "ChannelGroup", &v.ChannelGroup)
 			delete(rawMsg, key)
 		case "id":
 			err = unpopulate(val, "ID", &v.ID)
-			delete(rawMsg, key)
-		default:
-			err = fmt.Errorf("unmarshalling type %T, unknown field %q", v, key)
-		}
-		if err != nil {
-			return fmt.Errorf("unmarshalling type %T: %v", v, err)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaller interface for type VersionProfileUpdate.
-func (v VersionProfileUpdate) MarshalJSON() ([]byte, error) {
-	objectMap := make(map[string]any)
-	populate(objectMap, "channelGroup", v.ChannelGroup)
-	return json.Marshal(objectMap)
-}
-
-// UnmarshalJSON implements the json.Unmarshaller interface for type VersionProfileUpdate.
-func (v *VersionProfileUpdate) UnmarshalJSON(data []byte) error {
-	var rawMsg map[string]json.RawMessage
-	if err := json.Unmarshal(data, &rawMsg); err != nil {
-		return fmt.Errorf("unmarshalling type %T: %v", v, err)
-	}
-	for key, val := range rawMsg {
-		var err error
-		switch key {
-		case "channelGroup":
-			err = unpopulate(val, "ChannelGroup", &v.ChannelGroup)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", v, key)

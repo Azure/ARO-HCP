@@ -119,7 +119,6 @@ func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.Node
 	if p.ChannelGroup != nil {
 		out.ChannelGroup = *p.ChannelGroup
 	}
-	out.AvailableUpgrades = api.StringPtrSliceToStringSlice(p.AvailableUpgrades)
 }
 
 func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.NodePoolPlatformProfile) {
@@ -178,9 +177,8 @@ type NodePoolAutoScaling struct {
 
 func newNodePoolVersionProfile(from *api.NodePoolVersionProfile) *generated.NodePoolVersionProfile {
 	return &generated.NodePoolVersionProfile{
-		ID:                api.PtrOrNil(from.ID),
-		ChannelGroup:      api.PtrOrNil(from.ChannelGroup),
-		AvailableUpgrades: api.StringSliceToStringPtrSlice(from.AvailableUpgrades),
+		ID:           api.PtrOrNil(from.ID),
+		ChannelGroup: api.PtrOrNil(from.ChannelGroup),
 	}
 }
 

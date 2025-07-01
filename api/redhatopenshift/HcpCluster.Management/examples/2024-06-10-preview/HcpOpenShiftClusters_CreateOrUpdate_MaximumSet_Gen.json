@@ -9,8 +9,8 @@
     "resource": {
       "properties": {
         "version": {
-          "channelGroup": "stable",
-          "id": "4.12"
+          "id": "openshift-v4.18.1",
+          "channelGroup": "stable"
         },
         "dns": {
           "baseDomainPrefix": "jcldjrtyebhrlxs"
@@ -56,10 +56,8 @@
         "properties": {
           "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable",
-            "availableUpgrades": [
-              "fpjxf"
-            ]
+            "id": "openshift-v4.18.1",
+            "channelGroup": "stable"
           },
           "dns": {
             "baseDomain": "yubrqcgqdhgqfkobjqm"
@@ -128,10 +126,8 @@
         "properties": {
           "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable",
-            "availableUpgrades": [
-              "fpjxf"
-            ]
+            "id": "openshift-v4.18.1",
+            "channelGroup": "stable"
           },
           "dns": {
             "baseDomain": "yubrqcgqdhgqfkobjqm"

@@ -10,8 +10,8 @@
     "resource": {
       "properties": {
         "version": {
-          "channelGroup": "stable",
-          "id": "jlufyoivqzyxnqzwijozipxmgux"
+          "id": "openshift-v4.18.1",
+          "channelGroup": "stable"
         },
         "platform": {
           "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
@@ -52,10 +52,8 @@
         "properties": {
           "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable",
-            "availableUpgrades": [
-              "4.12"
-            ]
+            "id": "openshift-v4.18.1",
+            "channelGroup": "stable"
           },
           "platform": {
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
@@ -94,10 +92,8 @@
         "properties": {
           "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable",
-            "availableUpgrades": [
-              "4.12"
-            ]
+            "id": "openshift-v4.18.1",
+            "channelGroup": "stable"
           },
           "platform": {
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
