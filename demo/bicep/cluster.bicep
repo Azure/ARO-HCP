@@ -93,12 +93,12 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     }
     console: {}
     api: {
-      visibility: 'Public'
+      visibility: 'public'
     }
     platform: {
       managedResourceGroup: managedResourceGroupName
       subnetId: subnetId
-      outboundType: 'LoadBalancer'
+      outboundType: 'loadBalancer'
       networkSecurityGroupId: networkSecurityGroupId
       operatorsAuthentication: {
         userAssignedIdentities: {
