@@ -184,6 +184,11 @@ defaults:
         version: ""
         replicas: 2
         shards: 2
+      prometheusConfigReloader:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-config-reloader
+          digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
   # MGMT cluster specifics
   mgmt:
     subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
@@ -239,6 +244,11 @@ defaults:
         version: "v2.55.1-3"
         replicas: 2
         shards: 2
+      prometheusConfigReloader:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-config-reloader
+          digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
   # Backend
   backend:
     image:

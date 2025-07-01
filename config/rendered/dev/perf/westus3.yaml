@@ -256,6 +256,11 @@ mgmt:
   prometheus:
     namespace: prometheus
     namespaceLabel: network.openshift.io/policy-group=monitoring
+    prometheusConfigReloader:
+      image:
+        digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-config-reloader
     prometheusOperator:
       image:
         digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
@@ -377,6 +382,11 @@ svc:
   prometheus:
     namespace: prometheus
     namespaceLabel: ""
+    prometheusConfigReloader:
+      image:
+        digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-config-reloader
     prometheusOperator:
       image:
         digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82

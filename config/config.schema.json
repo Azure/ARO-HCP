@@ -304,7 +304,7 @@
             },
             "version": {
               "type": "string"
-            }
+            }          
           }
         },
         "prometheusSpec": {
@@ -322,6 +322,15 @@
             },
             "shards": {
               "type": "number"
+            }
+          }
+        },
+        "prometheusConfigReloader": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image" :{
+              "$ref": "#/definitions/containerImage"
             }
           }
         }
