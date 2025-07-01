@@ -249,8 +249,8 @@ model ClusterAutoscalingProfile {
   @minValue(0)
   maxPodGracePeriodSeconds?: int32 = 600;
 
-  /** maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning
-   *  to be unsuccessful. The default is 15 minutes. */
+  /** maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the
+   *  provisioning to be unsuccessful. The default is 900 seconds, or 15 minutes. */
   @minValue(0)
   maxNodeProvisionTimeSeconds?: int32 = 900;
 
