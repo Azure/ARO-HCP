@@ -16,10 +16,10 @@ ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 deploy:
 	@source ./generate_helm_set_flags.sh && \
 	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
-	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query clientId -o tsv) && \
-	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query tenantId -o tsv) && \
+	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCE_GROUP} -n image-puller --query clientId -o tsv) && \
+	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCE_GROUP} -n image-puller --query tenantId -o tsv) && \
 	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
-	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
+	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCE_GROUP} -n ${MI_NAME} --query clientId -o tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${REGIONAL_RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${REGIONAL_RESOURCEGROUP} --query primaryEndpoints.web -o tsv) && \
