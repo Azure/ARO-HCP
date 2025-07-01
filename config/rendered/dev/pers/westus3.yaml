@@ -249,7 +249,7 @@ mgmt:
   jaeger:
     deploy: false
   logs:
-    configVersion: ""
+    configVersion: "1"
     namespace: HCPCustomerLogs
     san: ""
   nsp:
@@ -383,7 +383,7 @@ svc:
   jaeger:
     deploy: true
   logs:
-    configVersion: ""
+    configVersion: "1"
     namespace: HCPServiceLogs
     san: ""
   nsp:
