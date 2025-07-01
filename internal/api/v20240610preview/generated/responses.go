@@ -53,6 +53,18 @@ type HcpOpenShiftClustersClientUpdateResponse struct {
 	HcpOpenShiftCluster
 }
 
+// HcpOpenShiftVersionsClientGetResponse contains the response from method HcpOpenShiftVersionsClient.Get.
+type HcpOpenShiftVersionsClientGetResponse struct {
+	// HcpOpenShiftVersion represents a location based available HCP OpenShift version
+	HcpOpenShiftVersion
+}
+
+// HcpOpenShiftVersionsClientListResponse contains the response from method HcpOpenShiftVersionsClient.NewListPager.
+type HcpOpenShiftVersionsClientListResponse struct {
+	// The response of a HcpOpenShiftVersion list operation.
+	HcpOpenShiftVersionListResult
+}
+
 // NodePoolsClientCreateOrUpdateResponse contains the response from method NodePoolsClient.BeginCreateOrUpdate.
 type NodePoolsClientCreateOrUpdateResponse struct {
 	// Concrete tracked resource types can be created by aliasing this type using a specific property type.

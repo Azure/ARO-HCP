@@ -43,6 +43,14 @@ func (c *ClientFactory) NewHcpOpenShiftClustersClient() *HcpOpenShiftClustersCli
 	}
 }
 
+// NewHcpOpenShiftVersionsClient creates a new instance of HcpOpenShiftVersionsClient.
+func (c *ClientFactory) NewHcpOpenShiftVersionsClient() *HcpOpenShiftVersionsClient {
+	return &HcpOpenShiftVersionsClient{
+		subscriptionID: c.subscriptionID,
+		internal:       c.internal,
+	}
+}
+
 // NewNodePoolsClient creates a new instance of NodePoolsClient.
 func (c *ClientFactory) NewNodePoolsClient() *NodePoolsClient {
 	return &NodePoolsClient{
