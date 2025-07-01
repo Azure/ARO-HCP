@@ -576,6 +576,19 @@ model NodePoolPlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
 
+  /** The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.
+   * Can be used with either platform (Azure) managed, or customer managed encryption keys.
+   * This needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.
+   * DiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location
+   * listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.
+   *
+   * Details on how to create a Disk Encryption Set can be found here:
+   * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(285)
+  diskEncryptionSetId?: url;
+
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
