@@ -171,6 +171,12 @@ resourceGroups:
       configRef: mgmt.prometheus.prometheusOperator.image.repository
     - name: PROMETHEUS_OPERATOR_DIGEST
       configRef: mgmt.prometheus.prometheusOperator.image.digest
+    - name: PROMETHEUS_CONFIG_RELOADER_REGISTRY
+      configRef: mgmt.prometheus.prometheusConfigReloader.image.registry
+    - name: PROMETHEUS_CONFIG_RELOADER_REPOSITORY
+      configRef: mgmt.prometheus.prometheusConfigReloader.image.repository
+    - name: PROMETHEUS_CONFIG_RELOADER_DIGEST
+      configRef: mgmt.prometheus.prometheusConfigReloader.image.digest
     - name: PROMETHEUS_SPEC_REGISTRY
       configRef: mgmt.prometheus.prometheusSpec.image.registry
     - name: PROMETHEUS_SPEC_REPOSITORY

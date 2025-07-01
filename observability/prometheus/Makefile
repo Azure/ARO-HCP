@@ -32,9 +32,9 @@ deploy: pull-chart
 		--set kube-prometheus-stack.prometheusOperator.image.registry=${PROMETHEUS_OPERATOR_REGISTRY} \
 		--set kube-prometheus-stack.prometheusOperator.image.repository=${PROMETHEUS_OPERATOR_REPOSITORY} \
 		--set kube-prometheus-stack.prometheusOperator.image.sha=${PROMETHEUS_OPERATOR_DIGEST} \
-		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.registry=mcr.microsoft.com/oss/v2 \
-		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.repository=prometheus/prometheus-config-reloader \
-		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.sha="b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1" \
+		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.registry=${PROMETHEUS_CONFIG_RELOADER_REGISTRY} \
+		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.repository=${PROMETHEUS_CONFIG_RELOADER_REPOSITORY} \
+		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.sha=${PROMETHEUS_CONFIG_RELOADER_DIGEST} \
 		--set prometheus.serviceAccount.managedIdentity=$${PROMETHEUS_WI_IDENTITY_CLIENT_ID} \
 		--set prometheusSpec.image.registry=${PROMETHEUS_SPEC_REGISTRY} \
 		--set prometheusSpec.image.repository=${PROMETHEUS_SPEC_REPOSITORY} \
