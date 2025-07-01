@@ -1063,6 +1063,38 @@
         }
       ]
     },
+    "ClusterAutoscalingProfile": {
+      "type": "object",
+      "description": "ClusterAutoscaling specifies auto-scaling behavior that\napplies to all NodePools associated with a control plane.",
+      "properties": {
+        "maxNodesTotal": {
+          "type": "integer",
+          "format": "int32",
+          "description": "maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.\nThe autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. number.",
+          "minimum": 0
+        },
+        "maxPodGracePeriodSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "description": "maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.\nThe default is 600 seconds.",
+          "default": 600,
+          "minimum": 0
+        },
+        "maxNodeProvisionTimeSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.",
+          "default": 900,
+          "minimum": 0
+        },
+        "podPriorityThreshold": {
+          "type": "integer",
+          "format": "int32",
+          "description": "podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption",
+          "default": -10
+        }
+      }
+    },
     "ClusterCapabilitiesProfile": {
       "type": "object",
       "description": "Cluster capabilities configuration.",
@@ -1265,6 +1297,15 @@
             "create"
           ]
         },
+        "autoscaling": {
+          "$ref": "#/definitions/ClusterAutoscalingProfile",
+          "description": "Configure ClusterAutoscaling .",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "capabilities": {
           "$ref": "#/definitions/ClusterCapabilitiesProfile",
           "description": "Configure cluter capabilities.",
@@ -1294,6 +1335,15 @@
         "platform": {
           "$ref": "#/definitions/PlatformProfileUpdate",
           "description": "Azure platform configuration",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "autoscaling": {
+          "$ref": "#/definitions/ClusterAutoscalingProfile",
+          "description": "Configure ClusterAutoscaling .",
           "x-ms-mutability": [
             "read",
             "update",

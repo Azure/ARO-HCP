@@ -47,6 +47,28 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
+// ClusterAutoscalingProfile - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
+// with a control plane.
+type ClusterAutoscalingProfile struct {
+	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
+	// unsuccessful. The default is 900 seconds, or 15 minutes.
+	MaxNodeProvisionTimeSeconds *int32
+
+	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
+	// not grow the cluster beyond this number. If omitted, the autoscaler will not
+	// have a maximum limit. number.
+	MaxNodesTotal *int32
+
+	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
+	// is 600 seconds.
+	MaxPodGracePeriodSeconds *int32
+
+	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
+	// run when there are spare resources available. The default is -10. See the
+	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
+	PodPriorityThreshold *int32
+}
+
 // ClusterCapabilitiesProfile - Cluster capabilities configuration.
 type ClusterCapabilitiesProfile struct {
 	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
@@ -165,6 +187,9 @@ type HcpOpenShiftClusterProperties struct {
 	// Shows the cluster API server profile
 	API *APIProfile
 
+	// Configure ClusterAutoscaling .
+	Autoscaling *ClusterAutoscalingProfile
+
 	// Configure cluter capabilities.
 	Capabilities *ClusterCapabilitiesProfile
 
@@ -186,6 +211,9 @@ type HcpOpenShiftClusterProperties struct {
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
+	// Configure ClusterAutoscaling .
+	Autoscaling *ClusterAutoscalingProfile
+
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate
 

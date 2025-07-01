@@ -70,6 +70,10 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
 
+  /** Configure ClusterAutoscaling . */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  autoscaling?: ClusterAutoscalingProfile;
+
   /** Configure cluter capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   capabilities?: ClusterCapabilitiesProfile;
@@ -232,6 +236,31 @@ model PlatformProfile {
    */
   @visibility(Lifecycle.Read)
   issuerUrl: url;
+}
+
+/** ClusterAutoscaling specifies auto-scaling behavior that
+ *  applies to all NodePools associated with a control plane. */
+model ClusterAutoscalingProfile {
+  /** maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.
+   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. number. */
+  @minValue(0)
+  maxNodesTotal?: int32;
+
+  /** maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.
+   * The default is 600 seconds. */
+  @minValue(0)
+  maxPodGracePeriodSeconds?: int32 = 600;
+
+  /** maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the
+   *  provisioning to be unsuccessful. The default is 900 seconds, or 15 minutes. */
+  @minValue(0)
+  maxNodeProvisionTimeSeconds?: int32 = 900;
+
+  /** podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
+   * but only run when there are spare resources available. The default is -10.
+   * See the following for more details:
+   * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption */
+  podPriorityThreshold?: int32 = -10;
 }
 
 scalar SubnetResourceId
