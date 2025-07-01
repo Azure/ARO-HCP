@@ -62,6 +62,14 @@ The creation of ADO pipelines for pipeline.yaml is automated based on metadata f
 
 The ADO pipeline will eventually show up under the [pipelines secion of sdp-pipelines](https://dev.azure.com/msazure/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp).
 
+## Prepare a rollout
+
+To rollout a specific state of the ARO HCP Github repository, the [sdp-pipelines/hcp/Revision.mk](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/Revision.mk) file needs to be bumped with the respective commit SHA of the ARO HCP repository. This makes all infrastructure pipelines, service Helm charts and scripts, the [pipeline topology](pipeline-topology.md), as well as the [baseline configuration](../config/config.yaml) of that specific commit available to all ADO pipelines for rollouts.
+
+Any MSFT specific configuration changes (e.g. service component digest bump) can be made in the [sdp-pipelines/hcp/config.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.clouds-overlay.yaml). This overlay acts as a `clouds.public` override for the [ARO HCP baseline configuration](../config/config.yaml).
+
+Have a look at the [sdp-pipelines/hcp/README.md](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/README.md) documentation for more details on how to conduct configuration updates.
+
 ## Execute an ADO pipeline
 
 * Go to the respective pipeline in ADO

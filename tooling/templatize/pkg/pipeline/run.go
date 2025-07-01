@@ -165,6 +165,16 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 	fmt.Print("\n")
 
 	switch step := s.(type) {
+	case *types.ImageMirrorStep:
+		var buf bytes.Buffer
+
+		err := runImageMirrorStep(ctx, step, options, outPuts, &buf)
+		if err != nil {
+			return nil, fmt.Errorf("error running Image Mirror Step, %v", err)
+		}
+		output := buf.String()
+		fmt.Println(output)
+		return ShellOutput(output), nil
 	case *types.ShellStep:
 		var buf bytes.Buffer
 

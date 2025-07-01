@@ -256,7 +256,8 @@
           "type": "string"
         },
         "digest": {
-          "type": "string"
+            "type": "string",
+            "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
         }
       },
       "required": [
@@ -303,7 +304,7 @@
             },
             "version": {
               "type": "string"
-            }
+            }          
           }
         },
         "prometheusSpec": {
@@ -321,6 +322,15 @@
             },
             "shards": {
               "type": "number"
+            }
+          }
+        },
+        "prometheusConfigReloader": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image" :{
+              "$ref": "#/definitions/containerImage"
             }
           }
         }
@@ -998,6 +1008,22 @@
         "image"
       ]
     },
+    "secretSyncController": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "providerImage": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "providerImage"
+      ]
+    },
     "maestro": {
       "type": "object",
       "properties": {
@@ -1505,6 +1531,7 @@
     "hypershift",
     "imageSync",
     "acrPull",
+    "secretSyncController",
     "maestro",
     "mgmt",
     "mgmtKeyVault",

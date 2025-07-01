@@ -7,7 +7,6 @@ GOTAGS?='containers_image_openpgp'
 LINT_GOTAGS?='${GOTAGS},E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
-CLOUD ?= dev
 
 .DEFAULT_GOAL := all
 
@@ -24,8 +23,9 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
-mocks: install-tools
+mocks: $(MOCKGEN) $(GOIMPORTS)
 	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ./internal/mocks
 .PHONY: mocks
 
 install-tools: $(BINGO)
@@ -33,7 +33,7 @@ install-tools: $(BINGO)
 .PHONY: install-tools
 
 licenses: $(ADDLICENSE)
-	$(ADDLICENSE) -c 'Microsoft Corporation' -l apache $(shell find -type f -name '*.go')
+	$(ADDLICENSE) -c 'Microsoft Corporation' -l apache $(shell find . -type f -name '*.go')
 
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
 # https://github.com/golang/go/issues/50745
@@ -111,6 +111,10 @@ infra.mgmt.aks.kubeconfigfile:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfigfile
 .PHONY: infra.mgmt.aks.kubeconfigfile
 
+infra.monitoring:
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make monitoring
+.PHONY: infra.monitoring
+
 infra.all:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make infra
 .PHONY: infra.all
@@ -179,14 +183,14 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
-services_mgmt_pipelines = hypershiftoperator maestro.agent acm
+services_mgmt_pipelines = secret-sync-controller hypershiftoperator maestro.agent acm
 %.deploy_pipeline: $(ORAS)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c $(CLOUD)
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run
 
 %.dry_run: $(ORAS)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -c $(CLOUD) -d
+	./templatize.sh $(DEPLOY_ENV) -p ./$(dirname)/pipeline.yaml -P run -d
 
 svc.deployall: $(ORAS) $(addsuffix .deploy_pipeline, $(services_svc_pipelines)) $(addsuffix .deploy, $(services_svc))
 mgmt.deployall: $(ORAS) $(addsuffix .deploy, $(services_mgmt)) $(addsuffix .deploy_pipeline, $(services_mgmt_pipelines))
@@ -199,10 +203,13 @@ listall:
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 
+rebase:
+	hack/rebase-n-materialize.sh
+.PHONY: rebase
+
 validate-config-pipelines:
 	$(MAKE) -C tooling/templatize templatize
 	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.yaml --dev-mode --dev-region $(shell yq '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
-	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.msft.yaml $(DEV_MODE) $(ONLY_CHANGED)
 
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"

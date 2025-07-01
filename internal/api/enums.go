@@ -35,15 +35,15 @@ const (
 type OutboundType string
 
 const (
-	OutboundTypeLoadBalancer OutboundType = "loadBalancer"
+	OutboundTypeLoadBalancer OutboundType = "LoadBalancer"
 )
 
 // Visibility represents the visibility of an API endpoint.
 type Visibility string
 
 const (
-	VisibilityPublic  Visibility = "public"
-	VisibilityPrivate Visibility = "private"
+	VisibilityPublic  Visibility = "Public"
+	VisibilityPrivate Visibility = "Private"
 )
 
 type Effect string

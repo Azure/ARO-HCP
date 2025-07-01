@@ -24,21 +24,25 @@ import (
 )
 
 func DefaultOptions() *RawOptions {
-	return &RawOptions{}
+	return &RawOptions{
+		Cloud: "dev",
+	}
 }
 
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
 	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax, dev)")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
+	cmd.Flags().StringVar(&opts.Ev2Cloud, "ev2-cloud", opts.Ev2Cloud, "the Ev2 cloud to use when resolving config, if different from --cloud")
 	return nil
 }
 
-// RawGenerationOptions holds input values.
+// RawOptions holds input values.
 type RawOptions struct {
 	ConfigFile string
 	Cloud      string
 	DeployEnv  string
+	Ev2Cloud   string
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
@@ -73,6 +77,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 	return &Options{
 		completedOptions: &completedOptions{
 			ConfigProvider: configProvider,
+			Ev2Cloud:       o.Ev2Cloud,
 		},
 	}, nil
 }
@@ -80,6 +85,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 // completedGenerationOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
 	ConfigProvider config.ConfigProvider
+	Ev2Cloud       string
 }
 
 type Options struct {

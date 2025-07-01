@@ -1,0 +1,35 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Region.Delete
+rolloutName: Delete Regional Resource Group
+resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription }}'
+  steps:
+  - name: global-rg-ownership
+    action: ARM
+    template: ../templates/rg-ownership.bicep
+    parameters: ../configurations/rg-ownership.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+- name: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription }}'
+  steps:
+  - name: rg-ownership
+    action: ARM
+    template: ../templates/rg-ownership.bicep
+    parameters: ../configurations/rg-ownership.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: delete-region
+    action: Shell
+    command: ./delete.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: RESOURCE_GROUP
+      configRef: regionRG
+    shellIdentity:
+      configRef: aroDevopsMsiId
+    dependsOn:
+    - global-rg-ownership
+    - rg-ownership

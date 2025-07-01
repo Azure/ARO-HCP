@@ -53,6 +53,11 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
+  # Secret Sync Controller
+  secretSyncController:
+    image:
+      registry: registry.k8s.io
+      repository: secrets-store-sync/controller
   # Backplane API
   backplaneAPI:
     image:
@@ -115,8 +120,8 @@ defaults:
     # Our yaml formatter does not allow >- when there is no value, so remember
     # to chage "" to >- when you add a value.
     grafanaRoles: ""
-    svcWorkspaceName: 'arohcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
-    hcpWorkspaceName: 'arohcp-hcp-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
+    svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
+    hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
     devAlertingEmails: ""
     sev1ActionGroupIDs: ""
     sev2ActionGroupIDs: ""
@@ -138,7 +143,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.8
+      kubernetesVersion: 1.32.4
       networkDataplane: "cilium"
       networkPolicy: "cilium"
       systemAgentPool:
@@ -174,16 +179,21 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+          digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         version: ""
         replicas: 2
         shards: 2
+      prometheusConfigReloader:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-config-reloader
+          digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
   # MGMT cluster specifics
   mgmt:
     subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
@@ -196,7 +206,7 @@ defaults:
       vnetAddressPrefix: "10.128.0.0/14"
       subnetPrefix: "10.128.8.0/21"
       podSubnetPrefix: "10.128.64.0/18"
-      kubernetesVersion: 1.31.8
+      kubernetesVersion: 1.32.4
       networkDataplane: "azure"
       networkPolicy: "azure"
       etcd:
@@ -239,6 +249,11 @@ defaults:
         version: "v2.55.1-3"
         replicas: 2
         shards: 2
+      prometheusConfigReloader:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-config-reloader
+          digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
   # Backend
   backend:
     image:
@@ -435,11 +450,16 @@ clouds:
       acrPull:
         image:
           digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+      # Secret Sync Controller
+      secretSyncController:
+        image:
+          digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
+        providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
       # Cluster Service
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:aac9226ea3c3712918a04b125e4ef765c8bc8e6968c0e3db05c6e662aa497282
+          digest: sha256:873b9ed2ca439c8391922ba4376b01e7cc20faf58eaa08c61c3c30df370939f4
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -510,10 +530,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
           prometheusSpec:
             image:
-              digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+              digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
             shards: 1
       mgmt:
         subscription: ARO Hosted Control Planes (EA Subscription 1)
@@ -538,10 +558,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
           prometheusSpec:
             image:
-              digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+              digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
             shards: 1
       # ACRs
       acr:
@@ -608,6 +628,9 @@ clouds:
           logs:
             loganalytics:
               enable: true
+          monitoring:
+            svcWorkspaceName: 'services-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
+            hcpWorkspaceName: 'hcps-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
           svc:
             aks:
               # MC AKS nodepools

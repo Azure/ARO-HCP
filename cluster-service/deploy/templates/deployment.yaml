@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: clusters-service
-  namespace: '{{ .Release.Namespace  }}'
+  namespace: '{{ .Release.Namespace }}'
   labels:
     app: clusters-service
 spec:
@@ -16,17 +16,18 @@ spec:
         app: clusters-service
         azure.workload.identity/use: "true"
       annotations:
-        checksum/db: '{{ include (print $.Template.BasePath "/database.secret.yaml") . | sha256sum  }}'
-        checksum/operatorcfg: '{{ include (print $.Template.BasePath "/azure-operators-managed-identities-config.configmap.yaml") . | sha256sum  }}'
-        checksum/cskv: '{{ include (print $.Template.BasePath "/cs-keyvault.secret.yaml") . | sha256sum  }}'
-        checksum/provisionshard: '{{ include (print $.Template.BasePath "/provisioning-shards.secret.yaml") . | sha256sum  }}'
-        checksum/cs: '{{ include (print $.Template.BasePath "/clusters-service.secret.yaml") . | sha256sum  }}'
-        checksum/runtime: '{{ include (print $.Template.BasePath "/azure-runtime-config.configmap.yaml") . | sha256sum  }}'
-        checksum/cloudres: '{{ include (print $.Template.BasePath "/cloud-resources-config.configmap.yaml") . | sha256sum  }}'
-        checksum/sa: '{{ include (print $.Template.BasePath "/serviceaccount.yaml") . | sha256sum  }}'
+        checksum/db: '{{ include (print $.Template.BasePath "/database.secret.yaml") . | sha256sum }}'
+        checksum/operatorcfg: '{{ include (print $.Template.BasePath "/azure-operators-managed-identities-config.configmap.yaml") . | sha256sum }}'
+        checksum/ocpversionscfg: '{{ include (print $.Template.BasePath "/aro-hcp-ocp-versions-config.configmap.yaml") . | sha256sum }}'
+        checksum/cskv: '{{ include (print $.Template.BasePath "/cs-keyvault.secret.yaml") . | sha256sum }}'
+        checksum/provisionshard: '{{ include (print $.Template.BasePath "/provisioning-shards.secret.yaml") . | sha256sum }}'
+        checksum/cs: '{{ include (print $.Template.BasePath "/clusters-service.secret.yaml") . | sha256sum }}'
+        checksum/runtime: '{{ include (print $.Template.BasePath "/azure-runtime-config.configmap.yaml") . | sha256sum }}'
+        checksum/cloudres: '{{ include (print $.Template.BasePath "/cloud-resources-config.configmap.yaml") . | sha256sum }}'
+        checksum/sa: '{{ include (print $.Template.BasePath "/serviceaccount.yaml") . | sha256sum }}'
     spec:
-      serviceAccount: '{{ .Values.serviceAccountName  }}'
-      serviceAccountName: '{{ .Values.serviceAccountName  }}'
+      serviceAccount: '{{ .Values.serviceAccountName }}'
+      serviceAccountName: '{{ .Values.serviceAccountName }}'
       volumes:
       - name: service
         secret:
@@ -67,6 +68,9 @@ spec:
       - name: azure-operators-managed-identities-config
         configMap:
           name: azure-operators-managed-identities-config
+      - name: aro-hcp-ocp-versions-config
+        configMap:
+          name: aro-hcp-ocp-versions-config
       - name: mixin-pull-secret
         secret:
           secretName: hive-ci-global-pull-secret
@@ -141,6 +145,9 @@ spec:
         - name: azure-operators-managed-identities-config
           mountPath: /configs/azure-operators-managed-identities-config.yaml
           subPath: azure-operators-managed-identities-config.yaml
+        - name: aro-hcp-ocp-versions-config
+          mountPath: /configs/aro-hcp-ocp-versions-config.yaml
+          subPath: aro-hcp-ocp-versions-config.yaml
         command:
         - /usr/local/bin/clusters-service
         - serve
@@ -187,6 +194,7 @@ spec:
         - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
         - --azure-runtime-config-path=/configs/azure-runtime-config/config.json
         - --azure-operators-managed-identities-config-path=/configs/azure-operators-managed-identities-config.yaml
+        - --aro-hcp-ocp-versions-config-path=/configs/aro-hcp-ocp-versions-config.yaml
         {{- if and .Values.azureMiMockServicePrincipalCertName .Values.azureMiMockServicePrincipalClientId .Values.azureMiMockServicePrincipalPrincipalId }}
         - --azure-mi-mock-service-principal-certificate-bundle-path=/secrets/keyvault/mockMiServicePrincipalCertificateBundle
         - --azure-mi-mock-service-principal-client-id={{ .Values.azureMiMockServicePrincipalClientId }}
@@ -222,8 +230,8 @@ spec:
           periodSeconds: 10
         resources:
           requests:
-            memory: '{{ .Values.memoryRequest  }}'
-            cpu: '{{ .Values.cpuRequest  }}'
+            memory: '{{ .Values.memoryRequest }}'
+            cpu: '{{ .Values.cpuRequest }}'
           limits:
-            memory: '{{ .Values.memoryLimit  }}'
-            cpu: '{{ .Values.cpuLimit  }}'
+            memory: '{{ .Values.memoryLimit }}'
+            cpu: '{{ .Values.cpuLimit }}'

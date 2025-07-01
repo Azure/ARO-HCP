@@ -88,7 +88,7 @@ func ensureDependencies(ctx context.Context) error {
 }
 
 func runPipeline(ctx context.Context, opts *RawRunOptions) error {
-	validated, err := opts.Validate()
+	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
 	}

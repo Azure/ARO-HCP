@@ -10,7 +10,7 @@ ignore:
 - 'cluster-service/deploy/templates/cs-keyvault.secret.yaml'
 - 'cluster-service/deploy/templates/deployment.yaml'
 - 'observability/prometheus/deploy/templates/prometheus.yaml'
-- 'config/config.msft.yaml'
+- 'secret-sync-controller/deploy/templates/*.yaml'
 rules:
   brackets: enable
   colons: enable

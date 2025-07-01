@@ -29,13 +29,16 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/validate"
+
 	"github.com/Azure/ARO-Tools/pkg/topology"
 )
 
 func DefaultValidationOptions() *RawValidationOptions {
 	return &RawValidationOptions{
-		DevMode:   false,
-		DevRegion: "uksouth",
+		DevMode:          false,
+		DevRegion:        "uksouth",
+		CentralRemoteUrl: "https://github.com/Azure/ARO-HCP.git",
 	}
 }
 
@@ -45,6 +48,7 @@ func BindValidationOptions(opts *RawValidationOptions, cmd *cobra.Command) error
 	cmd.Flags().BoolVar(&opts.DevMode, "dev-mode", opts.DevMode, "Validate just one region, using public production Ev2 contexts.")
 	cmd.Flags().StringVar(&opts.DevRegion, "dev-region", opts.DevRegion, "Region to use for dev mode validation.")
 	cmd.Flags().BoolVar(&opts.OnlyChanged, "only-changed", opts.OnlyChanged, "Validate only pipelines whose files have uncommitted changes.")
+	cmd.Flags().StringVar(&opts.CentralRemoteUrl, "central-remote-url", opts.CentralRemoteUrl, "Central remote URL for the repository.")
 
 	for _, flag := range []string{
 		"service-config-file",
@@ -64,6 +68,7 @@ type RawValidationOptions struct {
 	DevMode           bool
 	DevRegion         string
 	OnlyChanged       bool
+	CentralRemoteUrl  string
 }
 
 // validatedValidationOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -78,12 +83,13 @@ type ValidatedValidationOptions struct {
 
 // completedValidationOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedValidationOptions struct {
-	Topology    *topology.Topology
-	TopologyDir string
-	Config      config.ConfigProvider
-	DevMode     bool
-	DevRegion   string
-	OnlyChanged bool
+	Topology         *topology.Topology
+	TopologyDir      string
+	Config           config.ConfigProvider
+	DevMode          bool
+	DevRegion        string
+	OnlyChanged      bool
+	CentralRemoteUrl string
 }
 
 type ValidationOptions struct {
@@ -99,6 +105,7 @@ func (o *RawValidationOptions) Validate() (*ValidatedValidationOptions, error) {
 	}{
 		{flag: "service-config-file", name: "service configuration file", value: &o.ServiceConfigFile},
 		{flag: "topology-config-file", name: "topology configuration file", value: &o.TopologyFile},
+		{flag: "central-remote-url", name: "URl for the central git remote", value: &o.CentralRemoteUrl},
 	} {
 		if item.value == nil || *item.value == "" {
 			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
@@ -128,12 +135,13 @@ func (o *ValidatedValidationOptions) Complete() (*ValidationOptions, error) {
 
 	return &ValidationOptions{
 		completedValidationOptions: &completedValidationOptions{
-			Topology:    t,
-			TopologyDir: filepath.Dir(o.TopologyFile),
-			Config:      c,
-			DevMode:     o.DevMode,
-			DevRegion:   o.DevRegion,
-			OnlyChanged: o.OnlyChanged,
+			Topology:         t,
+			TopologyDir:      filepath.Dir(o.TopologyFile),
+			Config:           c,
+			DevMode:          o.DevMode,
+			DevRegion:        o.DevRegion,
+			OnlyChanged:      o.OnlyChanged,
+			CentralRemoteUrl: o.CentralRemoteUrl,
 		},
 	}, nil
 }
@@ -147,7 +155,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 		return true
 	}
 	if opts.OnlyChanged {
-		changedServices, err := DetermineChangedServices(ctx, opts.TopologyDir, opts.Topology)
+		changedServices, err := DetermineChangedServices(ctx, opts.CentralRemoteUrl, opts.TopologyDir, opts.Topology)
 		if err != nil {
 			return fmt.Errorf("failed to determine changed services: %w", err)
 		}
@@ -179,7 +187,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 				prefix := fmt.Sprintf("config[%s][%s][%s]:", cloud, environment, region)
 				ev2Cloud := cloud
 				if opts.DevMode {
-					ev2Cloud = "public"
+					ev2Cloud = "public" // TODO: load from settings
 				}
 				ev2Cfg, err := ev2config.ResolveConfig(ev2Cloud, region)
 				if err != nil {
@@ -435,7 +443,12 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 //
 // We may choose to improve this algorithm in the future to look for `.bicep` references to paths outside the dir
 // or relative paths in the `pipeline.yaml` itself.
-func DetermineChangedServices(ctx context.Context, topologyDir string, t *topology.Topology) (sets.Set[string], error) {
+func DetermineChangedServices(ctx context.Context, centralRemoteUrl, topologyDir string, t *topology.Topology) (sets.Set[string], error) {
+	mergeBase, err := validate.DetermineMergeBase(ctx, topologyDir, centralRemoteUrl)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine merge base: %w", err)
+	}
+
 	// this will be <repo-root-path>/<topology-relative-path>/topology.yaml
 	topologyDirAbsPath, err := filepath.Abs(topologyDir)
 	if err != nil {
@@ -461,7 +474,7 @@ func DetermineChangedServices(ctx context.Context, topologyDir string, t *topolo
 	// these will be relative to the <repo-root-path>
 	var files []string
 	{
-		cmd := exec.CommandContext(ctx, "git", "diff", "--name-only")
+		cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", fmt.Sprintf("%s..HEAD", mergeBase))
 		out, err := cmd.Output()
 		if err != nil {
 			return nil, fmt.Errorf("failed to run git diff: %w; output: %s", err, string(out))

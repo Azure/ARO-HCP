@@ -24,8 +24,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
+// MiddlewareLockSubscription this is best effort, not guaranteed correct.  This must not be relied upon for guaranteeing correctness.
 func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	var lockClient *database.LockClient
+	var lockClient database.LockClientInterface
 
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
@@ -71,21 +72,24 @@ func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next htt
 
 		// Hold the lock until the remaining handlers complete.
 		// If we lose the lock the context will be cancelled.
+		// TODO this implementation is racy.  If the internal c.RenewLock fails, but does not return quickly then a second lock can be acquired.
 		lockedCtx, stop := lockClient.HoldLock(ctx, lock)
+		defer func() {
+			lock = stop()
+			if lock != nil {
+				err = lockClient.ReleaseLock(ctx, lock)
+				if err == nil {
+					logger.Info(fmt.Sprintf("Released lock for subscription '%s'", subscriptionID))
+				} else {
+					// Failure here is non-fatal but still log the error.
+					// The lock's TTL ensures it will be released eventually.
+					logger.Error(fmt.Sprintf("Failed to release lock for subscription '%s': %v", subscriptionID, err))
+				}
+			}
+		}()
+
 		r = r.WithContext(lockedCtx)
 
 		next(w, r)
-
-		lock = stop()
-		if lock != nil {
-			err = lockClient.ReleaseLock(ctx, lock)
-			if err == nil {
-				logger.Info(fmt.Sprintf("Released lock for subscription '%s'", subscriptionID))
-			} else {
-				// Failure here is non-fatal but still log the error.
-				// The lock's TTL ensures it will be released eventually.
-				logger.Error(fmt.Sprintf("Failed to release lock for subscription '%s': %v", subscriptionID, err))
-			}
-		}
 	}
 }

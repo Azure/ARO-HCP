@@ -15,6 +15,7 @@
 package generate
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -81,8 +82,8 @@ type GenerationOptions struct {
 	*completedGenerationOptions
 }
 
-func (o *RawGenerationOptions) Validate() (*ValidatedGenerationOptions, error) {
-	validatedRolloutOptions, err := o.RolloutOptions.Validate()
+func (o *RawGenerationOptions) Validate(ctx context.Context) (*ValidatedGenerationOptions, error) {
+	validatedRolloutOptions, err := o.RolloutOptions.Validate(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("validation failed for raw options: %w", err)
 	}

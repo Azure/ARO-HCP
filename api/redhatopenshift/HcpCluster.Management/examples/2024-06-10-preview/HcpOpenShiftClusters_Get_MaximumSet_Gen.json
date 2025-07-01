@@ -32,12 +32,12 @@
           },
           "api": {
             "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443",
-            "visibility": "public"
+            "visibility": "Public"
           },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
-            "outboundType": "loadBalancer",
+            "outboundType": "LoadBalancer",
             "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
             "operatorsAuthentication": {
               "userAssignedIdentities": {

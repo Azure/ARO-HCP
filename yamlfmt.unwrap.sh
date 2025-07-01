@@ -5,9 +5,13 @@ set -o nounset
 set -o pipefail
 set -o xtrace
 
-sed -i -E "s/([pP]ort|replicas|enabled|azCount): '\{\{\s*([^}]+?)\s*\}\}'$/\1: {{ \2 }}/gm" $( grep -r -l -E "([pP]ort|replicas|enabled|azCount): '\{\{" --include '*.yaml' --include '*.yml' )
-if grep -r -l -E "([pP]ort|replicas|enabled|azCount): \{\{" --include '*.yaml' --include '*.yml'; then
-  # ([^}]+?) should make the group non-greedy, and this works in other regexp implementations, but not for sed...
-  # so, we can just squash trailing spaces explicitly so we don't add extra ones on every round-trip
-  sed -i -E "s/\s+\}\}$/ }}/g" $( grep -r -l -E "([pP]ort|replicas|enabled|azCount): \{\{" --include '*.yaml' --include '*.yml' )
-fi
+source hack/utils.sh
+
+while IFS= read -r file; do
+  # Step 1: Unwrap quotes from specific fields
+  os::util::sed -E "s/([pP]ort|replicas|enabled|azCount|expression): '\{\{\s*([^}]+)\s*\}\}'$/\1: {{ \2 }}/g" "$file"
+  # Step 2: Clean up leading spaces in unwrapped expressions
+  os::util::sed -E "s/: \\{\\{ +/: {{ /g" "$file"
+  # Step 3: Clean up trailing spaces in unwrapped expressions
+  os::util::sed -E "s/ +\\}\\}$/ }}/g" "$file"
+done < <(grep -r -l -E "([pP]ort|replicas|enabled|azCount|expression): '\{\{" --include '*.yaml' --include '*.yml' . || true)

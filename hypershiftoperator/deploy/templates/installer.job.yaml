@@ -27,6 +27,7 @@ spec:
             --registry-overrides "{{ .Values.registryOverrides }}" \
             --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} \
             --platform-monitoring=None \
+            --enable-size-tagging=true \
             {{ .Values.additionalArgs }}
       restartPolicy: Never
       serviceAccountName: hypershift-installer

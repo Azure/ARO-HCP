@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -161,7 +162,7 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	contexts := map[string]map[string][]string{}
+	contexts := map[string]map[string][]RegionContext{}
 	if opts.DevSettings == nil {
 		// if we're validating production environments, we would like to validate all possible regions
 		ev2Contexts, err := ev2config.AllContexts()
@@ -169,22 +170,23 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 			return fmt.Errorf("failed to load ev2 contexts: %w", err)
 		}
 
-		contexts = opts.ServiceConfig.AllContexts()
-		for cloud := range contexts {
-			for env := range contexts[cloud] {
-				contexts[cloud][env] = ev2Contexts[cloud]
+		allContexts := opts.ServiceConfig.AllContexts()
+		for cloud := range allContexts {
+			contexts[cloud] = map[string][]RegionContext{}
+			for env := range allContexts[cloud] {
+				contexts[cloud][env] = []RegionContext{}
+				for _, region := range ev2Contexts[cloud] {
+					contexts[cloud][env] = append(contexts[cloud][env], RegionContext{
+						Region: region,
+						Stamp:  999, // we want to validate that all of our names still work, even with large stamp numbers
+					})
+				}
 			}
 		}
 	} else {
 		// otherwise, we just want to validate the small number of developer defaults
 		for _, environment := range opts.DevSettings.Environments {
 			envLogger := logger.WithValues("cloud", environment.Defaults.Cloud, "environment", environment.Name)
-			if environment.Defaults.RegionStampTemplate != "${REGION_SHORT}" {
-				// TODO(goberlec): either provide a more durable mechanism to detect that the region short name is non-standard
-				// so we can omit these regions in a less brittle way, or figure out how we want to render and validate these
-				envLogger.Info("Skipping environment with region stamp template.")
-				continue
-			}
 
 			cfgContexts := opts.ServiceConfig.AllContexts()
 			if _, ok := cfgContexts[environment.Defaults.Cloud]; !ok {
@@ -196,19 +198,29 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 				continue
 			}
 
-			if _, ok := contexts[environment.Defaults.Cloud]; !ok {
-				contexts[environment.Defaults.Cloud] = map[string][]string{}
+			env, err := settings.Resolve(ctx, environment)
+			if err != nil {
+				return fmt.Errorf("failed to resolve region context: %w", err)
 			}
-			if _, ok := contexts[environment.Defaults.Cloud][environment.Name]; !ok {
-				contexts[environment.Defaults.Cloud][environment.Name] = []string{}
+
+			if _, ok := contexts[env.Cloud]; !ok {
+				contexts[env.Cloud] = map[string][]RegionContext{}
 			}
-			contexts[environment.Defaults.Cloud][environment.Name] = append(contexts[environment.Defaults.Cloud][environment.Name], environment.Defaults.Region)
+			if _, ok := contexts[env.Cloud][env.Environment]; !ok {
+				contexts[env.Cloud][env.Environment] = []RegionContext{}
+			}
+
+			contexts[env.Cloud][env.Environment] = append(contexts[env.Cloud][env.Environment], RegionContext{
+				Region:            env.Region,
+				Ev2Cloud:          env.Ev2Cloud,
+				RegionShortSuffix: env.RegionShortSuffix,
+				Stamp:             env.Stamp,
+			})
 		}
 	}
 	return ValidateServiceConfig(
 		ctx,
 		contexts,
-		opts.DevSettings != nil,
 		opts.ServiceConfig,
 		opts.ServiceConfigFile,
 		opts.Digests,
@@ -219,10 +231,16 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 	)
 }
 
+type RegionContext struct {
+	Region            string
+	Ev2Cloud          string
+	RegionShortSuffix string
+	Stamp             int
+}
+
 func ValidateServiceConfig(
 	ctx context.Context,
-	contexts map[string]map[string][]string,
-	useEv2PublicCloud bool,
+	contexts map[string]map[string][]RegionContext,
 	serviceConfig config.ConfigProvider,
 	serviceConfigFile string,
 	digests *Digests,
@@ -236,7 +254,7 @@ func ValidateServiceConfig(
 		return err
 	}
 
-	scratchDir := filepath.Join(os.TempDir(), "config-"+rand.String(8))
+	scratchDir := filepath.Join(os.TempDir(), "config-scratch-"+rand.String(8))
 	if err := os.MkdirAll(scratchDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create scratch directory: %w", err)
 	}
@@ -256,18 +274,20 @@ func ValidateServiceConfig(
 				Environments: map[string]EnvironmentDigests{},
 			}
 		}
-		ev2Cloud := cloud
-		if useEv2PublicCloud {
-			ev2Cloud = "public"
-		}
 		for environment, regions := range environments {
 			if _, ok := currentDigests.Clouds[cloud].Environments[environment]; !ok {
 				currentDigests.Clouds[cloud].Environments[environment] = EnvironmentDigests{
 					Regions: map[string]string{},
 				}
 			}
-			for _, region := range regions {
+			for _, regionCtx := range regions {
+				region := regionCtx.Region
 				prefix := fmt.Sprintf("config[%s][%s][%s]:", cloud, environment, region)
+
+				ev2Cloud := cloud
+				if regionCtx.Ev2Cloud != "" {
+					ev2Cloud = regionCtx.Ev2Cloud
+				}
 				ev2Cfg, err := ev2config.ResolveConfig(ev2Cloud, region)
 				if err != nil {
 					return fmt.Errorf("%s: failed to resolve ev2 config: %w", prefix, err)
@@ -276,7 +296,7 @@ func ValidateServiceConfig(
 					RegionReplacement:      region,
 					CloudReplacement:       cloud,
 					EnvironmentReplacement: environment,
-					StampReplacement:       "1",
+					StampReplacement:       strconv.Itoa(regionCtx.Stamp),
 					Ev2Config:              ev2Cfg,
 				}
 				for key, into := range map[string]*string{
@@ -291,6 +311,9 @@ func ValidateServiceConfig(
 						return fmt.Errorf("%s %q is not a string", prefix, key)
 					}
 					*into = str
+				}
+				if regionCtx.RegionShortSuffix != "" {
+					replacements.RegionShortReplacement += regionCtx.RegionShortSuffix
 				}
 
 				resolver, err := serviceConfig.GetResolver(replacements)
@@ -353,18 +376,27 @@ func ValidateServiceConfig(
 					return fmt.Errorf("digests.clouds[%s].environments[%s].regions: region %q present in previous digests, but not current ones", cloud, environment, region)
 				}
 
+				var regionCtx *RegionContext
+				for _, candidate := range contexts[cloud][environment] {
+					if candidate.Region == region {
+						regionCtx = &candidate
+					}
+				}
+				if regionCtx == nil {
+					return fmt.Errorf("digests.clouds[%s].environments[%s].regions: region %q missing from configuration", cloud, environment, region)
+				}
+
 				if currentDigest != digest {
 					if !update {
-						// TODO: do the git dance, spit out a diff
 						if err := renderDiff(
 							ctx,
-							cloud, environment, region, useEv2PublicCloud,
+							cloud, environment, *regionCtx,
 							serviceConfigFile, jsonSchemaPath,
 							centralRemoteUrl, outputDir, scratchDir,
 						); err != nil {
 							logger.WithValues("cloud", cloud, "environment", environment, "region", region).Error(err, "Failed to render diff.")
 						}
-						return fmt.Errorf("digests.clouds[%s].environments[%s].regions[%s]: rendered configuration doesn't match previous digest", cloud, environment, region)
+						return fmt.Errorf("digests.clouds[%s].environments[%s].regions[%s]: rendered configuration digest %s doesn't match previous digest %s", cloud, environment, region, currentDigest, digest)
 					}
 				}
 			}
@@ -401,13 +433,13 @@ func ValidateServiceConfig(
 
 func renderDiff(
 	ctx context.Context,
-	cloud, environment, region string,
-	useEv2PublicCloud bool,
+	cloud, environment string, regionCtx RegionContext,
 	serviceConfigFile string,
 	jsonSchemaFile string,
 	centralRemoteUrl string,
 	outputDir, scratchDir string,
 ) error {
+	region := regionCtx.Region
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
@@ -444,50 +476,9 @@ func renderDiff(
 	//
 	// n.b. in GitHub Actions CI, we're in some non-standard git state and are better off consuming
 	// the upstream ref directly
-	var mergeBase string
-	if value, set := os.LookupEnv("MERGE_BASE_REF"); set && value != "" {
-		mergeBase = value
-	} else {
-		var upstreamRef string
-
-		// check to see if the branch has an upstream set, if so, prefer this
-		upstream, err := command(ctx, dir, "git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
-		if err != nil && !strings.Contains(err.Error(), "fatal: no upstream configured for branch") {
-			return fmt.Errorf("failed to resolve upstream: %w", err)
-		}
-		upstreamRef = strings.TrimSpace(upstream)
-
-		if upstreamRef == "" {
-			// if no upstream set, make a guess based on the remotes and where 99% of merges go
-			remotes, err := command(ctx, dir, "git", "remote")
-			if err != nil {
-				return fmt.Errorf("failed to get git remotes: %w", err)
-			}
-			for _, remoteName := range strings.Split(remotes, "\n") {
-				remoteUrl, err := command(ctx, dir, "git", "remote", "get-url", strings.TrimSpace(remoteName))
-				if err != nil {
-					return fmt.Errorf("failed to get git remote URL: %w", err)
-				}
-				if strings.TrimSpace(remoteUrl) == centralRemoteUrl {
-					upstreamRef = strings.TrimSpace(remoteName) + "/main"
-					break
-				}
-			}
-		}
-
-		if upstreamRef == "" {
-			return fmt.Errorf("failed to determine upstream branch - no upstream configured and no remote matches %s", centralRemoteUrl)
-		}
-
-		mergeBaseFromGit, err := command(ctx, dir, "git", "merge-base", "HEAD", upstreamRef)
-		if err != nil {
-			return fmt.Errorf("failed to resolve merge base: %w", err)
-		}
-		mergeBase = strings.TrimSpace(mergeBaseFromGit)
-	}
-	mergeBase = strings.TrimSpace(mergeBase)
-	if mergeBase == "" {
-		return fmt.Errorf("failed to determine merge base")
+	mergeBase, err := DetermineMergeBase(ctx, dir, centralRemoteUrl)
+	if err != nil {
+		return err
 	}
 
 	// Now that we have the merge-base, we need to get a copy of that config file - but first, we need to
@@ -519,16 +510,14 @@ func renderDiff(
 	}()
 
 	// Now we can finally render the previous version of the config.
-	ev2Cloud := cloud
-	if useEv2PublicCloud {
-		ev2Cloud = "public"
-	}
 	opts := render.RawOptions{
 		ServiceConfigFile: serviceConfigFile,
 		Cloud:             cloud,
 		Environment:       environment,
 		Region:            region,
-		Ev2Cloud:          ev2Cloud,
+		Ev2Cloud:          regionCtx.Ev2Cloud,
+		RegionShortSuffix: regionCtx.RegionShortSuffix,
+		Stamp:             regionCtx.Stamp,
 		Output:            previousConfig,
 	}
 	validated, err := opts.Validate()
@@ -555,7 +544,62 @@ func renderDiff(
 	if _, err := fmt.Println(string(diff)); err != nil {
 		return fmt.Errorf("failed to print diff: %w", err)
 	}
+	if strings.TrimSpace(string(diff)) == "" {
+		logger.Info("No diff found between previous and current config. This usually means some backwards-incompatible change has been made to the rendering code, and it renders the same with the previous config, but renders differently than the previous version of the code did.")
+	}
 	return nil
+}
+
+// DetermineMergeBase determines the merge base between HEAD and what we think the upstream target branch is.
+func DetermineMergeBase(ctx context.Context, dir, centralRemoteUrl string) (string, error) {
+	var mergeBase string
+	if value, set := os.LookupEnv("MERGE_BASE_REF"); set && value != "" {
+		mergeBase = value
+	} else {
+		var upstreamRef string
+
+		// check to see if the branch has an upstream set, if so, prefer this
+		upstream, err := command(ctx, dir, "git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+		if err != nil &&
+			!strings.Contains(err.Error(), "fatal: no upstream configured for branch") &&
+			!strings.Contains(err.Error(), "fatal: HEAD does not point to a branch") {
+			return "", fmt.Errorf("failed to resolve upstream: %w", err)
+		}
+		upstreamRef = strings.TrimSpace(upstream)
+
+		if upstreamRef == "" {
+			// if no upstream set, make a guess based on the remotes and where 99% of merges go
+			remotes, err := command(ctx, dir, "git", "remote")
+			if err != nil {
+				return "", fmt.Errorf("failed to get git remotes: %w", err)
+			}
+			for _, remoteName := range strings.Split(remotes, "\n") {
+				remoteUrl, err := command(ctx, dir, "git", "remote", "get-url", strings.TrimSpace(remoteName))
+				if err != nil {
+					return "", fmt.Errorf("failed to get git remote URL: %w", err)
+				}
+				if strings.TrimSpace(remoteUrl) == centralRemoteUrl {
+					upstreamRef = strings.TrimSpace(remoteName) + "/main"
+					break
+				}
+			}
+		}
+
+		if upstreamRef == "" {
+			return "", fmt.Errorf("failed to determine upstream branch - no upstream configured and no remote matches %s", centralRemoteUrl)
+		}
+
+		mergeBaseFromGit, err := command(ctx, dir, "git", "merge-base", "HEAD", upstreamRef)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve merge base: %w", err)
+		}
+		mergeBase = strings.TrimSpace(mergeBaseFromGit)
+	}
+	mergeBase = strings.TrimSpace(mergeBase)
+	if mergeBase == "" {
+		return "", fmt.Errorf("failed to determine merge base")
+	}
+	return mergeBase, nil
 }
 
 func command(ctx context.Context, dir string, command string, args ...string) (string, error) {

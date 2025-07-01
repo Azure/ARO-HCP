@@ -1,0 +1,26 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
+rolloutName: Delete Service Resource Group
+resourceGroups:
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  steps:
+  - name: rg-ownership
+    action: ARM
+    template: ../templates/rg-ownership.bicep
+    parameters: ../configurations/rg-ownership.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: delete-svc
+    action: Shell
+    command: ./delete.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: RESOURCE_GROUP
+      configRef: svc.rg
+    shellIdentity:
+      configRef: aroDevopsMsiId
+    dependsOn:
+    - rg-ownership

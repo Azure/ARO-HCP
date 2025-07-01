@@ -47,14 +47,15 @@ model HcpOpenShiftClusterProperties {
   provisioningState?: ProvisioningState;
 
   /** Version of the control plane components */
-  @visibility(Lifecycle.Create, Lifecycle.Read)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   version?: VersionProfile;
 
   /** Cluster DNS configuration */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   dns?: DnsProfile;
 
   /** Cluster network configuration */
-  @visibility(Lifecycle.Create, Lifecycle.Read)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   network?: NetworkProfile;
 
   /** Shows the cluster web console information */
@@ -62,11 +63,11 @@ model HcpOpenShiftClusterProperties {
   console?: ConsoleProfile;
 
   /** Shows the cluster API server profile */
-  @visibility(Lifecycle.Read)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   api?: ApiProfile;
 
   /** Azure platform configuration */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
 
   /** Configure ClusterAutoscaling . */
@@ -198,7 +199,7 @@ model ApiProfile {
 
   /** The internet visibility of the OpenShift API server */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  visibility?: Visibility = "public";
+  visibility?: Visibility = Visibility.Public;
 }
 
 /** The internet visibility of the OpenShift API server */
@@ -206,27 +207,32 @@ union Visibility {
   string,
 
   /** The API server is visible from the internet. */
-  public: "public",
+  Public: "Public",
 
   /** The API server is not visible from the internet. */
-  private: "private",
+  Private: "Private",
 }
 
 /** Azure specific configuration */
 model PlatformProfile {
   /** Resource group to put cluster resources */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   managedResourceGroup?: string;
 
   /** The Azure resource ID of the worker subnet */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
-  outboundType?: OutboundType = OutboundType.loadBalancer;
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  outboundType?: OutboundType = OutboundType.LoadBalancer;
 
   /** ResourceId for the network security group attached to the cluster subnet */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
   /** The configuration that the operators of the cluster have to authenticate to Azure */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   operatorsAuthentication: OperatorsAuthenticationProfile;
 
   /** URL for the OIDC provider to be used for authentication
@@ -280,7 +286,7 @@ union OutboundType {
   string,
 
   /** The load balancer configuration */
-  loadBalancer: "loadBalancer",
+  LoadBalancer: "LoadBalancer",
 }
 
 /** The configuration that the operators of the cluster have to authenticate to Azure. */
@@ -297,19 +303,19 @@ model UserAssignedIdentitiesProfile {
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   controlPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** The set of Azure User-Assigned Managed Identities leveraged for the Data Plane
    * operators of the cluster. The set of required managed identities is dependent on the
    * Cluster's OpenShift version. */
   #suppress "@azure-tools/typespec-azure-resource-manager/arm-no-record" "operator name to user assigned identity pairings"
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   dataPlaneOperators: Record<UserAssignedIdentityResourceId>;
 
   /** Represents the information associated to an Azure User-Assigned Managed Identity whose
    * purpose is to perform service level actions. */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   serviceManagedIdentity: UserAssignedIdentityResourceId;
 }
 
@@ -339,7 +345,7 @@ model NodePoolProperties {
   provisioningState?: ProvisioningState;
 
   /** OpenShift version for the nodepool */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   version?: NodePoolVersionProfile;
 
   /** Azure node pool platform configuration */
@@ -355,6 +361,7 @@ model NodePoolProperties {
   autoRepair?: boolean = true;
 
   /** Representation of a autoscaling in a node pool. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
   /** Kubernetes labels to propagate to the NodePool Nodes */
@@ -389,19 +396,19 @@ model Taint {
    */
   @minLength(1)
   @maxLength(316)
-  key?: string;
+  key: string;
 
   /** The value of the taint
    * @example true
    */
   @minLength(1)
   @maxLength(63)
-  value?: string;
+  value: string;
 
   /** The effect of the taint
    * @example NoSchedule
    */
-  effect?: Effect;
+  effect: Effect;
 }
 
 /** Label represents the Kubernetes label */
@@ -409,7 +416,7 @@ model Label {
   /** The key of the label
    * @example node-role.kubernetes.io/master
    */
-  key?: string;
+  key: string;
 
   /** The value of the label */
   value?: string;
@@ -433,29 +440,35 @@ model NodePoolVersionProfile {
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
   /** The Azure resource ID of the worker subnet */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId?: string;
 
   /** The VM size according to the documentation:
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   vmSize: string;
 
   /** Whether to enable host based OS and data drive encryption.
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   enableEncryptionAtHost?: boolean = false;
 
   /** The OS disk size in GiB */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   diskSizeGiB?: int32 = 64;
 
   /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
    * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   availabilityZone?: string;
 }
 

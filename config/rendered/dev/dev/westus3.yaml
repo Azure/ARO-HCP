@@ -50,7 +50,7 @@ clustersService:
       roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
   environment: arohcpdev
   image:
-    digest: sha256:aac9226ea3c3712918a04b125e4ef765c8bc8e6968c0e3db05c6e662aa497282
+    digest: sha256:873b9ed2ca439c8391922ba4376b01e7cc20faf58eaa08c61c3c30df370939f4
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
@@ -226,7 +226,7 @@ mgmt:
       minCount: 1
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
-    kubernetesVersion: 1.31.8
+    kubernetesVersion: 1.32.4
     name: dev-westus3-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
@@ -256,15 +256,20 @@ mgmt:
   prometheus:
     namespace: prometheus
     namespaceLabel: network.openshift.io/policy-group=monitoring
+    prometheusConfigReloader:
+      image:
+        digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-config-reloader
     prometheusOperator:
       image:
-        digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+        digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
       version: ""
     prometheusSpec:
       image:
-        digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+        digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
       replicas: 2
@@ -291,16 +296,16 @@ mise:
   tenantId: ""
 monitoring:
   devAlertingEmails: aro-hcp-service-lifecycle-team@redhat.com
-  grafanaAdminGroupPrincipalId: 6b6d3adf-8476-4727-9812-20ffdef2b85c
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
+  grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: arohcp-hcp-dev-usw3
+  hcpWorkspaceName: hcps-usw3
   sev1ActionGroupIDs: ""
   sev2ActionGroupIDs: ""
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
-  svcWorkspaceName: arohcp-dev-usw3
+  svcWorkspaceName: services-usw3
 msiKeyVault:
   name: ah-dev-mi-usw3-1
   private: false
@@ -322,6 +327,12 @@ pko:
     repository: package-operator/remote-phase-manager
 region: westus3
 regionRG: hcp-underlay-dev-westus3
+secretSyncController:
+  image:
+    digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a
+    registry: registry.k8s.io
+    repository: secrets-store-sync/controller
+  providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
 serviceKeyVault:
   assignNSP: true
   name: aro-hcp-dev-svc-kv
@@ -341,7 +352,7 @@ svc:
       minCount: 1
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
-    kubernetesVersion: 1.31.8
+    kubernetesVersion: 1.32.4
     name: dev-westus3-svc-1
     networkDataplane: cilium
     networkPolicy: cilium
@@ -377,15 +388,20 @@ svc:
   prometheus:
     namespace: prometheus
     namespaceLabel: ""
+    prometheusConfigReloader:
+      image:
+        digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-config-reloader
     prometheusOperator:
       image:
-        digest: a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+        digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
       version: ""
     prometheusSpec:
       image:
-        digest: 2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+        digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
       replicas: 2

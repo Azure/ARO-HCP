@@ -2,7 +2,6 @@ continue_on_error: true
 match_type: doublestar
 exclude:
 - '**/zz_fixture_*.yaml'
-- 'config/config.msft.yaml'
 formatter:
   type: basic
   indentless_arrays: true

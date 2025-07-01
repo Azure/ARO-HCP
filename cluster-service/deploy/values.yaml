@@ -184,6 +184,7 @@ shard:
   zoneResourceId: ""
   cxSecretsKeyVaultUrl: ""
   cxMiKeyVaultUrl: ""
+  cxSecretsKeyVaultMiClientId: ""
   maestroRestUrl: ""
   maestroGrpUrl: ""
 # ocm client id
