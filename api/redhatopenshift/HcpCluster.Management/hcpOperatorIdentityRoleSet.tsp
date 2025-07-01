@@ -65,7 +65,7 @@ model RoleDefinition {
   name: string;
 
   /** The resource ID of the role definition */
-  resourceId: string;
+  resourceId: RoleDefinitionResourceId;
 }
 
 scalar RoleDefinitionResourceId
