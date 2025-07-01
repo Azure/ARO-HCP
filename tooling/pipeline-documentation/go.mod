@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/pipeline-documentation
 go 1.24.1
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20250626115645-6b3aa9c40ea6
+	github.com/Azure/ARO-Tools v0.0.0-20250630224021-ed399dd5dd99
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/spf13/cobra v1.9.1
