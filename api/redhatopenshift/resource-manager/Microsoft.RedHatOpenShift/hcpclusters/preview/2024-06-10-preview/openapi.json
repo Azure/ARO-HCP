@@ -1191,7 +1191,7 @@
       "description": "HCP cluster properties",
       "properties": {
         "version": {
-          "$ref": "#/definitions/VersionProfileUpdate",
+          "$ref": "#/definitions/VersionProfile",
           "description": "Version of the control plane components",
           "x-ms-mutability": [
             "read",
@@ -1572,7 +1572,7 @@
       "description": "Represents the node pool properties",
       "properties": {
         "version": {
-          "$ref": "#/definitions/NodePoolVersionProfileUpdate",
+          "$ref": "#/definitions/NodePoolVersionProfile",
           "description": "OpenShift version for the nodepool",
           "x-ms-mutability": [
             "read",
@@ -1654,42 +1654,6 @@
       ]
     },
     "NodePoolVersionProfile": {
-      "type": "object",
-      "description": "Versions represents an OpenShift version.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "ID is the unique identifier of the version.",
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
-        },
-        "channelGroup": {
-          "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
-          "default": "stable",
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
-        },
-        "availableUpgrades": {
-          "type": "array",
-          "description": "AvailableUpgrades is a list of version names the current version can be upgraded to.",
-          "items": {
-            "type": "string"
-          },
-          "readOnly": true
-        }
-      },
-      "required": [
-        "availableUpgrades"
-      ]
-    },
-    "NodePoolVersionProfileUpdate": {
       "type": "object",
       "description": "Versions represents an OpenShift version.",
       "properties": {
@@ -2045,33 +2009,6 @@
             "create"
           ]
         },
-        "channelGroup": {
-          "type": "string",
-          "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",
-          "default": "stable",
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
-        },
-        "availableUpgrades": {
-          "type": "array",
-          "description": "AvailableUpgrades is a list of version names the current version can be upgraded to.",
-          "items": {
-            "type": "string"
-          },
-          "readOnly": true
-        }
-      },
-      "required": [
-        "availableUpgrades"
-      ]
-    },
-    "VersionProfileUpdate": {
-      "type": "object",
-      "description": "Versions represents an OpenShift version.",
-      "properties": {
         "channelGroup": {
           "type": "string",
           "description": "ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.",

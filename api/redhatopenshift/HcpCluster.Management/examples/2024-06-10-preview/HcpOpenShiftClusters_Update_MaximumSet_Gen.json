@@ -24,10 +24,7 @@
         "properties": {
           "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable",
-            "availableUpgrades": [
-              "fpjxf"
-            ]
+            "channelGroup": "stable"
           },
           "dns": {
             "baseDomain": "yubrqcgqdhgqfkobjqm"

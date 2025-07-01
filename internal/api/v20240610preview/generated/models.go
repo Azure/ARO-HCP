@@ -190,7 +190,7 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	Platform *PlatformProfileUpdate
 
 	// Version of the control plane components
-	Version *VersionProfileUpdate
+	Version *VersionProfile
 }
 
 // HcpOpenShiftClusterUpdate - HCP cluster resource
@@ -376,7 +376,7 @@ type NodePoolPropertiesUpdate struct {
 	Taints []*Taint
 
 	// OpenShift version for the nodepool
-	Version *NodePoolVersionProfileUpdate
+	Version *NodePoolVersionProfile
 }
 
 // NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
@@ -405,18 +405,6 @@ type NodePoolUpdate struct {
 
 // NodePoolVersionProfile - Versions represents an OpenShift version.
 type NodePoolVersionProfile struct {
-	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
-	ChannelGroup *string
-
-	// ID is the unique identifier of the version.
-	ID *string
-
-	// READ-ONLY; AvailableUpgrades is a list of version names the current version can be upgraded to.
-	AvailableUpgrades []*string
-}
-
-// NodePoolVersionProfileUpdate - Versions represents an OpenShift version.
-type NodePoolVersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	ChannelGroup *string
 
@@ -632,13 +620,4 @@ type VersionProfile struct {
 
 	// ID is the unique identifier of the version.
 	ID *string
-
-	// READ-ONLY; AvailableUpgrades is a list of version names the current version can be upgraded to.
-	AvailableUpgrades []*string
-}
-
-// VersionProfileUpdate - Versions represents an OpenShift version.
-type VersionProfileUpdate struct {
-	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
-	ChannelGroup *string
 }

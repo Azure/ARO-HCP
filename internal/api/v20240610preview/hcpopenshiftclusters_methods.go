@@ -28,9 +28,8 @@ type HcpOpenShiftCluster struct {
 
 func newVersionProfile(from *api.VersionProfile) *generated.VersionProfile {
 	return &generated.VersionProfile{
-		ID:                api.PtrOrNil(from.ID),
-		ChannelGroup:      api.PtrOrNil(from.ChannelGroup),
-		AvailableUpgrades: api.StringSliceToStringPtrSlice(from.AvailableUpgrades),
+		ID:           api.PtrOrNil(from.ID),
+		ChannelGroup: api.PtrOrNil(from.ChannelGroup),
 	}
 }
 
@@ -260,7 +259,6 @@ func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
 	if p.ChannelGroup != nil {
 		out.ChannelGroup = *p.ChannelGroup
 	}
-	out.AvailableUpgrades = api.StringPtrSliceToStringSlice(p.AvailableUpgrades)
 }
 
 func normailzeDNS(p *generated.DNSProfile, out *api.DNSProfile) {
