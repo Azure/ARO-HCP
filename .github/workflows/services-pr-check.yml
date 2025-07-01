@@ -120,3 +120,6 @@ jobs:
     - name: 'Dry Run ACM'
       run: |
         make acm.dry_run
+    - name: 'Dry Run secret sync controller'
+      run: |
+        make secret-sync-controller.dry_run

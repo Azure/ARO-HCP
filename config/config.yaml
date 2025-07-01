@@ -53,6 +53,11 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
+  # Secret Sync Controller
+  secretSyncController:
+    image:
+      registry: registry.k8s.io
+      repository: secrets-store-sync/controller
   # Backplane API
   backplaneAPI:
     image:
@@ -445,6 +450,11 @@ clouds:
       acrPull:
         image:
           digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+      # Secret Sync Controller
+      secretSyncController:
+        image:
+          digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
+        providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
       # Cluster Service
       clustersService:
         environment: "arohcpdev"

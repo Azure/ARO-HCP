@@ -327,6 +327,12 @@ pko:
     repository: package-operator/remote-phase-manager
 region: westus3
 regionRG: hcp-underlay-perf-usw3ptest
+secretSyncController:
+  image:
+    digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a
+    registry: registry.k8s.io
+    repository: secrets-store-sync/controller
+  providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
 serviceKeyVault:
   assignNSP: false
   name: aro-hcp-dev-svc-kv
