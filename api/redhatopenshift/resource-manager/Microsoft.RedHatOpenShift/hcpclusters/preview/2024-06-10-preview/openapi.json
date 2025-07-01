@@ -991,7 +991,7 @@
         "maxNodeProvisionTimeSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning\nto be unsuccessful. The default is 15 minutes.",
+          "description": "maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the\nprovisioning to be unsuccessful. The default is 900 seconds, or 15 minutes.",
           "default": 900,
           "minimum": 0
         },
@@ -1231,13 +1231,6 @@
       "type": "object",
       "description": "HCP cluster properties",
       "properties": {
-        "dns": {
-          "$ref": "#/definitions/DnsProfile",
-          "description": "Cluster DNS configuration"
-        },
-        "autoscaling": {
-          "$ref": "#/definitions/ClusterAutoscalingProfile",
-          "description": "Configure ClusterAutoscaling .",
         "version": {
           "$ref": "#/definitions/VersionProfileUpdate",
           "description": "Version of the control plane components",
@@ -1250,6 +1243,15 @@
         "platform": {
           "$ref": "#/definitions/PlatformProfileUpdate",
           "description": "Azure platform configuration",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "autoscaling": {
+          "$ref": "#/definitions/ClusterAutoscalingProfile",
+          "description": "Configure ClusterAutoscaling .",
           "x-ms-mutability": [
             "read",
             "update",

@@ -50,8 +50,8 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 // ClusterAutoscalingProfile - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
 // with a control plane.
 type ClusterAutoscalingProfile struct {
-	// maxNodeProvisionTime is the maximum time to wait for node provisioning before considering the provisioning to be unsuccessful.
-	// The default is 15 minutes.
+	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
+	// unsuccessful. The default is 900 seconds, or 15 minutes.
 	MaxNodeProvisionTimeSeconds *int32
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
@@ -184,11 +184,11 @@ type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
-	// Configure ClusterAutoscaling .
-	Autoscaling *ClusterAutoscalingProfile
-  
 	// Shows the cluster API server profile
 	API *APIProfile
+
+	// Configure ClusterAutoscaling .
+	Autoscaling *ClusterAutoscalingProfile
 
 	// Configure cluter capabilities.
 	Capabilities *ClusterCapabilitiesProfile
@@ -211,12 +211,8 @@ type HcpOpenShiftClusterProperties struct {
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
-
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
-
-	// Cluster DNS configuration
-	DNS *DNSProfile
 
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate

@@ -586,10 +586,8 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 func (h HcpOpenShiftClusterPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "autoscaling", h.Autoscaling)
-	populate(objectMap, "dns", h.DNS)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "version", h.Version)
-
 	return json.Marshal(objectMap)
 }
 
@@ -605,8 +603,6 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		case "autoscaling":
 			err = unpopulate(val, "Autoscaling", &h.Autoscaling)
 			delete(rawMsg, key)
-		case "dns":
-			err = unpopulate(val, "DNS", &h.DNS)
 		case "platform":
 			err = unpopulate(val, "Platform", &h.Platform)
 			delete(rawMsg, key)
