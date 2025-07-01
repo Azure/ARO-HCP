@@ -203,6 +203,10 @@ listall:
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 
+rebase:
+	hack/rebase-n-materialize.sh
+.PHONY: rebase
+
 validate-config-pipelines:
 	$(MAKE) -C tooling/templatize templatize
 	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.yaml --dev-mode --dev-region $(shell yq '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
