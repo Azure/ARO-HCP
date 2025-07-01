@@ -1256,6 +1256,18 @@
         }
       }
     },
+    "DiskEncryptionSetResourceId": {
+      "type": "string",
+      "format": "arm-id",
+      "description": "A type definition that refers the id to an Azure Resource Manager resource.",
+      "x-ms-arm-id-details": {
+        "allowedResources": [
+          {
+            "type": "Microsoft.Compute/diskEncryptionSets"
+          }
+        ]
+      }
+    },
     "DnsProfile": {
       "type": "object",
       "description": "DNS contains the DNS settings of the cluster",
@@ -1993,9 +2005,8 @@
           ]
         },
         "diskEncryptionSetId": {
-          "type": "string",
-          "format": "uri",
-          "description": "The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.\nCan be used with either platform (Azure) managed, or customer managed encryption keys.\nThis needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.\nDiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location\nlisted in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.\n\nDetails on how to create a Disk Encryption Set can be found here:\nhttps://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set",
+          "$ref": "#/definitions/DiskEncryptionSetResourceId",
+          "description": "The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.\nThis needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.\nDiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location\nlisted in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.\n\nDetails on how to create a Disk Encryption Set can be found here:\nhttps://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set",
           "maxLength": 285,
           "x-ms-mutability": [
             "read",
