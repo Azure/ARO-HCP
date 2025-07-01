@@ -12,8 +12,8 @@
       "body": {
         "properties": {
           "version": {
-            "channelGroup": "stable",
-            "id": "4.12"
+            "id": "openshift-v4.18.1",
+            "channelGroup": "stable"
           },
           "dns": {
             "baseDomainPrefix": "jcldjrtyebhrlxs",
