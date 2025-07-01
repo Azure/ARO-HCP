@@ -152,6 +152,7 @@
         },
         "configVersion": {
           "description": "Geneva logs account namespace configuration version",
+          "pattern": "^[0-9]+$",
           "type": "string"
         }
       },

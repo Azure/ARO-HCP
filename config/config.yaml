@@ -171,7 +171,7 @@ defaults:
     logs:
       namespace: HCPServiceLogs
       san: ""
-      configVersion: ""
+      configVersion: "1"
     prometheus:
       namespace: prometheus
       namespaceLabel: ""
@@ -233,7 +233,7 @@ defaults:
     logs:
       namespace: HCPCustomerLogs
       san: ""
-      configVersion: ""
+      configVersion: "1"
     prometheus:
       namespace: prometheus
       namespaceLabel: network.openshift.io/policy-group=monitoring

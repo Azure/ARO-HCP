@@ -247,7 +247,7 @@ mgmt:
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
   logs:
-    configVersion: ""
+    configVersion: "1"
     namespace: HCPCustomerLogs
     san: ""
   nsp:
@@ -379,7 +379,7 @@ svc:
     targetVersion: asm-1-25
     versions: asm-1-25
   logs:
-    configVersion: ""
+    configVersion: "1"
     namespace: HCPServiceLogs
     san: ""
   nsp:
