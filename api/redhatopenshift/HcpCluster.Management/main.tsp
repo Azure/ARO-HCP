@@ -3,7 +3,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 
 import "./hcpCluster.tsp";
 import "./hcpVersion.tsp";
-import "./hcpOperatorIdentityRoles.tsp";
+import "./hcpOperatorIdentityRoleSet.tsp";
 
 using TypeSpec.Http;
 using TypeSpec.Versioning;
