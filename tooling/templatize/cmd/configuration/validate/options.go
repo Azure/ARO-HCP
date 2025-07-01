@@ -574,12 +574,16 @@ func DetermineMergeBase(ctx context.Context, dir, centralRemoteUrl string) (stri
 				return "", fmt.Errorf("failed to get git remotes: %w", err)
 			}
 			for _, remoteName := range strings.Split(remotes, "\n") {
-				remoteUrl, err := command(ctx, dir, "git", "remote", "get-url", strings.TrimSpace(remoteName))
+				remote := strings.TrimSpace(remoteName)
+				if remote == "" {
+					continue
+				}
+				remoteUrl, err := command(ctx, dir, "git", "remote", "get-url", remote)
 				if err != nil {
 					return "", fmt.Errorf("failed to get git remote URL: %w", err)
 				}
 				if strings.TrimSpace(remoteUrl) == centralRemoteUrl {
-					upstreamRef = strings.TrimSpace(remoteName) + "/main"
+					upstreamRef = remote + "/main"
 					break
 				}
 			}
