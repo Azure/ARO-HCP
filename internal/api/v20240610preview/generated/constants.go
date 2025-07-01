@@ -308,6 +308,23 @@ func PossibleStatusTypeValues() []StatusType {
 	}
 }
 
+// TokenValidationRuleType - This configures the type of the validation rule. It defaults to "RequiredClaim"
+type TokenValidationRuleType string
+
+const (
+	// TokenValidationRuleTypeRequiredClaim - Indicates that a Required Claim validation rule.
+	// When set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT
+	// contains the required claim and that its value matches the required value.
+	TokenValidationRuleTypeRequiredClaim TokenValidationRuleType = "RequiredClaim"
+)
+
+// PossibleTokenValidationRuleTypeValues returns the possible values for the TokenValidationRuleType const type.
+func PossibleTokenValidationRuleTypeValues() []TokenValidationRuleType {
+	return []TokenValidationRuleType{
+		TokenValidationRuleTypeRequiredClaim,
+	}
+}
+
 // Visibility - The internet visibility of the OpenShift API server
 type Visibility string
 

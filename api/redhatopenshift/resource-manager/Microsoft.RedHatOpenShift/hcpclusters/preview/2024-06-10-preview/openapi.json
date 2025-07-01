@@ -1487,11 +1487,11 @@
           "type": "array",
           "description": "The claim validation rules",
           "items": {
-            "$ref": "#/definitions/TokenClaimValidationRuleProfile"
+            "$ref": "#/definitions/TokenClaimValidationRule"
           },
           "x-ms-identifiers": [
-            "claim",
-            "requiredValue"
+            "type",
+            "requiredClaim"
           ]
         }
       },
@@ -1511,11 +1511,11 @@
           "type": "array",
           "description": "The claim validation rules",
           "items": {
-            "$ref": "#/definitions/TokenClaimValidationRuleProfile"
+            "$ref": "#/definitions/TokenClaimValidationRule"
           },
           "x-ms-identifiers": [
-            "claim",
-            "requiredValue"
+            "type",
+            "requiredClaim"
           ]
         }
       }
@@ -2816,25 +2816,34 @@
         }
       }
     },
-    "TokenClaimValidationRuleProfile": {
+    "TokenClaimValidationRule": {
       "type": "object",
       "description": "External Auth claim validation rule",
       "properties": {
-        "claim": {
+        "type": {
           "type": "string",
-          "description": "Claim name for the validation profile\nclaim is a required field that configures the name of the required claim.",
-          "minLength": 1
+          "description": "This configures the type of the validation rule.\nIt defaults to \"RequiredClaim\"",
+          "default": "RequiredClaim",
+          "enum": [
+            "RequiredClaim"
+          ],
+          "x-ms-enum": {
+            "name": "TokenValidationRuleType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "RequiredClaim",
+                "value": "RequiredClaim",
+                "description": "Indicates that a Required Claim validation rule.\n\nWhen set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT\ncontains the required claim and that its value matches the required value."
+              }
+            ]
+          }
         },
-        "requiredValue": {
-          "type": "string",
-          "description": "Required value\nrequiredValue is a required field that configures the value that 'claim' must\nhave when taken from the incoming JWT claims.\nIf the value in the JWT claims does not match, the token\nwill be rejected for authentication.",
-          "minLength": 1
+        "requiredClaim": {
+          "$ref": "#/definitions/TokenRequiredClaim",
+          "description": "The required claim rule to be applied."
         }
-      },
-      "required": [
-        "claim",
-        "requiredValue"
-      ]
+      }
     },
     "TokenIssuerProfile": {
       "type": "object",
@@ -2887,6 +2896,26 @@
           "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded."
         }
       }
+    },
+    "TokenRequiredClaim": {
+      "type": "object",
+      "description": "Token required claim validation rule.",
+      "properties": {
+        "claim": {
+          "type": "string",
+          "description": "Claim name for the validation profile\nclaim is a required field that configures the name of the required claim.",
+          "minLength": 1
+        },
+        "requiredValue": {
+          "type": "string",
+          "description": "Required value\nrequiredValue is a required field that configures the value that 'claim' must\nhave when taken from the incoming JWT claims.\nIf the value in the JWT claims does not match, the token\nwill be rejected for authentication.",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "claim",
+        "requiredValue"
+      ]
     },
     "UserAssignedIdentitiesProfile": {
       "type": "object",

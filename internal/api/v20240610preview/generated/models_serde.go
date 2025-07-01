@@ -2162,16 +2162,16 @@ func (t *TokenClaimMappingsProfileUpdate) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaller interface for type TokenClaimValidationRuleProfile.
-func (t TokenClaimValidationRuleProfile) MarshalJSON() ([]byte, error) {
+// MarshalJSON implements the json.Marshaller interface for type TokenClaimValidationRule.
+func (t TokenClaimValidationRule) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "claim", t.Claim)
-	populate(objectMap, "requiredValue", t.RequiredValue)
+	populate(objectMap, "requiredClaim", t.RequiredClaim)
+	populate(objectMap, "type", t.Type)
 	return json.Marshal(objectMap)
 }
 
-// UnmarshalJSON implements the json.Unmarshaller interface for type TokenClaimValidationRuleProfile.
-func (t *TokenClaimValidationRuleProfile) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON implements the json.Unmarshaller interface for type TokenClaimValidationRule.
+func (t *TokenClaimValidationRule) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", t, err)
@@ -2179,11 +2179,11 @@ func (t *TokenClaimValidationRuleProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "claim":
-			err = unpopulate(val, "Claim", &t.Claim)
+		case "requiredClaim":
+			err = unpopulate(val, "RequiredClaim", &t.RequiredClaim)
 			delete(rawMsg, key)
-		case "requiredValue":
-			err = unpopulate(val, "RequiredValue", &t.RequiredValue)
+		case "type":
+			err = unpopulate(val, "Type", &t.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2258,6 +2258,39 @@ func (t *TokenIssuerProfileUpdate) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "url":
 			err = unpopulate(val, "URL", &t.URL)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", t, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type TokenRequiredClaim.
+func (t TokenRequiredClaim) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "claim", t.Claim)
+	populate(objectMap, "requiredValue", t.RequiredValue)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type TokenRequiredClaim.
+func (t *TokenRequiredClaim) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", t, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "claim":
+			err = unpopulate(val, "Claim", &t.Claim)
+			delete(rawMsg, key)
+		case "requiredValue":
+			err = unpopulate(val, "RequiredValue", &t.RequiredValue)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)

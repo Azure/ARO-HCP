@@ -136,7 +136,7 @@ type ExternalAuthClaimProfile struct {
 	Mappings *TokenClaimMappingsProfile
 
 	// The claim validation rules
-	ValidationRules []*TokenClaimValidationRuleProfile
+	ValidationRules []*TokenClaimValidationRule
 }
 
 // ExternalAuthClaimProfileUpdate - External Auth claim profile
@@ -145,7 +145,7 @@ type ExternalAuthClaimProfileUpdate struct {
 	Mappings *TokenClaimMappingsProfileUpdate
 
 	// The claim validation rules
-	ValidationRules []*TokenClaimValidationRuleProfile
+	ValidationRules []*TokenClaimValidationRule
 }
 
 // ExternalAuthClientComponentProfile - External Auth component profile Must have unique namespace/name pairs.
@@ -778,15 +778,13 @@ type TokenClaimMappingsProfileUpdate struct {
 	Username *UsernameClaimProfileUpdate
 }
 
-// TokenClaimValidationRuleProfile - External Auth claim validation rule
-type TokenClaimValidationRuleProfile struct {
-	// REQUIRED; Claim name for the validation profile claim is a required field that configures the name of the required claim.
-	Claim *string
+// TokenClaimValidationRule - External Auth claim validation rule
+type TokenClaimValidationRule struct {
+	// The required claim rule to be applied.
+	RequiredClaim *TokenRequiredClaim
 
-	// REQUIRED; Required value requiredValue is a required field that configures the value that 'claim' must have when taken
-	// from the incoming JWT claims. If the value in the JWT claims does not match, the token will
-	// be rejected for authentication.
-	RequiredValue *string
+	// This configures the type of the validation rule. It defaults to "RequiredClaim"
+	Type *TokenValidationRuleType
 }
 
 // TokenIssuerProfile - Token issuer profile
@@ -813,6 +811,17 @@ type TokenIssuerProfileUpdate struct {
 
 	// The URL of the token issuer
 	URL *string
+}
+
+// TokenRequiredClaim - Token required claim validation rule.
+type TokenRequiredClaim struct {
+	// REQUIRED; Claim name for the validation profile claim is a required field that configures the name of the required claim.
+	Claim *string
+
+	// REQUIRED; Required value requiredValue is a required field that configures the value that 'claim' must have when taken
+	// from the incoming JWT claims. If the value in the JWT claims does not match, the token will
+	// be rejected for authentication.
+	RequiredValue *string
 }
 
 // TrackedResource - The resource model definition for an Azure Resource Manager tracked top level resource which has 'tags'

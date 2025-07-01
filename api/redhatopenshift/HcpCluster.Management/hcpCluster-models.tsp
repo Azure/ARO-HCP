@@ -667,8 +667,8 @@ model ExternalAuthClaimProfile {
   mappings: TokenClaimMappingsProfile;
 
   /** The claim validation rules */
-  @OpenAPI.extension("x-ms-identifiers", #["claim", "requiredValue"])
-  validationRules?: TokenClaimValidationRuleProfile[];
+  @OpenAPI.extension("x-ms-identifiers", #["type", "requiredClaim"])
+  validationRules?: TokenClaimValidationRule[];
 }
 
 /** External Auth claim mappings profile.
@@ -710,9 +710,21 @@ model UsernameClaimProfile {
 }
 
 /** External Auth claim validation rule */
-model TokenClaimValidationRuleProfile {
+model TokenClaimValidationRule {
+  /** This configures the type of the validation rule.
+   * It defaults to "RequiredClaim"
+   */
+  type?: TokenValidationRuleType = TokenValidationRuleType.RequiredClaim;
+
+  /** The required claim rule to be applied. */
+  requiredClaim?: TokenRequiredClaim;
+}
+
+/** Token required claim validation rule. */
+model TokenRequiredClaim {
   /** Claim name for the validation profile
-   * claim is a required field that configures the name of the required claim. */
+   * claim is a required field that configures the name of the required claim.
+   * */
   @minLength(1)
   claim: string;
 
@@ -724,6 +736,18 @@ model TokenClaimValidationRuleProfile {
    */
   @minLength(1)
   requiredValue: string;
+}
+
+/** Representation of the different claim validation rule types that can be configured. */
+union TokenValidationRuleType {
+  string,
+
+  /** Indicates that a Required Claim validation rule.
+   *
+   * When set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT
+   * contains the required claim and that its value matches the required value.
+   */
+  RequiredClaim: "RequiredClaim",
 }
 
 /*
