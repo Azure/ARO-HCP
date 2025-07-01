@@ -19,3 +19,4 @@ provision_shards:
     public_dns_zone_resource_id: "{{ .extraVars.zoneResourceId }}"
     cx_secrets_key_vault_url: "{{ .extraVars.cxSecretsKeyVaultUrl }}"
     cx_managed_identities_key_vault_url: "{{ .extraVars.cxMiKeyVaultUrl }}"
+    cx_secrets_key_vault_managed_identity_client_id: "{{ .extraVars.cxSecretsKeyVaultMiClientId }}"
