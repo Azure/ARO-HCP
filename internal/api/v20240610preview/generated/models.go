@@ -174,6 +174,24 @@ type ExternalAuthClientProfile struct {
 	ExtraScopes []*string
 }
 
+// ExternalAuthCondition - Condition defines an observation of the external auth state.
+type ExternalAuthCondition struct {
+	// REQUIRED; The last time the condition transitioned from one status to another.
+	LastTransitionTime *time.Time
+
+	// REQUIRED; This is a human readable message indicating details about the transition. This may be an empty string.
+	Message *string
+
+	// REQUIRED; This contains a programmatic identifier indicating the reason for the condition's last transition.
+	Reason *string
+
+	// REQUIRED; The status of the condition.
+	Status *StatusType
+
+	// REQUIRED; This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition.
+	Type *ExternalAuthConditionType
+}
+
 // ExternalAuthListResult - The response of a ExternalAuth list operation.
 type ExternalAuthListResult struct {
 	// REQUIRED; The ExternalAuth items on this page
@@ -193,6 +211,9 @@ type ExternalAuthProperties struct {
 
 	// External Auth clients OidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.
 	Clients []*ExternalAuthClientProfile
+
+	// READ-ONLY; An observation of the current state with additional information.
+	Condition *ExternalAuthCondition
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ExternalAuthProvisioningState

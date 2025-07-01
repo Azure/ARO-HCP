@@ -521,6 +521,10 @@ model ExternalAuthProperties {
   @visibility(Lifecycle.Read)
   provisioningState?: ExternalAuthProvisioningState;
 
+  /** An observation of the current state with additional information. */
+  @visibility(Lifecycle.Read)
+  condition?: ExternalAuthCondition;
+
   /** Token Issuer profile */
   issuer: TokenIssuerProfile;
 
@@ -535,6 +539,58 @@ model ExternalAuthProperties {
 
   /** External Auth claim */
   claim: ExternalAuthClaimProfile;
+}
+
+/** Condition defines an observation of the external auth state. */
+model ExternalAuthCondition {
+  /** This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition. */
+  type: ExternalAuthConditionType;
+
+  /** The status of the condition. */
+  status: StatusType;
+
+  /** The last time the condition transitioned from one status to another. */
+  lastTransitionTime: utcDateTime;
+
+  /** This contains a programmatic identifier indicating the reason for the condition's last transition. */
+  @minLength(1)
+  @maxLength(1024)
+  reason: string;
+
+  /** This is a human readable message indicating details about the transition.
+   * This may be an empty string.
+   */
+  @minLength(1)
+  @maxLength(32768)
+  message: string;
+}
+
+/** Representation of the possible values of a external auths condition status. */
+union StatusType {
+  string,
+
+  /** Indicates that the condition status is True. */
+  True: "True",
+
+  /** Indicates that the condition status is False. */
+  False: "False",
+
+  /** Indicates that the condition status is unknown. */
+  Unknown: "Unknown",
+}
+
+/** Representation of the possible types of a external auths condition. */
+union ExternalAuthConditionType {
+  string,
+
+  /** Indicates that the external auth resource is available. */
+  Available: "Available",
+
+  /** Indicates that the external auth resource is in a degraded state. */
+  Degraded: "Degraded",
+
+  /** Indicates that the external auth resource is in a progressing state. */
+  Progressing: "Progressing",
 }
 
 /** Token issuer profile */

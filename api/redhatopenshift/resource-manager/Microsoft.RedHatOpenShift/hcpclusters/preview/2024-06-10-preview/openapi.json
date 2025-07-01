@@ -1596,6 +1596,74 @@
         ]
       }
     },
+    "ExternalAuthCondition": {
+      "type": "object",
+      "description": "Condition defines an observation of the external auth state.",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/ExternalAuthConditionType",
+          "description": "This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition."
+        },
+        "status": {
+          "$ref": "#/definitions/StatusType",
+          "description": "The status of the condition."
+        },
+        "lastTransitionTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The last time the condition transitioned from one status to another."
+        },
+        "reason": {
+          "type": "string",
+          "description": "This contains a programmatic identifier indicating the reason for the condition's last transition.",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "message": {
+          "type": "string",
+          "description": "This is a human readable message indicating details about the transition.\nThis may be an empty string.",
+          "minLength": 1,
+          "maxLength": 32768
+        }
+      },
+      "required": [
+        "type",
+        "status",
+        "lastTransitionTime",
+        "reason",
+        "message"
+      ]
+    },
+    "ExternalAuthConditionType": {
+      "type": "string",
+      "description": "Representation of the possible types of a external auths condition.",
+      "enum": [
+        "Available",
+        "Degraded",
+        "Progressing"
+      ],
+      "x-ms-enum": {
+        "name": "ExternalAuthConditionType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Available",
+            "value": "Available",
+            "description": "Indicates that the external auth resource is available."
+          },
+          {
+            "name": "Degraded",
+            "value": "Degraded",
+            "description": "Indicates that the external auth resource is in a degraded state."
+          },
+          {
+            "name": "Progressing",
+            "value": "Progressing",
+            "description": "Indicates that the external auth resource is in a progressing state."
+          }
+        ]
+      }
+    },
     "ExternalAuthListResult": {
       "type": "object",
       "description": "The response of a ExternalAuth list operation.",
@@ -1624,6 +1692,11 @@
         "provisioningState": {
           "$ref": "#/definitions/ExternalAuthProvisioningState",
           "description": "Provisioning state",
+          "readOnly": true
+        },
+        "condition": {
+          "$ref": "#/definitions/ExternalAuthCondition",
+          "description": "An observation of the current state with additional information.",
           "readOnly": true
         },
         "issuer": {
@@ -2645,6 +2718,36 @@
         ]
       },
       "readOnly": true
+    },
+    "StatusType": {
+      "type": "string",
+      "description": "Representation of the possible values of a external auths condition status.",
+      "enum": [
+        "True",
+        "False",
+        "Unknown"
+      ],
+      "x-ms-enum": {
+        "name": "StatusType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "True",
+            "value": "True",
+            "description": "Indicates that the condition status is True."
+          },
+          {
+            "name": "False",
+            "value": "False",
+            "description": "Indicates that the condition status is False."
+          },
+          {
+            "name": "Unknown",
+            "value": "Unknown",
+            "description": "Indicates that the condition status is unknown."
+          }
+        ]
+      }
     },
     "SubnetResourceId": {
       "type": "string",

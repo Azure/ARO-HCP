@@ -542,6 +542,51 @@ func (e *ExternalAuthClientProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type ExternalAuthCondition.
+func (e ExternalAuthCondition) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populateDateTimeRFC3339(objectMap, "lastTransitionTime", e.LastTransitionTime)
+	populate(objectMap, "message", e.Message)
+	populate(objectMap, "reason", e.Reason)
+	populate(objectMap, "status", e.Status)
+	populate(objectMap, "type", e.Type)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type ExternalAuthCondition.
+func (e *ExternalAuthCondition) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", e, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "lastTransitionTime":
+			err = unpopulateDateTimeRFC3339(val, "LastTransitionTime", &e.LastTransitionTime)
+			delete(rawMsg, key)
+		case "message":
+			err = unpopulate(val, "Message", &e.Message)
+			delete(rawMsg, key)
+		case "reason":
+			err = unpopulate(val, "Reason", &e.Reason)
+			delete(rawMsg, key)
+		case "status":
+			err = unpopulate(val, "Status", &e.Status)
+			delete(rawMsg, key)
+		case "type":
+			err = unpopulate(val, "Type", &e.Type)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", e, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type ExternalAuthListResult.
 func (e ExternalAuthListResult) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -580,6 +625,7 @@ func (e ExternalAuthProperties) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "claim", e.Claim)
 	populate(objectMap, "clients", e.Clients)
+	populate(objectMap, "condition", e.Condition)
 	populate(objectMap, "issuer", e.Issuer)
 	populate(objectMap, "provisioningState", e.ProvisioningState)
 	return json.Marshal(objectMap)
@@ -599,6 +645,9 @@ func (e *ExternalAuthProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "clients":
 			err = unpopulate(val, "Clients", &e.Clients)
+			delete(rawMsg, key)
+		case "condition":
+			err = unpopulate(val, "Condition", &e.Condition)
 			delete(rawMsg, key)
 		case "issuer":
 			err = unpopulate(val, "Issuer", &e.Issuer)
