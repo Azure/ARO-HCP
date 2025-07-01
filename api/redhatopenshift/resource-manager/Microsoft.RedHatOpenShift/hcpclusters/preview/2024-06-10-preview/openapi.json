@@ -49,6 +49,9 @@
       "name": "NodePools"
     },
     {
+      "name": "ExternalAuths"
+    },
+    {
       "name": "HcpOpenShiftVersions"
     }
   ],
@@ -2205,15 +2208,6 @@
         "enableEncryptionAtHost": {
           "type": "boolean",
           "description": "Whether to enable host based OS and data drive encryption.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data",
-          "default": false,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "enableEncryptionAtHost": {
-          "type": "boolean",
-          "description": "Whether to enable host based OS and data drive encryption.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data",
           "default": false
         },
         "diskSizeGiB": {
@@ -2571,12 +2565,7 @@
         },
         "operatorsAuthentication": {
           "$ref": "#/definitions/OperatorsAuthenticationProfile",
-          "description": "The configuration that the operators of the cluster have to authenticate to Azure",
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
+          "description": "The configuration that the operators of the cluster have to authenticate to Azure"
         },
         "issuerUrl": {
           "type": "string",
@@ -2598,12 +2587,7 @@
       "properties": {
         "operatorsAuthentication": {
           "$ref": "#/definitions/OperatorsAuthenticationProfileUpdate",
-          "description": "The configuration that the operators of the cluster have to authenticate to Azure",
-          "x-ms-mutability": [
-            "read",
-            "update",
-            "create"
-          ]
+          "description": "The configuration that the operators of the cluster have to authenticate to Azure"
         }
       }
     },

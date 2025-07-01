@@ -966,8 +966,6 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "version":
 			err = unpopulate(val, "Version", &h.Version)
-		case "dns":
-			err = unpopulate(val, "DNS", &h.DNS)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1610,9 +1608,6 @@ func (n *NodePoolVersionProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "availableUpgrades":
-			err = unpopulate(val, "AvailableUpgrades", &n.AvailableUpgrades)
-			delete(rawMsg, key)
 		case "channelGroup":
 			err = unpopulate(val, "ChannelGroup", &n.ChannelGroup)
 			delete(rawMsg, key)
@@ -2472,9 +2467,6 @@ func (v *VersionProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "availableUpgrades":
-			err = unpopulate(val, "AvailableUpgrades", &v.AvailableUpgrades)
-			delete(rawMsg, key)
 		case "channelGroup":
 			err = unpopulate(val, "ChannelGroup", &v.ChannelGroup)
 			delete(rawMsg, key)
