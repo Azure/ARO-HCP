@@ -143,7 +143,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 	case *types.ImageMirrorStep:
 		var buf bytes.Buffer
 
-		err := runImageMirrorStep(ctx, step, options, outPuts, &buf)
+		err := runImageMirrorStep(ctx, step, executionTarget, options, outPuts, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Image Mirror Step, %v", err)
 		}
@@ -164,7 +164,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 			return nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
 		}
 
-		err = runShellStep(step, ctx, kubeconfigFile, options, outPuts, &buf)
+		err = runShellStep(step, ctx, kubeconfigFile, executionTarget, options, outPuts, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Shell Step, %v", err)
 		}

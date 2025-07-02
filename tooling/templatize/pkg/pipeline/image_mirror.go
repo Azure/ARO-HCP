@@ -24,7 +24,7 @@ import (
 	"github.com/go-logr/logr"
 )
 
-func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
+func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, executionTarget ExecutionTarget, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	tmpFile, err := os.CreateTemp("", "")
@@ -61,5 +61,5 @@ func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, option
 		return fmt.Errorf("error resolving image mirror step %w", err)
 	}
 
-	return runShellStep(tmpShellStep, ctx, "", options, inputs, outputWriter)
+	return runShellStep(tmpShellStep, ctx, "", executionTarget, options, inputs, outputWriter)
 }

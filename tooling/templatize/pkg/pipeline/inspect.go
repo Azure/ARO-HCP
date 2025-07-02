@@ -33,13 +33,14 @@ func NewStepInspectScopes() map[string]StepInspectScope {
 
 // InspectOptions contains the options for the Inspect method
 type InspectOptions struct {
-	Scope          string
-	Format         string
-	Step           string
-	Region         string
-	Configuration  config.Configuration
-	ScopeFunctions map[string]StepInspectScope
-	OutputFile     io.Writer
+	Scope                 string
+	Format                string
+	Step                  string
+	Region                string
+	Configuration         config.Configuration
+	ScopeFunctions        map[string]StepInspectScope
+	OutputFile            io.Writer
+	SubscriptionLookupFunc func(context.Context, string) (string, error)
 }
 
 func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) error {
@@ -79,10 +80,54 @@ func inspectVars(ctx context.Context, pipeline *types.Pipeline, s types.Step, op
 		if err != nil {
 			return fmt.Errorf("failure acquiring output-chaining inputs: %v", err)
 		}
-		envVars, err = mapStepVariables(step.Variables, options.Configuration, inputs)
+		stepVars, err := mapStepVariables(step.Variables, options.Configuration, inputs)
 		if err != nil {
 			return fmt.Errorf("failure mapping step variables: %v", err)
 		}
+
+		// Find the resource group that contains this step to create execution target
+		var resourceGroup *types.ResourceGroup
+		for _, rg := range pipeline.ResourceGroups {
+			for _, rgStep := range rg.Steps {
+				if rgStep.StepName() == step.StepName() {
+					resourceGroup = rg
+					break
+				}
+			}
+			if resourceGroup != nil {
+				break
+			}
+		}
+		if resourceGroup == nil {
+			return fmt.Errorf("could not find resource group for step %s", step.StepName())
+		}
+
+		// Lookup real subscription ID using provided function or default
+		lookupFunc := options.SubscriptionLookupFunc
+		if lookupFunc == nil {
+			lookupFunc = LookupSubscriptionID
+		}
+		subscriptionID, err := lookupFunc(ctx, resourceGroup.Subscription)
+		if err != nil {
+			return fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
+		}
+
+		// Create execution target for inspection
+		executionTarget := &executionTargetImpl{
+			subscriptionName: resourceGroup.Subscription,
+			subscriptionID:   subscriptionID,
+			resourceGroup:    resourceGroup.Name,
+			region:           options.Region,
+		}
+
+		// Determine kubeconfig file (mock path if AKS cluster is defined)
+		kubeconfigFile := ""
+		if step.AKSCluster != "" {
+			kubeconfigFile = "/tmp/kubeconfig-" + step.AKSCluster // Mock kubeconfig path
+		}
+
+		// Build complete environment including Azure context variables
+		envVars = buildStepShellEnvironment(step, kubeconfigFile, executionTarget, stepVars, nil, false)
 	default:
 		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
 	}

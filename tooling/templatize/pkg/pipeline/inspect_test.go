@@ -17,6 +17,7 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,15 +27,42 @@ import (
 )
 
 func TestInspectVars(t *testing.T) {
+	// Define reusable subscription lookup function
+	mockSubscriptionLookup := func(ctx context.Context, name string) (string, error) {
+		return "mock-sub-" + name, nil
+	}
+
 	testCases := []struct {
-		name     string
-		caseStep types.Step
-		options  *InspectOptions
-		expected string
-		err      string
+		name              string
+		pipeline          *types.Pipeline
+		caseStep          types.Step
+		options           *InspectOptions
+		expectedVariables map[string]string
+		err               string
 	}{
 		{
 			name: "basic",
+			pipeline: &types.Pipeline{
+				ResourceGroups: []*types.ResourceGroup{{
+					Name:         "test-rg",
+					Subscription: "test-subscription",
+					Steps: []types.Step{
+						&types.ShellStep{
+							StepMeta: types.StepMeta{
+								Action: "Shell",
+								Name:   "step",
+							},
+							Command: "echo hello",
+							Variables: []types.Variable{{
+								Name: "FOO",
+								Value: types.Value{
+									ConfigRef: "foo",
+								},
+							}},
+						},
+					},
+				}},
+			},
 			caseStep: &types.ShellStep{
 				StepMeta: types.StepMeta{
 					Action: "Shell",
@@ -53,11 +81,38 @@ func TestInspectVars(t *testing.T) {
 					"foo": "bar",
 				},
 				Format: "shell",
+				Region: "westus3",
+				SubscriptionLookupFunc: mockSubscriptionLookup,
 			},
-			expected: "export FOO=\"bar\"\n",
+			expectedVariables: map[string]string{
+				"FOO":          "bar",
+				"ResourceGroup": "test-rg",
+				"Subscription":  "mock-sub-test-subscription",
+			},
 		},
 		{
 			name: "makefile",
+			pipeline: &types.Pipeline{
+				ResourceGroups: []*types.ResourceGroup{{
+					Name:         "test-rg",
+					Subscription: "test-subscription",
+					Steps: []types.Step{
+						&types.ShellStep{
+							StepMeta: types.StepMeta{
+								Action: "Shell",
+								Name:   "step",
+							},
+							Command: "echo hello",
+							Variables: []types.Variable{{
+								Name: "FOO",
+								Value: types.Value{
+									ConfigRef: "foo",
+								},
+							}},
+						},
+					},
+				}},
+			},
 			caseStep: &types.ShellStep{
 				StepMeta: types.StepMeta{
 					Action: "Shell",
@@ -76,11 +131,18 @@ func TestInspectVars(t *testing.T) {
 					"foo": "bar",
 				},
 				Format: "makefile",
+				Region: "westus3",
+				SubscriptionLookupFunc: mockSubscriptionLookup,
 			},
-			expected: "FOO ?= bar\n",
+			expectedVariables: map[string]string{
+				"FOO":          "bar",
+				"ResourceGroup": "test-rg",
+				"Subscription":  "mock-sub-test-subscription",
+			},
 		},
 		{
 			name: "failed action",
+			pipeline: &types.Pipeline{},
 			caseStep: &types.ARMStep{
 				StepMeta: types.StepMeta{
 					Name:   "step",
@@ -95,6 +157,21 @@ func TestInspectVars(t *testing.T) {
 		},
 		{
 			name: "failed format",
+			pipeline: &types.Pipeline{
+				ResourceGroups: []*types.ResourceGroup{{
+					Name:         "test-rg",
+					Subscription: "test-subscription",
+					Steps: []types.Step{
+						&types.ShellStep{
+							StepMeta: types.StepMeta{
+								Action: "Shell",
+								Name:   "step",
+							},
+							Command: "echo hello",
+						},
+					},
+				}},
+			},
 			caseStep: &types.ShellStep{
 				StepMeta: types.StepMeta{
 					Action: "Shell",
@@ -102,8 +179,49 @@ func TestInspectVars(t *testing.T) {
 				},
 				Command: "echo hello",
 			},
-			options: &InspectOptions{Format: "unknown"},
+			options: &InspectOptions{
+				Format: "unknown",
+				SubscriptionLookupFunc: mockSubscriptionLookup,
+			},
 			err:     "unknown output format \"unknown\"",
+		},
+		{
+			name: "with AKS cluster",
+			pipeline: &types.Pipeline{
+				ResourceGroups: []*types.ResourceGroup{{
+					Name:         "aks-rg",
+					Subscription: "aks-subscription",
+					Steps: []types.Step{
+						&types.ShellStep{
+							StepMeta: types.StepMeta{
+								Action: "Shell",
+								Name:   "aks-step",
+							},
+							Command:    "kubectl get nodes",
+							AKSCluster: "my-aks-cluster",
+						},
+					},
+				}},
+			},
+			caseStep: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					Action: "Shell",
+					Name:   "aks-step",
+				},
+				Command:    "kubectl get nodes",
+				AKSCluster: "my-aks-cluster",
+			},
+			options: &InspectOptions{
+				Format: "shell",
+				Region: "westus3",
+				SubscriptionLookupFunc: mockSubscriptionLookup,
+			},
+			expectedVariables: map[string]string{
+				"ResourceGroup": "aks-rg",
+				"Subscription":  "mock-sub-aks-subscription",
+				"AKSCluster":    "my-aks-cluster",
+				"KUBECONFIG":    "/tmp/kubeconfig-my-aks-cluster",
+			},
 		},
 	}
 
@@ -111,10 +229,18 @@ func TestInspectVars(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
 			tc.options.OutputFile = buf
-			err := inspectVars(context.Background(), &types.Pipeline{}, tc.caseStep, tc.options)
+			err := inspectVars(context.Background(), tc.pipeline, tc.caseStep, tc.options)
 			if tc.err == "" {
 				assert.NoError(t, err)
-				assert.Equal(t, buf.String(), tc.expected)
+				output := buf.String()
+				// Check for presence of expected variables based on format
+				for varName, varValue := range tc.expectedVariables {
+					if tc.options.Format == "makefile" {
+						assert.Contains(t, output, fmt.Sprintf("%s ?= %s", varName, varValue))
+					} else if tc.options.Format == "shell" {
+						assert.Contains(t, output, fmt.Sprintf("export %s=\"%s\"", varName, varValue))
+					}
+				}
 			} else {
 				assert.ErrorContains(t, err, tc.err)
 			}

@@ -49,7 +49,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
+func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, executionTarget ExecutionTarget, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// set dryRun config if needed
@@ -70,19 +70,12 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 		return fmt.Errorf("failed to build env vars: %w", err)
 	}
 
-	envVars := utils.GetOsVariable()
-
-	maps.Copy(envVars, stepVars)
-	maps.Copy(envVars, dryRunVars)
+	envVars := buildStepShellEnvironment(s, kubeconfigFile, executionTarget, stepVars, dryRunVars, true)
 
 	cmd, skipCommand := createCommand(ctx, s.Command, filepath.Dir(options.PipelineFilePath), dryRun, envVars)
 	if skipCommand {
 		logger.V(5).Info(fmt.Sprintf("Skipping step '%s' due to missing dry-run configuration", s.Name))
 		return nil
-	}
-
-	if kubeconfigFile != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s", kubeconfigFile))
 	}
 
 	logger.V(5).Info(fmt.Sprintf("Executing shell command: %s\n", s.Command), "command", s.Command)
@@ -105,4 +98,34 @@ func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs ma
 		envVars[k] = utils.AnyToString(v)
 	}
 	return envVars, nil
+}
+
+func buildStepShellEnvironment(s *types.ShellStep, kubeconfigFile string, executionTarget ExecutionTarget, stepVars map[string]string, dryRunVars map[string]string, incorporateOsEnvVars bool) map[string]string {
+	var envVars map[string]string
+	if incorporateOsEnvVars {
+		envVars = utils.GetOsVariable()
+		// Remove environment variables that we manage explicitly to ensure proper unbound variable testing
+		delete(envVars, "AKSCluster")
+		delete(envVars, "KUBECONFIG")
+		delete(envVars, "ResourceGroup")
+		delete(envVars, "Subscription")
+	} else {
+		envVars = make(map[string]string)
+	}
+
+	maps.Copy(envVars, stepVars)
+	maps.Copy(envVars, dryRunVars)
+
+	// Add Azure context environment variables
+	if executionTarget != nil {
+		envVars["ResourceGroup"] = executionTarget.GetResourceGroup()
+		envVars["Subscription"] = executionTarget.GetSubscriptionID()
+	}
+	if s.AKSCluster != "" {
+		envVars["AKSCluster"] = s.AKSCluster
+	}
+	if kubeconfigFile != "" {
+		envVars["KUBECONFIG"] = kubeconfigFile
+	}
+	return envVars
 }

@@ -339,7 +339,12 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, map[string]Output{}, &buf)
+			target := &executionTargetImpl{
+				subscriptionID: "test-subscription-id",
+				resourceGroup:  "test-resource-group",
+				region:         "westus3",
+			}
+			err := runShellStep(tc.step, context.Background(), "", target, &PipelineRunOptions{}, map[string]Output{}, &buf)
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
@@ -355,7 +360,134 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 	}
 	var buf bytes.Buffer
 
-	err := runShellStep(step, context.Background(), "", &PipelineRunOptions{}, map[string]Output{}, &buf)
+	target := &executionTargetImpl{
+		subscriptionID: "test-subscription-id",
+		resourceGroup:  "test-resource-group",
+		region:         "westus3",
+	}
+	err := runShellStep(step, context.Background(), "", target, &PipelineRunOptions{}, map[string]Output{}, &buf)
 	assert.NoError(t, err)
 	assert.Equal(t, buf.String(), "hallo\n")
+}
+
+func TestRunShellStepEnvironmentVariables(t *testing.T) {
+	testCases := []struct {
+		name            string
+		step            *types.ShellStep
+		kubeconfigFile  string
+		executionTarget ExecutionTarget
+		configuration   config.Configuration
+		expectedOutput  string
+		expectedError   string
+	}{
+		{
+			name: "test ResourceGroup and Subscription environment variables",
+			step: &types.ShellStep{
+				Command: "echo \"RG: $ResourceGroup, SUB: $Subscription\"",
+			},
+			executionTarget: &executionTargetImpl{
+				subscriptionID: "12345-abcde",
+				resourceGroup:  "my-resource-group",
+				region:         "westus3",
+			},
+			expectedOutput: "RG: my-resource-group, SUB: 12345-abcde\n",
+		},
+		{
+			name: "test AKSCluster environment variable with kubeconfig",
+			step: &types.ShellStep{
+				Command:    "echo \"AKS: $AKSCluster\"",
+				AKSCluster: "my-aks-cluster",
+			},
+			kubeconfigFile: "/tmp/kubeconfig",
+			executionTarget: &executionTargetImpl{
+				subscriptionID: "12345-abcde",
+				resourceGroup:  "my-resource-group",
+				region:         "westus3",
+			},
+			expectedOutput: "AKS: my-aks-cluster\n",
+		},
+		{
+			name: "test all environment variables together with kubeconfig",
+			step: &types.ShellStep{
+				Command:    "echo \"RG: $ResourceGroup, SUB: $Subscription, AKS: $AKSCluster, KUBE: $KUBECONFIG\"",
+				AKSCluster: "test-cluster",
+			},
+			kubeconfigFile: "/tmp/kubeconfig",
+			executionTarget: &executionTargetImpl{
+				subscriptionID: "test-sub-123",
+				resourceGroup:  "test-rg",
+				region:         "westus3",
+			},
+			expectedOutput: "RG: test-rg, SUB: test-sub-123, AKS: test-cluster, KUBE: /tmp/kubeconfig\n",
+		},
+		{
+			name: "test without AKSCluster defined should cause unbound variable error",
+			step: &types.ShellStep{
+				Command: "echo \"AKS: $AKSCluster\"",
+			},
+			executionTarget: &executionTargetImpl{
+				subscriptionID: "test-sub-123",
+				resourceGroup:  "test-rg",
+				region:         "westus3",
+			},
+			expectedError: "AKSCluster: unbound variable",
+		},
+		{
+			name: "test without kubeconfig should cause unbound KUBECONFIG variable error",
+			step: &types.ShellStep{
+				Command: "echo \"KUBE: $KUBECONFIG\"",
+			},
+			executionTarget: &executionTargetImpl{
+				subscriptionID: "test-sub-123",
+				resourceGroup:  "test-rg",
+				region:         "westus3",
+			},
+			expectedError: "KUBECONFIG: unbound variable",
+		},
+		{
+			name: "test shell step variable definitions are honored as environment variables",
+			step: &types.ShellStep{
+				Command: "echo \"Static: $STATIC_VAR, Config: $CONFIG_VAR\"",
+				Variables: []types.Variable{
+					{
+						Name: "STATIC_VAR",
+						Value: types.Value{
+							Value: "custom-value",
+						},
+					},
+					{
+						Name: "CONFIG_VAR",
+						Value: types.Value{
+							ConfigRef: "testconfig",
+						},
+					},
+				},
+			},
+			executionTarget: &executionTargetImpl{
+				subscriptionID: "test-sub-123",
+				resourceGroup:  "test-rg",
+				region:         "westus3",
+			},
+			configuration: config.Configuration{
+				"testconfig": "config-value",
+			},
+			expectedOutput: "Static: custom-value, Config: config-value\n",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			options := &PipelineRunOptions{
+				Configuration: tc.configuration,
+			}
+			err := runShellStep(tc.step, context.Background(), tc.kubeconfigFile, tc.executionTarget, options, map[string]Output{}, &buf)
+			if tc.expectedError != "" {
+				assert.ErrorContains(t, err, tc.expectedError)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedOutput, buf.String())
+			}
+		})
+	}
 }
