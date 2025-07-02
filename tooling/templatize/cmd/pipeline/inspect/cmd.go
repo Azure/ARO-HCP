@@ -17,8 +17,9 @@ package inspect
 import (
 	"context"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 func NewCommand() (*cobra.Command, error) {
