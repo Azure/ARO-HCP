@@ -566,6 +566,20 @@ model NodePoolPlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   enableEncryptionAtHost?: boolean = false;
 
+  /** The settings and configuration options for OSDisk */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  osDiskProfile?: OsDiskProfile;
+
+  /** The availability zone for the node pool.
+   * Please read the documentation to see which regions support availability zones
+   * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  availabilityZone?: string;
+}
+
+/** The settings and configuration options for OSDisk */
+model OsDiskProfile {
   /** The OS disk size in GiB */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   diskSizeGiB?: int32 = 64;
@@ -587,13 +601,6 @@ model NodePoolPlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(285)
   diskEncryptionSetId?: DiskEncryptionSetResourceId;
-
-  /** The availability zone for the node pool.
-   * Please read the documentation to see which regions support availability zones
-   * - https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
-   */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  availabilityZone?: string;
 }
 
 /** Supported Azure storage account types

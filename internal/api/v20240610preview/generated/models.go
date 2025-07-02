@@ -492,24 +492,12 @@ type NodePoolPlatformProfile struct {
 	// * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
 	AvailabilityZone *string
 
-	// The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs. This needs to exist in the same subscription
-	// id listed in the Hosted Cluster,
-	// HostedCluster.Spec.Platform.Azure.SubscriptionID. DiskEncryptionSetID should also exist in a resource group under the same
-	// subscription id and the same location listed in the Hosted Cluster,
-	// HostedCluster.Spec.Platform.Azure.Location.
-	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
-	DiskEncryptionSetID *string
-
-	// The OS disk size in GiB
-	DiskSizeGiB *int32
-
-	// The type of the disk storage account
-	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
-	DiskStorageAccountType *DiskStorageAccountType
-
 	// Whether to enable host based OS and data drive encryption.
 	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
 	EnableEncryptionAtHost *bool
+
+	// The settings and configuration options for OSDisk
+	OSDiskProfile *OsDiskProfile
 
 	// The Azure resource ID of the worker subnet
 	SubnetID *string
@@ -682,6 +670,24 @@ type OperatorsAuthenticationProfileUpdate struct {
 	// Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
 	// based on Azure User-Assigned Managed Identities
 	UserAssignedIdentities *UserAssignedIdentitiesProfileUpdate
+}
+
+// OsDiskProfile - The settings and configuration options for OSDisk
+type OsDiskProfile struct {
+	// The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs. This needs to exist in the same subscription
+	// id listed in the Hosted Cluster,
+	// HostedCluster.Spec.Platform.Azure.SubscriptionID. DiskEncryptionSetID should also exist in a resource group under the same
+	// subscription id and the same location listed in the Hosted Cluster,
+	// HostedCluster.Spec.Platform.Azure.Location.
+	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
+	DiskEncryptionSetID *string
+
+	// The OS disk size in GiB
+	DiskSizeGiB *int32
+
+	// The type of the disk storage account
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+	DiskStorageAccountType *DiskStorageAccountType
 }
 
 // PlatformProfile - Azure specific configuration

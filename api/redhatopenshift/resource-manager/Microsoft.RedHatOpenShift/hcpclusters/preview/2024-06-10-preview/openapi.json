@@ -1959,55 +1959,9 @@
             "create"
           ]
         },
-        "diskSizeGiB": {
-          "type": "integer",
-          "format": "int32",
-          "description": "The OS disk size in GiB",
-          "default": 64,
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "diskStorageAccountType": {
-          "type": "string",
-          "description": "The type of the disk storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types",
-          "default": "Premium_LRS",
-          "enum": [
-            "Premium_LRS",
-            "StandardSSD_LRS",
-            "Standard_LRS"
-          ],
-          "x-ms-enum": {
-            "name": "DiskStorageAccountType",
-            "modelAsString": true,
-            "values": [
-              {
-                "name": "Premium_LRS",
-                "value": "Premium_LRS",
-                "description": "Premium SSD with Locally Redundant Storage (LRS)"
-              },
-              {
-                "name": "StandardSSD_LRS",
-                "value": "StandardSSD_LRS",
-                "description": "Standard SSD with Locally Redundant Storage (LRS)"
-              },
-              {
-                "name": "Standard_LRS",
-                "value": "Standard_LRS",
-                "description": "Standard HDD with Locally Redundant Storage (LRS)"
-              }
-            ]
-          },
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
-        "diskEncryptionSetId": {
-          "$ref": "#/definitions/DiskEncryptionSetResourceId",
-          "description": "The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.\nThis needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.\nDiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location\nlisted in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.\n\nDetails on how to create a Disk Encryption Set can be found here:\nhttps://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set",
-          "maxLength": 285,
+        "osDiskProfile": {
+          "$ref": "#/definitions/OsDiskProfile",
+          "description": "The settings and configuration options for OSDisk",
           "x-ms-mutability": [
             "read",
             "create"
@@ -2339,6 +2293,66 @@
             "description": "Enables the OpenShift internal image registry."
           }
         ]
+      }
+    },
+    "OsDiskProfile": {
+      "type": "object",
+      "description": "The settings and configuration options for OSDisk",
+      "properties": {
+        "diskSizeGiB": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The OS disk size in GiB",
+          "default": 64,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "diskStorageAccountType": {
+          "type": "string",
+          "description": "The type of the disk storage account\n- https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types",
+          "default": "Premium_LRS",
+          "enum": [
+            "Premium_LRS",
+            "StandardSSD_LRS",
+            "Standard_LRS"
+          ],
+          "x-ms-enum": {
+            "name": "DiskStorageAccountType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Premium_LRS",
+                "value": "Premium_LRS",
+                "description": "Premium SSD with Locally Redundant Storage (LRS)"
+              },
+              {
+                "name": "StandardSSD_LRS",
+                "value": "StandardSSD_LRS",
+                "description": "Standard SSD with Locally Redundant Storage (LRS)"
+              },
+              {
+                "name": "Standard_LRS",
+                "value": "Standard_LRS",
+                "description": "Standard HDD with Locally Redundant Storage (LRS)"
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "diskEncryptionSetId": {
+          "$ref": "#/definitions/DiskEncryptionSetResourceId",
+          "description": "The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.\nThis needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.\nDiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location\nlisted in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.\n\nDetails on how to create a Disk Encryption Set can be found here:\nhttps://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set",
+          "maxLength": 285,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
       }
     },
     "PlatformProfile": {
