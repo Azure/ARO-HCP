@@ -4,19 +4,35 @@ $(shell ../../templatize.sh $(DEPLOY_ENV) config.tmpl.mk config.mk)
 include config.mk
 COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]] || echo -dirty)
 
-build:
-	az acr create \
-		--resource-group ${MGMT_RESOURCEGROUP} \
-		--name ${ARO_HCP_IMAGE_ACR} \
-		--sku Standard
+# Container configuration
+IMAGE = ${ARO_HCP_IMAGE_ACR}.azurecr.io/ntly-infra
+TAG = ${COMMIT}
 
+# Build container image
 image:
-	docker build --platform="linux/amd64" -f "./Dockerfile" -t ${ARO_HCP_IMAGE_ACR}:${COMMIT} .
+	docker build --platform="linux/amd64" -t ${IMAGE}:${TAG} .
+	docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
 
-push:
+# Push to registry
+push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker tag ${ARO_HCP_IMAGE_ACR}:${COMMIT} ${ARO_HCP_IMAGE_ACR}:latest
-	docker push ${ARO_HCP_IMAGE_ACR}:${COMMIT}
-	docker push ${ARO_HCP_IMAGE_ACR}:latest
+	docker push ${IMAGE}:${TAG}
+	docker push ${IMAGE}:latest
 
-.PHONY: build image push
+# Deploy infrastructure
+deploy:
+	chmod +x deploy-infra.sh
+	./deploy-infra.sh rg-aro-hcp-${DEPLOY_ENV} uksouth ${ARO_HCP_IMAGE_ACR} ${DEPLOY_ENV}
+
+# Build and deploy everything
+all: push deploy
+
+# Show configuration
+info:
+	@echo "Environment: ${DEPLOY_ENV}"
+	@echo "Registry: ${ARO_HCP_IMAGE_ACR}"
+	@echo "Image: ${IMAGE}:${TAG}"
+	@echo "Service RG: ${SVC_RESOURCEGROUP}"
+	@echo "Management RG: ${MGMT_RESOURCEGROUP}"
+
+.PHONY: image push deploy all info
