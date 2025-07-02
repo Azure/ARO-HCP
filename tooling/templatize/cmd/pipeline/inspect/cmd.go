@@ -17,6 +17,7 @@ package inspect
 import (
 	"context"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/spf13/cobra"
 )
 
@@ -43,6 +44,10 @@ func runInspect(ctx context.Context, opts *RawInspectOptions) error {
 		return err
 	}
 	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	err = azauth.SetupAzureAuth(ctx)
 	if err != nil {
 		return err
 	}
