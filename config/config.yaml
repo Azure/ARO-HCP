@@ -341,6 +341,13 @@ defaults:
       registry: quay.io
       repository: package-operator/remote-phase-manager
       digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
+  # ACM
+  acm:
+    mce:
+      # pause to mitigate the CAPI CRD issue
+      # - https://redhat-external.slack.com/archives/C075PHEFZKQ/p1748436890103839
+      # - https://redhat-internal.slack.com/archives/C057Y3D4E1J/p1749128475749979
+      pauseReconciliation: true
   # Cluster Service
   clustersService:
     image:

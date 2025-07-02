@@ -1,3 +1,6 @@
+acm:
+  mce:
+    pauseReconciliation: true
 acr:
   ocp:
     name: arohcpocpdev

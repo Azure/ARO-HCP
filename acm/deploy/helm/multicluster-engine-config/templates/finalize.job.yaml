@@ -6,7 +6,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "1"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 spec:
   activeDeadlineSeconds: 1800
   backoffLimit: 3
@@ -27,7 +27,20 @@ spec:
           echo "Patch applied successfully."
 
           echo "Wait for MulticlusterEngine to be available..."
-          kubectl wait --for=jsonpath=.status.phase=Available --timeout=600s mce multiclusterengine
+          timeout=600
+          interval=5
+          elapsed=0
+          while true; do
+            phase=$(kubectl get mce multiclusterengine -o jsonpath='{.status.phase}')
+            if [ "$phase" = "Available" ] || [ "$phase" = "Paused" ]; then
+              break
+            fi
+            if [ $elapsed -ge $timeout ]; then
+              break
+            fi
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
           if [ $? -ne 0 ]; then
             echo "MulticlusterEngine did not become available within the timeout period."
             exit 1
