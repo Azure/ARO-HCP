@@ -44,7 +44,7 @@ resourceGroups:
     variables:
     - name: REGION
       configRef: region
-    - name: RESOURCEGROUP
+    - name: OUR_RESOURCEGROUP
       configRef: svc.rg
     - name: AKS_NAME
       configRef: svc.aks.name
