@@ -64,7 +64,7 @@ rp_request() {
     # $2 = URL
     # $3 = Headers
     # $4 = (optional) JSON body
-    case ${1^^} in
+    case ${1} in
         GET)
             CMD="curl --silent --show-error --header @- ${2}"
             ;;
@@ -78,7 +78,7 @@ rp_request() {
             fi
             ;;
     esac
-    OUTPUT=$(echo "${3}" | eval ${CMD} | tr --delete '\r')
+    OUTPUT=$(echo "${3}" | eval ${CMD} | tr -d '\r')
     ASYNC_STATUS_ENDPOINT=$(echo "${OUTPUT}" | awk 'tolower($1) ~ /^azure-asyncoperation:/ {print $2}')
     ASYNC_RESULT_ENDPOINT=$(echo "${OUTPUT}" | awk 'tolower($1) ~ /^location:/ {print $2}')
 
@@ -88,7 +88,7 @@ rp_request() {
         watch --errexit --exec bash -c "async_operation_status \"${ASYNC_STATUS_ENDPOINT}\" \"${3}\" 2> /dev/null" || true
         if [ -n "${ASYNC_RESULT_ENDPOINT}" ]; then
             FULL_RESULT=$(echo "${3}" | curl --silent --show-error --include --header @- "${ASYNC_RESULT_ENDPOINT}")
-            JSON_RESULT=$(echo "${FULL_RESULT}" | tr --delete '\r' | jq -Rs 'split("\n\n")[1] | fromjson?')
+            JSON_RESULT=$(echo "${FULL_RESULT}" | tr -d '\r' | jq -Rs 'split("\n\n")[1] | fromjson?')
 
             # If the response body is JSON, try to extract and write a kubeconfig file.
             KUBECONFIG=$(echo "${JSON_RESULT}" | jq -r '.kubeconfig')
