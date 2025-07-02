@@ -96,6 +96,7 @@ type CustomerManagedConfig struct {
 	EncryptionType *CustomerManagedEncryptionType
 
 	// The kms encryption key details.
+	// Required when encryptionType is "kms".
 	Kms *KmsConfig
 }
 
