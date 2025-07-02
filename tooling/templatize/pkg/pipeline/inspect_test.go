@@ -27,7 +27,6 @@ import (
 )
 
 func TestInspectVars(t *testing.T) {
-	// Define reusable subscription lookup function
 	mockSubscriptionLookup := func(ctx context.Context, name string) (string, error) {
 		return "mock-sub-" + name, nil
 	}
