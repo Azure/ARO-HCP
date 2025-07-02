@@ -131,16 +131,24 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 	if p.EnableEncryptionAtHost != nil {
 		out.EnableEncryptionAtHost = *p.EnableEncryptionAtHost
 	}
+	if p.OSDiskProfile != nil {
+		normalizeOSDiskProfile(p.OSDiskProfile, &out.OSDiskProfile)
+	}
+	if p.SubnetID != nil {
+		out.SubnetID = *p.SubnetID
+	}
+}
+
+func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) {
 	if p.DiskSizeGiB != nil {
 		out.DiskSizeGiB = *p.DiskSizeGiB
 	}
 	if p.DiskStorageAccountType != nil {
 		out.DiskStorageAccountType = api.DiskStorageAccountType(*p.DiskStorageAccountType)
 	}
-	if p.SubnetID != nil {
-		out.SubnetID = *p.SubnetID
+	if p.DiskEncryptionSetID != nil {
+		out.DiskEncryptionSetId = *p.DiskEncryptionSetID
 	}
-
 }
 
 func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
@@ -187,9 +195,15 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 		VMSize:                 api.PtrOrNil(from.VMSize),
 		AvailabilityZone:       api.PtrOrNil(from.AvailabilityZone),
 		EnableEncryptionAtHost: api.PtrOrNil(from.EnableEncryptionAtHost),
+		OSDiskProfile:          newOSDiskProfile(&from.OSDiskProfile),
+		SubnetID:               api.PtrOrNil(from.SubnetID),
+	}
+}
+
+func newOSDiskProfile(from *api.OSDiskProfile) *generated.OsDiskProfile {
+	return &generated.OsDiskProfile{
 		DiskSizeGiB:            api.PtrOrNil(from.DiskSizeGiB),
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
-		SubnetID:               api.PtrOrNil(from.SubnetID),
 	}
 }
 
