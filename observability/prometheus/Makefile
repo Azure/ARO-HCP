@@ -17,6 +17,7 @@ deploy: pull-chart
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
 	$(eval PROMETHEUS_OPERATOR_DIGEST := $(subst sha256:,,$(PROMETHEUS_OPERATOR_DIGEST)))
 	$(eval PROMETHEUS_SPEC_DIGEST := $(subst sha256:,,$(PROMETHEUS_SPEC_DIGEST)))
+	$(eval PROMETHEUS_CONFIG_RELOADER_DIGEST := $(subst sha256:,,$(PROMETHEUS_CONFIG_RELOADER_DIGEST)))
 	@${LABEL_NAMESPACE_CMD}
 	DCE_METRICS_INGESTION_URL=$(shell az monitor data-collection endpoint list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='aks'].metricsIngestion.endpoint" -o tsv) && \
 	SERVICE_DCR_IMMUTABLE_ID=$(shell az monitor data-collection rule list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='services'].immutableId" -o tsv) && \
