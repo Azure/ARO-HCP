@@ -243,6 +243,7 @@ model PlatformProfile {
   networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
   /** The configuration that the operators of the cluster have to authenticate to Azure */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   operatorsAuthentication: OperatorsAuthenticationProfile;
 
   /** URL for the OIDC provider to be used for authentication
@@ -432,6 +433,7 @@ model NodePoolPlatformProfile {
   /** Whether to enable host based OS and data drive encryption.
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   enableEncryptionAtHost?: boolean = false;
 
   /** The OS disk size in GiB */
