@@ -80,12 +80,12 @@ func TestInspectVars(t *testing.T) {
 				Configuration: config.Configuration{
 					"foo": "bar",
 				},
-				Format: "shell",
-				Region: "westus3",
+				Format:                 "shell",
+				Region:                 "westus3",
 				SubscriptionLookupFunc: mockSubscriptionLookup,
 			},
 			expectedVariables: map[string]string{
-				"FOO":          "bar",
+				"FOO":           "bar",
 				"ResourceGroup": "test-rg",
 				"Subscription":  "mock-sub-test-subscription",
 			},
@@ -130,18 +130,18 @@ func TestInspectVars(t *testing.T) {
 				Configuration: config.Configuration{
 					"foo": "bar",
 				},
-				Format: "makefile",
-				Region: "westus3",
+				Format:                 "makefile",
+				Region:                 "westus3",
 				SubscriptionLookupFunc: mockSubscriptionLookup,
 			},
 			expectedVariables: map[string]string{
-				"FOO":          "bar",
+				"FOO":           "bar",
 				"ResourceGroup": "test-rg",
 				"Subscription":  "mock-sub-test-subscription",
 			},
 		},
 		{
-			name: "failed action",
+			name:     "failed action",
 			pipeline: &types.Pipeline{},
 			caseStep: &types.ARMStep{
 				StepMeta: types.StepMeta{
@@ -180,10 +180,10 @@ func TestInspectVars(t *testing.T) {
 				Command: "echo hello",
 			},
 			options: &InspectOptions{
-				Format: "unknown",
+				Format:                 "unknown",
 				SubscriptionLookupFunc: mockSubscriptionLookup,
 			},
-			err:     "unknown output format \"unknown\"",
+			err: "unknown output format \"unknown\"",
 		},
 		{
 			name: "with AKS cluster",
@@ -212,15 +212,14 @@ func TestInspectVars(t *testing.T) {
 				AKSCluster: "my-aks-cluster",
 			},
 			options: &InspectOptions{
-				Format: "shell",
-				Region: "westus3",
+				Format:                 "shell",
+				Region:                 "westus3",
 				SubscriptionLookupFunc: mockSubscriptionLookup,
 			},
 			expectedVariables: map[string]string{
 				"ResourceGroup": "aks-rg",
 				"Subscription":  "mock-sub-aks-subscription",
 				"AKSCluster":    "my-aks-cluster",
-				"KUBECONFIG":    "/tmp/kubeconfig-my-aks-cluster",
 			},
 		},
 	}
@@ -235,9 +234,10 @@ func TestInspectVars(t *testing.T) {
 				output := buf.String()
 				// Check for presence of expected variables based on format
 				for varName, varValue := range tc.expectedVariables {
-					if tc.options.Format == "makefile" {
+					switch tc.options.Format {
+					case "makefile":
 						assert.Contains(t, output, fmt.Sprintf("%s ?= %s", varName, varValue))
-					} else if tc.options.Format == "shell" {
+					case "shell":
 						assert.Contains(t, output, fmt.Sprintf("export %s=\"%s\"", varName, varValue))
 					}
 				}

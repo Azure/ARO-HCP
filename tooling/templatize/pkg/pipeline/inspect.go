@@ -33,13 +33,13 @@ func NewStepInspectScopes() map[string]StepInspectScope {
 
 // InspectOptions contains the options for the Inspect method
 type InspectOptions struct {
-	Scope                 string
-	Format                string
-	Step                  string
-	Region                string
-	Configuration         config.Configuration
-	ScopeFunctions        map[string]StepInspectScope
-	OutputFile            io.Writer
+	Scope                  string
+	Format                 string
+	Step                   string
+	Region                 string
+	Configuration          config.Configuration
+	ScopeFunctions         map[string]StepInspectScope
+	OutputFile             io.Writer
 	SubscriptionLookupFunc func(context.Context, string) (string, error)
 }
 
@@ -120,14 +120,8 @@ func inspectVars(ctx context.Context, pipeline *types.Pipeline, s types.Step, op
 			region:           options.Region,
 		}
 
-		// Determine kubeconfig file (mock path if AKS cluster is defined)
-		kubeconfigFile := ""
-		if step.AKSCluster != "" {
-			kubeconfigFile = "/tmp/kubeconfig-" + step.AKSCluster // Mock kubeconfig path
-		}
-
 		// Build complete environment including Azure context variables
-		envVars = buildStepShellEnvironment(step, kubeconfigFile, executionTarget, stepVars, nil, false)
+		envVars = buildStepShellEnvironment(step, "", executionTarget, stepVars, nil, false)
 	default:
 		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
 	}

@@ -157,6 +157,17 @@ The resourcegroup (`resourceGroups.name`) is pre-created before step execution s
 
 If an `resourceGroups.aksCluster` is specified, the `KUBECONFIG` environment variable is set and allows cluster admin interaction withe the AKS cluster. This is mostly relevant for `Shell` steps.
 
+#### Environment Variables
+
+The following environment variables are set for each step execution:
+
+- `ResourceGroup`: The name of the resource group being targeted by the step.
+- `Subscription`: The Azure subscription ID (not the Azure subscription resource ID) being targeted by the step.
+- `AKSCluster`: The name of the AKS cluster being targeted by the step, if applicable.
+- `KUBECONFIG`: The path to the kubeconfig file for the AKS cluster, if applicable.
+- `DRY_RUN`: Set to `true` if the step is executed in dry-run mode, allowing scripts to adapt their behavior accordingly.
+- `EV2`: Set to `1` if the step is executed within EV2. Undefined otherwise
+
 ## Pipeline Deployment Scope
 
 A pipeline is the smallest unit of deployment in ARO HCP. This means that all steps within a pipeline are executed from start to finish—there is no concept of executing a single step in only.
