@@ -43,10 +43,6 @@ resourceGroups:
       configRef: hypershift.image.digest
     - name: HO_IMAGE_REPOSITORY
       configRef: hypershift.image.repository
-    - name: RESOURCEGROUP
-      configRef: mgmt.rg
-    - name: AKS_NAME
-      configRef: mgmt.aks.name
     - name: HYPERSHIFT_NAMESPACE
       configRef: hypershift.namespace
     - name: HO_ADDITIONAL_INSTALL_ARG

@@ -44,23 +44,23 @@ push: image
 deploy:
 	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
 	FRONTEND_MI_CLIENT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
+			-g ${ResourceGroup} \
 			-n frontend \
 			--query clientId -o tsv) && \
 	FRONTEND_MI_TENANT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
+			-g ${ResourceGroup} \
 			-n frontend \
 			--query tenantId -o tsv) &&\
 	IMAGE_PULLER_MI_CLIENT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
+			-g ${ResourceGroup} \
 			-n image-puller \
 			--query clientId -o tsv) && \
 	IMAGE_PULLER_MI_TENANT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
+			-g ${ResourceGroup} \
 			-n image-puller \
 			--query tenantId -o tsv) && \
-	SECRET_STORE_MI_CLIENT_ID=$$(az aks show --resource-group ${RESOURCEGROUP} \
-			--name ${AKS_NAME} \
+	SECRET_STORE_MI_CLIENT_ID=$$(az aks show --resource-group ${ResourceGroup} \
+			--name ${AKSCluster} \
 			--query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId \
 			--output tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \

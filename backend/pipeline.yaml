@@ -41,10 +41,6 @@ resourceGroups:
       configRef: region
     - name: REGION_RG
       configRef: regionRG
-    - name: RESOURCEGROUP
-      configRef: svc.rg
-    - name: AKS_NAME
-      configRef: svc.aks.name
     - name: DB_NAME
       configRef: frontend.cosmosDB.name
     - name: IMAGE_DIGEST

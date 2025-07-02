@@ -3,7 +3,7 @@
 deploy:
 	@kubectl create namespace maestro --dry-run=client -o json | kubectl apply -f -
 	@TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${MGMT_RG}" -n maestro-consumer --query clientId -o tsv) && \
+	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${ResourceGroup}" -n maestro-consumer --query clientId -o tsv) && \
 	../../hack/helm.sh maestro-agent deploy maestro \
 		--set consumerName=${CONSUMER_NAME} \
 		--set glog_v=${MAESTRO_LOG_LEVEL} \

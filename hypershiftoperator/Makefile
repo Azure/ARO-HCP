@@ -5,7 +5,7 @@ deploy:
 	@kubectl create namespace ${HYPERSHIFT_NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
 	AZURE_TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	AZURE_SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) && \
-	CSI_SECRET_STORE_CLIENT_ID=$(shell az aks show -n ${AKS_NAME} -g ${RESOURCEGROUP} --query 'addonProfiles.azureKeyvaultSecretsProvider.identity.clientId' -o tsv) && \
+	CSI_SECRET_STORE_CLIENT_ID=$(shell az aks show -n ${AKSCluster} -g ${ResourceGroup} --query 'addonProfiles.azureKeyvaultSecretsProvider.identity.clientId' -o tsv) && \
 	${HELM_CMD} hypershift deploy \
 		--namespace ${HYPERSHIFT_NAMESPACE} \
 		--set image=${ARO_HCP_SVC_ACR}.azurecr.io/${HO_IMAGE_REPOSITORY} \

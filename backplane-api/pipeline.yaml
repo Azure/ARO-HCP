@@ -18,10 +18,6 @@ resourceGroups:
       configRef: acr.svc.name
     - name: LOCATION
       configRef: region
-    - name: RESOURCEGROUP
-      configRef: svc.rg
-    - name: AKS_NAME
-      configRef: svc.aks.name
     - name: COMMIT
       configRef: backplaneAPI.image.digest
     - name: SERVICE_KEY_VAULT

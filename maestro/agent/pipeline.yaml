@@ -46,8 +46,6 @@ resourceGroups:
       configRef: maestro.eventGrid.name
     - name: REGION_RG
       configRef: regionRG
-    - name: MGMT_RG
-      configRef: mgmt.rg
     - name: CONSUMER_NAME
       configRef: maestro.agent.consumerName
     - name: MAESTRO_LOG_LEVEL

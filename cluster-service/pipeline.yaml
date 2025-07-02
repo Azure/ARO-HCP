@@ -44,10 +44,6 @@ resourceGroups:
     variables:
     - name: REGION
       configRef: region
-    - name: RESOURCEGROUP
-      configRef: svc.rg
-    - name: AKS_NAME
-      configRef: svc.aks.name
     - name: SERVICE_KV
       configRef: serviceKeyVault.name
     - name: OIDC_STORAGE_ACCOUNT

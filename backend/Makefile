@@ -41,7 +41,7 @@ push: image
 deploy:
 	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
 	BACKEND_MI_CLIENT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
+			-g ${ResourceGroup} \
 			-n backend \
 			--query clientId -o tsv) && \
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \

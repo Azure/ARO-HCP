@@ -8,11 +8,11 @@ ARO_HCP_IMAGE_REPOSITORY ?= package-operator/package-operator-package
 deploy:
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
 	IMAGE_PULLER_MI_CLIENT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
+			-g ${ResourceGroup} \
 			-n image-puller \
 			--query clientId -o tsv) && \
 	IMAGE_PULLER_MI_TENANT_ID=$$(az identity show \
-			-g ${RESOURCEGROUP} \
+			-g ${ResourceGroup} \
 			-n image-puller \
 			--query tenantId -o tsv) && \
 	${HELM_CMD} package-operator ./deploy \

@@ -83,7 +83,5 @@ resourceGroups:
       configRef: pko.imageManager.repository
     - name: PKO_IMAGEMANAGER_DIGEST
       configRef: pko.imageManager.digest
-    - name: RESOURCEGROUP
-      configRef: mgmt.rg
     shellIdentity:
       configRef: aroDevopsMsiId

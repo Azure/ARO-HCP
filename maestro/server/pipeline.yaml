@@ -39,10 +39,6 @@ resourceGroups:
       configRef: maestro.eventGrid.name
     - name: REGION_RG
       configRef: regionRG
-    - name: SVC_RG
-      configRef: svc.rg
-    - name: AKS_NAME
-      configRef: svc.aks.name
     - name: IMAGE_REPO
       configRef: maestro.image.repository
     - name: IMAGE_DIGEST
