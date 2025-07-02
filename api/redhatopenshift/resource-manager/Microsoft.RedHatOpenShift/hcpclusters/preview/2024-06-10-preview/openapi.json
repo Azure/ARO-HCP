@@ -1240,11 +1240,19 @@
                 "description": "KMS encryption type."
               }
             ]
-          }
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "kms": {
           "$ref": "#/definitions/KmsConfig",
-          "description": "The kms encryption key details.\n\nRequired when encryptionType is \"kms\"."
+          "description": "The kms encryption key details.\n\nRequired when encryptionType is \"kms\".",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       }
     },
@@ -1326,11 +1334,19 @@
                 "description": "Platform managed encryption key management mode type."
               }
             ]
-          }
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "customerManaged": {
           "$ref": "#/definitions/CustomerManagedConfig",
-          "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"customerManaged\"."
+          "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"customerManaged\".",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       }
     },
@@ -1340,7 +1356,11 @@
       "properties": {
         "dataEncryption": {
           "$ref": "#/definitions/EtcdDataEncryptionProfile",
-          "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used."
+          "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       }
     },

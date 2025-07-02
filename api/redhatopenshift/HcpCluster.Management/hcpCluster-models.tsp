@@ -349,6 +349,7 @@ model EtcdProfile {
   /** ETCD Data Encryption settings.
    * If not specified platform managed keys are used.
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   dataEncryption?: EtcdDataEncryptionProfile;
 }
 
@@ -357,11 +358,13 @@ model EtcdDataEncryptionProfile {
   /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
    * By default, "platformManaged" is used.
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
 
   /** Specify customer managed encryption key details.
    * Required when keyManagementMode is "customerManaged".
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   customerManaged?: CustomerManagedConfig;
 }
 
@@ -370,12 +373,14 @@ model CustomerManagedConfig {
   /** The encryption type used.
    * By default, "kms" is used.
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   encryptionType?: CustomerManagedEncryptionType = CustomerManagedEncryptionType.Kms;
 
   /** The kms encryption key details.
    *
    * Required when encryptionType is "kms".
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
   kms?: KmsConfig;
 }
 
