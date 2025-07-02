@@ -530,8 +530,9 @@ model ExternalAuthProperties {
   /** Token Issuer profile */
   issuer: TokenIssuerProfile;
 
-  /** External Auth clients
-   * OidcClients must not exceed 20 entries and entries must have unique namespace/name pairs. */
+  /** External Auth OIDC clients
+   * There must not be more than 20 entries and entries must have unique namespace/name pairs.
+   */
   @maxItems(20)
   @OpenAPI.extension(
     "x-ms-identifiers",
@@ -539,7 +540,9 @@ model ExternalAuthProperties {
   )
   clients?: ExternalAuthClientProfile[];
 
-  /** External Auth claim */
+  /** External Auth claim
+   * This configures how claims are validated and applied.
+   */
   claim: ExternalAuthClaimProfile;
 }
 
@@ -595,12 +598,25 @@ union ExternalAuthConditionType {
   Progressing: "Progressing",
 }
 
-/** Token issuer profile */
+/** Token issuer profile
+ * This configures how the platform interacts with the identity provider and
+ * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
+ */
 model TokenIssuerProfile {
-  /** The URL of the token issuer */
+  /** This configures the URL used to issue tokens by the identity provider.
+   * The Kubernetes API server determines how authentication tokens should be handled
+   * by matching the 'iss' claim in the JWT to the issuerURL of configured identity providers.
+   *
+   * issuerURL must use the 'https' scheme.
+   * */
   url: url;
 
-  /** The audience of the token issuer */
+  /** This configures the acceptable audiences the JWT token, issued by the identity
+   * provider, must be issued to. At least one of the entries must match the
+   * 'aud' claim in the JWT token.
+   *
+   * audiences must contain at least one entry and must not exceed ten entries.
+   */
   @minItems(1)
   @maxItems(10)
   audiences: string[];
@@ -608,17 +624,21 @@ model TokenIssuerProfile {
   /** The issuer of the token
    *
    * Certificate bundle to use to validate server certificates for the configured URL.
-   * It must be PEM encoded. */
+   * It must be PEM encoded and when not specified, the system trust is used.
+   */
   ca?: string;
 }
 
-/** External Auth client profile */
+/** External Auth client profile
+ * This configures how on-cluster, platform clients should request tokens from the identity provider.
+ */
 model ExternalAuthClientProfile {
   /** External Auth client component */
   component: ExternalAuthClientComponentProfile;
 
   /** External Auth client id
-   * The clientId must appear in the audience field of the TokenIssuerProfile. */
+   * The clientId must appear in the audience field of the TokenIssuerProfile.
+   */
   @minLength(1)
   clientId: string;
 
@@ -626,7 +646,8 @@ model ExternalAuthClientProfile {
    *
    * This is useful if you have configured claim mappings that requires specific
    * scopes to be requested beyond the standard OIDC scopes.
-   * When omitted, no additional scopes are requested. */
+   * When omitted, no additional scopes are requested.
+   */
   extraScopes?: string[];
 
   /** Determines the OIDC provider client type. */
@@ -650,14 +671,25 @@ union ExternalAuthClientType {
 }
 
 /** External Auth component profile
- * Must have unique namespace/name pairs. */
+ * Must have unique namespace/name pairs.
+ */
 model ExternalAuthClientComponentProfile {
-  /** The name of the external Auth client */
+  /** The name of the external auth client
+   *
+   * This specifies the name of the platform component being configured to use
+   * the identity provider as an authentication mode.
+   * It is used in combination with namespace as a unique identifier.
+   */
   @minLength(1)
   @maxLength(256)
   name: string;
 
-  /** The namespace of the external Auth client */
+  /** The namespace of the external Auth client
+   * This specifies the namespace in which the platform component being configured
+   * to use the identity provider as an authentication mode is running.
+   *
+   * It is used in combination with name as a unique identifier.
+   */
   @minLength(1)
   @maxLength(63)
   authClientNamespace?: string;
@@ -674,16 +706,26 @@ model ExternalAuthClaimProfile {
 }
 
 /** External Auth claim mappings profile.
- * At a minimum username or groups must be defined. */
+ * At a minimum username or groups must be defined.
+ */
 model TokenClaimMappingsProfile {
-  /** The claim mappings username */
+  /** The claim mappings username.
+   * If not specified a default value of "sub" will be used.
+   */
   username?: UsernameClaimProfile;
 
-  /** The claim mappings groups */
+  /** The claim mappings groups. */
   groups?: GroupClaimProfile;
 }
 
-/** External Auth claim profile */
+/** External Auth claim profile
+ * This configures how the groups of a cluster identity should be constructed
+ * from the claims in a JWT token issued by the identity provider. When
+ * referencing a claim, if the claim is present in the JWT token, its value
+ * must be a list of groups separated by a comma (',').
+ *
+ * For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
+ */
 model GroupClaimProfile {
   /** Claim name of the external profile */
   @minLength(1)
@@ -691,11 +733,15 @@ model GroupClaimProfile {
   claim: string;
 
   /** Prefix for the claim external profile
-   * If this is specified prefixPolicy will be set to "Prefix" by default */
+   * If this is specified prefixPolicy will be set to "Prefix" by default
+   */
   prefix?: string;
 }
 
-/** External Auth claim profile */
+/** External Auth claim profile
+ * This configures how the username of a cluster identity should be constructed
+ * from the claims in a JWT token issued by the identity provider.
+ */
 model UsernameClaimProfile {
   /** Claim name of the external profile */
   @minLength(1)
@@ -703,7 +749,8 @@ model UsernameClaimProfile {
   claim: string;
 
   /** Prefix for the claim external profile
-   * If this is specified prefixPolicy will be set to "Prefix" by default */
+   * If this is specified prefixPolicy will be set to "Prefix" by default
+   */
   prefix?: string;
 
   /** Prefix policy

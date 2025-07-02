@@ -1526,13 +1526,13 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "The name of the external Auth client",
+          "description": "The name of the external auth client\n\nThis specifies the name of the platform component being configured to use\nthe identity provider as an authentication mode.\nIt is used in combination with namespace as a unique identifier.",
           "minLength": 1,
           "maxLength": 256
         },
         "authClientNamespace": {
           "type": "string",
-          "description": "The namespace of the external Auth client",
+          "description": "The namespace of the external Auth client\nThis specifies the namespace in which the platform component being configured\nto use the identity provider as an authentication mode is running.\n\nIt is used in combination with name as a unique identifier.",
           "minLength": 1,
           "maxLength": 63
         }
@@ -1543,7 +1543,7 @@
     },
     "ExternalAuthClientProfile": {
       "type": "object",
-      "description": "External Auth client profile",
+      "description": "External Auth client profile\nThis configures how on-cluster, platform clients should request tokens from the identity provider.",
       "properties": {
         "component": {
           "$ref": "#/definitions/ExternalAuthClientComponentProfile",
@@ -1705,7 +1705,7 @@
         },
         "clients": {
           "type": "array",
-          "description": "External Auth clients\nOidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.",
+          "description": "External Auth OIDC clients\nThere must not be more than 20 entries and entries must have unique namespace/name pairs.",
           "maxItems": 20,
           "items": {
             "$ref": "#/definitions/ExternalAuthClientProfile"
@@ -1718,7 +1718,7 @@
         },
         "claim": {
           "$ref": "#/definitions/ExternalAuthClaimProfile",
-          "description": "External Auth claim"
+          "description": "External Auth claim\nThis configures how claims are validated and applied."
         }
       },
       "required": [
@@ -1736,7 +1736,7 @@
         },
         "clients": {
           "type": "array",
-          "description": "External Auth clients\nOidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.",
+          "description": "External Auth OIDC clients\nThere must not be more than 20 entries and entries must have unique namespace/name pairs.",
           "maxItems": 20,
           "items": {
             "$ref": "#/definitions/ExternalAuthClientProfile"
@@ -1749,7 +1749,7 @@
         },
         "claim": {
           "$ref": "#/definitions/ExternalAuthClaimProfileUpdate",
-          "description": "External Auth claim"
+          "description": "External Auth claim\nThis configures how claims are validated and applied."
         }
       }
     },
@@ -1831,7 +1831,7 @@
     },
     "GroupClaimProfile": {
       "type": "object",
-      "description": "External Auth claim profile",
+      "description": "External Auth claim profile\nThis configures how the groups of a cluster identity should be constructed\nfrom the claims in a JWT token issued by the identity provider. When\nreferencing a claim, if the claim is present in the JWT token, its value\nmust be a list of groups separated by a comma (',').\n\nFor example - '\"example\"' and '\"exampleOne\", \"exampleTwo\", \"exampleThree\"' are valid claim values.",
       "properties": {
         "claim": {
           "type": "string",
@@ -1850,7 +1850,7 @@
     },
     "GroupClaimProfileUpdate": {
       "type": "object",
-      "description": "External Auth claim profile",
+      "description": "External Auth claim profile\nThis configures how the groups of a cluster identity should be constructed\nfrom the claims in a JWT token issued by the identity provider. When\nreferencing a claim, if the claim is present in the JWT token, its value\nmust be a list of groups separated by a comma (',').\n\nFor example - '\"example\"' and '\"exampleOne\", \"exampleTwo\", \"exampleThree\"' are valid claim values.",
       "properties": {
         "claim": {
           "type": "string",
@@ -2808,11 +2808,11 @@
       "properties": {
         "username": {
           "$ref": "#/definitions/UsernameClaimProfile",
-          "description": "The claim mappings username"
+          "description": "The claim mappings username.\nIf not specified a default value of \"sub\" will be used."
         },
         "groups": {
           "$ref": "#/definitions/GroupClaimProfile",
-          "description": "The claim mappings groups"
+          "description": "The claim mappings groups."
         }
       }
     },
@@ -2822,11 +2822,11 @@
       "properties": {
         "username": {
           "$ref": "#/definitions/UsernameClaimProfileUpdate",
-          "description": "The claim mappings username"
+          "description": "The claim mappings username.\nIf not specified a default value of \"sub\" will be used."
         },
         "groups": {
           "$ref": "#/definitions/GroupClaimProfileUpdate",
-          "description": "The claim mappings groups"
+          "description": "The claim mappings groups."
         }
       }
     },
@@ -2861,16 +2861,16 @@
     },
     "TokenIssuerProfile": {
       "type": "object",
-      "description": "Token issuer profile",
+      "description": "Token issuer profile\nThis configures how the platform interacts with the identity provider and\nhow tokens issued from the identity provider are evaluated by the Kubernetes API server.",
       "properties": {
         "url": {
           "type": "string",
           "format": "uri",
-          "description": "The URL of the token issuer"
+          "description": "This configures the URL used to issue tokens by the identity provider.\nThe Kubernetes API server determines how authentication tokens should be handled\nby matching the 'iss' claim in the JWT to the issuerURL of configured identity providers.\n\nissuerURL must use the 'https' scheme."
         },
         "audiences": {
           "type": "array",
-          "description": "The audience of the token issuer",
+          "description": "This configures the acceptable audiences the JWT token, issued by the identity\nprovider, must be issued to. At least one of the entries must match the\n'aud' claim in the JWT token.\n\naudiences must contain at least one entry and must not exceed ten entries.",
           "minItems": 1,
           "maxItems": 10,
           "items": {
@@ -2879,7 +2879,7 @@
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded."
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used."
         }
       },
       "required": [
@@ -2889,16 +2889,16 @@
     },
     "TokenIssuerProfileUpdate": {
       "type": "object",
-      "description": "Token issuer profile",
+      "description": "Token issuer profile\nThis configures how the platform interacts with the identity provider and\nhow tokens issued from the identity provider are evaluated by the Kubernetes API server.",
       "properties": {
         "url": {
           "type": "string",
           "format": "uri",
-          "description": "The URL of the token issuer"
+          "description": "This configures the URL used to issue tokens by the identity provider.\nThe Kubernetes API server determines how authentication tokens should be handled\nby matching the 'iss' claim in the JWT to the issuerURL of configured identity providers.\n\nissuerURL must use the 'https' scheme."
         },
         "audiences": {
           "type": "array",
-          "description": "The audience of the token issuer",
+          "description": "This configures the acceptable audiences the JWT token, issued by the identity\nprovider, must be issued to. At least one of the entries must match the\n'aud' claim in the JWT token.\n\naudiences must contain at least one entry and must not exceed ten entries.",
           "minItems": 1,
           "maxItems": 10,
           "items": {
@@ -2907,7 +2907,7 @@
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded."
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used."
         }
       }
     },
@@ -3028,7 +3028,7 @@
     },
     "UsernameClaimProfile": {
       "type": "object",
-      "description": "External Auth claim profile",
+      "description": "External Auth claim profile\nThis configures how the username of a cluster identity should be constructed\nfrom the claims in a JWT token issued by the identity provider.",
       "properties": {
         "claim": {
           "type": "string",
@@ -3051,7 +3051,7 @@
     },
     "UsernameClaimProfileUpdate": {
       "type": "object",
-      "description": "External Auth claim profile",
+      "description": "External Auth claim profile\nThis configures how the username of a cluster identity should be constructed\nfrom the claims in a JWT token issued by the identity provider.",
       "properties": {
         "claim": {
           "type": "string",

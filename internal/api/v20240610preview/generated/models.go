@@ -150,14 +150,19 @@ type ExternalAuthClaimProfileUpdate struct {
 
 // ExternalAuthClientComponentProfile - External Auth component profile Must have unique namespace/name pairs.
 type ExternalAuthClientComponentProfile struct {
-	// REQUIRED; The name of the external Auth client
+	// REQUIRED; The name of the external auth client
+	// This specifies the name of the platform component being configured to use the identity provider as an authentication mode.
+	// It is used in combination with namespace as a unique identifier.
 	Name *string
 
-	// The namespace of the external Auth client
+	// The namespace of the external Auth client This specifies the namespace in which the platform component being configured
+	// to use the identity provider as an authentication mode is running.
+	// It is used in combination with name as a unique identifier.
 	AuthClientNamespace *string
 }
 
-// ExternalAuthClientProfile - External Auth client profile
+// ExternalAuthClientProfile - External Auth client profile This configures how on-cluster, platform clients should request
+// tokens from the identity provider.
 type ExternalAuthClientProfile struct {
 	// REQUIRED; External Auth client id The clientId must appear in the audience field of the TokenIssuerProfile.
 	ClientID *string
@@ -203,13 +208,13 @@ type ExternalAuthListResult struct {
 
 // ExternalAuthProperties - External Auth profile
 type ExternalAuthProperties struct {
-	// REQUIRED; External Auth claim
+	// REQUIRED; External Auth claim This configures how claims are validated and applied.
 	Claim *ExternalAuthClaimProfile
 
 	// REQUIRED; Token Issuer profile
 	Issuer *TokenIssuerProfile
 
-	// External Auth clients OidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.
+	// External Auth OIDC clients There must not be more than 20 entries and entries must have unique namespace/name pairs.
 	Clients []*ExternalAuthClientProfile
 
 	// READ-ONLY; An observation of the current state with additional information.
@@ -221,10 +226,10 @@ type ExternalAuthProperties struct {
 
 // ExternalAuthPropertiesUpdate - External Auth profile
 type ExternalAuthPropertiesUpdate struct {
-	// External Auth claim
+	// External Auth claim This configures how claims are validated and applied.
 	Claim *ExternalAuthClaimProfileUpdate
 
-	// External Auth clients OidcClients must not exceed 20 entries and entries must have unique namespace/name pairs.
+	// External Auth OIDC clients There must not be more than 20 entries and entries must have unique namespace/name pairs.
 	Clients []*ExternalAuthClientProfile
 
 	// Token Issuer profile
@@ -249,7 +254,10 @@ type ExternalAuthUpdate struct {
 	Type *string
 }
 
-// GroupClaimProfile - External Auth claim profile
+// GroupClaimProfile - External Auth claim profile This configures how the groups of a cluster identity should be constructed
+// from the claims in a JWT token issued by the identity provider. When referencing a claim, if the
+// claim is present in the JWT token, its value must be a list of groups separated by a comma (',').
+// For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
 type GroupClaimProfile struct {
 	// REQUIRED; Claim name of the external profile
 	Claim *string
@@ -258,7 +266,10 @@ type GroupClaimProfile struct {
 	Prefix *string
 }
 
-// GroupClaimProfileUpdate - External Auth claim profile
+// GroupClaimProfileUpdate - External Auth claim profile This configures how the groups of a cluster identity should be constructed
+// from the claims in a JWT token issued by the identity provider. When referencing a claim, if the
+// claim is present in the JWT token, its value must be a list of groups separated by a comma (',').
+// For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
 type GroupClaimProfileUpdate struct {
 	// Claim name of the external profile
 	Claim *string
@@ -762,19 +773,19 @@ type Taint struct {
 
 // TokenClaimMappingsProfile - External Auth claim mappings profile. At a minimum username or groups must be defined.
 type TokenClaimMappingsProfile struct {
-	// The claim mappings groups
+	// The claim mappings groups.
 	Groups *GroupClaimProfile
 
-	// The claim mappings username
+	// The claim mappings username. If not specified a default value of "sub" will be used.
 	Username *UsernameClaimProfile
 }
 
 // TokenClaimMappingsProfileUpdate - External Auth claim mappings profile. At a minimum username or groups must be defined.
 type TokenClaimMappingsProfileUpdate struct {
-	// The claim mappings groups
+	// The claim mappings groups.
 	Groups *GroupClaimProfileUpdate
 
-	// The claim mappings username
+	// The claim mappings username. If not specified a default value of "sub" will be used.
 	Username *UsernameClaimProfileUpdate
 }
 
@@ -787,29 +798,43 @@ type TokenClaimValidationRule struct {
 	Type *TokenValidationRuleType
 }
 
-// TokenIssuerProfile - Token issuer profile
+// TokenIssuerProfile - Token issuer profile This configures how the platform interacts with the identity provider and how
+// tokens issued from the identity provider are evaluated by the Kubernetes API server.
 type TokenIssuerProfile struct {
-	// REQUIRED; The audience of the token issuer
+	// REQUIRED; This configures the acceptable audiences the JWT token, issued by the identity provider, must be issued to. At
+	// least one of the entries must match the 'aud' claim in the JWT token.
+	// audiences must contain at least one entry and must not exceed ten entries.
 	Audiences []*string
 
-	// REQUIRED; The URL of the token issuer
+	// REQUIRED; This configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how
+	// authentication tokens should be handled by matching the 'iss' claim in the JWT to the
+	// issuerURL of configured identity providers.
+	// issuerURL must use the 'https' scheme.
 	URL *string
 
 	// The issuer of the token
-	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded.
+	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
+	// the system trust is used.
 	Ca *string
 }
 
-// TokenIssuerProfileUpdate - Token issuer profile
+// TokenIssuerProfileUpdate - Token issuer profile This configures how the platform interacts with the identity provider and
+// how tokens issued from the identity provider are evaluated by the Kubernetes API server.
 type TokenIssuerProfileUpdate struct {
-	// The audience of the token issuer
+	// This configures the acceptable audiences the JWT token, issued by the identity provider, must be issued to. At least one
+	// of the entries must match the 'aud' claim in the JWT token.
+	// audiences must contain at least one entry and must not exceed ten entries.
 	Audiences []*string
 
 	// The issuer of the token
-	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded.
+	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
+	// the system trust is used.
 	Ca *string
 
-	// The URL of the token issuer
+	// This configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how authentication
+	// tokens should be handled by matching the 'iss' claim in the JWT to the
+	// issuerURL of configured identity providers.
+	// issuerURL must use the 'https' scheme.
 	URL *string
 }
 
@@ -887,7 +912,8 @@ type UserAssignedIdentity struct {
 	PrincipalID *string
 }
 
-// UsernameClaimProfile - External Auth claim profile
+// UsernameClaimProfile - External Auth claim profile This configures how the username of a cluster identity should be constructed
+// from the claims in a JWT token issued by the identity provider.
 type UsernameClaimProfile struct {
 	// REQUIRED; Claim name of the external profile
 	Claim *string
@@ -899,7 +925,8 @@ type UsernameClaimProfile struct {
 	PrefixPolicy *string
 }
 
-// UsernameClaimProfileUpdate - External Auth claim profile
+// UsernameClaimProfileUpdate - External Auth claim profile This configures how the username of a cluster identity should
+// be constructed from the claims in a JWT token issued by the identity provider.
 type UsernameClaimProfileUpdate struct {
 	// Claim name of the external profile
 	Claim *string
