@@ -408,8 +408,8 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 				ResourceName(nodePool.Name).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.DiskSizeGiB)).
-				OSDiskStorageAccountType(string(nodePool.Properties.Platform.DiskStorageAccountType))).
+				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.OSDiskProfile.DiskSizeGiB)).
+				OSDiskStorageAccountType(string(nodePool.Properties.Platform.OSDiskProfile.DiskStorageAccountType))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
