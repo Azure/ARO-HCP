@@ -16,9 +16,7 @@ package e2e
 
 import (
 	"context"
-	//"errors"
 	"fmt"
-	//"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,7 +31,6 @@ import (
 	"github.com/onsi/gomega/format"
 )
 
-// The new test file: cluster_lifecycle_test.go
 var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 	var (
 		clustersClient *api.HcpOpenShiftClustersClient
@@ -48,16 +45,11 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		customerEnv = &e2eSetup.CustomerEnv
 	})
 
-	// This test covers the full create, wait, and delete lifecycle.
-	// It is marked as Critical because it validates the most fundamental
-	// user workflow, especially for new deployments where no cluster exists.
-	It("should create a cluster, wait for success, and then delete it", labels.Critical, labels.Positive, labels.CreateCluster, func(ctx context.Context) {
+	It("PUT a cluster, wait for RP to report success, and then DELETE it", labels.Critical, labels.Positive, labels.CreateCluster, func(ctx context.Context) {
 		// Generate a unique name for the cluster for this specific test run to avoid collisions.
 		clusterName := fmt.Sprintf("e2e-lifecycle-%s", uuid.NewString()[:8])
 		format.MaxLength = 0
 		By("Converting the UserAssignedIdentity map to a map of pointers")
-		// The API expects a map of pointers, but the setup model provides a map of values.
-		// We need to convert it before using it.
 		uamiMap := make(map[string]*api.UserAssignedIdentity, len(customerEnv.IdentityUAMIs))
 		for k, v := range customerEnv.IdentityUAMIs {
 			identity := v // Create a new variable in the loop's scope to get a unique pointer.
@@ -65,16 +57,12 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Defining a new cluster resource for creation")
-		// In a scenario where the cluster does not yet exist, we must construct the
-		// cluster resource programmatically based on the provided API models.
-		location := "westus3" // A default location, should be sourced from config if possible.
-		// Construct resource IDs from the setup configuration.
-		// NOTE: This assumes the worker subnet is the primary subnet for the platform profile.
-		// This might need adjustment if control-plane and worker subnets are distinct in the platform config.
+		location := "westus3" // We curently do not have location provided in the infra only json config so hard code the location for now.
+		// NOTE: We currently hard code the name of the subnet because the infra only json config does not provide the name of the subnet.
 		subnetID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/worker-subnet", subscriptionID, customerEnv.CustomerRGName, customerEnv.CustomerVNetName)
 		nsgID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s", subscriptionID, customerEnv.CustomerRGName, customerEnv.CustomerNSGName)
 
-		// Define values for the new properties
+		// Define values for the new properties, we need the version which not currently specified in the infra only json config, network values are default and we probably don't need them here.
 		versionID := "openshift-v4.18.1"
 		channelGroup := "stable"
 		networkType := api.NetworkTypeOVNKubernetes
@@ -82,13 +70,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		serviceCidr := "172.30.0.0/16"
 		machineCidr := "10.0.0.0/16"
 		hostPrefix := int32(23)
-		//visibility := api.VisibilityPublic
-		//visibility := "Public"
 		identityType := api.ManagedServiceIdentityTypeUserAssigned
-		// Define values for the SystemData field as required by the RP.
-		//createdBy := "shadownman@example.com"
-		//createdByType := api.CreatedByTypeUser
-		//createdAt := time.Now()
 
 		clusterResource := api.HcpOpenShiftCluster{
 			Location: &location,
@@ -101,13 +83,13 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 					},
 				},
 				API: &api.APIProfile{
-					Visibility: func(v api.Visibility) *api.Visibility { return &v }("Public"),
+					Visibility: func(v api.Visibility) *api.Visibility { return &v }("Public"), // api.Visibility returns 'public' for some reason which the RP does not accept.
 				},
 				Version: &api.VersionProfile{
 					ID:           &versionID,
 					ChannelGroup: &channelGroup,
 				},
-				DNS: &api.DNSProfile{}, // Empty as per the provided JSON
+				DNS: &api.DNSProfile{},
 				Network: &api.NetworkProfile{
 					NetworkType: &networkType,
 					PodCidr:     &podCidr,
@@ -115,7 +97,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 					MachineCidr: &machineCidr,
 					HostPrefix:  &hostPrefix,
 				},
-				Console: &api.ConsoleProfile{}, // Empty as per the provided JSON
+				Console: &api.ConsoleProfile{},
 			},
 			Identity: &api.ManagedServiceIdentity{
 				Type:                   &identityType,
@@ -123,7 +105,6 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 			},
 		}
 
-		// Defer the cleanup function to ensure the cluster is deleted even if the test fails.
 		defer func() {
 			By("Cleaning up the cluster resource")
 			// Use a new context for cleanup to avoid cancellation if the test context timed out.
@@ -151,7 +132,6 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		Expect(err).NotTo(HaveOccurred(), "failed to create cluster")
 
 		By("Polling until the cluster provisioning state is Succeeded")
-		// This timeout should be long enough for a cluster to be created.
 		Eventually(func(g Gomega) {
 			resp, err := clustersClient.Get(ctx, customerEnv.CustomerRGName, clusterName, nil)
 			g.Expect(err).NotTo(HaveOccurred(), "failed to get cluster status during creation poll")
@@ -168,25 +148,9 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		Expect(err).NotTo(HaveOccurred(), "failed to poll for cluster deletion")
 
 		By("Verifying the cluster is not found after deletion")
-
 		_, err = clustersClient.Get(ctx, customerEnv.CustomerRGName, clusterName, nil)
 		Expect(err).ToNot(BeNil())
 		errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, customerEnv.CustomerRGName)
 		Expect(err.Error()).To(ContainSubstring(errMessage))
-		// After a successful deletion, a GET request should return a 404 Not Found error.
-		/* Eventually(func(g Gomega) {
-			_, err := clustersClient.Get(ctx, customerEnv.CustomerRGName, clusterName, nil)
-			g.Expect(err).To(HaveOccurred())
-
-			// Define a type assertion target for checking the HTTP status code
-			type statusCodeGetter interface {
-				error
-				StatusCode() int
-			}
-			var scg statusCodeGetter
-			g.Expect(errors.As(err, &scg)).To(BeTrue(), "error does not contain a status code")
-			g.Expect(scg.StatusCode()).To(Equal(http.StatusNotFound), "expected a 404 Not Found error after deletion")
-
-		}).WithTimeout(30 * time.Minute).WithPolling(60 * time.Second).Should(Succeed()) */
 	})
 })
