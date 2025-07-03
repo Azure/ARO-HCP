@@ -382,7 +382,10 @@ safe_delete "$nsgs" "Network Security Groups"
 log STEP "Step 7: Purging soft-deleted Key Vaults"
 
 # Get list of all soft-deleted vault names filtered by resource group
-deleted_vaults=$(az keyvault list-deleted --query "[?contains(properties.vaultId, '/resourceGroups/$RESOURCE_GROUP/')].name" --output tsv 2>/dev/null || echo "")
+# Note: The original query was filtering by resource group, but this can be problematic if the vaults were deleted from different resource groups
+# TODO: Switch around the query to filter by resource group when needed
+# deleted_vaults=$(az keyvault list-deleted --query "[?contains(properties.vaultId, '/resourceGroups/$RESOURCE_GROUP/')].name" --output tsv 2>/dev/null || echo "")
+deleted_vaults=$(az keyvault list-deleted --output tsv 2>/dev/null || echo "")
 
 if [[ -n "$deleted_vaults" ]]; then
     while IFS= read -r vault_name; do
