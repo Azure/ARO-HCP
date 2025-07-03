@@ -1,3 +1,7 @@
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "appliedmanifestworks.work.open-cluster-management.io" }}
+{{- if $crd }}
+{{- /* skip creating appliedmanifestworks CRD because it already exists */ -}}
+{{- else }}
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -126,3 +130,4 @@ status:
     plural: ""
   conditions: []
   storedVersions: []
+{{- end }}
