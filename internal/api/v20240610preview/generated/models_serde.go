@@ -258,16 +258,16 @@ func (c *ConsoleProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the json.Marshaller interface for type CustomerManagedConfig.
-func (c CustomerManagedConfig) MarshalJSON() ([]byte, error) {
+// MarshalJSON implements the json.Marshaller interface for type CustomerManagedEncryptionProfile.
+func (c CustomerManagedEncryptionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "encryptionType", c.EncryptionType)
 	populate(objectMap, "kms", c.Kms)
 	return json.Marshal(objectMap)
 }
 
-// UnmarshalJSON implements the json.Unmarshaller interface for type CustomerManagedConfig.
-func (c *CustomerManagedConfig) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON implements the json.Unmarshaller interface for type CustomerManagedEncryptionProfile.
+func (c *CustomerManagedEncryptionProfile) UnmarshalJSON(data []byte) error {
 	var rawMsg map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawMsg); err != nil {
 		return fmt.Errorf("unmarshalling type %T: %v", c, err)

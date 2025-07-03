@@ -61,9 +61,9 @@
           },
           "etcd": {
             "dataEncryption": {
-              "keyManagementMode": "customerManaged",
+              "keyManagementMode": "CustomerManaged",
               "customerManaged": {
-                "encryptionType": "kms",
+                "encryptionType": "KMS",
                 "kms": {
                   "activeKey": {
                     "vaultName": "my-cool-vault",

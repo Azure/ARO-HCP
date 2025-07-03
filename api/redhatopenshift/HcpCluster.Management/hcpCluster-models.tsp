@@ -356,35 +356,35 @@ model EtcdProfile {
 /** The ETCD data encryption settings. */
 model EtcdDataEncryptionProfile {
   /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
-   * By default, "platformManaged" is used.
+   * By default, "PlatformManaged" is used.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
 
   /** Specify customer managed encryption key details.
-   * Required when keyManagementMode is "customerManaged".
+   * Required when keyManagementMode is "CustomerManaged".
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  customerManaged?: CustomerManagedConfig;
+  customerManaged?: CustomerManagedEncryptionProfile;
 }
 
-/** Customer managed encryption key details. */
-model CustomerManagedConfig {
+/** Customer managed encryption key profile. */
+model CustomerManagedEncryptionProfile {
   /** The encryption type used.
-   * By default, "kms" is used.
+   * By default, "KMS" is used.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   encryptionType?: CustomerManagedEncryptionType = CustomerManagedEncryptionType.Kms;
 
-  /** The kms encryption key details.
+  /** The Key Management Service (KMS) encryption key details.
    *
-   * Required when encryptionType is "kms".
+   * Required when encryptionType is "KMS".
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   kms?: KmsConfig;
 }
 
-/** Configure etcd encryption KMS key.
+/** Configure etcd encryption Key Management Service (KMS) key.
  * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
  * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
  *
@@ -400,7 +400,7 @@ union CustomerManagedEncryptionType {
   string,
 
   /** KMS encryption type. */
-  Kms: "kms",
+  Kms: "KMS",
 }
 
 /** The encryption key management mode types supported for ETCD data encryption. */
@@ -408,10 +408,10 @@ union EtcdDataEncryptionKeyManagementModeType {
   string,
 
   /** Customer managed encryption key management mode type. */
-  CustomerManaged: "customerManaged",
+  CustomerManaged: "CustomerManaged",
 
   /** Platform managed encryption key management mode type. */
-  PlatformManaged: "platformManaged",
+  PlatformManaged: "PlatformManaged",
 }
 
 /*

@@ -46,12 +46,12 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
-// CustomerManagedEncryptionType - The encryption type used. By default, "kms" is used.
+// CustomerManagedEncryptionType - The encryption type used. By default, "KMS" is used.
 type CustomerManagedEncryptionType string
 
 const (
 	// CustomerManagedEncryptionTypeKms - KMS encryption type.
-	CustomerManagedEncryptionTypeKms CustomerManagedEncryptionType = "kms"
+	CustomerManagedEncryptionTypeKms CustomerManagedEncryptionType = "KMS"
 )
 
 // PossibleCustomerManagedEncryptionTypeValues returns the possible values for the CustomerManagedEncryptionType const type.
@@ -105,14 +105,14 @@ func PossibleEffectValues() []Effect {
 }
 
 // EtcdDataEncryptionKeyManagementModeType - Specify the key management strategy used for the encryption key that encrypts
-// the ETCD data. By default, "platformManaged" is used.
+// the ETCD data. By default, "PlatformManaged" is used.
 type EtcdDataEncryptionKeyManagementModeType string
 
 const (
 	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - Customer managed encryption key management mode type.
-	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "customerManaged"
+	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
 	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
-	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "platformManaged"
+	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
 )
 
 // PossibleEtcdDataEncryptionKeyManagementModeTypeValues returns the possible values for the EtcdDataEncryptionKeyManagementModeType const type.

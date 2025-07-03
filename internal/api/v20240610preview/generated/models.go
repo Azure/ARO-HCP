@@ -90,13 +90,13 @@ type ConsoleProfile struct {
 	URL *string
 }
 
-// CustomerManagedConfig - Customer managed encryption key details.
-type CustomerManagedConfig struct {
-	// The encryption type used. By default, "kms" is used.
+// CustomerManagedEncryptionProfile - Customer managed encryption key profile.
+type CustomerManagedEncryptionProfile struct {
+	// The encryption type used. By default, "KMS" is used.
 	EncryptionType *CustomerManagedEncryptionType
 
-	// The kms encryption key details.
-	// Required when encryptionType is "kms".
+	// The Key Management Service (KMS) encryption key details.
+	// Required when encryptionType is "KMS".
 	Kms *KmsConfig
 }
 
@@ -146,10 +146,10 @@ type ErrorResponse struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
-	// Specify customer managed encryption key details. Required when keyManagementMode is "customerManaged".
-	CustomerManaged *CustomerManagedConfig
+	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
+	CustomerManaged *CustomerManagedEncryptionProfile
 
-	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "platformManaged"
+	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "PlatformManaged"
 	// is used.
 	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 }
@@ -350,9 +350,9 @@ type HcpOperatorIdentityRoleSetProperties struct {
 	DataPlaneOperators []*OperatorIdentityRoles
 }
 
-// KmsConfig - Configure etcd encryption KMS key. Your Microsoft Entra application used to create the cluster must be authorized
-// to access this keyvault, e.g using the AzureCLI: az keyvault set-policy -n
-// $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
+// KmsConfig - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used to create
+// the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
 type KmsConfig struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey

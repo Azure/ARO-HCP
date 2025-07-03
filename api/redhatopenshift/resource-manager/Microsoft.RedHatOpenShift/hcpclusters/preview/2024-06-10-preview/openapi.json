@@ -1219,16 +1219,16 @@
         "url"
       ]
     },
-    "CustomerManagedConfig": {
+    "CustomerManagedEncryptionProfile": {
       "type": "object",
-      "description": "Customer managed encryption key details.",
+      "description": "Customer managed encryption key profile.",
       "properties": {
         "encryptionType": {
           "type": "string",
-          "description": "The encryption type used.\nBy default, \"kms\" is used.",
-          "default": "kms",
+          "description": "The encryption type used.\nBy default, \"KMS\" is used.",
+          "default": "KMS",
           "enum": [
-            "kms"
+            "KMS"
           ],
           "x-ms-enum": {
             "name": "CustomerManagedEncryptionType",
@@ -1236,7 +1236,7 @@
             "values": [
               {
                 "name": "Kms",
-                "value": "kms",
+                "value": "KMS",
                 "description": "KMS encryption type."
               }
             ]
@@ -1248,7 +1248,7 @@
         },
         "kms": {
           "$ref": "#/definitions/KmsConfig",
-          "description": "The kms encryption key details.\n\nRequired when encryptionType is \"kms\".",
+          "description": "The Key Management Service (KMS) encryption key details.\n\nRequired when encryptionType is \"KMS\".",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1313,11 +1313,11 @@
       "properties": {
         "keyManagementMode": {
           "type": "string",
-          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.\nBy default, \"platformManaged\" is used.",
-          "default": "platformManaged",
+          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.\nBy default, \"PlatformManaged\" is used.",
+          "default": "PlatformManaged",
           "enum": [
-            "customerManaged",
-            "platformManaged"
+            "CustomerManaged",
+            "PlatformManaged"
           ],
           "x-ms-enum": {
             "name": "EtcdDataEncryptionKeyManagementModeType",
@@ -1325,12 +1325,12 @@
             "values": [
               {
                 "name": "CustomerManaged",
-                "value": "customerManaged",
+                "value": "CustomerManaged",
                 "description": "Customer managed encryption key management mode type."
               },
               {
                 "name": "PlatformManaged",
-                "value": "platformManaged",
+                "value": "PlatformManaged",
                 "description": "Platform managed encryption key management mode type."
               }
             ]
@@ -1341,8 +1341,8 @@
           ]
         },
         "customerManaged": {
-          "$ref": "#/definitions/CustomerManagedConfig",
-          "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"customerManaged\".",
+          "$ref": "#/definitions/CustomerManagedEncryptionProfile",
+          "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"CustomerManaged\".",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1689,7 +1689,7 @@
     },
     "KmsConfig": {
       "type": "object",
-      "description": "Configure etcd encryption KMS key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`",
+      "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`",
       "properties": {
         "activeKey": {
           "$ref": "#/definitions/KmsKey",
