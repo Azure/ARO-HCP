@@ -91,12 +91,12 @@ model HcpOpenShiftClusterProperties {
    * 0 means that the MachinePool can be drained without any time limitation.
    *
    * This is the value is used a default for all NodePools. It can be overridden
-   * by specifying nodeDrainGracePeriodMinutes for a given NodePool
+   * by specifying nodeDrainTimeoutMinutes for a given NodePool
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @maxValue(10080)
   @minValue(0)
-  nodeDrainGracePeriodMinutes?: int32 = 0;
+  nodeDrainTimeoutMinutes?: int32 = 0;
 }
 /** Cluster capabilities configuration. */
 model ClusterCapabilitiesProfile {

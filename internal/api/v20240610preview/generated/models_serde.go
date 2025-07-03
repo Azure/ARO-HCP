@@ -626,7 +626,7 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "dns", h.DNS)
 	populate(objectMap, "etcd", h.Etcd)
 	populate(objectMap, "network", h.Network)
-	populate(objectMap, "nodeDrainGracePeriodMinutes", h.NodeDrainGracePeriodMinutes)
+	populate(objectMap, "nodeDrainTimeoutMinutes", h.NodeDrainTimeoutMinutes)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
 	populate(objectMap, "version", h.Version)
@@ -663,8 +663,8 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		case "network":
 			err = unpopulate(val, "Network", &h.Network)
 			delete(rawMsg, key)
-		case "nodeDrainGracePeriodMinutes":
-			err = unpopulate(val, "NodeDrainGracePeriodMinutes", &h.NodeDrainGracePeriodMinutes)
+		case "nodeDrainTimeoutMinutes":
+			err = unpopulate(val, "NodeDrainTimeoutMinutes", &h.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &h.Platform)
@@ -689,7 +689,7 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 func (h HcpOpenShiftClusterPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "autoscaling", h.Autoscaling)
-	populate(objectMap, "nodeDrainGracePeriodMinutes", h.NodeDrainGracePeriodMinutes)
+	populate(objectMap, "nodeDrainTimeoutMinutes", h.NodeDrainTimeoutMinutes)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "version", h.Version)
 	return json.Marshal(objectMap)
@@ -707,8 +707,8 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		case "autoscaling":
 			err = unpopulate(val, "Autoscaling", &h.Autoscaling)
 			delete(rawMsg, key)
-		case "nodeDrainGracePeriodMinutes":
-			err = unpopulate(val, "NodeDrainGracePeriodMinutes", &h.NodeDrainGracePeriodMinutes)
+		case "nodeDrainTimeoutMinutes":
+			err = unpopulate(val, "NodeDrainTimeoutMinutes", &h.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &h.Platform)

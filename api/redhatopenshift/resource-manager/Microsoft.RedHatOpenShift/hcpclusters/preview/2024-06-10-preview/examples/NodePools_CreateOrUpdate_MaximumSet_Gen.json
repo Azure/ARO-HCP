@@ -39,7 +39,7 @@
             "effect": "NoSchedule"
           }
         ],
-        "nodeDrainGracePeriodMinutes": 20
+        "nodeDrainTimeoutMinutesMinutes": 20
       },
       "tags": {
         "key7212": "uufkzlwqnoxdfihpqz"

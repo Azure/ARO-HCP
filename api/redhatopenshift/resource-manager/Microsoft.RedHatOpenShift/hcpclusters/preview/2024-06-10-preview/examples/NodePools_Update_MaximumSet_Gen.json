@@ -36,7 +36,7 @@
             "effect": "NoSchedule"
           }
         ],
-        "nodeDrainGracePeriodMinutes": 20
+        "nodeDrainTimeoutMinutesMinutes": 20
       }
     }
   },
