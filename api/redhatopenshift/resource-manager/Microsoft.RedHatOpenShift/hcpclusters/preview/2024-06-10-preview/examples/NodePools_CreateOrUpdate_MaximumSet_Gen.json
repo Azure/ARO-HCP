@@ -38,7 +38,8 @@
             "value": "x",
             "effect": "NoSchedule"
           }
-        ]
+        ],
+        "nodeDrainTimeoutMinutesMinutes": 20
       },
       "tags": {
         "key7212": "uufkzlwqnoxdfihpqz"
