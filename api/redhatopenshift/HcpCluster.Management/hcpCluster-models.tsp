@@ -582,7 +582,7 @@ model NodePoolPlatformProfile {
 model OsDiskProfile {
   /** The OS disk size in GiB */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskSizeGiB?: int32 = 64;
+  sizeGiB?: int32 = 64;
 
   /** The type of the disk storage account
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
@@ -600,7 +600,7 @@ model OsDiskProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @maxLength(285)
-  diskEncryptionSetId?: DiskEncryptionSetResourceId;
+  encryptionSetId?: DiskEncryptionSetResourceId;
 }
 
 /** Supported Azure storage account types

@@ -108,7 +108,7 @@ func CreateNodePool() error {
 			Platform: api.NodePoolPlatformProfile{
 				SubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
 				OSDisk: api.OSDiskProfile{
-					DiskSizeGiB:            30,
+					SizeGiB:                30,
 					DiskStorageAccountType: "StandardSSD_LRS",
 				},
 

@@ -2299,7 +2299,7 @@
       "type": "object",
       "description": "The settings and configuration options for OSDisk",
       "properties": {
-        "diskSizeGiB": {
+        "sizeGiB": {
           "type": "integer",
           "format": "int32",
           "description": "The OS disk size in GiB",
@@ -2344,7 +2344,7 @@
             "create"
           ]
         },
-        "diskEncryptionSetId": {
+        "encryptionSetId": {
           "$ref": "#/definitions/DiskEncryptionSetResourceId",
           "description": "The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.\nThis needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.\nDiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location\nlisted in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.\n\nDetails on how to create a Disk Encryption Set can be found here:\nhttps://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set",
           "maxLength": 285,

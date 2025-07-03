@@ -64,9 +64,9 @@ type NodePoolPlatformProfile struct {
 // OSDiskProfile represents a OS Disk configuration.
 // Visibility for the entire struct is "read create".
 type OSDiskProfile struct {
-	DiskSizeGiB            int32                  `json:"diskSizeGiB,omitempty"            validate:"min=1"`
+	SizeGiB                int32                  `json:"sizeGiB,omitempty"            validate:"min=1"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"omitempty,enum_diskstorageaccounttype"`
-	DiskEncryptionSetId    string                 `json:"diskEncryptionSetId,omitempty"    validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
+	EncryptionSetId        string                 `json:"encryptionSetId,omitempty"    validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
@@ -92,7 +92,7 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 			},
 			Platform: NodePoolPlatformProfile{
 				OSDisk: OSDiskProfile{
-					DiskSizeGiB:            64,
+					SizeGiB:                64,
 					DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
 				},
 			},

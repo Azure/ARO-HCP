@@ -140,14 +140,14 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 }
 
 func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) {
-	if p.DiskSizeGiB != nil {
-		out.DiskSizeGiB = *p.DiskSizeGiB
+	if p.SizeGiB != nil {
+		out.SizeGiB = *p.SizeGiB
 	}
 	if p.DiskStorageAccountType != nil {
 		out.DiskStorageAccountType = api.DiskStorageAccountType(*p.DiskStorageAccountType)
 	}
-	if p.DiskEncryptionSetID != nil {
-		out.DiskEncryptionSetId = *p.DiskEncryptionSetID
+	if p.EncryptionSetID != nil {
+		out.EncryptionSetId = *p.EncryptionSetID
 	}
 }
 
@@ -202,7 +202,7 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 
 func newOSDiskProfile(from *api.OSDiskProfile) *generated.OsDiskProfile {
 	return &generated.OsDiskProfile{
-		DiskSizeGiB:            api.PtrOrNil(from.DiskSizeGiB),
+		SizeGiB:                api.PtrOrNil(from.SizeGiB),
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
 	}
 }

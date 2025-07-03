@@ -1771,9 +1771,9 @@ func (o *OperatorsAuthenticationProfileUpdate) UnmarshalJSON(data []byte) error 
 // MarshalJSON implements the json.Marshaller interface for type OsDiskProfile.
 func (o OsDiskProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "diskEncryptionSetId", o.DiskEncryptionSetID)
-	populate(objectMap, "diskSizeGiB", o.DiskSizeGiB)
 	populate(objectMap, "diskStorageAccountType", o.DiskStorageAccountType)
+	populate(objectMap, "encryptionSetId", o.EncryptionSetID)
+	populate(objectMap, "sizeGiB", o.SizeGiB)
 	return json.Marshal(objectMap)
 }
 
@@ -1786,14 +1786,14 @@ func (o *OsDiskProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "diskEncryptionSetId":
-			err = unpopulate(val, "DiskEncryptionSetID", &o.DiskEncryptionSetID)
-			delete(rawMsg, key)
-		case "diskSizeGiB":
-			err = unpopulate(val, "DiskSizeGiB", &o.DiskSizeGiB)
-			delete(rawMsg, key)
 		case "diskStorageAccountType":
 			err = unpopulate(val, "DiskStorageAccountType", &o.DiskStorageAccountType)
+			delete(rawMsg, key)
+		case "encryptionSetId":
+			err = unpopulate(val, "EncryptionSetID", &o.EncryptionSetID)
+			delete(rawMsg, key)
+		case "sizeGiB":
+			err = unpopulate(val, "SizeGiB", &o.SizeGiB)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
