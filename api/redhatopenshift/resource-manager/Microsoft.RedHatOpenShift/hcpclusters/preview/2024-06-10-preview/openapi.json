@@ -781,7 +781,12 @@
         "x-ms-long-running-operation-options": {
           "final-state-via": "azure-async-operation"
         },
-        "x-ms-long-running-operation": true
+        "x-ms-long-running-operation": true,
+        "x-ms-examples": {
+          "ExternalAuths_CreateOrUpdate_MaximumSet_Gen": {
+            "$ref": "./examples/ExternalAuths_CreateOrUpdate_MaximumSet_Gen.json"
+          }
+        }
       },
       "patch": {
         "operationId": "ExternalAuths_Update",
@@ -856,7 +861,12 @@
         "x-ms-long-running-operation-options": {
           "final-state-via": "location"
         },
-        "x-ms-long-running-operation": true
+        "x-ms-long-running-operation": true,
+        "x-ms-examples": {
+          "ExternalAuths_Update_MaximumSet_Gen": {
+            "$ref": "./examples/ExternalAuths_Update_MaximumSet_Gen.json"
+          }
+        }
       },
       "delete": {
         "operationId": "ExternalAuths_Delete",
@@ -919,7 +929,12 @@
         "x-ms-long-running-operation-options": {
           "final-state-via": "location"
         },
-        "x-ms-long-running-operation": true
+        "x-ms-long-running-operation": true,
+        "x-ms-examples": {
+          "ExternalAuths_Delete_MaximumSet_Gen": {
+            "$ref": "./examples/ExternalAuths_Delete_MaximumSet_Gen.json"
+          }
+        }
       }
     },
     "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools": {
