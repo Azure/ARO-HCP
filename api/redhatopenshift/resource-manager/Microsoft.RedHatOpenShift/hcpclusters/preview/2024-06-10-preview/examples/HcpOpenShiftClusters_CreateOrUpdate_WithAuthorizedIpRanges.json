@@ -1,0 +1,214 @@
+{
+  "title": "HcpOpenShiftClusters_CreateOrUpdate_WithAuthorizedIpRanges",
+  "operationId": "HcpOpenShiftClusters_CreateOrUpdate",
+  "parameters": {
+    "api-version": "2024-06-10-preview",
+    "subscriptionId": "FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D",
+    "resourceGroupName": "rgopenapi",
+    "hcpOpenShiftClusterName": "hcp-cluster-with-ip-restrictions",
+    "resource": {
+      "properties": {
+        "version": {
+          "channelGroup": "stable",
+          "id": "4.12"
+        },
+        "dns": {
+          "baseDomainPrefix": "restricted-cluster"
+        },
+        "network": {
+          "networkType": "OVNKubernetes",
+          "podCidr": "10.128.0.0/14",
+          "serviceCidr": "172.30.0.0/16",
+          "machineCidr": "10.0.0.0/16"
+        },
+        "api": {
+          "visibility": "Public",
+          "authorizedIpRanges": [
+            "192.168.1.0/24",
+            "10.0.0.0/16",
+            "203.0.113.0/24",
+            "2001:db8::/32",
+            "2001:db8:1::/48"
+          ]
+        },
+        "platform": {
+          "managedResourceGroup": "restricted-cluster-mrg",
+          "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
+          "outboundType": "LoadBalancer",
+          "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
+          "operatorsAuthentication": {
+            "userAssignedIdentities": {
+              "controlPlaneOperators": {},
+              "dataPlaneOperators": {},
+              "serviceManagedIdentity": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI"
+            }
+          }
+        }
+      },
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI": {}
+        }
+      },
+      "tags": {
+        "environment": "production",
+        "security": "restricted-access"
+      },
+      "location": "eastus"
+    }
+  },
+  "responses": {
+    "200": {
+      "body": {
+        "properties": {
+          "provisioningState": "Succeeded",
+          "version": {
+            "channelGroup": "stable",
+            "id": "4.12"
+          },
+          "dns": {
+            "baseDomain": "restricted-cluster.example.com",
+            "baseDomainPrefix": "restricted-cluster"
+          },
+          "network": {
+            "networkType": "OVNKubernetes",
+            "podCidr": "10.128.0.0/14",
+            "serviceCidr": "172.30.0.0/16",
+            "machineCidr": "10.0.0.0/16",
+            "hostPrefix": 23
+          },
+          "console": {
+            "url": "https://console.restricted-cluster.example.com"
+          },
+          "api": {
+            "url": "https://api.restricted-cluster.example.com:443",
+            "visibility": "Public",
+            "authorizedIpRanges": [
+              "192.168.1.0/24",
+              "10.0.0.0/16",
+              "203.0.113.0/24",
+              "2001:db8::/32",
+              "2001:db8:1::/48"
+            ]
+          },
+          "platform": {
+            "managedResourceGroup": "restricted-cluster-mrg",
+            "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
+            "outboundType": "LoadBalancer",
+            "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
+            "operatorsAuthentication": {
+              "userAssignedIdentities": {
+                "controlPlaneOperators": {},
+                "dataPlaneOperators": {},
+                "serviceManagedIdentity": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI"
+              }
+            },
+            "issuerUrl": "https://oidc.restricted-cluster.example.com"
+          }
+        },
+        "identity": {
+          "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
+          "tenantId": "2a58de3b-8a38-44cd-8f33-4bd5b91479c1",
+          "type": "UserAssigned",
+          "userAssignedIdentities": {
+            "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI": {
+              "principalId": "15a1e2d8-41ae-4068-8ea9-a80f2cdd94c3",
+              "clientId": "a60f3156-367f-4303-bb21-7a41b3c41cb9"
+            }
+          }
+        },
+        "tags": {
+          "environment": "production",
+          "security": "restricted-access"
+        },
+        "location": "eastus",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp-cluster-with-ip-restrictions",
+        "name": "hcp-cluster-with-ip-restrictions",
+        "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+        "systemData": {
+          "createdBy": "admin@contoso.com",
+          "createdByType": "User",
+          "createdAt": "2024-07-02T10:30:00.000Z",
+          "lastModifiedBy": "admin@contoso.com",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2024-07-02T10:30:00.000Z"
+        }
+      }
+    },
+    "201": {
+      "headers": {
+        "Azure-AsyncOperation": "https://management.azure.com/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/providers/Microsoft.RedHatOpenShift/locations/eastus/operationResults/12345678-1234-1234-1234-123456789012"
+      },
+      "body": {
+        "properties": {
+          "provisioningState": "Accepted",
+          "version": {
+            "channelGroup": "stable",
+            "id": "4.12"
+          },
+          "dns": {
+            "baseDomainPrefix": "restricted-cluster"
+          },
+          "network": {
+            "networkType": "OVNKubernetes",
+            "podCidr": "10.128.0.0/14",
+            "serviceCidr": "172.30.0.0/16",
+            "machineCidr": "10.0.0.0/16",
+            "hostPrefix": 23
+          },
+          "api": {
+            "visibility": "Public",
+            "authorizedIpRanges": [
+              "192.168.1.0/24",
+              "10.0.0.0/16",
+              "203.0.113.0/24",
+              "2001:db8::/32",
+              "2001:db8:1::/48"
+            ]
+          },
+          "platform": {
+            "managedResourceGroup": "restricted-cluster-mrg",
+            "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
+            "outboundType": "LoadBalancer",
+            "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
+            "operatorsAuthentication": {
+              "userAssignedIdentities": {
+                "controlPlaneOperators": {},
+                "dataPlaneOperators": {},
+                "serviceManagedIdentity": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI"
+              }
+            }
+          }
+        },
+        "identity": {
+          "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
+          "tenantId": "2a58de3b-8a38-44cd-8f33-4bd5b91479c1",
+          "type": "UserAssigned",
+          "userAssignedIdentities": {
+            "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI": {
+              "principalId": "15a1e2d8-41ae-4068-8ea9-a80f2cdd94c3",
+              "clientId": "a60f3156-367f-4303-bb21-7a41b3c41cb9"
+            }
+          }
+        },
+        "tags": {
+          "environment": "production",
+          "security": "restricted-access"
+        },
+        "location": "eastus",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcp-cluster-with-ip-restrictions",
+        "name": "hcp-cluster-with-ip-restrictions",
+        "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+        "systemData": {
+          "createdBy": "admin@contoso.com",
+          "createdByType": "User",
+          "createdAt": "2024-07-02T10:30:00.000Z",
+          "lastModifiedBy": "admin@contoso.com",
+          "lastModifiedByType": "User",
+          "lastModifiedAt": "2024-07-02T10:30:00.000Z"
+        }
+      }
+    }
+  }
+}

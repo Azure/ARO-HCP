@@ -196,7 +196,16 @@ model ApiProfile {
   /** The internet visibility of the OpenShift API server */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   visibility?: Visibility = Visibility.Public;
+
+  /** The list of authorized IP ranges (IPv4 or IPv6 CIDRs) allowed to access the API server. Maximum 200 entries. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @maxItems(200)
+  authorizedIpRanges?: ipCidr[];
 }
+
+/** IP CIDR block (supports both IPv4 and IPv6) */
+@pattern("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/([0-9]|[1-2][0-9]|3[0-2])|([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}\\/([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8]))$")
+scalar ipCidr extends string;
 
 /** The internet visibility of the OpenShift API server */
 union Visibility {
