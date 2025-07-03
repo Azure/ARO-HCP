@@ -59,6 +59,14 @@ func (c *ClientFactory) NewHcpOpenShiftVersionsClient() *HcpOpenShiftVersionsCli
 	}
 }
 
+// NewHcpOperatorIdentityRoleSetsClient creates a new instance of HcpOperatorIdentityRoleSetsClient.
+func (c *ClientFactory) NewHcpOperatorIdentityRoleSetsClient() *HcpOperatorIdentityRoleSetsClient {
+	return &HcpOperatorIdentityRoleSetsClient{
+		subscriptionID: c.subscriptionID,
+		internal:       c.internal,
+	}
+}
+
 // NewNodePoolsClient creates a new instance of NodePoolsClient.
 func (c *ClientFactory) NewNodePoolsClient() *NodePoolsClient {
 	return &NodePoolsClient{

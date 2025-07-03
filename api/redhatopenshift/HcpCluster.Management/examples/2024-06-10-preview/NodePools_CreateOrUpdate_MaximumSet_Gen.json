@@ -3,7 +3,7 @@
   "operationId": "NodePools_CreateOrUpdate",
   "parameters": {
     "api-version": "2024-06-10-preview",
-    "subscriptionId": "F64FF5E2-2AD0-4E4D-A9D5-6E88511247A7",
+    "subscriptionId": "FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D",
     "resourceGroupName": "rgopenapi",
     "hcpOpenShiftClusterName": "hcpCluster-name",
     "nodePoolName": "nodePool-name",
@@ -11,14 +11,18 @@
       "properties": {
         "version": {
           "channelGroup": "stable",
-          "id": "jlufyoivqzyxnqzwijozipxmgux"
+          "id": "4.12"
         },
         "platform": {
           "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
-          "vmSize": "hfdapwwtchingr",
-          "diskSizeGiB": 12,
-          "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
-          "availabilityZone": "mssxcjzxagdxoeuqydthwc"
+          "vmSize": "Standard_D2s_v3",
+          "availabilityZone": "australiaeast-az1",
+          "enableEncryptionAtHost": true,
+          "osDisk": {
+            "sizeGiB": 10,
+            "diskStorageAccountType": "Premium_LRS",
+            "diskEncryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
+          }
         },
         "replicas": 18,
         "autoRepair": true,
@@ -38,10 +42,11 @@
             "value": "x",
             "effect": "NoSchedule"
           }
-        ]
+        ],
+        "nodeDrainTimeoutMinutesMinutes": 20
       },
       "tags": {
-        "key7212": "uufkzlwqnoxdfihpqz"
+        "key": "value"
       },
       "location": "mqewzbuvnyxnwbmir"
     }
@@ -52,22 +57,29 @@
         "properties": {
           "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable"
+            "channelGroup": "stable",
+            "id": "4.12"
           },
           "platform": {
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
-            "vmSize": "hfdapwwtchingr",
-            "diskSizeGiB": 12,
-            "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
-            "availabilityZone": "mssxcjzxagdxoeuqydthwc"
+            "vmSize": "Standard_D2s_v3",
+            "availabilityZone": "australiaeast-az1",
+            "enableEncryptionAtHost": true,
+            "osDisk": {
+              "sizeGiB": 10,
+              "diskStorageAccountType": "Premium_LRS",
+              "diskEncryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
+            }
           },
+          "replicas": 18,
+          "autoRepair": true,
           "autoScaling": {
             "min": 6,
             "max": 29
           }
         },
         "tags": {
-          "key7212": "uufkzlwqnoxdfihpqz"
+          "key": "value"
         },
         "location": "mqewzbuvnyxnwbmir",
         "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",
@@ -91,22 +103,29 @@
         "properties": {
           "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable"
+            "channelGroup": "stable",
+            "id": "4.12"
           },
           "platform": {
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
-            "vmSize": "hfdapwwtchingr",
-            "diskSizeGiB": 12,
-            "diskStorageAccountType": "cyfacrhebgxccilnjsgozmqge",
-            "availabilityZone": "mssxcjzxagdxoeuqydthwc"
+            "vmSize": "Standard_D2s_v3",
+            "availabilityZone": "australiaeast-az1",
+            "enableEncryptionAtHost": true,
+            "osDisk": {
+              "sizeGiB": 10,
+              "diskStorageAccountType": "Premium_LRS",
+              "diskEncryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
+            }
           },
+          "replicas": 18,
+          "autoRepair": true,
           "autoScaling": {
             "min": 6,
             "max": 29
           }
         },
         "tags": {
-          "key7212": "uufkzlwqnoxdfihpqz"
+          "key": "value"
         },
         "location": "mqewzbuvnyxnwbmir",
         "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",

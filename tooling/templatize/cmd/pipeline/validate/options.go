@@ -203,9 +203,9 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 				for key, into := range map[string]*string{
 					"regionShortName": &replacements.RegionShortReplacement,
 				} {
-					value, ok := ev2Cfg.GetByPath(key)
-					if !ok {
-						return fmt.Errorf("%s %q not found in ev2 config", prefix, key)
+					value, err := ev2Cfg.GetByPath(key)
+					if err != nil {
+						return fmt.Errorf("%s %q not found in ev2 config: %w", prefix, key, err)
 					}
 					str, ok := value.(string)
 					if !ok {
@@ -219,14 +219,9 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 					return fmt.Errorf("%s failed to get resolver: %w", prefix, err)
 				}
 
-				rawCfg, err := resolver.GetRegionConfiguration(region)
+				cfg, err := resolver.GetRegionConfiguration(region)
 				if err != nil {
 					return fmt.Errorf("%s failed to get region config: %w", prefix, err)
-				}
-
-				cfg, ok := config.InterfaceToConfiguration(rawCfg)
-				if !ok {
-					return fmt.Errorf("%s: invalid configuration", prefix)
 				}
 
 				if err := resolver.ValidateSchema(cfg); err != nil {
@@ -411,8 +406,8 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 		}
 		for _, variable := range variables {
 			if variable.variable.ConfigRef != "" {
-				if _, ok := cfg.GetByPath(variable.variable.ConfigRef); !ok {
-					return fmt.Errorf("%s: %s: %s: configRef %q not present in configuration", context, service.ServiceGroup, variable.ref, variable.variable.ConfigRef)
+				if _, err := cfg.GetByPath(variable.variable.ConfigRef); err != nil {
+					return fmt.Errorf("%s: %s: %s: configRef %q not present in configuration: %w", context, service.ServiceGroup, variable.ref, variable.variable.ConfigRef, err)
 				}
 			}
 		}

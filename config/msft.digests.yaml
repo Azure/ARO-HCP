@@ -3,7 +3,7 @@ clouds:
     environments:
       int:
         regions:
-          uksouth: 82f23b408b830d55c3b91f4f5d4f7c5c9eab11f6bc5a7cadee952da597a4d76c
+          uksouth: b88ead680d7afc005b70af12b48e7e138571c655e24eb658772b31d787e10861
       stg:
         regions:
-          uksouth: d80c462ed3a7caa4847bb647699dbbc366b7ee1d4a182e292d25bb5e0d9aee9f
+          uksouth: 7ce649fce82ab4e65ecc7e8edff55736f315cd3169dc3df7ec2da35523791715

@@ -302,9 +302,9 @@ func ValidateServiceConfig(
 				for key, into := range map[string]*string{
 					"regionShortName": &replacements.RegionShortReplacement,
 				} {
-					value, ok := ev2Cfg.GetByPath(key)
-					if !ok {
-						return fmt.Errorf("%s %q not found in ev2 config", prefix, key)
+					value, err := ev2Cfg.GetByPath(key)
+					if err != nil {
+						return fmt.Errorf("%s %q not found in ev2 config: %w", prefix, key, err)
 					}
 					str, ok := value.(string)
 					if !ok {
@@ -321,14 +321,9 @@ func ValidateServiceConfig(
 					return fmt.Errorf("%s failed to get resolver: %w", prefix, err)
 				}
 
-				rawCfg, err := resolver.GetRegionConfiguration(region)
+				cfg, err := resolver.GetRegionConfiguration(region)
 				if err != nil {
 					return fmt.Errorf("%s failed to get region config: %w", prefix, err)
-				}
-
-				cfg, ok := config.InterfaceToConfiguration(rawCfg)
-				if !ok {
-					return fmt.Errorf("%s: invalid configuration", prefix)
 				}
 
 				var schemaResolutionErr error
@@ -567,19 +562,31 @@ func DetermineMergeBase(ctx context.Context, dir, centralRemoteUrl string) (stri
 		}
 		upstreamRef = strings.TrimSpace(upstream)
 
-		if upstreamRef == "" {
+		// unless it's just a version of this branch on the upstream repo
+		branch, err := command(ctx, dir, "git", "rev-parse", "--abbrev-ref", "HEAD")
+		if err != nil &&
+			!strings.Contains(err.Error(), "fatal: HEAD does not point to a branch") {
+			return "", fmt.Errorf("failed to resolve upstream: %w", err)
+		}
+		branchName := strings.TrimSpace(branch)
+
+		if upstreamRef == "" || strings.HasSuffix(upstreamRef, branchName) {
 			// if no upstream set, make a guess based on the remotes and where 99% of merges go
 			remotes, err := command(ctx, dir, "git", "remote")
 			if err != nil {
 				return "", fmt.Errorf("failed to get git remotes: %w", err)
 			}
 			for _, remoteName := range strings.Split(remotes, "\n") {
-				remoteUrl, err := command(ctx, dir, "git", "remote", "get-url", strings.TrimSpace(remoteName))
+				remote := strings.TrimSpace(remoteName)
+				if remote == "" {
+					continue
+				}
+				remoteUrl, err := command(ctx, dir, "git", "remote", "get-url", remote)
 				if err != nil {
 					return "", fmt.Errorf("failed to get git remote URL: %w", err)
 				}
 				if strings.TrimSpace(remoteUrl) == centralRemoteUrl {
-					upstreamRef = strings.TrimSpace(remoteName) + "/main"
+					upstreamRef = remote + "/main"
 					break
 				}
 			}

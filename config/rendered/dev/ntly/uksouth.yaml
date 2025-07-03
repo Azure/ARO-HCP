@@ -1,3 +1,6 @@
+acm:
+  mce:
+    pauseReconciliation: true
 acr:
   ocp:
     name: arohcpocpdev
@@ -50,7 +53,7 @@ clustersService:
       roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
   environment: arohcpdev
   image:
-    digest: sha256:873b9ed2ca439c8391922ba4376b01e7cc20faf58eaa08c61c3c30df370939f4
+    digest: sha256:5176c82cd45bbd104dc5e60e059f6c57c940a7937b00ef041cd7ba1a5e114880
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:

@@ -79,11 +79,34 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
 
-  /** Configure cluter capabilities. */
+  /** Configure ClusterAutoscaling . */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  autoscaling?: ClusterAutoscalingProfile;
+
+  /** Configure cluster capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   capabilities?: ClusterCapabilitiesProfile;
-}
 
+  /** Configure ETCD. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  etcd?: EtcdProfile;
+
+  /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
+   * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
+   * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
+   * especially relevant to cluster upgrades.
+   *
+   * Valid values are in minutes and from 0 to 10080 minutes (1 week).
+   * 0 means that the MachinePool can be drained without any time limitation.
+   *
+   * This is the value is used a default for all NodePools. It can be overridden
+   * by specifying nodeDrainTimeoutMinutes for a given NodePool
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @maxValue(10080)
+  @minValue(0)
+  nodeDrainTimeoutMinutes?: int32 = 0;
+}
 /** Cluster capabilities configuration. */
 model ClusterCapabilitiesProfile {
   /**
@@ -253,6 +276,31 @@ model PlatformProfile {
   issuerUrl: url;
 }
 
+/** ClusterAutoscaling specifies auto-scaling behavior that
+ *  applies to all NodePools associated with a control plane. */
+model ClusterAutoscalingProfile {
+  /** maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.
+   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. number. */
+  @minValue(0)
+  maxNodesTotal?: int32;
+
+  /** maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool.
+   * The default is 600 seconds. */
+  @minValue(0)
+  maxPodGracePeriodSeconds?: int32 = 600;
+
+  /** maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the
+   *  provisioning to be unsuccessful. The default is 900 seconds, or 15 minutes. */
+  @minValue(0)
+  maxNodeProvisionTimeSeconds?: int32 = 900;
+
+  /** podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
+   * but only run when there are spare resources available. The default is -10.
+   * See the following for more details:
+   * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption */
+  podPriorityThreshold?: int32 = -10;
+}
+
 scalar SubnetResourceId
   extends Azure.Core.armResourceIdentifier<[
     {
@@ -312,6 +360,94 @@ scalar UserAssignedIdentityResourceId
     }
   ]>;
 
+/** A representation of a KeyVault Secret. */
+model KmsKey {
+  /** vaultName is the name of the keyvault that contains the secret. */
+  @maxLength(255)
+  @minLength(1)
+  vaultName: string;
+
+  /** name is the name of the keyvault key used for encryption/decryption. */
+  @maxLength(255)
+  @minLength(1)
+  name: string;
+
+  /** version contains the version of the key to use. */
+  @maxLength(255)
+  @minLength(1)
+  version: string;
+}
+
+/** The ETCD settings and configuration options. */
+model EtcdProfile {
+  /** ETCD Data Encryption settings.
+   * If not specified platform managed keys are used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  dataEncryption?: EtcdDataEncryptionProfile;
+}
+
+/** The ETCD data encryption settings. */
+model EtcdDataEncryptionProfile {
+  /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
+   * By default, "PlatformManaged" is used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+
+  /** Specify customer managed encryption key details.
+   * Required when keyManagementMode is "CustomerManaged".
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  customerManaged?: CustomerManagedEncryptionProfile;
+}
+
+/** Customer managed encryption key profile. */
+model CustomerManagedEncryptionProfile {
+  /** The encryption type used.
+   * By default, "KMS" is used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  encryptionType?: CustomerManagedEncryptionType = CustomerManagedEncryptionType.Kms;
+
+  /** The Key Management Service (KMS) encryption key details.
+   *
+   * Required when encryptionType is "KMS".
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  kms?: KmsEncryptionProfile;
+}
+
+/** Configure etcd encryption Key Management Service (KMS) key.
+ * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
+ * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
+ *
+ */
+model KmsEncryptionProfile {
+  /** The details of the active key. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  activeKey: KmsKey;
+}
+
+/** The encryption types supported for a customer managed key. */
+union CustomerManagedEncryptionType {
+  string,
+
+  /** KMS encryption type. */
+  Kms: "KMS",
+}
+
+/** The encryption key management mode types supported for ETCD data encryption. */
+union EtcdDataEncryptionKeyManagementModeType {
+  string,
+
+  /** Customer managed encryption key management mode type. */
+  CustomerManaged: "CustomerManaged",
+
+  /** Platform managed encryption key management mode type. */
+  PlatformManaged: "PlatformManaged",
+}
+
 /*
  * =======================================
  *   End HCP cluster core resources
@@ -359,6 +495,19 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
   taints?: Taint[];
+
+  /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
+   * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
+   * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
+   * especially relevant to cluster upgrades.
+   *
+   * Valid values are from 0 to 10080 minutes (1 week) .
+   * 0 means that the NodePool can be drained without any time limitation.
+   *
+   * If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  nodeDrainTimeoutMinutes?: int32;
 }
 
 /** The taint effect the same as in Kubernetes */
@@ -436,15 +585,9 @@ model NodePoolPlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   enableEncryptionAtHost?: boolean = false;
 
-  /** The OS disk size in GiB */
+  /** The settings and configuration options for OSDisk */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskSizeGiB?: int32 = 64;
-
-  /** The type of the disk storage account
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
-   */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
+  osDisk?: OsDiskProfile;
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
@@ -452,6 +595,31 @@ model NodePoolPlatformProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   availabilityZone?: string;
+}
+
+/** The settings and configuration options for OSDisk */
+model OsDiskProfile {
+  /** The OS disk size in GiB */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  sizeGiB?: int32 = 64;
+
+  /** The type of the disk storage account
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
+
+  /** The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.
+   * This needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.
+   * DiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location
+   * listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.
+   *
+   * Details on how to create a Disk Encryption Set can be found here:
+   * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(285)
+  encryptionSetId?: DiskEncryptionSetResourceId;
 }
 
 /** Supported Azure storage account types
@@ -480,6 +648,13 @@ model NodePoolAutoScaling {
   @minValue(0)
   max?: int32;
 }
+
+scalar DiskEncryptionSetResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.Compute/diskEncryptionSets",
+    }
+  ]>;
 
 /*
  * =======================================

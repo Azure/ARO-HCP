@@ -47,6 +47,28 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 	Type *string
 }
 
+// ClusterAutoscalingProfile - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
+// with a control plane.
+type ClusterAutoscalingProfile struct {
+	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
+	// unsuccessful. The default is 900 seconds, or 15 minutes.
+	MaxNodeProvisionTimeSeconds *int32
+
+	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
+	// not grow the cluster beyond this number. If omitted, the autoscaler will not
+	// have a maximum limit. number.
+	MaxNodesTotal *int32
+
+	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
+	// is 600 seconds.
+	MaxPodGracePeriodSeconds *int32
+
+	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
+	// run when there are spare resources available. The default is -10. See the
+	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
+	PodPriorityThreshold *int32
+}
+
 // ClusterCapabilitiesProfile - Cluster capabilities configuration.
 type ClusterCapabilitiesProfile struct {
 	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
@@ -66,6 +88,16 @@ type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidenti
 type ConsoleProfile struct {
 	// READ-ONLY; The cluster web console URL endpoint
 	URL *string
+}
+
+// CustomerManagedEncryptionProfile - Customer managed encryption key profile.
+type CustomerManagedEncryptionProfile struct {
+	// The encryption type used. By default, "KMS" is used.
+	EncryptionType *CustomerManagedEncryptionType
+
+	// The Key Management Service (KMS) encryption key details.
+	// Required when encryptionType is "KMS".
+	Kms *KmsEncryptionProfile
 }
 
 // DNSProfile - DNS contains the DNS settings of the cluster
@@ -110,6 +142,22 @@ type ErrorDetail struct {
 type ErrorResponse struct {
 	// The error object.
 	Error *ErrorDetail
+}
+
+// EtcdDataEncryptionProfile - The ETCD data encryption settings.
+type EtcdDataEncryptionProfile struct {
+	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
+	CustomerManaged *CustomerManagedEncryptionProfile
+
+	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "PlatformManaged"
+	// is used.
+	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
+}
+
+// EtcdProfile - The ETCD settings and configuration options.
+type EtcdProfile struct {
+	// ETCD Data Encryption settings. If not specified platform managed keys are used.
+	DataEncryption *EtcdDataEncryptionProfile
 }
 
 // ExternalAuth resource
@@ -331,14 +379,30 @@ type HcpOpenShiftClusterProperties struct {
 	// Shows the cluster API server profile
 	API *APIProfile
 
-	// Configure cluter capabilities.
+	// Configure ClusterAutoscaling .
+	Autoscaling *ClusterAutoscalingProfile
+
+	// Configure cluster capabilities.
 	Capabilities *ClusterCapabilitiesProfile
 
 	// Cluster DNS configuration
 	DNS *DNSProfile
 
+	// Configure ETCD.
+	Etcd *EtcdProfile
+
 	// Cluster network configuration
 	Network *NetworkProfile
+
+	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
+	// any node draining operation. After this grace period, any workloads
+	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
+	// is especially relevant to cluster upgrades.
+	// Valid values are in minutes and from 0 to 10080 minutes (1 week). 0 means that the MachinePool can be drained without any
+	// time limitation.
+	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
+	// given NodePool
+	NodeDrainTimeoutMinutes *int32
 
 	// Version of the control plane components
 	Version *VersionProfile
@@ -352,6 +416,19 @@ type HcpOpenShiftClusterProperties struct {
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
 type HcpOpenShiftClusterPropertiesUpdate struct {
+	// Configure ClusterAutoscaling .
+	Autoscaling *ClusterAutoscalingProfile
+
+	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
+	// any node draining operation. After this grace period, any workloads
+	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
+	// is especially relevant to cluster upgrades.
+	// Valid values are in minutes and from 0 to 10080 minutes (1 week). 0 means that the MachinePool can be drained without any
+	// time limitation.
+	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
+	// given NodePool
+	NodeDrainTimeoutMinutes *int32
+
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate
 
@@ -420,6 +497,63 @@ type HcpOpenShiftVersionProperties struct {
 
 	// REQUIRED; EndOfLifeTimestamp is the date and time when this version will reach End of Life.
 	EndOfLifeTimestamp *time.Time
+}
+
+// HcpOperatorIdentityRoleSet - HcpOperatorIdentityRoles represents a location based representation of the required platform
+// workload identities and their required roles for a given OpenShift version
+type HcpOperatorIdentityRoleSet struct {
+	// The resource-specific properties for this resource.
+	Properties *HcpOperatorIdentityRoleSetProperties
+
+	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
+	ID *string
+
+	// READ-ONLY; The name of the resource
+	Name *string
+
+	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
+	SystemData *SystemData
+
+	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
+	Type *string
+}
+
+// HcpOperatorIdentityRoleSetListResult - The response of a HcpOperatorIdentityRoleSet list operation.
+type HcpOperatorIdentityRoleSetListResult struct {
+	// REQUIRED; The HcpOperatorIdentityRoleSet items on this page
+	Value []*HcpOperatorIdentityRoleSet
+
+	// The link to the next page of items
+	NextLink *string
+}
+
+// HcpOperatorIdentityRoleSetProperties - HCP Operator Identity Roles properties
+type HcpOperatorIdentityRoleSetProperties struct {
+	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Control Plane operators on a cluster.
+	ControlPlaneOperators []*OperatorIdentityRoles
+
+	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Data Plane operators on a cluster.
+	DataPlaneOperators []*OperatorIdentityRoles
+}
+
+// KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
+// to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
+type KmsEncryptionProfile struct {
+	// REQUIRED; The details of the active key.
+	ActiveKey *KmsKey
+}
+
+// KmsKey - A representation of a KeyVault Secret.
+type KmsKey struct {
+	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
+	Name *string
+
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
+	VaultName *string
+
+	// REQUIRED; version contains the version of the key to use.
+	Version *string
 }
 
 // Label represents the Kubernetes label
@@ -524,16 +658,12 @@ type NodePoolPlatformProfile struct {
 	// * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
 	AvailabilityZone *string
 
-	// The OS disk size in GiB
-	DiskSizeGiB *int32
-
-	// The type of the disk storage account
-	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
-	DiskStorageAccountType *DiskStorageAccountType
-
 	// Whether to enable host based OS and data drive encryption.
 	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
 	EnableEncryptionAtHost *bool
+
+	// The settings and configuration options for OSDisk
+	OSDisk *OsDiskProfile
 
 	// The Azure resource ID of the worker subnet
 	SubnetID *string
@@ -552,6 +682,14 @@ type NodePoolProperties struct {
 
 	// Kubernetes labels to propagate to the NodePool Nodes
 	Labels []*Label
+
+	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
+	// any node draining operation. After this grace period, any workloads
+	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
+	// is especially relevant to cluster upgrades.
+	// Valid values are from 0 to 10080 minutes (1 week) . 0 means that the NodePool can be drained without any time limitation.
+	// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
+	NodeDrainTimeoutMinutes *int32
 
 	// The number of worker nodes, it cannot be used together with autoscaling
 	Replicas *int32
@@ -573,6 +711,14 @@ type NodePoolPropertiesUpdate struct {
 
 	// Kubernetes labels to propagate to the NodePool Nodes
 	Labels []*Label
+
+	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
+	// any node draining operation. After this grace period, any workloads
+	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
+	// is especially relevant to cluster upgrades.
+	// Valid values are from 0 to 10080 minutes (1 week) . 0 means that the NodePool can be drained without any time limitation.
+	// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
+	NodeDrainTimeoutMinutes *int32
 
 	// The number of worker nodes, it cannot be used together with autoscaling
 	Replicas *int32
@@ -666,6 +812,18 @@ type OperationListResult struct {
 	Value []*Operation
 }
 
+// OperatorIdentityRoles - Role definitions for a specific operator
+type OperatorIdentityRoles struct {
+	// REQUIRED; Name of the operator
+	Name *string
+
+	// REQUIRED; Whether or not the operator is required for installation
+	Required *OperatorIdentityRequired
+
+	// REQUIRED; The role definitions required to be assigned to the identity assumed by this operator
+	RoleDefinitions []*RoleDefinition
+}
+
 // OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
 type OperatorsAuthenticationProfile struct {
 	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
@@ -678,6 +836,24 @@ type OperatorsAuthenticationProfileUpdate struct {
 	// Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
 	// based on Azure User-Assigned Managed Identities
 	UserAssignedIdentities *UserAssignedIdentitiesProfileUpdate
+}
+
+// OsDiskProfile - The settings and configuration options for OSDisk
+type OsDiskProfile struct {
+	// The type of the disk storage account
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+	DiskStorageAccountType *DiskStorageAccountType
+
+	// The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs. This needs to exist in the same subscription
+	// id listed in the Hosted Cluster,
+	// HostedCluster.Spec.Platform.Azure.SubscriptionID. DiskEncryptionSetID should also exist in a resource group under the same
+	// subscription id and the same location listed in the Hosted Cluster,
+	// HostedCluster.Spec.Platform.Azure.Location.
+	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
+	EncryptionSetID *string
+
+	// The OS disk size in GiB
+	SizeGiB *int32
 }
 
 // PlatformProfile - Azure specific configuration
@@ -736,6 +912,15 @@ type Resource struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// RoleDefinition - A single role definition required by a given operator
+type RoleDefinition struct {
+	// REQUIRED; The name of the required role definition
+	Name *string
+
+	// REQUIRED; The resource ID of the role definition
+	ResourceID *string
 }
 
 // SystemData - Metadata pertaining to creation and last modification of the resource.

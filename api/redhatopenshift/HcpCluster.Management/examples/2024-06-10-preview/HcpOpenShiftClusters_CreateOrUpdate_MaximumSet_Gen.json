@@ -19,7 +19,8 @@
           "networkType": "OVNKubernetes",
           "podCidr": "10.128.0.0/14",
           "serviceCidr": "172.30.0.0/16",
-          "machineCidr": "10.0.0.0/16"
+          "machineCidr": "10.0.0.0/16",
+          "hostPrefix": 21
         },
         "api": {
           "visibility": "Public"
@@ -36,7 +37,35 @@
               "serviceManagedIdentity": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI"
             }
           }
-        }
+        },
+        "console": {},
+        "autoscaling": {
+          "maxNodesTotal": 0,
+          "maxPodGracePeriodSeconds": 0,
+          "maxNodeProvisionTimeSeconds": 0,
+          "podPriorityThreshold": 1
+        },
+        "capabilities": {
+          "disabled": [
+            "ImageRegistry"
+          ]
+        },
+        "etcd": {
+          "dataEncryption": {
+            "keyManagementMode": "CustomerManaged",
+            "customerManaged": {
+              "encryptionType": "KMS",
+              "kms": {
+                "activeKey": {
+                  "vaultName": "my-cool-vault",
+                  "name": "my-cool-key",
+                  "version": "8e73e7d1fd7d4a87b730f676fc77d3a6"
+                }
+              }
+            }
+          }
+        },
+        "nodeDrainTimeoutMinutes": 20
       },
       "identity": {
         "type": "UserAssigned",
@@ -56,23 +85,23 @@
         "properties": {
           "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable"
+            "channelGroup": "stable",
+            "id": "4.12"
           },
           "dns": {
+            "baseDomainPrefix": "jcldjrtyebhrlxs",
             "baseDomain": "yubrqcgqdhgqfkobjqm"
           },
           "network": {
             "networkType": "OVNKubernetes",
             "podCidr": "10.128.0.0/14",
             "serviceCidr": "172.30.0.0/16",
-            "machineCidr": "10.0.0.0/16"
-          },
-          "console": {
-            "url": "https://console.test.shrd.usw3test.hcp.osadev.cloud"
+            "machineCidr": "10.0.0.0/16",
+            "hostPrefix": 21
           },
           "api": {
-            "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443",
-            "visibility": "Public"
+            "visibility": "Public",
+            "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443"
           },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
@@ -87,7 +116,38 @@
               }
             },
             "issuerUrl": "https://oidc.contoso.com"
-          }
+          },
+          "provisioningState": "Succeeded",
+          "console": {
+            "url": "https://console.test.shrd.usw3test.hcp.osadev.cloud"
+          },
+          "autoscaling": {
+            "maxNodesTotal": 0,
+            "maxPodGracePeriodSeconds": 0,
+            "maxNodeProvisionTimeSeconds": 0,
+            "podPriorityThreshold": 1
+          },
+          "capabilities": {
+            "disabled": [
+              "ImageRegistry"
+            ]
+          },
+          "etcd": {
+            "dataEncryption": {
+              "keyManagementMode": "CustomerManaged",
+              "customerManaged": {
+                "encryptionType": "KMS",
+                "kms": {
+                  "activeKey": {
+                    "vaultName": "my-cool-vault",
+                    "name": "my-cool-key",
+                    "version": "8e73e7d1fd7d4a87b730f676fc77d3a6"
+                  }
+                }
+              }
+            }
+          },
+          "nodeDrainTimeoutMinutes": 20
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
@@ -123,25 +183,24 @@
       },
       "body": {
         "properties": {
-          "provisioningState": "Succeeded",
           "version": {
-            "channelGroup": "stable"
+            "channelGroup": "stable",
+            "id": "4.12"
           },
           "dns": {
+            "baseDomainPrefix": "jcldjrtyebhrlxs",
             "baseDomain": "yubrqcgqdhgqfkobjqm"
           },
           "network": {
             "networkType": "OVNKubernetes",
             "podCidr": "10.128.0.0/14",
             "serviceCidr": "172.30.0.0/16",
-            "machineCidr": "10.0.0.0/16"
-          },
-          "console": {
-            "url": "https://console.test.shrd.usw3test.hcp.osadev.cloud"
+            "machineCidr": "10.0.0.0/16",
+            "hostPrefix": 21
           },
           "api": {
-            "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443",
-            "visibility": "Public"
+            "visibility": "Public",
+            "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443"
           },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
@@ -156,7 +215,38 @@
               }
             },
             "issuerUrl": "https://oidc.contoso.com"
-          }
+          },
+          "provisioningState": "Succeeded",
+          "console": {
+            "url": "https://console.test.shrd.usw3test.hcp.osadev.cloud"
+          },
+          "autoscaling": {
+            "maxNodesTotal": 0,
+            "maxPodGracePeriodSeconds": 0,
+            "maxNodeProvisionTimeSeconds": 0,
+            "podPriorityThreshold": 1
+          },
+          "capabilities": {
+            "disabled": [
+              "ImageRegistry"
+            ]
+          },
+          "etcd": {
+            "dataEncryption": {
+              "keyManagementMode": "CustomerManaged",
+              "customerManaged": {
+                "encryptionType": "KMS",
+                "kms": {
+                  "activeKey": {
+                    "vaultName": "my-cool-vault",
+                    "name": "my-cool-key",
+                    "version": "8e73e7d1fd7d4a87b730f676fc77d3a6"
+                  }
+                }
+              }
+            }
+          },
+          "nodeDrainTimeoutMinutes": 20
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
@@ -169,9 +259,7 @@
             }
           }
         },
-        "tags": {
-          "key4181": "leaswtidajsjtgmqawhdl"
-        },
+        "tags": {},
         "location": "ayecbdqonsqfowbq",
         "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",
         "name": "vuwzuwooutjavgdhoatz",
